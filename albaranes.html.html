@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GestiónAlbaranes — Transportes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0e0d;--sf:#131716;--s2:#191e1c;--bd:#243030;
+  --ac:#00e87a;--wn:#f5a623;--er:#e84040;--in:#7b8ff0;--pu:#c084fc;
+  --tx:#ddeae0;--mu:#527060;
+  --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'Bebas Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh}
+
+.hdr{position:sticky;top:0;z-index:200;background:rgba(12,14,13,.97);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bd);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--dp);font-size:22px;letter-spacing:3px;color:var(--ac);display:flex;align-items:center;gap:8px}
+.logo-sq{width:26px;height:26px;background:var(--ac);border-radius:5px;display:grid;place-items:center;font-size:13px}
+.hdr-r{display:flex;align-items:center;gap:8px}
+
+.btn{font-family:var(--mn);font-size:11px;font-weight:600;padding:7px 14px;border-radius:6px;
+  border:none;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+.bp{background:var(--ac);color:#000}.bp:hover{background:#1ffb89;transform:translateY(-1px)}
+.bs{background:transparent;border:1px solid var(--bd);color:var(--tx)}.bs:hover{border-color:var(--ac);color:var(--ac)}
+.br{background:transparent;border:1px solid var(--er);color:var(--er)}.br:hover{background:var(--er);color:#fff}
+.bw{background:transparent;border:1px solid var(--wn);color:var(--wn)}.bw:hover{background:var(--wn);color:#000}
+.btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important}
+
+.wrap{max-width:1600px;margin:0 auto;padding:20px 24px}
+
+.setup{background:linear-gradient(135deg,rgba(0,232,122,.06),transparent);
+  border:1px solid rgba(0,232,122,.2);border-radius:10px;padding:16px 20px;margin-bottom:18px}
+.setup h3{font-family:var(--mn);font-size:11px;color:var(--ac);margin-bottom:8px;letter-spacing:1px}
+.setup p{font-size:13px;color:var(--mu);line-height:1.7;margin-bottom:12px}
+.setup p a{color:var(--ac);text-decoration:none}
+.setup-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ki{flex:1;min-width:220px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;
+  padding:8px 12px;font-family:var(--mn);font-size:12px;color:var(--tx);outline:none;transition:border-color .15s}
+.ki:focus{border-color:var(--ac)}
+.ks{font-family:var(--mn);font-size:12px;color:var(--ac);background:rgba(0,232,122,.08);
+  border:1px solid rgba(0,232,122,.2);border-radius:6px;padding:7px 14px;display:inline-flex;align-items:center;gap:8px}
+
+.alerts{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.alert-banner{border-radius:9px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.alert-dup{background:rgba(232,64,64,.08);border:1px solid rgba(232,64,64,.3);color:var(--er)}
+.alert-warn{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);color:var(--wn)}
+.alert-txt{font-family:var(--mn);font-size:12px}
+.alert-actions{display:flex;gap:8px}
+
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--sf);border:1px solid var(--bd);border-radius:9px;padding:14px 16px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--c,var(--ac))}
+.stat-l{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+.stat-v{font-family:var(--dp);font-size:28px;line-height:1}
+.stat-s{font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px}
+.stat.warn-stat{border-color:rgba(245,166,35,.3)}
+.stat.err-stat{border-color:rgba(232,64,64,.3)}
+
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;margin-bottom:18px;overflow:hidden}
+.card-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card-bd{padding:18px 20px}
+.st{font-family:var(--dp);font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:8px}
+.dot{width:6px;height:6px;background:var(--c,var(--ac));border-radius:50%;box-shadow:0 0 6px var(--c,var(--ac));flex-shrink:0}
+
+.dz{border:2px dashed var(--bd);border-radius:9px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.dz:hover,.dz.ov{border-color:var(--ac);background:rgba(0,232,122,.03)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-ic{font-size:34px;margin-bottom:6px}
+.dz-t{font-family:var(--mn);font-size:12px;color:var(--mu);margin-bottom:3px}
+.dz-s{font-size:11px;color:var(--mu);opacity:.55}
+.hl{color:var(--ac)}
+
+.queue{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.qi{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:8px 12px;
+  display:flex;align-items:center;gap:10px;animation:si .25s ease}
+@keyframes si{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.qi-th{width:34px;height:34px;border-radius:4px;object-fit:cover;border:1px solid var(--bd);flex-shrink:0;background:var(--s3)}
+.qi-info{flex:1;min-width:0}
+.qi-nm{font-family:var(--mn);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;margin-bottom:2px}
+.qi-st{font-family:var(--mn);font-size:10px}
+.s-pending{color:var(--mu)}.s-processing{color:var(--wn)}.s-done{color:var(--ac)}.s-error{color:var(--er)}
+.pb{flex:1;height:3px;background:var(--bd);border-radius:2px;overflow:hidden}
+.pf{height:100%;background:var(--ac);border-radius:2px;transition:width .4s;box-shadow:0 0 5px var(--ac)}
+.qi-rm{background:none;border:none;color:var(--er);font-size:14px;cursor:pointer;padding:4px;opacity:.4;transition:opacity .15s}
+.qi-rm:hover{opacity:1}
+.pbar{display:flex;align-items:center;gap:12px;margin-top:12px}
+.qc{font-family:var(--mn);font-size:11px;color:var(--mu)}
+
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:14px}
+.fil-group{display:flex;flex-direction:column;gap:5px}
+.fil-label{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px}
+.fil-sel,.fil-inp{background:var(--s2);border:1px solid var(--bd);border-radius:6px;
+  padding:7px 10px;font-family:var(--mn);font-size:11px;color:var(--tx);outline:none;
+  transition:border-color .15s;width:100%;appearance:none;cursor:pointer}
+.fil-sel:focus,.fil-inp:focus{border-color:var(--ac)}
+.fil-sel option{background:var(--s2);color:var(--tx)}
+.filter-actions{display:flex;align-items:flex-end}
+
+.tbl-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.srch{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);
+  border-radius:7px;padding:7px 12px;transition:border-color .15s}
+.srch:focus-within{border-color:var(--ac)}
+.srch input{background:none;border:none;outline:none;color:var(--tx);font-family:var(--mn);font-size:11px;width:180px}
+.srch input::placeholder{color:var(--mu)}
+.tbl-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.res-count{font-family:var(--mn);font-size:10px;color:var(--mu)}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:1px solid var(--bd)}
+th{padding:9px 12px;text-align:left;font-family:var(--mn);font-size:9px;color:var(--mu);
+  text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--ac)}
+th.sort-asc::after{content:' ↑';color:var(--ac)}
+th.sort-desc::after{content:' ↓';color:var(--ac)}
+td{padding:10px 12px;font-size:11px;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr{transition:background .1s;cursor:pointer}
+tbody tr:hover{background:var(--s2)}
+tbody tr.row-dup{background:rgba(232,64,64,.05);opacity:.7}
+tbody tr.row-dup:hover{background:rgba(232,64,64,.1)}
+tbody tr.row-warn{background:rgba(245,166,35,.04)}
+tbody tr.row-warn:hover{background:rgba(245,166,35,.09)}
+
+.tag-n{background:rgba(0,232,122,.1);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px;border:1px solid rgba(0,232,122,.2)}
+.tag-tm{color:var(--wn);font-weight:600;font-size:12px}
+.tag-mat{color:var(--pu)}
+.tag-prov{color:var(--in)}
+.tag-dest{color:var(--ac);opacity:.8}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--mn);white-space:nowrap}
+.badge-ok{background:rgba(0,232,122,.1);color:var(--ac);border:1px solid rgba(0,232,122,.2)}
+.badge-dup{background:rgba(232,64,64,.12);color:var(--er);border:1px solid rgba(232,64,64,.3)}
+.badge-warn{background:rgba(245,166,35,.12);color:var(--wn);border:1px solid rgba(245,166,35,.3)}
+.badge-ileg{background:rgba(123,143,240,.12);color:var(--in);border:1px solid rgba(123,143,240,.3)}
+
+.empty{text-align:center;padding:48px;color:var(--mu)}
+.empty-ic{font-size:40px;margin-bottom:10px}
+.empty p{font-family:var(--mn);font-size:12px;line-height:1.9}
+
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(5px);
+  z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.ov.open{display:flex}
+.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;
+  width:780px;max-width:100%;max-height:92vh;overflow-y:auto;animation:mi .2s}
+@keyframes mi{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.m-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.m-cl{background:none;border:none;color:var(--mu);font-size:20px;cursor:pointer;transition:color .15s;padding:4px}
+.m-cl:hover{color:var(--tx)}
+.m-bd{padding:20px}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg.full{grid-column:1/-1}
+.fl{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px}
+.fi{background:var(--s2);border:1px solid var(--bd);border-radius:6px;
+  padding:7px 11px;font-family:var(--mn);font-size:12px;color:var(--tx);outline:none;
+  transition:border-color .15s;width:100%}
+.fi:focus{border-color:var(--ac)}
+.m-alert{border-radius:8px;padding:12px 16px;margin-bottom:16px;font-family:var(--mn);font-size:12px;line-height:1.7}
+.m-alert-dup{background:rgba(232,64,64,.08);border:1px solid rgba(232,64,64,.3);color:var(--er)}
+.m-alert-warn{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);color:var(--wn)}
+.m-ft{padding:12px 20px;border-top:1px solid var(--bd);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+.toast{position:fixed;bottom:18px;right:18px;background:var(--sf);border:1px solid var(--ac);
+  color:var(--ac);padding:10px 16px;border-radius:8px;font-family:var(--mn);font-size:12px;
+  z-index:9999;transform:translateY(70px);opacity:0;transition:all .3s;pointer-events:none;max-width:360px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{border-color:var(--er);color:var(--er)}
+.toast.warn{border-color:var(--wn);color:var(--wn)}
+
+@media(max-width:1200px){.stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.wrap{padding:14px 16px}.hdr{padding:0 16px}th:nth-child(n+8),td:nth-child(n+8){display:none}}
+@media(max-width:600px){th:nth-child(n+5),td:nth-child(n+5){display:none}.srch input{width:110px}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo"><div class="logo-sq">🚛</div>ALBARANES</div>
+  <div class="hdr-r">
+    <span id="hdrInfo" style="font-family:var(--mn);font-size:11px;color:var(--mu)"></span>
+    <button class="btn bs" onclick="exportExcel()">📊 Excel</button>
+    <button class="btn bp" onclick="document.getElementById('fHdr').click()">+ Subir</button>
+    <input type="file" id="fHdr" accept="image/*,.pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div id="setupBox" class="setup">
+    <h3>⚙ PASO 1 — CONFIGURAR API KEY (solo una vez)</h3>
+    <p>
+      Para que la IA lea tus albaranes necesitas una API Key de Anthropic.<br>
+      1. Ve a <a href="https://console.anthropic.com" target="_blank">platform.claude.com</a> → Gestionar → Claves de API → Crear clave<br>
+      2. Copia la clave y pégala aquí. <strong>Se guarda solo en tu navegador</strong>, nunca sale de tu dispositivo.
+    </p>
+    <div class="setup-row">
+      <input class="ki" type="password" id="apiKeyInput" placeholder="sk-ant-api03-...">
+      <button class="btn bp" onclick="saveKey()">Guardar clave</button>
+    </div>
+  </div>
+
+  <div class="alerts" id="alertsBox"></div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-l">Albaranes válidos</div>
+      <div class="stat-v" id="sTotal">0</div>
+      <div class="stat-s">contabilizados</div>
+    </div>
+    <div class="stat" style="--c:var(--wn)">
+      <div class="stat-l">TN Netas válidas</div>
+      <div class="stat-v" id="sTM">0</div>
+      <div class="stat-s">sin duplicados</div>
+    </div>
+    <div class="stat" style="--c:var(--in)">
+      <div class="stat-l">Este mes</div>
+      <div class="stat-v" id="sMes">0</div>
+      <div class="stat-s" id="sMesLbl">albaranes</div>
+    </div>
+    <div class="stat" style="--c:var(--pu)">
+      <div class="stat-l">Vehículos</div>
+      <div class="stat-v" id="sVeh">0</div>
+      <div class="stat-s">matrículas distintas</div>
+    </div>
+    <div class="stat err-stat" style="--c:var(--er)">
+      <div class="stat-l">⛔ Duplicados</div>
+      <div class="stat-v" id="sDup" style="color:var(--er)">0</div>
+      <div class="stat-s">no contabilizados</div>
+    </div>
+    <div class="stat warn-stat" style="--c:var(--wn)">
+      <div class="stat-l">⚠ Revisar</div>
+      <div class="stat-v" id="sWarn" style="color:var(--wn)">0</div>
+      <div class="stat-s">calidad/ilegibles</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <div class="st"><span class="dot"></span>SUBIR ALBARANES</div>
+      <span style="font-family:var(--mn);font-size:10px;color:var(--mu)">JPG · PNG · PDF (varias páginas) · Portland · Holcim · Cemex · Àrids Garcia · Canro · y más</span>
+    </div>
+    <div class="card-bd">
+      <div class="dz" id="dz">
+        <input type="file" accept="image/*,.pdf" multiple id="fMain" onchange="handleFiles(this.files)">
+        <div class="dz-ic">📄</div>
+        <div class="dz-t">Arrastra fotos o PDFs · <span class="hl">o haz clic para seleccionar</span></div>
+        <div class="dz-s">JPG · PNG · PDF (una o varias páginas) · Varios archivos a la vez · Cualquier orientación</div>
+      </div>
+      <div class="queue" id="queue"></div>
+      <div class="pbar" id="pbar" style="display:none">
+        <span class="qc" id="qc"></span>
+        <button class="btn bp" id="procBtn" onclick="processAll()">⚡ Procesar con IA</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <div class="st"><span class="dot" style="--c:var(--wn)"></span>REGISTRO DE ALBARANES</div>
+      <div class="tbl-acts">
+        <button class="btn bs" onclick="exportExcel()">📊 Excel completo</button>
+        <button class="btn bs" onclick="exportExcelFiltrado()" id="btnExFil" style="display:none">📊 Excel filtrado</button>
+        <button class="btn br" onclick="clearAll()">🗑</button>
+      </div>
+    </div>
+    <div class="card-bd">
+      <div class="filters">
+        <div class="fil-group">
+          <div class="fil-label">📅 Fecha desde</div>
+          <input type="date" class="fil-inp" id="fDesde" onchange="applyFilters()">
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">📅 Fecha hasta</div>
+          <input type="date" class="fil-inp" id="fHasta" onchange="applyFilters()">
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">🏭 Proveedor</div>
+          <select class="fil-sel" id="fProv" onchange="applyFilters()"><option value="">Todos</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">📍 Origen</div>
+          <select class="fil-sel" id="fOrigen" onchange="applyFilters()"><option value="">Todos</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">🏁 Destino</div>
+          <select class="fil-sel" id="fDestino" onchange="applyFilters()"><option value="">Todos</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">🚛 Matrícula</div>
+          <select class="fil-sel" id="fMat" onchange="applyFilters()"><option value="">Todas</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">📦 Material</div>
+          <select class="fil-sel" id="fMat2" onchange="applyFilters()"><option value="">Todos</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">👤 Comprador</div>
+          <select class="fil-sel" id="fComp" onchange="applyFilters()"><option value="">Todos</option></select>
+        </div>
+        <div class="fil-group">
+          <div class="fil-label">🔎 Estado</div>
+          <select class="fil-sel" id="fEstado" onchange="applyFilters()">
+            <option value="">Todos</option>
+            <option value="ok">✓ Válidos</option>
+            <option value="dup">⛔ Duplicados</option>
+            <option value="warn">⚠ A revisar</option>
+          </select>
+        </div>
+        <div class="fil-group filter-actions">
+          <div class="fil-label">&nbsp;</div>
+          <button class="btn bs" onclick="resetFilters()" style="width:100%">✕ Limpiar</button>
+        </div>
+      </div>
+      <div class="tbl-top">
+        <div class="srch">
+          <span style="color:var(--mu)">🔍</span>
+          <input type="text" placeholder="Buscar en todos los campos..." oninput="applyFilters()" id="srchIn">
+        </div>
+        <span class="res-count" id="resCount"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px"></th>
+              <th onclick="sortBy('fecha')" id="th-fecha">Fecha</th>
+              <th onclick="sortBy('tractora')" id="th-tractora">Matrícula</th>
+              <th onclick="sortBy('tm')" id="th-tm">TN Netas</th>
+              <th onclick="sortBy('albaran')" id="th-albaran">Nº Albarán</th>
+              <th onclick="sortBy('proveedor')" id="th-proveedor">Proveedor</th>
+              <th onclick="sortBy('planta')" id="th-planta">Origen</th>
+              <th onclick="sortBy('obra')" id="th-obra">Destino</th>
+              <th onclick="sortBy('producto')" id="th-producto">Material</th>
+              <th onclick="sortBy('cliente')" id="th-cliente">Comprador</th>
+              <th onclick="sortBy('_ts')" id="th-_ts">Subido</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyState">
+        <div class="empty-ic">📋</div>
+        <p>Sin albaranes todavía.<br>Sube fotos o PDFs y pulsa <span style="color:var(--ac)">⚡ Procesar con IA</span>.<br>
+        <span style="color:var(--mu)">Portland · Holcim · Cemex · Àrids Garcia · Canro · y cualquier otro</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="m-hd">
+      <div class="st" style="font-size:15px"><span class="dot"></span>DETALLE / EDITAR</div>
+      <div id="mBadge"></div>
+      <button class="m-cl" onclick="closeModal()">✕</button>
+    </div>
+    <div class="m-bd">
+      <div id="mAlert"></div>
+      <div class="mg" id="mFields"></div>
+    </div>
+    <div class="m-ft" id="mFooter"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── STATE ──────────────────────────────────────────────
+let records  = [];
+let filtered = [];
+let pending  = [];
+let editId   = null;
+let sortCol  = 'fecha';
+let sortDir  = -1;
+
+try { records = JSON.parse(localStorage.getItem('alb_v6') || '[]'); } catch(e){}
+
+// ── PDF → IMAGES ───────────────────────────────────────
+async function pdfToImages(arrayBuffer) {
+  const pdf    = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const images = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page     = await pdf.getPage(i);
+    const scale    = 2.0; // high resolution
+    const viewport = page.getViewport({ scale });
+    const canvas   = document.createElement('canvas');
+    canvas.width   = viewport.width;
+    canvas.height  = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    images.push(canvas.toDataURL('image/jpeg', 0.92));
+  }
+  return images;
+}
+
+// ── API KEY ────────────────────────────────────────────
+function getKey(){ return localStorage.getItem('alb_key') || ''; }
+function saveKey(){
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if(!v.startsWith('sk-ant')){ toast('Clave inválida — debe empezar por sk-ant-...','err'); return; }
+  localStorage.setItem('alb_key', v);
+  renderSetup();
+  toast('✓ API Key guardada');
+}
+function renderSetup(){
+  if(getKey()){
+    document.getElementById('setupBox').innerHTML = `
+      <h3>✓ API KEY CONFIGURADA</h3>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span class="ks">✓ Clave activa — IA lista para leer albaranes</span>
+        <button class="btn bs" style="font-size:10px;padding:5px 11px"
+          onclick="localStorage.removeItem('alb_key');location.reload()">Cambiar clave</button>
+      </div>`;
+  }
+}
+
+// ── DRAG & DROP ────────────────────────────────────────
+const dz = document.getElementById('dz');
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('ov'); });
+dz.addEventListener('dragleave', ()=> dz.classList.remove('ov'));
+dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('ov'); handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(files) {
+  for (const f of Array.from(files)) {
+    if (f.type === 'application/pdf') {
+      // Convert PDF pages to images
+      const id = Date.now() + Math.random();
+      pending.push({ id, file: f, url: null, isPdf: true, status: 'pending', pdfName: f.name });
+      renderQueue();
+      try {
+        const buf    = await f.arrayBuffer();
+        const images = await pdfToImages(buf);
+        // Remove placeholder and add one entry per page
+        pending = pending.filter(x => x.id !== id);
+        images.forEach((imgUrl, idx) => {
+          pending.push({
+            id: Date.now() + Math.random(),
+            file: f,
+            url: imgUrl,
+            isPdf: true,
+            status: 'pending',
+            pdfName: f.name,
+            pageLabel: images.length > 1 ? ` (pág. ${idx+1}/${images.length})` : ''
+          });
+        });
+        renderQueue();
+      } catch(e) {
+        pending = pending.filter(x => x.id !== id);
+        toast('Error leyendo PDF: ' + f.name, 'err');
+        renderQueue();
+      }
+    } else {
+      // Image file
+      const id = Date.now() + Math.random();
+      const reader = new FileReader();
+      reader.onload = e => {
+        pending.push({ id, file: f, url: e.target.result, isPdf: false, status: 'pending', pdfName: '', pageLabel: '' });
+        renderQueue();
+      };
+      reader.readAsDataURL(f);
+    }
+  }
+  document.getElementById('fMain').value = '';
+  document.getElementById('fHdr').value  = '';
+}
+
+function renderQueue(){
+  const q  = document.getElementById('queue');
+  const pb = document.getElementById('pbar');
+  q.innerHTML = pending.map(it => `
+    <div class="qi">
+      ${it.url ? `<img class="qi-th" src="${it.url}">` : `<div class="qi-th" style="display:grid;place-items:center;font-size:18px">📄</div>`}
+      <div class="qi-info">
+        <div class="qi-nm">${it.isPdf ? '📄 ' : '🖼 '}${it.pdfName||it.file.name}${it.pageLabel||''}</div>
+        <div class="qi-st s-${it.status}">${stLbl(it.status)}</div>
+      </div>
+      <div class="pb"><div class="pf" style="width:${it.status==='done'?100:it.status==='processing'?65:0}%"></div></div>
+      ${it.status==='pending'?`<button class="qi-rm" onclick="rmPending(${it.id})">✕</button>`:''}
+    </div>`).join('');
+  const np = pending.filter(x => x.status === 'pending').length;
+  pb.style.display = pending.length ? 'flex' : 'none';
+  document.getElementById('qc').textContent = `${np} pendiente(s)`;
+  document.getElementById('procBtn').disabled = np === 0;
+}
+
+function stLbl(s){ return {pending:'Pendiente',processing:'⏳ Leyendo con IA...',done:'✓ Procesado',error:'✗ Error al leer'}[s]||s; }
+function rmPending(id){ pending = pending.filter(x => x.id !== id); renderQueue(); }
+
+// ── AI PROCESSING ──────────────────────────────────────
+async function processAll(){
+  const key = getKey();
+  if(!key){ toast('Configura tu API Key primero','err'); return; }
+  const todo = pending.filter(x => x.status === 'pending');
+  if(!todo.length) return;
+  document.getElementById('procBtn').disabled = true;
+
+  for(const it of todo){
+    it.status = 'processing'; renderQueue();
+    try{
+      const data = await callClaude(it.url, key);
+      data._id   = Date.now() + Math.random();
+      data._file = (it.pdfName || it.file.name) + (it.pageLabel||'');
+      data._ts   = new Date().toISOString();
+      records.unshift(data);
+      it.status = 'done';
+    } catch(e){
+      it.status = 'error';
+      toast('Error en ' + it.file.name + ': ' + e.message, 'err');
+    }
+    renderQueue();
+    analyzeRecords();
+    saveData();
+    applyFilters();
+    updateStats();
+    renderAlerts();
+    await sleep(350);
+  }
+
+  const ok = todo.filter(x=>x.status==='done').length;
+  pending  = pending.filter(x=>x.status!=='done');
+  setTimeout(()=>{ pending=[]; renderQueue(); }, 2500);
+  toast(`✓ ${ok} albarán(es) procesados`);
+}
+
+async function callClaude(dataUrl, key){
+  const b64 = dataUrl.split(',')[1];
+
+  const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
+Analiza el albarán (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, u otros) en cualquier orientación.
+Si la imagen es ilegible o de mala calidad, añade en observaciones: "CALIDAD_BAJA: motivo".
+
+Devuelve ÚNICAMENTE JSON válido sin markdown:
+{
+  "albaran": "número completo del albarán",
+  "fecha": "DD/MM/YYYY",
+  "proveedor": "empresa que emite / razón social",
+  "cliente": "empresa compradora / nombre comprador",
+  "obra": "destino: obra, planta hormigonera, pueblo o ciudad",
+  "planta": "origen: cantera, planta o lugar de carga",
+  "tractora": "matrícula del camión",
+  "remolque": "matrícula remolque o null",
+  "tara_kg": número kg o null,
+  "bruto_kg": número kg o null,
+  "tm": número decimal toneladas métricas netas,
+  "producto": "descripción del material",
+  "transportista": "empresa transportista",
+  "hora_entrada": "HH:MM o null",
+  "hora_salida": "HH:MM o null",
+  "observaciones": "observaciones o CALIDAD_BAJA: motivo"
+}
+Reglas tm: TM, T.M., Neto, P.NET, Cantidad TNE, Unidades.
+Si no: tm=(bruto_kg-tara_kg)/1000. Nunca null si hay pesos.
+Holcim traslado: Cantidad TNE=tm. Àrids Garcia: P.NET=tm. Canro: Unidades=tm. Cemex: Cantidad TO=tm.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+        {type:'text',text:prompt}
+      ]}]
+    })
+  });
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`HTTP ${res.status}`); }
+  const d=await res.json();
+  const text=d.content.map(x=>x.text||'').join('').trim();
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+// ── DUPLICATE & QUALITY ────────────────────────────────
+function qualityScore(r){
+  return ['albaran','fecha','tractora','tm','proveedor','planta','obra','producto','cliente']
+    .filter(k=>r[k]!=null&&String(r[k]).trim()!=='').length;
+}
+function analyzeRecords(){
+  records.forEach(r=>{ r._dup=false; r._dupOf=null; r._quality=null; });
+  const seen={};
+  records.forEach(r=>{
+    if(!r.albaran) return;
+    const key=(String(r.albaran).trim().toUpperCase())+'|'+(r.proveedor||'').trim().toUpperCase();
+    if(seen[key]){ r._dup=true; r._dupOf=seen[key]; } else { seen[key]=r._id; }
+  });
+  records.forEach(r=>{
+    if(r._dup) return;
+    const s=qualityScore(r);
+    r._quality = s<=3?'ilegible':s<=6?'warn':'ok';
+  });
+}
+
+// ── ALERTS ────────────────────────────────────────────
+function renderAlerts(){
+  const dups  = records.filter(r=>r._dup);
+  const warns = records.filter(r=>!r._dup&&(r._quality==='warn'||r._quality==='ilegible'));
+  let html='';
+  if(dups.length) html+=`<div class="alert-banner alert-dup">
+    <div class="alert-txt">⛔ <strong>${dups.length} albarán(es) duplicado(s)</strong> — no se contabilizan en TN.</div>
+    <div class="alert-actions"><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('dup')">Ver duplicados</button></div>
+  </div>`;
+  if(warns.length){
+    const ileg=warns.filter(r=>r._quality==='ilegible').length;
+    const low=warns.filter(r=>r._quality==='warn').length;
+    let msg='⚠ ';
+    if(ileg) msg+=`<strong>${ileg} ilegible(s)</strong> (foto borrosa o falta tinta). `;
+    if(low)  msg+=`<strong>${low} con campos incompletos</strong>.`;
+    html+=`<div class="alert-banner alert-warn">
+      <div class="alert-txt">${msg}</div>
+      <div class="alert-actions"><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver a revisar</button></div>
+    </div>`;
+  }
+  document.getElementById('alertsBox').innerHTML=html;
+}
+function filterByStatus(st){ document.getElementById('fEstado').value=st; applyFilters(); }
+
+// ── FILTERS ────────────────────────────────────────────
+function buildDropdowns(){
+  const unique=k=>[...new Set(records.filter(r=>!r._dup).map(r=>r[k]).filter(Boolean))].sort();
+  const fill=(id,vals)=>{ const sel=document.getElementById(id),cur=sel.value; sel.innerHTML=`<option value="">Todos</option>`+vals.map(v=>`<option value="${esc(v)}">${v}</option>`).join(''); if(vals.includes(cur))sel.value=cur; };
+  fill('fProv',unique('proveedor')); fill('fOrigen',unique('planta')); fill('fDestino',unique('obra'));
+  fill('fMat',unique('tractora')); fill('fMat2',unique('producto')); fill('fComp',unique('cliente'));
+}
+function applyFilters(){
+  const desde=document.getElementById('fDesde').value, hasta=document.getElementById('fHasta').value;
+  const prov=document.getElementById('fProv').value, origen=document.getElementById('fOrigen').value;
+  const dest=document.getElementById('fDestino').value, mat=document.getElementById('fMat').value;
+  const mat2=document.getElementById('fMat2').value, comp=document.getElementById('fComp').value;
+  const estado=document.getElementById('fEstado').value, q=(document.getElementById('srchIn').value||'').toLowerCase();
+  filtered=records.filter(r=>{
+    const ts=parseDate(r.fecha||'');
+    if(desde&&ts<new Date(desde).getTime())return false;
+    if(hasta&&ts>new Date(hasta).getTime()+86399999)return false;
+    if(prov&&r.proveedor!==prov)return false;
+    if(origen&&r.planta!==origen)return false;
+    if(dest&&r.obra!==dest)return false;
+    if(mat&&r.tractora!==mat)return false;
+    if(mat2&&r.producto!==mat2)return false;
+    if(comp&&r.cliente!==comp)return false;
+    if(estado==='ok'&&(r._dup||r._quality!=='ok'))return false;
+    if(estado==='dup'&&!r._dup)return false;
+    if(estado==='warn'&&(r._dup||(r._quality!=='warn'&&r._quality!=='ilegible')))return false;
+    if(q){const h=['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha','transportista'];if(!h.some(k=>r[k]&&String(r[k]).toLowerCase().includes(q)))return false;}
+    return true;
+  });
+  filtered.sort((a,b)=>{
+    let av=a[sortCol]??'',bv=b[sortCol]??'';
+    if(sortCol==='fecha'){av=parseDate(av);bv=parseDate(bv);}
+    if(sortCol==='tm'){av=parseFloat(av)||0;bv=parseFloat(bv)||0;}
+    if(sortCol==='_ts'){av=new Date(av||0).getTime();bv=new Date(bv||0).getTime();}
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  renderTable();
+  const validFil=filtered.filter(r=>!r._dup), tmFil=validFil.reduce((s,r)=>s+(parseFloat(r.tm)||0),0);
+  document.getElementById('resCount').textContent=filtered.length===records.length?`${records.length} albaranes`:`${filtered.length} de ${records.length} · ${tmFil.toFixed(3)} TN`;
+  buildDropdowns();
+  const hasF=desde||hasta||prov||origen||dest||mat||mat2||comp||estado||q;
+  document.getElementById('btnExFil').style.display=hasF?'inline-block':'none';
+}
+function resetFilters(){
+  ['fDesde','fHasta','srchIn'].forEach(id=>document.getElementById(id).value='');
+  ['fProv','fOrigen','fDestino','fMat','fMat2','fComp','fEstado'].forEach(id=>document.getElementById(id).value='');
+  applyFilters();
+}
+
+// ── TABLE ──────────────────────────────────────────────
+function rowBadge(r){
+  if(r._dup)return`<span class="badge badge-dup">⛔ Duplicado</span>`;
+  if(r._quality==='ilegible')return`<span class="badge badge-ileg">⚠ Ilegible</span>`;
+  if(r._quality==='warn')return`<span class="badge badge-warn">⚠ Revisar</span>`;
+  return`<span class="badge badge-ok">✓ OK</span>`;
+}
+function fmtTS(ts){
+  if(!ts)return'—';
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function renderTable(){
+  const tbody=document.getElementById('tbody'), empty=document.getElementById('emptyState');
+  document.querySelectorAll('th[id^="th-"]').forEach(th=>{ th.className=th.id==='th-'+sortCol?(sortDir===1?'sort-asc':'sort-desc'):''; });
+  if(!filtered.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=filtered.map(r=>`
+    <tr class="${r._dup?'row-dup':r._quality==='warn'||r._quality==='ilegible'?'row-warn':''}" onclick="openModal('${r._id}')">
+      <td>${rowBadge(r)}</td>
+      <td>${r.fecha||'—'}</td>
+      <td class="tag-mat">${r.tractora||'—'}</td>
+      <td class="${r._dup?'':'tag-tm'}" style="${r._dup?'text-decoration:line-through;color:var(--er);opacity:.5':''}">${r.tm!=null?Number(r.tm).toFixed(3):'—'}</td>
+      <td><span class="tag-n" style="${r._dup?'opacity:.5':''}">${r.albaran||'—'}</span></td>
+      <td class="tag-prov" style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.proveedor||'—'}</td>
+      <td style="color:var(--ac);opacity:.8;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.planta||'—'}</td>
+      <td class="tag-dest" style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.obra||'—'}</td>
+      <td class="tag-mat" style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.producto||'—'}</td>
+      <td style="opacity:.7;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.cliente||'—'}</td>
+      <td style="color:var(--mu);font-size:10px">${fmtTS(r._ts)}</td>
+      <td><button class="btn bs" style="padding:3px 7px;font-size:10px" onclick="event.stopPropagation();openModal('${r._id}')">✏</button></td>
+    </tr>`).join('');
+}
+function parseDate(s){if(!s)return 0;const p=s.split('/');return p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():new Date(s).getTime()||0;}
+function sortBy(col){sortCol===col?sortDir*=-1:(sortCol=col,sortDir=-1);applyFilters();}
+
+// ── STATS ──────────────────────────────────────────────
+function updateStats(){
+  const valid=records.filter(r=>!r._dup), dups=records.filter(r=>r._dup);
+  const warns=records.filter(r=>!r._dup&&(r._quality==='warn'||r._quality==='ilegible'));
+  const tm=valid.reduce((s,r)=>s+(parseFloat(r.tm)||0),0);
+  const now=new Date();
+  const mes=valid.filter(r=>{const d=parseDate(r.fecha||'');if(!d)return false;const dd=new Date(d);return dd.getMonth()===now.getMonth()&&dd.getFullYear()===now.getFullYear();}).length;
+  const vehs=new Set(valid.map(r=>r.tractora).filter(Boolean)).size;
+  document.getElementById('sTotal').textContent=valid.length;
+  document.getElementById('sTM').textContent=tm.toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3});
+  document.getElementById('sMes').textContent=mes;
+  document.getElementById('sVeh').textContent=vehs;
+  document.getElementById('sDup').textContent=dups.length;
+  document.getElementById('sWarn').textContent=warns.length;
+  const M=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  document.getElementById('sMesLbl').textContent=M[now.getMonth()]+' '+now.getFullYear();
+  document.getElementById('hdrInfo').textContent=valid.length?`${valid.length} alb · ${tm.toFixed(1)} TN`:'';
+  buildDropdowns();
+}
+
+// ── MODAL ──────────────────────────────────────────────
+const FIELDS=[
+  {k:'fecha',l:'Fecha (DD/MM/YYYY)'},{k:'tractora',l:'Matrícula Tractora'},{k:'tm',l:'TN Netas'},
+  {k:'tara_kg',l:'Tara (kg)'},{k:'bruto_kg',l:'Bruto (kg)'},{k:'albaran',l:'Nº Albarán',full:true},
+  {k:'proveedor',l:'Nombre Proveedor',full:true},{k:'planta',l:'Origen (cantera/planta)',full:true},
+  {k:'obra',l:'Destino (pueblo/ciudad)',full:true},{k:'producto',l:'Material',full:true},
+  {k:'cliente',l:'Nombre Comprador',full:true},{k:'remolque',l:'Remolque'},
+  {k:'transportista',l:'Transportista',full:true},{k:'hora_entrada',l:'Hora Entrada'},
+  {k:'hora_salida',l:'Hora Salida'},{k:'observaciones',l:'Observaciones',full:true},
+];
+function openModal(id){
+  const r=records.find(x=>String(x._id)===String(id)); if(!r)return;
+  editId=id;
+  document.getElementById('mBadge').innerHTML=rowBadge(r);
+  let alertHtml='';
+  if(r._dup) alertHtml=`<div class="m-alert m-alert-dup">⛔ <strong>Albarán duplicado.</strong> Las TN no se contabilizan. Si es correcto, puedes marcarlo como válido.</div>`;
+  else if(r._quality==='ilegible') alertHtml=`<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong> ${(r.observaciones||'').replace('CALIDAD_BAJA:','').trim()||'Foto borrosa o falta de tinta.'} Revisa y corrige los campos.</div>`;
+  else if(r._quality==='warn') alertHtml=`<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong> Revisa y completa manualmente.</div>`;
+  document.getElementById('mAlert').innerHTML=alertHtml;
+  document.getElementById('mFields').innerHTML=FIELDS.map(f=>`
+    <div class="fg${f.full?' full':''}">
+      <label class="fl">${f.l}</label>
+      <input class="fi" id="mf_${f.k}" value="${r[f.k]!=null?String(r[f.k]).replace(/"/g,'&quot;').replace(/CALIDAD_BAJA:[^"]*/,'').trim():''}">
+    </div>`).join('');
+  let footer=`<button class="btn br" onclick="deleteRecord()">Eliminar</button>`;
+  if(r._dup) footer+=`<button class="btn bw" onclick="markAsValid()">✓ Marcar como válido</button>`;
+  footer+=`<button class="btn bs" onclick="closeModal()">Cancelar</button><button class="btn bp" onclick="saveModal()">Guardar cambios</button>`;
+  document.getElementById('mFooter').innerHTML=footer;
+  document.getElementById('ov').classList.add('open');
+}
+function closeModal(){document.getElementById('ov').classList.remove('open');editId=null;}
+function saveModal(){
+  const r=records.find(x=>String(x._id)===String(editId)); if(!r)return;
+  FIELDS.forEach(f=>{const v=document.getElementById('mf_'+f.k).value.trim();r[f.k]=v||null;});
+  analyzeRecords();saveData();applyFilters();updateStats();renderAlerts();closeModal();toast('✓ Albarán actualizado');
+}
+function markAsValid(){
+  const r=records.find(x=>String(x._id)===String(editId)); if(!r)return;
+  const orig=records.find(x=>String(x._id)===String(r._dupOf));
+  if(orig){orig._dup=true;orig._dupOf=r._id;}
+  r._dup=false;r._dupOf=null;
+  analyzeRecords();saveData();applyFilters();updateStats();renderAlerts();closeModal();
+  toast('✓ Marcado como válido');
+}
+function deleteRecord(){
+  if(!confirm('¿Eliminar este albarán?'))return;
+  records=records.filter(x=>String(x._id)!==String(editId));
+  analyzeRecords();saveData();applyFilters();updateStats();renderAlerts();closeModal();toast('Albarán eliminado');
+}
+
+// ── EXCEL ──────────────────────────────────────────────
+const ECOLS=['fecha','tractora','tm','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
+const EHEAD=['FECHA','MATRICULA','TN NETAS','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','ESTADO'];
+function buildExcel(data){
+  const valid=data.filter(r=>!r._dup), tmTot=valid.reduce((s,r)=>s+(parseFloat(r.tm)||0),0);
+  const rows=[EHEAD,...data.map(r=>[...ECOLS.map(c=>r[c]!=null?r[c]:''),r._dup?'DUPLICADO':r._quality==='ilegible'?'REVISAR-ILEGIBLE':r._quality==='warn'?'REVISAR':'OK'])];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[10,10,9,14,22,18,22,20,24,10,22,10,10,8,8,24,12].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Albaranes');
+  const agg=(key)=>valid.reduce((acc,r)=>{const k=r[key]||'Sin dato';if(!acc[k])acc[k]={n:0,tm:0};acc[k].n++;acc[k].tm+=parseFloat(r.tm)||0;return acc;},{});
+  const now=new Date();
+  const sum=[
+    ['RESUMEN'],[''],['Total albaranes válidos',valid.length],['Total TN Netas',+tmTot.toFixed(3)],
+    ['Duplicados excluidos',data.filter(r=>r._dup).length],
+    ['Exportado',now.toLocaleDateString('es-ES')+' '+now.toLocaleTimeString('es-ES')],
+    [''],['POR PROVEEDOR','Albaranes','TN Netas'],...Object.entries(agg('proveedor')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)]),
+    [''],['POR ORIGEN','Albaranes','TN Netas'],...Object.entries(agg('planta')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)]),
+    [''],['POR DESTINO','Albaranes','TN Netas'],...Object.entries(agg('obra')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)]),
+    [''],['POR VEHÍCULO','Albaranes','TN Netas'],...Object.entries(agg('tractora')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)])
+  ];
+  const ws2=XLSX.utils.aoa_to_sheet(sum);ws2['!cols']=[{wch:30},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Resumen');
+  return{wb,tm:tmTot};
+}
+function exportExcel(){if(!records.length){toast('No hay albaranes','err');return;}const{wb,tm}=buildExcel(records);XLSX.writeFile(wb,`albaranes_${new Date().toISOString().slice(0,10)}.xlsx`);toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`);}
+function exportExcelFiltrado(){if(!filtered.length){toast('No hay datos filtrados','err');return;}const{wb,tm}=buildExcel(filtered);XLSX.writeFile(wb,`albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`);toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`);}
+
+// ── UTILS ──────────────────────────────────────────────
+function clearAll(){if(!records.length)return;if(!confirm(`¿Borrar los ${records.length} albaranes?`))return;records=[];saveData();analyzeRecords();applyFilters();updateStats();renderAlerts();toast('Albaranes eliminados');}
+function saveData(){localStorage.setItem('alb_v6',JSON.stringify(records));}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let toastT;
+function toast(msg,type='ok'){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type==='err'?' err':type==='warn'?' warn':'');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),4000);}
+
+// ── INIT ───────────────────────────────────────────────
+renderSetup();analyzeRecords();applyFilters();updateStats();renderAlerts();
+</script>
+</body>
+</html>
