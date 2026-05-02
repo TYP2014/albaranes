@@ -153,6 +153,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .alert-banner{border-radius:9px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .alert-dup{background:rgba(232,64,64,.08);border:1px solid rgba(232,64,64,.3);color:var(--er)}
 .alert-warn{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);color:var(--wn)}
+.alert-pending{background:rgba(123,143,240,.08);border:1px solid rgba(123,143,240,.3);color:var(--in)}
 .alert-txt{font-family:var(--mn);font-size:12px}
 
 /* MODAL */
@@ -731,6 +732,12 @@ function el(e) { e.currentTarget.classList.remove('ov'); }
 function drop(e, type) { e.preventDefault(); e.currentTarget.classList.remove('ov'); addFiles(e.dataTransfer.files, type); }
 
 async function addFiles(files, type) {
+  // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
+  // sin procesar con IA. La oficina (admin/gestor) los procesará después en lote.
+  if (currentRole === 'conductor') {
+    return uploadAsConductor(files, type);
+  }
+
   const pending = type === 'alb' ? pendingAlb : pendingGas;
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
@@ -825,8 +832,122 @@ async function addFiles(files, type) {
       }
     }
   }
+  // Propagar _fromPending de los Files a los items de la cola (cuando vienen de procesarPendientes)
+  for (const f of files) {
+    if (f._fromPending) {
+      const items = pending.filter(it => it.file === f && !it._fromPending);
+      items.forEach(it => { it._fromPending = f._fromPending; });
+    }
+  }
+
   renderQueues();
   if (getKey()) processQueue(type);
+}
+async function uploadAsConductor(files, type) {
+  const pending = type === 'alb' ? pendingAlb : pendingGas;
+  const tableName = type === 'alb' ? 'albaranes' : 'gasoil';
+
+  // Añadir items a la cola visible para mostrar progreso
+  const newItems = [];
+  for (const f of files) {
+    const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+    const item = {
+      id: Date.now() + Math.random(),
+      file: f,
+      status: 'pending',
+      isPdf,
+      name: f.name,
+      mediaType: f.type || (isPdf ? 'application/pdf' : 'image/jpeg')
+    };
+    pending.push(item);
+    newItems.push(item);
+  }
+  renderQueues();
+
+  // Subir uno a uno
+  let ok = 0, fail = 0;
+  for (const it of newItems) {
+    it.status = 'processing';
+    renderQueues();
+    try {
+      const fileUrl = await uploadFile(it.file, type);
+      const { error } = await sb.from(tableName).insert({
+        user_id: currentUser.id,
+        file_url: fileUrl,
+        procesado: false
+      });
+      if (error) throw error;
+      it.status = 'done';
+      ok++;
+    } catch (e) {
+      console.error('Error subiendo como conductor:', e);
+      it.status = 'error';
+      it.error = e.message;
+      fail++;
+    }
+    renderQueues();
+  }
+
+  if (ok) toast(`✓ ${ok} archivo(s) enviados a oficina (pendientes de procesar)${fail ? ` · ${fail} con error` : ''}`);
+  else if (fail) toast('Error subiendo archivos', 'err');
+
+  // Limpiar items completados de la cola tras unos segundos
+  setTimeout(() => {
+    if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
+    else pendingGas = pendingGas.filter(x => x.status !== 'done');
+    renderQueues();
+  }, 4000);
+}
+
+// PROCESAR PENDIENTES (admin/gestor): descarga los archivos pendientes y los pasa por la IA
+async function procesarPendientes(type) {
+  if (!getKey()) {
+    toast('Configura tu API Key primero (pestaña SUBIR)', 'err');
+    return;
+  }
+
+  const tableName = type === 'alb' ? 'albaranes' : 'gasoil';
+
+  // Cargar pendientes según rol (admin ve todos, gestor solo los suyos)
+  let q = sb.from(tableName).select('*').eq('procesado', false);
+  if (currentRole === 'gestor') q = q.eq('user_id', currentUser.id);
+  const { data: pendientes, error } = await q;
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  if (!pendientes || !pendientes.length) { toast('No hay pendientes', 'warn'); return; }
+
+  if (!confirm(`Vas a procesar ${pendientes.length} archivo(s) con la IA. Tarda 1-3 segundos por archivo. ¿Continuar?`)) return;
+
+  // Cambiar a la pestaña Subir para que el usuario vea el progreso
+  switchTab('subir');
+  toast(`Descargando ${pendientes.length} archivo(s) pendiente(s)...`);
+
+  // Descargar cada archivo del Storage y reconstruir File
+  const filesToProcess = [];
+  for (const reg of pendientes) {
+    if (!reg.file_url) {
+      console.warn('Pendiente sin file_url:', reg.id);
+      continue;
+    }
+    try {
+      const resp = await fetch(reg.file_url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const fname = decodeURIComponent((reg.file_url.split('/').pop() || 'pendiente').split('?')[0].split('#')[0]) || 'pendiente.pdf';
+      const file = new File([blob], fname, { type: blob.type || 'application/octet-stream' });
+      // Marcar el File para que _processOne sepa que es un pendiente:
+      // - debe usar el user_id del conductor original (no del admin que procesa)
+      // - debe borrar el registro pendiente al terminar OK
+      file._fromPending = { id: reg.id, table: tableName, user_id: reg.user_id };
+      filesToProcess.push(file);
+    } catch (e) {
+      console.error('Error descargando pendiente', reg.id, e);
+    }
+  }
+
+  if (!filesToProcess.length) { toast('No se pudo descargar ningún pendiente', 'err'); return; }
+
+  // Procesar como una subida normal (addFiles añade a la cola y processQueue se encarga)
+  await addFiles(filesToProcess, type);
 }
 
 function renderQueues() {
@@ -964,7 +1085,8 @@ async function _processOne(it, type, key, timeoutMs) {
 
     for (const data of results) {
       data.file_url = fileUrl + (it.pageNum ? `#page=${it.pageNum}` : '');
-      data.user_id = currentUser.id;
+      // Si es un pendiente del conductor, usar SU user_id (no el del admin que procesa)
+      data.user_id = it._fromPending?.user_id || currentUser.id;
       if (type === 'alb') {
         if (data.tractora) {
           const fixed = fixMatricula(data.tractora);
@@ -996,6 +1118,11 @@ async function _processOne(it, type, key, timeoutMs) {
       }
     }
     it.status = 'done';
+    // Si era un pendiente del conductor, borrar el registro original (ya se han creado nuevos con datos extraídos)
+    if (it._fromPending) {
+      try { await sb.from(it._fromPending.table).delete().eq('id', it._fromPending.id); }
+      catch(e) { console.warn('No se pudo borrar el registro pendiente original:', e); }
+    }
     renderQueues();
     if (type === 'alb') { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
     else { applyGasFilters(); }
@@ -1214,7 +1341,9 @@ function analyzeRecords() {
 
 function renderAlerts() {
   const dups = records.filter(r => r._dup), warns = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
+  const pendientes = records.filter(r => r.procesado === false);
   let html = '';
+  if (pendientes.length) html += `<div class="alert-banner alert-pending"><div class="alert-txt">📥 <strong>${pendientes.length} albarán(es) pendiente(s) de procesar</strong> — subido(s) por conductor(es).</div><div><button class="btn bp" style="font-size:10px;padding:5px 11px" onclick="procesarPendientes('alb')">⚡ Procesar con IA</button></div></div>`;
   if (dups.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">⛔ <strong>${dups.length} duplicado(s)</strong> — no se contabilizan.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('dup')">Ver</button></div></div>`;
   if (warns.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠ <strong>${warns.length} a revisar</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver</button></div></div>`;
   document.getElementById('alertsBox').innerHTML = html;
@@ -1234,6 +1363,8 @@ function applyFilters() {
   const mat2 = document.getElementById('fMat2')?.value, comp = document.getElementById('fComp')?.value;
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   filtered = records.filter(r => {
+    // Excluir pendientes de procesar (aparecen en el banner separadamente, no en la tabla)
+    if (r.procesado === false) return false;
     const ts = parseDate(r.fecha || '');
     if (desde && ts < new Date(desde).getTime()) return false;
     if (hasta && ts > new Date(hasta).getTime() + 86399999) return false;
@@ -1322,8 +1453,10 @@ function renderGasTable() {
 }
 
 function updateStats() {
-  const valid = records.filter(r => !r._dup), dups = records.filter(r => r._dup);
-  const warns = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
+  // Excluir pendientes (procesado=false) de las estadísticas — aparecen en su propio banner
+  const procesados = records.filter(r => r.procesado !== false);
+  const valid = procesados.filter(r => !r._dup), dups = procesados.filter(r => r._dup);
+  const warns = procesados.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
   const tm = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   const now = new Date();
   const mes = valid.filter(r => { const d = parseDate(r.fecha || ''); if (!d) return false; const dd = new Date(d); return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear(); }).length;
