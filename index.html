@@ -287,6 +287,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   <div id="adminView" style="display:none">
     <div class="tabs">
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
+      <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
       <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">⚙️ Usuarios</div>
@@ -374,6 +375,65 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               <tbody id="tbodyGas"></tbody>
             </table>
             <div id="emptyGas" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tickets de gasoil.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB PRELIQUIDACIONES -->
+    <div id="tabContentPreli" class="wrap" style="display:none">
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>PRELIQUIDACIONES DEL CLIENTE</div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="document.getElementById('preliFileInput').click()">📤 Subir preliquidación PDF</button>
+            <input type="file" id="preliFileInput" accept="application/pdf" style="display:none" onchange="addPreliFile(this.files)">
+          </div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px">
+            Sube los PDFs de preliquidación que te envían los clientes (Holcim, Cemex, Élite). La app extraerá las filas y las comparará automáticamente con tus albaranes guardados.
+          </div>
+          <div id="preliQueue"></div>
+          <div id="preliList" style="margin-top:16px"></div>
+          <div id="emptyPreli" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay preliquidaciones subidas todavía.</div>
+        </div>
+      </div>
+
+      <!-- Detalle de una preliquidación -->
+      <div id="preliDetail" class="card" style="display:none;margin-top:16px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--bl)"></div>DETALLE PRELIQUIDACIÓN <span id="preliDetailTitle" style="margin-left:8px;font-weight:normal;color:var(--mu)"></span></div>
+          <div class="tbl-acts">
+            <button class="btn br" onclick="closePreliDetail()">← Volver</button>
+            <button class="btn bw" onclick="recompararPreli()">🔄 Re-comparar</button>
+            <button class="btn bs" onclick="exportPreliExcel()">📊 Excel comparación</button>
+          </div>
+        </div>
+        <div class="card-bd">
+          <div id="preliStats" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;font-family:var(--mn);font-size:11px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="btn br" onclick="filterPreli('all')">Ver todo</button>
+            <button class="btn br" onclick="filterPreli('problema')">⚠️ Solo problemas</button>
+            <button class="btn br" onclick="filterPreli('falta')">⛔ Falta en mi BD</button>
+            <button class="btn br" onclick="filterPreli('dif')">🔴 Diferencia TM</button>
+            <button class="btn br" onclick="filterPreli('sobra')">🟡 Sobra en mi BD</button>
+            <button class="btn br" onclick="filterPreli('ok')">✅ Solo OK</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Fecha</th>
+                <th>Matrícula</th>
+                <th>Nº Albarán</th>
+                <th>Material</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>TN</th>
+                <th>Estado</th>
+              </tr></thead>
+              <tbody id="tbodyPreli"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -591,12 +651,13 @@ async function loadData() {
   if (currentRole === 'gestor') query = query.eq('user_id', currentUser.id);
   const { data, error } = await query;
   if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
-  records = data || [];
+  // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
+  records = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
 
   let queryG = sb.from('gasoil').select('*').order('fecha', { ascending: false });
   if (currentRole === 'gestor') queryG = queryG.eq('user_id', currentUser.id);
   const { data: gd } = await queryG;
-  gasoilRecords = gd || [];
+  gasoilRecords = (gd || []).map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
 
   analyzeRecords();
   applyFilters();
@@ -1073,14 +1134,33 @@ function fechaSortNum(s) {
   return parseInt(y) * 10000 + parseInt(m[2]) * 100 + parseInt(m[1]);
 }
 
-// Comparador múltiple para ordenar albaranes: fecha → matrícula → nº albarán
+// Comparador múltiple para ordenar albaranes: MATRÍCULA → fecha → nº albarán
+// (orden igual al de las preliquidaciones de los clientes, agrupando por camión)
 function compareRecords(a, b) {
+  // 1. Por matrícula PRIMERO (ordenación natural: 1968JFV < 5258HYX < 7007JML)
+  const ma = String(a.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
+  const mb = String(b.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
+  if (ma !== mb) {
+    // Las matrículas vacías van al final
+    if (!ma) return 1;
+    if (!mb) return -1;
+    return ma.localeCompare(mb, 'es', { numeric: true });
+  }
+
+  // 2. Por fecha (numérico ascendente)
   const fa = fechaSortNum(a.fecha), fb = fechaSortNum(b.fecha);
   if (fa !== fb) return fa - fb;
-  const ma = String(a.tractora || '').toUpperCase(), mb = String(b.tractora || '').toUpperCase();
-  if (ma !== mb) return ma < mb ? -1 : 1;
-  const aa = String(a.albaran || ''), ab = String(b.albaran || '');
-  if (aa !== ab) return aa < ab ? -1 : 1;
+
+  // 3. Por nº albarán (NUMÉRICO si ambos son dígitos, sino orden natural)
+  const aa = String(a.albaran || '').trim();
+  const ab = String(b.albaran || '').trim();
+  if (aa !== ab) {
+    if (/^\d+$/.test(aa) && /^\d+$/.test(ab)) {
+      const na = parseInt(aa, 10), nb = parseInt(ab, 10);
+      if (na !== nb) return na - nb;
+    }
+    return aa.localeCompare(ab, 'es', { numeric: true, sensitivity: 'base' });
+  }
   return 0;
 }
 
@@ -1094,7 +1174,7 @@ function analyzeRecords() {
   records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; });
   const seenA = {}, seenB = {}, seenC = {};
 
-  records.forEach(r => {
+  records.forEach((r, idx) => {
     if (!r.albaran) return;
     // Quitar ceros iniciales del nº albarán para comparación robusta (0069243348 = 69243348)
     const albNorm = normStr(r.albaran).replace(/^0+/, '');
@@ -1107,24 +1187,27 @@ function analyzeRecords() {
     const keyB = `${albNorm}|${fechaNorm}|${tmRound}`;
     const keyC = `${albNorm}|${tmRound}`;
 
-    if (seenA[keyA]) {
+    // Identificador único: usa db_id, _id o índice del array como último recurso
+    const uniqueId = r.db_id || r._id || ('idx_' + idx);
+
+    if (seenA[keyA] !== undefined) {
       r._dup = true; r._dupOf = seenA[keyA];
-    } else if (seenB[keyB]) {
+    } else if (seenB[keyB] !== undefined) {
       r._dup = true; r._dupOf = seenB[keyB];
-    } else if (seenC[keyC] && albNorm.length >= 6) {
+    } else if (seenC[keyC] !== undefined && albNorm.length >= 6) {
       r._dup = true; r._dupOf = seenC[keyC];
     }
 
     if (!r._dup) {
-      seenA[keyA] = r.db_id || r._id;
-      seenB[keyB] = r.db_id || r._id;
-      seenC[keyC] = r.db_id || r._id;
+      seenA[keyA] = uniqueId;
+      seenB[keyB] = uniqueId;
+      seenC[keyC] = uniqueId;
     }
   });
 
   // Log a consola del navegador (F12) para verificar que está funcionando
   const dupCount = records.filter(r => r._dup).length;
-  if (dupCount > 0) console.log(`[DUPLICADOS DETECTADOS] ${dupCount} de ${records.length}`);
+  console.log(`[analyzeRecords] ${records.length} registros, ${dupCount} duplicados detectados`);
 
   records.forEach(r => { if (r._dup) return; const s = qualityScore(r); r._quality = s <= 3 ? 'ilegible' : s <= 6 ? 'warn' : 'ok'; });
 }
@@ -1460,13 +1543,14 @@ function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${reco
 // TABS
 // ============================================================
 function switchTab(tab) {
-  ['alb','gas','subir','admin'].forEach(t => {
+  ['alb','preli','gas','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
   if (tab === 'admin') loadUsers();
+  if (tab === 'preli') { loadPreliquidaciones(); }
 }
 
 // ============================================================
@@ -1633,9 +1717,504 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 let toastT;
 function toast(msg, type='ok') { const el = document.getElementById('toast'); el.textContent = msg; el.className = 'toast show' + (type==='err'?' err':type==='warn'?' warn':''); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 4000); }
 
-// Enter en login
-document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+// ============================================================
+// PRELIQUIDACIONES
+// ============================================================
+let preliquidaciones = []; // lista de cabeceras (un PDF subido = una preliquidación)
+let preliFilas = [];       // todas las filas de TODAS las preliquidaciones
+let preliActiva = null;    // id de la preliquidación que se está viendo en detalle
+let preliFiltroEstado = 'all';
+let _processingPreli = false;
+
+async function loadPreliquidaciones() {
+  // Cargar cabeceras (group by id_preliquidacion)
+  let q = sb.from('preliquidaciones').select('*').order('created_at', { ascending: false });
+  if (currentRole === 'gestor') q = q.eq('user_id', currentUser.id);
+  const { data, error } = await q;
+  if (error) {
+    if (error.message && /does not exist|relation/i.test(error.message)) {
+      document.getElementById('preliList').innerHTML = `
+        <div style="background:rgba(255,170,0,0.1);border:1px solid var(--wn);padding:14px;border-radius:8px;font-family:var(--mn);font-size:12px;color:var(--wn);line-height:1.6">
+          ⚠️ <strong>La tabla "preliquidaciones" aún no existe en Supabase</strong>.<br>
+          Pídele al administrador que ejecute el SQL de creación de tablas (ver instrucciones).
+        </div>`;
+      return;
+    }
+    toast('Error: ' + error.message, 'err');
+    return;
+  }
+  preliFilas = data || [];
+  // Agrupar por id_preliquidacion para construir la lista de cabeceras
+  const grupos = {};
+  preliFilas.forEach(r => {
+    const k = r.id_preliquidacion;
+    if (!grupos[k]) grupos[k] = { id: k, cliente: r.cliente, filename: r.filename, file_url: r.file_url, created_at: r.created_at, filas: [] };
+    grupos[k].filas.push(r);
+  });
+  preliquidaciones = Object.values(grupos).sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+  renderPreliList();
+  document.getElementById('tabPreliCount').textContent = preliquidaciones.length;
+}
+
+function renderPreliList() {
+  const cont = document.getElementById('preliList');
+  const empty = document.getElementById('emptyPreli');
+  if (!preliquidaciones.length) {
+    cont.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  cont.innerHTML = preliquidaciones.map(p => {
+    const total = p.filas.length;
+    const ok = p.filas.filter(f => f.estado_comparacion === 'COINCIDE').length;
+    const falta = p.filas.filter(f => f.estado_comparacion === 'FALTA_BD').length;
+    const dif = p.filas.filter(f => f.estado_comparacion === 'DIFERENCIA_TM').length;
+    const pct = total > 0 ? Math.round(ok/total*100) : 0;
+    const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-ES') : '';
+    return `<div class="preli-item" onclick="openPreliDetail('${esc(p.id)}')" style="background:var(--bg-2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:var(--mn);font-size:13px;color:var(--fg)">📋 <strong>${esc(p.cliente || 'Sin cliente')}</strong> · ${esc(p.filename || '')}</div>
+        <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">Subida ${fecha} · ${total} filas</div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;font-family:var(--mn);font-size:11px">
+        <span style="color:var(--ok)">✅ ${ok}</span>
+        <span style="color:var(--er)">⛔ ${falta}</span>
+        <span style="color:var(--wn)">🔴 ${dif}</span>
+        <span style="color:var(--mu)">${pct}% OK</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// SUBIDA Y PROCESAMIENTO
+async function addPreliFile(files) {
+  if (!files || !files.length) return;
+  const f = files[0];
+  if (!f.name.toLowerCase().endsWith('.pdf')) { toast('Solo se aceptan PDFs', 'err'); return; }
+  if (!getKey()) { toast('Configura tu API Key primero', 'err'); return; }
+
+  // Mostrar el archivo en cola
+  const queueDiv = document.getElementById('preliQueue');
+  queueDiv.innerHTML = `<div id="preliProgress" style="background:var(--bg-2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-family:var(--mn);font-size:12px">
+    📤 <strong>${esc(f.name)}</strong><br><span id="preliProgTxt" style="color:var(--mu)">Preparando...</span>
+    <div style="background:var(--bd);height:4px;border-radius:2px;margin-top:8px;overflow:hidden"><div id="preliProgBar" style="background:var(--ok);height:100%;width:0%;transition:width 0.3s"></div></div>
+  </div>`;
+
+  if (_processingPreli) { toast('Ya se está procesando una preliquidación', 'warn'); return; }
+  _processingPreli = true;
+
+  try {
+    await procesarPreliquidacion(f);
+  } catch (e) {
+    console.error(e);
+    toast('Error: ' + e.message, 'err');
+  } finally {
+    _processingPreli = false;
+    document.getElementById('preliFileInput').value = '';
+  }
+}
+
+function setPreliProgress(txt, pct) {
+  const t = document.getElementById('preliProgTxt');
+  const b = document.getElementById('preliProgBar');
+  if (t) t.textContent = txt;
+  if (b) b.style.width = (pct || 0) + '%';
+}
+
+async function procesarPreliquidacion(file) {
+  const idPreli = (crypto.randomUUID ? crypto.randomUUID() : 'preli_' + Date.now() + '_' + Math.random());
+
+  // Subir el PDF a Storage UNA vez
+  setPreliProgress('Subiendo PDF a Storage...', 5);
+  let fileUrl = null;
+  try { fileUrl = await uploadFile(file, 'preli'); } catch (e) { console.warn('Upload falló:', e); }
+
+  // Dividir PDF en páginas
+  setPreliProgress('Leyendo páginas del PDF...', 10);
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdf.numPages;
+
+  // Concurrencia 2, con pausa entre lotes para respetar rate limit
+  const todasLasFilas = [];
+  let clienteDetectado = null;
+  const scale = numPages > 30 ? 1.5 : 1.8;
+  const quality = numPages > 30 ? 0.75 : 0.85;
+
+  // Generar imágenes secuencialmente, procesar en paralelo de a 2
+  const tareas = [];
+  for (let p = 1; p <= numPages; p++) {
+    setPreliProgress(`Generando imagen página ${p}/${numPages}...`, 10 + (p / numPages) * 30);
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    tareas.push({ pagina: p, b64: dataUrl.split(',')[1] });
+    canvas.width = 0; canvas.height = 0;
+  }
+
+  // Procesar páginas en paralelo de a 2
+  const CONCURRENCY = 2;
+  let procesadas = 0;
+  for (let i = 0; i < tareas.length; i += CONCURRENCY) {
+    const batch = tareas.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(async t => {
+      try {
+        const filas = await callClaudePreli(t.b64, getKey(), t.pagina);
+        return { pagina: t.pagina, filas, error: null };
+      } catch (e) {
+        // Reintento en rate limit
+        if (e.status === 429 || /rate.?limit/i.test(e.message)) {
+          await sleep(30000);
+          try {
+            const filas = await callClaudePreli(t.b64, getKey(), t.pagina);
+            return { pagina: t.pagina, filas, error: null };
+          } catch (e2) { return { pagina: t.pagina, filas: [], error: e2.message }; }
+        }
+        return { pagina: t.pagina, filas: [], error: e.message };
+      }
+    }));
+    for (const r of results) {
+      if (r.error) console.warn(`Página ${r.pagina}: ${r.error}`);
+      todasLasFilas.push(...r.filas);
+    }
+    procesadas += batch.length;
+    setPreliProgress(`Extrayendo filas: ${todasLasFilas.length} encontradas (${procesadas}/${numPages} páginas)...`, 40 + (procesadas/numPages)*40);
+    if (i + CONCURRENCY < tareas.length) await sleep(1500);
+  }
+
+  // Detectar cliente del primer registro o del nombre del archivo
+  clienteDetectado = todasLasFilas[0]?.cliente_emisor || detectarCliente(file.name);
+
+  if (!todasLasFilas.length) {
+    toast('No se extrajeron filas. Revisa el formato del PDF.', 'err');
+    document.getElementById('preliQueue').innerHTML = '';
+    return;
+  }
+
+  // Comparar cada fila con la BD de albaranes
+  setPreliProgress('Comparando con albaranes en BD...', 85);
+  const filasConEstado = todasLasFilas.map(f => compararFilaConBD(f));
+
+  // Guardar en Supabase
+  setPreliProgress(`Guardando ${filasConEstado.length} filas en BD...`, 92);
+  const filasParaInsertar = filasConEstado.map(f => ({
+    id_preliquidacion: idPreli,
+    cliente: clienteDetectado || 'Desconocido',
+    filename: file.name,
+    file_url: fileUrl,
+    albaran: f.albaran || null,
+    fecha: f.fecha || null,
+    tractora: f.tractora || null,
+    remolque: f.remolque || null,
+    proveedor_cliente: f.proveedor_cliente || null,
+    direccion: f.direccion || null,
+    zona: f.zona || null,
+    material: f.material || null,
+    tm: f.tm != null ? parseFloat(f.tm) : null,
+    unidad: f.unidad || 'TN',
+    estado_comparacion: f.estado_comparacion,
+    db_albaran_id: f.db_albaran_id || null,
+    user_id: currentUser.id
+  }));
+
+  // Insertar por lotes de 100 (Supabase tiene límite)
+  for (let i = 0; i < filasParaInsertar.length; i += 100) {
+    const lote = filasParaInsertar.slice(i, i + 100);
+    const { error } = await sb.from('preliquidaciones').insert(lote);
+    if (error) { toast('Error guardando: ' + error.message, 'err'); console.error(error); throw error; }
+  }
+
+  setPreliProgress(`✓ ${filasConEstado.length} filas guardadas`, 100);
+  await sleep(800);
+  document.getElementById('preliQueue').innerHTML = '';
+  toast(`✓ Preliquidación procesada: ${filasConEstado.length} filas`);
+  await loadPreliquidaciones();
+  // Abrir el detalle automáticamente
+  openPreliDetail(idPreli);
+}
+
+function detectarCliente(filename) {
+  const f = filename.toLowerCase();
+  if (/holcim/.test(f)) return 'Holcim';
+  if (/cemex/.test(f)) return 'Cemex';
+  if (/elite|élite/.test(f)) return 'Elite Cementos';
+  return null;
+}
+
+// Llamada a la IA con prompt específico para preliquidaciones
+async function callClaudePreli(b64, key, paginaNum) {
+  const prompt = `Eres un OCR experto en preliquidaciones de transporte de áridos y cemento en España. Esta es UNA PÁGINA de una preliquidación enviada por un cliente (Holcim, Cemex, Élite Cementos, etc.) a su transportista. La página contiene una TABLA con MÚLTIPLES albaranes (entregas) listados por filas.
+
+EXTRAE TODAS LAS FILAS de la tabla. Cada fila representa una entrega/albarán independiente.
+
+Por cada fila devuelve un objeto JSON con estos campos (todos opcionales si no aparece):
+- albaran: número de entrega/albarán (string, ej "31048146095")
+- fecha: fecha de entrega en formato DD/MM/YYYY (convierte de "02.03.2026" a "02/03/2026")
+- tractora: matrícula del camión (formato "1234ABC", ignora la del remolque)
+- remolque: matrícula del remolque si aparece después de la tractora separada por "/" (ej "R3542BBV")
+- proveedor_cliente: nombre del proveedor o cliente al que se entrega (ej "Montcada (Hormig)", "La Roca", "Planta Hormigones Zona Franca")
+- direccion: dirección completa del punto de entrega
+- zona: zona logística (ej "Montcada I Reixac Ba", "La Roca Valles Bar", "Provincia de Barcelona")
+- material: tipo de material/servicio (ej "AF-0/4-T-C", "AG-4/11-T-C", "AG-11/22-T-C")
+- tm: cantidad en toneladas (NÚMERO, convierte "27,820" a 27.82). El cliente puede usar coma decimal.
+- unidad: unidad de medida (ej "TN", "T")
+- cliente_emisor: nombre del cliente que emite la preliquidación (ej "HOLCIM", "CEMEX", "ÉLITE"). Solo en la primera fila o cabecera del PDF.
+
+IGNORA totales, subtotales, líneas de cabecera, y filas vacías. Solo extrae filas de DATOS.
+
+Devuelve SOLO un ARRAY JSON con todos los objetos. Si la página no tiene filas de datos, devuelve [].
+SOLO JSON válido, sin markdown, sin explicaciones.`;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 180000);
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 16000,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+          { type: 'text', text: prompt }
+        ]}]
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      const err = new Error(e.error?.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const d = await res.json();
+    const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+// Comparar una fila de preliquidación con los albaranes guardados en BD
+function compararFilaConBD(filaPreli) {
+  const albPreli = String(filaPreli.albaran || '').trim().replace(/^0+/, '');
+  const tmPreli = parseFloat(filaPreli.tm) || 0;
+  if (!albPreli) {
+    return { ...filaPreli, estado_comparacion: 'SIN_ALBARAN', db_albaran_id: null };
+  }
+  // Buscar en records (ya cargados en memoria)
+  const match = records.find(r => {
+    const albBd = String(r.albaran || '').trim().replace(/^0+/, '');
+    return albBd === albPreli;
+  });
+  if (!match) {
+    return { ...filaPreli, estado_comparacion: 'FALTA_BD', db_albaran_id: null };
+  }
+  const tmBd = parseFloat(match.tm) || 0;
+  if (Math.abs(tmBd - tmPreli) > 0.05) {
+    return { ...filaPreli, estado_comparacion: 'DIFERENCIA_TM', db_albaran_id: match.db_id || match.id };
+  }
+  return { ...filaPreli, estado_comparacion: 'COINCIDE', db_albaran_id: match.db_id || match.id };
+}
+
+// VISTA DETALLE DE UNA PRELIQUIDACIÓN
+function openPreliDetail(idPreli) {
+  preliActiva = idPreli;
+  const preli = preliquidaciones.find(p => p.id === idPreli);
+  if (!preli) { toast('Preliquidación no encontrada', 'err'); return; }
+  preliFiltroEstado = 'all';
+  document.getElementById('preliDetail').style.display = 'block';
+  document.getElementById('preliDetailTitle').textContent = `${preli.cliente} · ${preli.filename}`;
+  renderPreliDetail();
+  // Scroll al detalle
+  setTimeout(() => document.getElementById('preliDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function closePreliDetail() {
+  preliActiva = null;
+  document.getElementById('preliDetail').style.display = 'none';
+}
+
+function filterPreli(filtro) { preliFiltroEstado = filtro; renderPreliDetail(); }
+
+function renderPreliDetail() {
+  if (!preliActiva) return;
+  const preli = preliquidaciones.find(p => p.id === preliActiva);
+  if (!preli) return;
+  const todas = preli.filas;
+  const ok = todas.filter(f => f.estado_comparacion === 'COINCIDE').length;
+  const falta = todas.filter(f => f.estado_comparacion === 'FALTA_BD').length;
+  const dif = todas.filter(f => f.estado_comparacion === 'DIFERENCIA_TM').length;
+  const sin = todas.filter(f => f.estado_comparacion === 'SIN_ALBARAN').length;
+  // Sobra: albaranes en BD que NO están en esta preliquidación, del mismo cliente
+  const albsPreli = new Set(todas.map(f => String(f.albaran || '').trim().replace(/^0+/, '')));
+  const sobra = records.filter(r => {
+    const albBd = String(r.albaran || '').trim().replace(/^0+/, '');
+    return albBd && !albsPreli.has(albBd);
+  });
+  const tmPreli = todas.reduce((s,f) => s + (parseFloat(f.tm) || 0), 0);
+  document.getElementById('preliStats').innerHTML = `
+    <div>Total: <strong>${todas.length}</strong></div>
+    <div style="color:var(--ok)">✅ Coinciden: <strong>${ok}</strong></div>
+    <div style="color:var(--er)">⛔ Faltan en mi BD: <strong>${falta}</strong></div>
+    <div style="color:var(--wn)">🔴 Diferencia TM: <strong>${dif}</strong></div>
+    <div style="color:var(--mu)">🟡 Sobra en mi BD: <strong>${sobra.length}</strong></div>
+    ${sin?'<div style="color:var(--mu)">⚠️ Sin nº albarán: <strong>'+sin+'</strong></div>':''}
+    <div>TN total: <strong>${tmPreli.toFixed(2)}</strong></div>
+  `;
+
+  // Filtrar
+  let visibles;
+  if (preliFiltroEstado === 'problema') visibles = todas.filter(f => f.estado_comparacion !== 'COINCIDE');
+  else if (preliFiltroEstado === 'falta') visibles = todas.filter(f => f.estado_comparacion === 'FALTA_BD');
+  else if (preliFiltroEstado === 'dif') visibles = todas.filter(f => f.estado_comparacion === 'DIFERENCIA_TM');
+  else if (preliFiltroEstado === 'ok') visibles = todas.filter(f => f.estado_comparacion === 'COINCIDE');
+  else if (preliFiltroEstado === 'sobra') visibles = sobra.map(r => ({
+    fecha: r.fecha, tractora: r.tractora, albaran: r.albaran, material: r.producto,
+    proveedor_cliente: r.proveedor, direccion: r.planta + ' → ' + r.obra, tm: r.tm,
+    estado_comparacion: 'SOBRA_BD', _es_albaran_bd: true
+  }));
+  else visibles = todas;
+
+  // Ordenar por matrícula → fecha → albarán
+  visibles = [...visibles].sort(compareRecords);
+
+  const ESTADO_LABEL = {
+    'COINCIDE': '<span style="color:var(--ok)">✅ OK</span>',
+    'FALTA_BD': '<span style="color:var(--er)">⛔ Falta en BD</span>',
+    'DIFERENCIA_TM': '<span style="color:var(--wn)">🔴 Dif. TM</span>',
+    'SIN_ALBARAN': '<span style="color:var(--mu)">⚠️ Sin alb.</span>',
+    'SOBRA_BD': '<span style="color:var(--mu)">🟡 Sobra en BD</span>'
+  };
+
+  const tbody = document.getElementById('tbodyPreli');
+  if (!visibles.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">No hay filas con este filtro.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = visibles.map(f => {
+    let detalleDif = '';
+    if (f.estado_comparacion === 'DIFERENCIA_TM' && f.db_albaran_id) {
+      const bd = records.find(r => (r.db_id || r.id) === f.db_albaran_id);
+      if (bd) detalleDif = ` <span style="color:var(--mu);font-size:10px">(BD: ${bd.tm} TN)</span>`;
+    }
+    const origen = f._es_albaran_bd ? (f.direccion || '') : (f.proveedor_cliente || '');
+    const destino = f._es_albaran_bd ? '' : (f.direccion || f.zona || '');
+    return `<tr>
+      <td>${esc(f.fecha || '')}</td>
+      <td>${esc(f.tractora || '')}${f.remolque?' / '+esc(f.remolque):''}</td>
+      <td>${esc(f.albaran || '')}</td>
+      <td>${esc(f.material || '')}</td>
+      <td>${esc(origen)}</td>
+      <td>${esc(destino)}</td>
+      <td>${f.tm != null ? parseFloat(f.tm).toFixed(2) : ''}${detalleDif}</td>
+      <td>${ESTADO_LABEL[f.estado_comparacion] || esc(f.estado_comparacion || '')}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function recompararPreli() {
+  if (!preliActiva) return;
+  if (!confirm('Se volverán a comparar todas las filas con tus albaranes guardados. ¿Continuar?')) return;
+  const preli = preliquidaciones.find(p => p.id === preliActiva);
+  if (!preli) return;
+  toast('🔄 Recomparando...');
+  let cambios = 0;
+  for (const f of preli.filas) {
+    const nuevo = compararFilaConBD(f);
+    if (nuevo.estado_comparacion !== f.estado_comparacion || nuevo.db_albaran_id !== f.db_albaran_id) {
+      const { error } = await sb.from('preliquidaciones').update({
+        estado_comparacion: nuevo.estado_comparacion,
+        db_albaran_id: nuevo.db_albaran_id
+      }).eq('id', f.id);
+      if (!error) {
+        f.estado_comparacion = nuevo.estado_comparacion;
+        f.db_albaran_id = nuevo.db_albaran_id;
+        cambios++;
+      }
+    }
+  }
+  toast(`✓ ${cambios} filas actualizadas`);
+  renderPreliDetail();
+  renderPreliList();
+}
+
+function exportPreliExcel() {
+  if (!preliActiva) return;
+  const preli = preliquidaciones.find(p => p.id === preliActiva);
+  if (!preli) return;
+  const albsPreli = new Set(preli.filas.map(f => String(f.albaran || '').trim().replace(/^0+/, '')));
+  const sobran = records.filter(r => {
+    const albBd = String(r.albaran || '').trim().replace(/^0+/, '');
+    return albBd && !albsPreli.has(albBd);
+  });
+
+  const HEAD = ['FECHA','MATRICULA','REMOLQUE','Nº ALBARAN','PROVEEDOR/CLIENTE','DIRECCION','ZONA','MATERIAL','TN','UNIDAD','ESTADO','TN BD','DIFERENCIA TN'];
+  const rows = [HEAD];
+  // Filas de la preliquidación
+  [...preli.filas].sort(compareRecords).forEach(f => {
+    let tmBd = '', dif = '';
+    if (f.db_albaran_id) {
+      const bd = records.find(r => (r.db_id || r.id) === f.db_albaran_id);
+      if (bd) {
+        tmBd = parseFloat(bd.tm) || 0;
+        dif = ((parseFloat(f.tm) || 0) - tmBd).toFixed(2);
+      }
+    }
+    const estLabel = {
+      'COINCIDE':'OK','FALTA_BD':'FALTA EN BD','DIFERENCIA_TM':'DIFERENCIA TM',
+      'SIN_ALBARAN':'SIN ALBARAN'
+    }[f.estado_comparacion] || f.estado_comparacion;
+    rows.push([
+      f.fecha||'', f.tractora||'', f.remolque||'', f.albaran||'',
+      f.proveedor_cliente||'', f.direccion||'', f.zona||'',
+      f.material||'', f.tm != null ? parseFloat(f.tm) : '',
+      f.unidad||'TN', estLabel, tmBd, dif
+    ]);
+  });
+  // Sección "SOBRAN EN BD"
+  if (sobran.length) {
+    rows.push([]);
+    rows.push(['ALBARANES EN BD QUE NO ESTÁN EN ESTA PRELIQUIDACIÓN']);
+    rows.push(HEAD);
+    [...sobran].sort(compareRecords).forEach(r => {
+      rows.push([
+        r.fecha||'', r.tractora||'', r.remolque||'', r.albaran||'',
+        r.proveedor||'', (r.planta||'') + ' → ' + (r.obra||''), '',
+        r.producto||'', parseFloat(r.tm)||0,
+        'TN', 'SOBRA EN BD', '', ''
+      ]);
+    });
+  }
+  // Resumen
+  rows.push([]);
+  rows.push(['RESUMEN']);
+  rows.push(['Cliente', preli.cliente]);
+  rows.push(['Archivo', preli.filename]);
+  rows.push(['Total filas en preliquidación', preli.filas.length]);
+  rows.push(['Coinciden', preli.filas.filter(f => f.estado_comparacion === 'COINCIDE').length]);
+  rows.push(['Faltan en BD', preli.filas.filter(f => f.estado_comparacion === 'FALTA_BD').length]);
+  rows.push(['Diferencia TM', preli.filas.filter(f => f.estado_comparacion === 'DIFERENCIA_TM').length]);
+  rows.push(['Sobran en BD (no en preli)', sobran.length]);
+  rows.push(['TN total preliquidación', preli.filas.reduce((s,f) => s + (parseFloat(f.tm) || 0), 0).toFixed(3)]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [10,10,10,14,28,30,18,18,8,6,18,8,10].map(w => ({wch: w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparación');
+  const fname = `preliquidacion_${(preli.cliente||'').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast(`✓ Excel descargado`);
+}
 
 // Init
 initApp();
