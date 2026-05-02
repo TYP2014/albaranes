@@ -783,7 +783,7 @@ Campos a extraer:
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria
-- obra: destino final. En Holcim busca campo "Obra:". En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). NUNCA uses ciudad postal del transportista. EXCEPCIONES: si contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
+- obra: destino final. En Holcim albaranes de SALIDA busca campo "Obra:". En Holcim albaranes de RECEPCIÓN DE MATERIAL (cuando hay campo PLANTA) → destino es siempre el valor del campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). NUNCA uses ciudad postal del transportista. EXCEPCIONES: si contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
 - planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". En Portland busca "Planta". Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Promsa/Garraf"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión. Formato 4 dígitos + 3 letras. NO confundir con CIF/NIF ni remolques
 - remolque: matrícula remolque o null
@@ -1202,7 +1202,46 @@ async function updateRole(uid, role) {
 // ============================================================
 // TRANSPORTISTAS
 // ============================================================
-const TRANSPORTISTAS = { '4210NGF':'TYP2014','6521NHV':'TYP2014','7007JML':'TYP2014','4380MPL':'TYP2014','6285LMG':'TYP2014','5360JZR':'TYP2014','1748JGL':'TYP2014' };
+const TRANSPORTISTAS = {
+  '0001JBS':'OP TRANS V.','0444MYX':'T. REFRIGERADOS DOMINGUEZ','0471MKV':'T. SATIG 79',
+  '0554NKM':'T. SATIG 79','0555NKM':'T. SATIG 79','0705JBB':'TRANSMARGAZ 2018',
+  '0732NLY':'TRANSMARGAZ 2018','0742KMB':'TTES HISPALIS 2016','0755KMB':'TYP2014',
+  '0824LKD':'T. SATIG 79','0939NHJ':'TRANSMARGAZ 2018','1046MNV':'TRANSMARGAZ 2018',
+  '1213JCD':'ARIDFLOT','1270LST':'TYP2014','1365MNH':'MIGUEL A. GARCIA',
+  '1437LDV':'ARIDFLOT','1479JDM':'TYP2014','1532NHN':'ARIDFLOT',
+  '1586JFW':'OP TRANS V.','1748JGL':'TYP2014','1931MTS':'T. SATIG 79',
+  '1968JFV':'TYP2014','2006JJT':'TTES HISPALIS 2016','2254JVJ':'TYP2014',
+  '2412MZD':'T. SATIG 79','2576NJY':'OP TRANS V.','2965JHW':'JOSE MIGUEL VALLDEPEREZ',
+  '3092MLL':'TRANSMARGAZ 2018','3132JLK':'TRANSMARGAZ 2018','3749HRX':'TRANSMARGAZ 2018',
+  '3768LZJ':'TYP2014','3769LZJ':'TYP2014','4201JWR':'TRANSMARGAZ 2018',
+  '4210NGF':'TTES HISPALIS 2016','4305JTZ':'JOAQUIN CAÑAS','4354NHM':'TRANSMARGAZ 2018',
+  '4380MPL':'TTES HISPALIS 2016','4537HYY':'TYP2014','4540NPW':'TRANSMARGAZ 2018',
+  '4556JKS':'FRANCISCO OCAÑA','4576JLK':'TTES HISPALIS 2016','4586HTZ':'TRANSMARGAZ 2018',
+  '4601KDV':'TRANSMARGAZ 2018','4705JSB':'OP TRANS V.','4788KJH':'OP TRANS V.',
+  '4816LNY':'TRANSMARGAZ 2018','4839NBF':'TYP2014','5003JNX':'OP TRANS V.',
+  '5099LNP':'TRANSMARGAZ 2018','5123MVF':'TTES HISPALIS 2016','5174LJR':'ARIDFLOT',
+  '5258HYX':'TYP2014','5360JZR':'TTES HISPALIS 2016','5412NKD':'TYP2014',
+  '5423MVR':'OP TRANS V.','5523MKY':'T. SATIG 79','5524MKY':'T. SATIG 79',
+  '5742MND':'T. REFRIGERADOS DOMINGUEZ','5860JJK':'TRANSMARGAZ 2018','6058JJJ':'TRANSMARGAZ 2018',
+  '6102LSR':'TYP2014','6118MLD':'TYP2014','6269HZZ':'CIPRIAN IOAN BUSILA',
+  '6285LMG':'TTES HISPALIS 2016','6420JZT':'TTES HISPALIS 2016','6430KDG':'TYP2014',
+  '6521NHV':'TTES HISPALIS 2016','6558HWG':'TRANSMARGAZ 2018','6590JLK':'OP TRANS V.',
+  '6733JKM':'OP TRANS V.','6807HYY':'TYP2014','6892JXH':'TRANSMARGAZ 2018',
+  '6910MFN':'OP TRANS V.','7007JML':'ANTONIO MARTIN','7047LCB':'TYP2014',
+  '7067MKZ':'TYP2014','7131JJT':'TTES HISPALIS 2016','7293LWH':'OP TRANS V.',
+  '7482MTL':'OP TRANS V.','7511JWY':'T. REFRIGERADOS DOMINGUEZ','7532LPP':'TYP2014',
+  '7609LVJ':'T. SATIG 79','7683JGB':'TYP2014','7778LXT':'OP TRANS V.',
+  '7820LXT':'TYP2014','7874LCM':'TYP2014','7878MBN':'T. SATIG 79',
+  '8046JJW':'TRANSMARGAZ 2018','8050JJW':'TYP2014','8180JJM':'TRANSMARGAZ 2018',
+  '8280NHJ':'TRANSMARGAZ 2018','8466NGN':'TRANSMARGAZ 2018','8504LTF':'TYP2014',
+  '8554HWD':'TRANSMARGAZ 2018','8585NBC':'ARIDFLOT','8678NGL':'TYP2014',
+  '8680LPR':'TRANSMARGAZ 2018','8735MYM':'TYP2014','8928LDK':'OP TRANS V.',
+  '8992NLF':'TYP2014','9189LWK':'OP TRANS V.','9217HWN':'TRANSMARGAZ 2018',
+  '9295JJZ':'TTES HISPALIS 2016','9346MNY':'TRANSMARGAZ 2018','9357MNV':'OP TRANS V.',
+  '9401MPL':'TYP2014','9487MPL':'TYP2014','9495LHT':'T. SATIG 79',
+  '9499LHT':'TYP2014','9566NBR':'TTES HISPALIS 2016','9632JLW':'TRANSMARGAZ 2018',
+  '9845JFK':'TYP2014','9918MXC':'TYP2014'
+}
 function getTransportista(mat) { if (!mat) return null; return TRANSPORTISTAS[mat.toUpperCase()] || null; }
 
 // ============================================================
