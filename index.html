@@ -727,10 +727,21 @@ async function processQueue(type) {
       try { fileUrl = await uploadFile(it.file, type); } catch(e) { console.warn('Upload failed:', e); }
 
       let results;
-      if (type === 'alb') {
-        results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf);
-      } else {
-        results = await callClaudeGas(it.b64, it.mediaType, key, it.isPdf);
+      // Reintentar hasta 2 veces si falla
+      let attempts = 0;
+      while (attempts < 2) {
+        try {
+          if (type === 'alb') {
+            results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf);
+          } else {
+            results = await callClaudeGas(it.b64, it.mediaType, key, it.isPdf);
+          }
+          break;
+        } catch(retryErr) {
+          attempts++;
+          if (attempts >= 2) throw retryErr;
+          await sleep(2000);
+        }
       }
 
       for (const data of results) {
@@ -762,7 +773,7 @@ async function processQueue(type) {
     else { applyGasFilters(); }
     document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length;
     document.getElementById('tabGasCount').textContent = gasoilRecords.length;
-    await sleep(400);
+    await sleep(800);
   }
   const ok = todo.filter(x => x.status === 'done').length;
   if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
@@ -777,7 +788,7 @@ async function processQueue(type) {
 async function callClaudeAlb(b64, mediaType, key, isPdf) {
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
-${isPdf?'El PDF puede tener varias páginas pero son ORIGINAL y COPIA del mismo albarán. Extrae SOLO UN albarán (de la primera página). Devuelve un ARRAY JSON con UN solo objeto.':'Devuelve un objeto JSON (no array).'}
+${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres, uno por página. Si una página dice DUPLICADO o COPIA de otra página, ignórala. Devuelve un ARRAY JSON con un objeto por cada albarán único encontrado.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
 - albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. En Cemex formato 77469/XXXXXX
 - fecha: DD/MM/YYYY
