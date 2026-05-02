@@ -339,6 +339,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                 <th id="th-obra" onclick="sortBy('obra')">Destino</th>
                 <th id="th-producto" onclick="sortBy('producto')">Material</th>
                 <th id="th-cliente" onclick="sortBy('cliente')">Comprador</th>
+                <th>Subido por</th>
                 <th>Subido</th>
                 <th></th>
               </tr></thead>
@@ -573,6 +574,8 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 let currentUser = null;
 let currentRole = null;
 let records = [];
+// Mapa user_id -> {name, role} para mostrar quién subió cada albarán
+let userMap = {};
 let gasoilRecords = [];
 let filtered = [];
 let filteredGas = [];
@@ -610,6 +613,24 @@ async function doLogout() {
   await sb.auth.signOut();
 }
 
+// Cargar el mapa de usuarios (id -> nombre) para poder mostrar quién subió cada albarán
+async function loadUserMap() {
+  try {
+    const { data, error } = await sb.from('profiles').select('id, name, role');
+    if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
+    userMap = {};
+    (data || []).forEach(p => { userMap[p.id] = { name: p.name || '(sin nombre)', role: p.role || '' }; });
+  } catch (e) { console.warn('Error en loadUserMap:', e); }
+}
+
+// Helper: nombre legible del usuario que subió un registro (a partir de su user_id)
+function userName(uid) {
+  if (!uid) return '—';
+  const u = userMap[uid];
+  if (!u) return '(otro)';
+  return u.name;
+}
+
 async function onLogin(user) {
   currentUser = user;
   // Get role from profiles table
@@ -632,6 +653,7 @@ async function onLogin(user) {
       document.getElementById('tabAdmin').style.display = 'flex';
     }
     renderSetup();
+    await loadUserMap();
     await loadData();
   }
 }
@@ -1461,6 +1483,7 @@ function renderTable() {
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
       <td class="tag-mat" style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="opacity:.7;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
+      <td style="color:var(--in);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
       <td><button class="btn bs" style="padding:3px 7px;font-size:10px" onclick="event.stopPropagation();openModal('${r.db_id || r._id}')">✏</button></td>
     </tr>`).join('');
@@ -1526,6 +1549,11 @@ function openModal(id) {
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
   else if (r._quality === 'warn') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong></div>`;
+  // Info de quién subió el albarán (visible para admin/gestor)
+  const subPor = userName(r.user_id);
+  if (subPor && subPor !== '—') {
+    alertHtml += `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);padding:4px 0 12px">📤 Subido por: <strong style="color:var(--in)">${subPor}</strong>${r.created_at ? ` · ${fmtTS(r.created_at)}` : ''}</div>`;
+  }
   document.getElementById('mAlert').innerHTML = alertHtml;
   // Preview
   let previewHtml = '';
@@ -1615,7 +1643,7 @@ async function saveGasModal() {
 // EXCEL
 // ============================================================
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','TOTAL (€)','ESTADO'];
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','TOTAL (€)','ESTADO'];
 
 function buildExcel(data) {
   // Ordenar SIEMPRE: fecha ascendente → matrícula → nº albarán
@@ -1625,10 +1653,10 @@ function buildExcel(data) {
     const tm = parseFloat(r.tm) || 0;
     const precio = r.precio != null && r.precio !== '' ? parseFloat(r.precio) : null;
     const total = precio != null ? +(tm * precio).toFixed(2) : null;
-    return [...ECOLS.map(c => { if (c === 'precio') return precio != null ? precio : ''; return r[c] != null ? r[c] : ''; }), total != null ? total : '', r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'];
+    return [...ECOLS.map(c => { if (c === 'precio') return precio != null ? precio : ''; return r[c] != null ? r[c] : ''; }), userName(r.user_id), total != null ? total : '', r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'];
   })];
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [10,10,9,10,14,22,18,22,20,24,10,22,10,10,8,8,24,10,12].map(w => ({wch: w}));
+  ws['!cols'] = [10,10,9,10,14,22,18,22,20,24,10,22,10,10,8,8,24,18,10,12].map(w => ({wch: w}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Albaranes');
   const agg = key => valid.reduce((acc, r) => { const k = r[key] || 'Sin dato'; if (!acc[k]) acc[k] = {n:0,tm:0}; acc[k].n++; acc[k].tm += parseFloat(r.tm) || 0; return acc; }, {});
