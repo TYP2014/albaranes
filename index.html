@@ -1830,31 +1830,54 @@ async function procesarPreliquidacion(file) {
   let fileUrl = null;
   try { fileUrl = await uploadFile(file, 'preli'); } catch (e) { console.warn('Upload falló:', e); }
 
-  // Dividir PDF en páginas
-  setPreliProgress('Leyendo páginas del PDF...', 10);
+  // Cargar PDF y leer texto de TODAS las páginas (para detectar cliente y filtrar páginas sin datos)
+  setPreliProgress('Leyendo páginas del PDF...', 8);
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdf.numPages;
 
+  setPreliProgress(`Analizando contenido (${numPages} páginas)...`, 10);
+  const paginasInfo = [];
+  let textoPrimera = '';
+  for (let p = 1; p <= numPages; p++) {
+    const page = await pdf.getPage(p);
+    let texto = '';
+    try {
+      const tc = await page.getTextContent();
+      texto = tc.items.map(it => it.str).join(' ');
+    } catch (e) { /* PDF escaneado sin capa de texto */ }
+    if (p === 1) textoPrimera = texto;
+    paginasInfo.push({ pagina: p, page, texto });
+  }
+
+  // Detectar el cliente combinando nombre de archivo + texto de la primera página
+  const clienteDetectado = detectarCliente(file.name, textoPrimera) || 'Desconocido';
+
+  // Filtrar las páginas que tienen datos (en Holcim hay 8-12 páginas de cabecera/subtotales que no aportan filas)
+  let paginasConDatos = paginasInfo.filter(pi => paginaTieneDatos(pi.texto, clienteDetectado));
+  // Fallback: si la heurística filtra TODAS las páginas (ej. PDF escaneado sin texto), procesar todas
+  if (!paginasConDatos.length) paginasConDatos = paginasInfo;
+
+  setPreliProgress(`Cliente: ${clienteDetectado} · ${paginasConDatos.length}/${numPages} páginas con datos`, 14);
+  await sleep(600); // pausa para que el usuario vea el mensaje
+
   // Concurrencia 2, con pausa entre lotes para respetar rate limit
   const todasLasFilas = [];
-  let clienteDetectado = null;
   const scale = numPages > 30 ? 1.5 : 1.8;
   const quality = numPages > 30 ? 0.75 : 0.85;
 
-  // Generar imágenes secuencialmente, procesar en paralelo de a 2
+  // Generar imágenes solo de las páginas que tienen datos
   const tareas = [];
-  for (let p = 1; p <= numPages; p++) {
-    setPreliProgress(`Generando imagen página ${p}/${numPages}...`, 10 + (p / numPages) * 30);
-    const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale });
+  for (const pi of paginasConDatos) {
+    setPreliProgress(`Generando imagen página ${pi.pagina}/${numPages}...`, 14 + (tareas.length / paginasConDatos.length) * 26);
+    const viewport = pi.page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await pi.page.render({ canvasContext: ctx, viewport }).promise;
     const dataUrl = canvas.toDataURL('image/jpeg', quality);
-    tareas.push({ pagina: p, b64: dataUrl.split(',')[1] });
+    tareas.push({ pagina: pi.pagina, b64: dataUrl.split(',')[1] });
     canvas.width = 0; canvas.height = 0;
   }
 
@@ -1865,14 +1888,14 @@ async function procesarPreliquidacion(file) {
     const batch = tareas.slice(i, i + CONCURRENCY);
     const results = await Promise.all(batch.map(async t => {
       try {
-        const filas = await callClaudePreli(t.b64, getKey(), t.pagina);
+        const filas = await callClaudePreli(t.b64, getKey(), t.pagina, clienteDetectado);
         return { pagina: t.pagina, filas, error: null };
       } catch (e) {
         // Reintento en rate limit
         if (e.status === 429 || /rate.?limit/i.test(e.message)) {
           await sleep(30000);
           try {
-            const filas = await callClaudePreli(t.b64, getKey(), t.pagina);
+            const filas = await callClaudePreli(t.b64, getKey(), t.pagina, clienteDetectado);
             return { pagina: t.pagina, filas, error: null };
           } catch (e2) { return { pagina: t.pagina, filas: [], error: e2.message }; }
         }
@@ -1884,12 +1907,9 @@ async function procesarPreliquidacion(file) {
       todasLasFilas.push(...r.filas);
     }
     procesadas += batch.length;
-    setPreliProgress(`Extrayendo filas: ${todasLasFilas.length} encontradas (${procesadas}/${numPages} páginas)...`, 40 + (procesadas/numPages)*40);
+    setPreliProgress(`Extrayendo filas: ${todasLasFilas.length} encontradas (${procesadas}/${tareas.length} páginas procesadas)...`, 40 + (procesadas/tareas.length)*40);
     if (i + CONCURRENCY < tareas.length) await sleep(1500);
   }
-
-  // Detectar cliente del primer registro o del nombre del archivo
-  clienteDetectado = todasLasFilas[0]?.cliente_emisor || detectarCliente(file.name);
 
   if (!todasLasFilas.length) {
     toast('No se extrajeron filas. Revisa el formato del PDF.', 'err');
@@ -1905,7 +1925,7 @@ async function procesarPreliquidacion(file) {
   setPreliProgress(`Guardando ${filasConEstado.length} filas en BD...`, 92);
   const filasParaInsertar = filasConEstado.map(f => ({
     id_preliquidacion: idPreli,
-    cliente: clienteDetectado || 'Desconocido',
+    cliente: clienteDetectado,
     filename: file.name,
     file_url: fileUrl,
     albaran: f.albaran || null,
@@ -1939,17 +1959,86 @@ async function procesarPreliquidacion(file) {
   openPreliDetail(idPreli);
 }
 
-function detectarCliente(filename) {
-  const f = filename.toLowerCase();
+function detectarCliente(filename, textoPdf) {
+  const f = (filename || '').toLowerCase();
+  const t = (textoPdf || '').toLowerCase();
+  // 1. Por nombre de archivo (palabras clave directas)
   if (/holcim/.test(f)) return 'Holcim';
   if (/cemex/.test(f)) return 'Cemex';
   if (/elite|élite/.test(f)) return 'Elite Cementos';
+  // 2. Por contenido textual de la primera página del PDF
+  if (/holcim/.test(t)) return 'Holcim';
+  if (/cemex españa|cemex/.test(t)) return 'Cemex';
+  if (/élite cementos|elite cementos/.test(t)) return 'Elite Cementos';
+  // 3. Patrones típicos en el nombre del archivo
+  if (/^invoic_\d/.test(f)) return 'Holcim'; // formato Holcim típico: INVOIC_<ref>_...
   return null;
 }
 
+// ¿Esta página del PDF contiene filas de datos reales? (para no enviar a la IA páginas de cabecera/subtotales)
+function paginaTieneDatos(texto, cliente) {
+  if (!texto) return false;
+  if (cliente === 'Holcim') {
+    // Página de datos Holcim: tiene >=3 fechas DD.MM.YYYY y >=3 números de albarán de 10-12 dígitos.
+    // Las páginas de cabecera factura, "Total PO", "Subtotal por vehiculo" o resumen final no cumplen estos umbrales.
+    const fechas = (texto.match(/\d{2}\.\d{2}\.\d{4}/g) || []).length;
+    const albs = (texto.match(/\b\d{10,12}\b/g) || []).length;
+    return fechas >= 3 && albs >= 3;
+  }
+  // Por defecto: cualquier página con al menos 3 fechas en formato común
+  const fechas = (texto.match(/\d{2}[./-]\d{2}[./-]\d{4}/g) || []).length;
+  return fechas >= 3;
+}
+
 // Llamada a la IA con prompt específico para preliquidaciones
-async function callClaudePreli(b64, key, paginaNum) {
-  const prompt = `Eres un OCR experto en preliquidaciones de transporte de áridos y cemento en España. Esta es UNA PÁGINA de una preliquidación enviada por un cliente (Holcim, Cemex, Élite Cementos, etc.) a su transportista. La página contiene una TABLA con MÚLTIPLES albaranes (entregas) listados por filas.
+async function callClaudePreli(b64, key, paginaNum, cliente) {
+  let prompt;
+  if (cliente === 'Holcim') {
+    prompt = `Eres un OCR experto extrayendo datos de facturas/preliquidaciones de Holcim España. Esta es UNA PÁGINA del documento.
+
+La página puede contener: (a) tabla con filas de datos de albaranes, (b) cabecera de factura/totales/subtotales SIN datos, (c) ambos mezclados.
+
+EXTRAE SOLO las filas que cumplan TODAS estas condiciones:
+- Tienen una fecha en formato DD.MM.YYYY (NO la fecha de la factura del encabezado superior)
+- Tienen un "Num. Entrega" (número de albarán) de 10-12 dígitos
+- Tienen una matrícula de camión española (formato 4 dígitos + 3 letras, ej "1968JFV")
+- Tienen una cantidad numérica > 0 en la columna "Cta."
+
+DESCARTA SIEMPRE estas líneas (NO las extraigas):
+- Línea de cabecera de columnas: "Fecha de entrega | Num. Entrega | Matrícula | Nombre Proveedor | ..."
+- "Subtotal por vehiculo XXXXXXX" / "Subtotal por PO" / "Subtotal por destino" / "Total" cualquier cosa
+- "Total transporte" / "Total Transportista" / "Total Cantidad" / "Total Importe" / "Total con IVA" / "Total Neto" / "IVA"
+- "Condiciones de pago" / "Página #" / "Material Coste Imp" / "Servicios / Extra costes" / "AFR Transporte"
+- Cabeceras de bloques: "Fábrica Montcada", "Lafarge CEM", "Logistica", "Pedido de compras", "Periodo:", "Referencia"
+- Cualquier fila con cantidad 0 o vacía o sin Num. Entrega
+
+Por cada fila VÁLIDA devuelve un objeto JSON con esta estructura exacta:
+{
+  "fecha": "DD/MM/YYYY",
+  "albaran": "0941343096",
+  "tractora": "1968JFV",
+  "remolque": "R3542BBV",
+  "proveedor_cliente": "PROMOTORA MEDITERRANEA 2 S A",
+  "direccion": "CR NACIONAL 340 KM 1242,3, 08620 SAN VICENÇ DELS HORTS",
+  "zona": "Origen",
+  "material": "Caliza Promsa",
+  "tm": 26.900,
+  "unidad": "T",
+  "transportista_real": "TRANSPORTES Y PORTES 2014, S.L"
+}
+
+Notas importantes:
+- "fecha": convierte "02.03.2026" a "02/03/2026"
+- "albaran": copia EXACTO, conservando ceros iniciales (ej "0941343096", "31048146095")
+- "tractora" y "remolque": cuando la celda contiene "1968JFV / R3542BBV" o "1968JFV/R3542BBV", separa por el "/" — la primera es la tractora, la segunda (suele empezar por R) es el remolque
+- "tm": NÚMERO con punto decimal (convierte "27,820" → 27.820, "30 T" → 30.0)
+- "transportista_real": el nombre que aparece en la cabecera "Transportista : XXX" justo encima del bloque de la tabla (ej "TRANSPORTES Y PORTES 2014, S.L", "TRANSPORTES HISPALIS 2016, S.L", "ARIDFLOT, S.L.", "TRANSMARGAZ 2018, S.L.", "Bogdan Sebastian Giurgiu", "FCO. OCAÑA COSTALAGO", "JOSE MIGUEL VALLDEPEREZ SEGURA", "TRANS REFIGERADOS DOMIGUEZ"). Repite ese mismo valor en cada fila del bloque, hasta encontrar una nueva cabecera "Transportista :".
+
+Devuelve SOLO un ARRAY JSON con las filas válidas. Si la página NO tiene filas de datos, devuelve [].
+SOLO JSON válido, sin markdown, sin texto antes ni después.`;
+  } else {
+    // Prompt genérico para cualquier otro cliente (Cemex, Élite u otros)
+    prompt = `Eres un OCR experto en preliquidaciones de transporte de áridos y cemento en España. Esta es UNA PÁGINA de una preliquidación enviada por un cliente (Holcim, Cemex, Élite Cementos, etc.) a su transportista. La página contiene una TABLA con MÚLTIPLES albaranes (entregas) listados por filas.
 
 EXTRAE TODAS LAS FILAS de la tabla. Cada fila representa una entrega/albarán independiente.
 
@@ -1970,6 +2059,7 @@ IGNORA totales, subtotales, líneas de cabecera, y filas vacías. Solo extrae fi
 
 Devuelve SOLO un ARRAY JSON con todos los objetos. Si la página no tiene filas de datos, devuelve [].
 SOLO JSON válido, sin markdown, sin explicaciones.`;
+  }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 180000);
