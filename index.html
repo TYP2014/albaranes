@@ -864,18 +864,28 @@ async function uploadAsConductor(files, type) {
   }
   renderQueues();
 
-  // Subir uno a uno
+  // Subir uno a uno con timeout de seguridad (45s) para que si Supabase se cuelga, la UI no se quede atascada
+  const TIMEOUT_MS = 45000;
+  const withTimeout = (promise, ms, label) => Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout ${label} (${ms/1000}s)`)), ms))
+  ]);
+
   let ok = 0, fail = 0;
   for (const it of newItems) {
     it.status = 'processing';
     renderQueues();
     try {
-      const fileUrl = await uploadFile(it.file, type);
-      const { error } = await sb.from(tableName).insert({
-        user_id: currentUser.id,
-        file_url: fileUrl,
-        procesado: false
-      });
+      const fileUrl = await withTimeout(uploadFile(it.file, type), TIMEOUT_MS, 'subiendo a Storage');
+      const { error } = await withTimeout(
+        sb.from(tableName).insert({
+          user_id: currentUser.id,
+          file_url: fileUrl,
+          procesado: false
+        }),
+        TIMEOUT_MS,
+        'guardando en BD'
+      );
       if (error) throw error;
       it.status = 'done';
       ok++;
@@ -986,7 +996,12 @@ function renderQueues() {
   });
 }
 
-function stLbl(s) { return { pending: 'Pendiente', processing: '⏳ Leyendo con IA...', done: '✓ Procesado', error: '✗ Error' }[s] || s; }
+function stLbl(s) {
+  if (currentRole === 'conductor') {
+    return { pending: 'Pendiente', processing: '⏳ Enviando a oficina...', done: '✓ Enviado a oficina', error: '✗ Error' }[s] || s;
+  }
+  return { pending: 'Pendiente', processing: '⏳ Leyendo con IA...', done: '✓ Procesado', error: '✗ Error' }[s] || s;
+}
 function rmPending(id, type) { if (type==='alb') pendingAlb = pendingAlb.filter(x => x.id !== id); else pendingGas = pendingGas.filter(x => x.id !== id); renderQueues(); }
 
 // ============================================================
