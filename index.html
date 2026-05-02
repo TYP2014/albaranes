@@ -7,7 +7,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-// Configurar worker de PDF.js (necesario para dividir PDFs en páginas)
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
@@ -674,15 +673,16 @@ async function addFiles(files, type) {
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
 
-    // Para PDFs de albaranes con MÚLTIPLES PÁGINAS: dividirlos automáticamente en imágenes
-    // Esto hace que cada página se procese en paralelo y muy rápido (15-25s en lugar de minutos)
+    // Para PDFs de albaranes: dividir en imágenes para procesar página a página en paralelo.
+    // Esto permite manejar PDFs de hasta 80-100 páginas eficientemente.
     if (isPdf && type === 'alb' && typeof pdfjsLib !== 'undefined') {
       try {
         const arrayBuffer = await f.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdf.numPages;
 
-        if (pdf.numPages === 1) {
-          // PDF de 1 página: lo procesamos como PDF directamente (más rápido que renderizar)
+        if (numPages === 1) {
+          // PDF de 1 página: procesarlo como PDF directamente (más rápido)
           const b64 = await new Promise((res, rej) => {
             const r = new FileReader();
             r.onload = e => res(e.target.result.split(',')[1]);
@@ -694,40 +694,65 @@ async function addFiles(files, type) {
           }
         } else {
           // PDF MULTI-PÁGINA: dividir en imágenes JPG, una por página
-          toast(`📄 Dividiendo ${f.name} en ${pdf.numPages} páginas...`);
-          for (let p = 1; p <= pdf.numPages; p++) {
+          // Optimización para PDFs grandes:
+          //  - subir el PDF completo a Storage UNA SOLA VEZ (no cada imagen)
+          //  - usar resolución dinámica: alta calidad para PDFs pequeños, optimizada para grandes
+          //  - mostrar progreso de la división
+          toast(`📄 Dividiendo ${f.name} en ${numPages} páginas...`);
+
+          // Subir el PDF original UNA SOLA VEZ a Storage (referencia compartida)
+          let sharedPdfUrl = null;
+          try { sharedPdfUrl = await uploadFile(f, type); } catch (e) { console.warn('Upload PDF failed:', e); }
+
+          // Resolución adaptada al tamaño del PDF (mantiene calidad OCR sin saturar memoria)
+          const scale = numPages > 30 ? 1.5 : (numPages > 10 ? 1.75 : 2);
+          const quality = numPages > 30 ? 0.75 : 0.85;
+
+          for (let p = 1; p <= numPages; p++) {
+            // Mostrar progreso cada 5 páginas para PDFs grandes
+            if (numPages > 10 && p % 5 === 0) {
+              toast(`📄 Procesando ${f.name}: página ${p}/${numPages}...`);
+            }
             const page = await pdf.getPage(p);
-            const viewport = page.getViewport({ scale: 2 }); // x2 para buena calidad OCR
+            const viewport = page.getViewport({ scale });
             const canvas = document.createElement('canvas');
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             const ctx = canvas.getContext('2d');
             await page.render({ canvasContext: ctx, viewport }).promise;
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
             const imgB64 = dataUrl.split(',')[1];
-            // Convertir el dataURL en un File real (para subirlo a Storage como imagen)
-            const blob = await (await fetch(dataUrl)).blob();
             const baseName = f.name.replace(/\.pdf$/i, '');
             const pageName = `${baseName}_pag${p}.jpg`;
-            const pageFile = new File([blob], pageName, { type: 'image/jpeg' });
+            // Liberar canvas inmediatamente (importante para PDFs grandes)
+            canvas.width = 0; canvas.height = 0;
 
             if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
               pending.push({
                 id: Date.now() + Math.random() + p,
-                file: pageFile,
+                file: f, // referencia al PDF original para fallback
                 b64: imgB64,
                 status: 'pending',
                 isPdf: false,
                 name: pageName,
-                mediaType: 'image/jpeg'
+                mediaType: 'image/jpeg',
+                sharedPdfUrl: sharedPdfUrl,    // URL del PDF original ya subido
+                pageNum: p,                     // número de página dentro del PDF
+                skipUpload: true                // no subir cada imagen individualmente
               });
             }
+
+            // Re-render UI cada 10 páginas para que el usuario vea progreso
+            if (p % 10 === 0) {
+              renderQueues();
+              await sleep(0); // ceder al event loop
+            }
           }
+          renderQueues();
         }
       } catch (err) {
         console.error('Error dividiendo PDF:', err);
         toast(`⚠️ No se pudo dividir ${f.name}, se intentará como PDF entero`, 'warn');
-        // Fallback: procesar el PDF entero
         const b64 = await new Promise((res, rej) => {
           const r = new FileReader();
           r.onload = e => res(e.target.result.split(',')[1]);
@@ -753,7 +778,6 @@ async function addFiles(files, type) {
     }
   }
   renderQueues();
-  // Auto-arrancar el procesamiento si hay clave configurada
   if (getKey()) processQueue(type);
 }
 
@@ -804,10 +828,9 @@ async function processQueue(type) {
     return;
   }
 
-  // 3 archivos en paralelo. Como ahora cada uno es UNA página/imagen, son rápidos.
-  // Timeout 2 minutos: suficiente para imágenes de baja calidad.
-  const CONCURRENCY = 3;
-  const TIMEOUT_MS = 120000;
+  // Concurrencia adaptativa: más archivos = más paralelismo (hasta 4)
+  // Imágenes individuales son rápidas, así que podemos procesarlas más en paralelo
+  const TIMEOUT_MS = 120000; // 2 min por imagen
   let totalDone = 0;
 
   try {
@@ -815,7 +838,9 @@ async function processQueue(type) {
       const pending = type === 'alb' ? pendingAlb : pendingGas;
       const todo = pending.filter(x => x.status === 'pending');
       if (!todo.length) break;
-      const batch = todo.slice(0, CONCURRENCY);
+      // Concurrencia: 4 si hay 20+ archivos pendientes, 3 si 5+, 2 si menos
+      const concurrency = todo.length >= 20 ? 4 : (todo.length >= 5 ? 3 : 2);
+      const batch = todo.slice(0, concurrency);
       const results = await Promise.all(batch.map(it => _processOne(it, type, key, TIMEOUT_MS)));
       totalDone += results.filter(r => r === true).length;
     }
@@ -839,8 +864,11 @@ async function _processOne(it, type, key, timeoutMs) {
   renderQueues();
 
   try {
-    let fileUrl = null;
-    try { fileUrl = await uploadFile(it.file, type); } catch (e) { console.warn('Upload failed:', e); }
+    // Subir solo si no se reutiliza el PDF compartido (importante para PDFs grandes)
+    let fileUrl = it.sharedPdfUrl || null;
+    if (!fileUrl && !it.skipUpload) {
+      try { fileUrl = await uploadFile(it.file, type); } catch (e) { console.warn('Upload failed:', e); }
+    }
 
     let results;
     let attempts = 0;
@@ -866,10 +894,22 @@ async function _processOne(it, type, key, timeoutMs) {
       }
     }
 
+    // Liberar memoria de la imagen base64 cuanto antes (crítico para PDFs grandes)
+    it.b64 = null;
+
     for (const data of results) {
-      data.file_url = fileUrl;
+      // Anotar URL con número de página si viene de PDF compartido
+      data.file_url = fileUrl + (it.pageNum ? `#page=${it.pageNum}` : '');
       data.user_id = currentUser.id;
       if (type === 'alb') {
+        // Auto-corregir matrículas con errores OCR típicos (I↔L, 0↔O, etc.)
+        if (data.tractora) {
+          const fixed = fixMatricula(data.tractora);
+          if (fixed !== data.tractora) {
+            console.log(`Matrícula corregida por OCR: ${data.tractora} → ${fixed}`);
+            data.tractora = fixed;
+          }
+        }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
         const dbId = await saveRecord(data);
         data._id = Date.now() + Math.random();
@@ -893,6 +933,7 @@ async function _processOne(it, type, key, timeoutMs) {
     return true;
   } catch (e) {
     it.status = 'error';
+    it.b64 = null; // liberar memoria también en error
     toast('Error en ' + it.name + ': ' + e.message, 'err');
     console.error('Error en', it.name, e);
     renderQueues();
@@ -906,15 +947,15 @@ async function _processOne(it, type, key, timeoutMs) {
 async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
-${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. IMPORTANTE: que una página tenga la palabra "DUPLICADO" o "COPIA" NO significa automáticamente que haya que ignorarla — esas etiquetas suelen indicar simplemente que es una copia para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único encontrado.':'Devuelve un objeto JSON (no array).'}
+${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. IMPORTANTE: que una página tenga la palabra "DUPLICADO" o "COPIA" NO significa que haya que ignorarla — esas etiquetas suelen indicar copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único encontrado.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
 - albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. En Cemex formato 77469/XXXXXX
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria
-- obra: destino final. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número de 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa) → destino es el valor del campo "Obra:" (ej: "GURREA DE GÁLLEGO", convertir a formato Capitalizado: "Gurrea de Gállego"). **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera dice literalmente "ALBARÁN DE RECEPCIÓN DE MATERIAL", la mercancía LLEGA a la fábrica desde un proveedor externo) → destino es siempre el valor del campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). NUNCA uses ciudad postal del transportista. EXCEPCIONES: si contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
+- obra: destino final / lugar de descarga real. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa) → destino es el TEXTO del campo "Obra:" tal como aparece arriba (ej: "GURREA DE GÁLLEGO" → "Gurrea de Gállego"; "PLANTA FERRAN-RIERA" → "Planta Ferran-Riera"; "RIUDELLOTS DE LA SELVA 1" → "Riudellots de la Selva"). **CRÍTICO**: NUNCA uses la dirección/ciudad/código postal que aparece debajo del campo "Facturar a:" o "Cliente:" — esa es solo la dirección fiscal del comprador, NO el destino real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera dice "ALBARÁN DE RECEPCIÓN DE MATERIAL", la mercancía LLEGA a la fábrica) → destino es el campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). **REGLA UNIVERSAL**: NUNCA uses ciudad postal del transportista ni dirección fiscal del cliente. EXCEPCIONES POR MATERIAL/CONTENIDO: si la obra contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
 - planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". En Portland busca "Planta". Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Promsa/Garraf"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
-- tractora: matrícula camión. Formato 4 dígitos + 3 letras. NO confundir con CIF/NIF ni remolques
+- tractora: matrícula camión. Formato 4 dígitos + 3 letras españolas. **ATENCIÓN OCR**: si la matrícula termina en "I" verifica si en realidad es "L" (la I y L se confunden frecuentemente en escaneos). Las matrículas españolas modernas NO usan las letras Q, Ñ, CH, LL — si lees una de estas, probablemente es otra letra. Las matrículas legibles típicas terminan en consonantes. NO confundir matrícula con CIF/NIF (que tienen formato letra+8dígitos+letra) ni con números de remolque.
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null
 - bruto_kg: peso bruto en kg o null
@@ -979,14 +1020,21 @@ SOLO JSON válido, sin markdown.`;
 // ============================================================
 // ANALYZE & RENDER
 // ============================================================
-// Normalización para comparar strings (ignora tildes, mayúsculas y espacios extra)
+// Normalización robusta para comparar strings:
+// - Quita tildes
+// - Pasa a mayúsculas
+// - Elimina sufijos empresariales (S.L., S.A., S.A.U., etc.)
+// - Elimina puntos, comas, guiones
+// - Colapsa espacios
 function normStr(s) {
   return String(s || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .trim()
     .toUpperCase()
-    .replace(/\s+/g, ' ');
+    .replace(/\b(S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.?C\.?P?\.?|C\.?B\.?|S\.?COOP\.?)\b/g, '')
+    .replace(/[.,\-_;:'"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Normaliza fechas DD/MM/YYYY o D/M/YYYY a formato común DD/MM/YYYY
@@ -1004,12 +1052,31 @@ function normFecha(s) {
 function qualityScore(r) { return ['albaran','fecha','tractora','tm','proveedor','planta','obra','producto','cliente'].filter(k => r[k] != null && String(r[k]).trim() !== '').length; }
 function analyzeRecords() {
   records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; });
-  const seen = {};
+  const seenStrict = {}; // clave: albaran+proveedor+fecha
+  const seenLoose = {};  // clave: albaran+fecha (solo si datos clave coinciden)
   records.forEach(r => {
     if (!r.albaran) return;
-    // Clave robusta: ignora tildes, mayúsculas, espacios extra y formatos de fecha distintos
-    const key = normStr(r.albaran) + '|' + normStr(r.proveedor) + '|' + normFecha(r.fecha);
-    if (seen[key]) { r._dup = true; r._dupOf = seen[key]; } else { seen[key] = r.db_id || r._id; }
+    const albNorm = normStr(r.albaran);
+    const provNorm = normStr(r.proveedor);
+    const fechaNorm = normFecha(r.fecha);
+    // Clave estricta: albarán + proveedor + fecha (todo normalizado)
+    const keyStrict = albNorm + '|' + provNorm + '|' + fechaNorm;
+    // Clave laxa: albarán + fecha (sin proveedor) — para detectar duplicados con proveedor escrito diferente
+    const keyLoose = albNorm + '|' + fechaNorm;
+
+    if (seenStrict[keyStrict]) {
+      r._dup = true; r._dupOf = seenStrict[keyStrict];
+    } else if (seenLoose[keyLoose]) {
+      // Doble check: si tienen el mismo TM, marcamos como duplicado seguro
+      const orig = records.find(x => (x.db_id || x._id) === seenLoose[keyLoose]);
+      if (orig && Math.abs((parseFloat(r.tm) || 0) - (parseFloat(orig.tm) || 0)) < 0.01) {
+        r._dup = true; r._dupOf = seenLoose[keyLoose];
+      }
+    }
+    if (!r._dup) {
+      seenStrict[keyStrict] = r.db_id || r._id;
+      seenLoose[keyLoose] = r.db_id || r._id;
+    }
   });
   records.forEach(r => { if (r._dup) return; const s = qualityScore(r); r._quality = s <= 3 ? 'ilegible' : s <= 6 ? 'warn' : 'ok'; });
 }
@@ -1397,6 +1464,39 @@ const TRANSPORTISTAS = {
   '9845JFK':'TYP2014','9918MXC':'TYP2014'
 }
 function getTransportista(mat) { if (!mat) return null; return TRANSPORTISTAS[mat.toUpperCase()] || null; }
+
+// Auto-corrige matrículas con errores típicos de OCR (I↔L, 0↔O, 1↔I, etc.)
+// Si la matrícula leída no está en el diccionario pero alguna variante sí lo está, devuelve la variante correcta
+function fixMatricula(mat) {
+  if (!mat) return mat;
+  const m = String(mat).toUpperCase().trim();
+  // Si ya existe tal cual, devolverla
+  if (TRANSPORTISTAS[m]) return m;
+  // Generar variantes probando confusiones típicas de OCR en cada posición
+  const swaps = { 'I':'L', 'L':'I', 'O':'0', '0':'O', '1':'I', 'I':'1', '8':'B', 'B':'8', 'S':'5', '5':'S', 'Z':'2', '2':'Z' };
+  const tried = new Set([m]);
+  const queue = [m];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (let i = 0; i < cur.length; i++) {
+      const ch = cur[i];
+      const candidates = [];
+      // Intercambios uno a uno
+      if (swaps[ch]) candidates.push(swaps[ch]);
+      // I y 1 son ambiguos en ambas direcciones
+      if (ch === 'I') candidates.push('1');
+      if (ch === '1') candidates.push('I');
+      for (const c of candidates) {
+        const variant = cur.substring(0, i) + c + cur.substring(i + 1);
+        if (tried.has(variant)) continue;
+        tried.add(variant);
+        if (TRANSPORTISTAS[variant]) return variant;
+        if (tried.size < 50) queue.push(variant); // límite por seguridad
+      }
+    }
+  }
+  return m;
+}
 
 // ============================================================
 // UTILS
