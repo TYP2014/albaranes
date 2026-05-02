@@ -948,6 +948,17 @@ async function procesarPendientes(type) {
 
   // Procesar como una subida normal (addFiles añade a la cola y processQueue se encarga)
   await addFiles(filesToProcess, type);
+
+  // Esperar a que processQueue termine (con timeout de seguridad de 10 minutos)
+  const start = Date.now();
+  const MAX_WAIT_MS = 600000;
+  while (((type === 'alb' && _processingAlb) || (type === 'gas' && _processingGas)) && (Date.now() - start) < MAX_WAIT_MS) {
+    await sleep(800);
+  }
+
+  // Recargar desde BD para asegurar consistencia (banners, stats, lista)
+  if (type === 'alb') await loadRecords();
+  else await loadGas();
 }
 
 function renderQueues() {
@@ -1122,6 +1133,13 @@ async function _processOne(it, type, key, timeoutMs) {
     if (it._fromPending) {
       try { await sb.from(it._fromPending.table).delete().eq('id', it._fromPending.id); }
       catch(e) { console.warn('No se pudo borrar el registro pendiente original:', e); }
+      // Quitar también de la lista en memoria, para que el banner y los stats se refresquen
+      const targetId = String(it._fromPending.id);
+      if (it._fromPending.table === 'albaranes') {
+        records = records.filter(r => String(r.db_id || '') !== targetId);
+      } else if (it._fromPending.table === 'gasoil') {
+        gasoilRecords = gasoilRecords.filter(r => String(r.db_id || '') !== targetId);
+      }
     }
     renderQueues();
     if (type === 'alb') { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
