@@ -679,7 +679,6 @@ async function addFiles(files, type) {
     }
   }
   renderQueues();
-  // Auto-arrancar el procesamiento si hay clave configurada
   if (getKey()) processQueue(type);
 }
 
@@ -730,7 +729,7 @@ async function processQueue(type) {
     return;
   }
 
-  // Configuración: 2 archivos a la vez, hasta 3 minutos por archivo (PDFs largos OK)
+  // 2 archivos en paralelo, hasta 3 minutos por archivo
   const CONCURRENCY = 2;
   const TIMEOUT_MS = 180000;
   let totalDone = 0;
@@ -748,7 +747,6 @@ async function processQueue(type) {
     if (type === 'alb') _processingAlb = false; else _processingGas = false;
   }
 
-  // Limpieza visual: quitar de la cola los procesados con éxito tras 2.5s
   if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
   else pendingGas = pendingGas.filter(x => x.status !== 'done');
   setTimeout(() => {
@@ -760,7 +758,6 @@ async function processQueue(type) {
   if (totalDone > 0) toast(`✓ ${totalDone} archivo(s) procesados`);
 }
 
-// Procesa UN archivo. Devuelve true si OK, false si error/timeout.
 async function _processOne(it, type, key, timeoutMs) {
   it.status = 'processing';
   renderQueues();
@@ -839,7 +836,7 @@ Campos a extraer:
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria
-- obra: destino final. En Holcim albaranes de SALIDA busca campo "Obra:". En Holcim albaranes de RECEPCIÓN DE MATERIAL (cuando hay campo PLANTA) → destino es siempre el valor del campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). NUNCA uses ciudad postal del transportista. EXCEPCIONES: si contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
+- obra: destino final. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número de 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa) → destino es el valor del campo "Obra:" (ej: "GURREA DE GÁLLEGO", convertir a formato Capitalizado: "Gurrea de Gállego"). **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera dice literalmente "ALBARÁN DE RECEPCIÓN DE MATERIAL", la mercancía LLEGA a la fábrica desde un proveedor externo) → destino es siempre el valor del campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra". En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). NUNCA uses ciudad postal del transportista. EXCEPCIONES: si contiene "HS25" → "Montornès del Vallès"; si contiene "MONTMELO" o "NUEVO ALMACEN MONTM" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → solo pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → solo pueblo/obra del campo OBRA
 - planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". En Portland busca "Planta". Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Promsa/Garraf"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión. Formato 4 dígitos + 3 letras. NO confundir con CIF/NIF ni remolques
 - remolque: matrícula remolque o null
@@ -906,13 +903,36 @@ SOLO JSON válido, sin markdown.`;
 // ============================================================
 // ANALYZE & RENDER
 // ============================================================
+// Normalización para comparar strings (ignora tildes, mayúsculas y espacios extra)
+function normStr(s) {
+  return String(s || '')
+    .normalize('NFD')                  // separa letras de tildes
+    .replace(/[\u0300-\u036f]/g, '')    // elimina las tildes
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ');              // espacios múltiples → uno solo
+}
+
+// Normaliza fechas DD/MM/YYYY o D/M/YYYY a formato común DD/MM/YYYY
+function normFecha(s) {
+  if (!s) return '';
+  const m = String(s).trim().match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (!m) return String(s).trim();
+  const d = m[1].padStart(2, '0');
+  const mes = m[2].padStart(2, '0');
+  let y = m[3];
+  if (y.length === 2) y = '20' + y;
+  return `${d}/${mes}/${y}`;
+}
+
 function qualityScore(r) { return ['albaran','fecha','tractora','tm','proveedor','planta','obra','producto','cliente'].filter(k => r[k] != null && String(r[k]).trim() !== '').length; }
 function analyzeRecords() {
   records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; });
   const seen = {};
   records.forEach(r => {
     if (!r.albaran) return;
-    const key = (String(r.albaran).trim().toUpperCase()) + '|' + (r.proveedor || '').trim().toUpperCase() + '|' + (r.fecha || '').trim();
+    // Clave robusta: ignora tildes, mayúsculas, espacios extra y formatos de fecha distintos
+    const key = normStr(r.albaran) + '|' + normStr(r.proveedor) + '|' + normFecha(r.fecha);
     if (seen[key]) { r._dup = true; r._dupOf = seen[key]; } else { seen[key] = r.db_id || r._id; }
   });
   records.forEach(r => { if (r._dup) return; const s = qualityScore(r); r._quality = s <= 3 ? 'ilegible' : s <= 6 ? 'warn' : 'ok'; });
