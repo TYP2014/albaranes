@@ -115,6 +115,20 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .fil-sel,.fil-inp{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;font-family:var(--mn);font-size:11px;color:var(--tx);outline:none;transition:border-color .15s;width:100%;appearance:none;cursor:pointer}
 .fil-sel:focus,.fil-inp:focus{border-color:var(--ac)}
 .fil-sel option{background:var(--s2);color:var(--tx)}
+/* Multi-select desplegable con checkboxes (matrícula/transportista) */
+.fil-multi{position:relative;width:100%}
+.fil-multi summary{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;font-family:var(--mn);font-size:11px;color:var(--tx);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.fil-multi summary::-webkit-details-marker{display:none}
+.fil-multi summary::after{content:'▾';font-size:10px;color:var(--mu)}
+.fil-multi[open] summary{border-color:var(--ac)}
+.fil-multi-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--s2);border:1px solid var(--bd);border-radius:6px;max-height:240px;overflow-y:auto;z-index:50;padding:4px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.fil-multi-actions{display:flex;gap:4px;padding:4px;border-bottom:1px solid var(--bd);margin-bottom:4px}
+.fil-multi-actions button{flex:1;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--mu);font-family:var(--mn);font-size:9px;padding:4px 6px;cursor:pointer;text-transform:uppercase}
+.fil-multi-actions button:hover{color:var(--ac);border-color:var(--ac)}
+.fil-multi-opt{display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;border-radius:4px;font-family:var(--mn);font-size:11px;color:var(--tx)}
+.fil-multi-opt:hover{background:rgba(0,232,122,.08)}
+.fil-multi-opt input[type=checkbox]{cursor:pointer;accent-color:var(--ac)}
+.fil-multi-empty{padding:8px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:10px}
 .filter-actions{display:flex;align-items:flex-end}
 
 /* TABLE */
@@ -316,7 +330,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="fil-group"><label class="fil-label">Proveedor</label><select class="fil-sel" id="fProv" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Origen</label><select class="fil-sel" id="fOrigen" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Destino</label><select class="fil-sel" id="fDestino" onchange="applyFilters()"><option value="">Todos</option></select></div>
-            <div class="fil-group"><label class="fil-label">Matrícula</label><select class="fil-sel" id="fMat" onchange="applyFilters()"><option value="">Todos</option></select></div>
+            <div class="fil-group"><label class="fil-label">Matrícula</label><details class="fil-multi" id="fMatBox"><summary id="fMatSum">Todas</summary><div class="fil-multi-list" id="fMatList"></div></details></div>
+            <div class="fil-group"><label class="fil-label">Transportista</label><details class="fil-multi" id="fTransBox"><summary id="fTransSum">Todos</summary><div class="fil-multi-list" id="fTransList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Material</label><select class="fil-sel" id="fMat2" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Comprador</label><select class="fil-sel" id="fComp" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option></select></div>
@@ -584,6 +599,9 @@ let pendingGas = [];
 let sortCol = null, sortDir = 1; // null = usa compareRecords (fecha→matrícula→albarán)
 let editId = null, editGasId = null;
 let anthropicKey = '';
+// Filtros multi-selección: guardan las matrículas/transportistas marcados con checkbox
+let selectedMatriculas = new Set();
+let selectedTransportistas = new Set();
 
 // ============================================================
 // AUTH
@@ -1439,13 +1457,66 @@ function buildDropdowns() {
   const unique = k => [...new Set(records.filter(r => !r._dup).map(r => r[k]).filter(Boolean))].sort();
   const fill = (id, vals) => { const sel = document.getElementById(id); if (!sel) return; const cur = sel.value; sel.innerHTML = `<option value="">Todos</option>` + vals.map(v => `<option value="${esc(v)}">${v}</option>`).join(''); if (vals.includes(cur)) sel.value = cur; };
   fill('fProv', unique('proveedor')); fill('fOrigen', unique('planta')); fill('fDestino', unique('obra'));
-  fill('fMat', unique('tractora')); fill('fMat2', unique('producto')); fill('fComp', unique('cliente'));
+  fill('fMat2', unique('producto')); fill('fComp', unique('cliente'));
+  // Multi-selects: matrícula y transportista
+  buildMultiSelect('fMatList', 'fMatSum', unique('tractora'), selectedMatriculas, 'Todas', 'matrículas');
+  buildMultiSelect('fTransList', 'fTransSum', unique('transportista'), selectedTransportistas, 'Todos', 'transportistas');
+}
+
+// Construye un panel de checkboxes multi-selección dentro de un <details>
+function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) {
+  const list = document.getElementById(listId);
+  const sum = document.getElementById(sumId);
+  if (!list || !sum) return;
+  // Limpiar selecciones huérfanas (valores que ya no existen en los datos)
+  [...selectedSet].forEach(v => { if (!values.includes(v)) selectedSet.delete(v); });
+  let html = `<div class="fil-multi-actions">
+    <button type="button" onclick="msSelectAll('${listId}','${sumId}','${plural}','${allLabel}',true)">Todas</button>
+    <button type="button" onclick="msSelectAll('${listId}','${sumId}','${plural}','${allLabel}',false)">Limpiar</button>
+  </div>`;
+  if (!values.length) html += `<div class="fil-multi-empty">Sin datos</div>`;
+  else html += values.map(v => {
+    const checked = selectedSet.has(v) ? 'checked' : '';
+    return `<label class="fil-multi-opt"><input type="checkbox" value="${esc(v)}" ${checked} onchange="msToggle('${listId}','${sumId}','${plural}','${allLabel}',this.value,this.checked)">${v}</label>`;
+  }).join('');
+  list.innerHTML = html;
+  msUpdateSummary(sumId, selectedSet, allLabel, plural);
+}
+
+// Actualiza el texto del summary según las selecciones
+function msUpdateSummary(sumId, selectedSet, allLabel, plural) {
+  const sum = document.getElementById(sumId);
+  if (!sum) return;
+  if (selectedSet.size === 0) sum.textContent = allLabel;
+  else if (selectedSet.size === 1) sum.textContent = [...selectedSet][0];
+  else sum.textContent = `${selectedSet.size} ${plural}`;
+}
+
+// Toggle de un checkbox individual
+function msToggle(listId, sumId, plural, allLabel, value, checked) {
+  const set = listId === 'fMatList' ? selectedMatriculas : selectedTransportistas;
+  if (checked) set.add(value); else set.delete(value);
+  msUpdateSummary(sumId, set, allLabel, plural);
+  applyFilters();
+}
+
+// Marcar/desmarcar todos
+function msSelectAll(listId, sumId, plural, allLabel, selectAll) {
+  const set = listId === 'fMatList' ? selectedMatriculas : selectedTransportistas;
+  set.clear();
+  if (selectAll) {
+    document.querySelectorAll(`#${listId} input[type=checkbox]`).forEach(cb => { set.add(cb.value); cb.checked = true; });
+  } else {
+    document.querySelectorAll(`#${listId} input[type=checkbox]`).forEach(cb => { cb.checked = false; });
+  }
+  msUpdateSummary(sumId, set, allLabel, plural);
+  applyFilters();
 }
 
 function applyFilters() {
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
   const prov = document.getElementById('fProv')?.value, origen = document.getElementById('fOrigen')?.value;
-  const dest = document.getElementById('fDestino')?.value, mat = document.getElementById('fMat')?.value;
+  const dest = document.getElementById('fDestino')?.value;
   const mat2 = document.getElementById('fMat2')?.value, comp = document.getElementById('fComp')?.value;
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   filtered = records.filter(r => {
@@ -1455,7 +1526,10 @@ function applyFilters() {
     if (desde && ts < new Date(desde).getTime()) return false;
     if (hasta && ts > new Date(hasta).getTime() + 86399999) return false;
     if (prov && r.proveedor !== prov) return false; if (origen && r.planta !== origen) return false;
-    if (dest && r.obra !== dest) return false; if (mat && r.tractora !== mat) return false;
+    if (dest && r.obra !== dest) return false;
+    // Filtros multi-selección: si hay alguno marcado, el registro debe coincidir con uno de ellos
+    if (selectedMatriculas.size > 0 && !selectedMatriculas.has(r.tractora)) return false;
+    if (selectedTransportistas.size > 0 && !selectedTransportistas.has(r.transportista)) return false;
     if (mat2 && r.producto !== mat2) return false; if (comp && r.cliente !== comp) return false;
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
@@ -1480,7 +1554,7 @@ function applyFilters() {
   const rc = document.getElementById('resCount');
   if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
-  const hasF = desde || hasta || prov || origen || dest || mat || mat2 || comp || estado || (document.getElementById('srchIn')?.value || '');
+  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || comp || estado || (document.getElementById('srchIn')?.value || '');
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
 }
@@ -1490,7 +1564,12 @@ function applyGasFilters() {
   renderGasTable();
 }
 
-function resetFilters() { ['fDesde','fHasta','srchIn'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); ['fProv','fOrigen','fDestino','fMat','fMat2','fComp','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); applyFilters(); }
+function resetFilters() { 
+  ['fDesde','fHasta','srchIn'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fProv','fOrigen','fDestino','fMat2','fComp','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  selectedMatriculas.clear(); selectedTransportistas.clear();
+  applyFilters(); 
+}
 function filterByStatus(st) { const el = document.getElementById('fEstado'); if (el) { el.value = st; applyFilters(); } }
 
 function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
