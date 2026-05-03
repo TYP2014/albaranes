@@ -2224,8 +2224,7 @@ function fixDestino(d) {
 // La función fixProveedor normaliza la entrada (sin tildes, sin puntuación, mayúsculas)
 // y la compara contra el canónico O contra cualquier alias para devolver siempre la versión correcta.
 const PROVEEDORES_CANONICOS = [
-  { canon: 'Holcim España, S.A.U.', alias: [] },
-  { canon: 'Fábrica Montcada', alias: [] },
+  { canon: 'Holcim España, S.A.U.', alias: ['Fábrica Montcada'] },
   { canon: 'Élite Cementos, S.L.U.', alias: [] },
   { canon: 'Cemex España Operaciones, S.L.U.', alias: [] },
   { canon: 'Guixos Canals, S.L.', alias: [] },
@@ -2301,8 +2300,7 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
-  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf'] },
-  { canon: 'Fábrica Montcada', alias: [] },
+  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf', 'Fábrica Montcada'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
