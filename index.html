@@ -1180,15 +1180,18 @@ async function _processOne(it, type, key, timeoutMs) {
             data.planta = fixedOri;
           }
         }
-        // Inferencia adicional por MATERIAL: si el producto indica claramente
-        // de qué cantera viene (ej. "Caliza Promsa"), sobrescribir el origen.
-        // Crítico para los albaranes de RECEPCIÓN donde el origen físico no aparece literal.
-        if (data.producto) {
-          const inferido = inferOrigenFromProducto(data.producto);
-          if (inferido && inferido !== data.planta) {
-            console.log(`Origen inferido del material: "${data.producto}" → "${inferido}"`);
-            data.planta = inferido;
-          }
+        // Inferencia adicional por MATERIAL/PROVEEDOR: si el contexto identifica claramente
+        // de qué cantera viene (ej. "Caliza Promsa" o proveedor "Grupo Portland"), sobrescribir el origen.
+        const inferidoOri = inferOrigen(data);
+        if (inferidoOri && inferidoOri !== data.planta) {
+          console.log(`Origen inferido: → "${inferidoOri}"`);
+          data.planta = inferidoOri;
+        }
+        // Inferencia de destino por proveedor (Àrids Garcia → La Roca, Canro+Subbalasto → El Prat)
+        const inferidoDest = inferDestino(data);
+        if (inferidoDest && inferidoDest !== data.obra) {
+          console.log(`Destino inferido: → "${inferidoDest}"`);
+          data.obra = inferidoDest;
         }
         // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
         if (data.proveedor) {
@@ -1280,8 +1283,8 @@ Campos a extraer:
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria
-- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): el campo "Obra:" suele tener formato "[código numérico] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:". El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es el campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → pueblo/obra del campo OBRA
-- planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". En Portland busca "Planta". Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
+- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): el campo "Obra:" suele tener formato "[código numérico] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:". El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es el campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI; **Àrids Garcia → extrae el PUEBLO del campo "Obra:" (puede ser La Roca, Llinars, Ports de Banyera, u otra obra distinta — NO asumir siempre La Roca, leer cada vez)**; **Canteras Canro → extrae lo que aparezca en el campo "DESTINO" (puede variar). Si el campo DESTINO está VACÍO en el albarán, devuelve null. NO uses el cliente ("UTE..."), la dirección de la cantera ("Sant Fost de Campsentelles") ni el origen como destino**; Molins → pueblo/obra del campo OBRA
+- planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". **En Portland (Grupo Cementos Portland Valderrivas) busca SIEMPRE el campo "Planta" del albarán — tienen varias canteras (Olèrdola, Santa Margarida i els Monjos, y otras por toda España); NUNCA asumas siempre la misma, lee cada vez**. Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null
@@ -1898,15 +1901,21 @@ async function reanalizarTodo() {
         cambio = true;
       }
     }
-    // Inferencia adicional por MATERIAL (clave para albaranes de RECEPCIÓN)
-    if (r.producto) {
-      const inferido = inferOrigenFromProducto(r.producto);
-      if (inferido && inferido !== r.planta) {
-        console.log(`Origen inferido del material: "${r.producto}" → "${inferido}" (alb ${r.albaran})`);
-        r.planta = inferido;
-        update.planta = inferido;
-        cambio = true;
-      }
+    // Inferencia adicional por MATERIAL/PROVEEDOR (origen)
+    const inferidoOri = inferOrigen(r);
+    if (inferidoOri && inferidoOri !== r.planta) {
+      console.log(`Origen inferido: → "${inferidoOri}" (alb ${r.albaran})`);
+      r.planta = inferidoOri;
+      update.planta = inferidoOri;
+      cambio = true;
+    }
+    // Inferencia de destino por proveedor / combinación material
+    const inferidoDest = inferDestino(r);
+    if (inferidoDest && inferidoDest !== r.obra) {
+      console.log(`Destino inferido: → "${inferidoDest}" (alb ${r.albaran})`);
+      r.obra = inferidoDest;
+      update.obra = inferidoDest;
+      cambio = true;
     }
     // Corregir proveedor
     if (r.proveedor) {
@@ -2337,6 +2346,36 @@ function inferOrigenFromProducto(producto) {
   if (!producto) return null;
   for (const rule of MATERIAL_A_ORIGEN) {
     if (rule.match.test(producto)) return rule.origen;
+  }
+  return null;
+}
+
+// REGLAS ORIGEN POR PROVEEDOR: cuando el proveedor tiene cantera fija conocida
+// (independiente del material). Vacía por ahora — los proveedores leen su propio campo "Planta"
+// del albarán. Si en el futuro algún proveedor tuviera siempre la misma cantera, se añade aquí.
+const PROVEEDOR_A_ORIGEN = [];
+
+// Función consolidada: prueba primero material, luego proveedor.
+// Devuelve el origen inferido o null si ninguna regla aplica.
+function inferOrigen(data) {
+  const desdeMat = inferOrigenFromProducto(data?.producto);
+  if (desdeMat) return desdeMat;
+  if (data?.proveedor) {
+    for (const rule of PROVEEDOR_A_ORIGEN) {
+      if (rule.match.test(data.proveedor)) return rule.origen;
+    }
+  }
+  return null;
+}
+
+// REGLAS DESTINO: vacía. El destino debe leerse SIEMPRE del campo "Obra:" o "Destino:" del albarán.
+// Si Haiku no encuentra destino, se deja vacío (no se infiere a la fuerza).
+const REGLAS_DESTINO = [];
+
+function inferDestino(data) {
+  if (!data) return null;
+  for (const rule of REGLAS_DESTINO) {
+    if (rule.match(data)) return rule.destino;
   }
   return null;
 }
