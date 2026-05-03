@@ -711,7 +711,7 @@ async function loadData() {
 
 async function saveRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
-  delete rec._id; delete rec._dup; delete rec._dupOf; delete rec._quality; delete rec._ts;
+  delete rec._id; delete rec._dup; delete rec._dupOf; delete rec._quality; delete rec._ts; delete rec.db_id;
   if (data.db_id) {
     const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
     if (error) throw error;
