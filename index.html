@@ -1195,6 +1195,37 @@ async function _processOne(it, type, key, timeoutMs) {
 }
 
 // ============================================================
+// MATRÍCULAS VÁLIDAS (flota TYP2014 + transportistas habituales)
+// Extraídas del listado oficial. Se inyectan en el prompt para que
+// la IA pueda autocorregir lecturas dudosas (confusión I↔L, 0↔O, etc.)
+// ============================================================
+const MATRICULAS_VALIDAS = [
+  // TYP2014 (flota propia, 32 vehículos)
+  '3768LZJ','3769LZJ','6430KDG','8050JJW','7820LXT','9845JFK','7532LPP','2254JVJ','1968JFV','7683JGB',
+  '6102LSR','9499LHT','8504LTF','1270LST','7067MKZ','9918MXC','8678NGL','7047LCB','7874LCM','1748JGL',
+  '5258HYX','6807HYY','4537HYY','8992NLF','9487MPL','9401MPL','6118MLD','8735MYM','4839NBF','5412NKD',
+  '0755KMB','1479JDM',
+  // TTES HISPALIS 2016
+  '4210NGF','5123MVF','5360JZR','0742KMB','6521NHV','6285LMG','9566NBR','7131JJT','2006JJT','9295JJZ',
+  '4576JLK','4380MPL','6420JZT',
+  // TRANSMARGAZ 2018
+  '0705JBB','0732NLY','0939NHJ','1046MNV','3092MLL','3132JLK','3749HRX','4201JWR','4354NHM','4540NPW',
+  '4586HTZ','4601KDV','4816LNY','5099LNP','5860JJK','6058JJJ','6558HWG','6892JXH','8046JJW','8180JJM',
+  '8280NHJ','8466NGN','8554HWD','8680LPR','9217HWN','9346MNY','9632JLW',
+  // Conductores autónomos
+  '2965JHW','4556JKS','6269HZZ','7007JML','4305JTZ','1365MNH',
+  // ARIDFLOT
+  '1213JCD','1437LDV','5174LJR','8585NBC','1532NHN',
+  // T. REFRIGERADOS DOMINGUEZ
+  '0444MYX','5742MND','7511JWY',
+  // T. SATIG 79
+  '5524MKY','7878MBN','0554NKM','1931MTS','9495LHT','0471MKV','0555NKM','2412MZD','7609LVJ','0824LKD','5523MKY',
+  // OP TRANS V.
+  '1586JFW','7778LXT','4705JSB','6733JKM','0001JBS','6590JLK','5423MVR','4788KJH','6910MFN','7482MTL',
+  '7293LWH','9189LWK','5003JNX','9357MNV','8928LDK','2576NJY'
+];
+
+// ============================================================
 // CLAUDE PROMPTS
 // ============================================================
 async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
@@ -1208,7 +1239,7 @@ Campos a extraer:
 - cliente: empresa compradora o destinataria
 - obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): el campo "Obra:" suele tener formato "[código numérico] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:". El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es el campo "PLANTA" (ej: "Fábrica Montcada"). En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI; Àrids Garcia → "La Roca"; Molins → pueblo/obra del campo OBRA
 - planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". En Portland busca "Planta". Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Promsa/Garraf"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
-- tractora: matrícula camión. Formato 4 dígitos + 3 letras españolas. **ATENCIÓN OCR**: si la matrícula termina en "I" verifica si en realidad es "L" (la I y L se confunden frecuentemente en escaneos). NO confundir matrícula con CIF/NIF (que tienen formato letra+8dígitos+letra) ni con números de remolque.
+- tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null
 - bruto_kg: peso bruto en kg o null
