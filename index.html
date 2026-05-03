@@ -1233,6 +1233,23 @@ async function _processOne(it, type, key, timeoutMs) {
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
         }
+        // VALIDACIÓN TM: si el valor es muy bajo (<20 TN) y coincide con la tara, casi seguro
+        // Haiku se equivocó y cogió la tara como neto. Recalculamos NETO = BRUTO - TARA.
+        const tmNum = parseFloat(data.tm);
+        const taraNum = parseFloat(data.tara_kg);
+        const brutoNum = parseFloat(data.bruto_kg);
+        if (!isNaN(tmNum) && tmNum < 20 && !isNaN(taraNum) && !isNaN(brutoNum) && brutoNum > taraNum) {
+          const tmCalculado = (brutoNum - taraNum) / 1000;
+          // Si el cálculo da un valor coherente (20-50 TN) y el tm parece la tara, corregir
+          if (tmCalculado >= 20 && tmCalculado <= 50) {
+            const taraEnTN = taraNum / 1000;
+            // Si tm está cerca de la tara (diferencia < 1 TN), es el error típico
+            if (Math.abs(tmNum - taraEnTN) < 1) {
+              console.warn(`[TM corregido] Era ${tmNum} (parecía tara), debería ser ${tmCalculado.toFixed(3)} (Bruto-Tara)`);
+              data.tm = tmCalculado;
+            }
+          }
+        }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
         const dbId = await saveRecord(data);
         data._id = Date.now() + Math.random();
@@ -1323,9 +1340,9 @@ Campos a extraer:
 - planta: origen/carga. En Holcim busca "Punto expedición:". En Cemex busca "Expedido". **En Portland (Grupo Cementos Portland Valderrivas) busca SIEMPRE el campo "Planta" del albarán — tienen varias canteras (Olèrdola, Santa Margarida i els Monjos, y otras por toda España); NUNCA asumas siempre la misma, lee cada vez**. Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". Molins → "Promsa Garraf". EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
 - remolque: matrícula remolque o null
-- tara_kg: peso tara en kg o null
-- bruto_kg: peso bruto en kg o null
-- tm: toneladas métricas netas
+- tara_kg: peso tara en kg o null (peso del camión vacío, suele ser el menor de los pesos)
+- bruto_kg: peso bruto en kg o null (peso del camión cargado, suele ser el mayor)
+- tm: toneladas métricas NETAS (cantidad real de material transportado). REGLA CRÍTICA: SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Verifica que el valor sea coherente: NETO suele estar entre 20-35 toneladas para un camión típico — si te sale menor de 20 TN, probablemente cogiste la tara por error.
 - producto: material transportado
 - transportista: empresa transportista
 - hora_entrada: HH:MM o null
