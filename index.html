@@ -1980,18 +1980,63 @@ async function loadUsers() {
   const { data, error } = await sb.from('profiles').select('*');
   if (error) { box.innerHTML = `<p style="color:var(--er);font-family:var(--mn);font-size:11px">${error.message}</p>`; return; }
   if (!data?.length) { box.innerHTML = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay usuarios en la tabla profiles todavía.</div>'; return; }
-  box.innerHTML = data.map(u => `
+  box.innerHTML = data.map(u => {
+    // Protección: el admin actual NO puede borrarse a sí mismo
+    const isMe = u.id === currentUser?.id;
+    const delBtn = isMe
+      ? `<button class="btn bs" disabled style="font-size:10px;padding:6px 10px;opacity:.4;cursor:not-allowed" title="No puedes borrarte a ti mismo">🗑</button>`
+      : `<button class="btn br" id="delU_${u.id}" onclick="deleteUser('${u.id}','${(u.name || u.id).replace(/'/g, "\\'")}')" style="font-size:10px;padding:6px 10px" title="Eliminar usuario">🗑</button>`;
+    return `
     <div class="user-row">
       <div class="user-info">
         <div class="user-email">${u.name || u.id}</div>
         <div class="user-meta">${u.id}</div>
       </div>
-      <select class="role-sel" onchange="updateRole('${u.id}',this.value)">
-        <option value="conductor" ${u.role==='conductor'?'selected':''}>🚛 Conductor</option>
-        <option value="gestor" ${u.role==='gestor'?'selected':''}>📋 Gestor</option>
-        <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
-      </select>
-    </div>`).join('');
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="role-sel" onchange="updateRole('${u.id}',this.value)" ${isMe ? 'disabled title="No puedes cambiar tu propio rol"' : ''}>
+          <option value="conductor" ${u.role==='conductor'?'selected':''}>🚛 Conductor</option>
+          <option value="gestor" ${u.role==='gestor'?'selected':''}>📋 Gestor</option>
+          <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
+        </select>
+        ${delBtn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Borrar usuario (de la tabla profiles). El usuario en auth.users queda huérfano:
+// no podrá iniciar sesión porque no tiene perfil, pero el email seguirá "registrado".
+// Para reciclar el mismo email habría que ir a Supabase → Authentication → Users.
+async function deleteUser(uid, displayName) {
+  const btn = document.getElementById('delU_' + uid);
+  // Patrón de doble clic igual que deleteRecord (10 segundos para confirmar)
+  if (btn && !btn.dataset.confirming) {
+    btn.dataset.confirming = '1';
+    const original = btn.textContent;
+    btn.textContent = '¿Confirmar?';
+    btn.style.background = '#ff3333';
+    btn.style.color = '#fff';
+    btn.style.padding = '6px 12px';
+    setTimeout(() => {
+      if (btn && btn.dataset.confirming) {
+        delete btn.dataset.confirming;
+        btn.textContent = original;
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.padding = '';
+      }
+    }, 10000);
+    return;
+  }
+  // Segundo clic: borrar de verdad
+  if (btn) delete btn.dataset.confirming;
+  const { error } = await sb.from('profiles').delete().eq('id', uid);
+  if (error) {
+    toast('Error eliminando: ' + error.message, 'err');
+    return;
+  }
+  toast(`✓ "${displayName}" eliminado del sistema`);
+  loadUsers();
 }
 
 async function updateRole(uid, role) {
