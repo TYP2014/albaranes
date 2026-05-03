@@ -320,6 +320,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn bs" onclick="exportExcel()" style="display:flex;align-items:center;gap:5px">📊 Excel completo</button>
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
             <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica las reglas de corrección a todos los albaranes ya guardados">🔧 Re-corregir destinos</button>
+            <button class="btn bw" onclick="recorregirProveedores()" style="display:flex;align-items:center;gap:5px" title="Normaliza la grafía de los proveedores en todos los albaranes existentes">🏷️ Re-corregir proveedores</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -1169,6 +1170,10 @@ async function _processOne(it, type, key, timeoutMs) {
             data.obra = fixedDest;
           }
         }
+        // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
+        if (data.proveedor) {
+          data.proveedor = fixProveedor(data.proveedor);
+        }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
         const dbId = await saveRecord(data);
         data._id = Date.now() + Math.random();
@@ -1833,7 +1838,7 @@ async function reanalizarTodo() {
     // Si hay cambios, actualizar en Supabase
     if (cambio && r.db_id) {
       try {
-        const { error } = await supa.from('albaranes').update({
+        const { error } = await sb.from('albaranes').update({
           obra: r.obra,
           tractora: r.tractora,
           transportista: r.transportista
@@ -1849,6 +1854,35 @@ async function reanalizarTodo() {
   renderAlerts();
   if (cambios > 0) toast(`✓ ${cambios} corregidos${errores > 0 ? ' · ' + errores + ' errores' : ''}`);
   else toast('No había nada que corregir');
+}
+
+// Botón "Re-corregir proveedores": pasa todos los albaranes existentes por fixProveedor
+// y guarda los cambios en Supabase. Útil para limpiar grafías antiguas (FÁBRICA/FABRICA/Fábrica).
+async function recorregirProveedores() {
+  if (!records.length) { toast('No hay albaranes', 'err'); return; }
+  if (!confirm(`Se revisarán ${records.length} albaranes y se normalizará la grafía del proveedor. ¿Continuar?`)) return;
+  let cambios = 0, errores = 0;
+  toast(`🏷️ Revisando ${records.length} albaranes...`);
+  for (const r of records) {
+    if (!r.proveedor) continue;
+    const nuevoProv = fixProveedor(r.proveedor);
+    if (nuevoProv === r.proveedor) continue;
+    console.log(`Proveedor: "${r.proveedor}" → "${nuevoProv}" (alb ${r.albaran})`);
+    r.proveedor = nuevoProv;
+    if (r.db_id) {
+      try {
+        const { error } = await sb.from('albaranes').update({ proveedor: r.proveedor }).eq('id', r.db_id);
+        if (error) { errores++; console.error('Error guardando', r.albaran, error); }
+        else cambios++;
+      } catch (e) { errores++; console.error(e); }
+    }
+  }
+  analyzeRecords();
+  applyFilters();
+  updateStats();
+  renderAlerts();
+  if (cambios > 0) toast(`✓ ${cambios} proveedores normalizados${errores > 0 ? ' · ' + errores + ' errores' : ''}`);
+  else toast('No había nada que normalizar');
 }
 
 function exportGasoilExcel() {
@@ -2000,6 +2034,43 @@ function fixDestino(d) {
     if (map[u]) return map[u];
   }
   return d;
+}
+
+// PROVEEDORES CANÓNICOS: nombres oficiales con grafía limpia.
+// La función fixProveedor normaliza la entrada (sin tildes, sin puntuación, mayúsculas)
+// y la compara contra esta lista para devolver siempre la versión correcta.
+const PROVEEDORES_CANONICOS = [
+  'Holcim España, S.A.U.',
+  'Fábrica Montcada',
+  'Élite Cementos, S.L.U.',
+  'Cemex España Operaciones, S.L.U.',
+  'Guixos Canals, S.L.',
+  'Adec Global, S.L.',
+  'Suministros de Arcilla, S.A.',
+  'Promotora Mediterránea-2, S.A.U.',
+  'Canteras Canro, S.A.'
+];
+// Pre-calcula el "hash" normalizado de cada proveedor canónico para búsqueda rápida
+const _PROV_INDEX = (() => {
+  const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+  const map = new Map();
+  for (const p of PROVEEDORES_CANONICOS) map.set(norm(p), p);
+  return { norm, map };
+})();
+
+// RED DE SEGURIDAD: normaliza el nombre del proveedor según la lista canónica.
+// Si la versión normalizada coincide, devuelve el nombre oficial.
+// Si no, devuelve el original tal cual (no rompe nada para proveedores nuevos).
+function fixProveedor(p) {
+  if (!p) return p;
+  const key = _PROV_INDEX.norm(p);
+  if (!key) return p;
+  const canonical = _PROV_INDEX.map.get(key);
+  if (canonical && canonical !== p) {
+    console.log(`[fixProveedor] "${p}" → "${canonical}"`);
+    return canonical;
+  }
+  return p;
 }
 
 // Auto-corrige matrículas con errores típicos OCR (I↔L, 0↔O, 1↔I)
