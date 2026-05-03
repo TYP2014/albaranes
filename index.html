@@ -1595,7 +1595,7 @@ function openModal(id) {
   }
   document.getElementById('mPreview').innerHTML = previewHtml;
   document.getElementById('mFields').innerHTML = FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
-  let footer = `<button class="btn br" onclick="deleteRecord()">Eliminar</button>`;
+  let footer = `<button class="btn br" id="btnDel" onclick="deleteRecord()">Eliminar</button>`;
   if (r._dup) footer += `<button class="btn bw" onclick="markAsValid()">✓ Marcar válido</button>`;
   footer += `<button class="btn bs" onclick="closeModal()">Cancelar</button><button class="btn bp" onclick="saveModal()">Guardar</button>`;
   document.getElementById('mFooter').innerHTML = footer;
@@ -1624,12 +1624,31 @@ function markAsValid() {
 }
 
 async function deleteRecord() {
-  if (!confirm('¿Eliminar?')) return;
+  const btn = document.getElementById('btnDel');
+  // Patrón de doble clic: primer clic muestra "¿Confirmar?", segundo borra de verdad
+  if (btn && !btn.dataset.confirming) {
+    btn.dataset.confirming = '1';
+    const originalText = btn.textContent;
+    btn.textContent = '¿Confirmar borrado?';
+    btn.style.background = '#ff3333';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+      if (btn && btn.dataset.confirming) {
+        delete btn.dataset.confirming;
+        btn.textContent = originalText;
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }, 3000);
+    return;
+  }
+  // Segundo clic confirmado → borrar de verdad
+  if (btn) delete btn.dataset.confirming;
   const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
   try {
     if (r?.db_id) await deleteRecordDB(r.db_id);
     records = records.filter(x => String(x.db_id) !== String(editId) && String(x._id) !== String(editId));
-    analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); closeModal(); toast('Eliminado');
+    analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); closeModal(); toast('✓ Eliminado');
   } catch (e) { toast('Error eliminando: ' + e.message, 'err'); }
 }
 
