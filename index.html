@@ -2030,9 +2030,15 @@ async function deleteUser(uid, displayName) {
   }
   // Segundo clic: borrar de verdad
   if (btn) delete btn.dataset.confirming;
-  const { error } = await sb.from('profiles').delete().eq('id', uid);
+  // .select() añadido para verificar que el DELETE realmente afectó alguna fila.
+  // Sin esto, las RLS de Supabase pueden hacer que el delete devuelva éxito en silencio sin borrar nada.
+  const { data, error } = await sb.from('profiles').delete().eq('id', uid).select();
   if (error) {
     toast('Error eliminando: ' + error.message, 'err');
+    return;
+  }
+  if (!data || data.length === 0) {
+    toast('No se eliminó. Faltan permisos en Supabase (RLS). Te paso el SQL para arreglarlo.', 'err');
     return;
   }
   toast(`✓ "${displayName}" eliminado del sistema`);
