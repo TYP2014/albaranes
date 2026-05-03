@@ -319,8 +319,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="tbl-acts">
             <button class="btn bs" onclick="exportExcel()" style="display:flex;align-items:center;gap:5px">📊 Excel completo</button>
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
-            <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica las reglas de corrección a todos los albaranes ya guardados">🔧 Re-corregir destinos</button>
-            <button class="btn bw" onclick="recorregirProveedores()" style="display:flex;align-items:center;gap:5px" title="Normaliza la grafía de los proveedores en todos los albaranes existentes">🏷️ Re-corregir proveedores</button>
+            <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor)">🔄 Re-corregir TODO</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -1170,6 +1169,14 @@ async function _processOne(it, type, key, timeoutMs) {
             data.obra = fixedDest;
           }
         }
+        // Red de seguridad: normalizar grafía del origen (planta)
+        if (data.planta) {
+          const fixedOri = fixOrigen(data.planta);
+          if (fixedOri !== data.planta) {
+            console.log(`Origen corregido: "${data.planta}" → "${fixedOri}"`);
+            data.planta = fixedOri;
+          }
+        }
         // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
@@ -1818,39 +1825,58 @@ function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtra
 // Útil cuando se actualizan las reglas y queremos arreglar registros antiguos sin reprocesarlos
 async function reanalizarTodo() {
   if (!records.length) { toast('No hay albaranes', 'err'); return; }
-  if (!confirm(`Se revisarán ${records.length} albaranes y se corregirán destinos y matrículas mal leídas. ¿Continuar?`)) return;
+  if (!confirm(`Se revisarán ${records.length} albaranes y se corregirán origen, destino, matrícula y proveedor mal leídos. ¿Continuar?`)) return;
   let cambios = 0, errores = 0;
   toast(`🔧 Revisando ${records.length} albaranes...`);
   for (const r of records) {
     let cambio = false;
-    // Corregir destino
+    const update = {};
+    // Corregir destino (obra)
     if (r.obra) {
       const nuevoDest = fixDestino(r.obra);
       if (nuevoDest !== r.obra) {
         console.log(`Destino: "${r.obra}" → "${nuevoDest}" (alb ${r.albaran})`);
         r.obra = nuevoDest;
+        update.obra = nuevoDest;
         cambio = true;
       }
     }
-    // Corregir matrícula
+    // Corregir origen (planta)
+    if (r.planta) {
+      const nuevoOri = fixOrigen(r.planta);
+      if (nuevoOri !== r.planta) {
+        console.log(`Origen: "${r.planta}" → "${nuevoOri}" (alb ${r.albaran})`);
+        r.planta = nuevoOri;
+        update.planta = nuevoOri;
+        cambio = true;
+      }
+    }
+    // Corregir proveedor
+    if (r.proveedor) {
+      const nuevoProv = fixProveedor(r.proveedor);
+      if (nuevoProv !== r.proveedor) {
+        console.log(`Proveedor: "${r.proveedor}" → "${nuevoProv}" (alb ${r.albaran})`);
+        r.proveedor = nuevoProv;
+        update.proveedor = nuevoProv;
+        cambio = true;
+      }
+    }
+    // Corregir matrícula (y transportista derivado)
     if (r.tractora) {
       const nuevaMat = fixMatricula(r.tractora);
       if (nuevaMat !== r.tractora) {
         console.log(`Matrícula: ${r.tractora} → ${nuevaMat} (alb ${r.albaran})`);
         r.tractora = nuevaMat;
+        update.tractora = nuevaMat;
         const t = getTransportista(nuevaMat);
-        if (t) r.transportista = t;
+        if (t) { r.transportista = t; update.transportista = t; }
         cambio = true;
       }
     }
     // Si hay cambios, actualizar en Supabase
     if (cambio && r.db_id) {
       try {
-        const { error } = await sb.from('albaranes').update({
-          obra: r.obra,
-          tractora: r.tractora,
-          transportista: r.transportista
-        }).eq('id', r.db_id);
+        const { error } = await sb.from('albaranes').update(update).eq('id', r.db_id);
         if (error) { errores++; console.error('Error guardando', r.albaran, error); }
         else cambios++;
       } catch (e) { errores++; console.error(e); }
@@ -1860,7 +1886,7 @@ async function reanalizarTodo() {
   applyFilters();
   updateStats();
   renderAlerts();
-  if (cambios > 0) toast(`✓ ${cambios} corregidos${errores > 0 ? ' · ' + errores + ' errores' : ''}`);
+  if (cambios > 0) toast(`✓ ${cambios} albaranes corregidos${errores > 0 ? ' · ' + errores + ' errores' : ''}`);
   else toast('No había nada que corregir');
 }
 
@@ -2107,7 +2133,7 @@ function fixDestino(d) {
   if (/HS25|HORMIGON ENSACADO/.test(u)) return 'Montornès del Vallès';
   if (/^PLANTA FERRAN/.test(u)) return 'Planta Ferran-Riera';
   if (/^FABRICA ALCOVER/.test(u)) return 'Alcover';
-  if (/^FABRICA MONTCADA/.test(u)) return 'Fábrica Montcada';
+  if (/^FABRICA MONTCADA/.test(u)) return 'Montcada';
   if (/^MOLIENDA TARRAGONA/.test(u)) return 'Tarragona';
   if (/^GURREA DE GALLEGO/i.test(u.normalize('NFD').replace(/[\u0300-\u036f]/g,''))) return 'Gurrea de Gállego';
   // Códigos huérfanos (CE44I, CE44D...) → log pero no podemos saber el pueblo automáticamente
@@ -2117,45 +2143,94 @@ function fixDestino(d) {
     const map = { 'CE44I': 'Celra', 'CE44D': 'Barcelona', 'CE44K': 'Montcada', 'CE44E': 'La Roca', 'CES17': 'Riudellots de la Selva' };
     if (map[u]) return map[u];
   }
-  return d;
+  // Paso final: normalizar contra lista de destinos canónicos (gestiona variantes como
+  // "El Prat de Llobregat" → "El Prat" o "Fábrica Montcada" → "Montcada")
+  return _matchDestino(d);
 }
 
-// PROVEEDORES CANÓNICOS: nombres oficiales con grafía limpia.
+// PROVEEDORES CANÓNICOS: nombres oficiales con grafía limpia + aliases conocidos
 // La función fixProveedor normaliza la entrada (sin tildes, sin puntuación, mayúsculas)
-// y la compara contra esta lista para devolver siempre la versión correcta.
+// y la compara contra el canónico O contra cualquier alias para devolver siempre la versión correcta.
 const PROVEEDORES_CANONICOS = [
-  'Holcim España, S.A.U.',
-  'Fábrica Montcada',
-  'Élite Cementos, S.L.U.',
-  'Cemex España Operaciones, S.L.U.',
-  'Guixos Canals, S.L.',
-  'Adec Global, S.L.',
-  'Suministros de Arcilla, S.A.',
-  'Promotora Mediterránea-2, S.A.U.',
-  'Canteras Canro, S.A.'
+  { canon: 'Holcim España, S.A.U.', alias: [] },
+  { canon: 'Fábrica Montcada', alias: [] },
+  { canon: 'Élite Cementos, S.L.U.', alias: [] },
+  { canon: 'Cemex España Operaciones, S.L.U.', alias: [] },
+  { canon: 'Guixos Canals, S.L.', alias: [] },
+  { canon: 'Adec Global, S.L.', alias: ['Adec/Vallirana'] },
+  { canon: 'Suministros de Arcilla, S.A.', alias: [] },
+  { canon: 'Promotora Mediterránea-2, S.A.U.', alias: [
+    'Promotora Mediterránea 2 S.A.', 'Promotora Mediterránea 2 S A',
+    'Promotora Mediterránea 2 S.A', 'Promotora Mediterranea-2 SAU',
+    'Promotora Mediterránea-2 S.A.', 'Promed-2', 'Promed 2'
+  ] },
+  { canon: 'Canteras Canro, S.A.', alias: [] },
+  // Proveedores nuevos (mayo 2026):
+  { canon: 'Grupo Cementos Portland Valderrivas', alias: ['Grupo Portland Valderrivas', 'Cementos Portland Valderrivas'] },
+  { canon: 'Àrids Garcia Pedrera Gar 1, S.L.U.', alias: [
+    'Àrids Garcia', 'Arids Garcia',
+    'ARIDS GARCIA PEDRRERA GAR 1, S.L.U', 'ARIDS GARCIA PEDRERA GAR 1, S.L.U',
+    'ÀRIDS GARCIA PEDRERA GAR 1, S.L.U'
+  ] },
+  { canon: 'Canteras Foj, S.L.', alias: ['Canteras Foj S.L.', 'Foj'] }
 ];
-// Pre-calcula el "hash" normalizado de cada proveedor canónico para búsqueda rápida
-const _PROV_INDEX = (() => {
+
+// Helper genérico: crea un "matcher" que dado un input devuelve el canónico (o el input si no encuentra)
+function makeCanonMatcher(canonicalList) {
   const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
   const map = new Map();
-  for (const p of PROVEEDORES_CANONICOS) map.set(norm(p), p);
-  return { norm, map };
-})();
+  for (const item of canonicalList) {
+    map.set(norm(item.canon), item.canon);
+    for (const a of (item.alias || [])) map.set(norm(a), item.canon);
+  }
+  return (input) => {
+    if (!input) return input;
+    const key = norm(input);
+    if (!key) return input;
+    const canonical = map.get(key);
+    if (canonical && canonical !== input) {
+      console.log(`[match] "${input}" → "${canonical}"`);
+      return canonical;
+    }
+    return input;
+  };
+}
+
+const _matchProveedor = makeCanonMatcher(PROVEEDORES_CANONICOS);
 
 // RED DE SEGURIDAD: normaliza el nombre del proveedor según la lista canónica.
-// Si la versión normalizada coincide, devuelve el nombre oficial.
+// Si la versión normalizada coincide (con canon o alias), devuelve el nombre oficial.
 // Si no, devuelve el original tal cual (no rompe nada para proveedores nuevos).
 function fixProveedor(p) {
-  if (!p) return p;
-  const key = _PROV_INDEX.norm(p);
-  if (!key) return p;
-  const canonical = _PROV_INDEX.map.get(key);
-  if (canonical && canonical !== p) {
-    console.log(`[fixProveedor] "${p}" → "${canonical}"`);
-    return canonical;
-  }
-  return p;
+  return _matchProveedor(p);
 }
+
+// ORÍGENES CANÓNICOS: plantas/canteras de salida del material
+const ORIGENES_CANONICOS = [
+  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Garraf'] },
+  { canon: 'Fábrica Montcada', alias: [] },
+  { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
+  { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
+  { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
+  { canon: 'Papiol', alias: ['El Papiol'] },
+  { canon: 'Vallirana', alias: ['Adec/Vallirana', 'Foj/Vallirana'] },
+  { canon: 'Santa Margarida i els Monjos', alias: ['Santa Margarida'] }
+];
+const _matchOrigen = makeCanonMatcher(ORIGENES_CANONICOS);
+function fixOrigen(o) { return _matchOrigen(o); }
+
+// DESTINOS CANÓNICOS: localidades de las obras
+const DESTINOS_CANONICOS = [
+  { canon: 'Montcada', alias: ['Fábrica Montcada', 'Montcada i Reixac'] },
+  { canon: 'Barcelona', alias: [] },
+  { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
+  { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
+  { canon: 'La Roca', alias: ['La Roca del Vallès'] },
+  { canon: 'Llinars del Vallès', alias: ['Llinars del Valles'] },
+  { canon: 'Vallirana', alias: [] },
+  { canon: 'Sant Feliu de Llobregat', alias: ['Sant Feliu'] }
+];
+const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
 
 // Auto-corrige matrículas con errores típicos OCR (I↔L, 0↔O, 1↔I)
 function fixMatricula(mat) {
