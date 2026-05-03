@@ -2368,9 +2368,17 @@ function inferOrigen(data) {
   return null;
 }
 
-// REGLAS DESTINO: vacía. El destino debe leerse SIEMPRE del campo "Obra:" o "Destino:" del albarán.
-// Si Haiku no encuentra destino, se deja vacío (no se infiere a la fuerza).
-const REGLAS_DESTINO = [];
+// REGLAS DESTINO: para albaranes de RECEPCIÓN donde Holcim recibe material.
+// El destino siempre es Montcada (Fábrica Montcada, donde se descarga en Holcim).
+// Identificamos por el material que solo viene de proveedores externos hacia Holcim.
+const REGLAS_DESTINO = [
+  // Árido siderúrgico (de Adec Global y similares)
+  { match: (d) => /[ÁA]RIDO\s+SIDER[ÚU]RGICO/i.test(d.producto || ''), destino: 'Montcada' },
+  // Calizas externas (Promsa, Foj, Cemex)
+  { match: (d) => /CALIZA\s+(PROMSA|FOJ|CEMEX)/i.test(d.producto || ''), destino: 'Montcada' },
+  // Yeso (de Guixos Canals)
+  { match: (d) => /\bYESO\b/i.test(d.producto || ''), destino: 'Montcada' }
+];
 
 function inferDestino(data) {
   if (!data) return null;
