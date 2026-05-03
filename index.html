@@ -1575,7 +1575,15 @@ function resetFilters() {
   selectedMatriculas.clear(); selectedTransportistas.clear();
   applyFilters(); 
 }
-function filterByStatus(st) { const el = document.getElementById('fEstado'); if (el) { el.value = st; applyFilters(); } }
+function filterByStatus(st) { 
+  const el = document.getElementById('fEstado'); 
+  if (el) { 
+    el.value = st; 
+    applyFilters(); 
+    // Scroll automático a la tabla para que el usuario vea el resultado del filtro
+    document.getElementById('resCount')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } 
+}
 
 function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
 function fmtTS(ts) { if (!ts) return '—'; const d = new Date(ts); return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
@@ -1723,7 +1731,7 @@ async function deleteRecord() {
         btn.style.background = '';
         btn.style.color = '';
       }
-    }, 3000);
+    }, 10000);
     return;
   }
   // Segundo clic confirmado → borrar de verdad
@@ -1921,20 +1929,43 @@ async function createUser() {
   const name = document.getElementById('nuName').value.trim();
   const role = document.getElementById('nuRole').value;
   if (!email || !pass) { toast('Email y contraseña requeridos', 'err'); return; }
+  if (pass.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'err'); return; }
 
-  // Create user via Supabase Admin (needs service role - workaround: use edge function or direct API)
-  // For now we create via signUp and set role in profiles
-  const { data, error } = await sb.auth.admin?.createUser({ email, password: pass, email_confirm: true })
-    .catch(() => ({ error: { message: 'Admin API no disponible' } }));
+  // Cliente Supabase temporal: hace el signUp sin afectar la sesión del admin actual
+  // (signUp crea una sesión, pero al hacerlo en un cliente aparte, la sesión del admin se mantiene intacta)
+  const tempClient = createClient(SUPA_URL, SUPA_KEY);
+  const { data, error } = await tempClient.auth.signUp({
+    email,
+    password: pass,
+    options: { data: { name, role } }
+  });
 
   if (error) {
-    toast('Usa el panel de Supabase para crear usuarios: Authentication → Users → Add user', 'warn');
-    document.getElementById('ovNewUser').classList.remove('open');
+    // Mensajes más amigables según el error
+    let msg = error.message;
+    if (/already.*registered|user.*exists/i.test(msg)) msg = 'Ese email ya está registrado';
+    else if (/invalid.*email/i.test(msg)) msg = 'El formato del email no es válido';
+    else if (/password/i.test(msg)) msg = 'Problema con la contraseña: ' + msg;
+    toast('Error: ' + msg, 'err');
     return;
   }
+
   if (data?.user) {
-    await sb.from('profiles').upsert({ id: data.user.id, role, name: name || email });
-    toast('✓ Usuario creado');
+    // Asignar rol y nombre en la tabla profiles (la app usa profiles para gestionar permisos)
+    const { error: profErr } = await sb.from('profiles').upsert({
+      id: data.user.id,
+      role,
+      name: name || email
+    });
+    if (profErr) {
+      toast('Usuario creado pero error en perfil: ' + profErr.message, 'warn');
+    } else {
+      toast(`✓ Usuario "${name || email}" creado como ${role}`);
+    }
+    // Limpiar formulario y cerrar modal
+    document.getElementById('nuEmail').value = '';
+    document.getElementById('nuPass').value = '';
+    document.getElementById('nuName').value = '';
     document.getElementById('ovNewUser').classList.remove('open');
     loadUsers();
   }
