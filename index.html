@@ -1951,12 +1951,14 @@ async function createUser() {
   }
 
   if (data?.user) {
-    // Asignar rol y nombre en la tabla profiles (la app usa profiles para gestionar permisos)
-    const { error: profErr } = await sb.from('profiles').upsert({
-      id: data.user.id,
-      role,
-      name: name || email
-    });
+    // Pequeña espera (500ms) para que el trigger automático del backend
+    // termine de crear la fila básica en profiles. Si no esperamos, la
+    // operación de actualizar el rol puede correr antes y perderse.
+    await new Promise(r => setTimeout(r, 500));
+    // Ahora actualizamos rol y nombre con UPDATE (más fiable que upsert en este caso)
+    const { error: profErr } = await sb.from('profiles')
+      .update({ role, name: name || email })
+      .eq('id', data.user.id);
     if (profErr) {
       toast('Usuario creado pero error en perfil: ' + profErr.message, 'warn');
     } else {
