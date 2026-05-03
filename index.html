@@ -1768,7 +1768,16 @@ async function saveModal() {
 
   FIELDS.forEach(f => {
     const v = document.getElementById('mf_' + f.k)?.value?.trim();
-    const newVal = v || null;
+    let newVal = v || null;
+    // Normalización canónica al guardar manualmente: si lo que escribe el usuario coincide
+    // con un alias de un canon, se queda con la forma oficial. Esto evita variantes feas
+    // (ej. "Hormigones Zona Franca" → "Planta Hormigones Zona Franca").
+    if (newVal) {
+      if (f.k === 'proveedor') newVal = fixProveedor(newVal) || newVal;
+      else if (f.k === 'planta') newVal = fixOrigen(newVal) || newVal;
+      else if (f.k === 'obra') newVal = fixDestino(newVal) || newVal;
+      else if (f.k === 'tractora') newVal = fixMatricula(newVal) || newVal;
+    }
     if (String(r[f.k] || '') !== String(newVal || '')) {
       cambios.push(`${f.l}: "${r[f.k]}" → "${newVal}"`);
     }
@@ -2504,7 +2513,8 @@ function inferDestino(data) {
 const DESTINOS_CANONICOS = [
   { canon: 'Montcada', alias: ['Fábrica Montcada', 'Montcada i Reixac'] },
   { canon: 'Planta de Montcada', alias: ['Planta Hormigones Montcada', 'Planta Hormigones Montcada (Hormig)', 'Montcada (Hormig)', 'Planta Hormigón Montcada'] },
-  { canon: 'Planta Hormigones Zona Franca', alias: ['Zona Franca', 'PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF', 'Hormigones Zona Franca'] },
+  { canon: 'Planta Hormigones Zona Franca', alias: ['PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF'] },
+  { canon: 'Zona Franca', alias: [] },
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
