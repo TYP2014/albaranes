@@ -2469,6 +2469,15 @@ const REGLAS_DESTINO = [
   { match: (d) => /CALIZA\s+(PROMSA|FOJ|CEMEX)/i.test(d.producto || ''), destino: 'Montcada' },
   // Yeso (de Guixos Canals)
   { match: (d) => /\bYESO\b/i.test(d.producto || ''), destino: 'Montcada' },
+  // Canteras Canro + comprador "UTE Accesos Ferroviarios" → El Prat (obras del puerto)
+  {
+    match: (d) => {
+      const prov = String(d.proveedor || '').toUpperCase();
+      const cliente = String(d.cliente || '').toUpperCase();
+      return /CANRO/.test(prov) && /UTE\W*ACCESOS\s+FERROVIARIOS/.test(cliente);
+    },
+    destino: 'El Prat'
+  },
   // Áridos desde Cantera de Garraf con destino Zona Franca → diferenciar como Planta Hormigones Zona Franca
   // (la obra suele ponerse "Planta Hormigones Zona Franca" o solo "Barcelona", o aparecer en COMPRADOR)
   {
