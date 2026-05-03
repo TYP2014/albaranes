@@ -2461,14 +2461,17 @@ const REGLAS_DESTINO = [
   // Yeso (de Guixos Canals)
   { match: (d) => /\bYESO\b/i.test(d.producto || ''), destino: 'Montcada' },
   // Áridos desde Cantera de Garraf con destino Zona Franca → diferenciar como Planta Hormigones Zona Franca
-  // (la obra suele ponerse "Planta Hormigones Zona Franca" o solo "Barcelona")
+  // (la obra suele ponerse "Planta Hormigones Zona Franca" o solo "Barcelona", o aparecer en COMPRADOR)
   {
     match: (d) => {
       const o = String(d.planta || '').toUpperCase();
       const obra = String(d.obra || '').toUpperCase();
+      const cliente = String(d.cliente || '').toUpperCase();
       const dirObra = String(d.proveedor_cliente || '').toUpperCase() + ' ' + String(d.observaciones || '').toUpperCase();
       const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
-      const esZF = /ZONA\s+FRANCA/.test(obra) || /ZONA\s+FRANCA/.test(dirObra) || /CALLE\s+C\W*SECTOR\s+B/.test(obra) || /CALLE\s+C\W*SECTOR\s+B/.test(dirObra);
+      // Buscamos "Zona Franca" o la dirección típica "Calle C, sector B" en obra, cliente, proveedor_cliente u observaciones
+      const tieneZF = (s) => /ZONA\s+FRANCA/.test(s) || /CALLE\s+C\W*SECTOR\s+B/.test(s);
+      const esZF = tieneZF(obra) || tieneZF(cliente) || tieneZF(dirObra);
       return esGarraf && esZF;
     },
     destino: 'Planta Hormigones Zona Franca'
@@ -2479,10 +2482,11 @@ const REGLAS_DESTINO = [
     match: (d) => {
       const o = String(d.planta || '').toUpperCase();
       const obra = String(d.obra || '').toUpperCase();
+      const cliente = String(d.cliente || '').toUpperCase();
       const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
-      // Obra contiene "Montcada (Hormig)" o "Planta Hormigones Montcada" o solo "Montcada" como obra/cliente
-      const esPlantaMontcada = /MONTCADA\s*\(\s*HORMIG/.test(obra) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(obra) || (/MONTCADA/.test(obra) && !/F[ÁA]BRICA/.test(obra));
-      return esGarraf && esPlantaMontcada;
+      // Obra/comprador contiene "Montcada (Hormig)" o "Planta Hormigones Montcada" o solo "Montcada"
+      const esPlantaMontcada = (s) => /MONTCADA\s*\(\s*HORMIG/.test(s) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(s) || (/MONTCADA/.test(s) && !/F[ÁA]BRICA/.test(s));
+      return esGarraf && (esPlantaMontcada(obra) || esPlantaMontcada(cliente));
     },
     destino: 'Planta de Montcada'
   }
