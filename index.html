@@ -767,9 +767,27 @@ function clearKey() { anthropicKey = ''; localStorage.removeItem('anth_key'); re
 // ============================================================
 // FILE HANDLING
 // ============================================================
-function ev(e) { e.preventDefault(); e.currentTarget.classList.add('ov'); }
-function el(e) { e.currentTarget.classList.remove('ov'); }
-function drop(e, type) { e.preventDefault(); e.currentTarget.classList.remove('ov'); addFiles(e.dataTransfer.files, type); }
+// Drag-drop con anti-parpadeo: usamos un setTimeout en dragleave para aguantar 100ms
+// antes de quitar la clase visual. Si dragover vuelve a disparar (al pasar sobre un hijo
+// del dropzone), cancelamos el timeout y mantenemos la clase. Sin esto, los hijos del
+// dropzone hacían que la clase .ov entrase y saliese constantemente → parpadeo.
+let _ovTimeout;
+function ev(e) {
+  e.preventDefault();
+  if (_ovTimeout) { clearTimeout(_ovTimeout); _ovTimeout = null; }
+  e.currentTarget.classList.add('ov');
+}
+function el(e) {
+  const target = e.currentTarget;
+  if (_ovTimeout) clearTimeout(_ovTimeout);
+  _ovTimeout = setTimeout(() => { target.classList.remove('ov'); _ovTimeout = null; }, 100);
+}
+function drop(e, type) {
+  e.preventDefault();
+  if (_ovTimeout) { clearTimeout(_ovTimeout); _ovTimeout = null; }
+  e.currentTarget.classList.remove('ov');
+  addFiles(e.dataTransfer.files, type);
+}
 
 async function addFiles(files, type) {
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
@@ -1774,7 +1792,7 @@ function openGasModal(id) {
   }
   document.getElementById('mgPreview').innerHTML = previewHtml;
   document.getElementById('mgFields').innerHTML = GAS_FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mgf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
-  document.getElementById('mgFooter').innerHTML = `<button class="btn bs" onclick="closeGasModal()">Cancelar</button><button class="btn bp" onclick="saveGasModal()">Guardar</button>`;
+  document.getElementById('mgFooter').innerHTML = `<button class="btn br" id="btnDelGas" onclick="deleteGasRecord()">Eliminar</button><button class="btn bs" onclick="closeGasModal()">Cancelar</button><button class="btn bp" onclick="saveGasModal()">Guardar</button>`;
   document.getElementById('ovGas').classList.add('open');
 }
 function closeGasModal() { document.getElementById('ovGas').classList.remove('open'); editGasId = null; }
@@ -1786,6 +1804,40 @@ async function saveGasModal() {
     if (r.db_id) await sb.from('gasoil').update(r).eq('id', r.db_id);
     applyGasFilters(); closeGasModal(); toast('✓ Guardado');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// Borra ticket de gasoil con patrón doble clic (10s para confirmar)
+async function deleteGasRecord() {
+  const btn = document.getElementById('btnDelGas');
+  if (btn && !btn.dataset.confirming) {
+    btn.dataset.confirming = '1';
+    const original = btn.textContent;
+    btn.textContent = '¿Confirmar borrado?';
+    btn.style.background = '#ff3333';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+      if (btn && btn.dataset.confirming) {
+        delete btn.dataset.confirming;
+        btn.textContent = original;
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }, 10000);
+    return;
+  }
+  if (btn) delete btn.dataset.confirming;
+  const r = gasoilRecords.find(x => String(x.db_id) === String(editGasId) || String(x._id) === String(editGasId));
+  try {
+    if (r?.db_id) {
+      const { error } = await sb.from('gasoil').delete().eq('id', r.db_id);
+      if (error) throw error;
+    }
+    gasoilRecords = gasoilRecords.filter(x => String(x.db_id) !== String(editGasId) && String(x._id) !== String(editGasId));
+    applyGasFilters();
+    document.getElementById('tabGasCount').textContent = gasoilRecords.length;
+    closeGasModal();
+    toast('✓ Ticket eliminado');
+  } catch (e) { toast('Error eliminando: ' + e.message, 'err'); }
 }
 
 // ============================================================
@@ -1933,13 +1985,28 @@ function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${reco
 // ============================================================
 // TABS
 // ============================================================
+// Recuerda la última pestaña principal (alb o gas) para decidir qué mostrar en Subir
+let _lastMainTab = 'alb';
+
 function switchTab(tab) {
+  // Si entra a alb o gas, lo guardamos como última pestaña principal
+  if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   ['alb','preli','gas','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
+  // En la pestaña Subir, mostrar solo la zona que toca según _lastMainTab
+  if (tab === 'subir') {
+    const subir = document.getElementById('tabContentSubir');
+    if (subir) {
+      const albCard = subir.querySelectorAll('.card')[0]; // SUBIR ALBARANES
+      const gasCard = subir.querySelectorAll('.card')[1]; // SUBIR TICKETS GASOIL
+      if (albCard) albCard.style.display = (_lastMainTab === 'gas') ? 'none' : '';
+      if (gasCard) gasCard.style.display = (_lastMainTab === 'alb') ? 'none' : '';
+    }
+  }
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
 }
