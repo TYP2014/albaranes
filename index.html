@@ -2309,6 +2309,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Santa Margarida i els Monjos', alias: ['Santa Margarida'] },
   { canon: 'Begues', alias: [] },
   { canon: 'Martorell', alias: [] },
+  { canon: 'Jorba', alias: [] },
   // Origenes en formato "Cantera/Proveedor" para albaranes de RECEPCIÓN (Holcim recibe de proveedor)
   { canon: 'Garraf/Promsa', alias: ['Promsa/Garraf'] },
   { canon: 'Foj/Vallirana', alias: [] },
@@ -2326,7 +2327,9 @@ const MATERIAL_A_ORIGEN = [
   { match: /CALIZA\s+(GARRAF|HOLCIM)/i, origen: 'Cantera de Garraf' },
   { match: /\bZAHORRA\b/i, origen: 'Cantera de Garraf' },
   { match: /ARCILLA\s+SIL[ÍI]C[II][CA]A?\s+PAPIOL/i, origen: 'Papiol' },
-  { match: /CANTERA\s+MARTORELL/i, origen: 'Martorell' }
+  { match: /CANTERA\s+MARTORELL/i, origen: 'Martorell' },
+  // Yeso de Guixos Canals → Jorba (cantera en l'Anoia)
+  { match: /\bYESO\b|10004183/i, origen: 'Jorba' }
 ];
 
 // Si el producto identifica claramente la cantera de origen, devuélvela. Si no, null.
