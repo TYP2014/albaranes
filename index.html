@@ -264,7 +264,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="upload-card">
         <div class="upload-card-title">📄 Albarán</div>
         <div class="upload-card-sub">JPG · PNG · PDF · FOTO CON EL MÓVIL</div>
-        <div class="dz" id="dzAlb" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
+        <div class="dz" id="dzAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
           <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'alb')">
           <div class="dz-ic">📄</div>
           <div class="dz-t">Arrastra o <span class="hl">haz clic para seleccionar</span></div>
@@ -282,7 +282,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="upload-card">
         <div class="upload-card-title">⛽ Ticket Gasoil</div>
         <div class="upload-card-sub">GASOIL · ADBLUE · FOTO DEL TICKET</div>
-        <div class="dz" id="dzGas" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'gas')">
+        <div class="dz" id="dzGas" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'gas')">
           <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'gas')">
           <div class="dz-ic">⛽</div>
           <div class="dz-t">Arrastra o <span class="hl">haz clic para seleccionar</span></div>
@@ -464,7 +464,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card">
           <div class="card-hd"><div class="st"><div class="dot"></div>SUBIR ALBARANES</div></div>
           <div class="card-bd">
-            <div class="dz" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
+            <div class="dz" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
               <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'alb')">
               <div class="dz-ic">📄</div>
               <div class="dz-t">Arrastra fotos o PDFs · o <span class="hl">haz clic para seleccionar</span></div>
@@ -482,7 +482,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card">
           <div class="card-hd"><div class="st"><div class="dot" style="--c:var(--wn)"></div>SUBIR TICKETS GASOIL</div></div>
           <div class="card-bd">
-            <div class="dz" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'gas')">
+            <div class="dz" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'gas')">
               <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'gas')">
               <div class="dz-ic">⛽</div>
               <div class="dz-t">Arrastra tickets de gasoil · o <span class="hl">haz clic para seleccionar</span></div>
@@ -767,12 +767,42 @@ function clearKey() { anthropicKey = ''; localStorage.removeItem('anth_key'); re
 // ============================================================
 // FILE HANDLING
 // ============================================================
-// Drag-drop sin parpadeo: los hijos visibles del dropzone tienen pointer-events:none en CSS,
-// así los eventos solo se disparan en el .dz o en el input que lo cubre. Sin ese fix CSS,
-// pasar el ratón sobre los iconos/textos disparaba dragleave y luego dragover constantemente.
-function ev(e) { e.preventDefault(); e.currentTarget.classList.add('ov'); }
-function el(e) { e.currentTarget.classList.remove('ov'); }
-function drop(e, type) { e.preventDefault(); e.currentTarget.classList.remove('ov'); addFiles(e.dataTransfer.files, type); }
+// Drag-drop SIN parpadeo (versión robusta).
+// El truco: dragenter/dragleave se disparan también cuando el cursor cruza fronteras INTERNAS
+// dentro del dropzone (incluso con pointer-events:none). La forma fiable de evitar parpadeos
+// es mantener un CONTADOR por dropzone: incrementar en dragenter, decrementar en dragleave,
+// y solo quitar la clase visual cuando el contador llega a 0.
+const _dragCounters = new WeakMap();
+
+function ev(e) {
+  // dragover - obligatorio prevenir default para permitir drop
+  e.preventDefault();
+}
+function dragEnter(e, dz) {
+  e.preventDefault();
+  const target = dz || e.currentTarget;
+  const count = (_dragCounters.get(target) || 0) + 1;
+  _dragCounters.set(target, count);
+  target.classList.add('ov');
+}
+function el(e) {
+  // dragleave - decrementar contador, solo quitar clase si llega a 0
+  const target = e.currentTarget;
+  const count = (_dragCounters.get(target) || 0) - 1;
+  if (count <= 0) {
+    _dragCounters.set(target, 0);
+    target.classList.remove('ov');
+  } else {
+    _dragCounters.set(target, count);
+  }
+}
+function drop(e, type) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  _dragCounters.set(target, 0);
+  target.classList.remove('ov');
+  addFiles(e.dataTransfer.files, type);
+}
 
 async function addFiles(files, type) {
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
@@ -1066,10 +1096,12 @@ async function processQueue(type) {
     return;
   }
 
-  // Concurrencia conservadora para no saturar la API (rate limit Anthropic ~30k tokens/min)
-  const CONCURRENCY = 2;
+  // Concurrencia: 5 en paralelo = procesa ~100 albaranes en ~5 minutos sin saturar API.
+  // Anthropic Tier 2 permite ~80k tokens/min input, cada albarán usa ~3-5k tokens.
+  // 5 paralelos × 12 segundos/albarán ≈ 25 albaranes/min ≈ 75-125k tokens/min (margen suficiente).
+  const CONCURRENCY = 5;
   const TIMEOUT_MS = 120000;
-  const PAUSE_BETWEEN_BATCHES_MS = 1500; // pausa entre tandas para respetar rate limit
+  const PAUSE_BETWEEN_BATCHES_MS = 800; // pausa entre tandas para respetar rate limit
   let totalDone = 0;
 
   try {
@@ -1721,12 +1753,43 @@ function closeModal() { document.getElementById('ov').classList.remove('open'); 
 
 async function saveModal() {
   const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
-  if (!r) return;
-  FIELDS.forEach(f => { const v = document.getElementById('mf_' + f.k)?.value?.trim(); r[f.k] = v || null; });
+  if (!r) { toast('No se encontró el albarán', 'err'); return; }
+
+  // Capturar valores ANTES de modificar el record (para poder revertir si falla)
+  const original = { ...r };
+  const cambios = [];
+
+  FIELDS.forEach(f => {
+    const v = document.getElementById('mf_' + f.k)?.value?.trim();
+    const newVal = v || null;
+    if (String(r[f.k] || '') !== String(newVal || '')) {
+      cambios.push(`${f.l}: "${r[f.k]}" → "${newVal}"`);
+    }
+    r[f.k] = newVal;
+  });
+
+  // Marca "editado manualmente" en memoria — protege contra Re-corregir TODO
+  r._manual = true;
+
+  console.log('[saveModal] Cambios:', cambios);
+  console.log('[saveModal] Datos a guardar:', r);
+
   try {
     await saveRecord(r);
-    analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); closeModal(); toast('✓ Guardado');
-  } catch (e) { toast('Error guardando: ' + e.message, 'err'); }
+    analyzeRecords();
+    applyFilters();
+    updateStats();
+    renderAlerts();
+    closeModal();
+    if (cambios.length === 0) toast('Sin cambios');
+    else toast(`✓ Guardado (${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'})`);
+  } catch (e) {
+    // Revertir cambios en memoria si falla
+    Object.assign(r, original);
+    console.error('[saveModal] Error completo:', e);
+    const msg = e.message || JSON.stringify(e);
+    toast(`✗ Error guardando: ${msg}`, 'err');
+  }
 }
 
 function markAsValid() {
@@ -1875,10 +1938,17 @@ function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtra
 // Útil cuando se actualizan las reglas y queremos arreglar registros antiguos sin reprocesarlos
 async function reanalizarTodo() {
   if (!records.length) { toast('No hay albaranes', 'err'); return; }
-  if (!confirm(`Se revisarán ${records.length} albaranes y se corregirán origen, destino, matrícula y proveedor mal leídos. ¿Continuar?`)) return;
-  let cambios = 0, errores = 0;
-  toast(`🔧 Revisando ${records.length} albaranes...`);
+  const protegidos = records.filter(r => r._manual).length;
+  const aprocesar = records.length - protegidos;
+  let confirmMsg = `Se revisarán ${aprocesar} albaranes y se corregirán origen, destino, matrícula y proveedor mal leídos.`;
+  if (protegidos > 0) confirmMsg += `\n\n⚠️ ${protegidos} albaranes editados manualmente NO se tocarán (protegidos).`;
+  confirmMsg += '\n\n¿Continuar?';
+  if (!confirm(confirmMsg)) return;
+  let cambios = 0, errores = 0, saltados = 0;
+  toast(`🔧 Revisando ${aprocesar} albaranes...`);
   for (const r of records) {
+    // Si fue editado manualmente, NO tocar (proteger trabajo del usuario)
+    if (r._manual) { saltados++; continue; }
     let cambio = false;
     const update = {};
     // Corregir destino (obra)
@@ -1952,8 +2022,12 @@ async function reanalizarTodo() {
   applyFilters();
   updateStats();
   renderAlerts();
-  if (cambios > 0) toast(`✓ ${cambios} albaranes corregidos${errores > 0 ? ' · ' + errores + ' errores' : ''}`);
-  else toast('No había nada que corregir');
+  let resumen = '';
+  if (cambios > 0) resumen = `✓ ${cambios} corregidos`;
+  else resumen = 'No había nada que corregir';
+  if (saltados > 0) resumen += ` · ${saltados} protegidos`;
+  if (errores > 0) resumen += ` · ${errores} errores`;
+  toast(resumen);
 }
 
 // Botón "Re-corregir proveedores": pasa todos los albaranes existentes por fixProveedor
@@ -2247,10 +2321,11 @@ const PROVEEDORES_CANONICOS = [
   { canon: 'Canteras Canro, S.A.', alias: [] },
   // Proveedores nuevos (mayo 2026):
   { canon: 'Grupo Cementos Portland Valderrivas', alias: ['Grupo Portland Valderrivas', 'Cementos Portland Valderrivas'] },
-  { canon: 'Àrids Garcia Pedrera Gar 1, S.L.U.', alias: [
-    'Àrids Garcia', 'Arids Garcia',
+  { canon: 'Àrids Garcia', alias: [
+    'Arids Garcia',
+    'Àrids Garcia Pedrera Gar 1, S.L.U.',
     'ARIDS GARCIA PEDRRERA GAR 1, S.L.U', 'ARIDS GARCIA PEDRERA GAR 1, S.L.U',
-    'ÀRIDS GARCIA PEDRERA GAR 1, S.L.U'
+    'ÀRIDS GARCIA PEDRERA GAR 1, S.L.U', 'ARIDS GARCIA PEDRERA GAR 1, S.L.U.'
   ] },
   { canon: 'Canteras Foj, S.L.', alias: ['Canteras Foj S.L.', 'Foj'] }
 ];
@@ -2377,7 +2452,33 @@ const REGLAS_DESTINO = [
   // Calizas externas (Promsa, Foj, Cemex)
   { match: (d) => /CALIZA\s+(PROMSA|FOJ|CEMEX)/i.test(d.producto || ''), destino: 'Montcada' },
   // Yeso (de Guixos Canals)
-  { match: (d) => /\bYESO\b/i.test(d.producto || ''), destino: 'Montcada' }
+  { match: (d) => /\bYESO\b/i.test(d.producto || ''), destino: 'Montcada' },
+  // Áridos desde Cantera de Garraf con destino Zona Franca → diferenciar como Planta Hormigones Zona Franca
+  // (la obra suele ponerse "Planta Hormigones Zona Franca" o solo "Barcelona")
+  {
+    match: (d) => {
+      const o = String(d.planta || '').toUpperCase();
+      const obra = String(d.obra || '').toUpperCase();
+      const dirObra = String(d.proveedor_cliente || '').toUpperCase() + ' ' + String(d.observaciones || '').toUpperCase();
+      const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
+      const esZF = /ZONA\s+FRANCA/.test(obra) || /ZONA\s+FRANCA/.test(dirObra) || /CALLE\s+C\W*SECTOR\s+B/.test(obra) || /CALLE\s+C\W*SECTOR\s+B/.test(dirObra);
+      return esGarraf && esZF;
+    },
+    destino: 'Planta Hormigones Zona Franca'
+  },
+  // Áridos desde Cantera de Garraf con destino Montcada (obra) → diferenciar como Planta de Montcada
+  // (para distinguir de la Fábrica Montcada de Holcim)
+  {
+    match: (d) => {
+      const o = String(d.planta || '').toUpperCase();
+      const obra = String(d.obra || '').toUpperCase();
+      const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
+      // Obra contiene "Montcada (Hormig)" o "Planta Hormigones Montcada" o solo "Montcada" como obra/cliente
+      const esPlantaMontcada = /MONTCADA\s*\(\s*HORMIG/.test(obra) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(obra) || (/MONTCADA/.test(obra) && !/F[ÁA]BRICA/.test(obra));
+      return esGarraf && esPlantaMontcada;
+    },
+    destino: 'Planta de Montcada'
+  }
 ];
 
 function inferDestino(data) {
@@ -2391,6 +2492,8 @@ function inferDestino(data) {
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
   { canon: 'Montcada', alias: ['Fábrica Montcada', 'Montcada i Reixac'] },
+  { canon: 'Planta de Montcada', alias: ['Planta Hormigones Montcada', 'Planta Hormigones Montcada (Hormig)', 'Montcada (Hormig)', 'Planta Hormigón Montcada'] },
+  { canon: 'Planta Hormigones Zona Franca', alias: ['Zona Franca', 'PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF', 'Hormigones Zona Franca'] },
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
