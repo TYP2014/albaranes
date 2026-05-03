@@ -670,7 +670,7 @@ function showLogin() {
 // SUPABASE DB
 // ============================================================
 async function loadData() {
-  let query = sb.from('albaranes').select('*').order('fecha', { ascending: false });
+  let query = sb.from('albaranes').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false });
   if (currentRole === 'gestor') query = query.eq('user_id', currentUser.id);
   const { data, error } = await query;
   if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
