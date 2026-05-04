@@ -1223,11 +1223,11 @@ async function _processOne(it, type, key, timeoutMs) {
           data.planta = inferidoOri;
         }
         // Red de seguridad Holcim cemento: si por error OCR el origen es "Cantera de Garraf"
-        // (cantera de áridos) pero el material es cemento (CEM I/II/III/IV/V, Cemento
-        // Portland/Puzolánico, ECOPlanet CEM), corregir a "Fábrica Montcada" (planta de cemento).
+        // (cantera de áridos) pero el material es cemento, corregir a "Fábrica Montcada".
+        // Tolera errores típicos OCR: CEM/CFM/CEN/CFN. ECOPlanet es siempre cemento Holcim.
         if (data.planta === 'Cantera de Garraf'
             && /Holcim/i.test(data.proveedor || '')
-            && /(?:^|\s)(?:ECOPlanet\s+)?CEM\s+[IV]+\b|Cemento\s+(?:Portland|Puzol)/i.test(data.producto || '')) {
+            && /\bECOPlanet\b|(?:^|\s)C[EF][MN]\s+[IVX/]+|Cemento\s+(?:Portland|Puzol)/i.test(data.producto || '')) {
           console.log(`Origen Holcim cemento corregido: "Cantera de Garraf" → "Fábrica Montcada"`);
           data.planta = 'Fábrica Montcada';
         }
@@ -2013,12 +2013,12 @@ async function reanalizarTodo() {
       }
     }
     // Corrección retroactiva (post-v48): histórico Holcim cemento con origen "Cantera de Garraf"
-    // (era alias incorrecto antes de v48). Si el material es cemento (CEM con número romano,
-    // Cemento Portland/Puzolánico, ECOPlanet CEM) y el proveedor es Holcim, el origen real
-    // es Fábrica Montcada — NO Cantera de Garraf (que es para áridos/caliza).
+    // (era alias incorrecto antes de v48). Si el material es cemento y el proveedor es Holcim,
+    // el origen real es Fábrica Montcada — NO Cantera de Garraf (que es para áridos/caliza).
+    // Tolera errores típicos OCR: CEM/CFM/CEN/CFN. ECOPlanet es siempre cemento Holcim.
     if (r.planta === 'Cantera de Garraf'
         && /Holcim/i.test(r.proveedor || '')
-        && /(?:^|\s)(?:ECOPlanet\s+)?CEM\s+[IV]+\b|Cemento\s+(?:Portland|Puzol)/i.test(r.producto || '')) {
+        && /\bECOPlanet\b|(?:^|\s)C[EF][MN]\s+[IVX/]+|Cemento\s+(?:Portland|Puzol)/i.test(r.producto || '')) {
       console.log(`Origen Holcim cemento: "Cantera de Garraf" → "Fábrica Montcada" (alb ${r.albaran})`);
       r.planta = 'Fábrica Montcada';
       update.planta = 'Fábrica Montcada';
