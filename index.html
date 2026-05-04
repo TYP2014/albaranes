@@ -1972,6 +1972,44 @@ function hasValidUrl(u) {
   return true;
 }
 
+// v72: renderiza inline la página específica de un PDF dentro del modal,
+// para que el usuario vea la imagen del albarán SIN tener que pinchar en
+// "Ver documento original". Usa pdf.js (ya cargado en la app para dividir PDFs).
+async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
+  if (typeof pdfjsLib === 'undefined') {
+    const ld = document.getElementById(loadingId);
+    if (ld) ld.textContent = '⚠️ pdf.js no disponible. Pincha "Ver documento original".';
+    return;
+  }
+  try {
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    let pn = pageNum && pageNum > 0 ? pageNum : 1;
+    if (pn > pdf.numPages) pn = 1;
+    const page = await pdf.getPage(pn);
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    // Escala adaptativa para que se vea bien sin ser enorme
+    const baseViewport = page.getViewport({ scale: 1 });
+    const targetWidth = 800;
+    const scale = Math.min(2.0, targetWidth / baseViewport.width);
+    const viewport = page.getViewport({ scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.maxHeight = '500px';
+    canvas.style.objectFit = 'contain';
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const ld = document.getElementById(loadingId);
+    if (ld) ld.style.display = 'none';
+  } catch (e) {
+    console.warn('[v72] Error renderizando preview PDF:', e);
+    const ld = document.getElementById(loadingId);
+    if (ld) ld.textContent = '⚠️ No se pudo cargar la vista previa. Pincha "Ver documento original".';
+  }
+}
+
 function renderTable() {
   const tbody = document.getElementById('tbody'), empty = document.getElementById('emptyState');
   if (!tbody) return;
@@ -2066,10 +2104,32 @@ function openModal(id) {
   let previewHtml = '';
   if (hasValidUrl(r.file_url)) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
-    if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview" onclick="window.open('${r.file_url}','_blank')">`;
-    else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver documento original</a>`;
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
+    if (isImg) {
+      previewHtml = `<img src="${r.file_url}" class="img-preview" onclick="window.open('${r.file_url}','_blank')">`;
+    } else if (isPdf) {
+      // v72: renderizar la página específica del PDF inline en el modal
+      const pageMatch = r.file_url.match(/#page=(\d+)/);
+      const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
+      const cleanUrl = r.file_url.split('#')[0];
+      previewHtml = `
+        <div style="position:relative;margin-top:16px">
+          <canvas id="pdfPreviewCanvas" class="pdf-preview" style="cursor:pointer" onclick="window.open('${r.file_url}','_blank')"></canvas>
+          <div id="pdfPreviewLoading" style="text-align:center;padding:20px;color:var(--mu);font-family:var(--mn);font-size:11px">📄 Cargando vista previa...</div>
+          <div style="margin-top:8px"><a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir documento original</a></div>
+        </div>`;
+    } else {
+      previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver documento original</a>`;
+    }
   }
   document.getElementById('mPreview').innerHTML = previewHtml;
+  // v72: si hemos pintado un canvas para PDF, lanzamos el render después de inyectar el HTML
+  if (hasValidUrl(r.file_url) && /\.pdf(\?|#|$)/i.test(r.file_url)) {
+    const pageMatch = r.file_url.match(/#page=(\d+)/);
+    const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
+    const cleanUrl = r.file_url.split('#')[0];
+    setTimeout(() => renderPdfPagePreview(cleanUrl, pageNum, 'pdfPreviewCanvas', 'pdfPreviewLoading'), 50);
+  }
   document.getElementById('mFields').innerHTML = FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
   let footer = `<button class="btn br" id="btnDel" onclick="deleteRecord()">Eliminar</button>`;
   if (r._dup) footer += `<button class="btn bw" onclick="markAsValid()">✓ Marcar válido</button>`;
@@ -2203,10 +2263,27 @@ function openGasModal(id) {
   let previewHtml = '';
   if (hasValidUrl(r.file_url)) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
-    if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview">`;
-    else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a>`;
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
+    if (isImg) {
+      previewHtml = `<img src="${r.file_url}" class="img-preview">`;
+    } else if (isPdf) {
+      previewHtml = `
+        <div style="position:relative;margin-top:16px">
+          <canvas id="pdfPreviewCanvasGas" class="pdf-preview" style="cursor:pointer" onclick="window.open('${r.file_url}','_blank')"></canvas>
+          <div id="pdfPreviewLoadingGas" style="text-align:center;padding:20px;color:var(--mu);font-family:var(--mn);font-size:11px">📄 Cargando vista previa...</div>
+          <div style="margin-top:8px"><a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a></div>
+        </div>`;
+    } else {
+      previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a>`;
+    }
   }
   document.getElementById('mgPreview').innerHTML = previewHtml;
+  if (hasValidUrl(r.file_url) && /\.pdf(\?|#|$)/i.test(r.file_url)) {
+    const pageMatch = r.file_url.match(/#page=(\d+)/);
+    const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
+    const cleanUrl = r.file_url.split('#')[0];
+    setTimeout(() => renderPdfPagePreview(cleanUrl, pageNum, 'pdfPreviewCanvasGas', 'pdfPreviewLoadingGas'), 50);
+  }
   document.getElementById('mgFields').innerHTML = GAS_FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mgf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
   document.getElementById('mgFooter').innerHTML = `<button class="btn br" id="btnDelGas" onclick="deleteGasRecord()">Eliminar</button><button class="btn bs" onclick="closeGasModal()">Cancelar</button><button class="btn bp" onclick="saveGasModal()">Guardar</button>`;
   document.getElementById('ovGas').classList.add('open');
