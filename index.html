@@ -1231,6 +1231,17 @@ async function _processOne(it, type, key, timeoutMs) {
           console.log(`Origen Holcim cemento corregido: "Cantera de Garraf" → "Fábrica Montcada"`);
           data.planta = 'Fábrica Montcada';
         }
+        // Red de seguridad INVERSA: si por error OCR el origen es "Fábrica Montcada" pero el
+        // material es claramente un árido genérico (AF-X/X-T-C, AG-X/X-T-C que son áridos para
+        // hormigón) y el proveedor es Holcim, el origen real es "Cantera de Garraf" (no la
+        // fábrica de cemento). Pasa porque el campo "Planta:" del albarán siempre dice
+        // "Fábrica Montcada" pero el "Punto expedición" es "Cantera de Garraf".
+        if (data.planta === 'Fábrica Montcada'
+            && /Holcim/i.test(data.proveedor || '')
+            && /^\s*A[FG]-\d+\/\d+-T-C/i.test(data.producto || '')) {
+          console.log(`Origen Holcim árido corregido: "Fábrica Montcada" → "Cantera de Garraf"`);
+          data.planta = 'Cantera de Garraf';
+        }
         // Inferencia de destino por proveedor (Àrids Garcia → La Roca, Canro+Subbalasto → El Prat)
         const inferidoDest = inferDestino(data);
         if (inferidoDest && inferidoDest !== data.obra) {
@@ -2064,6 +2075,17 @@ async function reanalizarTodo() {
       update.planta = 'Fábrica Montcada';
       cambio = true;
     }
+    // Corrección retroactiva INVERSA: histórico Holcim árido con origen "Fábrica Montcada"
+    // (OCR confundió Punto expedición con Planta). Si el material es árido genérico
+    // (AF-X/X-T-C, AG-X/X-T-C) y el proveedor es Holcim, el origen real es Cantera de Garraf.
+    if (r.planta === 'Fábrica Montcada'
+        && /Holcim/i.test(r.proveedor || '')
+        && /^\s*A[FG]-\d+\/\d+-T-C/i.test(r.producto || '')) {
+      console.log(`Origen Holcim árido: "Fábrica Montcada" → "Cantera de Garraf" (alb ${r.albaran})`);
+      r.planta = 'Cantera de Garraf';
+      update.planta = 'Cantera de Garraf';
+      cambio = true;
+    }
     // Inferencia adicional por MATERIAL/PROVEEDOR (origen)
     const inferidoOri = inferOrigen(r);
     if (inferidoOri && inferidoOri !== r.planta) {
@@ -2590,31 +2612,38 @@ const REGLAS_DESTINO = [
     },
     destino: 'El Prat'
   },
-  // Áridos desde Cantera de Garraf con destino Zona Franca → diferenciar como Planta Hormigones Zona Franca
-  // (la obra suele ponerse "Planta Hormigones Zona Franca" o solo "Barcelona", o aparecer en COMPRADOR)
+  // Áridos con destino Zona Franca → "Planta Hormigones Zona Franca"
+  // (la obra puede poner "Planta Hormigones Zona Franca", "Zona Franca", "Calle C, sector B", o solo "Barcelona")
+  // El COMPRADOR/CLIENTE suele tener "Planta Hormigones Zona Franca" (o variantes mal leídas por OCR
+  // como "Horígenes", "Hormigon", etc. — usamos un patrón tolerante que pilla "Planta Hor* + Zona Franca")
   {
     match: (d) => {
-      const o = String(d.planta || '').toUpperCase();
       const obra = String(d.obra || '').toUpperCase();
       const cliente = String(d.cliente || '').toUpperCase();
+      const o = String(d.planta || '').toUpperCase();
       const dirObra = String(d.proveedor_cliente || '').toUpperCase() + ' ' + String(d.observaciones || '').toUpperCase();
       const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
-      // Buscamos "Zona Franca" o la dirección típica "Calle C, sector B" en obra, cliente, proveedor_cliente u observaciones
+      // Match directo: comprador o cliente contiene "Planta Hor* Zona Franca" (tolerante a OCR)
+      const compradorEsPHZF = /PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/.test(cliente) || /PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/.test(obra);
+      if (compradorEsPHZF) return true;
+      // Match más amplio: si es de Garraf (áridos) y aparece "Zona Franca" o "Calle C, sector B" en cualquier campo
       const tieneZF = (s) => /ZONA\s+FRANCA/.test(s) || /CALLE\s+C\W*SECTOR\s+B/.test(s);
-      const esZF = tieneZF(obra) || tieneZF(cliente) || tieneZF(dirObra);
-      return esGarraf && esZF;
+      return esGarraf && (tieneZF(obra) || tieneZF(cliente) || tieneZF(dirObra));
     },
     destino: 'Planta Hormigones Zona Franca'
   },
-  // Áridos desde Cantera de Garraf con destino Montcada (obra) → diferenciar como Planta de Montcada
-  // (para distinguir de la Fábrica Montcada de Holcim)
+  // Áridos con destino Planta de Montcada → "Planta de Montcada" (planta de hormigón Holcim)
+  // distinguir de "Fábrica Montcada" (la de cemento)
   {
     match: (d) => {
       const o = String(d.planta || '').toUpperCase();
       const obra = String(d.obra || '').toUpperCase();
       const cliente = String(d.cliente || '').toUpperCase();
       const esGarraf = /CANTERA\s+DE\s+GARRAF/.test(o) || /GARRAF/.test(o);
-      // Obra/comprador contiene "Montcada (Hormig)" o "Planta Hormigones Montcada" o solo "Montcada"
+      // Match directo: comprador con "Planta Hor* Montcada" o "Montcada (Hormig)" (tolerante OCR)
+      const compradorEsPHM = /PLANTA\s+HOR\S*\s+MONTCADA/.test(cliente) || /MONTCADA\s*\(\s*HORMIG/.test(cliente) || /PLANTA\s+HOR\S*\s+MONTCADA/.test(obra) || /MONTCADA\s*\(\s*HORMIG/.test(obra);
+      if (compradorEsPHM) return true;
+      // Match amplio: si es de Garraf y aparece "Montcada" (sin que sea "Fábrica") en obra/cliente
       const esPlantaMontcada = (s) => /MONTCADA\s*\(\s*HORMIG/.test(s) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(s) || (/MONTCADA/.test(s) && !/F[ÁA]BRICA/.test(s));
       return esGarraf && (esPlantaMontcada(obra) || esPlantaMontcada(cliente));
     },
@@ -2637,7 +2666,7 @@ const DESTINOS_CANONICOS = [
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada'] },
   { canon: 'Montcada', alias: ['Montcada i Reixac'] },
   { canon: 'Planta de Montcada', alias: ['Planta Hormigones Montcada', 'Planta Hormigones Montcada (Hormig)', 'Montcada (Hormig)', 'Planta Hormigón Montcada'] },
-  { canon: 'Planta Hormigones Zona Franca', alias: ['PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF'] },
+  { canon: 'Planta Hormigones Zona Franca', alias: ['PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF', 'Planta Horigenes Zona Franca', 'Planta Horígenes Zona Franca', 'Planta Hormigon ZF', 'Planta Horigon Zona Franca'] },
   { canon: 'Zona Franca', alias: [] },
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
