@@ -2497,7 +2497,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID'] },
   // Holcim — plantas de cemento (NO confundir con Cantera de Garraf, que es de áridos)
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada'] },
-  { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'Holcim Tarragona'] },
+  { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'Holcim Tarragona', 'Molleda Tarragona', 'Molleda de Tarragona', 'Mollenda Tarragona', 'Mollenda de Tarragona', 'Molienda Tarragoma', 'Mollienda Tarragona'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
@@ -2872,9 +2872,12 @@ async function procesarPreliquidacion(file) {
     return;
   }
 
-  // Comparar cada fila con la BD de albaranes
+  // Comparar cada fila con la BD de albaranes (en cascada: por nº albarán, luego por fecha+mat+tm)
+  // Compartimos un Set "usados" entre todas las filas para evitar que un mismo albarán BD
+  // haga match con dos filas distintas de la misma preliquidación.
   setPreliProgress('Comparando con albaranes en BD...', 85);
-  const filasConEstado = todasLasFilas.map(f => compararFilaConBD(f));
+  const usados = new Set();
+  const filasConEstado = todasLasFilas.map(f => compararFilaConBD(f, usados));
 
   // Guardar en Supabase
   setPreliProgress(`Guardando ${filasConEstado.length} filas en BD...`, 92);
@@ -3049,26 +3052,59 @@ SOLO JSON válido, sin markdown, sin explicaciones.`;
   }
 }
 
-// Comparar una fila de preliquidación con los albaranes guardados en BD
-function compararFilaConBD(filaPreli) {
+// Comparar una fila de preliquidación con los albaranes guardados en BD.
+// Cruce en cascada:
+// 1) Por número de albarán (Lafarge CEM, áridos Garraf, cisternas — funciona el "Num. Entrega")
+// 2) Si no encuentra, por fecha + matrícula + TN (Holcim yeso y similares — el Num. Entrega
+//    es un código de pedido semanal tipo "12W2026-0000128" que no coincide con nuestro albaran)
+// 3) Marca matches como usados para que un mismo albarán de BD no haga match con dos filas.
+//
+// El parámetro `usados` es un Set de db_id ya emparejados en esta misma preliquidación.
+function compararFilaConBD(filaPreli, usados) {
+  if (!usados) usados = new Set(); // si no se pasa, hacemos uno vacío (compatibilidad)
   const albPreli = String(filaPreli.albaran || '').trim().replace(/^0+/, '');
   const tmPreli = parseFloat(filaPreli.tm) || 0;
-  if (!albPreli) {
-    return { ...filaPreli, estado_comparacion: 'SIN_ALBARAN', db_albaran_id: null };
+  const matPreli = String(filaPreli.tractora || '').trim().toUpperCase();
+  const fechaPreli = String(filaPreli.fecha || '').trim(); // formato DD/MM/YYYY
+
+  // Helper: normaliza TN a número con 3 decimales
+  const tmEq = (a, b) => Math.abs((parseFloat(a)||0) - (parseFloat(b)||0)) <= 0.05;
+
+  // ---------- Estrategia 1: match por número de albarán ----------
+  // Funciona en Lafarge CEM (áridos Garraf) y cisternas, donde Num. Entrega = nuestro nº albarán
+  if (albPreli && /^\d{8,}$/.test(albPreli)) {
+    const matchAlb = records.find(r => {
+      if (usados.has(r.db_id)) return false;
+      const albBd = String(r.albaran || '').trim().replace(/^0+/, '');
+      return albBd === albPreli;
+    });
+    if (matchAlb) {
+      usados.add(matchAlb.db_id);
+      const tmBd = parseFloat(matchAlb.tm) || 0;
+      const estado = tmEq(tmBd, tmPreli) ? 'COINCIDE' : 'DIFERENCIA_TM';
+      return { ...filaPreli, estado_comparacion: estado, db_albaran_id: matchAlb.db_id, metodo_match: 'albaran' };
+    }
   }
-  // Buscar en records (ya cargados en memoria)
-  const match = records.find(r => {
-    const albBd = String(r.albaran || '').trim().replace(/^0+/, '');
-    return albBd === albPreli;
-  });
-  if (!match) {
-    return { ...filaPreli, estado_comparacion: 'FALTA_BD', db_albaran_id: null };
+
+  // ---------- Estrategia 2: match por fecha + matrícula + TN ----------
+  // Para preliquidaciones donde Num. Entrega es un código de pedido (Holcim yeso)
+  if (fechaPreli && matPreli && tmPreli > 0) {
+    const matchFMT = records.find(r => {
+      if (usados.has(r.db_id)) return false;
+      const matBd = String(r.tractora || '').trim().toUpperCase();
+      const fechaBd = String(r.fecha || '').trim();
+      if (matBd !== matPreli) return false;
+      if (fechaBd !== fechaPreli) return false;
+      return tmEq(r.tm, tmPreli);
+    });
+    if (matchFMT) {
+      usados.add(matchFMT.db_id);
+      return { ...filaPreli, estado_comparacion: 'COINCIDE', db_albaran_id: matchFMT.db_id, metodo_match: 'fecha+mat+tm' };
+    }
   }
-  const tmBd = parseFloat(match.tm) || 0;
-  if (Math.abs(tmBd - tmPreli) > 0.05) {
-    return { ...filaPreli, estado_comparacion: 'DIFERENCIA_TM', db_albaran_id: match.db_id || match.id };
-  }
-  return { ...filaPreli, estado_comparacion: 'COINCIDE', db_albaran_id: match.db_id || match.id };
+
+  // ---------- No hay match ----------
+  return { ...filaPreli, estado_comparacion: 'FALTA_BD', db_albaran_id: null, metodo_match: null };
 }
 
 // VISTA DETALLE DE UNA PRELIQUIDACIÓN
@@ -3174,8 +3210,10 @@ async function recompararPreli() {
   if (!preli) return;
   toast('🔄 Recomparando...');
   let cambios = 0;
+  // Set compartido para que un mismo albarán BD no haga match con dos filas distintas
+  const usadosRecompara = new Set();
   for (const f of preli.filas) {
-    const nuevo = compararFilaConBD(f);
+    const nuevo = compararFilaConBD(f, usadosRecompara);
     if (nuevo.estado_comparacion !== f.estado_comparacion || nuevo.db_albaran_id !== f.db_albaran_id) {
       const { error } = await sb.from('preliquidaciones').update({
         estado_comparacion: nuevo.estado_comparacion,
