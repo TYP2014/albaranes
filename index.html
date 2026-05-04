@@ -901,6 +901,16 @@ async function addFiles(files, type) {
         } else {
           toast(`📄 Dividiendo ${f.name} en ${numPages} páginas...`);
 
+          // v71: subimos el PDF entero como RESPALDO. Si más adelante no podemos subir
+          // el JPG de una página individual (red mala, etc), la app caerá automáticamente
+          // a este PDF + #page=N para que el usuario nunca se quede sin imagen.
+          let sharedPdfUrl = null;
+          try {
+            sharedPdfUrl = await uploadFile(f, type);
+          } catch (e) {
+            console.warn('[v71] No se pudo subir PDF compartido (seguimos solo con JPGs):', e);
+          }
+
           // Resolución adaptada al tamaño (afecta también al rate limit por tokens)
           const scale = numPages > 30 ? 1.4 : (numPages > 10 ? 1.6 : 1.8);
           const quality = numPages > 30 ? 0.7 : 0.8;
@@ -920,31 +930,33 @@ async function addFiles(files, type) {
             const imgB64 = dataUrl.split(',')[1];
             const baseName = f.name.replace(/\.pdf$/i, '');
             const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
-            canvas.width = 0; canvas.height = 0;
 
-            // v70: cada página se sube como JPG individual a Storage (no como parte de un PDF
-            // compartido). Así cada apunte tiene SU imagen propia y se ve inline en el modal.
-            // Convertimos el b64 del JPG en un File para que _processOne lo suba normal.
-            let pageFile;
+            // v71: usar canvas.toBlob() nativo en lugar de atob+Uint8Array (más fiable
+            // entre navegadores). Si por lo que sea no se construye el Blob, dejamos
+            // pageFile=null y _processOne usará el sharedPdfUrl como fallback.
+            let pageFile = null;
             try {
-              const byteString = atob(imgB64);
-              const byteArray = new Uint8Array(byteString.length);
-              for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
-              pageFile = new File([byteArray], pageName, { type: 'image/jpeg' });
-            } catch (eFile) {
-              console.warn('No se pudo convertir página a File, usando PDF original:', eFile);
-              pageFile = f;
+              const pageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+              if (pageBlob) {
+                pageFile = new File([pageBlob], pageName, { type: 'image/jpeg' });
+              }
+            } catch (eBlob) {
+              console.warn('[v71] toBlob falló para', pageName, eBlob);
             }
+            canvas.width = 0; canvas.height = 0;
 
             if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
               pending.push({
                 id: Date.now() + Math.random() + p,
-                file: pageFile,
-                b64: imgB64,
+                file: pageFile || f,         // si no hay JPG, fallback al PDF original
+                b64: imgB64,                  // siempre el JPG va a la API (más rápido)
                 status: 'pending',
                 isPdf: false,
                 name: pageName,
-                mediaType: 'image/jpeg'
+                mediaType: 'image/jpeg',
+                sharedPdfUrl: sharedPdfUrl,   // respaldo: PDF compartido si JPG falla
+                pageNum: p,                   // para construir #page=N en fallback
+                hasJpgFile: !!pageFile        // marca si tenemos JPG real para subir
               });
             }
 
@@ -1347,16 +1359,32 @@ async function _processOne(it, type, key, timeoutMs) {
   renderQueues();
 
   try {
-    let fileUrl = it.sharedPdfUrl || null;
-    if (!fileUrl && !it.skipUpload) {
-      // Timeout de 60s para uploadFile a Storage. En móvil con red mala se puede quedar colgado
-      // y entonces el archivo se quedaría eternamente en 'processing'. Si falla la subida, seguimos
-      // sin file_url (el albarán se procesa igual, solo no quedará link al PDF original).
+    // v71: lógica de subida con fallback inteligente:
+    //   1) Intentar subir el archivo individual (JPG de página o PDF/imagen suelta)
+    //   2) Si falla y existe sharedPdfUrl (PDF compartido del multipágina), usar ese como respaldo
+    //   3) Si todo falla, file_url=null (sin botón roto)
+    let fileUrl = null;
+    let usedSharedFallback = false;
+
+    if (!it.skipUpload) {
       try {
         fileUrl = await withTimeout(uploadFile(it.file, type), 60000, 'subiendo PDF/imagen a Storage');
       } catch (e) {
-        console.warn('Upload failed (continuamos sin file_url):', e);
+        console.warn('[v71] Upload del archivo individual falló:', it.name, e);
       }
+    }
+
+    // Fallback: si no se pudo subir el JPG individual, intentar usar el PDF compartido (v71)
+    if (!fileUrl && it.sharedPdfUrl) {
+      fileUrl = it.sharedPdfUrl;
+      usedSharedFallback = true;
+      console.log('[v71] Fallback al PDF compartido para', it.name);
+    }
+
+    // Si compatibilidad legacy: items antiguos con sharedPdfUrl + skipUpload
+    if (!fileUrl && it.skipUpload && it.sharedPdfUrl) {
+      fileUrl = it.sharedPdfUrl;
+      usedSharedFallback = true;
     }
 
     let results;
@@ -1399,9 +1427,15 @@ async function _processOne(it, type, key, timeoutMs) {
     it.b64 = null; // liberar memoria
 
     for (const data of results) {
-      // v69: si fileUrl es null (subida a Storage falló), guardar null en BD,
-      // NO concatenar como string que daría "null" o "null#page=3" literales.
-      data.file_url = fileUrl ? (fileUrl + (it.pageNum ? `#page=${it.pageNum}` : '')) : null;
+      // v71: si usamos fallback (PDF compartido) añadir #page=N. Si subimos JPG individual,
+      // fileUrl ya apunta a la imagen directa y NO se añade hash. Si todo falló, null.
+      if (fileUrl) {
+        data.file_url = usedSharedFallback && it.pageNum
+          ? `${fileUrl}#page=${it.pageNum}`
+          : fileUrl;
+      } else {
+        data.file_url = null;
+      }
       // Si es un pendiente del conductor, usar SU user_id (no el del admin que procesa)
       data.user_id = it._fromPending?.user_id || currentUser.id;
       if (type === 'alb') {
