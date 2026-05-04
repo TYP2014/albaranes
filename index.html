@@ -320,7 +320,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn bs" onclick="exportExcel()" style="display:flex;align-items:center;gap:5px">📊 Excel completo</button>
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
             <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor)">🔄 Re-corregir TODO</button>
-            <button class="btn bw" onclick="unificarJoaquin()" style="display:flex;align-items:center;gap:5px" title="Unifica todas las variantes de 'Joaquin Cañas' (JOAQUIM CAÑAS, JOAQUIN CAÑAS GARCIA, etc.) a 'JOAQUIN CAÑAS' en todos los albaranes">🧹 Unificar Joaquin</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -2120,56 +2119,6 @@ async function reanalizarTodo() {
   if (cambios > 0) resumen = `✓ ${cambios} corregidos`;
   else resumen = 'No había nada que corregir';
   if (saltados > 0) resumen += ` · ${saltados} protegidos`;
-  if (errores > 0) resumen += ` · ${errores} errores`;
-  toast(resumen);
-}
-
-// Botón "🧹 Unificar Joaquin": unifica todas las variantes del nombre del transportista
-// (JOAQUIM CAÑAS, JOAQUIN CAÑAS GARCIA, JOAQUIM CAÑAS GARCIA, joaquín cañas, etc.) a la
-// forma canónica "JOAQUIN CAÑAS" en todos los albaranes guardados.
-async function unificarJoaquin() {
-  if (!records.length) { toast('No hay albaranes', 'err'); return; }
-
-  // Normalización: quitar acentos, mayúsculas, quitar espacios extra
-  const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g, ' ').trim();
-  const CANON = 'JOAQUIN CAÑAS';
-  // Variantes que queremos unificar (todas las combinaciones JOAQUIM/JOAQUIN + opcional GARCIA)
-  const variantesNorm = new Set([
-    'JOAQUIN CANAS',
-    'JOAQUIM CANAS',
-    'JOAQUIN CANAS GARCIA',
-    'JOAQUIM CANAS GARCIA'
-  ]);
-
-  // Detectar candidatos
-  const candidatos = records.filter(r => {
-    if (!r.transportista) return false;
-    const n = norm(r.transportista);
-    // Coincidencia exacta con una variante Y que NO sea ya el canon exacto
-    return variantesNorm.has(n) && r.transportista !== CANON;
-  });
-
-  if (!candidatos.length) { toast('No hay variantes que unificar — todo está ya como JOAQUIN CAÑAS'); return; }
-
-  if (!confirm(`Se encontraron ${candidatos.length} albaranes con variantes ('JOAQUIM CAÑAS', 'JOAQUIN CAÑAS GARCIA', etc.).\n\nSe unificarán todas a "${CANON}". ¿Continuar?`)) return;
-
-  let cambios = 0, errores = 0;
-  for (const r of candidatos) {
-    try {
-      const { error } = await sb.from('albaranes').update({ transportista: CANON }).eq('id', r.db_id);
-      if (error) { errores++; console.error('[unificarJoaquin] error:', error); continue; }
-      r.transportista = CANON;
-      cambios++;
-    } catch (e) {
-      errores++;
-      console.error('[unificarJoaquin] excepción:', e);
-    }
-  }
-
-  // Recargar desde BD para garantizar consistencia
-  await loadData();
-
-  let resumen = `✓ ${cambios} unificados a "${CANON}"`;
   if (errores > 0) resumen += ` · ${errores} errores`;
   toast(resumen);
 }
