@@ -900,8 +900,6 @@ async function addFiles(files, type) {
           }
         } else {
           toast(`📄 Dividiendo ${f.name} en ${numPages} páginas...`);
-          let sharedPdfUrl = null;
-          try { sharedPdfUrl = await uploadFile(f, type); } catch (e) { console.warn('Upload PDF failed:', e); }
 
           // Resolución adaptada al tamaño (afecta también al rate limit por tokens)
           const scale = numPages > 30 ? 1.4 : (numPages > 10 ? 1.6 : 1.8);
@@ -924,18 +922,29 @@ async function addFiles(files, type) {
             const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
             canvas.width = 0; canvas.height = 0;
 
+            // v70: cada página se sube como JPG individual a Storage (no como parte de un PDF
+            // compartido). Así cada apunte tiene SU imagen propia y se ve inline en el modal.
+            // Convertimos el b64 del JPG en un File para que _processOne lo suba normal.
+            let pageFile;
+            try {
+              const byteString = atob(imgB64);
+              const byteArray = new Uint8Array(byteString.length);
+              for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
+              pageFile = new File([byteArray], pageName, { type: 'image/jpeg' });
+            } catch (eFile) {
+              console.warn('No se pudo convertir página a File, usando PDF original:', eFile);
+              pageFile = f;
+            }
+
             if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
               pending.push({
                 id: Date.now() + Math.random() + p,
-                file: f,
+                file: pageFile,
                 b64: imgB64,
                 status: 'pending',
                 isPdf: false,
                 name: pageName,
-                mediaType: 'image/jpeg',
-                sharedPdfUrl: sharedPdfUrl,
-                pageNum: p,
-                skipUpload: true
+                mediaType: 'image/jpeg'
               });
             }
 
@@ -2022,7 +2031,7 @@ function openModal(id) {
   // Preview
   let previewHtml = '';
   if (hasValidUrl(r.file_url)) {
-    const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(r.file_url);
+    const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
     if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview" onclick="window.open('${r.file_url}','_blank')">`;
     else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver documento original</a>`;
   }
@@ -2159,7 +2168,7 @@ function openGasModal(id) {
   editGasId = id;
   let previewHtml = '';
   if (hasValidUrl(r.file_url)) {
-    const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(r.file_url);
+    const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
     if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview">`;
     else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a>`;
   }
