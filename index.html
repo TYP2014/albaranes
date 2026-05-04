@@ -1252,6 +1252,11 @@ async function _processOne(it, type, key, timeoutMs) {
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
         }
+        // Red de seguridad: canonizar el campo CLIENTE/COMPRADOR. Pilla variantes OCR
+        // como "Planta Horígenes Zona Franca" o "Planta Hormagones Montcada" y las unifica.
+        if (data.cliente) {
+          data.cliente = fixCliente(data.cliente);
+        }
         // VALIDACIÓN TM: si el valor es muy bajo (<20 TN) y coincide con la tara, casi seguro
         // Haiku se equivocó y cogió la tara como neto. Recalculamos NETO = BRUTO - TARA.
         const tmNum = parseFloat(data.tm);
@@ -2112,6 +2117,16 @@ async function reanalizarTodo() {
         cambio = true;
       }
     }
+    // Corregir cliente/comprador (variantes OCR de Planta Hormigones Zona Franca/Montcada)
+    if (r.cliente) {
+      const nuevoCli = fixCliente(r.cliente);
+      if (nuevoCli !== r.cliente) {
+        console.log(`Cliente: "${r.cliente}" → "${nuevoCli}" (alb ${r.albaran})`);
+        r.cliente = nuevoCli;
+        update.cliente = nuevoCli;
+        cambio = true;
+      }
+    }
     // Corregir matrícula (y transportista derivado)
     if (r.tractora) {
       const nuevaMat = fixMatricula(r.tractora);
@@ -2403,7 +2418,8 @@ function fixDestino(d) {
   if (/HS25|HORMIGON ENSACADO/.test(u)) return 'Montornès del Vallès';
   if (/^PLANTA FERRAN/.test(u)) return 'Planta Ferran-Riera';
   if (/^FABRICA ALCOVER/.test(u)) return 'Alcover';
-  if (/^FABRICA MONTCADA/.test(u)) return 'Montcada';
+  // NOTA: NO tocamos "Fábrica Montcada" aquí — es un destino legítimo (la fábrica de cemento Holcim)
+  // donde se descargan materias primas. La canonización a "Montcada" la hace _matchDestino.
   if (/^MOLIENDA TARRAGONA/.test(u)) return 'Tarragona';
   if (/^GURREA DE GALLEGO/i.test(u.normalize('NFD').replace(/[\u0300-\u036f]/g,''))) return 'Gurrea de Gállego';
   // Códigos huérfanos (CE44I, CE44D...) → log pero no podemos saber el pueblo automáticamente
@@ -2416,6 +2432,19 @@ function fixDestino(d) {
   // Paso final: normalizar contra lista de destinos canónicos (gestiona variantes como
   // "El Prat de Llobregat" → "El Prat" o "Fábrica Montcada" → "Montcada")
   return _matchDestino(d);
+}
+
+// fixCliente: canoniza variantes OCR de plantas conocidas en el campo COMPRADOR/CLIENTE.
+// Pilla "Planta Horígenes Zona Franca", "Planta Hormagones Zona Franca", "Planta Hormoigones..."
+// y similares OCR-mal-leídos, y los unifica al nombre oficial.
+function fixCliente(c) {
+  if (!c) return c;
+  const u = String(c).toUpperCase().trim();
+  // Patrón flexible: "PLANTA HOR<cualquier cosa> ZONA FRANCA" → forma canónica
+  if (/^PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/i.test(u)) return 'Planta Hormigones Zona Franca';
+  // Patrón flexible: "PLANTA HOR<cualquier cosa> MONTCADA" → forma canónica
+  if (/^PLANTA\s+HOR\S*\s+MONTCADA/i.test(u)) return 'Planta Hormigones Montcada';
+  return c; // si no coincide ningún patrón, devolver tal cual
 }
 
 // PROVEEDORES CANÓNICOS: nombres oficiales con grafía limpia + aliases conocidos
