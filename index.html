@@ -1044,8 +1044,7 @@ async function procesarPendientes(type) {
   }
 
   // Recargar desde BD para asegurar consistencia (banners, stats, lista)
-  if (type === 'alb') await loadRecords();
-  else await loadGas();
+  await loadData();
 }
 
 function renderQueues() {
@@ -2417,7 +2416,10 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
-  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf', 'Fábrica Montcada', 'Garraf Arid', 'GARRAF ARID'] },
+  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID'] },
+  // Holcim — plantas de cemento (NO confundir con Cantera de Garraf, que es de áridos)
+  { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada'] },
+  { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'Holcim Tarragona'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
