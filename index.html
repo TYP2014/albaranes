@@ -1222,6 +1222,15 @@ async function _processOne(it, type, key, timeoutMs) {
           console.log(`Origen inferido: → "${inferidoOri}"`);
           data.planta = inferidoOri;
         }
+        // Red de seguridad Holcim cemento: si por error OCR el origen es "Cantera de Garraf"
+        // (cantera de áridos) pero el material es cemento (CEM I/II/III/IV/V, Cemento
+        // Portland/Puzolánico, ECOPlanet CEM), corregir a "Fábrica Montcada" (planta de cemento).
+        if (data.planta === 'Cantera de Garraf'
+            && /Holcim/i.test(data.proveedor || '')
+            && /(?:^|\s)(?:ECOPlanet\s+)?CEM\s+[IV]+\b|Cemento\s+(?:Portland|Puzol)/i.test(data.producto || '')) {
+          console.log(`Origen Holcim cemento corregido: "Cantera de Garraf" → "Fábrica Montcada"`);
+          data.planta = 'Fábrica Montcada';
+        }
         // Inferencia de destino por proveedor (Àrids Garcia → La Roca, Canro+Subbalasto → El Prat)
         const inferidoDest = inferDestino(data);
         if (inferidoDest && inferidoDest !== data.obra) {
@@ -2002,6 +2011,18 @@ async function reanalizarTodo() {
         update.planta = nuevoOri;
         cambio = true;
       }
+    }
+    // Corrección retroactiva (post-v48): histórico Holcim cemento con origen "Cantera de Garraf"
+    // (era alias incorrecto antes de v48). Si el material es cemento (CEM con número romano,
+    // Cemento Portland/Puzolánico, ECOPlanet CEM) y el proveedor es Holcim, el origen real
+    // es Fábrica Montcada — NO Cantera de Garraf (que es para áridos/caliza).
+    if (r.planta === 'Cantera de Garraf'
+        && /Holcim/i.test(r.proveedor || '')
+        && /(?:^|\s)(?:ECOPlanet\s+)?CEM\s+[IV]+\b|Cemento\s+(?:Portland|Puzol)/i.test(r.producto || '')) {
+      console.log(`Origen Holcim cemento: "Cantera de Garraf" → "Fábrica Montcada" (alb ${r.albaran})`);
+      r.planta = 'Fábrica Montcada';
+      update.planta = 'Fábrica Montcada';
+      cambio = true;
     }
     // Inferencia adicional por MATERIAL/PROVEEDOR (origen)
     const inferidoOri = inferOrigen(r);
