@@ -677,15 +677,17 @@ async function onLogin(user) {
   }
 }
 
-// Auto-refresh de la cola cada 30s — solo cuando hay procesamiento activo. Esto actualiza
-// el contador de minutos transcurridos y muestra el aviso de bloqueo si pasa de 2 min.
+// Auto-refresh de la cola cada 30s — siempre que haya algo (procesando, en curso o huérfanos).
+// Esto actualiza el contador de minutos transcurridos y muestra el aviso de bloqueo si pasa de 2 min,
+// y detecta archivos atascados en 'processing' tras un cuelgue.
 setInterval(() => {
-  if (_processingAlb || _processingGas) {
+  const tieneHuerfanos = pendingAlb.some(x => x.status === 'processing') || pendingGas.some(x => x.status === 'processing');
+  if (_processingAlb || _processingGas || tieneHuerfanos) {
     checkProcessingStuck('alb');
     checkProcessingStuck('gas');
     renderQueues();
   }
-}, 30000);
+}, 15000); // cada 15s para que el aviso de huérfanos se muestre rápido
 
 function showLogin() {
   currentUser = null; currentRole = null;
@@ -1075,15 +1077,25 @@ function renderQueues() {
     const startTs = type === 'alb' ? _processingAlbStartTs : _processingGasStartTs;
     const elapsedMin = startTs > 0 ? (Date.now() - startTs) / 60000 : 0;
     const isStuck = isProcessing && elapsedMin > 2; // bloqueado si lleva >2 min
+    // Caso especial: hay archivos atascados en 'processing' pero el flag NO está activo.
+    // Eso significa que la cola se interrumpió (cuelgue, refresco, etc.) y ahora están huérfanos.
+    // Los podemos rescatar marcándolos como 'pending' otra vez.
+    const hayHuerfanos = nProc > 0 && !isProcessing;
 
     let stuckBanner = '';
     if (isStuck) {
-      stuckBanner = `<div style="background:rgba(255,165,0,0.15);border:1px solid var(--wn);padding:8px 12px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px">
+      stuckBanner = `<div style="background:rgba(255,165,0,0.15);border:1px solid var(--wn);padding:8px 12px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px;flex-wrap:wrap;gap:6px">
         <span>⚠️ Procesamiento lento (${elapsedMin.toFixed(0)}min). Si parece colgado, pulsa Reiniciar.</span>
         <button class="btn br" style="font-size:10px;padding:4px 10px" onclick="resetProcessing()">🔄 Reiniciar</button>
       </div>`;
+    } else if (hayHuerfanos) {
+      // Aviso fuerte: hay archivos colgados sin procesar. Botón para rescatarlos.
+      stuckBanner = `<div style="background:rgba(255,80,80,0.15);border:1px solid var(--er);padding:8px 12px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px;flex-wrap:wrap;gap:6px">
+        <span>⚠️ ${nProc} archivo(s) atascado(s). Pulsa "Reiniciar" para volver a procesarlos.</span>
+        <button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="rescatarAtascados('${type}')">🔄 Reiniciar y reintentar</button>
+      </div>`;
     } else if (nErr > 0) {
-      stuckBanner = `<div style="background:rgba(255,165,0,0.10);border:1px solid var(--wn);padding:6px 10px;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:11px">
+      stuckBanner = `<div style="background:rgba(255,165,0,0.10);border:1px solid var(--wn);padding:6px 10px;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:11px;flex-wrap:wrap;gap:6px">
         <span>⚠️ ${nErr} con error. Puedes reintentarlos.</span>
         <button class="btn bw" style="font-size:10px;padding:4px 10px" onclick="reintentarErrores('${type}')">↻ Reintentar errores</button>
       </div>`;
@@ -1106,8 +1118,31 @@ function renderQueues() {
       ? `${nDone}/${total} procesados${nProc > 0 ? ` · ${nProc} en curso` : ''}${nErr > 0 ? ` · ${nErr} error` : ''}${np > 0 ? ` · ${np} pendientes` : ''}`
       : `${np} pendiente(s)`;
     qcIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = progressTxt; });
-    btnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = np === 0; });
+    // Habilitar botón si hay pendientes O si hay huérfanos (rescatables)
+    btnIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = (np === 0 && !hayHuerfanos); });
   });
+}
+
+// Rescatar archivos atascados en 'processing' que se quedaron huérfanos (cuelgue de cola).
+// Los vuelve a poner en 'pending' y desbloquea el flag para reprocesarlos.
+function rescatarAtascados(type) {
+  const list = type === 'alb' ? pendingAlb : pendingGas;
+  let n = 0;
+  list.forEach(it => {
+    if (it.status === 'processing') {
+      it.status = 'pending';
+      n++;
+    }
+  });
+  // Desbloquear flag por si acaso
+  if (type === 'alb') { _processingAlb = false; _processingAlbStartTs = 0; }
+  else { _processingGas = false; _processingGasStartTs = 0; }
+  if (n > 0) {
+    toast(`🔄 ${n} archivo(s) rescatados. Pulsando "Procesar con IA"...`);
+    renderQueues();
+    // Reintentar automáticamente para que el usuario no tenga que pulsar dos veces
+    setTimeout(() => processQueue(type), 500);
+  }
 }
 
 // Reintentar archivos con error: vuelve a marcarlos como pendientes
@@ -1242,7 +1277,14 @@ async function _processOne(it, type, key, timeoutMs) {
   try {
     let fileUrl = it.sharedPdfUrl || null;
     if (!fileUrl && !it.skipUpload) {
-      try { fileUrl = await uploadFile(it.file, type); } catch (e) { console.warn('Upload failed:', e); }
+      // Timeout de 60s para uploadFile a Storage. En móvil con red mala se puede quedar colgado
+      // y entonces el archivo se quedaría eternamente en 'processing'. Si falla la subida, seguimos
+      // sin file_url (el albarán se procesa igual, solo no quedará link al PDF original).
+      try {
+        fileUrl = await withTimeout(uploadFile(it.file, type), 60000, 'subiendo PDF/imagen a Storage');
+      } catch (e) {
+        console.warn('Upload failed (continuamos sin file_url):', e);
+      }
     }
 
     let results;
