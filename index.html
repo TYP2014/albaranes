@@ -1258,6 +1258,18 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+        // VALIDACIÓN TM (caso opuesto): si tm > 36 TN (un camión real nunca lleva tanto neto)
+        // y coincide con el peso BRUTO, Haiku se confundió. Recalculamos NETO = BRUTO - TARA.
+        if (!isNaN(tmNum) && tmNum > 36 && !isNaN(taraNum) && !isNaN(brutoNum) && brutoNum > taraNum) {
+          const tmCalculado = (brutoNum - taraNum) / 1000;
+          if (tmCalculado >= 20 && tmCalculado <= 36) {
+            const brutoEnTN = brutoNum / 1000;
+            if (Math.abs(tmNum - brutoEnTN) < 1) {
+              console.warn(`[TM corregido] Era ${tmNum} (parecía bruto), debería ser ${tmCalculado.toFixed(3)} (Bruto-Tara)`);
+              data.tm = tmCalculado;
+            }
+          }
+        }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
         const dbId = await saveRecord(data);
         data._id = Date.now() + Math.random();
@@ -1328,7 +1340,7 @@ const MATRICULAS_VALIDAS = [
   // T. SATIG 79
   '5524MKY','7878MBN','0554NKM','1931MTS','9495LHT','0471MKV','0555NKM','2412MZD','7609LVJ','0824LKD','5523MKY',
   // OP TRANS V.
-  '1586JFW','7778LXT','4705JSB','6733JKM','0001JBS','6590JLK','5423MVR','4788KJH','6910MFN','7482MTL',
+  '1586JFW','7778LXT','4705JSB','6733JKM','6590JLK','5423MVR','4788KJH','6910MFN','7482MTL',
   '7293LWH','9189LWK','5003JNX','9357MNV','8928LDK','2576NJY'
 ];
 
@@ -1350,7 +1362,7 @@ Campos a extraer:
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null (peso del camión vacío, suele ser el menor de los pesos)
 - bruto_kg: peso bruto en kg o null (peso del camión cargado, suele ser el mayor)
-- tm: toneladas métricas NETAS (cantidad real de material transportado). REGLA CRÍTICA: SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Verifica que el valor sea coherente: NETO suele estar entre 20-35 toneladas para un camión típico — si te sale menor de 20 TN, probablemente cogiste la tara por error.
+- tm: toneladas métricas NETAS (cantidad real de material transportado). REGLA CRÍTICA: SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. **En albaranes de SALIDA de Holcim (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos empezando por 31...): el NETO es el campo "Cantidad" expresado en "t" (toneladas) — ej. "28,140 t". El campo "Peso de entrada" (12.000-13.000 kg) es la TARA, y "Peso de salida" (40.000-43.000 kg) es el BRUTO. NUNCA cojas estos como neto, son siempre kg de báscula. Tu tm debe estar siempre entre 20 y 36 — si te sale 40+ es que cogiste el bruto en kg en vez de la cantidad en t.** En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Verifica que el valor sea coherente: NETO suele estar entre 20-35 toneladas para un camión típico — si te sale menor de 20 TN, probablemente cogiste la tara por error.
 - producto: material transportado
 - transportista: empresa transportista
 - hora_entrada: HH:MM o null
@@ -1815,12 +1827,27 @@ async function saveModal() {
   console.log('[saveModal] Cambios:', cambios);
   console.log('[saveModal] Datos a guardar:', r);
 
+  // Cerrar modal y bloquearlo para evitar dobles clicks mientras guardamos
+  const guardarBtn = document.querySelector('#mFooter .bp');
+  if (guardarBtn) { guardarBtn.disabled = true; guardarBtn.textContent = 'Guardando...'; }
+
   try {
+    // 1) Guardar en BD y esperar confirmación
     await saveRecord(r);
-    analyzeRecords();
-    applyFilters();
-    updateStats();
-    renderAlerts();
+
+    // 2) Recordar el ID que estamos editando para volver a marcar _manual tras la recarga
+    const editedId = r.db_id;
+
+    // 3) Recargar TODO desde BD — fuente de verdad. Esto refresca tabla, stats, alertas, dropdowns.
+    //    Garantiza que lo que ves en pantalla es exactamente lo que hay en Supabase.
+    await loadData();
+
+    // 4) Volver a aplicar la marca _manual sobre el registro recargado (loadData no la trae de BD)
+    if (editedId) {
+      const reloaded = records.find(x => String(x.db_id) === String(editedId));
+      if (reloaded) reloaded._manual = true;
+    }
+
     closeModal();
     if (cambios.length === 0) toast('Sin cambios');
     else toast(`✓ Guardado (${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'})`);
@@ -1830,6 +1857,7 @@ async function saveModal() {
     console.error('[saveModal] Error completo:', e);
     const msg = e.message || JSON.stringify(e);
     toast(`✗ Error guardando: ${msg}`, 'err');
+    if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = 'Guardar'; }
   }
 }
 
@@ -2289,7 +2317,7 @@ async function updateRole(uid, role) {
 // TRANSPORTISTAS
 // ============================================================
 const TRANSPORTISTAS = {
-  '0001JBS':'OP TRANS V.','0444MYX':'T. REFRIGERADOS DOMINGUEZ','0471MKV':'T. SATIG 79',
+  '0444MYX':'T. REFRIGERADOS DOMINGUEZ','0471MKV':'T. SATIG 79',
   '0554NKM':'T. SATIG 79','0555NKM':'T. SATIG 79','0705JBB':'TRANSMARGAZ 2018',
   '0732NLY':'TRANSMARGAZ 2018','0742KMB':'TTES HISPALIS 2016','0755KMB':'TYP2014',
   '0824LKD':'T. SATIG 79','0939NHJ':'TRANSMARGAZ 2018','1046MNV':'TRANSMARGAZ 2018',
