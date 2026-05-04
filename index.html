@@ -1371,7 +1371,7 @@ Campos a extraer:
 - albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. En Cemex formato 77469/XXXXXX
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
-- cliente: empresa compradora o destinataria
+- cliente: empresa compradora o destinataria. **CRÍTICO Holcim**: el cliente está en el campo "Cliente:" (suele aparecer junto al CÓDIGO de obra tipo CE44D, CE44E, CE44I y un nombre de planta como "Planta Hormigones Zona Franca", "Planta Hormigones Montcada", "La Roca", "Celra"). **NUNCA pongas como cliente lo que aparece en "Operador logístico:" ni en "Transp. efectivo:" — eso es el TRANSPORTISTA (PORTES 2014 IMPORT S.L. / TRANSPORTES Y PORTES 2014, S.L., CIF B90172735), NO un cliente. Si no encuentras el campo "Cliente:" o está vacío, devuelve null, NUNCA pongas Transportes y Portes 2014.**
 - obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): el campo "Obra:" suele tener formato "[código numérico] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI; **Àrids Garcia → extrae el PUEBLO del campo "Obra:" (puede ser La Roca, Llinars, Ports de Banyera, u otra obra distinta — NO asumir siempre La Roca, leer cada vez)**; **Canteras Canro → extrae lo que aparezca en el campo "DESTINO" (puede variar). Si el campo DESTINO está VACÍO en el albarán, devuelve null. NO uses el cliente ("UTE..."), la dirección de la cantera ("Sant Fost de Campsentelles") ni el origen como destino**; Molins → pueblo/obra del campo OBRA
 - planta: origen/carga. **En Holcim albaranes de SALIDA (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos 31...): el origen real es SIEMPRE el campo "Punto expedición:", NO el campo "Planta:". El campo "Planta:" indica desde qué punto Holcim factura administrativamente (suele poner "Fábrica Montcada" siempre), mientras que "Punto expedición:" indica DE DÓNDE SE CARGÓ FÍSICAMENTE el material. Ejemplo: si ves "Planta: Fábrica Montcada / Punto expedición: Cantera de Garraf", el origen es "Cantera de Garraf" (es de áridos), NO "Fábrica Montcada". Si "Punto expedición" coincide con "Planta" (ambos "Fábrica Montcada"), entonces sí es Fábrica Montcada (es de cemento). En albaranes de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"), el origen es el "PROVEEDOR" del material entrante, NO la planta receptora.** En Cemex busca "Expedido". **En Portland (Grupo Cementos Portland Valderrivas) busca SIEMPRE el campo "Planta" del albarán — tienen varias canteras (Olèrdola, Santa Margarida i els Monjos, y otras por toda España); NUNCA asumas siempre la misma, lee cada vez**. Canteras Canro sin origen → "Sant Fost de Campsentelles". Élite Cementos → "Fábrica Montcada". Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". **En Molins/Promsa (albaranes de venta de áridos, NO los de recepción Caliza Promsa): busca SIEMPRE el campo "CENTRAL" del albarán — tienen varias canteras: GARRAF ARID → "Cantera de Garraf"; OLESA DE BONESVALLS → "Olesa de Bonesvalls"; LLINARS → "Llinars del Vallès"; SANT VICENÇ → "Sant Vicenç dels Horts"; u otras. NUNCA asumas siempre Garraf, lee cada vez del CENTRAL.** EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea (RECEPCIÓN, no venta) → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. **En albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"): la matrícula está en el cuadro superior derecho, etiquetada como "MATRICULA:" justo debajo de "TRANSPORTISTA:" y "PROPIETARIO:" (ej: "MATRICULA: 4540MPW"). NO confundir con "REMOLQUE:" que está justo debajo. Si ves "MATRICULA:" SIEMPRE devuélvela, NUNCA dejes matrícula vacía en estos albaranes.** Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
@@ -2437,9 +2437,16 @@ function fixDestino(d) {
 // fixCliente: canoniza variantes OCR de plantas conocidas en el campo COMPRADOR/CLIENTE.
 // Pilla "Planta Horígenes Zona Franca", "Planta Hormagones Zona Franca", "Planta Hormoigones..."
 // y similares OCR-mal-leídos, y los unifica al nombre oficial.
+// También detecta el caso donde Haiku confundió "Operador logístico" (Transportes y Portes 2014
+// = la propia transportista) con el cliente real → devuelve null.
 function fixCliente(c) {
   if (!c) return c;
   const u = String(c).toUpperCase().trim();
+  // Caso especial: el cliente NUNCA es la propia transportista. Si vemos "Transportes y Portes 2014"
+  // o variantes, lo borramos (era confusión OCR del campo "Operador logístico").
+  if (/TRANSPORTES?\s+Y\s+PORTES\s+2014/i.test(u) || /PORTES\s+2014\s+IMPORT/i.test(u)) {
+    return null;
+  }
   // Patrón flexible: "PLANTA HOR<cualquier cosa> ZONA FRANCA" → forma canónica
   if (/^PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/i.test(u)) return 'Planta Hormigones Zona Franca';
   // Patrón flexible: "PLANTA HOR<cualquier cosa> MONTCADA" → forma canónica
@@ -2645,6 +2652,7 @@ const REGLAS_DESTINO = [
   // (la obra puede poner "Planta Hormigones Zona Franca", "Zona Franca", "Calle C, sector B", o solo "Barcelona")
   // El COMPRADOR/CLIENTE suele tener "Planta Hormigones Zona Franca" (o variantes mal leídas por OCR
   // como "Horígenes", "Hormigon", etc. — usamos un patrón tolerante que pilla "Planta Hor* + Zona Franca")
+  // El código de obra CE44D también identifica la Planta Hormigones Zona Franca.
   {
     match: (d) => {
       const obra = String(d.obra || '').toUpperCase();
@@ -2655,6 +2663,8 @@ const REGLAS_DESTINO = [
       // Match directo: comprador o cliente contiene "Planta Hor* Zona Franca" (tolerante a OCR)
       const compradorEsPHZF = /PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/.test(cliente) || /PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/.test(obra);
       if (compradorEsPHZF) return true;
+      // Match por código de obra Holcim: CE44D = Planta Hormigones Zona Franca
+      if (/\bCE44D\b/.test(obra) || /\bCE44D\b/.test(cliente)) return true;
       // Match más amplio: si es de Garraf (áridos) y aparece "Zona Franca" o "Calle C, sector B" en cualquier campo
       const tieneZF = (s) => /ZONA\s+FRANCA/.test(s) || /CALLE\s+C\W*SECTOR\s+B/.test(s);
       return esGarraf && (tieneZF(obra) || tieneZF(cliente) || tieneZF(dirObra));
@@ -2663,6 +2673,7 @@ const REGLAS_DESTINO = [
   },
   // Áridos con destino Planta de Montcada → "Planta de Montcada" (planta de hormigón Holcim)
   // distinguir de "Fábrica Montcada" (la de cemento)
+  // El código de obra CE44K también identifica Planta de Montcada.
   {
     match: (d) => {
       const o = String(d.planta || '').toUpperCase();
@@ -2672,6 +2683,8 @@ const REGLAS_DESTINO = [
       // Match directo: comprador con "Planta Hor* Montcada" o "Montcada (Hormig)" (tolerante OCR)
       const compradorEsPHM = /PLANTA\s+HOR\S*\s+MONTCADA/.test(cliente) || /MONTCADA\s*\(\s*HORMIG/.test(cliente) || /PLANTA\s+HOR\S*\s+MONTCADA/.test(obra) || /MONTCADA\s*\(\s*HORMIG/.test(obra);
       if (compradorEsPHM) return true;
+      // Match por código de obra Holcim: CE44K = Planta de Montcada (hormigonera)
+      if (/\bCE44K\b/.test(obra) || /\bCE44K\b/.test(cliente)) return true;
       // Match amplio: si es de Garraf y aparece "Montcada" (sin que sea "Fábrica") en obra/cliente
       const esPlantaMontcada = (s) => /MONTCADA\s*\(\s*HORMIG/.test(s) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(s) || (/MONTCADA/.test(s) && !/F[ÁA]BRICA/.test(s));
       return esGarraf && (esPlantaMontcada(obra) || esPlantaMontcada(cliente));
