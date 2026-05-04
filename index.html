@@ -1390,7 +1390,9 @@ async function _processOne(it, type, key, timeoutMs) {
     it.b64 = null; // liberar memoria
 
     for (const data of results) {
-      data.file_url = fileUrl + (it.pageNum ? `#page=${it.pageNum}` : '');
+      // v69: si fileUrl es null (subida a Storage falló), guardar null en BD,
+      // NO concatenar como string que daría "null" o "null#page=3" literales.
+      data.file_url = fileUrl ? (fileUrl + (it.pageNum ? `#page=${it.pageNum}` : '')) : null;
       // Si es un pendiente del conductor, usar SU user_id (no el del admin que procesa)
       data.user_id = it._fromPending?.user_id || currentUser.id;
       if (type === 'alb') {
@@ -1917,6 +1919,15 @@ function filterByStatus(st) {
 
 function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
 function fmtTS(ts) { if (!ts) return '—'; const d = new Date(ts); return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+// v69: detecta file_url válidos. Filtra null, undefined, cadenas vacías y los strings literales
+// "null"/"undefined" (con o sin #page=N) que pudieron quedar grabados en BD por un bug previo
+// cuando la subida a Supabase Storage fallaba en mitad de un PDF multipágina.
+function hasValidUrl(u) {
+  if (!u || typeof u !== 'string') return false;
+  if (u === 'null' || u === 'undefined') return false;
+  if (u.startsWith('null#') || u.startsWith('undefined#')) return false;
+  return true;
+}
 
 function renderTable() {
   const tbody = document.getElementById('tbody'), empty = document.getElementById('emptyState');
@@ -1957,7 +1968,7 @@ function renderGasTable() {
       <td><span class="tag-n">${r.num_ticket || '—'}</span></td>
       <td style="opacity:.7">${r.user_email || '—'}</td>
       <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
-      <td>${r.file_url ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a>` : '—'}</td>
+      <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a>` : '—'}</td>
     </tr>`).join('');
 }
 
@@ -2010,7 +2021,7 @@ function openModal(id) {
   document.getElementById('mAlert').innerHTML = alertHtml;
   // Preview
   let previewHtml = '';
-  if (r.file_url) {
+  if (hasValidUrl(r.file_url)) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(r.file_url);
     if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview" onclick="window.open('${r.file_url}','_blank')">`;
     else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver documento original</a>`;
@@ -2147,7 +2158,7 @@ function openGasModal(id) {
   if (!r) return;
   editGasId = id;
   let previewHtml = '';
-  if (r.file_url) {
+  if (hasValidUrl(r.file_url)) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(r.file_url);
     if (isImg) previewHtml = `<img src="${r.file_url}" class="img-preview">`;
     else previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a>`;
