@@ -820,6 +820,57 @@ function drop(e, type) {
   addFiles(e.dataTransfer.files, type);
 }
 
+// Comprime una imagen para que pese menos del límite. Hace 2 pasadas:
+// 1) Si es enorme, la redimensiona (max 2000px) manteniendo proporciones
+// 2) Reduce calidad JPG hasta entrar en el límite (probando 0.85, 0.7, 0.55)
+// Devuelve un nuevo File con el mismo nombre pero más pequeño.
+// Si todo falla, devuelve el original (la API dará error pero al menos no se cuelga).
+async function comprimirImagen(file, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = async () => {
+        // Calcular dimensiones target: si la imagen es más grande de 2000px en alguna dim, escalar
+        const MAX_DIM = 2000;
+        let w = img.width, h = img.height;
+        if (w > MAX_DIM || h > MAX_DIM) {
+          const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Probar calidades hasta que entre en el límite
+        const calidades = [0.85, 0.7, 0.55, 0.4];
+        for (const q of calidades) {
+          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+          if (blob && blob.size <= maxBytes) {
+            // Crear un File con el mismo nombre pero comprimido
+            const nuevo = new File([blob], file.name, { type: 'image/jpeg', lastModified: file.lastModified });
+            return resolve(nuevo);
+          }
+        }
+        // Si ni con calidad 0.4 entra, devolver el último intento (el más pequeño)
+        const blobFinal = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.4));
+        if (blobFinal) {
+          const nuevo = new File([blobFinal], file.name, { type: 'image/jpeg', lastModified: file.lastModified });
+          return resolve(nuevo);
+        }
+        reject(new Error('No se pudo comprimir la imagen'));
+      };
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+      img.src = ev.target.result;
+    };
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function addFiles(files, type) {
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
   // sin procesar con IA. La oficina (admin/gestor) los procesará después en lote.
@@ -910,14 +961,26 @@ async function addFiles(files, type) {
       }
     } else {
       const id = Date.now() + Math.random();
+      // Para imágenes (no PDFs): si pesan más de 4 MB, comprimir/redimensionar antes de enviar a la API.
+      // Anthropic limita a 5 MB en base64 → comprimimos a 4 MB para tener margen.
+      // Esto es típico de fotos hechas con el móvil (suelen pesar 3-8 MB en JPG).
+      let imgFile = f;
+      if (!isPdf && f.size > 4 * 1024 * 1024) {
+        try {
+          imgFile = await comprimirImagen(f, 4 * 1024 * 1024);
+          console.log(`[addFiles] Imagen comprimida: ${(f.size/1024/1024).toFixed(1)}MB → ${(imgFile.size/1024/1024).toFixed(1)}MB`);
+        } catch (e) {
+          console.warn('[addFiles] No se pudo comprimir, usando original:', e);
+        }
+      }
       const b64 = await new Promise((res, rej) => {
         const r = new FileReader();
         r.onload = e => res(e.target.result.split(',')[1]);
         r.onerror = rej;
-        r.readAsDataURL(f);
+        r.readAsDataURL(imgFile);
       });
       if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
-        pending.push({ id, file: f, b64, status: 'pending', isPdf, name: f.name, mediaType: isPdf ? 'application/pdf' : (f.type || 'image/jpeg') });
+        pending.push({ id, file: imgFile, b64, status: 'pending', isPdf, name: f.name, mediaType: isPdf ? 'application/pdf' : (imgFile.type || 'image/jpeg') });
       }
     }
   }
