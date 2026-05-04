@@ -2573,6 +2573,8 @@ const REGLAS_DESTINO = [
   { match: (d) => /[ÁA]RIDO\s+SIDER[ÚU]RGICO/i.test(d.producto || ''), destino: 'Fábrica Montcada' },
   // Calizas externas (Promsa, Foj, Cemex, Holcim/Garraf)
   { match: (d) => /CALIZA\s+(PROMSA|FOJ|CEMEX)/i.test(d.producto || ''), destino: 'Fábrica Montcada' },
+  // Caliza Garraf Zahorra (de la propia cantera Garraf de Holcim — entra como materia prima)
+  { match: (d) => /CALIZA\s+GARRAF\s+ZAHORRA/i.test(d.producto || ''), destino: 'Fábrica Montcada' },
   // Arcilla Silícia Papiol
   { match: (d) => /ARCILLA\s+SIL[IÍ]CIA/i.test(d.producto || '') || /ARCILLA.*PAPIOL/i.test(d.producto || ''), destino: 'Fábrica Montcada' },
   // Arena extraída de cantera (Martorell)
