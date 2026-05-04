@@ -6,6 +6,7 @@
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -328,6 +329,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="tbl-acts">
             <button class="btn bs" onclick="exportExcel()" style="display:flex;align-items:center;gap:5px">📊 Excel completo</button>
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
+            <button class="btn bp" id="btnDlFil" onclick="descargarArchivosFiltrados()" style="display:none">📦 Descargar archivos</button>
             <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor)">🔄 Re-corregir TODO</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
@@ -344,7 +346,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="fil-group"><label class="fil-label">Material</label><select class="fil-sel" id="fMat2" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Comprador</label><select class="fil-sel" id="fComp" onchange="applyFilters()"><option value="">Todos</option></select></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option></select></div>
-            <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: ALB260..." style="font-family:var(--mn);font-size:11px"></div>
+            <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
           </div>
           <div class="tbl-top">
@@ -1925,8 +1927,15 @@ function applyFilters() {
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
     if (estado === 'warn' && (r._dup || (r._quality !== 'warn' && r._quality !== 'ilegible'))) return false;
-    // Filtro por nº de albarán (búsqueda parcial, case-insensitive)
-    if (fAlb && !(r.albaran && String(r.albaran).toLowerCase().includes(fAlb))) return false;
+    // v74: filtro por nº de albarán acepta múltiples valores separados por coma/espacio/punto-y-coma
+    // Ej: "167987, 167988, 167989" o "167987 167988" → match si CUALQUIERA aparece en r.albaran
+    if (fAlb) {
+      const partes = fAlb.split(/[,;\s]+/).filter(Boolean);
+      if (partes.length > 0) {
+        const albStr = String(r.albaran || '').toLowerCase();
+        if (!partes.some(p => albStr.includes(p))) return false;
+      }
+    }
     if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
     return true;
   });
@@ -1947,9 +1956,12 @@ function applyFilters() {
   const rc = document.getElementById('resCount');
   if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
-  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || comp || estado || (document.getElementById('srchIn')?.value || '');
+  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || comp || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
+  // v74: botón de descarga ZIP también visible cuando hay filtros activos
+  const bd = document.getElementById('btnDlFil');
+  if (bd) bd.style.display = hasF ? 'inline-block' : 'none';
 }
 
 function applyGasFilters() {
@@ -2378,6 +2390,127 @@ function buildExcel(data) {
 
 function exportExcel() { if (!records.length) { toast('No hay albaranes', 'err'); return; } const {wb,tm} = buildExcel(records); XLSX.writeFile(wb, `albaranes_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`); }
 function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; } const {wb,tm} = buildExcel(filtered); XLSX.writeFile(wb, `albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`); }
+
+// v74: descarga un ZIP con TODOS los archivos (PDFs/imágenes) de los albaranes filtrados,
+// más un Excel con los datos. Útil para enviar al cliente o revisar varios a la vez.
+// Deduplicación: si dos albaranes comparten el mismo PDF compartido (multipágina), descarga
+// el PDF una sola vez pero lo añade al ZIP con dos nombres distintos.
+async function descargarArchivosFiltrados() {
+  if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
+  if (typeof JSZip === 'undefined') { toast('Librería ZIP no cargada. Recarga la página.', 'err'); return; }
+
+  const conArchivo = filtered.filter(r => hasValidUrl(r.file_url));
+  if (!conArchivo.length) {
+    toast('Ninguno de los filtrados tiene archivo asociado. Sólo descargo el Excel.', 'warn');
+  }
+
+  // Confirmación si son muchos (puede tardar y consumir red)
+  if (conArchivo.length > 50) {
+    if (!confirm(`Se van a descargar ${conArchivo.length} archivos. Puede tardar varios minutos. ¿Continuar?`)) return;
+  }
+
+  const btn = document.getElementById('btnDlFil');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparando...'; }
+
+  try {
+    const zip = new JSZip();
+
+    // 1) Excel con los datos filtrados (siempre va, aunque algunos no tengan archivo)
+    try {
+      const { wb } = buildExcel(filtered);
+      const wbArray = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      zip.file('00_albaranes_datos.xlsx', wbArray);
+    } catch (eXls) {
+      console.warn('No se pudo añadir Excel al ZIP:', eXls);
+    }
+
+    // 2) Descargar archivos con cache por URL limpia (sin #page) para no descargar el mismo
+    //    PDF compartido N veces. Limitamos a 4 descargas en paralelo para no saturar la red.
+    const cache = new Map();
+    const total = conArchivo.length;
+    let progreso = 0;
+    let errores = 0;
+
+    async function descargarUno(url) {
+      if (cache.has(url)) return cache.get(url);
+      const promesa = (async () => {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return await resp.blob();
+      })();
+      cache.set(url, promesa);
+      return promesa;
+    }
+
+    function nombreSafe(s, max) {
+      return String(s || '').replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, max || 40) || 'sd';
+    }
+
+    function nombreArchivo(r, ext) {
+      const fechaSafe = (r.fecha || 'sinfecha').replace(/\//g, '-');
+      const albSafe = nombreSafe(r.albaran || 'sinNum', 20);
+      const matSafe = nombreSafe(r.tractora || 'sinMat', 10);
+      const provSafe = nombreSafe(r.proveedor || '', 20);
+      const pageMatch = (r.file_url || '').match(/#page=(\d+)/);
+      const pageSuffix = pageMatch ? `_pag${pageMatch[1]}` : '';
+      return `${fechaSafe}_${albSafe}_${matSafe}${provSafe ? '_' + provSafe : ''}${pageSuffix}.${ext}`;
+    }
+
+    // Procesar en lotes de 4 paralelos
+    const LOTE = 4;
+    const usadosNombre = new Set();
+    for (let i = 0; i < conArchivo.length; i += LOTE) {
+      const lote = conArchivo.slice(i, i + LOTE);
+      await Promise.all(lote.map(async (r) => {
+        const cleanUrl = r.file_url.split('#')[0];
+        const extRaw = (cleanUrl.split('.').pop() || 'pdf').toLowerCase().split('?')[0];
+        const ext = ['pdf','jpg','jpeg','png','gif','webp'].includes(extRaw) ? extRaw : 'pdf';
+        try {
+          const blob = await descargarUno(cleanUrl);
+          let nombre = nombreArchivo(r, ext);
+          // Si el nombre ya existe (raro, pero por seguridad), añadir índice
+          let idx = 2;
+          while (usadosNombre.has(nombre)) {
+            nombre = nombreArchivo(r, ext).replace('.' + ext, `_${idx}.${ext}`);
+            idx++;
+          }
+          usadosNombre.add(nombre);
+          zip.file(nombre, blob);
+        } catch (e) {
+          console.warn('[v74] Error descargando', cleanUrl, e);
+          errores++;
+        }
+        progreso++;
+        if (btn) btn.textContent = `⏳ ${progreso}/${total}...`;
+      }));
+    }
+
+    // 3) Generar ZIP final
+    if (btn) btn.textContent = '⏳ Generando ZIP...';
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+
+    // 4) Descargar
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `albaranes_${new Date().toISOString().slice(0,10)}_${conArchivo.length}docs.zip`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+
+    const okCount = total - errores;
+    if (errores > 0) {
+      toast(`✓ ZIP descargado: ${okCount} OK, ${errores} fallidos`, 'warn');
+    } else {
+      toast(`✓ ZIP descargado: ${okCount} archivos + Excel`);
+    }
+  } catch (err) {
+    console.error('Error generando ZIP:', err);
+    toast('Error generando ZIP: ' + (err.message || err), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📦 Descargar archivos'; }
+  }
+}
 
 // Re-aplica las reglas de corrección (destino y matrícula) a todos los albaranes ya guardados
 // Útil cuando se actualizan las reglas y queremos arreglar registros antiguos sin reprocesarlos
