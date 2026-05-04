@@ -1362,7 +1362,7 @@ Campos a extraer:
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null (peso del camión vacío, suele ser el menor de los pesos)
 - bruto_kg: peso bruto en kg o null (peso del camión cargado, suele ser el mayor)
-- tm: toneladas métricas NETAS (cantidad real de material transportado). REGLA CRÍTICA: SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. **En albaranes de SALIDA de Holcim (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos empezando por 31...): el NETO es el campo "Cantidad" expresado en "t" (toneladas) — ej. "28,140 t". El campo "Peso de entrada" (12.000-13.000 kg) es la TARA, y "Peso de salida" (40.000-43.000 kg) es el BRUTO. NUNCA cojas estos como neto, son siempre kg de báscula. Tu tm debe estar siempre entre 20 y 36 — si te sale 40+ es que cogiste el bruto en kg en vez de la cantidad en t.** En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Verifica que el valor sea coherente: NETO suele estar entre 20-35 toneladas para un camión típico — si te sale menor de 20 TN, probablemente cogiste la tara por error.
+- tm: toneladas métricas NETAS (cantidad real de material transportado). **REGLA ABSOLUTA: tm SIEMPRE entre 20 y 36 toneladas. Si calculas o lees un valor fuera de ese rango, has cogido el campo equivocado.** SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" o "Cantidad" en t del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT"/"Peso de entrada"/"Peso de salida". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. **EJEMPLO Holcim albarán de SALIDA (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos 31...): este albarán tiene "Peso de entrada: 12.920" (=TARA en kg), "Peso de salida: 40.620" (=BRUTO en kg) y "Cantidad: 27,700 / Unidad: t / TNE" (=NETO=27.700 toneladas). El tm correcto aquí es 27.700, NUNCA 40.620 ni 12.920. El campo "Cantidad" expresado en t/TNE es el neto real. NUNCA pongas como tm un valor en kg (4-5 dígitos como 40620, 41040), siempre en toneladas (2-3 dígitos como 27.7, 28.140).** En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Si te sale menor de 20 TN, probablemente cogiste la tara por error. Si te sale mayor de 36 TN, probablemente cogiste el bruto por error.
 - producto: material transportado
 - transportista: empresa transportista
 - hora_entrada: HH:MM o null
@@ -1541,7 +1541,18 @@ function analyzeRecords() {
   const dupCount = records.filter(r => r._dup).length;
   console.log(`[analyzeRecords] ${records.length} registros, ${dupCount} duplicados detectados`);
 
-  records.forEach(r => { if (r._dup) return; const s = qualityScore(r); r._quality = s <= 3 ? 'ilegible' : s <= 6 ? 'warn' : 'ok'; });
+  records.forEach(r => {
+    if (r._dup) return;
+    const s = qualityScore(r);
+    r._quality = s <= 3 ? 'ilegible' : s <= 6 ? 'warn' : 'ok';
+    // Red de seguridad: si tm está fuera del rango físicamente posible (20-36 TN para un
+    // camión típico), forzar marca "warn" aunque el resto de campos estén bien. Esto pilla
+    // los casos donde Haiku confundió "Peso de salida" (bruto en kg) con neto.
+    const tmCheck = parseFloat(r.tm);
+    if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok') {
+      r._quality = 'warn';
+    }
+  });
 }
 
 function renderAlerts() {
