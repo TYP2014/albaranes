@@ -850,45 +850,90 @@ function drop(e, type) {
 // 2) Reduce calidad JPG hasta entrar en el límite (probando 0.85, 0.7, 0.55)
 // Devuelve un nuevo File con el mismo nombre pero más pequeño.
 // Si todo falla, devuelve el original (la API dará error pero al menos no se cuelga).
+
+// v78: helper global para envolver promesas con timeout.
+// Antes estaba como const local dentro de uploadAsConductor pero se llamaba también
+// desde _processOne (línea ~1457), lo que causaba ReferenceError silenciado por try/catch
+// y dejaba file_url=null en albaranes procesados desde admin con red lenta.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout ${label} (${ms/1000}s)`)), ms))
+  ]);
+}
+
 async function comprimirImagen(file, maxBytes) {
+  // v78: usar createImageBitmap como primario (más rápido y soporta más formatos
+  // — algunos navegadores Android pueden decodificar HEIC con esto). Si falla,
+  // fallback al método clásico con FileReader + Image.
+  let bitmap = null;
+  try {
+    if (typeof createImageBitmap === 'function') {
+      bitmap = await createImageBitmap(file);
+    }
+  } catch (e) {
+    console.warn('[v78] createImageBitmap falló, usando FileReader:', e.message);
+  }
+
+  // Helper común que dibuja en canvas y comprime
+  const procesar = async (source, srcW, srcH) => {
+    const MAX_DIM = 2000;
+    let w = srcW, h = srcH;
+    if (w > MAX_DIM || h > MAX_DIM) {
+      const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(source, 0, 0, w, h);
+
+    // Renombrar el archivo a .jpg si venía con extensión rara (HEIC, HEIF) — así Storage
+    // lo guarda con el tipo correcto y la API lo procesa sin problemas.
+    const nombreBase = file.name.replace(/\.(heic|heif|webp|tiff|tif|bmp)$/i, '');
+    const nombreJpg = nombreBase === file.name ? file.name : `${nombreBase}.jpg`;
+
+    // Probar calidades hasta que entre en el límite
+    const calidades = [0.85, 0.7, 0.55, 0.4];
+    for (const q of calidades) {
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size <= maxBytes) {
+        return new File([blob], nombreJpg, { type: 'image/jpeg', lastModified: file.lastModified });
+      }
+    }
+    const blobFinal = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.4));
+    if (blobFinal) {
+      return new File([blobFinal], nombreJpg, { type: 'image/jpeg', lastModified: file.lastModified });
+    }
+    throw new Error('No se pudo comprimir la imagen');
+  };
+
+  // Camino 1: bitmap directo (rápido, soporta más formatos)
+  if (bitmap) {
+    try {
+      const result = await procesar(bitmap, bitmap.width, bitmap.height);
+      bitmap.close && bitmap.close();
+      return result;
+    } catch (e) {
+      bitmap.close && bitmap.close();
+      console.warn('[v78] procesar(bitmap) falló, fallback a Image:', e.message);
+    }
+  }
+
+  // Camino 2 (fallback clásico): FileReader + <img>
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
       img.onload = async () => {
-        // Calcular dimensiones target: si la imagen es más grande de 2000px en alguna dim, escalar
-        const MAX_DIM = 2000;
-        let w = img.width, h = img.height;
-        if (w > MAX_DIM || h > MAX_DIM) {
-          const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-
-        // Probar calidades hasta que entre en el límite
-        const calidades = [0.85, 0.7, 0.55, 0.4];
-        for (const q of calidades) {
-          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
-          if (blob && blob.size <= maxBytes) {
-            // Crear un File con el mismo nombre pero comprimido
-            const nuevo = new File([blob], file.name, { type: 'image/jpeg', lastModified: file.lastModified });
-            return resolve(nuevo);
-          }
-        }
-        // Si ni con calidad 0.4 entra, devolver el último intento (el más pequeño)
-        const blobFinal = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.4));
-        if (blobFinal) {
-          const nuevo = new File([blobFinal], file.name, { type: 'image/jpeg', lastModified: file.lastModified });
-          return resolve(nuevo);
-        }
-        reject(new Error('No se pudo comprimir la imagen'));
+        try {
+          const result = await procesar(img, img.width, img.height);
+          resolve(result);
+        } catch (e) { reject(e); }
       };
-      img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen (formato no soportado por el navegador)'));
       img.src = ev.target.result;
     };
     reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
@@ -1045,13 +1090,34 @@ async function uploadAsConductor(files, type) {
   const pending = type === 'alb' ? pendingAlb : pendingGas;
   const tableName = type === 'alb' ? 'albaranes' : 'gasoil';
 
-  // Añadir items a la cola visible para mostrar progreso
+  // v78: blindaje móvil — preparar cada archivo antes de subirlo
+  // - Imágenes >2MB se comprimen a JPEG ≤2MB (también arregla EXIF orientation y HEIC)
+  // - Imágenes con tipo no-JPEG/PNG se re-codifican a JPEG por seguridad
+  // - PDFs se suben tal cual (Supabase Storage no tiene límite agresivo)
+  async function prepararParaSubida(f) {
+    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    if (isPdf) return f;
+    // Cualquier imagen problemática (HEIC, HEIF, demasiado grande, formato raro): re-encoding a JPEG.
+    const tipoOK = /^image\/(jpeg|jpg|png)$/i.test(f.type || '');
+    const muyGrande = f.size > 2 * 1024 * 1024; // >2 MB
+    if (tipoOK && !muyGrande) return f; // ya es válida y ligera
+    try {
+      const comprimida = await comprimirImagen(f, 2 * 1024 * 1024);
+      console.log(`[v78] Imagen preparada para conductor: ${(f.size/1024/1024).toFixed(1)}MB → ${(comprimida.size/1024/1024).toFixed(1)}MB (${f.type || '?'} → image/jpeg)`);
+      return comprimida;
+    } catch (e) {
+      console.warn('[v78] No se pudo comprimir, usando original:', e);
+      return f;
+    }
+  }
+
+  // Añadir items a la cola visible (con tamaño y tipo originales para mostrar progreso)
   const newItems = [];
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
     const item = {
       id: Date.now() + Math.random(),
-      file: f,
+      file: f, // se reemplazará por la versión comprimida justo antes de subir
       status: 'pending',
       isPdf,
       name: f.name,
@@ -1062,42 +1128,79 @@ async function uploadAsConductor(files, type) {
   }
   renderQueues();
 
-  // Subir uno a uno con timeout de seguridad (45s) para que si Supabase se cuelga, la UI no se quede atascada
-  const TIMEOUT_MS = 45000;
-  const withTimeout = (promise, ms, label) => Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout ${label} (${ms/1000}s)`)), ms))
-  ]);
+  // v78: timeout más permisivo para 4G mala (90s vs 45s anteriores).
+  // Usa la función global withTimeout (declarada arriba).
+  const TIMEOUT_MS = 90000;
 
-  let ok = 0, fail = 0;
-  for (const it of newItems) {
-    it.status = 'processing';
-    renderQueues();
-    try {
-      const fileUrl = await withTimeout(uploadFile(it.file, type), TIMEOUT_MS, 'subiendo a Storage');
-      const { error } = await withTimeout(
-        sb.from(tableName).insert({
-          user_id: currentUser.id,
-          file_url: fileUrl,
-          procesado: false
-        }),
-        TIMEOUT_MS,
-        'guardando en BD'
-      );
-      if (error) throw error;
-      it.status = 'done';
-      ok++;
-    } catch (e) {
-      console.error('Error subiendo como conductor:', e);
-      it.status = 'error';
-      it.error = e.message;
-      fail++;
+  // v78: reintentos automáticos (2 intentos) si la red es errática
+  async function subirConReintentos(it) {
+    let ultimoError = null;
+    for (let intento = 1; intento <= 2; intento++) {
+      try {
+        // Preparar el archivo (comprimir/recodificar) en cada intento por si falla por archivo corrupto
+        const archivoListo = await prepararParaSubida(it.file);
+        it.file = archivoListo;
+        it.mediaType = archivoListo.type || it.mediaType;
+        const fileUrl = await withTimeout(uploadFile(archivoListo, type), TIMEOUT_MS, 'subiendo a Storage');
+        const { error } = await withTimeout(
+          sb.from(tableName).insert({
+            user_id: currentUser.id,
+            file_url: fileUrl,
+            procesado: false
+          }),
+          TIMEOUT_MS,
+          'guardando en BD'
+        );
+        if (error) throw error;
+        return; // OK, salir del bucle
+      } catch (e) {
+        ultimoError = e;
+        console.warn(`[v78] Intento ${intento}/2 falló para ${it.name}:`, e.message);
+        if (intento < 2) {
+          // Esperar 2s antes del segundo intento (puede recuperarse la red)
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
     }
-    renderQueues();
+    throw ultimoError;
   }
 
-  if (ok) toast(`✓ ${ok} archivo(s) enviados a oficina (pendientes de procesar)${fail ? ` · ${fail} con error` : ''}`);
-  else if (fail) toast('Error subiendo archivos', 'err');
+  // v78: subida en PARALELO con concurrencia limitada (3 simultáneas)
+  // Si el conductor cuelga 6 fotos, se procesan en 2 tandas de 3 = mucho más rápido que 6 secuenciales
+  const CONCURRENCIA = 3;
+  let ok = 0, fail = 0;
+  let cursor = 0;
+
+  async function trabajador() {
+    while (cursor < newItems.length) {
+      const idx = cursor++;
+      const it = newItems[idx];
+      it.status = 'processing';
+      renderQueues();
+      try {
+        await subirConReintentos(it);
+        it.status = 'done';
+        ok++;
+      } catch (e) {
+        console.error('[v78] Error final subiendo como conductor:', e);
+        it.status = 'error';
+        it.error = e.message || 'Error desconocido';
+        fail++;
+      }
+      renderQueues();
+    }
+  }
+
+  // Lanzar N trabajadores en paralelo
+  const workers = [];
+  for (let i = 0; i < Math.min(CONCURRENCIA, newItems.length); i++) {
+    workers.push(trabajador());
+  }
+  await Promise.all(workers);
+
+  if (ok && !fail) toast(`✓ ${ok} archivo(s) enviados a oficina (pendientes de procesar)`);
+  else if (ok && fail) toast(`✓ ${ok} subidos · ⚠ ${fail} con error (vuelve a intentar)`, 'warn');
+  else if (fail) toast(`✗ ${fail} con error subiendo. Comprueba conexión y reintenta.`, 'err');
 
   // Limpiar items completados de la cola tras unos segundos
   setTimeout(() => {
