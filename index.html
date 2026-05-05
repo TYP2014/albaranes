@@ -338,13 +338,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="filters" id="filtersAlb">
             <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="fDesde" oninput="applyFilters()"></div>
             <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="fHasta" oninput="applyFilters()"></div>
-            <div class="fil-group"><label class="fil-label">Proveedor</label><select class="fil-sel" id="fProv" onchange="applyFilters()"><option value="">Todos</option></select></div>
-            <div class="fil-group"><label class="fil-label">Origen</label><select class="fil-sel" id="fOrigen" onchange="applyFilters()"><option value="">Todos</option></select></div>
-            <div class="fil-group"><label class="fil-label">Destino</label><select class="fil-sel" id="fDestino" onchange="applyFilters()"><option value="">Todos</option></select></div>
+            <div class="fil-group"><label class="fil-label">Proveedor</label><input class="fil-sel" id="fProv" list="dlProv" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlProv"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Origen</label><input class="fil-sel" id="fOrigen" list="dlOrigen" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlOrigen"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Destino</label><input class="fil-sel" id="fDestino" list="dlDestino" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlDestino"></datalist></div>
             <div class="fil-group"><label class="fil-label">Matrícula</label><details class="fil-multi" id="fMatBox"><summary id="fMatSum">Todas</summary><div class="fil-multi-list" id="fMatList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Transportista</label><details class="fil-multi" id="fTransBox"><summary id="fTransSum">Todos</summary><div class="fil-multi-list" id="fTransList"></div></details></div>
-            <div class="fil-group"><label class="fil-label">Material</label><select class="fil-sel" id="fMat2" onchange="applyFilters()"><option value="">Todos</option></select></div>
-            <div class="fil-group"><label class="fil-label">Comprador</label><select class="fil-sel" id="fComp" onchange="applyFilters()"><option value="">Todos</option></select></div>
+            <div class="fil-group"><label class="fil-label">Material</label><input class="fil-sel" id="fMat2" list="dlMat2" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlMat2"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Comprador</label><input class="fil-sel" id="fComp" list="dlComp" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlComp"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Subido por</label><input class="fil-sel" id="fSubidoPor" list="dlSubidoPor" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlSubidoPor"></datalist></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
@@ -1960,9 +1961,26 @@ function renderAlerts() {
 
 function buildDropdowns() {
   const unique = k => [...new Set(records.filter(r => !r._dup).map(r => r[k]).filter(Boolean))].sort();
-  const fill = (id, vals) => { const sel = document.getElementById(id); if (!sel) return; const cur = sel.value; sel.innerHTML = `<option value="">Todos</option>` + vals.map(v => `<option value="${esc(v)}">${v}</option>`).join(''); if (vals.includes(cur)) sel.value = cur; };
-  fill('fProv', unique('proveedor')); fill('fOrigen', unique('planta')); fill('fDestino', unique('obra'));
-  fill('fMat2', unique('producto')); fill('fComp', unique('cliente'));
+  // v79: los antiguos <select> se han convertido en <input list="..."> + <datalist>.
+  // El input acepta cualquier texto y va sugiriendo según escribes (búsqueda predictiva).
+  // fillDL rellena el datalist; el VALOR del input se preserva (no se borra al recargar).
+  const fillDL = (dlId, vals) => {
+    const dl = document.getElementById(dlId);
+    if (!dl) return;
+    dl.innerHTML = vals.map(v => `<option value="${esc(v)}"></option>`).join('');
+  };
+  fillDL('dlProv', unique('proveedor'));
+  fillDL('dlOrigen', unique('planta'));
+  fillDL('dlDestino', unique('obra'));
+  fillDL('dlMat2', unique('producto'));
+  fillDL('dlComp', unique('cliente'));
+  // v79: filtro "Subido por" — recopila los user_id que aparecen en los albaranes y los traduce a nombres
+  const userIdsConAlb = [...new Set(records.filter(r => !r._dup && r.user_id).map(r => r.user_id))];
+  const nombresSubidoPor = userIdsConAlb
+    .map(uid => (userMap[uid]?.name || null))
+    .filter(Boolean)
+    .sort();
+  fillDL('dlSubidoPor', [...new Set(nombresSubidoPor)]);
   // Multi-selects: matrícula y transportista
   buildMultiSelect('fMatList', 'fMatSum', unique('tractora'), selectedMatriculas, 'Todas', 'matrículas');
   buildMultiSelect('fTransList', 'fTransSum', unique('transportista'), selectedTransportistas, 'Todos', 'transportistas');
@@ -2020,23 +2038,43 @@ function msSelectAll(listId, sumId, plural, allLabel, selectAll) {
 
 function applyFilters() {
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
-  const prov = document.getElementById('fProv')?.value, origen = document.getElementById('fOrigen')?.value;
-  const dest = document.getElementById('fDestino')?.value;
-  const mat2 = document.getElementById('fMat2')?.value, comp = document.getElementById('fComp')?.value;
+  const prov = (document.getElementById('fProv')?.value || '').trim();
+  const origen = (document.getElementById('fOrigen')?.value || '').trim();
+  const dest = (document.getElementById('fDestino')?.value || '').trim();
+  const mat2 = (document.getElementById('fMat2')?.value || '').trim();
+  const comp = (document.getElementById('fComp')?.value || '').trim();
+  const subidoPor = (document.getElementById('fSubidoPor')?.value || '').trim();
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
+  // v79: match flexible — si el usuario escribe "Holc" debe filtrar "Holcim España S.A.U."
+  // Si la entrada coincide EXACTO con un valor, hace match exacto (rápido y preciso).
+  // Si no, hace match por inclusión case-insensitive (autocomplete imperfecto).
+  const matchFlex = (campoVal, busqueda) => {
+    if (!busqueda) return true;
+    if (!campoVal) return false;
+    const c = String(campoVal).toLowerCase();
+    const b = busqueda.toLowerCase();
+    return c === b || c.includes(b);
+  };
   filtered = records.filter(r => {
     // Excluir pendientes de procesar (aparecen en el banner separadamente, no en la tabla)
     if (r.procesado === false) return false;
     const ts = parseDate(r.fecha || '');
     if (desde && ts < new Date(desde).getTime()) return false;
     if (hasta && ts > new Date(hasta).getTime() + 86399999) return false;
-    if (prov && r.proveedor !== prov) return false; if (origen && r.planta !== origen) return false;
-    if (dest && r.obra !== dest) return false;
+    if (!matchFlex(r.proveedor, prov)) return false;
+    if (!matchFlex(r.planta, origen)) return false;
+    if (!matchFlex(r.obra, dest)) return false;
     // Filtros multi-selección: si hay alguno marcado, el registro debe coincidir con uno de ellos
     if (selectedMatriculas.size > 0 && !selectedMatriculas.has(r.tractora)) return false;
     if (selectedTransportistas.size > 0 && !selectedTransportistas.has(r.transportista)) return false;
-    if (mat2 && r.producto !== mat2) return false; if (comp && r.cliente !== comp) return false;
+    if (!matchFlex(r.producto, mat2)) return false;
+    if (!matchFlex(r.cliente, comp)) return false;
+    // v79: filtro "Subido por" — busca por nombre del usuario que subió el albarán
+    if (subidoPor) {
+      const nombreSub = userMap[r.user_id]?.name || '';
+      if (!matchFlex(nombreSub, subidoPor)) return false;
+    }
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
     if (estado === 'warn' && (r._dup || (r._quality !== 'warn' && r._quality !== 'ilegible'))) return false;
@@ -2069,7 +2107,7 @@ function applyFilters() {
   const rc = document.getElementById('resCount');
   if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
-  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || comp || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
+  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || comp || subidoPor || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
@@ -2084,7 +2122,7 @@ function applyGasFilters() {
 
 function resetFilters() { 
   ['fDesde','fHasta','srchIn','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
-  ['fProv','fOrigen','fDestino','fMat2','fComp','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fProv','fOrigen','fDestino','fMat2','fComp','fSubidoPor','fEstado','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   selectedMatriculas.clear(); selectedTransportistas.clear();
   applyFilters(); 
 }
