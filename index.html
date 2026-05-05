@@ -2047,13 +2047,18 @@ function applyFilters() {
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
   // v79: match flexible — si el usuario escribe "Holc" debe filtrar "Holcim España S.A.U."
-  // Si la entrada coincide EXACTO con un valor, hace match exacto (rápido y preciso).
-  // Si no, hace match por inclusión case-insensitive (autocomplete imperfecto).
+  // v80: normalización robusta antes de comparar (espacios extra, tildes, mayúsculas)
+  // para evitar que filtros oculten albaranes por diferencias invisibles entre BD y dropdown.
+  const norm = s => String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes
+    .replace(/\s+/g, ' ').trim()                       // espacios múltiples → uno, sin extremos
+    .toLowerCase();
   const matchFlex = (campoVal, busqueda) => {
     if (!busqueda) return true;
     if (!campoVal) return false;
-    const c = String(campoVal).toLowerCase();
-    const b = busqueda.toLowerCase();
+    const c = norm(campoVal);
+    const b = norm(busqueda);
+    if (!b) return true;
     return c === b || c.includes(b);
   };
   filtered = records.filter(r => {
@@ -2065,9 +2070,18 @@ function applyFilters() {
     if (!matchFlex(r.proveedor, prov)) return false;
     if (!matchFlex(r.planta, origen)) return false;
     if (!matchFlex(r.obra, dest)) return false;
-    // Filtros multi-selección: si hay alguno marcado, el registro debe coincidir con uno de ellos
-    if (selectedMatriculas.size > 0 && !selectedMatriculas.has(r.tractora)) return false;
-    if (selectedTransportistas.size > 0 && !selectedTransportistas.has(r.transportista)) return false;
+    // Filtros multi-selección: si hay alguno marcado, el registro debe coincidir con uno de ellos.
+    // v80: match normalizado por si la BD tiene espacios extra o tildes que el dropdown no.
+    if (selectedMatriculas.size > 0) {
+      const matNorm = norm(r.tractora);
+      const haySel = [...selectedMatriculas].some(s => norm(s) === matNorm);
+      if (!haySel) return false;
+    }
+    if (selectedTransportistas.size > 0) {
+      const trNorm = norm(r.transportista);
+      const haySel = [...selectedTransportistas].some(s => norm(s) === trNorm);
+      if (!haySel) return false;
+    }
     if (!matchFlex(r.producto, mat2)) return false;
     if (!matchFlex(r.cliente, comp)) return false;
     // v79: filtro "Subido por" — busca por nombre del usuario que subió el albarán
