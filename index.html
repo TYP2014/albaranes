@@ -721,7 +721,14 @@ async function loadData() {
   const { data, error } = await query;
   if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
   // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
-  records = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
+  // v76: además, si la columna manual_edit=true en BD, marcamos _manual en memoria.
+  // Así el albarán queda protegido contra reanálisis automáticos en TODA la sesión.
+  records = (data || []).map(r => ({
+    ...r,
+    db_id: r.id,
+    _id: r.id || (Date.now() + Math.random()),
+    _manual: r.manual_edit === true
+  }));
 
   let queryG = sb.from('gasoil').select('*').order('fecha', { ascending: false });
   if (currentRole === 'gestor') queryG = queryG.eq('user_id', currentUser.id);
@@ -739,6 +746,9 @@ async function loadData() {
 
 async function saveRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
+  // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
+  // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
+  if (data._manual === true) rec.manual_edit = true;
   // Eliminar TODAS las propiedades internas que empiezan por "_" (no son columnas reales de la BD)
   // y db_id (es la id pero la usamos para el WHERE, no para el SET).
   delete rec._id; delete rec._dup; delete rec._dupOf; delete rec._quality; delete rec._ts; delete rec._manual;
@@ -1638,7 +1648,7 @@ Campos a extraer:
 - cliente: empresa compradora o destinataria. **CRÍTICO Holcim**: el cliente está en el campo "Cliente:" (suele aparecer junto al CÓDIGO de obra tipo CE44D, CE44E, CE44I y un nombre de planta como "Planta Hormigones Zona Franca", "Planta Hormigones Montcada", "La Roca", "Celra"). **NUNCA pongas como cliente lo que aparece en "Operador logístico:" ni en "Transp. efectivo:" — eso es el TRANSPORTISTA (PORTES 2014 IMPORT S.L. / TRANSPORTES Y PORTES 2014, S.L., CIF B90172735), NO un cliente. Si no encuentras el campo "Cliente:" o está vacío, devuelve null, NUNCA pongas Transportes y Portes 2014.**
 - obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): **REGLA PREFERENTE PARA HOLCIM SALIDA**: en estos albaranes hay un bloque "Obra:" que contiene un CÓDIGO (ej. CE44D, CE44E, CE44K) Y JUSTO DEBAJO el NOMBRE DEL DESTINO en una línea propia. Lee SIEMPRE esa línea bajo el código como destino, NO el pueblo del CP. Mapeo confirmado: **CE44D → "Planta Hormigones Zona Franca"** (Calle C, sector B, 08040 Barcelona); **CE44K → "Planta de Montcada"** (Carretera Rivas Km 2, 08110 Montcada); **CE44E → "La Roca"** (Polígono Industrial Font de la Pare, 08430 La Roca); **CE44I → "Celra"** (C/TER Nº 70 POLG IND DE CELRA, 17460 Celra); **CES17 → "Riudellots de la Selva"**. Si el código no está en este mapeo, devuelve la línea de NOMBRE bajo el código tal cual aparece. El campo "Obra:" suele tener formato "[código numérico largo] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI; **Àrids Garcia → extrae el PUEBLO del campo "Obra:" (puede ser La Roca, Llinars, Ports de Banyera, u otra obra distinta — NO asumir siempre La Roca, leer cada vez)**; **Canteras Canro → extrae lo que aparezca en el campo "DESTINO" (puede variar). Si el campo DESTINO está VACÍO en el albarán, devuelve null. NO uses el cliente ("UTE..."), la dirección de la cantera ("Sant Fost de Campsentelles") ni el origen como destino**; Molins → pueblo/obra del campo OBRA
 - planta: origen/carga. **En Holcim albaranes de SALIDA (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos 31...): el origen real es SIEMPRE el campo "Punto expedición:", NO el campo "Planta:". El campo "Planta:" indica desde qué punto Holcim factura administrativamente (suele poner "Fábrica Montcada" siempre), mientras que "Punto expedición:" indica DE DÓNDE SE CARGÓ FÍSICAMENTE el material. Ejemplo: si ves "Planta: Fábrica Montcada / Punto expedición: Cantera de Garraf", el origen es "Cantera de Garraf" (es de áridos), NO "Fábrica Montcada". Si "Punto expedición" coincide con "Planta" (ambos "Fábrica Montcada"), entonces sí es Fábrica Montcada (es de cemento). En albaranes de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"), el origen es el "PROVEEDOR" del material entrante, NO la planta receptora.** En Cemex busca "Expedido". **En Portland (Grupo Cementos Portland Valderrivas) busca SIEMPRE el campo "Planta" del albarán — tienen varias canteras (Olèrdola, Santa Margarida i els Monjos, y otras por toda España); NUNCA asumas siempre la misma, lee cada vez**. Canteras Canro sin origen → "Sant Fost de Campsentelles". **Élite Cementos: el origen es SIEMPRE el campo "Punto expedición:" del albarán, NO el campo "Planta:". El campo "Planta:" suele poner "Fábrica Montcada" pero "Punto expedición:" indica DE DÓNDE SE CARGÓ realmente (puede ser "Fábrica Montcada", "Molienda Tarragona", u otra). Lee siempre Punto expedición.** Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". **En Molins/Promsa (albaranes de venta de áridos, NO los de recepción Caliza Promsa): busca SIEMPRE el campo "CENTRAL" del albarán — tienen varias canteras: GARRAF ARID → "Cantera de Garraf"; OLESA DE BONESVALLS → "Olesa de Bonesvalls"; LLINARS → "Llinars del Vallès"; SANT VICENÇ → "Sant Vicenç dels Horts"; u otras. NUNCA asumas siempre Garraf, lee cada vez del CENTRAL.** EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea (RECEPCIÓN, no venta) → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana"; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
-- tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. **En albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"): la matrícula está en el cuadro superior derecho, etiquetada como "MATRICULA:" justo debajo de "TRANSPORTISTA:" y "PROPIETARIO:" (ej: "MATRICULA: 4540MPW"). NO confundir con "REMOLQUE:" que está justo debajo. Si ves "MATRICULA:" SIEMPRE devuélvela, NUNCA dejes matrícula vacía en estos albaranes.** Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
+- tractora: matrícula camión OBLIGATORIA (formato 4 dígitos + 3 letras españolas, ej: 1748JGL). **SIEMPRE está presente** en el albarán, etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. **En albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"): la matrícula está en el cuadro superior derecho, etiquetada como "MATRICULA:" justo debajo de "TRANSPORTISTA:" y "PROPIETARIO:" (ej: "MATRICULA: 4540MPW"). NO confundir con "REMOLQUE:" que está justo debajo. Si ves "MATRICULA:" SIEMPRE devuélvela, NUNCA dejes matrícula vacía en estos albaranes.** **En albaranes CEMEX (cabecera con logo "CEMEX ESPAÑA", número albarán formato 77469/XXXXXX): la matrícula está dentro del bloque "Datos Expedición", en la línea etiquetada "Matricula...." (con puntos como separador, SIN acento), seguida del valor (ej: "Matricula.... 5360JZR"). Justo DEBAJO está "Remolque(s)...." con la matrícula del remolque (ej: "R8074BDF") — NO confundir tractora con remolque. La línea de "Conductor...." está JUSTO ENCIMA de "Matricula....". El valor de Matricula es SIEMPRE formato 4 dígitos + 3 letras. NO cojas dígitos sueltos de "Peso bruto", "Tara", "Báscula", ni códigos como "26950561N" (formato CIF) ni "3032772" (números cortos). Si solo ves 4 dígitos sin letras, NO es la matrícula — sigue buscando hasta encontrar el formato completo 4D+3L.** Si no la ves a primera vista, busca con detalle — NUNCA devuelvas matrícula vacía si el documento es legible. **AUTOCORRECCIÓN OBLIGATORIA**: la matrícula que extraigas debe coincidir exactamente con UNA de estas matrículas válidas (flota completa que opera en estos albaranes): ${MATRICULAS_VALIDAS.join(', ')}. Si tu lectura NO coincide con ninguna de la lista, busca la más parecida con diferencia de 1-2 caracteres (errores OCR típicos: I↔L, 0↔O, 8↔B, 5↔S, 1↔I, 6↔G) y devuelve la CORREGIDA. Solo si después de buscar no hay ninguna parecida, devuelve la lectura literal del documento. NO confundir matrícula con CIF/NIF (formato letra+8dígitos+letra) ni con números de remolque.
 - remolque: matrícula remolque o null
 - tara_kg: peso tara en kg o null (peso del camión vacío, suele ser el menor de los pesos)
 - bruto_kg: peso bruto en kg o null (peso del camión cargado, suele ser el mayor)
@@ -2119,6 +2129,8 @@ function openModal(id) {
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
   else if (r._quality === 'warn') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong></div>`;
+  // v76: aviso si el albarán está marcado como editado manualmente — protegido contra reanálisis
+  if (r._manual) alertHtml += `<div class="m-alert" style="background:rgba(0,232,122,.08);border:1px solid rgba(0,232,122,.3);color:var(--ac)">✏️ <strong>Editado manualmente.</strong> Protegido — Re-corregir TODO no afectará a este albarán.</div>`;
   // Info de quién subió el albarán (visible para admin/gestor)
   const subPor = userName(r.user_id);
   if (subPor && subPor !== '—') {
@@ -2192,7 +2204,9 @@ async function saveModal() {
     r[f.k] = newVal;
   });
 
-  // Marca "editado manualmente" en memoria — protege contra Re-corregir TODO
+  // v76: marca "editado manualmente" — saveRecord lo persiste en columna BD manual_edit,
+  // así queda protegido para SIEMPRE contra "Re-corregir TODO" y reanálisis automáticos,
+  // incluso si recargas la página o cierras la sesión.
   r._manual = true;
 
   console.log('[saveModal] Cambios:', cambios);
@@ -2967,15 +2981,35 @@ const PROVEEDORES_CANONICOS = [
 // Helper para edición MANUAL: solo aplica match exacto (no contención) para que lo que el
 // usuario escribe se respete tal cual. Si coincide exactamente con un alias o canon, devuelve
 // la forma oficial. Si no, devuelve el input sin cambios.
+// v76: además del match estricto, prueba un match "permisivo" que ignora palabras vacías
+// como "de", "la", "el", "del" — así "Cantera Garraf" matchea con "Cantera de Garraf",
+// "Planta Montcada" con "Planta de Montcada", etc. Esto es lo que el usuario espera.
 function matchExacto(input, canonicalList) {
   if (!input) return input;
   const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+  // Variante permisiva: además de quitar tildes/símbolos, elimina palabras vacías cortas
+  const normLoose = s => {
+    const cleanedTokens = String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .split(/[^A-ZÑ0-9]+/).filter(t => t && !['DE','LA','EL','LAS','LOS','DEL','Y','I'].includes(t));
+    return cleanedTokens.join('');
+  };
   const key = norm(input);
+  const keyLoose = normLoose(input);
   if (!key) return input;
+  // Pasada 1: match estricto
   for (const item of canonicalList) {
     if (norm(item.canon) === key) return item.canon;
     for (const a of (item.alias || [])) {
       if (norm(a) === key) return item.canon;
+    }
+  }
+  // Pasada 2: match permisivo (sin palabras vacías)
+  if (keyLoose) {
+    for (const item of canonicalList) {
+      if (normLoose(item.canon) === keyLoose) return item.canon;
+      for (const a of (item.alias || [])) {
+        if (normLoose(a) === keyLoose) return item.canon;
+      }
     }
   }
   return input;
