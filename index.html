@@ -716,24 +716,52 @@ function showLogin() {
 // SUPABASE DB
 // ============================================================
 async function loadData() {
-  let query = sb.from('albaranes').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false });
-  if (currentRole === 'gestor') query = query.eq('user_id', currentUser.id);
-  const { data, error } = await query;
-  if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
+  // v82: Supabase tiene un límite por defecto de 1000 filas por consulta. Para cargar
+  // TODOS los albaranes sin importar la cantidad (10.000+), paginamos por bloques de 1000
+  // hasta no recibir más. Sin esto, los albaranes recientes "desaparecen" cuando hay más
+  // de 1000 en BD porque la consulta solo devuelve los primeros 1000 ordenados.
+  let allRows = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    let query = sb.from('albaranes').select('*')
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (currentRole === 'gestor') query = query.eq('user_id', currentUser.id);
+    const { data, error } = await query;
+    if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
+    if (!data || data.length === 0) break;
+    allRows = allRows.concat(data);
+    if (data.length < PAGE) break; // última página
+    from += PAGE;
+    if (from > 50000) break; // safety net (50k max)
+  }
+  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD`);
   // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
   // v76: además, si la columna manual_edit=true en BD, marcamos _manual en memoria.
   // Así el albarán queda protegido contra reanálisis automáticos en TODA la sesión.
-  records = (data || []).map(r => ({
+  records = allRows.map(r => ({
     ...r,
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
     _manual: r.manual_edit === true
   }));
 
-  let queryG = sb.from('gasoil').select('*').order('fecha', { ascending: false });
-  if (currentRole === 'gestor') queryG = queryG.eq('user_id', currentUser.id);
-  const { data: gd } = await queryG;
-  gasoilRecords = (gd || []).map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
+  // v82: idem para gasoil
+  let allGas = [];
+  let fromG = 0;
+  while (true) {
+    let queryG = sb.from('gasoil').select('*').order('fecha', { ascending: false }).range(fromG, fromG + PAGE - 1);
+    if (currentRole === 'gestor') queryG = queryG.eq('user_id', currentUser.id);
+    const { data: gd } = await queryG;
+    if (!gd || gd.length === 0) break;
+    allGas = allGas.concat(gd);
+    if (gd.length < PAGE) break;
+    fromG += PAGE;
+    if (fromG > 50000) break;
+  }
+  gasoilRecords = allGas.map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
 
   analyzeRecords();
   applyFilters();
