@@ -672,6 +672,57 @@ async function loadUserMap() {
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
 
+// v87: cargar matrículas aprendidas dinámicamente desde Supabase. Se mezclan con
+// TRANSPORTISTAS al consultar getTransportista(). Se ejecuta al inicio de la app
+// y cada vez que se aprende una nueva matrícula.
+async function loadMatriculasAprendidas() {
+  try {
+    const { data, error } = await sb.from('matriculas_aprendidas').select('matricula, transportista');
+    if (error) {
+      if (error.message && /does not exist|relation/i.test(error.message)) {
+        console.warn('[v87] Tabla matriculas_aprendidas no existe. Crea la tabla en Supabase.');
+        return;
+      }
+      console.warn('[v87] Error cargando matriculas_aprendidas:', error.message);
+      return;
+    }
+    MATRICULAS_APRENDIDAS = {};
+    (data || []).forEach(r => {
+      const mat = String(r.matricula || '').trim().toUpperCase().replace(/\s+/g,'');
+      if (mat && r.transportista) MATRICULAS_APRENDIDAS[mat] = r.transportista;
+    });
+    console.log(`[v87] ${Object.keys(MATRICULAS_APRENDIDAS).length} matrículas aprendidas cargadas`);
+  } catch (e) { console.warn('[v87] Error en loadMatriculasAprendidas:', e); }
+}
+
+// v87: aprender una matrícula nueva. Inserta o actualiza en Supabase y refresca el diccionario
+// en memoria. Se llama desde _processOne cuando un subcontratista identificable sube un
+// albarán con matrícula no oficial.
+async function aprenderMatricula(matricula, transportista, nombreUsuario) {
+  if (!matricula || !transportista) return;
+  const clean = String(matricula).trim().toUpperCase().replace(/\s+/g,'');
+  if (!clean) return;
+  // Si ya está en TRANSPORTISTAS oficial, no aprender (no sobrescribir el oficial)
+  if (TRANSPORTISTAS[clean]) return;
+  // Si ya estaba aprendida con el mismo transportista, no hacer nada
+  if (MATRICULAS_APRENDIDAS[clean] === transportista) return;
+  try {
+    const { error } = await sb.from('matriculas_aprendidas').upsert({
+      matricula: clean,
+      transportista: transportista,
+      aprendido_de: nombreUsuario || '',
+      user_id: currentUser?.id || null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'matricula' });
+    if (error) {
+      console.warn('[v87] No se pudo guardar matrícula aprendida:', error.message);
+      return;
+    }
+    MATRICULAS_APRENDIDAS[clean] = transportista;
+    console.log(`📌 [v87] Matrícula aprendida: ${clean} → ${transportista} (de ${nombreUsuario})`);
+  } catch (e) { console.warn('[v87] Error en aprenderMatricula:', e); }
+}
+
 // Helper: nombre legible del usuario que subió un registro (a partir de su user_id)
 function userName(uid) {
   if (!uid) return '—';
@@ -703,6 +754,7 @@ async function onLogin(user) {
     }
     renderSetup();
     await loadUserMap();
+    await loadMatriculasAprendidas();
     await loadData();
   }
 }
@@ -1646,6 +1698,22 @@ async function _processOne(it, type, key, timeoutMs) {
           if (transportistaOf && transportistaOf !== data.transportista) {
             console.log(`Transportista autocorregido por matrícula ${data.tractora}: "${data.transportista || '(vacío)'}" → "${transportistaOf}"`);
             data.transportista = transportistaOf;
+          }
+          // v87: si la matrícula NO se reconoce (no está en TRANSPORTISTAS ni aprendidas),
+          // pero el USUARIO que sube el albarán es un subcontratista identificable
+          // (OP TRANS VALLES, ARIDFLOT, etc.), asignar SU transportista oficial al albarán
+          // y APRENDER la matrícula para futuras subidas.
+          // ⚠️ NO se aplica si el subidor es Admin/Maria/Logística (ellos pueden subir
+          // de cualquier transportista, así que esperar indicación manual).
+          if (!transportistaOf && data.tractora) {
+            const nombreSubidor = userMap[currentUser?.id]?.name || '';
+            const transportistaUsuario = USUARIO_A_TRANSPORTISTA[nombreSubidor];
+            if (transportistaUsuario) {
+              data.transportista = transportistaUsuario;
+              console.log(`📌 [v87] Matrícula nueva ${data.tractora} asignada a "${transportistaUsuario}" (porque la subió ${nombreSubidor})`);
+              // Aprender en BD para futuras subidas (no bloquea el procesado)
+              aprenderMatricula(data.tractora, transportistaUsuario, nombreSubidor);
+            }
           }
         }
         // Red de seguridad: corregir destinos genéricos / códigos
@@ -3221,6 +3289,27 @@ const TRANSPORTISTAS_OFICIALES = [
   'T. REFRIGERADOS DOMINGUEZ','T. SATIG 79','OP TRANS V.'
 ];
 
+// v87: mapeo USUARIO (nombre del perfil en la app) → TRANSPORTISTA oficial.
+// Cuando un subcontratista sube un albarán con matrícula NUEVA (no en TRANSPORTISTAS),
+// la app le asigna automáticamente el transportista de su empresa y APRENDE la matrícula
+// para futuras subidas (incluso si las hace otro usuario).
+// ⚠️ Admin TYP2014 y MARIA DEL MAR NO están — esperar tu indicación manual.
+const USUARIO_A_TRANSPORTISTA = {
+  'OP TRANS VALLES':              'OP TRANS V.',
+  'SATIG 79':                     'T. SATIG 79',
+  'aridflot@typ2014.local':       'ARIDFLOT',
+  'logistica@ttesyportes.2014':   'TRANSMARGAZ 2018',
+  'francisco@typ2014.local':      'FRANCISCO OCAÑA',
+  'MIGUEL ANGEL':                 'MIGUEL A. GARCIA',
+  'josemiguel@typ2014.local':     'JOSE MIGUEL VALLDEPEREZ'
+  // 'Admin TYP2014' → NO autoasignar (oficina admin)
+  // 'MARIA DEL MAR' → NO autoasignar (oficina)
+};
+
+// v87: matrículas aprendidas dinámicamente. Se cargan de Supabase al inicio y se mezclan
+// con TRANSPORTISTAS al consultar. Cuando se aprende una nueva, se inserta en BD.
+let MATRICULAS_APRENDIDAS = {};
+
 // v83: diccionario MATRICULA → TRANSPORTISTA oficial (autocorrección por matrícula).
 // 116 matrículas mapeadas a los 13 transportistas oficiales. Cuando la IA procesa un albarán,
 // si la matrícula está aquí, sobrescribimos lo que leyó por el transportista oficial.
@@ -3266,10 +3355,12 @@ const TRANSPORTISTAS = {
 }
 // v83: normaliza la matrícula (espacios al final, mayúsculas) antes de consultar.
 // Resuelve casos como '6102LSR ' (con espacio) o '6102lsr' que antes no encontraban transportista.
+// v87: ahora consulta TANTO el diccionario fijo TRANSPORTISTAS como las matrículas aprendidas
+// dinámicamente desde Supabase (MATRICULAS_APRENDIDAS).
 function getTransportista(mat) {
   if (!mat) return null;
   const clean = String(mat).trim().toUpperCase().replace(/\s+/g,'');
-  return TRANSPORTISTAS[clean] || null;
+  return TRANSPORTISTAS[clean] || MATRICULAS_APRENDIDAS[clean] || null;
 }
 
 // RED DE SEGURIDAD: corrige automáticamente destinos mal extraídos por la IA
