@@ -4094,12 +4094,15 @@ function compararFilaConBD(filaPreli, usados) {
 
   // ---------- Estrategia 2: match por fecha + matrícula + TN ----------
   // Para preliquidaciones donde Num. Entrega es un código de pedido (Holcim yeso)
+  // v86: normalizamos matrículas quitando ceros al inicio para tolerar variantes OCR.
+  // Ejemplo: la preliquidación trae "846NGHN" y la BD tiene "0846NGHN" → se considera misma matrícula.
   if (fechaPreli && matPreli && tmPreli > 0) {
+    const matPreliNorm = matPreli.replace(/^0+/, '');
     const matchFMT = records.find(r => {
       if (usados.has(r.db_id)) return false;
-      const matBd = String(r.tractora || '').trim().toUpperCase();
+      const matBd = String(r.tractora || '').trim().toUpperCase().replace(/^0+/, '');
       const fechaBd = String(r.fecha || '').trim();
-      if (matBd !== matPreli) return false;
+      if (matBd !== matPreliNorm) return false;
       if (fechaBd !== fechaPreli) return false;
       return tmEq(r.tm, tmPreli);
     });
