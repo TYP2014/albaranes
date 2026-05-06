@@ -73,13 +73,18 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .upload-card{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:28px;margin-bottom:16px}
 .upload-card-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac);margin-bottom:6px;display:flex;align-items:center;gap:10px}
 .upload-card-sub{font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:20px;letter-spacing:1px}
-.dz{border:2px dashed var(--bd);border-radius:9px;padding:28px;text-align:center;cursor:pointer;transition:border-color .15s ease,background-color .15s ease;position:relative}
-.dz.ov{border-color:var(--ac);background:rgba(0,232,122,.06)}
+/* v83b: dropzone con tamaño FIJO y sin temblor. El truco es:
+   - box-sizing:border-box para que padding+border NO afecten al tamaño total
+   - min-height fijo para que la caja no se redimensione al activar la clase 'ov'
+   - sin transition durante el drag (cambios instantáneos) */
+.dz{border:2px dashed var(--bd);border-radius:9px;padding:28px;text-align:center;cursor:pointer;position:relative;box-sizing:border-box;min-height:140px}
 .dz:hover{border-color:var(--ac);background:rgba(0,232,122,.03)}
-/* v83: bloquear pointer-events en TODOS los hijos del dropzone para que el cursor no
-   genere dragenter/dragleave al cruzar elementos internos (causa principal del "temblor"). */
-.dz > *{pointer-events:none}
+.dz.ov{border-color:var(--ac);background:rgba(0,232,122,.06)}
+/* v83: bloquear pointer-events en hijos para que no disparen dragenter/leave internos.
+   v83b: TODOS los hijos sin excepción, incluido el input file durante drag. */
+.dz *{pointer-events:none}
 .dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;pointer-events:auto}
+.dz.ov input{pointer-events:none}
 .dz-ic{font-size:34px;margin-bottom:6px;pointer-events:none}
 .dz-t{font-family:var(--mn);font-size:12px;color:var(--mu);margin-bottom:3px;pointer-events:none}
 .dz-s{font-size:11px;color:var(--mu);opacity:.55;pointer-events:none}
@@ -373,7 +378,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                 <th id="th-producto" onclick="sortBy('producto')">Material</th>
                 <th id="th-cliente" onclick="sortBy('cliente')">Comprador</th>
                 <th>Subido por</th>
-                <th>Subido</th>
+                <th id="th-created_at" onclick="sortBy('created_at')">Subido</th>
                 <th></th>
               </tr></thead>
               <tbody id="tbody"></tbody>
@@ -618,7 +623,11 @@ let filtered = [];
 let filteredGas = [];
 let pendingAlb = [];
 let pendingGas = [];
-let sortCol = null, sortDir = 1; // null = usa compareRecords (fecha→matrícula→albarán)
+// v84: orden por defecto = 'created_at' descendente (lo más recién subido arriba).
+// Antes era null (fecha del albarán → matrícula → nº). Ahora si subes un albarán nuevo,
+// aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
+// es clickable para invertir orden o cambiar por otra.
+let sortCol = 'created_at', sortDir = -1;
 let editId = null, editGasId = null;
 let anthropicKey = '';
 // Filtros multi-selección: guardan las matrículas/transportistas marcados con checkbox
@@ -2175,6 +2184,9 @@ function applyFilters() {
       let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
       if (sortCol === 'fecha') { av = fechaSortNum(a.fecha); bv = fechaSortNum(b.fecha); }
       else if (sortCol === 'tm') { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
+      // v84: created_at viene como timestamp ISO de Supabase. Parseamos a número (ms desde 1970)
+      // para ordenar correctamente. Los más recientes tienen número mayor.
+      else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       if (av !== bv) return av < bv ? -sortDir : sortDir;
     }
@@ -2476,32 +2488,28 @@ function markAsValid() {
 }
 
 async function deleteRecord() {
-  const btn = document.getElementById('btnDel');
-  // Patrón de doble clic: primer clic muestra "¿Confirmar?", segundo borra de verdad
-  if (btn && !btn.dataset.confirming) {
-    btn.dataset.confirming = '1';
-    const originalText = btn.textContent;
-    btn.textContent = '¿Confirmar borrado?';
-    btn.style.background = '#ff3333';
-    btn.style.color = '#fff';
-    setTimeout(() => {
-      if (btn && btn.dataset.confirming) {
-        delete btn.dataset.confirming;
-        btn.textContent = originalText;
-        btn.style.background = '';
-        btn.style.color = '';
-      }
-    }, 10000);
-    return;
-  }
-  // Segundo clic confirmado → borrar de verdad
-  if (btn) delete btn.dataset.confirming;
+  // v83c: confirmación nativa del navegador. Antes el patrón "doble clic" hacía que mucha
+  // gente pinchara una vez, viera "¿Confirmar?" y pensara que no funcionaba. Ahora aparece
+  // un cuadro de diálogo claro con OK/Cancelar.
   const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r) { toast('No se encontró el albarán', 'err'); return; }
+  const desc = r.albaran ? `albarán Nº ${r.albaran}` : 'este albarán';
+  if (!confirm(`¿Eliminar ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
+  // Bloquear el botón para evitar doble click mientras procesa
+  const btn = document.getElementById('btnDel');
+  if (btn) { btn.disabled = true; btn.textContent = 'Eliminando...'; }
   try {
-    if (r?.db_id) await deleteRecordDB(r.db_id);
-    records = records.filter(x => String(x.db_id) !== String(editId) && String(x._id) !== String(editId));
-    analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); closeModal(); toast('✓ Eliminado');
-  } catch (e) { toast('Error eliminando: ' + e.message, 'err'); }
+    if (r.db_id) await deleteRecordDB(r.db_id);
+    // v83c: recargar TODO desde BD (fuente de verdad) en lugar de solo filtrar memoria.
+    // Garantiza que el registro eliminado no reaparece tras un refresh ni queda inconsistencia.
+    await loadData();
+    closeModal();
+    toast('✓ Eliminado');
+  } catch (e) {
+    console.error('[deleteRecord] Error:', e);
+    toast('Error eliminando: ' + (e.message || e), 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Eliminar'; }
+  }
 }
 
 // ============================================================
@@ -2599,8 +2607,29 @@ const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','
 const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','TOTAL (€)','ESTADO'];
 
 function buildExcel(data) {
-  // Ordenar SIEMPRE: fecha ascendente → matrícula → nº albarán
-  const ordered = [...data].sort(compareRecords);
+  // v84: ordenar SIEMPRE por:
+  //   1) Fecha del albarán ASCENDENTE (más antiguo arriba)
+  //   2) Matrícula numérica (0742 antes que 5360, gracias a localeCompare con numeric:true)
+  //   3) Nº albarán
+  // Esto NO afecta a la pantalla (que usa sortCol/sortDir). Solo al Excel exportado.
+  const ordered = [...data].sort((a, b) => {
+    // 1) Fecha ascendente
+    const fa = fechaSortNum(a.fecha), fb = fechaSortNum(b.fecha);
+    if (fa !== fb) return fa - fb;
+    // 2) Matrícula numérica (vacías al final)
+    const ma = String(a.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
+    const mb = String(b.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
+    if (ma !== mb) {
+      if (!ma) return 1;
+      if (!mb) return -1;
+      return ma.localeCompare(mb, 'es', { numeric: true });
+    }
+    // 3) Nº albarán
+    const aa = String(a.albaran || '').trim();
+    const ab = String(b.albaran || '').trim();
+    if (/^\d+$/.test(aa) && /^\d+$/.test(ab)) return parseInt(aa) - parseInt(ab);
+    return aa.localeCompare(ab, 'es', { numeric: true });
+  });
   const valid = ordered.filter(r => !r._dup), tmTot = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   const rows = [EHEAD, ...ordered.map(r => {
     const tm = parseFloat(r.tm) || 0;
