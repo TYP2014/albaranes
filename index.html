@@ -1309,6 +1309,28 @@ async function uploadAsConductor(files, type) {
 }
 
 // PROCESAR PENDIENTES (admin/gestor): descarga los archivos pendientes y los pasa por la IA
+// v90b: descartar pendientes que no se procesan. Borra los registros con procesado=false
+// de Supabase. Útil cuando un PDF está roto o la IA falla repetidamente y el banner se
+// queda atascado.
+async function descartarPendientes(type) {
+  const tableName = type === 'alb' ? 'albaranes' : 'gasoil';
+  let q = sb.from(tableName).select('id, file_url').eq('procesado', false);
+  if (currentRole === 'gestor') q = q.eq('user_id', currentUser.id);
+  const { data: pendientes, error } = await q;
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  if (!pendientes || !pendientes.length) { toast('No hay pendientes que descartar', 'warn'); return; }
+  if (!confirm(`Vas a DESCARTAR ${pendientes.length} pendiente(s).\n\nLos archivos quedarán en Storage pero los registros pendientes se eliminarán de la base de datos.\n\n¿Continuar?`)) return;
+  try {
+    const ids = pendientes.map(p => p.id);
+    const { error: delErr } = await sb.from(tableName).delete().in('id', ids);
+    if (delErr) { toast('Error al descartar: ' + delErr.message, 'err'); return; }
+    toast(`✓ ${pendientes.length} pendiente(s) descartado(s)`);
+    await loadData();
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
 async function procesarPendientes(type) {
   if (!getKey()) {
     toast('Configura tu API Key primero (pestaña SUBIR)', 'err');
@@ -1365,8 +1387,17 @@ async function procesarPendientes(type) {
     await sleep(800);
   }
 
-  // Recargar desde BD para asegurar consistencia (banners, stats, lista)
+  // v90b: contar cuántos pendientes quedaron sin procesar (errores en procesamiento)
+  // y avisar al usuario para que pueda decidir si reintenta o los borra manualmente.
+  // Recargamos desde BD para asegurar consistencia visual.
   await loadData();
+  const { data: aunPendientes } = await sb.from(tableName).select('id').eq('procesado', false);
+  const restantes = aunPendientes?.length || 0;
+  if (restantes > 0) {
+    toast(`⚠️ Quedan ${restantes} pendiente(s) sin procesar. Reintenta o bórralos manualmente.`, 'warn');
+  } else {
+    toast(`✓ Todos los pendientes procesados`);
+  }
 }
 
 function renderQueues() {
@@ -1830,10 +1861,32 @@ async function _processOne(it, type, key, timeoutMs) {
       }
     }
     it.status = 'done';
-    // Si era un pendiente del conductor, borrar el registro original (ya se han creado nuevos con datos extraídos)
+    // v90c: Si era un pendiente del conductor, eliminarlo para que el banner se actualice.
+    // Antes el delete fallaba silenciosamente por políticas RLS, dejando el banner atascado.
+    // Ahora intentamos borrar y, si falla, marcamos procesado=true como fallback (al menos
+    // sale del banner). El usuario recibe aviso del resultado.
     if (it._fromPending) {
-      try { await sb.from(it._fromPending.table).delete().eq('id', it._fromPending.id); }
-      catch(e) { console.warn('No se pudo borrar el registro pendiente original:', e); }
+      let pendingResolved = false;
+      try {
+        const { error: delErr } = await sb.from(it._fromPending.table).delete().eq('id', it._fromPending.id);
+        if (delErr) {
+          console.warn('[v90c] Delete falló, intentando marcar procesado=true:', delErr.message);
+          // Fallback: marcar como procesado para que NO siga apareciendo en el banner
+          const { error: updErr } = await sb.from(it._fromPending.table).update({ procesado: true }).eq('id', it._fromPending.id);
+          if (updErr) {
+            console.error('[v90c] Update también falló:', updErr.message);
+            toast(`⚠️ ${it.name}: procesado pero no se pudo limpiar el pendiente. Refresca la app o usa Descartar.`, 'warn');
+          } else {
+            pendingResolved = true;
+            console.log('[v90c] Pendiente marcado como procesado=true (fallback)');
+          }
+        } else {
+          pendingResolved = true;
+        }
+      } catch(e) {
+        console.warn('[v90c] Error al borrar pendiente:', e);
+        toast(`⚠️ ${it.name}: procesado pero el banner puede no actualizarse. Refresca con F5.`, 'warn');
+      }
       // Quitar también de la lista en memoria, para que el banner y los stats se refresquen
       const targetId = String(it._fromPending.id);
       if (it._fromPending.table === 'albaranes') {
@@ -2104,7 +2157,7 @@ function renderAlerts() {
   const dups = records.filter(r => r._dup), warns = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
   const pendientes = records.filter(r => r.procesado === false);
   let html = '';
-  if (pendientes.length) html += `<div class="alert-banner alert-pending"><div class="alert-txt">📥 <strong>${pendientes.length} albarán(es) pendiente(s) de procesar</strong> — subido(s) por conductor(es).</div><div><button class="btn bp" style="font-size:10px;padding:5px 11px" onclick="procesarPendientes('alb')">⚡ Procesar con IA</button></div></div>`;
+  if (pendientes.length) html += `<div class="alert-banner alert-pending"><div class="alert-txt">📥 <strong>${pendientes.length} albarán(es) pendiente(s) de procesar</strong> — subido(s) por conductor(es).</div><div style="display:flex;gap:6px;align-items:center"><button class="btn bp" style="font-size:10px;padding:5px 11px" onclick="procesarPendientes('alb')">⚡ Procesar con IA</button><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="descartarPendientes('alb')" title="Borra los pendientes de la base de datos. Útil si llevan tiempo bloqueados sin procesar.">🗑 Descartar</button></div></div>`;
   if (dups.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">⛔ <strong>${dups.length} duplicado(s)</strong> — no se contabilizan.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('dup')">Ver</button></div></div>`;
   if (warns.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠ <strong>${warns.length} a revisar</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver</button></div></div>`;
   document.getElementById('alertsBox').innerHTML = html;
