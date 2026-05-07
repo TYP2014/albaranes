@@ -351,7 +351,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="fil-group"><label class="fil-label">Proveedor</label><input class="fil-sel" id="fProv" list="dlProv" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlProv"></datalist></div>
             <div class="fil-group"><label class="fil-label">Origen</label><input class="fil-sel" id="fOrigen" list="dlOrigen" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlOrigen"></datalist></div>
             <div class="fil-group"><label class="fil-label">Destino</label><input class="fil-sel" id="fDestino" list="dlDestino" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlDestino"></datalist></div>
-            <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fMat" list="dlMat" oninput="applyFilters()" placeholder="Todas" autocomplete="off"><datalist id="dlMat"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Matrícula</label><details class="fil-multi" id="fMatBox"><summary id="fMatSum">Todas</summary><div class="fil-multi-list" id="fMatList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Transportista</label><details class="fil-multi" id="fTransBox"><summary id="fTransSum">Todos</summary><div class="fil-multi-list" id="fTransList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Material</label><input class="fil-sel" id="fMat2" list="dlMat2" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlMat2"></datalist></div>
             <div class="fil-group"><label class="fil-label">Subido por</label><input class="fil-sel" id="fSubidoPor" list="dlSubidoPor" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlSubidoPor"></datalist></div>
@@ -2123,7 +2123,6 @@ function buildDropdowns() {
   fillDL('dlProv', unique('proveedor'));
   fillDL('dlOrigen', unique('planta'));
   fillDL('dlDestino', unique('obra'));
-  fillDL('dlMat', unique('tractora'));
   fillDL('dlMat2', unique('producto'));
   // v79: filtro "Subido por" — recopila los user_id que aparecen en los albaranes y los traduce a nombres
   const userIdsConAlb = [...new Set(records.filter(r => !r._dup && r.user_id).map(r => r.user_id))];
@@ -2136,6 +2135,9 @@ function buildDropdowns() {
   // Antes mostraba todos los detectados en records.transportista (con duplicados raros y
   // variantes OCR). Ahora solo los oficiales del Excel, ordenados alfabéticamente.
   buildMultiSelect('fTransList', 'fTransSum', [...TRANSPORTISTAS_OFICIALES].sort(), selectedTransportistas, 'Todos', 'transportistas');
+  // v90: multi-select de matrículas con todas las que aparecen en albaranes (ordenadas).
+  // Antes era input predictivo (1 sola matrícula). Ahora puedes marcar varias para filtrar.
+  buildMultiSelect('fMatList', 'fMatSum', unique('tractora').sort(), selectedMatriculas, 'Todas', 'matrículas');
 }
 
 // Construye un panel de checkboxes multi-selección dentro de un <details>
@@ -2193,7 +2195,7 @@ function applyFilters() {
   const prov = (document.getElementById('fProv')?.value || '').trim();
   const origen = (document.getElementById('fOrigen')?.value || '').trim();
   const dest = (document.getElementById('fDestino')?.value || '').trim();
-  const mat = (document.getElementById('fMat')?.value || '').trim();
+  // v90: filtro Matrícula es ahora multi-select. Usa selectedMatriculas (Set) en lugar de input.
   const mat2 = (document.getElementById('fMat2')?.value || '').trim();
   const subidoPor = (document.getElementById('fSubidoPor')?.value || '').trim();
   const subidoEl = document.getElementById('fSubidoEl')?.value; // v83: fecha de subida (created_at)
@@ -2222,8 +2224,13 @@ function applyFilters() {
     if (!matchFlex(r.proveedor, prov)) return false;
     if (!matchFlex(r.planta, origen)) return false;
     if (!matchFlex(r.obra, dest)) return false;
-    // v81: matrícula predictiva (input con datalist) en vez de multi-select
-    if (!matchFlex(r.tractora, mat)) return false;
+    // v90: matrícula multi-select. Si hay matrículas seleccionadas, el albarán debe coincidir
+    // con alguna de ellas. Comparación case-insensitive y sin espacios.
+    if (selectedMatriculas.size > 0) {
+      const matN = String(r.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
+      const haySelMat = [...selectedMatriculas].some(s => String(s).toUpperCase().replace(/\s+/g, '').trim() === matN);
+      if (!haySelMat) return false;
+    }
     // Transportista sigue siendo multi-select
     if (selectedTransportistas.size > 0) {
       const trNorm = norm(r.transportista);
@@ -2276,7 +2283,7 @@ function applyFilters() {
   const rc = document.getElementById('resCount');
   if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
-  const hasF = desde || hasta || prov || origen || dest || mat || selectedTransportistas.size > 0 || mat2 || subidoPor || subidoEl || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
+  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || subidoPor || subidoEl || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
@@ -2291,8 +2298,12 @@ function applyGasFilters() {
 
 function resetFilters() { 
   ['fDesde','fHasta','srchIn','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
-  ['fProv','fOrigen','fDestino','fMat','fMat2','fSubidoPor','fSubidoEl','fEstado','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fProv','fOrigen','fDestino','fMat2','fSubidoPor','fSubidoEl','fEstado','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   selectedMatriculas.clear(); selectedTransportistas.clear();
+  // v90: actualizar summaries y desmarcar checkboxes visualmente
+  msUpdateSummary('fMatSum', selectedMatriculas, 'Todas', 'matrículas');
+  msUpdateSummary('fTransSum', selectedTransportistas, 'Todos', 'transportistas');
+  document.querySelectorAll('#fMatList input[type=checkbox], #fTransList input[type=checkbox]').forEach(cb => cb.checked = false);
   applyFilters(); 
 }
 function filterByStatus(st) { 
