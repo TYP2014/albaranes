@@ -217,18 +217,24 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .pdf-preview{display:block;width:100%;border-radius:8px;border:1px solid var(--bd);background:var(--s2)}
 /* v97: contenedor con zoom + pan (arrastrar). Usa overflow:hidden para que al hacer zoom
    solo se vea la parte visible. El canvas dentro tiene transform:scale + translate aplicado
-   por JavaScript en el handler de zoom/pan. */
-.pdf-zoom-wrap{position:relative;width:100%;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:hidden;margin-top:16px;cursor:zoom-in;user-select:none;touch-action:none}
+   por JavaScript en el handler de zoom/pan.
+   v97b: max-height 75vh para que el albarán quepa ENTERO en pantalla sin scroll. Si el
+   usuario quiere ver detalles, hace zoom con la rueda. Antes (v97) sin max-height la imagen
+   crecía a su tamaño natural y había que hacer scroll por todo el modal — fatal. */
+.pdf-zoom-wrap{position:relative;width:100%;max-height:75vh;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:hidden;margin-top:16px;cursor:zoom-in;user-select:none;touch-action:none;display:flex;align-items:flex-start;justify-content:center}
 .pdf-zoom-wrap.zoomed{cursor:grab}
 .pdf-zoom-wrap.zoomed.grabbing{cursor:grabbing}
-.pdf-zoom-wrap canvas{display:block;width:100%;height:auto;transform-origin:0 0;transition:transform .05s linear}
+/* v97b: el canvas se adapta al contenedor manteniendo proporciones. max-height del 100%
+   del contenedor padre para que NUNCA sobresalga por arriba/abajo al estado base (zoom 1x). */
+.pdf-zoom-wrap canvas{display:block;max-width:100%;max-height:75vh;width:auto;height:auto;transform-origin:0 0;transition:transform .05s linear}
 .pdf-zoom-controls{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
 .pdf-zoom-btn{background:rgba(0,0,0,.6);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:6px;width:32px;height:32px;display:grid;place-items:center;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s}
 .pdf-zoom-btn:hover{background:rgba(0,0,0,.85)}
 .pdf-zoom-info{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:4px;font-family:var(--mn);font-size:10px;backdrop-filter:blur(4px);pointer-events:none}
-/* v97: imagen JPG/PNG sin límite de altura — antes max-height:400px hacía que las fotos
-   altas (móvil) se quedaran pequeñas. Ahora se ven a tamaño completo. */
-.img-preview{width:100%;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
+/* v97/v97b: imagen JPG/PNG con max-height 75vh para que se vea grande pero entera en pantalla.
+   Antes (preset original) era 400px, demasiado pequeño. v97 quitó el límite y se hacía gigante.
+   75vh es el equilibrio: ocupa hasta el 75% de la altura de la pantalla pero nunca más. */
+.img-preview{max-width:100%;max-height:75vh;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
 .preview-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:rgba(123,143,240,.1);color:var(--in);border:1px solid rgba(123,143,240,.2);font-family:var(--mn);font-size:10px;cursor:pointer;text-decoration:none;margin-top:8px}
 
 /* TOAST */
