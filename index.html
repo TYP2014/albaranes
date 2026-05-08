@@ -183,14 +183,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
 .ov.open{display:flex}
-.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:1400px;max-height:90vh;overflow-y:auto}
+.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:1600px;max-height:90vh;overflow-y:auto}
 .modal-hd{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;background:var(--sf);z-index:10}
 .modal-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac)}
 .modal-bd{padding:20px 24px}
 .modal-ft{padding:16px 24px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--sf)}
 /* v73: rejilla del modal - 2 columnas en PC (campos | imagen), 1 columna en móvil */
-/* v96: la imagen del albarán es lo más importante visualmente, así que damos más peso a la columna derecha (40/60 en vez de 50/50) */
-.modal-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:24px;align-items:start}
+/* v96b: damos protagonismo TOTAL al albarán. Reparto 30% campos / 70% imagen, modal a 1600px de ancho */
+.modal-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,7fr);gap:24px;align-items:start}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{position:sticky;top:78px;order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
 @media(max-width:900px){
