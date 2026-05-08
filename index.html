@@ -846,7 +846,9 @@ async function saveRecord(data) {
   if (data._manual === true) rec.manual_edit = true;
   // Eliminar TODAS las propiedades internas que empiezan por "_" (no son columnas reales de la BD)
   // y db_id (es la id pero la usamos para el WHERE, no para el SET).
-  delete rec._id; delete rec._dup; delete rec._dupOf; delete rec._quality; delete rec._ts; delete rec._manual;
+  // v91b: bucle automático en vez de lista manual — así cualquier futuro flag interno (_dup,
+  // _quality, _manual, _matDesconocida, etc.) se borra solo y no rompe la inserción/update.
+  Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
   if (data.db_id) {
     const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
