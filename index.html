@@ -2006,21 +2006,30 @@ SOLO JSON válido, sin markdown.`;
   // (prompt cortísimo, solo matrículas) — más probable que acierte porque el modelo no se
   // distrae con el resto de campos. Coste limitado: solo se activa cuando Haiku falla,
   // no en cada subida. Si Sonnet también falla por red/timeout/etc, no rompe el flujo.
-  const indicesVacios = results.map((r, i) => (!r.tractora || !String(r.tractora).trim()) ? i : -1).filter(i => i >= 0);
+  // v93c: usamos esMatriculaValida en lugar de solo "está vacío" — porque Haiku a veces
+  // devuelve cosas como "—", "-", "N/A", o cualquier texto que no encaja en formato 4D+3L.
+  // Antes de v93c, el detector solo pillaba el caso vacío estricto, así que para esos
+  // casos no se activaba el fallback Sonnet (las matrículas se borraban después por v89
+  // pero Sonnet ya no se llamaba). Ahora cualquier matrícula no válida → reintentar.
+  const indicesVacios = results.map((r, i) => !esMatriculaValida(r.tractora) ? i : -1).filter(i => i >= 0);
   if (indicesVacios.length > 0) {
-    console.log(`[v93] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías. Reintentando con Sonnet 4.6...`);
+    console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
     try {
       const matriculasSonnet = await reintentaMatriculaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
       if (matriculasSonnet && matriculasSonnet.length === results.length) {
         let recuperadas = 0;
         for (const i of indicesVacios) {
           const m = matriculasSonnet[i];
-          if (m && String(m).trim()) {
+          // v93c: solo aceptar la matrícula que devuelva Sonnet si pasa esMatriculaValida.
+          // Si Sonnet también devuelve "—", "-", o algo no formato 4D+3L, lo descartamos
+          // y el albarán se queda con la matrícula vacía que ya tenía Haiku (después la
+          // red v89 la limpia). Mejor matrícula vacía que matrícula falsa.
+          if (m && esMatriculaValida(m)) {
             results[i].tractora = String(m).trim().toUpperCase();
             recuperadas++;
           }
         }
-        console.log(`[v93] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
+        console.log(`[v93c] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
       } else {
         console.warn(`[v93] Sonnet devolvió ${matriculasSonnet?.length || 0} matrículas pero esperábamos ${results.length}, descartando reintento`);
       }
