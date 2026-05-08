@@ -2530,6 +2530,24 @@ function openModal(id) {
     const opts = ['<option value="">— Selecciona transportista —</option>']
       .concat(TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${t === transActual ? ' selected' : ''}>${esc(t)}</option>`))
       .join('');
+    // v91c: contar OTROS albaranes en memoria con la misma matrícula (normalizada).
+    // Si hay alguno, ofrecemos al admin un segundo checkbox para actualizarlos en lote.
+    const matNorm = String(r.tractora || '').trim().toUpperCase().replace(/\s+/g,'');
+    const otrosConMismaMat = matNorm ? records.filter(x =>
+      x !== r &&
+      !x._dup &&
+      x.db_id &&
+      x.tractora &&
+      String(x.tractora).trim().toUpperCase().replace(/\s+/g,'') === matNorm
+    ) : [];
+    const numOtros = otrosConMismaMat.length;
+    let histHtml = '';
+    if (numOtros > 0) {
+      histHtml = `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="mAplicarHistorico" style="cursor:pointer">
+        Aplicar también a los <strong style="color:var(--wn)">${numOtros}</strong> albaranes existentes con esta matrícula
+      </label>`;
+    }
     alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
       <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
       <div style="font-size:11px;color:var(--mu);margin-bottom:8px">No está en la flota oficial ni en las aprendidas. Asigna el transportista para que la próxima vez se reconozca sola.</div>
@@ -2538,6 +2556,7 @@ function openModal(id) {
         <input type="checkbox" id="mAprenderMat" checked style="cursor:pointer">
         Aprender esta matrícula para futuros albaranes
       </label>
+      ${histHtml}
     </div>`;
   }
   // v76: aviso si el albarán está marcado como editado manualmente — protegido contra reanálisis
@@ -2629,6 +2648,25 @@ async function saveModal() {
     aprenderTras = { matricula: r.tractora, transportista: r.transportista };
   }
 
+  // v91c: si el admin marcó el segundo checkbox "Aplicar también a los N existentes",
+  // recopilamos los IDs de los otros albaranes con la misma matrícula para hacer un
+  // UPDATE masivo en BD tras guardar con éxito el albarán actual.
+  let aplicarHistorico = null;
+  const cbHist = document.getElementById('mAplicarHistorico');
+  if (cbHist && cbHist.checked && r.tractora && r.transportista) {
+    const matNorm = String(r.tractora).trim().toUpperCase().replace(/\s+/g,'');
+    const ids = records.filter(x =>
+      x !== r &&
+      !x._dup &&
+      x.db_id &&
+      x.tractora &&
+      String(x.tractora).trim().toUpperCase().replace(/\s+/g,'') === matNorm
+    ).map(x => x.db_id);
+    if (ids.length > 0) {
+      aplicarHistorico = { ids, transportista: r.transportista };
+    }
+  }
+
   console.log('[saveModal] Cambios:', cambios);
   console.log('[saveModal] Datos a guardar:', r);
 
@@ -2646,6 +2684,28 @@ async function saveModal() {
       aprenderMatricula(aprenderTras.matricula, aprenderTras.transportista, nombreUsuario);
     }
 
+    // v91c: aplicar el transportista a los albaranes históricos con la misma matrícula.
+    // UPDATE masivo en una sola llamada usando .in('id', ids). Si falla, avisamos pero
+    // no revertimos el guardado del albarán actual ni de la matrícula aprendida.
+    let histActualizados = 0;
+    if (aplicarHistorico) {
+      try {
+        const { error: errHist } = await sb.from('albaranes')
+          .update({ transportista: aplicarHistorico.transportista })
+          .in('id', aplicarHistorico.ids);
+        if (errHist) {
+          console.error('[v91c] Error aplicando histórico:', errHist);
+          toast(`✗ Error en histórico: ${errHist.message}`, 'err');
+        } else {
+          histActualizados = aplicarHistorico.ids.length;
+          console.log(`[v91c] Histórico actualizado: ${histActualizados} albaranes con matrícula ${r.tractora} → ${aplicarHistorico.transportista}`);
+        }
+      } catch (e) {
+        console.error('[v91c] Excepción aplicando histórico:', e);
+        toast(`✗ Error en histórico: ${e.message}`, 'err');
+      }
+    }
+
     // 2) Recordar el ID que estamos editando para volver a marcar _manual tras la recarga
     const editedId = r.db_id;
 
@@ -2660,8 +2720,13 @@ async function saveModal() {
     }
 
     closeModal();
-    if (cambios.length === 0) toast('Sin cambios');
-    else toast(`✓ Guardado (${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'})`);
+    if (cambios.length === 0 && histActualizados === 0) toast('Sin cambios');
+    else {
+      const partes = [];
+      if (cambios.length > 0) partes.push(`${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'}`);
+      if (histActualizados > 0) partes.push(`+${histActualizados} hist.`);
+      toast(`✓ Guardado (${partes.join(' · ')})`);
+    }
   } catch (e) {
     // Revertir cambios en memoria si falla
     Object.assign(r, original);
