@@ -183,13 +183,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
 .ov.open{display:flex}
-.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:1100px;max-height:90vh;overflow-y:auto}
+.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:1400px;max-height:90vh;overflow-y:auto}
 .modal-hd{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;background:var(--sf);z-index:10}
 .modal-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac)}
 .modal-bd{padding:20px 24px}
 .modal-ft{padding:16px 24px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--sf)}
 /* v73: rejilla del modal - 2 columnas en PC (campos | imagen), 1 columna en móvil */
-.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+/* v96: la imagen del albarán es lo más importante visualmente, así que damos más peso a la columna derecha (40/60 en vez de 50/50) */
+.modal-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:24px;align-items:start}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{position:sticky;top:78px;order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
 @media(max-width:900px){
@@ -203,8 +204,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .mfields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fg{display:flex;flex-direction:column;gap:5px}
 .fg.full{grid-column:1/-1}
-.fl{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px}
-.fi{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;font-family:var(--mn);font-size:11px;color:var(--tx);outline:none;transition:border-color .15s}
+/* v96: etiquetas un pelín más grandes y con más grosor para mejor legibilidad */
+.fl{font-family:var(--mn);font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
+/* v96: contenido de los inputs más grande (11→13px) y con más grosor (peso 500) para que destaque */
+.fi{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:9px 11px;font-family:var(--mn);font-size:13px;font-weight:500;color:var(--tx);outline:none;transition:border-color .15s}
 .fi:focus{border-color:var(--ac)}
 
 /* PDF PREVIEW */
