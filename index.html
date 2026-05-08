@@ -191,7 +191,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 /* v73: rejilla del modal - 2 columnas en PC (campos | imagen), 1 columna en móvil */
 /* v97d: 20% campos / 80% imagen + gap más estrecho (16px en vez de 24px) — el albarán
    se desplaza a la derecha ocupando MÁS espacio. Antes (v97): 25/75 con gap 24px. */
+/* v97e: min-width:0 explícito en cada columna — sin esto, en algunos navegadores el
+   contenido del canvas (que crece con zoom) puede empujar la columna y descolocar todo. */
 .modal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,4fr);gap:16px;align-items:start}
+.modal-grid > *{min-width:0}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{position:sticky;top:78px;order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
 @media(max-width:900px){
@@ -216,28 +219,27 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    altas se quedaran pequeñas con bordes negros laterales. Ahora ocupa todo el ancho disponible
    y crece en proporción. Además es contenedora de un canvas con zoom (ver .pdf-zoom-wrap). */
 .pdf-preview{display:block;width:100%;border-radius:8px;border:1px solid var(--bd);background:var(--s2)}
-/* v97d: nuevo sistema de zoom — más simple y FIABLE que el de v97c (que no funcionaba en
-   producción por problemas con transforms CSS). Ahora el contenedor tiene scroll y los
-   botones cambian directamente el tamaño del canvas (re-renderizando el PDF a más resolución).
-   El usuario hace scroll dentro del contenedor para moverse por el albarán cuando esté ampliado. */
-.pdf-zoom-wrap{position:relative;width:100%;max-height:88vh;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:auto;margin-top:12px;scrollbar-width:thin;scrollbar-color:var(--mu) var(--s2)}
+/* v97e: contenedor zoom — UNA sola definición limpia. Antes (v97d) había CSS duplicado
+   que se machacaba a sí mismo y descolocaba todo el modal. min-width:0 es CLAVE: en grid,
+   sin esto el contenedor puede crecer indefinidamente y romperse fuera de su columna.
+   max-width:100% por seguridad para que NUNCA se salga horizontalmente de la columna. */
+.pdf-zoom-wrap{position:relative;width:100%;max-width:100%;min-width:0;max-height:88vh;box-sizing:border-box;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:auto;margin-top:12px;scrollbar-width:thin;scrollbar-color:var(--mu) var(--s2)}
 .pdf-zoom-wrap::-webkit-scrollbar{width:10px;height:10px}
 .pdf-zoom-wrap::-webkit-scrollbar-track{background:var(--s2)}
 .pdf-zoom-wrap::-webkit-scrollbar-thumb{background:var(--mu);border-radius:4px}
-.pdf-zoom-wrap canvas{display:block;margin:0 auto}
-/* Botones de zoom flotantes encima del albarán, siempre visibles */
-.pdf-zoom-controls{position:sticky;top:8px;display:flex;gap:6px;z-index:5;padding:0 8px;justify-content:flex-end;pointer-events:none}
+/* El canvas se centra dentro del contenedor. max-width:none porque queremos que crezca
+   con el zoom (si lo limitamos al 100% del padre, el zoom no podría hacerlo más grande). */
+.pdf-zoom-wrap canvas{display:block;margin:0 auto;max-width:none}
+/* Botones de zoom flotantes pegados arriba del albarán, siempre visibles al hacer scroll.
+   Usamos sticky para que se queden arriba. pointer-events:none en el wrapper y :auto en
+   los hijos: así el wrapper no bloquea clics fuera de los botones. */
+.pdf-zoom-controls{position:sticky;top:8px;display:flex;gap:6px;z-index:5;padding:0 8px;justify-content:flex-end;pointer-events:none;margin-bottom:-44px}
 .pdf-zoom-controls > *{pointer-events:auto}
 .pdf-zoom-btn{background:rgba(0,0,0,.75);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;height:36px;min-width:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s;font-family:var(--mn)}
 .pdf-zoom-btn:hover{background:rgba(0,0,0,.9)}
 .pdf-zoom-info{background:rgba(0,0,0,.6);color:#fff;padding:0 10px;height:36px;display:inline-flex;align-items:center;border-radius:6px;font-family:var(--mn);font-size:11px;backdrop-filter:blur(4px)}
-.pdf-zoom-controls{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
-.pdf-zoom-btn{background:rgba(0,0,0,.6);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:6px;width:32px;height:32px;display:grid;place-items:center;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s}
-.pdf-zoom-btn:hover{background:rgba(0,0,0,.85)}
-.pdf-zoom-info{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:4px;font-family:var(--mn);font-size:10px;backdrop-filter:blur(4px);pointer-events:none}
-/* v97/v97b/v97c: imagen JPG/PNG con max-height 82vh para que se vea grande pero entera.
-   Original: 400px (pequeño). v97 quitó límite (gigante). v97b puso 75vh. v97c: 82vh. */
-.img-preview{max-width:100%;max-height:82vh;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
+/* v97/v97b/v97c/v97d: imagen JPG/PNG con max-height 88vh (subido en v97d) */
+.img-preview{max-width:100%;max-height:88vh;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
 .preview-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:rgba(123,143,240,.1);color:var(--in);border:1px solid rgba(123,143,240,.2);font-family:var(--mn);font-size:10px;cursor:pointer;text-decoration:none;margin-top:8px}
 
 /* TOAST */
