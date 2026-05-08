@@ -2966,7 +2966,9 @@ async function deleteGasRecord() {
 // EXCEL
 // ============================================================
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','TOTAL (€)','ESTADO'];
+// v95b: Total movido al lado de Precio (columna E). Antes estaba al final como col S.
+// Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | Nº ALBARAN | ...
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','ESTADO'];
 
 function buildExcel(data) {
   // v84: ordenar SIEMPRE por:
@@ -2993,33 +2995,49 @@ function buildExcel(data) {
     return aa.localeCompare(ab, 'es', { numeric: true });
   });
   const valid = ordered.filter(r => !r._dup), tmTot = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
-  // v95: precio por defecto 0, fórmula automática =TN*Precio para Total, fila TOTAL al final.
-  // Columnas: TN=C(3), Precio=D(4), Total=S(19). aoa_to_sheet usa 1-indexado en notación A1.
+  // v95b: Total ahora va al lado de Precio (columna E). TN=C, Precio=D, Total=E.
+  // Fórmula =C*D para que al editar el precio se calcule solo.
   const rows = [EHEAD, ...ordered.map((r, idx) => {
     const tm = parseFloat(r.tm) || 0;
-    // v95: precio siempre numérico (0 por defecto si no hay valor) — facilita edición posterior.
+    // Precio siempre numérico (0 por defecto si no hay valor) — facilita edición posterior.
     const precio = r.precio != null && r.precio !== '' ? parseFloat(r.precio) : 0;
-    // v95: Total como FÓRMULA en lugar de valor calculado. Así, cuando el usuario edite el
-    // precio en Excel, el total se recalcula solo. Fila Excel = idx + 2 (idx 0-indexado, +1
-    // por encabezado, +1 por base 1 de Excel).
-    const filaExcel = idx + 2;
+    // Total como FÓRMULA. Al editar el precio en Excel, el total se recalcula solo.
+    const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
     const totalFormula = { f: `C${filaExcel}*D${filaExcel}` };
-    return [...ECOLS.map(c => {
-      if (c === 'precio') return precio;
-      return r[c] != null ? r[c] : '';
-    }), userName(r.user_id), totalFormula, r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'];
+    // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
+    // FECHA, MATRICULA, TN, PRECIO, TOTAL, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
+    // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO
+    return [
+      r.fecha != null ? r.fecha : '',
+      r.tractora != null ? r.tractora : '',
+      tm,
+      precio,
+      totalFormula,
+      r.albaran != null ? r.albaran : '',
+      r.proveedor != null ? r.proveedor : '',
+      r.planta != null ? r.planta : '',
+      r.obra != null ? r.obra : '',
+      r.producto != null ? r.producto : '',
+      r.cliente != null ? r.cliente : '',
+      r.remolque != null ? r.remolque : '',
+      r.transportista != null ? r.transportista : '',
+      r.tara_kg != null ? r.tara_kg : '',
+      r.bruto_kg != null ? r.bruto_kg : '',
+      r.hora_entrada != null ? r.hora_entrada : '',
+      r.hora_salida != null ? r.hora_salida : '',
+      r.observaciones != null ? r.observaciones : '',
+      userName(r.user_id),
+      r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'
+    ];
   })];
-  // v95: fila TOTAL al final con SUMA de TN y de Total. Empezamos por aplicar las fórmulas
-  // antes de añadir la fila para que Excel las interprete correctamente.
-  const filaUltimaDato = rows.length; // = 1 (header) + N filas de datos (en numeración Excel)
-  const filaTotal = filaUltimaDato + 1;
-  const filaSuma = ['', '', { f: `SUM(C2:C${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'TOTAL', { f: `SUM(S2:S${filaUltimaDato})` }, ''];
+  // Fila TOTAL al final con SUMA de TN y de Total. TN en C, Total en E.
+  const filaUltimaDato = rows.length;
+  const filaSuma = ['', 'TOTAL', { f: `SUM(C2:C${filaUltimaDato})` }, '', { f: `SUM(E2:E${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [10,10,9,10,14,22,18,22,20,24,10,22,10,10,8,8,24,18,10,12].map(w => ({wch: w}));
-  // v95: alineación centrada en TODAS las celdas + formato moneda en Precio y Total.
-  // Recorremos cada celda del rango usado y aplicamos style. SheetJS necesita que cellStyles
-  // esté activado en writeFile, pero por defecto la versión community soporta esto al guardar.
+  // v95b: anchos ajustados al nuevo orden de columnas (Total ahora es la 5ª).
+  ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,12].map(w => ({wch: w}));
+  // Alineación centrada en TODAS las celdas + formato moneda en Precio (D) y Total (E).
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; R++) {
     for (let C = range.s.c; C <= range.e.c; C++) {
@@ -3027,18 +3045,12 @@ function buildExcel(data) {
       if (!ws[addr]) ws[addr] = { t: 's', v: '' };
       if (!ws[addr].s) ws[addr].s = {};
       ws[addr].s.alignment = { horizontal: 'center', vertical: 'center' };
-      // Precio (col 3, 0-indexado D) y Total (col 18, 0-indexado S): formato € con 2 decimales
-      if (R > 0 && (C === 3 || C === 18)) {
+      // Precio (col 3 = D) y Total (col 4 = E): formato € con 2 decimales
+      if (R > 0 && (C === 3 || C === 4)) {
         ws[addr].z = '#,##0.00 €';
       }
-      // Encabezado en negrita
-      if (R === 0) {
-        ws[addr].s.font = { bold: true };
-      }
-      // Fila TOTAL en negrita
-      if (R === range.e.r) {
-        ws[addr].s.font = { bold: true };
-      }
+      if (R === 0) ws[addr].s.font = { bold: true };
+      if (R === range.e.r) ws[addr].s.font = { bold: true };
     }
   }
   const wb = XLSX.utils.book_new();
