@@ -2292,9 +2292,11 @@ function applyFilters() {
     if (!matchFlex(r.obra, dest)) return false;
     // v90: matrícula multi-select. Si hay matrículas seleccionadas, el albarán debe coincidir
     // con alguna de ellas. Comparación case-insensitive y sin espacios.
+    // v91d: si el albarán tiene matrícula dual "XXXXLLL/XXXXLLL", se considera la primera parte
+    // (la que aparece en el desplegable y la que el admin selecciona en el filtro).
     if (selectedMatriculas.size > 0) {
-      const matN = String(r.tractora || '').toUpperCase().replace(/\s+/g, '').trim();
-      const haySelMat = [...selectedMatriculas].some(s => String(s).toUpperCase().replace(/\s+/g, '').trim() === matN);
+      const matN = matriculaPrincipal(r.tractora || '');
+      const haySelMat = [...selectedMatriculas].some(s => matriculaPrincipal(s) === matN);
       if (!haySelMat) return false;
     }
     // Transportista sigue siendo multi-select
@@ -3548,9 +3550,20 @@ const TRANSPORTISTAS = {
 // Resuelve casos como '6102LSR ' (con espacio) o '6102lsr' que antes no encontraban transportista.
 // v87: ahora consulta TANTO el diccionario fijo TRANSPORTISTAS como las matrículas aprendidas
 // dinámicamente desde Supabase (MATRICULAS_APRENDIDAS).
+// v91d: respeta el convenio interno de matrícula doble "XXXXLLL/XXXXLLL" (la primera es la
+// que aparece en el albarán del cliente y se usa para preliquidación; la segunda es apunte
+// interno del camión real subcontratado). Para todas las consultas de transportista,
+// validación y cruces, se usa SIEMPRE la primera parte.
+function matriculaPrincipal(mat) {
+  if (!mat) return mat;
+  const clean = String(mat).trim().toUpperCase().replace(/\s+/g,'');
+  if (clean.includes('/')) return clean.split('/')[0];
+  return clean;
+}
+
 function getTransportista(mat) {
   if (!mat) return null;
-  const clean = String(mat).trim().toUpperCase().replace(/\s+/g,'');
+  const clean = matriculaPrincipal(mat);
   return TRANSPORTISTAS[clean] || MATRICULAS_APRENDIDAS[clean] || null;
 }
 
@@ -3923,9 +3936,12 @@ const DESTINOS_CANONICOS = [
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
 
 // Auto-corrige matrículas con errores típicos OCR (I↔L, 0↔O, 1↔I)
+// v91d: si la matrícula viene con formato dual XXXXLLL/XXXXLLL (convenio interno del admin),
+// devuélvela tal cual sin tocar — el admin la escribió a mano deliberadamente.
 function fixMatricula(mat) {
   if (!mat) return mat;
   const m = String(mat).toUpperCase().trim();
+  if (m.includes('/')) return m;
   if (TRANSPORTISTAS[m]) return m;
   const swaps = { 'I':'L', 'L':'I', 'O':'0', '0':'O', '1':'I', '8':'B', 'B':'8', 'S':'5', '5':'S', 'Z':'2', '2':'Z' };
   const tried = new Set([m]);
@@ -3954,10 +3970,13 @@ function fixMatricula(mat) {
 // sin vocales ni Q, ej: 9295JJZ, 1748JGL). Devuelve true/false.
 // Las matrículas españolas modernas excluyen vocales y Q en las letras, pero algunos OCR pueden
 // leer mal. Aquí seamos algo permisivos: aceptamos 4 dígitos + 3 letras cualesquiera.
+// v91d: aceptar también el formato dual XXXXLLL/XXXXLLL (convenio interno: primera matrícula =
+// la del cliente que aparece en el albarán y se preliquida; segunda matrícula = la del camión
+// subcontratado que realmente hizo el viaje). Solo se considera válido si AMBAS partes son 4D+3L.
 function esMatriculaValida(mat) {
   if (!mat) return false;
   const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
-  return /^\d{4}[A-Z]{3}$/.test(m);
+  return /^\d{4}[A-Z]{3}$/.test(m) || /^\d{4}[A-Z]{3}\/\d{4}[A-Z]{3}$/.test(m);
 }
 
 // v89: si lo que lee la IA NO tiene formato matrícula válido, intenta extraer una de cualquier
@@ -4408,11 +4427,14 @@ function compararFilaConBD(filaPreli, usados) {
   // Para preliquidaciones donde Num. Entrega es un código de pedido (Holcim yeso)
   // v86: normalizamos matrículas quitando ceros al inicio para tolerar variantes OCR.
   // Ejemplo: la preliquidación trae "846NGHN" y la BD tiene "0846NGHN" → se considera misma matrícula.
+  // v91d: si la BD guarda la matrícula en formato dual "XXXXLLL/XXXXLLL" (convenio interno
+  // del admin), usamos solo la PRIMERA parte para cruzar con la preliquidación, ya que el
+  // cliente factura/preliquida por esa primera matrícula.
   if (fechaPreli && matPreli && tmPreli > 0) {
     const matPreliNorm = matPreli.replace(/^0+/, '');
     const matchFMT = records.find(r => {
       if (usados.has(r.db_id)) return false;
-      const matBd = String(r.tractora || '').trim().toUpperCase().replace(/^0+/, '');
+      const matBd = matriculaPrincipal(r.tractora || '').replace(/^0+/, '');
       const fechaBd = String(r.fecha || '').trim();
       if (matBd !== matPreliNorm) return false;
       if (fechaBd !== fechaPreli) return false;
