@@ -193,13 +193,17 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    se desplaza a la derecha ocupando MÁS espacio. Antes (v97): 25/75 con gap 24px. */
 /* v97e: min-width:0 explícito en cada columna — sin esto, en algunos navegadores el
    contenido del canvas (que crece con zoom) puede empujar la columna y descolocar todo. */
+/* v97f: QUITADO position:sticky del #mPreview. Era la causa de que el albarán se montara
+   encima de los datos: cuando el contenedor sticky tiene un hijo con overflow:auto, el
+   layout se rompe en algunos navegadores. Mejor sin sticky — el modal entero hace scroll
+   junto y queda bien. Si en el futuro queremos sticky, hay que repensar la jerarquía. */
 .modal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,4fr);gap:16px;align-items:start}
 .modal-grid > *{min-width:0}
-.modal-grid > #mPreview, .modal-grid > #mgPreview{position:sticky;top:78px;order:2}
+.modal-grid > #mPreview, .modal-grid > #mgPreview{order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
 @media(max-width:900px){
   .modal-grid{grid-template-columns:1fr}
-  .modal-grid > #mPreview, .modal-grid > #mgPreview{position:static;order:1}
+  .modal-grid > #mPreview, .modal-grid > #mgPreview{order:1}
   .modal-grid > #mFields, .modal-grid > #mgFields{order:2}
 }
 .m-alert{border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:11px;margin-bottom:16px}
@@ -223,22 +227,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    que se machacaba a sí mismo y descolocaba todo el modal. min-width:0 es CLAVE: en grid,
    sin esto el contenedor puede crecer indefinidamente y romperse fuera de su columna.
    max-width:100% por seguridad para que NUNCA se salga horizontalmente de la columna. */
-.pdf-zoom-wrap{position:relative;width:100%;max-width:100%;min-width:0;max-height:88vh;box-sizing:border-box;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:auto;margin-top:12px;scrollbar-width:thin;scrollbar-color:var(--mu) var(--s2)}
+/* v97f: añadido display:flex+flex-direction:column para que botones (sticky arriba) y
+   canvas se apilen correctamente sin solaparse. */
+.pdf-zoom-wrap{position:relative;width:100%;max-width:100%;min-width:0;max-height:88vh;box-sizing:border-box;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:auto;margin-top:12px;scrollbar-width:thin;scrollbar-color:var(--mu) var(--s2);display:flex;flex-direction:column}
 .pdf-zoom-wrap::-webkit-scrollbar{width:10px;height:10px}
 .pdf-zoom-wrap::-webkit-scrollbar-track{background:var(--s2)}
 .pdf-zoom-wrap::-webkit-scrollbar-thumb{background:var(--mu);border-radius:4px}
 /* El canvas se centra dentro del contenedor. max-width:none porque queremos que crezca
    con el zoom (si lo limitamos al 100% del padre, el zoom no podría hacerlo más grande). */
-.pdf-zoom-wrap canvas{display:block;margin:0 auto;max-width:none}
-/* Botones de zoom flotantes pegados arriba del albarán, siempre visibles al hacer scroll.
-   Usamos sticky para que se queden arriba. pointer-events:none en el wrapper y :auto en
-   los hijos: así el wrapper no bloquea clics fuera de los botones. */
-.pdf-zoom-controls{position:sticky;top:8px;display:flex;gap:6px;z-index:5;padding:0 8px;justify-content:flex-end;pointer-events:none;margin-bottom:-44px}
-.pdf-zoom-controls > *{pointer-events:auto}
-.pdf-zoom-btn{background:rgba(0,0,0,.75);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;height:36px;min-width:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s;font-family:var(--mn)}
-.pdf-zoom-btn:hover{background:rgba(0,0,0,.9)}
-.pdf-zoom-info{background:rgba(0,0,0,.6);color:#fff;padding:0 10px;height:36px;display:inline-flex;align-items:center;border-radius:6px;font-family:var(--mn);font-size:11px;backdrop-filter:blur(4px)}
-/* v97/v97b/v97c/v97d: imagen JPG/PNG con max-height 88vh (subido en v97d) */
+.pdf-zoom-wrap canvas{display:block;margin:0 auto;max-width:none;flex-shrink:0}
+/* v97f: barra de botones de zoom — ahora es una banda fija arriba dentro del contenedor,
+   visible siempre. Antes era "sticky con margin-bottom:-44px" que daba problemas. Ahora
+   es un bloque normal flex que se queda pegado arriba al hacer scroll. */
+.pdf-zoom-controls{position:sticky;top:0;display:flex;gap:6px;z-index:5;padding:8px;justify-content:flex-end;background:linear-gradient(to bottom,rgba(0,0,0,.7),rgba(0,0,0,0));backdrop-filter:blur(4px);flex-shrink:0;align-items:center}
+.pdf-zoom-btn{background:rgba(0,0,0,.85);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;height:36px;min-width:42px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:14px;font-weight:600;transition:background .15s;font-family:var(--mn)}
+.pdf-zoom-btn:hover{background:rgba(0,0,0,1);border-color:var(--ac)}
+.pdf-zoom-info{background:rgba(0,0,0,.85);color:var(--ac);padding:0 12px;height:36px;display:inline-flex;align-items:center;border-radius:6px;font-family:var(--mn);font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.2)}
+/* v97/v97b/v97c/v97d: imagen JPG/PNG con max-height 88vh */
 .img-preview{max-width:100%;max-height:88vh;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
 .preview-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:rgba(123,143,240,.1);color:var(--in);border:1px solid rgba(123,143,240,.2);font-family:var(--mn);font-size:10px;cursor:pointer;text-decoration:none;margin-top:8px}
 
