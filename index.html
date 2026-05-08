@@ -356,7 +356,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="fil-group"><label class="fil-label">Material</label><input class="fil-sel" id="fMat2" list="dlMat2" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlMat2"></datalist></div>
             <div class="fil-group"><label class="fil-label">Subido por</label><input class="fil-sel" id="fSubidoPor" list="dlSubidoPor" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlSubidoPor"></datalist></div>
             <div class="fil-group"><label class="fil-label">Subido el</label><input class="fil-inp" type="date" id="fSubidoEl" oninput="applyFilters()" title="Filtra por la fecha en que se subió a la app (no la fecha del albarán)"></div>
-            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option></select></div>
+            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
           </div>
@@ -2101,7 +2101,7 @@ function qualityScore(r) { return ['albaran','fecha','tractora','tm','proveedor'
 // B) albarán + fecha + mismo TM ±0.05 (mismo albarán y peso = casi seguro duplicado)
 // C) albarán + TM ±0.05 (mismo albarán y peso aunque la fecha esté mal leída)
 function analyzeRecords() {
-  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; });
+  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; });
   const seenA = {}, seenB = {}, seenC = {};
 
   records.forEach((r, idx) => {
@@ -2150,15 +2150,26 @@ function analyzeRecords() {
     if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok') {
       r._quality = 'warn';
     }
+    // v91: detectar matrículas desconocidas (rellenas pero no en TRANSPORTISTAS oficiales
+    // ni en MATRICULAS_APRENDIDAS). Esto enciende un banner separado y un aviso en el modal
+    // para que el admin pueda asignar manualmente el transportista (y aprender la matrícula).
+    if (r.tractora && !getTransportista(r.tractora)) {
+      r._matDesconocida = true;
+    }
   });
 }
 
 function renderAlerts() {
   const dups = records.filter(r => r._dup), warns = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
+  const matDes = records.filter(r => !r._dup && r._matDesconocida);
   const pendientes = records.filter(r => r.procesado === false);
   let html = '';
   if (pendientes.length) html += `<div class="alert-banner alert-pending"><div class="alert-txt">📥 <strong>${pendientes.length} albarán(es) pendiente(s) de procesar</strong> — subido(s) por conductor(es).</div><div style="display:flex;gap:6px;align-items:center"><button class="btn bp" style="font-size:10px;padding:5px 11px" onclick="procesarPendientes('alb')">⚡ Procesar con IA</button><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="descartarPendientes('alb')" title="Borra los pendientes de la base de datos. Útil si llevan tiempo bloqueados sin procesar.">🗑 Descartar</button></div></div>`;
   if (dups.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">⛔ <strong>${dups.length} duplicado(s)</strong> — no se contabilizan.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('dup')">Ver</button></div></div>`;
+  // v91: banner específico para matrículas desconocidas. Llama la atención del admin para
+  // que asigne manualmente el transportista; al guardar se aprende la matrícula y futuros
+  // albaranes con esa misma matrícula se reconocerán solos.
+  if (matDes.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🚛 <strong>${matDes.length} albarán(es) con matrícula desconocida</strong> — revisar transportista.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('matdes')">Ver</button></div></div>`;
   if (warns.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠ <strong>${warns.length} a revisar</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver</button></div></div>`;
   document.getElementById('alertsBox').innerHTML = html;
 }
@@ -2305,6 +2316,10 @@ function applyFilters() {
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
     if (estado === 'warn' && (r._dup || (r._quality !== 'warn' && r._quality !== 'ilegible'))) return false;
+    // v91: filtro para ver solo los albaranes con matrícula desconocida (rellena pero
+    // no en TRANSPORTISTAS oficiales ni aprendidas). Pensado para que el admin revise y
+    // asigne transportista manual desde el modal.
+    if (estado === 'matdes' && (r._dup || !r._matDesconocida)) return false;
     // v74: filtro por nº de albarán acepta múltiples valores separados por coma/espacio/punto-y-coma
     if (fAlb) {
       const partes = fAlb.split(/[,;\s]+/).filter(Boolean);
@@ -2503,6 +2518,26 @@ function openModal(id) {
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
   else if (r._quality === 'warn') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong></div>`;
+  // v91: aviso especial cuando la matrícula es desconocida. Muestra dropdown con los 13
+  // transportistas oficiales para que el admin asigne manualmente. Al cambiar, actualiza
+  // el input "Transportista" del formulario. El checkbox "Aprender" controla si al
+  // guardar se memoriza la matrícula en BD para que la próxima vez se reconozca sola.
+  if (!r._dup && r._matDesconocida) {
+    const matrShow = r.tractora ? esc(r.tractora) : '(vacía)';
+    const transActual = r.transportista || '';
+    const opts = ['<option value="">— Selecciona transportista —</option>']
+      .concat(TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${t === transActual ? ' selected' : ''}>${esc(t)}</option>`))
+      .join('');
+    alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
+      <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
+      <div style="font-size:11px;color:var(--mu);margin-bottom:8px">No está en la flota oficial ni en las aprendidas. Asigna el transportista para que la próxima vez se reconozca sola.</div>
+      <select id="mAsignarTransportista" onchange="document.getElementById('mf_transportista').value=this.value" style="width:100%;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font-size:13px;margin-bottom:6px">${opts}</select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer">
+        <input type="checkbox" id="mAprenderMat" checked style="cursor:pointer">
+        Aprender esta matrícula para futuros albaranes
+      </label>
+    </div>`;
+  }
   // v76: aviso si el albarán está marcado como editado manualmente — protegido contra reanálisis
   if (r._manual) alertHtml += `<div class="m-alert" style="background:rgba(0,232,122,.08);border:1px solid rgba(0,232,122,.3);color:var(--ac)">✏️ <strong>Editado manualmente.</strong> Protegido — Re-corregir TODO no afectará a este albarán.</div>`;
   // Info de quién subió el albarán (visible para admin/gestor)
@@ -2583,6 +2618,15 @@ async function saveModal() {
   // incluso si recargas la página o cierras la sesión.
   r._manual = true;
 
+  // v91: si el admin asignó manualmente un transportista a una matrícula desconocida y
+  // dejó marcado el checkbox "Aprender", capturamos los valores AHORA (antes de cerrar el
+  // modal o recargar) para llamar a aprenderMatricula tras guardar con éxito.
+  let aprenderTras = null;
+  const cbAprender = document.getElementById('mAprenderMat');
+  if (cbAprender && cbAprender.checked && r.tractora && r.transportista && !getTransportista(r.tractora)) {
+    aprenderTras = { matricula: r.tractora, transportista: r.transportista };
+  }
+
   console.log('[saveModal] Cambios:', cambios);
   console.log('[saveModal] Datos a guardar:', r);
 
@@ -2593,6 +2637,12 @@ async function saveModal() {
   try {
     // 1) Guardar en BD y esperar confirmación
     await saveRecord(r);
+
+    // v91: aprender la matrícula nueva en Supabase. No bloqueamos el flujo si falla.
+    if (aprenderTras) {
+      const nombreUsuario = userMap[currentUser?.id]?.name || currentUser?.email || 'admin';
+      aprenderMatricula(aprenderTras.matricula, aprenderTras.transportista, nombreUsuario);
+    }
 
     // 2) Recordar el ID que estamos editando para volver a marcar _manual tras la recarga
     const editedId = r.db_id;
