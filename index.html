@@ -189,8 +189,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .modal-bd{padding:20px 24px}
 .modal-ft{padding:16px 24px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--sf)}
 /* v73: rejilla del modal - 2 columnas en PC (campos | imagen), 1 columna en móvil */
-/* v97: protagonismo total al albarán. 25% campos / 75% imagen — espacio máximo para el escaneo */
-.modal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr);gap:24px;align-items:start}
+/* v97d: 20% campos / 80% imagen + gap más estrecho (16px en vez de 24px) — el albarán
+   se desplaza a la derecha ocupando MÁS espacio. Antes (v97): 25/75 con gap 24px. */
+.modal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,4fr);gap:16px;align-items:start}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{position:sticky;top:78px;order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
 @media(max-width:900px){
@@ -215,15 +216,21 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    altas se quedaran pequeñas con bordes negros laterales. Ahora ocupa todo el ancho disponible
    y crece en proporción. Además es contenedora de un canvas con zoom (ver .pdf-zoom-wrap). */
 .pdf-preview{display:block;width:100%;border-radius:8px;border:1px solid var(--bd);background:var(--s2)}
-/* v97: contenedor con zoom + pan (arrastrar). Usa overflow:hidden para que al hacer zoom
-   solo se vea la parte visible. El canvas dentro tiene transform:scale + translate aplicado
-   por JavaScript en el handler de zoom/pan.
-   v97c: max-height 82vh — un pelín más grande que v97b (75vh). Sigue cabiendo entero pero
-   aprovecha más espacio vertical. */
-.pdf-zoom-wrap{position:relative;width:100%;max-height:82vh;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:hidden;margin-top:16px;cursor:zoom-in;user-select:none;touch-action:none;display:flex;align-items:flex-start;justify-content:center}
-.pdf-zoom-wrap.zoomed{cursor:grab}
-.pdf-zoom-wrap.zoomed.grabbing{cursor:grabbing}
-.pdf-zoom-wrap canvas{display:block;max-width:100%;max-height:82vh;width:auto;height:auto;transform-origin:0 0;transition:transform .05s linear}
+/* v97d: nuevo sistema de zoom — más simple y FIABLE que el de v97c (que no funcionaba en
+   producción por problemas con transforms CSS). Ahora el contenedor tiene scroll y los
+   botones cambian directamente el tamaño del canvas (re-renderizando el PDF a más resolución).
+   El usuario hace scroll dentro del contenedor para moverse por el albarán cuando esté ampliado. */
+.pdf-zoom-wrap{position:relative;width:100%;max-height:88vh;border-radius:8px;border:1px solid var(--bd);background:var(--s2);overflow:auto;margin-top:12px;scrollbar-width:thin;scrollbar-color:var(--mu) var(--s2)}
+.pdf-zoom-wrap::-webkit-scrollbar{width:10px;height:10px}
+.pdf-zoom-wrap::-webkit-scrollbar-track{background:var(--s2)}
+.pdf-zoom-wrap::-webkit-scrollbar-thumb{background:var(--mu);border-radius:4px}
+.pdf-zoom-wrap canvas{display:block;margin:0 auto}
+/* Botones de zoom flotantes encima del albarán, siempre visibles */
+.pdf-zoom-controls{position:sticky;top:8px;display:flex;gap:6px;z-index:5;padding:0 8px;justify-content:flex-end;pointer-events:none}
+.pdf-zoom-controls > *{pointer-events:auto}
+.pdf-zoom-btn{background:rgba(0,0,0,.75);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;height:36px;min-width:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s;font-family:var(--mn)}
+.pdf-zoom-btn:hover{background:rgba(0,0,0,.9)}
+.pdf-zoom-info{background:rgba(0,0,0,.6);color:#fff;padding:0 10px;height:36px;display:inline-flex;align-items:center;border-radius:6px;font-family:var(--mn);font-size:11px;backdrop-filter:blur(4px)}
 .pdf-zoom-controls{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:5}
 .pdf-zoom-btn{background:rgba(0,0,0,.6);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:6px;width:32px;height:32px;display:grid;place-items:center;cursor:pointer;font-size:14px;font-weight:600;backdrop-filter:blur(4px);transition:background .15s}
 .pdf-zoom-btn:hover{background:rgba(0,0,0,.85)}
@@ -2525,147 +2532,73 @@ function hasValidUrl(u) {
 // v72: renderiza inline la página específica de un PDF dentro del modal,
 // para que el usuario vea la imagen del albarán SIN tener que pinchar en
 // "Ver documento original". Usa pdf.js (ya cargado en la app para dividir PDFs).
-// v97: Sistema de zoom + pan para previsualización de albaranes/tickets en el modal.
-// Permite acercarse a zonas concretas del PDF (matrícula pequeña, observaciones, etc.)
-// usando rueda del ratón + arrastrar. Inspirado en cómo funciona Google Maps.
+// v97d: Sistema de zoom nuevo — re-renderiza el PDF a mayor escala cuando el usuario
+// pulsa los botones. Más simple y fiable que el de v97c (que usaba transforms CSS y no
+// funcionaba en producción).
 //
-// El estado del zoom/pan se guarda en el dataset del contenedor (no en variables globales)
-// para soportar varios contenedores simultáneos sin que se pisen (modal albaranes + gasoil).
+// Estado del zoom: guardamos el factor actual en window._zoomState[wrapId]. Por defecto
+// el PDF se renderiza a `baseScale` (calculado para que entre en el contenedor); al
+// hacer zoom multiplicamos por el factor.
 //
-// API expuesta:
-//   setupZoomPan(wrapId)  → inicializa los listeners (rueda, arrastrar, dblclick)
-//   zoomBtn(wrapId, dir)  → +/−1 para los botones
-//   zoomReset(wrapId)     → vuelve a 100%
-//   zoomToggle(wrapId,ev) → 100%↔200% en el punto donde está el cursor (doble clic)
-function _zoomState(wrap) {
-  // Lee/inicializa el estado desde el dataset del contenedor
-  return {
-    scale: parseFloat(wrap.dataset.scale || '1'),
-    tx: parseFloat(wrap.dataset.tx || '0'),
-    ty: parseFloat(wrap.dataset.ty || '0')
-  };
-}
-function _zoomApply(wrap, st) {
-  // Limita scale entre 1 y 6 (no se puede alejar más allá del tamaño normal, ni acercarse
-  // más de 6x porque la imagen empieza a verse pixelada)
-  st.scale = Math.max(1, Math.min(6, st.scale));
-  // Cuando scale=1, no permitimos pan (la imagen ya cabe entera)
-  if (st.scale <= 1.001) { st.tx = 0; st.ty = 0; }
-  else {
-    // Limita el pan para que la imagen no se salga del contenedor
-    const w = wrap.clientWidth, h = wrap.clientHeight;
-    const maxX = w * (st.scale - 1), maxY = h * (st.scale - 1);
-    st.tx = Math.max(-maxX, Math.min(0, st.tx));
-    st.ty = Math.max(-maxY, Math.min(0, st.ty));
+// Datos guardados en el contenedor (dataset) para poder re-renderizar:
+//   data-pdf-url     URL del PDF
+//   data-pdf-page    Página del PDF
+//   data-canvas-id   ID del canvas hijo
+//   data-base-scale  Escala base con la que se renderizó la primera vez
+//   data-zoom        Factor de zoom actual (1.0 = base, 2.0 = doble, etc.)
+window._zoomState = window._zoomState || {};
+
+async function _renderPdfAtScale(wrapId, scale) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const url = wrap.dataset.pdfUrl;
+  const pageNum = parseInt(wrap.dataset.pdfPage || '1');
+  const canvasId = wrap.dataset.canvasId;
+  if (!url || !canvasId || typeof pdfjsLib === 'undefined') return;
+  try {
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    let pn = pageNum > 0 ? pageNum : 1;
+    if (pn > pdf.numPages) pn = 1;
+    const page = await pdf.getPage(pn);
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const viewport = page.getViewport({ scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  } catch (e) {
+    console.warn('[v97d] Error re-renderizando PDF a escala', scale, e);
   }
-  // Persistir y aplicar
-  wrap.dataset.scale = st.scale; wrap.dataset.tx = st.tx; wrap.dataset.ty = st.ty;
-  const canvas = wrap.querySelector('canvas');
-  if (canvas) canvas.style.transform = `translate(${st.tx}px, ${st.ty}px) scale(${st.scale})`;
-  wrap.classList.toggle('zoomed', st.scale > 1.001);
+}
+
+function zoomBtn(wrapId, dir) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const baseScale = parseFloat(wrap.dataset.baseScale || '1');
+  let zoom = parseFloat(wrap.dataset.zoom || '1');
+  // Cada pulsación cambia el zoom 25% arriba o abajo. Límites: 1x base, 4x base.
+  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(1, zoom / 1.3);
+  wrap.dataset.zoom = zoom;
   // Actualizar el indicador de %
   const info = wrap.querySelector('.pdf-zoom-info');
-  if (info) info.textContent = Math.round(st.scale * 100) + '%';
+  if (info) info.textContent = Math.round(zoom * 100) + '%';
+  // Re-renderizar a la nueva escala
+  _renderPdfAtScale(wrapId, baseScale * zoom);
 }
-function setupZoomPan(wrapId) {
-  const wrap = document.getElementById(wrapId);
-  if (!wrap || wrap.dataset.zoomReady === '1') return;
-  wrap.dataset.zoomReady = '1';
-  // Rueda del ratón = zoom in/out alrededor del punto del cursor
-  wrap.addEventListener('wheel', (ev) => {
-    ev.preventDefault();
-    const st = _zoomState(wrap);
-    const rect = wrap.getBoundingClientRect();
-    // Punto del cursor en coordenadas internas (sin transform)
-    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
-    // Posición real dentro de la imagen (descontando translate y dividiendo por scale)
-    const imgX = (px - st.tx) / st.scale, imgY = (py - st.ty) / st.scale;
-    // Cambiar scale (deltaY positivo = rueda hacia abajo = alejar; deltaY negativo = acercar)
-    const factor = ev.deltaY < 0 ? 1.2 : 1 / 1.2;
-    st.scale *= factor;
-    // Recolocar tx/ty para que el punto bajo el cursor siga siendo el mismo
-    st.tx = px - imgX * st.scale;
-    st.ty = py - imgY * st.scale;
-    _zoomApply(wrap, st);
-  }, { passive: false });
-  // Arrastrar con clic mantenido = pan (solo si está zoomed)
-  let dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
-  wrap.addEventListener('mousedown', (ev) => {
-    const st = _zoomState(wrap);
-    if (st.scale <= 1.001) return; // no permitir pan al 100%
-    dragging = true;
-    startX = ev.clientX; startY = ev.clientY;
-    startTx = st.tx; startTy = st.ty;
-    wrap.classList.add('grabbing');
-    ev.preventDefault();
-  });
-  window.addEventListener('mousemove', (ev) => {
-    if (!dragging) return;
-    const st = _zoomState(wrap);
-    st.tx = startTx + (ev.clientX - startX);
-    st.ty = startTy + (ev.clientY - startY);
-    _zoomApply(wrap, st);
-  });
-  window.addEventListener('mouseup', () => {
-    if (dragging) { dragging = false; wrap.classList.remove('grabbing'); }
-  });
-  // Soporte táctil básico (1 dedo arrastrar para pan, pellizco para zoom)
-  let touchStart = null;
-  wrap.addEventListener('touchstart', (ev) => {
-    const st = _zoomState(wrap);
-    if (ev.touches.length === 1 && st.scale > 1.001) {
-      touchStart = { type: 'pan', x: ev.touches[0].clientX, y: ev.touches[0].clientY, tx: st.tx, ty: st.ty };
-    } else if (ev.touches.length === 2) {
-      const dx = ev.touches[0].clientX - ev.touches[1].clientX;
-      const dy = ev.touches[0].clientY - ev.touches[1].clientY;
-      touchStart = { type: 'pinch', dist: Math.sqrt(dx * dx + dy * dy), scale: st.scale };
-    }
-  }, { passive: true });
-  wrap.addEventListener('touchmove', (ev) => {
-    if (!touchStart) return;
-    const st = _zoomState(wrap);
-    if (touchStart.type === 'pan' && ev.touches.length === 1) {
-      ev.preventDefault();
-      st.tx = touchStart.tx + (ev.touches[0].clientX - touchStart.x);
-      st.ty = touchStart.ty + (ev.touches[0].clientY - touchStart.y);
-      _zoomApply(wrap, st);
-    } else if (touchStart.type === 'pinch' && ev.touches.length === 2) {
-      ev.preventDefault();
-      const dx = ev.touches[0].clientX - ev.touches[1].clientX;
-      const dy = ev.touches[0].clientY - ev.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      st.scale = touchStart.scale * (dist / touchStart.dist);
-      _zoomApply(wrap, st);
-    }
-  }, { passive: false });
-  wrap.addEventListener('touchend', () => { touchStart = null; });
-}
-function zoomBtn(wrapId, dir) {
-  const wrap = document.getElementById(wrapId); if (!wrap) return;
-  const st = _zoomState(wrap);
-  // Hacer zoom hacia el centro del contenedor cuando el usuario usa los botones
-  const w = wrap.clientWidth, h = wrap.clientHeight, cx = w / 2, cy = h / 2;
-  const imgX = (cx - st.tx) / st.scale, imgY = (cy - st.ty) / st.scale;
-  st.scale *= (dir > 0 ? 1.4 : 1 / 1.4);
-  st.tx = cx - imgX * st.scale; st.ty = cy - imgY * st.scale;
-  _zoomApply(wrap, st);
-}
+
 function zoomReset(wrapId) {
-  const wrap = document.getElementById(wrapId); if (!wrap) return;
-  _zoomApply(wrap, { scale: 1, tx: 0, ty: 0 });
-}
-function zoomToggle(wrapId, ev) {
-  // Doble clic: si está al 100%, hacer zoom 3x al punto del clic; si ya está ampliado, restablecer.
-  // v97c: aumentado de 2.5x a 3x — para detalles pequeños como matrículas en albaranes Cemex
-  // los 2.5x se quedaban algo cortos. 3x da más nitidez sin pasarse.
-  const wrap = document.getElementById(wrapId); if (!wrap) return;
-  const st = _zoomState(wrap);
-  if (st.scale > 1.001) { _zoomApply(wrap, { scale: 1, tx: 0, ty: 0 }); return; }
-  const rect = wrap.getBoundingClientRect();
-  const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
-  const newScale = 3;
-  const imgX = px / st.scale, imgY = py / st.scale;
-  _zoomApply(wrap, { scale: newScale, tx: px - imgX * newScale, ty: py - imgY * newScale });
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.dataset.zoom = '1';
+  const info = wrap.querySelector('.pdf-zoom-info');
+  if (info) info.textContent = '100%';
+  const baseScale = parseFloat(wrap.dataset.baseScale || '1');
+  _renderPdfAtScale(wrapId, baseScale);
+  // Volver al inicio del scroll para que se vea el principio del albarán
+  wrap.scrollTop = 0; wrap.scrollLeft = 0;
 }
 
 async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
@@ -2681,25 +2614,42 @@ async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
     const page = await pdf.getPage(pn);
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
-    // v97: PDF más grande para que se distingan los detalles del albarán. targetWidth aumentado
-    // y dejamos que la altura del canvas crezca proporcionalmente (sin maxHeight) para no
-    // recortar nada. El zoom+pan del contenedor padre se encarga del resto.
+    // v97d: cálculo de baseScale más inteligente. Queremos que la imagen quepa en el
+    // contenedor visible (88vh de alto, ancho del modal) cuando zoom=1. Buscamos el
+    // contenedor padre con clase pdf-zoom-wrap para conocer sus dimensiones reales.
+    const wrap = canvas.closest('.pdf-zoom-wrap');
     const baseViewport = page.getViewport({ scale: 1 });
-    const targetWidth = 1400;
-    const scale = Math.min(3.0, targetWidth / baseViewport.width);
-    const viewport = page.getViewport({ scale });
+    let baseScale;
+    if (wrap) {
+      // Calculamos la escala que hace que la imagen quepa en el contenedor (lo que sea
+      // limitante: el ancho o el alto). Multiplicamos por 0.95 para dejar un pequeño margen.
+      const wrapW = wrap.clientWidth - 20;  // -20 por padding/scrollbar
+      const wrapH = window.innerHeight * 0.85;  // ~85vh disponible (88vh menos espacio botones)
+      const scaleW = wrapW / baseViewport.width;
+      const scaleH = wrapH / baseViewport.height;
+      baseScale = Math.min(scaleW, scaleH) * 0.98;
+      // Mínimo razonable: que no sea diminuto si el contenedor es muy estrecho
+      baseScale = Math.max(0.8, baseScale);
+      // Guardar la escala base para que el zoom pueda multiplicarla luego
+      wrap.dataset.baseScale = baseScale;
+      wrap.dataset.pdfUrl = url;
+      wrap.dataset.pdfPage = pn;
+      wrap.dataset.canvasId = canvasId;
+      wrap.dataset.zoom = '1';
+    } else {
+      baseScale = Math.min(2.0, 1400 / baseViewport.width);
+    }
+    const viewport = page.getViewport({ scale: baseScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    // Estilos: width 100% para que se adapte al contenedor; height auto para preservar
-    // proporción. Sin maxHeight (antes era 500px y limitaba la altura).
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
     const ctx = canvas.getContext('2d');
     await page.render({ canvasContext: ctx, viewport }).promise;
     const ld = document.getElementById(loadingId);
     if (ld) ld.style.display = 'none';
   } catch (e) {
-    console.warn('[v72] Error renderizando preview PDF:', e);
+    console.warn('[v97d] Error renderizando preview PDF:', e);
     const ld = document.getElementById(loadingId);
     if (ld) ld.textContent = '⚠️ No se pudo cargar la vista previa. Pincha "Ver documento original".';
   }
@@ -2848,22 +2798,23 @@ function openModal(id) {
       const pageMatch = r.file_url.match(/#page=(\d+)/);
       const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
       const cleanUrl = r.file_url.split('#')[0];
-      // v97: contenedor con zoom (rueda del ratón) + pan (arrastrar). Botones para zoom in/out
-      // y restablecer. Doble clic = zoom rápido. El canvas dentro será manipulado por
-      // setupZoomPan(). Mantengo el botón "Abrir documento original" abajo para tamaño completo.
+      // v97d: zoom simplificado. Botones flotantes encima del albarán; al pulsar +/-
+      // el PDF se RE-RENDERIZA a más resolución (no usa transforms CSS que daban
+      // problemas en v97c). Si el albarán crece más que el contenedor, aparece scroll
+      // automático y el usuario se mueve por la imagen con la rueda o arrastrando la barra.
       previewHtml = `
-        <div id="pdfZoomWrap" class="pdf-zoom-wrap" ondblclick="zoomToggle('pdfZoomWrap',event)">
-          <canvas id="pdfPreviewCanvas"></canvas>
+        <div id="pdfZoomWrap" class="pdf-zoom-wrap">
           <div class="pdf-zoom-controls">
-            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrap',-1)" title="Alejar (−)">−</button>
-            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrap',1)" title="Acercar (+)">+</button>
-            <button class="pdf-zoom-btn" onclick="zoomReset('pdfZoomWrap')" title="Restablecer">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrap',-1)" title="Reducir">🔍−</button>
+            <button class="pdf-zoom-btn" onclick="zoomReset('pdfZoomWrap')" title="Tamaño original">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrap',1)" title="Ampliar">🔍+</button>
+            <span class="pdf-zoom-info">100%</span>
           </div>
-          <div id="pdfZoomInfo" class="pdf-zoom-info">100%</div>
+          <canvas id="pdfPreviewCanvas"></canvas>
           <div id="pdfPreviewLoading" style="text-align:center;padding:40px;color:var(--mu);font-family:var(--mn);font-size:11px">📄 Cargando vista previa...</div>
         </div>
         <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 <strong style="color:var(--ac)">Doble clic</strong> = zoom · <strong style="color:var(--ac)">Rueda ratón</strong> = más zoom · <strong style="color:var(--ac)">Arrastra</strong> = mover</span>
+          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
           <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir documento original</a>
         </div>`;
     } else {
@@ -2876,10 +2827,10 @@ function openModal(id) {
     const pageMatch = r.file_url.match(/#page=(\d+)/);
     const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
     const cleanUrl = r.file_url.split('#')[0];
-    // v97: tras renderizar el canvas, activamos el zoom+pan en su contenedor.
+    // v97d: render simple — la propia función guarda los metadatos en el wrapper
+    // para que después los botones de zoom puedan re-renderizar.
     setTimeout(() => {
       renderPdfPagePreview(cleanUrl, pageNum, 'pdfPreviewCanvas', 'pdfPreviewLoading');
-      setupZoomPan('pdfZoomWrap');
     }, 50);
   }
   document.getElementById('mFields').innerHTML = FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
@@ -3079,18 +3030,18 @@ function openGasModal(id) {
       previewHtml = `<img src="${r.file_url}" class="img-preview">`;
     } else if (isPdf) {
       previewHtml = `
-        <div id="pdfZoomWrapGas" class="pdf-zoom-wrap" ondblclick="zoomToggle('pdfZoomWrapGas',event)">
-          <canvas id="pdfPreviewCanvasGas"></canvas>
+        <div id="pdfZoomWrapGas" class="pdf-zoom-wrap">
           <div class="pdf-zoom-controls">
-            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrapGas',-1)" title="Alejar (−)">−</button>
-            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrapGas',1)" title="Acercar (+)">+</button>
-            <button class="pdf-zoom-btn" onclick="zoomReset('pdfZoomWrapGas')" title="Restablecer">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrapGas',-1)" title="Reducir">🔍−</button>
+            <button class="pdf-zoom-btn" onclick="zoomReset('pdfZoomWrapGas')" title="Tamaño original">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomBtn('pdfZoomWrapGas',1)" title="Ampliar">🔍+</button>
+            <span class="pdf-zoom-info">100%</span>
           </div>
-          <div id="pdfZoomInfoGas" class="pdf-zoom-info">100%</div>
+          <canvas id="pdfPreviewCanvasGas"></canvas>
           <div id="pdfPreviewLoadingGas" style="text-align:center;padding:40px;color:var(--mu);font-family:var(--mn);font-size:11px">📄 Cargando vista previa...</div>
         </div>
-        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-          <span style="font-family:var(--mn);font-size:10px;color:var(--mu)">🔍 Rueda = zoom · Arrastra = mover · Doble clic = zoom rápido</span>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
           <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a>
         </div>`;
     } else {
@@ -3102,10 +3053,8 @@ function openGasModal(id) {
     const pageMatch = r.file_url.match(/#page=(\d+)/);
     const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
     const cleanUrl = r.file_url.split('#')[0];
-    // v97: tras renderizar el canvas, activamos el zoom+pan (igual que en modal albaranes)
     setTimeout(() => {
       renderPdfPagePreview(cleanUrl, pageNum, 'pdfPreviewCanvasGas', 'pdfPreviewLoadingGas');
-      setupZoomPan('pdfZoomWrapGas');
     }, 50);
   }
   document.getElementById('mgFields').innerHTML = GAS_FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mgf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
