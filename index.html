@@ -1905,7 +1905,11 @@ async function _processOne(it, type, key, timeoutMs) {
     return true;
   } catch (e) {
     it.status = 'error';
-    it.b64 = null;
+    // v93b: NO borramos it.b64 aquí. Si lo borramos y processQueue reintenta este archivo
+    // (al haber quedado en 'error'), el reintento mandaría data:null a la API y obtendría
+    // un 400 "Input should be a valid string". Mantener b64 para que los reintentos puedan
+    // mandar los datos reales. La memoria se libera cuando processQueue saca el item del
+    // array pending al final del flujo (status='error' tras agotar reintentos).
     toast('Error en ' + it.name + ': ' + e.message, 'err');
     console.error('Error en', it.name, e);
     renderQueues();
@@ -1948,6 +1952,13 @@ const MATRICULAS_VALIDAS = [
 // CLAUDE PROMPTS
 // ============================================================
 async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
+  // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
+  // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
+  // a valid string". Esto pasa típicamente si en algún reintento se perdió el b64 (bug
+  // que arreglamos en v93b) o si la conversión PDF→JPG falló silenciosamente.
+  if (!b64 || typeof b64 !== 'string' || b64.length < 100) {
+    throw new Error('Imagen vacía o corrupta — vuelve a subir el archivo (b64 inválido)');
+  }
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
 ${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.':'Devuelve un objeto JSON (no array).'}
