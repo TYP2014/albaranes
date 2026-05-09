@@ -900,10 +900,15 @@ async function loadData() {
   analyzeRecords();
   applyFilters();
   applyGasFilters();
-  updateStats();
-  renderAlerts();
-  document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length;
-  document.getElementById('tabGasCount').textContent = gasoilRecords.length;
+  // v100b: cada función envuelta en su propio try/catch. Si una falla (error silencioso de
+  // antes que dejaba la pantalla con los recuadros vacíos), las demás siguen funcionando
+  // y vemos el error claro en consola.
+  try { updateStats(); } catch (e) { console.error('[loadData] updateStats() falló:', e); }
+  try { renderAlerts(); } catch (e) { console.error('[loadData] renderAlerts() falló:', e); }
+  try {
+    document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length;
+    document.getElementById('tabGasCount').textContent = gasoilRecords.length;
+  } catch (e) { console.error('[loadData] contadores pestañas fallaron:', e); }
 }
 
 async function saveRecord(data) {
@@ -2812,23 +2817,34 @@ function renderGasTable() {
 }
 
 function updateStats() {
-  // Excluir pendientes (procesado=false) de las estadísticas — aparecen en su propio banner
-  const procesados = records.filter(r => r.procesado !== false);
-  const valid = procesados.filter(r => !r._dup), dups = procesados.filter(r => r._dup);
-  const warns = procesados.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
-  const tm = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
-  const now = new Date();
-  const mes = valid.filter(r => { const d = parseDate(r.fecha || ''); if (!d) return false; const dd = new Date(d); return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear(); }).length;
-  const vehs = new Set(valid.map(r => r.tractora).filter(Boolean)).size;
-  const M = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  document.getElementById('statsBox').innerHTML = `
-    <div class="stat"><div class="stat-l">Albaranes válidos</div><div class="stat-v">${valid.length}</div><div class="stat-s">contabilizados</div></div>
-    <div class="stat"><div class="stat-l">TN Netas válidas</div><div class="stat-v">${tm.toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3})}</div><div class="stat-s">sin duplicados</div></div>
-    <div class="stat"><div class="stat-l">Este mes</div><div class="stat-v">${mes}</div><div class="stat-s">${M[now.getMonth()]} ${now.getFullYear()}</div></div>
-    <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
-    <div class="stat" style="--c:var(--er)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--er)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
-    <div class="stat" style="--c:var(--wn)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wn)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
-  document.getElementById('hdrInfo').textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
+  try {
+    // Excluir pendientes (procesado=false) de las estadísticas — aparecen en su propio banner
+    const procesados = records.filter(r => r.procesado !== false);
+    const valid = procesados.filter(r => !r._dup), dups = procesados.filter(r => r._dup);
+    const warns = procesados.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
+    const tm = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
+    const now = new Date();
+    const mes = valid.filter(r => { const d = parseDate(r.fecha || ''); if (!d) return false; const dd = new Date(d); return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear(); }).length;
+    const vehs = new Set(valid.map(r => r.tractora).filter(Boolean)).size;
+    const M = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const box = document.getElementById('statsBox');
+    if (!box) { console.error('[updateStats] No se encontró #statsBox en el DOM'); return; }
+    box.innerHTML = `
+      <div class="stat"><div class="stat-l">Albaranes válidos</div><div class="stat-v">${valid.length}</div><div class="stat-s">contabilizados</div></div>
+      <div class="stat"><div class="stat-l">TN Netas válidas</div><div class="stat-v">${tm.toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3})}</div><div class="stat-s">sin duplicados</div></div>
+      <div class="stat"><div class="stat-l">Este mes</div><div class="stat-v">${mes}</div><div class="stat-s">${M[now.getMonth()]} ${now.getFullYear()}</div></div>
+      <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
+      <div class="stat" style="--c:var(--er)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--er)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
+      <div class="stat" style="--c:var(--wn)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wn)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
+    const hdrInfo = document.getElementById('hdrInfo');
+    if (hdrInfo) hdrInfo.textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
+    console.log(`[updateStats] OK: ${valid.length} válidos, ${tm.toFixed(1)} TN, ${dups.length} dups, ${warns.length} revisar`);
+  } catch (e) {
+    // v100b: si algún cálculo falla, mostrar mensaje claro en pantalla en lugar de dejar vacío
+    console.error('[updateStats] Error:', e);
+    const box = document.getElementById('statsBox');
+    if (box) box.innerHTML = `<div class="stat" style="grid-column:1/-1"><div class="stat-l">⚠️ Error calculando estadísticas</div><div class="stat-v" style="font-size:14px;color:var(--er)">${e.message}</div><div class="stat-s">Abrir F12 (consola) y enviar captura</div></div>`;
+  }
 }
 
 // ============================================================
@@ -3133,6 +3149,19 @@ async function deleteRecord() {
     toast('✓ Eliminado');
   } catch (e) {
     console.error('[deleteRecord] Error:', e);
+    // v100b: tolerancia a errores. A veces Supabase devuelve error en el delete pero la
+    // operación SÍ se completó (típico con RLS). Recargamos y verificamos si el registro
+    // sigue existiendo. Si NO existe, fue un éxito a pesar del error → silenciamos el aviso.
+    try {
+      await loadData();
+      const stillExists = records.some(x => String(x.db_id) === String(r.db_id));
+      if (!stillExists) {
+        // El registro ya no está → el borrado funcionó realmente. Ignorar el error.
+        closeModal();
+        toast('✓ Eliminado');
+        return;
+      }
+    } catch (e2) { /* ignorar fallo en la verificación */ }
     toast('Error eliminando: ' + (e.message || e), 'err');
     if (btn) { btn.disabled = false; btn.textContent = 'Eliminar'; }
   }
