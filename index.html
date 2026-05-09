@@ -396,13 +396,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="filters" id="filtersAlb">
             <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="fDesde" oninput="applyFilters()"></div>
             <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="fHasta" oninput="applyFilters()"></div>
-            <div class="fil-group"><label class="fil-label">Proveedor</label><input class="fil-sel" id="fProv" list="dlProv" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlProv"></datalist></div>
-            <div class="fil-group"><label class="fil-label">Origen</label><input class="fil-sel" id="fOrigen" list="dlOrigen" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlOrigen"></datalist></div>
-            <div class="fil-group"><label class="fil-label">Destino</label><input class="fil-sel" id="fDestino" list="dlDestino" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlDestino"></datalist></div>
+            <!-- v100: filtros multi-select para poder elegir varios valores a la vez (ej. yeso + arcilla) -->
+            <div class="fil-group"><label class="fil-label">Proveedor</label><details class="fil-multi" id="fProvBox"><summary id="fProvSum">Todos</summary><div class="fil-multi-list" id="fProvList"></div></details></div>
+            <div class="fil-group"><label class="fil-label">Origen</label><details class="fil-multi" id="fOrigenBox"><summary id="fOrigenSum">Todos</summary><div class="fil-multi-list" id="fOrigenList"></div></details></div>
+            <div class="fil-group"><label class="fil-label">Destino</label><details class="fil-multi" id="fDestinoBox"><summary id="fDestinoSum">Todos</summary><div class="fil-multi-list" id="fDestinoList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Matrícula</label><details class="fil-multi" id="fMatBox"><summary id="fMatSum">Todas</summary><div class="fil-multi-list" id="fMatList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Transportista</label><details class="fil-multi" id="fTransBox"><summary id="fTransSum">Todos</summary><div class="fil-multi-list" id="fTransList"></div></details></div>
-            <div class="fil-group"><label class="fil-label">Material</label><input class="fil-sel" id="fMat2" list="dlMat2" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlMat2"></datalist></div>
-            <div class="fil-group"><label class="fil-label">Subido por</label><input class="fil-sel" id="fSubidoPor" list="dlSubidoPor" oninput="applyFilters()" placeholder="Todos" autocomplete="off"><datalist id="dlSubidoPor"></datalist></div>
+            <div class="fil-group"><label class="fil-label">Material</label><details class="fil-multi" id="fMatMatBox"><summary id="fMatMatSum">Todos</summary><div class="fil-multi-list" id="fMatMatList"></div></details></div>
+            <div class="fil-group"><label class="fil-label">Subido por</label><details class="fil-multi" id="fSubidoPorBox"><summary id="fSubidoPorSum">Todos</summary><div class="fil-multi-list" id="fSubidoPorList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido el</label><input class="fil-inp" type="date" id="fSubidoEl" oninput="applyFilters()" title="Filtra por la fecha en que se subió a la app (no la fecha del albarán)"></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
@@ -681,6 +682,24 @@ let anthropicKey = '';
 // Filtros multi-selección: guardan las matrículas/transportistas marcados con checkbox
 let selectedMatriculas = new Set();
 let selectedTransportistas = new Set();
+// v100: nuevos multi-select (Origen, Destino, Proveedor, Material, Subido por)
+// Permite filtrar por varios valores a la vez en cada uno de estos campos.
+let selectedProveedores = new Set();
+let selectedOrigenes = new Set();
+let selectedDestinos = new Set();
+let selectedMateriales = new Set();
+let selectedSubidoPor = new Set();
+// Mapa centralizado de listId → set, para que las funciones msToggle/msSelectAll
+// funcionen con CUALQUIER multi-select sin tener que hacer if/else infinitos.
+const _msSets = {
+  fMatList: () => selectedMatriculas,
+  fTransList: () => selectedTransportistas,
+  fProvList: () => selectedProveedores,
+  fOrigenList: () => selectedOrigenes,
+  fDestinoList: () => selectedDestinos,
+  fMatMatList: () => selectedMateriales,
+  fSubidoPorList: () => selectedSubidoPor
+};
 
 // ============================================================
 // AUTH
@@ -2340,25 +2359,25 @@ function renderAlerts() {
 
 function buildDropdowns() {
   const unique = k => [...new Set(records.filter(r => !r._dup).map(r => r[k]).filter(Boolean))].sort();
-  // v79: los antiguos <select> se han convertido en <input list="..."> + <datalist>.
-  // El input acepta cualquier texto y va sugiriendo según escribes (búsqueda predictiva).
-  // fillDL rellena el datalist; el VALOR del input se preserva (no se borra al recargar).
-  const fillDL = (dlId, vals) => {
-    const dl = document.getElementById(dlId);
-    if (!dl) return;
-    dl.innerHTML = vals.map(v => `<option value="${esc(v)}"></option>`).join('');
-  };
-  fillDL('dlProv', unique('proveedor'));
-  fillDL('dlOrigen', unique('planta'));
-  fillDL('dlDestino', unique('obra'));
-  fillDL('dlMat2', unique('producto'));
-  // v79: filtro "Subido por" — recopila los user_id que aparecen en los albaranes y los traduce a nombres
+  // v100: TODOS los filtros principales son ahora multi-select. Antes Proveedor/Origen/Destino/
+  // Material/Subido por eran inputs simples con datalist (1 solo valor); ahora son <details> con
+  // checkboxes (varios valores). Los datalists viejos (dlProv, dlOrigen, dlDestino, dlMat2,
+  // dlSubidoPor) ya no existen en el HTML.
+  // Multi-select de proveedores con todos los detectados en albaranes
+  buildMultiSelect('fProvList', 'fProvSum', unique('proveedor'), selectedProveedores, 'Todos', 'proveedores');
+  // Multi-select de orígenes
+  buildMultiSelect('fOrigenList', 'fOrigenSum', unique('planta'), selectedOrigenes, 'Todos', 'orígenes');
+  // Multi-select de destinos
+  buildMultiSelect('fDestinoList', 'fDestinoSum', unique('obra'), selectedDestinos, 'Todos', 'destinos');
+  // Multi-select de materiales — útil para "TN de yeso + arcilla" en una sola consulta
+  buildMultiSelect('fMatMatList', 'fMatMatSum', unique('producto'), selectedMateriales, 'Todos', 'materiales');
+  // Multi-select de "Subido por": recopila los user_id que aparecen en los albaranes y los traduce a nombres
   const userIdsConAlb = [...new Set(records.filter(r => !r._dup && r.user_id).map(r => r.user_id))];
   const nombresSubidoPor = userIdsConAlb
     .map(uid => (userMap[uid]?.name || null))
     .filter(Boolean)
     .sort();
-  fillDL('dlSubidoPor', [...new Set(nombresSubidoPor)]);
+  buildMultiSelect('fSubidoPorList', 'fSubidoPorSum', [...new Set(nombresSubidoPor)], selectedSubidoPor, 'Todos', 'usuarios');
   // Multi-select de transportistas: lista cerrada con los 13 oficiales (v83).
   // Antes mostraba todos los detectados en records.transportista (con duplicados raros y
   // variantes OCR). Ahora solo los oficiales del Excel, ordenados alfabéticamente.
@@ -2398,8 +2417,11 @@ function msUpdateSummary(sumId, selectedSet, allLabel, plural) {
 }
 
 // Toggle de un checkbox individual
+// v100: usa el mapa _msSets para soportar CUALQUIER multi-select, no solo matrículas/transportistas
 function msToggle(listId, sumId, plural, allLabel, value, checked) {
-  const set = listId === 'fMatList' ? selectedMatriculas : selectedTransportistas;
+  const setGetter = _msSets[listId];
+  if (!setGetter) return;
+  const set = setGetter();
   if (checked) set.add(value); else set.delete(value);
   msUpdateSummary(sumId, set, allLabel, plural);
   applyFilters();
@@ -2407,7 +2429,9 @@ function msToggle(listId, sumId, plural, allLabel, value, checked) {
 
 // Marcar/desmarcar todos
 function msSelectAll(listId, sumId, plural, allLabel, selectAll) {
-  const set = listId === 'fMatList' ? selectedMatriculas : selectedTransportistas;
+  const setGetter = _msSets[listId];
+  if (!setGetter) return;
+  const set = setGetter();
   set.clear();
   if (selectAll) {
     document.querySelectorAll(`#${listId} input[type=checkbox]`).forEach(cb => { set.add(cb.value); cb.checked = true; });
@@ -2420,12 +2444,8 @@ function msSelectAll(listId, sumId, plural, allLabel, selectAll) {
 
 function applyFilters() {
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
-  const prov = (document.getElementById('fProv')?.value || '').trim();
-  const origen = (document.getElementById('fOrigen')?.value || '').trim();
-  const dest = (document.getElementById('fDestino')?.value || '').trim();
-  // v90: filtro Matrícula es ahora multi-select. Usa selectedMatriculas (Set) en lugar de input.
-  const mat2 = (document.getElementById('fMat2')?.value || '').trim();
-  const subidoPor = (document.getElementById('fSubidoPor')?.value || '').trim();
+  // v100: Proveedor, Origen, Destino, Material y Subido por son ahora multi-select.
+  // Las variables `prov`, `origen`, etc. (inputs antiguos) ya no existen — usamos los Sets.
   const subidoEl = document.getElementById('fSubidoEl')?.value; // v83: fecha de subida (created_at)
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
@@ -2435,13 +2455,12 @@ function applyFilters() {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes
     .replace(/\s+/g, ' ').trim()                       // espacios múltiples → uno, sin extremos
     .toLowerCase();
-  const matchFlex = (campoVal, busqueda) => {
-    if (!busqueda) return true;
-    if (!campoVal) return false;
+  // v100: helper para multi-select. Si el set está vacío → no filtra (acepta todo).
+  // Si tiene 1 o más valores → el campo del registro debe coincidir con ALGUNO.
+  const matchMulti = (campoVal, set) => {
+    if (!set || set.size === 0) return true;
     const c = norm(campoVal);
-    const b = norm(busqueda);
-    if (!b) return true;
-    return c === b || c.includes(b);
+    return [...set].some(s => norm(s) === c);
   };
   filtered = records.filter(r => {
     // Excluir pendientes de procesar (aparecen en el banner separadamente, no en la tabla)
@@ -2453,9 +2472,10 @@ function applyFilters() {
     // 'T00:00:00' para que ambos lados se comparen en la misma zona horaria.
     if (desde && ts < new Date(desde + 'T00:00:00').getTime()) return false;
     if (hasta && ts > new Date(hasta + 'T00:00:00').getTime() + 86399999) return false;
-    if (!matchFlex(r.proveedor, prov)) return false;
-    if (!matchFlex(r.planta, origen)) return false;
-    if (!matchFlex(r.obra, dest)) return false;
+    // v100: Proveedor, Origen y Destino multi-select
+    if (!matchMulti(r.proveedor, selectedProveedores)) return false;
+    if (!matchMulti(r.planta, selectedOrigenes)) return false;
+    if (!matchMulti(r.obra, selectedDestinos)) return false;
     // v90: matrícula multi-select. Si hay matrículas seleccionadas, el albarán debe coincidir
     // con alguna de ellas. Comparación case-insensitive y sin espacios.
     // v91d: si el albarán tiene matrícula dual "XXXXLLL/XXXXLLL", se considera la primera parte
@@ -2471,11 +2491,13 @@ function applyFilters() {
       const haySel = [...selectedTransportistas].some(s => norm(s) === trNorm);
       if (!haySel) return false;
     }
-    if (!matchFlex(r.producto, mat2)) return false;
-    // v79: filtro "Subido por" — busca por nombre del usuario que subió el albarán
-    if (subidoPor) {
+    // v100: Material y Subido por también multi-select
+    if (!matchMulti(r.producto, selectedMateriales)) return false;
+    if (selectedSubidoPor.size > 0) {
       const nombreSub = userMap[r.user_id]?.name || '';
-      if (!matchFlex(nombreSub, subidoPor)) return false;
+      const subN = norm(nombreSub);
+      const haySelSub = [...selectedSubidoPor].some(s => norm(s) === subN);
+      if (!haySelSub) return false;
     }
     // v83: filtro "Subido el" — fecha en que se subió el albarán a la app (columna created_at).
     // Útil para revisar lo subido un día concreto. Compara solo la parte de fecha (YYYY-MM-DD).
@@ -2535,13 +2557,26 @@ function applyGasFilters() {
 }
 
 function resetFilters() { 
-  ['fDesde','fHasta','srchIn','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
-  ['fProv','fOrigen','fDestino','fMat2','fSubidoPor','fSubidoEl','fEstado','fAlbaran'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
-  selectedMatriculas.clear(); selectedTransportistas.clear();
-  // v90: actualizar summaries y desmarcar checkboxes visualmente
+  ['fDesde','fHasta','srchIn','fAlbaran','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  // v100: limpiar TODOS los multi-select. Antes solo Matrícula y Transportista; ahora también
+  // Proveedor, Origen, Destino, Material y Subido por.
+  selectedMatriculas.clear();
+  selectedTransportistas.clear();
+  selectedProveedores.clear();
+  selectedOrigenes.clear();
+  selectedDestinos.clear();
+  selectedMateriales.clear();
+  selectedSubidoPor.clear();
+  // Actualizar summaries de todos
   msUpdateSummary('fMatSum', selectedMatriculas, 'Todas', 'matrículas');
   msUpdateSummary('fTransSum', selectedTransportistas, 'Todos', 'transportistas');
-  document.querySelectorAll('#fMatList input[type=checkbox], #fTransList input[type=checkbox]').forEach(cb => cb.checked = false);
+  msUpdateSummary('fProvSum', selectedProveedores, 'Todos', 'proveedores');
+  msUpdateSummary('fOrigenSum', selectedOrigenes, 'Todos', 'orígenes');
+  msUpdateSummary('fDestinoSum', selectedDestinos, 'Todos', 'destinos');
+  msUpdateSummary('fMatMatSum', selectedMateriales, 'Todos', 'materiales');
+  msUpdateSummary('fSubidoPorSum', selectedSubidoPor, 'Todos', 'usuarios');
+  // Desmarcar todos los checkboxes visualmente
+  document.querySelectorAll('#fMatList input[type=checkbox], #fTransList input[type=checkbox], #fProvList input[type=checkbox], #fOrigenList input[type=checkbox], #fDestinoList input[type=checkbox], #fMatMatList input[type=checkbox], #fSubidoPorList input[type=checkbox]').forEach(cb => cb.checked = false);
   applyFilters(); 
 }
 function filterByStatus(st) { 
