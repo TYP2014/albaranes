@@ -200,10 +200,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    encima de los datos: cuando el contenedor sticky tiene un hijo con overflow:auto, el
    layout se rompe en algunos navegadores. Mejor sin sticky — el modal entero hace scroll
    junto y queda bien. Si en el futuro queremos sticky, hay que repensar la jerarquía. */
-/* v97d/g: 30% campos / 70% imagen — antes 20/80 era demasiado extremo y los inputs salían
-   muy apretados (ej: "Cemex España Operaciones, S.L.U." no cabía en el ancho). 30/70 da
-   espacio razonable para los datos sin sacrificar protagonismo del albarán. */
-.modal-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,7fr);gap:16px;align-items:start}
+/* v97h: 35% campos / 65% imagen — un pelín más para los datos, así textos largos como
+   "Cemex España Operaciones, S.L.U." se ven enteros sin cortar. */
+.modal-grid{display:grid;grid-template-columns:minmax(0,35fr) minmax(0,65fr);gap:16px;align-items:start}
 .modal-grid > *{min-width:0}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
@@ -250,8 +249,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .pdf-zoom-wrap canvas{display:block;margin:0 auto;max-width:none;flex-shrink:0}
 /* v97f: barra de botones de zoom — barra fija arriba dentro del contenedor.
    v97g: botones MUCHO más visibles. Fondo verde brillante con el color de marca,
-   en lugar del fondo oscuro semi-transparente que pasaba desapercibido. */
-.pdf-zoom-controls{position:sticky;top:0;display:flex;gap:8px;z-index:5;padding:10px;justify-content:center;background:linear-gradient(to bottom,rgba(0,0,0,.85),rgba(0,0,0,.5));backdrop-filter:blur(4px);flex-shrink:0;align-items:center;border-bottom:1px solid var(--ac)}
+   en lugar del fondo oscuro semi-transparente que pasaba desapercibido.
+   v97h: z-index aumentado a 10 + position absoluta de respaldo si sticky no agarra. */
+.pdf-zoom-controls{position:sticky;top:0;display:flex;gap:8px;z-index:10;padding:10px;justify-content:center;background:linear-gradient(to bottom,rgba(0,0,0,.92),rgba(0,0,0,.7));backdrop-filter:blur(6px);flex-shrink:0;align-items:center;border-bottom:2px solid var(--ac);width:100%;box-sizing:border-box}
 .pdf-zoom-btn{background:var(--ac);color:#000;border:2px solid var(--ac);border-radius:8px;height:42px;min-width:50px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:18px;font-weight:700;transition:all .15s;font-family:var(--mn);box-shadow:0 2px 8px rgba(0,232,122,.3)}
 .pdf-zoom-btn:hover{background:#fff;border-color:#fff;transform:scale(1.05);box-shadow:0 4px 12px rgba(0,232,122,.5)}
 .pdf-zoom-btn:active{transform:scale(0.95)}
@@ -2668,6 +2668,11 @@ async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
     await page.render({ canvasContext: ctx, viewport }).promise;
     const ld = document.getElementById(loadingId);
     if (ld) ld.style.display = 'none';
+    // v97h: forzar scroll al inicio del contenedor — así la barra de botones de zoom
+    // (sticky top:0) siempre es lo primero que se ve al abrir el modal. Sin esto, si
+    // el navegador recordaba un scroll previo, los botones quedaban arriba pero ocultos
+    // tras el área visible y el usuario no los encontraba.
+    if (wrap) { wrap.scrollTop = 0; wrap.scrollLeft = 0; }
   } catch (e) {
     console.warn('[v97d] Error renderizando preview PDF:', e);
     const ld = document.getElementById(loadingId);
