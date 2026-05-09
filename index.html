@@ -4166,7 +4166,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
   { canon: 'Papiol', alias: ['El Papiol'] },
-  { canon: 'Vallirana', alias: ['Adec/Vallirana'] },
+  { canon: 'Vallirana', alias: [] },
   { canon: 'Santa Margarida i els Monjos', alias: ['Santa Margarida'] },
   { canon: 'Begues', alias: [] },
   // v94: Cantera Begues (Cemex). Origen literal del campo "Expedido...." en albaranes Cemex.
@@ -4181,6 +4181,11 @@ const ORIGENES_CANONICOS = [
   { canon: 'Garraf/Promsa', alias: ['Promsa/Garraf'] },
   { canon: 'Foj/Vallirana', alias: [] },
   { canon: 'Cemex/Begues', alias: [] },
+  // v99c: Adec/Vallirana — origen para albaranes Holcim de RECEPCIÓN de "Árido siderúrgico blanco"
+  // (proveedor: ADEC GLOBAL, S.L.). Antes era alias de "Vallirana" pero se canonizaba mal:
+  // se convertía a "Vallirana" perdiendo la información del proveedor. Ahora es un canónico
+  // independiente para que se mantenga "Adec/Vallirana" tal cual y se pueda filtrar por él.
+  { canon: 'Adec/Vallirana', alias: ['ADEC/Vallirana', 'ADEC/VALLIRANA', 'Adec Global/Vallirana'] },
   // v99: orígenes para albaranes Eco Àrids y Aridcal (proveedores que entregan a Holcim Celra)
   { canon: 'Bàscara a Esponellà', alias: [
     'Bascara a Esponella', 'BÀSCARA A ESPONELLÀ', 'BASCARA A ESPONELLA',
@@ -4213,7 +4218,13 @@ const MATERIAL_A_ORIGEN = [
   { match: /ARCILLA\s+SIL[ÍI]C[II][CA]A?\s+PAPIOL/i, origen: 'Papiol' },
   { match: /CANTERA\s+MARTORELL/i, origen: 'Martorell' },
   // Yeso de Guixos Canals → Jorba (cantera en l'Anoia)
-  { match: /\bYESO\b|10004183/i, origen: 'Jorba' }
+  { match: /\bYESO\b|10004183/i, origen: 'Jorba' },
+  // v99c: Árido siderúrgico blanco (de ADEC GLOBAL, S.L.) → Adec/Vallirana
+  // Estos albaranes Holcim de recepción de árido siderúrgico siempre tienen mismo origen.
+  { match: /[ÁA]RIDO\s+SIDER[ÚU]RGICO/i, origen: 'Adec/Vallirana' },
+  // v99c: Árido reciclado (de Tecnocatalana de Runes, S.L.) → Tecnocatalana de Runes, S.L.
+  // Antes el origen lo dejaba caer en otra rama; ahora aseguramos que ponga el nombre completo.
+  { match: /[ÁA]RIDO\s+RECICLADO/i, origen: 'Tecnocatalana de Runes, S.L.' }
 ];
 
 // Si el producto identifica claramente la cantera de origen, devuélvela. Si no, null.
