@@ -2548,7 +2548,22 @@ function applyFilters() {
   const rc = document.getElementById('resCount');
   if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
-  const hasF = desde || hasta || prov || origen || dest || selectedMatriculas.size > 0 || selectedTransportistas.size > 0 || mat2 || subidoPor || subidoEl || estado || (document.getElementById('srchIn')?.value || '') || fAlb;
+  // v100c: detectar si hay algún filtro activo. Antes (v99c) usaba variables `prov`, `origen`,
+  // `dest`, `mat2`, `subidoPor` que YA NO EXISTEN porque las convertí a multi-select. Ese
+  // descuido causaba "ReferenceError: prov is not defined" que rompía toda la pantalla:
+  // applyFilters fallaba a mitad y por eso no se mostraban los recuadros grandes, no se
+  // actualizaban las pestañas y daba error al borrar/subir.
+  const hasF = desde || hasta
+    || selectedProveedores.size > 0
+    || selectedOrigenes.size > 0
+    || selectedDestinos.size > 0
+    || selectedMatriculas.size > 0
+    || selectedTransportistas.size > 0
+    || selectedMateriales.size > 0
+    || selectedSubidoPor.size > 0
+    || subidoEl || estado
+    || (document.getElementById('srchIn')?.value || '')
+    || fAlb;
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
