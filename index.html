@@ -2621,6 +2621,42 @@ function zoomReset(wrapId) {
   wrap.scrollTop = 0; wrap.scrollLeft = 0;
 }
 
+// v97i: zoom para imágenes (JPG/PNG). Más simple que el PDF — solo cambia el ancho del
+// <img> con CSS, sin necesidad de re-renderizar nada. El navegador hace el escalado solo.
+function zoomImgBtn(wrapId, dir) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const img = wrap.querySelector('img');
+  if (!img) return;
+  let zoom = parseFloat(wrap.dataset.imgZoom || '1');
+  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(0.5, zoom / 1.3);
+  wrap.dataset.imgZoom = zoom;
+  // Aplicar el zoom cambiando max-width y width del img
+  if (zoom <= 1) {
+    img.style.maxWidth = (zoom * 100) + '%';
+    img.style.width = 'auto';
+  } else {
+    // Cuando zoom > 1, ponemos el ancho fijo a un % > 100 del contenedor para que crezca
+    // y se active el scroll horizontal/vertical del wrapper
+    img.style.maxWidth = 'none';
+    img.style.width = (zoom * 100) + '%';
+  }
+  const info = wrap.querySelector('.pdf-zoom-info');
+  if (info) info.textContent = Math.round(zoom * 100) + '%';
+}
+function zoomImgReset(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const img = wrap.querySelector('img');
+  if (!img) return;
+  wrap.dataset.imgZoom = '1';
+  img.style.maxWidth = '100%';
+  img.style.width = 'auto';
+  const info = wrap.querySelector('.pdf-zoom-info');
+  if (info) info.textContent = '100%';
+  wrap.scrollTop = 0; wrap.scrollLeft = 0;
+}
+
 async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
   if (typeof pdfjsLib === 'undefined') {
     const ld = document.getElementById(loadingId);
@@ -2817,7 +2853,25 @@ function openModal(id) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
     const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
     if (isImg) {
-      previewHtml = `<img src="${r.file_url}" class="img-preview" onclick="window.open('${r.file_url}','_blank')">`;
+      // v97i: las imágenes ahora también tienen botones de zoom igual que los PDFs.
+      // Antes solo los PDFs tenían zoom; pero la mayoría de albaranes (especialmente
+      // los que vienen de PDFs multi-página convertidos a JPG, o las fotos del móvil)
+      // aparecen como imágenes y se quedaban sin la funcionalidad de zoom. Ahora
+      // todo el mundo puede acercarse a los detalles del albarán.
+      previewHtml = `
+        <div id="pdfZoomWrap" class="pdf-zoom-wrap" data-is-img="1">
+          <div class="pdf-zoom-controls">
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrap',-1)" title="Reducir">🔍−</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgReset('pdfZoomWrap')" title="Tamaño original">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrap',1)" title="Ampliar">🔍+</button>
+            <span class="pdf-zoom-info">100%</span>
+          </div>
+          <img src="${r.file_url}" id="zoomedImg" alt="Albarán" style="display:block;margin:0 auto;max-width:100%;height:auto;cursor:pointer" onclick="window.open('${r.file_url}','_blank')">
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
+          <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir documento original</a>
+        </div>`;
     } else if (isPdf) {
       // v72: renderizar la página específica del PDF inline en el modal
       const pageMatch = r.file_url.match(/#page=(\d+)/);
@@ -3052,7 +3106,21 @@ function openGasModal(id) {
     const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i.test(r.file_url);
     const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
     if (isImg) {
-      previewHtml = `<img src="${r.file_url}" class="img-preview">`;
+      // v97i: imágenes en gasoil también con zoom igual que en albaranes
+      previewHtml = `
+        <div id="pdfZoomWrapGas" class="pdf-zoom-wrap" data-is-img="1">
+          <div class="pdf-zoom-controls">
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrapGas',-1)" title="Reducir">🔍−</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgReset('pdfZoomWrapGas')" title="Tamaño original">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrapGas',1)" title="Ampliar">🔍+</button>
+            <span class="pdf-zoom-info">100%</span>
+          </div>
+          <img src="${r.file_url}" alt="Ticket gasoil" style="display:block;margin:0 auto;max-width:100%;height:auto;cursor:pointer" onclick="window.open('${r.file_url}','_blank')">
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
+          <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a>
+        </div>`;
     } else if (isPdf) {
       previewHtml = `
         <div id="pdfZoomWrapGas" class="pdf-zoom-wrap">
