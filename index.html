@@ -183,7 +183,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
 .ov.open{display:flex}
-.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:1600px;max-height:90vh;overflow-y:auto}
+/* v97g: modal sin límite de ancho fijo. Aprovecha TODO el ancho disponible (con un margen
+   pequeño a los lados para que no se pegue a los bordes). Antes (v96b/v97) max-width:1600px
+   limitaba el modal en pantallas grandes y dejaba espacio vacío. */
+.modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:calc(100% - 24px);max-width:none;max-height:92vh;overflow-y:auto;margin:12px}
 .modal-hd{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;background:var(--sf);z-index:10}
 .modal-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac)}
 .modal-bd{padding:20px 24px}
@@ -245,13 +248,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 /* El canvas se centra dentro del contenedor. max-width:none porque queremos que crezca
    con el zoom (si lo limitamos al 100% del padre, el zoom no podría hacerlo más grande). */
 .pdf-zoom-wrap canvas{display:block;margin:0 auto;max-width:none;flex-shrink:0}
-/* v97f: barra de botones de zoom — ahora es una banda fija arriba dentro del contenedor,
-   visible siempre. Antes era "sticky con margin-bottom:-44px" que daba problemas. Ahora
-   es un bloque normal flex que se queda pegado arriba al hacer scroll. */
-.pdf-zoom-controls{position:sticky;top:0;display:flex;gap:6px;z-index:5;padding:8px;justify-content:flex-end;background:linear-gradient(to bottom,rgba(0,0,0,.7),rgba(0,0,0,0));backdrop-filter:blur(4px);flex-shrink:0;align-items:center}
-.pdf-zoom-btn{background:rgba(0,0,0,.85);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;height:36px;min-width:42px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:14px;font-weight:600;transition:background .15s;font-family:var(--mn)}
-.pdf-zoom-btn:hover{background:rgba(0,0,0,1);border-color:var(--ac)}
-.pdf-zoom-info{background:rgba(0,0,0,.85);color:var(--ac);padding:0 12px;height:36px;display:inline-flex;align-items:center;border-radius:6px;font-family:var(--mn);font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.2)}
+/* v97f: barra de botones de zoom — barra fija arriba dentro del contenedor.
+   v97g: botones MUCHO más visibles. Fondo verde brillante con el color de marca,
+   en lugar del fondo oscuro semi-transparente que pasaba desapercibido. */
+.pdf-zoom-controls{position:sticky;top:0;display:flex;gap:8px;z-index:5;padding:10px;justify-content:center;background:linear-gradient(to bottom,rgba(0,0,0,.85),rgba(0,0,0,.5));backdrop-filter:blur(4px);flex-shrink:0;align-items:center;border-bottom:1px solid var(--ac)}
+.pdf-zoom-btn{background:var(--ac);color:#000;border:2px solid var(--ac);border-radius:8px;height:42px;min-width:50px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:18px;font-weight:700;transition:all .15s;font-family:var(--mn);box-shadow:0 2px 8px rgba(0,232,122,.3)}
+.pdf-zoom-btn:hover{background:#fff;border-color:#fff;transform:scale(1.05);box-shadow:0 4px 12px rgba(0,232,122,.5)}
+.pdf-zoom-btn:active{transform:scale(0.95)}
+.pdf-zoom-info{background:#000;color:var(--ac);padding:0 14px;height:42px;display:inline-flex;align-items:center;border-radius:8px;font-family:var(--mn);font-size:14px;font-weight:700;border:2px solid var(--ac);min-width:70px;justify-content:center}
 /* v97/v97b/v97c/v97d: imagen JPG/PNG con max-height 88vh */
 .img-preview{max-width:100%;max-height:88vh;border-radius:8px;border:1px solid var(--bd);margin-top:16px;cursor:pointer}
 .preview-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:rgba(123,143,240,.1);color:var(--in);border:1px solid rgba(123,143,240,.2);font-family:var(--mn);font-size:10px;cursor:pointer;text-decoration:none;margin-top:8px}
