@@ -197,7 +197,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
    encima de los datos: cuando el contenedor sticky tiene un hijo con overflow:auto, el
    layout se rompe en algunos navegadores. Mejor sin sticky — el modal entero hace scroll
    junto y queda bien. Si en el futuro queremos sticky, hay que repensar la jerarquía. */
-.modal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,4fr);gap:16px;align-items:start}
+/* v97d/g: 30% campos / 70% imagen — antes 20/80 era demasiado extremo y los inputs salían
+   muy apretados (ej: "Cemex España Operaciones, S.L.U." no cabía en el ancho). 30/70 da
+   espacio razonable para los datos sin sacrificar protagonismo del albarán. */
+.modal-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,7fr);gap:16px;align-items:start}
 .modal-grid > *{min-width:0}
 .modal-grid > #mPreview, .modal-grid > #mgPreview{order:2}
 .modal-grid > #mFields, .modal-grid > #mgFields{order:1}
@@ -209,13 +212,19 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 .m-alert{border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:11px;margin-bottom:16px}
 .m-alert-dup{background:rgba(232,64,64,.1);border:1px solid rgba(232,64,64,.3);color:var(--er)}
 .m-alert-warn{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);color:var(--wn)}
-.mfields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.fg{display:flex;flex-direction:column;gap:5px}
+/* v97g: min-width:0 también aquí — refuerzo para que el grid de inputs respete el ancho
+   de su columna padre (modal-grid) sin desbordarse. */
+.mfields{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0}
+.fg{display:flex;flex-direction:column;gap:5px;min-width:0}
 .fg.full{grid-column:1/-1}
 /* v96: etiquetas un pelín más grandes y con más grosor para mejor legibilidad */
 .fl{font-family:var(--mn);font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
 /* v96: contenido de los inputs más grande (11→13px) y con más grosor (peso 500) para que destaque */
-.fi{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:9px 11px;font-family:var(--mn);font-size:13px;font-weight:500;color:var(--tx);outline:none;transition:border-color .15s}
+/* v97g: width:100% y min-width:0 — sin esto los inputs tienen un ancho mínimo del navegador
+   (~200px) que SE DESBORDA fuera de la columna del modal-grid cuando ésta es estrecha (20%
+   en escritorio). Por eso se solapan con la columna del albarán y rompen el layout.
+   Box-sizing:border-box para que padding + border NO sumen al ancho total. */
+.fi{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:9px 11px;font-family:var(--mn);font-size:13px;font-weight:500;color:var(--tx);outline:none;transition:border-color .15s;width:100%;min-width:0;box-sizing:border-box}
 .fi:focus{border-color:var(--ac)}
 
 /* PDF PREVIEW */
