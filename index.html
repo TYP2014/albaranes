@@ -910,7 +910,16 @@ async function saveRecord(data) {
 
 async function saveGasRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
+  // v98: limpieza de propiedades internas igual que en saveRecord (consistencia)
+  Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
+  // v98: si data.db_id existe, hacer UPDATE en lugar de INSERT (necesario para procesar
+  // pendientes de gasoil sin crear duplicados — ver fix v98 en _processOne)
+  if (data.db_id) {
+    const { error } = await sb.from('gasoil').update(rec).eq('id', data.db_id);
+    if (error) throw error;
+    return data.db_id;
+  }
   const { data: inserted, error } = await sb.from('gasoil').insert(rec).select().single();
   if (error) throw error;
   return inserted.id;
@@ -1897,53 +1906,61 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
+        // v98: FIX BUG BANNER PENDIENTE NO DESAPARECE.
+        // Antes: INSERT nuevo registro + DELETE registro pendiente. El DELETE fallaba por RLS
+        // (el admin no tenía permiso para borrar registros del conductor en algunas configs)
+        // y se quedaba el registro pendiente atascado en BD, por eso el banner seguía contando.
+        // Ahora: si el archivo viene de un pendiente, en lugar de crear fila nueva, ACTUALIZAMOS
+        // la fila existente del conductor — añadiendo todos los datos analizados por la IA y
+        // marcando procesado=true. UNA SOLA operación UPDATE en lugar de INSERT+DELETE.
+        // Bonus: preservamos el user_id del conductor original (ya estaba así, línea 1770).
+        if (it._fromPending && it._fromPending.table === 'albaranes') {
+          data.db_id = it._fromPending.id;  // fuerza UPDATE en saveRecord
+          data.procesado = true;             // sale del banner pendiente
+        }
         const dbId = await saveRecord(data);
         data._id = Date.now() + Math.random();
-        data.db_id = dbId;
+        data.db_id = dbId || it._fromPending?.id;
         data._ts = new Date().toISOString();
         records.unshift(data);
       } else {
+        // v98: mismo fix para gasoil
+        if (it._fromPending && it._fromPending.table === 'gasoil') {
+          data.db_id = it._fromPending.id;
+          data.procesado = true;
+        }
         const dbId = await saveGasRecord(data);
         data._id = Date.now() + Math.random();
-        data.db_id = dbId;
+        data.db_id = dbId || it._fromPending?.id;
         data._ts = new Date().toISOString();
         gasoilRecords.unshift(data);
       }
     }
     it.status = 'done';
-    // v90c: Si era un pendiente del conductor, eliminarlo para que el banner se actualice.
-    // Antes el delete fallaba silenciosamente por políticas RLS, dejando el banner atascado.
-    // Ahora intentamos borrar y, si falla, marcamos procesado=true como fallback (al menos
-    // sale del banner). El usuario recibe aviso del resultado.
+    // v98: ya no necesitamos borrar/actualizar el pendiente aquí porque saveRecord lo hizo
+    // como un UPDATE (la fila ya tiene procesado=true). Solo tenemos que limpiar la lista
+    // en memoria del registro pendiente original (sin los datos IA), si existía un duplicado.
     if (it._fromPending) {
-      let pendingResolved = false;
-      try {
-        const { error: delErr } = await sb.from(it._fromPending.table).delete().eq('id', it._fromPending.id);
-        if (delErr) {
-          console.warn('[v90c] Delete falló, intentando marcar procesado=true:', delErr.message);
-          // Fallback: marcar como procesado para que NO siga apareciendo en el banner
-          const { error: updErr } = await sb.from(it._fromPending.table).update({ procesado: true }).eq('id', it._fromPending.id);
-          if (updErr) {
-            console.error('[v90c] Update también falló:', updErr.message);
-            toast(`⚠️ ${it.name}: procesado pero no se pudo limpiar el pendiente. Refresca la app o usa Descartar.`, 'warn');
-          } else {
-            pendingResolved = true;
-            console.log('[v90c] Pendiente marcado como procesado=true (fallback)');
-          }
-        } else {
-          pendingResolved = true;
-        }
-      } catch(e) {
-        console.warn('[v90c] Error al borrar pendiente:', e);
-        toast(`⚠️ ${it.name}: procesado pero el banner puede no actualizarse. Refresca con F5.`, 'warn');
-      }
-      // Quitar también de la lista en memoria, para que el banner y los stats se refresquen
       const targetId = String(it._fromPending.id);
+      // El registro nuevo (con datos IA) ya está al inicio de records (acabamos de hacer unshift).
+      // Pero si por algún motivo había una versión vieja del mismo db_id en memoria, la quitamos.
       if (it._fromPending.table === 'albaranes') {
-        records = records.filter(r => String(r.db_id || '') !== targetId);
+        // Filtrar manteniendo solo: el primero (recién añadido) y los que NO sean del mismo db_id
+        let foundFirst = false;
+        records = records.filter(r => {
+          const sameId = String(r.db_id || '') === targetId;
+          if (sameId && !foundFirst) { foundFirst = true; return true; }
+          return !sameId;
+        });
       } else if (it._fromPending.table === 'gasoil') {
-        gasoilRecords = gasoilRecords.filter(r => String(r.db_id || '') !== targetId);
+        let foundFirst = false;
+        gasoilRecords = gasoilRecords.filter(r => {
+          const sameId = String(r.db_id || '') === targetId;
+          if (sameId && !foundFirst) { foundFirst = true; return true; }
+          return !sameId;
+        });
       }
+      console.log('[v98] Pendiente procesado vía UPDATE (ID:', targetId, ')');
     }
     renderQueues();
     if (type === 'alb') { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
