@@ -4502,6 +4502,29 @@ Datos a extraer:
     → fecha_caducidad
   • Se usa para vehículos RECIÉN MATRICULADOS que aún no han pasado la primera ITV.
 
+📌 TIPO 4 — "pegatina" (HOJA ADICIONAL CON HISTORIAL)
+Hoja DIN A4 titulada "HOJA ADICIONAL DE TARJETAS ITV" con cabecera "Applus+ Iteuve Technology, S.L.".
+Contiene una REJILLA con MÚLTIPLES pegatinas pegadas (típicamente 6-9 pegatinas), todas
+del MISMO vehículo/remolque. Cada celda es una pegatina con su propia fecha y resultado.
+Aparece en remolques que han pasado muchas ITVs (ITV semestral) y en la cabecera puedes
+ver "Núm. matrícula: R3542BBV" o similar (matrícula clara y única para todo el documento).
+
+⚠️ REGLA CRÍTICA: SOLO devolver datos de la ÚLTIMA pegatina FAVORABLE válida.
+   • IGNORA pegatinas con resultado "NEGATIVA" o "DESFAVORABLE" — no son ITVs pasadas válidas.
+   • De las que ponen "FAVORABLE", elige la que tiene la fecha "Caduca:" MÁS RECIENTE
+     (es decir, la más cercana a hoy o en el futuro).
+   • La caducidad de cualquier pegatina ANTIGUA ya está superada por una más nueva — no la cojas.
+
+Datos a extraer:
+  • "Núm. matrícula:" en la cabecera (puede empezar por R si es remolque) → matricula
+  • De la última pegatina FAVORABLE: "Fecha:" o "Data:" → fecha_itv
+  • De la misma pegatina: "Caduca:" → fecha_caducidad
+  • tipo_documento: "pegatina"
+
+Ejemplo: si una hoja tiene pegatinas con caducidades 25/02/2024, 25/08/2024, 25/02/2025,
+25/08/2025, 25/02/2026 y 25/08/2026, debes coger la de Caduca 25/08/2026 (la más reciente)
+ignorando todas las anteriores.
+
 ═══════════════════════════════════════════════════════════════
 REGLAS DE SALIDA
 ═══════════════════════════════════════════════════════════════
@@ -4512,6 +4535,7 @@ REGLAS DE SALIDA
    Es preferible null (que el usuario lo edite a mano) a inventar basura.
 ✅ Si la fecha no se puede leer con seguridad, devuelve null para esa fecha.
 ✅ "tipo_documento" debe ser EXACTAMENTE uno de: "pegatina", "informe", "permiso".
+   (TIPO 4 también devuelve "pegatina" — porque son pegatinas, solo en formato hoja.)
 
 Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 {
