@@ -562,6 +562,29 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         </div>
       </div>
 
+      <!-- v104: SECCIÓN DE CITAS ITV (nueva) -->
+      <div id="itvCitasAlertsBox"></div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="background:#fb923c;box-shadow:0 0 6px #fb923c"></div>PRÓXIMAS CITAS ITV</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn bs" onclick="openCitaModalManual()" title="Crear cita a mano">✏️ Nueva manual</button>
+            <button class="btn bp" onclick="document.getElementById('citaFileInput').click()">📅 Subir cita</button>
+            <input type="file" id="citaFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleCitaFiles(this.files)">
+          </div>
+        </div>
+        <div class="card-bd">
+          <div class="filters" id="filtersCitas">
+            <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fCitaMat" oninput="applyCitasFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
+            <div class="fil-group"><label class="fil-label">Cuándo</label><select class="fil-sel" id="fCitaCuando" onchange="applyCitasFilters()"><option value="">Todas</option><option value="hoy">📌 Hoy/mañana</option><option value="semana">⏰ Esta semana</option><option value="futuras">🟢 Futuras</option><option value="pasadas">⚪ Pasadas</option></select></div>
+            <div class="filter-actions"><button class="btn bs" onclick="resetCitasFilters()">✕ Limpiar</button></div>
+          </div>
+          <div id="citasTableBox" style="overflow-x:auto;margin-top:14px">
+            <table class="t" id="citasTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA CITA</th><th>HORA</th><th>DÍAS</th><th>CENTRO</th><th>SUBIDO POR</th><th>SUBIDO EL</th></tr></thead><tbody id="citasTableBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
       <!-- Modal ITV (mismo patrón que albaranes/gasoil) -->
       <div class="ov" id="itvOv" onclick="if(event.target===this)closeItvModal()">
         <div class="modal">
@@ -579,6 +602,28 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div style="display:flex;gap:8px;margin-left:auto">
               <button class="btn bs" onclick="closeItvModal()">Cancelar</button>
               <button class="btn bp" onclick="saveItvModal()">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v104: Modal CITA ITV (nuevo) -->
+      <div class="ov" id="citaOv" onclick="if(event.target===this)closeCitaModal()">
+        <div class="modal">
+          <div class="modal-hd"><div class="st"><div class="dot" style="background:#fb923c;box-shadow:0 0 6px #fb923c"></div>DETALLE CITA ITV</div><div style="display:flex;gap:8px"><button class="btn bp" onclick="saveCitaModal()">✓</button><button class="btn bs" onclick="closeCitaModal()">✕</button></div></div>
+          <div class="modal-bd">
+            <div id="citaAlert"></div>
+            <div class="modal-grid">
+              <div class="mfields" id="citaFields"></div>
+              <div id="citaPreview"></div>
+            </div>
+          </div>
+          <div class="modal-ft">
+            <button class="btn br" id="citaBtnDel" onclick="deleteCitaRecord()">Eliminar</button>
+            <button class="btn bw" id="citaBtnReanalizar" onclick="reanalizarCita()" title="Volver a procesar la captura con IA">🔄 Reanalizar IA</button>
+            <div style="display:flex;gap:8px;margin-left:auto">
+              <button class="btn bs" onclick="closeCitaModal()">Cancelar</button>
+              <button class="btn bp" onclick="saveCitaModal()">Guardar</button>
             </div>
           </div>
         </div>
@@ -3883,6 +3928,10 @@ let itvRecords = [];
 let filteredItv = [];
 let editItvId = null;
 const ITV_AVISO_DIAS = 15;  // umbral de aviso amarillo (15 días antes)
+// v104: estado para CITAS de ITV — visitas programadas a la estación de inspección
+let itvCitasRecords = [];
+let filteredCitas = [];
+let editCitaId = null;
 
 // Estado de un registro ITV según la fecha de caducidad
 function _itvEstado(rec) {
@@ -3987,9 +4036,40 @@ async function loadItvData() {
     }).length;
     // v101b: actualizar también el banner global de avisos (visible en todas las pestañas)
     renderItvGlobalBanner();
+    // v104: cargar también las citas de ITV
+    await loadItvCitas();
   } catch (e) {
     console.error('[loadItvData] Error:', e);
     toast('Error cargando ITVs: ' + (e.message || e), 'err');
+  }
+}
+
+// v104: carga las citas programadas en la tabla itv_citas. Si la tabla no existe aún
+// (Juan Carlos pendiente del SQL), captura el error y deja la lista vacía.
+async function loadItvCitas() {
+  if (!window._tieneITV) return;
+  try {
+    const { data, error } = await sb.from('itv_citas').select('*').order('fecha_cita', { ascending: true });
+    if (error) {
+      // Si la tabla no existe aún, marcar como no disponible silenciosamente
+      const msg = String(error.message || error.code || '');
+      if (msg.includes('itv_citas') || msg.includes('schema cache') || msg.includes('relation')) {
+        window._itvCitasSupported = false;
+        console.warn('[loadItvCitas] Tabla itv_citas no encontrada. Funcionalidad desactivada hasta que se ejecute el SQL.');
+        // Mostrar un aviso suave en la sección de citas
+        const tb = document.getElementById('citasTableBody');
+        if (tb) tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--mu);font-size:11px">⚠️ Tabla itv_citas no creada todavía. Ejecuta el SQL en Supabase para activar esta sección.</td></tr>';
+        return;
+      }
+      throw error;
+    }
+    window._itvCitasSupported = true;
+    itvCitasRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    applyCitasFilters();
+    renderCitasAlerts();
+  } catch (e) {
+    console.error('[loadItvCitas] Error:', e);
+    toast('Error cargando citas ITV: ' + (e.message || e), 'err');
   }
 }
 
@@ -4171,6 +4251,9 @@ async function saveItvModal() {
         .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
         .eq('id', editItvId);
       if (error) throw error;
+      // v104: borrar citas anteriores a la nueva caducidad para esta matrícula
+      // (la ITV ya pasó, las citas viejas ya no aplican).
+      await _borrarCitasVencidas(matricula, fecha_caducidad);
       closeItvModal();
       await loadItvData();
       toast('✓ ITV actualizada');
@@ -4386,6 +4469,8 @@ async function handleItvFiles(files) {
       if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
+      // v104: borrar citas anteriores a la nueva caducidad — la ITV ya está pasada
+      await _borrarCitasVencidas(matricula, datos.fecha_caducidad);
       toast(`✓ ${matricula} procesada`);
     } catch (e) {
       console.error('[handleItvFiles] Error procesando', f.name, ':', e);
@@ -4394,6 +4479,419 @@ async function handleItvFiles(files) {
   }
   document.getElementById('itvFileInput').value = '';
   await loadItvData();
+}
+
+// ============================================================
+// v104: CITAS ITV — gestión de visitas programadas a la estación
+// ============================================================
+
+// Estado de una cita según su fecha (similar a _itvEstado pero para citas)
+function _citaEstado(rec) {
+  if (!rec.fecha_cita) return { tipo: 'sin', dias: null, label: '?', icon: '⚪' };
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const fc = new Date(rec.fecha_cita + 'T00:00:00');
+  const dias = Math.round((fc - hoy) / (1000 * 60 * 60 * 24));
+  if (dias < 0) return { tipo: 'pasada', dias, label: 'pasada', icon: '⚪' };
+  if (dias === 0) return { tipo: 'hoy', dias, label: 'HOY', icon: '🔥' };
+  if (dias === 1) return { tipo: 'manana', dias, label: 'mañana', icon: '🔥' };
+  if (dias <= 3) return { tipo: 'urgente', dias, label: 'próxima', icon: '🟠' };
+  if (dias <= 7) return { tipo: 'semana', dias, label: 'esta semana', icon: '🟡' };
+  return { tipo: 'futura', dias, label: 'programada', icon: '🟢' };
+}
+
+function renderCitasAlerts() {
+  const hoy = itvCitasRecords.filter(r => {
+    const e = _citaEstado(r);
+    return e.tipo === 'hoy' || e.tipo === 'manana';
+  });
+  const urgentes = itvCitasRecords.filter(r => _citaEstado(r).tipo === 'urgente');
+  const box = document.getElementById('itvCitasAlertsBox');
+  if (!box) return;
+  let html = '';
+  if (hoy.length > 0) {
+    html += `<div class="alert-banner alert-cad"><div class="alert-txt">🔥 <strong>${hoy.length} cita(s) HOY/MAÑANA</strong> — preparar el vehículo.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fCitaCuando').value='hoy';applyCitasFilters()">Ver</button></div></div>`;
+  }
+  if (urgentes.length > 0) {
+    html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟠 <strong>${urgentes.length} cita(s) en 3 días o menos</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fCitaCuando').value='semana';applyCitasFilters()">Ver</button></div></div>`;
+  }
+  box.innerHTML = html;
+}
+
+function applyCitasFilters() {
+  const fMat = (document.getElementById('fCitaMat')?.value || '').toUpperCase().trim();
+  const fCuando = document.getElementById('fCitaCuando')?.value || '';
+  filteredCitas = itvCitasRecords.filter(r => {
+    if (fMat && !String(r.matricula || '').toUpperCase().includes(fMat)) return false;
+    if (fCuando) {
+      const est = _citaEstado(r);
+      if (fCuando === 'hoy' && est.tipo !== 'hoy' && est.tipo !== 'manana') return false;
+      if (fCuando === 'semana' && !['hoy', 'manana', 'urgente', 'semana'].includes(est.tipo)) return false;
+      if (fCuando === 'futuras' && (est.tipo === 'pasada' || est.tipo === 'sin')) return false;
+      if (fCuando === 'pasadas' && est.tipo !== 'pasada') return false;
+    }
+    return true;
+  });
+  // Ordenar: futuras primero (próximas arriba), pasadas al final
+  filteredCitas.sort((a, b) => {
+    const ea = _citaEstado(a), eb = _citaEstado(b);
+    if (ea.tipo === 'pasada' && eb.tipo !== 'pasada') return 1;
+    if (eb.tipo === 'pasada' && ea.tipo !== 'pasada') return -1;
+    return String(a.fecha_cita || '').localeCompare(String(b.fecha_cita || ''));
+  });
+  renderCitasTable();
+}
+
+function resetCitasFilters() {
+  const m = document.getElementById('fCitaMat'); if (m) m.value = '';
+  const c = document.getElementById('fCitaCuando'); if (c) c.value = '';
+  applyCitasFilters();
+}
+
+function renderCitasTable() {
+  const tb = document.getElementById('citasTableBody');
+  if (!tb) return;
+  if (window._itvCitasSupported === false) return;  // ya muestra el aviso
+  if (!filteredCitas.length) {
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--mu)">No hay citas programadas</td></tr>';
+    return;
+  }
+  const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-ES') : '—';
+  const fmtTS = ts => ts ? new Date(ts).toLocaleDateString('es-ES') : '—';
+  tb.innerHTML = filteredCitas.map(r => {
+    const est = _citaEstado(r);
+    const diasTxt = est.dias === null ? '—'
+      : (est.dias < 0 ? `<span style="color:var(--mu)">${est.dias}</span>`
+      : (est.dias <= 3 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>`
+      : (est.dias <= 7 ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>`
+      : `<span style="color:var(--ac)">${est.dias}</span>`)));
+    const subPor = userMap[r.user_id]?.name || '—';
+    const esPasada = est.tipo === 'pasada';
+    return `<tr onclick="openCitaModal(${r.db_id})" style="cursor:pointer${esPasada ? ';opacity:0.55' : ''}">
+      <td style="font-size:14px">${est.icon}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
+      <td>${fmtDate(r.fecha_cita)}</td>
+      <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
+      <td>${diasTxt}</td>
+      <td>${esc(r.centro || '—')}</td>
+      <td>${esc(subPor)}</td>
+      <td>${fmtTS(r.created_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openCitaModal(dbId) {
+  const r = itvCitasRecords.find(x => String(x.db_id) === String(dbId));
+  if (!r) return;
+  editCitaId = dbId;
+  document.getElementById('citaFields').innerHTML = `
+    <div class="ig"><label>Matrícula</label><input id="citaMatricula" value="${esc(r.matricula || '')}" style="font-family:var(--mn);text-transform:uppercase"></div>
+    <div class="ig"><label>Fecha cita</label><input type="date" id="citaFecha" value="${r.fecha_cita || ''}"></div>
+    <div class="ig"><label>Hora cita</label><input type="time" id="citaHora" value="${r.hora_cita || ''}"></div>
+    <div class="ig"><label>Centro ITV</label><input id="citaCentro" value="${esc(r.centro || '')}" placeholder="Ej: Vilafranca del Penedès"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Dirección</label><input id="citaDireccion" value="${esc(r.direccion || '')}" placeholder="Dirección del centro"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="citaObs" value="${esc(r.observaciones || '')}"></div>`;
+  // Preview del archivo si lo hay
+  const preview = document.getElementById('citaPreview');
+  if (r.file_url) {
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
+    if (isPdf) {
+      preview.innerHTML = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir PDF</a>`;
+    } else {
+      preview.innerHTML = `<img src="${r.file_url}" style="max-width:100%;max-height:70vh;border-radius:8px;border:1px solid var(--bd);cursor:pointer" onclick="window.open('${r.file_url}','_blank')">`;
+    }
+  } else {
+    preview.innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px">Sin captura adjunta</div>';
+  }
+  // Aviso de estado
+  const est = _citaEstado(r);
+  document.getElementById('citaAlert').innerHTML = `<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px">${est.icon} <strong>${est.label}</strong>${est.dias !== null ? ` · ${est.dias} días` : ''}</div>`;
+  // Mostrar botones
+  const btnDel = document.getElementById('citaBtnDel');
+  const btnRea = document.getElementById('citaBtnReanalizar');
+  if (btnDel) btnDel.style.display = '';
+  if (btnRea) btnRea.style.display = r.file_url ? '' : 'none';
+  document.getElementById('citaOv').classList.add('open');
+}
+
+function openCitaModalManual() {
+  if (!window._tieneITV) { toast('Sin permiso', 'err'); return; }
+  if (window._itvCitasSupported === false) { toast('Tabla itv_citas no creada en BD aún. Ejecuta el SQL en Supabase.', 'err'); return; }
+  editCitaId = null;
+  document.getElementById('citaFields').innerHTML = `
+    <div class="ig"><label>Matrícula</label><input id="citaMatricula" value="" placeholder="Ej: 6118MLD" style="font-family:var(--mn);text-transform:uppercase"></div>
+    <div class="ig"><label>Fecha cita</label><input type="date" id="citaFecha" value=""></div>
+    <div class="ig"><label>Hora cita</label><input type="time" id="citaHora" value=""></div>
+    <div class="ig"><label>Centro ITV</label><input id="citaCentro" value="" placeholder="Ej: Vilafranca del Penedès"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Dirección</label><input id="citaDireccion" value="" placeholder="Opcional"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="citaObs" value="" placeholder="Opcional"></div>`;
+  document.getElementById('citaPreview').innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px;font-size:12px">📝 Cita manual — sin captura adjunta</div>';
+  document.getElementById('citaAlert').innerHTML = '<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px;color:var(--ac)">✏️ <strong>NUEVA CITA MANUAL</strong> — rellena matrícula, fecha y hora</div>';
+  const btnDel = document.getElementById('citaBtnDel');
+  const btnRea = document.getElementById('citaBtnReanalizar');
+  if (btnDel) btnDel.style.display = 'none';
+  if (btnRea) btnRea.style.display = 'none';
+  document.getElementById('citaOv').classList.add('open');
+}
+
+function closeCitaModal() {
+  document.getElementById('citaOv').classList.remove('open');
+  editCitaId = null;
+}
+
+async function saveCitaModal() {
+  const matricula = (document.getElementById('citaMatricula').value || '').trim().toUpperCase();
+  const fecha_cita = document.getElementById('citaFecha').value || null;
+  const hora_cita = document.getElementById('citaHora').value || null;
+  const centro = (document.getElementById('citaCentro').value || '').trim() || null;
+  const direccion = (document.getElementById('citaDireccion').value || '').trim() || null;
+  const observaciones = (document.getElementById('citaObs').value || '').trim() || null;
+  if (!matricula) { toast('Matrícula requerida', 'err'); return; }
+  if (!fecha_cita) { toast('Fecha de cita requerida', 'err'); return; }
+  if (!esMatriculaEspanolaEstricta(matricula)) {
+    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\n¿Guardar igualmente?`)) return;
+  }
+  try {
+    if (editCitaId === null || editCitaId === undefined) {
+      // INSERT (cita nueva manual)
+      const { error } = await sb.from('itv_citas').insert({
+        matricula, fecha_cita, hora_cita, centro, direccion, observaciones,
+        user_id: currentUser.id, updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      closeCitaModal();
+      await loadItvCitas();
+      toast(`✓ Cita ${matricula} creada`);
+    } else {
+      // UPDATE (editar existente)
+      const { error } = await sb.from('itv_citas')
+        .update({ matricula, fecha_cita, hora_cita, centro, direccion, observaciones, updated_at: new Date().toISOString() })
+        .eq('id', editCitaId);
+      if (error) throw error;
+      closeCitaModal();
+      await loadItvCitas();
+      toast('✓ Cita actualizada');
+    }
+  } catch (e) {
+    console.error('[saveCitaModal] Error:', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteCitaRecord() {
+  if (!confirm('¿Eliminar esta cita?\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('itv_citas').delete().eq('id', editCitaId);
+    if (error) throw error;
+    closeCitaModal();
+    await loadItvCitas();
+    toast('✓ Cita eliminada');
+  } catch (e) {
+    console.error('[deleteCitaRecord] Error:', e);
+    toast('Error eliminando: ' + (e.message || e), 'err');
+  }
+}
+
+async function reanalizarCita() {
+  const r = itvCitasRecords.find(x => String(x.db_id) === String(editCitaId));
+  if (!r || !r.file_url) { toast('Sin captura para reanalizar', 'err'); return; }
+  const btn = document.getElementById('citaBtnReanalizar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analizando...'; }
+  try {
+    const resp = await fetch(r.file_url);
+    if (!resp.ok) throw new Error('No se pudo descargar la captura');
+    const blob = await resp.blob();
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url) || blob.type === 'application/pdf';
+    const b64 = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result.split(',')[1]);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    const datos = await callClaudeItvCita(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'));
+    if (datos.matricula) document.getElementById('citaMatricula').value = datos.matricula;
+    if (datos.fecha_cita) document.getElementById('citaFecha').value = datos.fecha_cita;
+    if (datos.hora_cita) document.getElementById('citaHora').value = datos.hora_cita;
+    if (datos.centro) document.getElementById('citaCentro').value = datos.centro;
+    if (datos.direccion) document.getElementById('citaDireccion').value = datos.direccion;
+    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+  } catch (e) {
+    console.error('[reanalizarCita] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Reanalizar IA'; }
+  }
+}
+
+async function handleCitaFiles(files) {
+  if (!files || !files.length) return;
+  if (!window._tieneITV) { toast('Sin permiso para subir citas', 'err'); return; }
+  if (window._itvCitasSupported === false) { toast('Tabla itv_citas no creada en BD aún. Ejecuta el SQL en Supabase.', 'err'); return; }
+  for (const f of files) {
+    try {
+      toast(`📤 Subiendo ${f.name}...`);
+      const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
+      const path = `itv_citas/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await sb.storage.from('documentos').upload(path, f);
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
+      const file_url = urlData.publicUrl;
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      let b64;
+      if (isPdf) {
+        b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(f);
+        });
+      } else {
+        const imgFile = f.size > 4 * 1024 * 1024 ? await comprimirImagen(f, 1400, 0.8) : f;
+        b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(imgFile);
+        });
+      }
+      toast(`🤖 Analizando ${f.name}...`);
+      const datos = await callClaudeItvCita(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
+      const matricula = (datos.matricula || '').trim().toUpperCase();
+      // Si la matrícula no es válida o falta la fecha, guardar como pendiente de revisión
+      if (!esMatriculaEspanolaEstricta(matricula) || !datos.fecha_cita) {
+        const placeholder = `EDITAR_${Date.now().toString(36).slice(-6).toUpperCase()}`;
+        const rec = {
+          matricula: esMatriculaEspanolaEstricta(matricula) ? matricula : placeholder,
+          fecha_cita: datos.fecha_cita || new Date().toISOString().slice(0, 10),  // hoy si no se leyó
+          hora_cita: datos.hora_cita || null,
+          centro: datos.centro || null,
+          direccion: datos.direccion || null,
+          file_url,
+          user_id: currentUser.id,
+          observaciones: '⚠️ IA no leyó todos los datos — revisar a mano',
+          updated_at: new Date().toISOString()
+        };
+        const { error: insErr } = await sb.from('itv_citas').insert(rec);
+        if (insErr) throw insErr;
+        toast(`⚠️ ${f.name}: datos incompletos. Revisar desde el detalle.`, 'warn');
+        continue;
+      }
+      const rec = {
+        matricula,
+        fecha_cita: datos.fecha_cita,
+        hora_cita: datos.hora_cita || null,
+        centro: datos.centro || null,
+        direccion: datos.direccion || null,
+        file_url,
+        user_id: currentUser.id,
+        updated_at: new Date().toISOString()
+      };
+      const { error: insErr } = await sb.from('itv_citas').insert(rec);
+      if (insErr) throw insErr;
+      toast(`✓ Cita ${matricula} (${datos.fecha_cita}) creada`);
+    } catch (e) {
+      console.error('[handleCitaFiles] Error:', e);
+      toast(`✗ Error en ${f.name}: ${e.message || e}`, 'err');
+    }
+  }
+  document.getElementById('citaFileInput').value = '';
+  await loadItvCitas();
+}
+
+// v104: helper que borra las citas con fecha anterior o igual a la nueva caducidad
+// para una matrícula concreta. Se llama después de actualizar una ITV (manual o IA)
+// para que las citas que ya cumplieron su función desaparezcan automáticamente.
+// Si la tabla no existe (SQL pendiente), no hace nada.
+async function _borrarCitasVencidas(matricula, fechaCaducidad) {
+  if (!matricula || !fechaCaducidad) return;
+  if (window._itvCitasSupported === false) return;
+  try {
+    const { error, count } = await sb.from('itv_citas')
+      .delete({ count: 'exact' })
+      .eq('matricula', matricula)
+      .lte('fecha_cita', fechaCaducidad);
+    if (error) {
+      // Si la tabla no existe, ignorar silenciosamente
+      const msg = String(error.message || error.code || '');
+      if (msg.includes('itv_citas') || msg.includes('schema cache') || msg.includes('relation')) return;
+      console.warn('[_borrarCitasVencidas] Error:', error);
+      return;
+    }
+    if (count && count > 0) {
+      console.log(`[_borrarCitasVencidas] Borradas ${count} cita(s) vencida(s) de ${matricula}`);
+    }
+  } catch (e) {
+    console.warn('[_borrarCitasVencidas] Excepción:', e);
+  }
+}
+
+// v104: prompt específico para extraer datos de capturas/PDFs de citas ITV.
+// Las capturas suelen ser de mensajería (WhatsApp/email) o pantalla del web de Applus,
+// con formato estructurado: "Centro:", "Para el día:", "Matrícula del vehículo:", etc.
+async function callClaudeItvCita(b64, mediaType) {
+  const apiKey = getKey();
+  if (!apiKey) throw new Error('Clave API no configurada');
+  const prompt = `Eres un experto en extraer datos de confirmaciones de cita de ITV en España.
+
+Las capturas pueden venir de:
+  • Mensajes de email/WhatsApp con la confirmación de Applus o la estación ITV
+  • Pantallas del portal web donde se reservó la cita
+  • Justificantes en PDF
+
+Datos a extraer:
+  • matricula: matrícula del vehículo (formato 4D+3L o R+4D+3L para remolques).
+    Solo consonantes (B C D F G H J K L M N P R S T V W X Y Z), sin vocales A,E,I,O,U,Q,Ñ.
+    Suele aparecer tras "Matrícula del vehículo:", "Matrícula:", o similar.
+  • fecha_cita: fecha de la cita en formato ISO YYYY-MM-DD.
+    Tras "Para el día:", "Fecha:", "Día:" o similar. Cuidado con formato europeo DD/MM/YYYY.
+    Si pone "Miércoles, 17 de Junio de 2026" → "2026-06-17".
+  • hora_cita: hora en formato HH:MM (24h). Tras "a las", "Hora:" o similar. Ej: "14:30".
+  • centro: nombre del centro ITV (ej: "Vilafranca del Penedès", "Sant Boi", "Olèrdola").
+    Suele estar tras "Centro seleccionado:", "Centro:" o similar.
+  • direccion: dirección completa del centro si aparece. Ej: "Av. Hostal Nou Polígono Industrial Sant Pere Molanta".
+
+REGLAS:
+✅ Fechas SIEMPRE en formato europeo DD/MM/YYYY al leerlas, salida en ISO YYYY-MM-DD.
+✅ Si NO encuentras un dato con seguridad, devuelve null para ese campo.
+✅ Matrícula en MAYÚSCULAS sin espacios.
+
+Responde SOLO con JSON válido (sin markdown):
+{
+  "matricula": "7683JGB",
+  "fecha_cita": "2026-06-17",
+  "hora_cita": "14:30",
+  "centro": "Vilafranca del Penedès",
+  "direccion": "Av. Hostal Nou Polígono Industrial Sant Pere Molanta, Sant Miquel d'Olèrdola"
+}`;
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    temperature: 0,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+        { type: 'text', text: prompt }
+      ]
+    }]
+  };
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`Error API: ${resp.status} - ${txt.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  let text = data.content?.[0]?.text || '';
+  text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[callClaudeItvCita] No se pudo parsear:', text);
+    throw new Error('Respuesta IA inválida');
+  }
 }
 
 // Llamada a Claude para extraer datos de ITV
