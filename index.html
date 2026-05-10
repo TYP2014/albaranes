@@ -4144,9 +4144,9 @@ async function saveItvModal() {
   const observaciones = (document.getElementById('itvObs').value || '').trim() || null;
   if (!matricula) { toast('Matrícula requerida', 'err'); return; }
   // v102: validación estricta de matrícula española moderna (4 dígitos + 3 consonantes).
-  // Avisa al usuario si la matrícula contiene vocales o no cumple formato.
+  // v103e: también acepta remolques (R + 4 dígitos + 3 consonantes).
   if (!esMatriculaEspanolaEstricta(matricula)) {
-    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\nFormato esperado: 4 dígitos + 3 consonantes (sin vocales A,E,I,O,U ni Q,Ñ).\nEjemplos: 6118MLD, 1968JFV, 3628NMW.\n\n¿Guardar igualmente?`)) return;
+    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\nFormatos esperados:\n  • Vehículo: 4 dígitos + 3 consonantes (ej: 6118MLD)\n  • Remolque: R + 4 dígitos + 3 consonantes (ej: R0197BCC)\nSin vocales A,E,I,O,U ni Q,Ñ.\n\n¿Guardar igualmente?`)) return;
   }
   try {
     // v103: si editItvId es null → INSERT (nuevo manual). Si tiene valor → UPDATE.
@@ -4428,15 +4428,19 @@ Si X > 12 esto se confirma trivialmente; si X ≤ 12 NO te dejes engañar, sigue
 Devuelve SIEMPRE en formato ISO YYYY-MM-DD.
 
 🔴 MATRÍCULAS ESPAÑOLAS — REGLAS DE FORMATO
-Formato moderno (post-2000) usado por TODA la flota: 4 DÍGITOS + 3 CONSONANTES.
+Formato moderno (post-2000) usado por la flota:
+  • VEHÍCULO (camión/turismo): 4 DÍGITOS + 3 CONSONANTES (ej: 6118MLD, 1968JFV)
+  • REMOLQUE: letra R + 4 DÍGITOS + 3 CONSONANTES (ej: R0197BCC, R5640BDJ)
 LAS LETRAS NUNCA SON VOCALES. NUNCA. Letras válidas (consonantes únicamente):
   B C D F G H J K L M N P R S T V W X Y Z
 Letras PROHIBIDAS en matrículas modernas: A, E, I, O, U, Q, Ñ.
-Si lo que estás extrayendo contiene una vocal o Q, NO es la matrícula → busca otra vez.
+Si lo que estás extrayendo contiene una vocal o Q (después de la primera R en remolques),
+NO es la matrícula → busca otra vez.
 Ejemplos REALES de errores:
   • "2300NEO" → INVÁLIDA (E y O son vocales). Probablemente leíste "2300" del campo
     "Classificació vehicle" y "NEO" lo sacaste de "IVECO". La matrícula real está
     en el campo "(2) Matrícula actual" y será algo como "6118MLD".
+Las pegatinas de REMOLQUES tienen formato similar a las de camión pero con la R inicial.
 
 🔴 CAMPOS QUE NUNCA SON LA MATRÍCULA
 En un informe de ITV hay muchos números y códigos. Estos NO son la matrícula:
@@ -4459,13 +4463,26 @@ TIPOS DE DOCUMENTO Y CÓMO IDENTIFICARLOS
 ═══════════════════════════════════════════════════════════════
 
 📌 TIPO 1 — "pegatina"
-Pegatina circular pegada en el parabrisas (formato horizontal, fondo claro con texto APPLUS+ESPAÑA repetido en marca de agua).
-Datos a extraer:
+Pegatina circular o cuadrada pegada en el parabrisas. Hay DOS variantes habituales:
+
+VARIANTE 1A (Applus completa, formato horizontal):
+  • Fondo claro con texto APPLUS+ESPAÑA repetido en marca de agua
   • La matrícula aparece en grande (ej: "1968JFV")
-  • "Fecha:" → fecha en que se PASÓ la ITV (DD/MM/YYYY) → fecha_itv
-  • "Caduca:" → fecha de PRÓXIMA inspección (DD/MM/YYYY) → fecha_caducidad
-  • Suele tener "FAVORABLE" como resultado y un código de estación (ej: "Iv: 0809")
-  • Suele aparecer también los KM del vehículo (ej: "49598 km") — IGNORAR
+  • "Fecha:" → fecha de la inspección PASADA → fecha_itv
+  • "Caduca:" → fecha de PRÓXIMA inspección → fecha_caducidad
+  • "FAVORABLE" como resultado, "Iv: 0809" como código de estación
+  • Suele aparecer KM del vehículo — IGNORAR
+
+VARIANTE 1B (pegatina minimalista, formato compacto):
+  • Suele decir "Favorable" (en mayúsculas o minúsculas, no "FAVORABLE" siempre)
+  • Matrícula directamente, sin etiqueta "Matrícula:" delante. Puede ser de REMOLQUE
+    (empezando por R, ej: "R0197BCC")
+  • "F.In.:" o "F.Insp.:" → fecha_itv (es la abreviatura de "Fecha Inspección")
+  • "Cad.:" o "F.Cad.:" → fecha_caducidad (abreviatura de "Caducidad")
+  • Puede incluir "ITV - 0820" o similar (código estación) e identificador IN0XXXXXXX
+  • Sin marca de agua APPLUS visible
+
+En AMBAS variantes, las fechas siguen formato DD/MM/YYYY (europeo).
 
 📌 TIPO 2 — "informe"
 Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos numerados.
@@ -5343,13 +5360,17 @@ function esMatriculaValida(mat) {
 // v102: validación ESTRICTA para matrículas españolas modernas (post-2000).
 // Las matrículas españolas modernas NUNCA contienen vocales (A,E,I,O,U) ni Q ni Ñ.
 // Solo consonantes válidas: B C D F G H J K L M N P R S T V W X Y Z (20 letras).
+// v103e: aceptamos también matrículas de REMOLQUE — formato "R + 4 dígitos + 3 consonantes"
+// (ej: R0197BCC). Los remolques también pasan ITV y deben poder registrarse.
 // Se usa al leer ITVs porque la IA a veces confunde la matrícula con otros campos
 // numéricos del documento (clasificación de vehículo, bastidor, etc.) y mete basura
 // que cumple el formato genérico 4D+3L pero no es matrícula real.
 function esMatriculaEspanolaEstricta(mat) {
   if (!mat) return false;
   const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
-  return /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m);
+  // Vehículo: 4 dígitos + 3 consonantes  | Remolque: R + 4 dígitos + 3 consonantes
+  return /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m) ||
+         /^R\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m);
 }
 
 // v89: si lo que lee la IA NO tiene formato matrícula válido, intenta extraer una de cualquier
