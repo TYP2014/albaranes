@@ -4256,23 +4256,35 @@ async function handleItvFiles(files) {
     try {
       // v103: detectar duplicados por hash ANTES de subir nada a Storage o llamar a IA.
       // Si el mismo PDF/imagen ya está subido, avisamos sin malgastar Storage ni tokens.
-      // Si la columna file_hash no existe en BD aún (Juan Carlos pendiente del SQL),
-      // el SELECT fallará silenciosamente y se continúa sin chequeo (no-op de seguridad).
+      // v103b: modo defensivo — si la columna file_hash NO existe en BD (Juan Carlos
+      // pendiente de ejecutar el SQL), detectamos el error y desactivamos la detección
+      // hasta que se recargue la página. Así la app funciona aunque falte el SQL.
       toast(`🔍 Verificando ${f.name}...`);
       let fileHash = null;
       try {
         fileHash = await sha256OfFile(f);
-        const { data: dup, error: dupErr } = await sb.from('itv')
-          .select('matricula,file_url').eq('file_hash', fileHash).limit(1);
-        if (!dupErr && dup && dup.length > 0) {
-          const ok = confirm(`⚠️ Este archivo ("${f.name}") YA está subido como ITV de la matrícula ${dup[0].matricula}.\n\n¿Subirlo de todas formas?\n\n• Cancelar (recomendado) → no se hace nada.\n• Aceptar → se sube como nuevo registro (puede crear duplicados).`);
-          if (!ok) {
-            toast(`⏭️ ${f.name}: omitido — ya existe como ${dup[0].matricula}.`, 'warn');
-            continue;
+        if (window._itvHashSupported !== false) {
+          const { data: dup, error: dupErr } = await sb.from('itv')
+            .select('matricula,file_url').eq('file_hash', fileHash).limit(1);
+          if (dupErr) {
+            // Detectar si el error es porque la columna no existe
+            const msg = String(dupErr.message || dupErr.code || '');
+            if (msg.includes('file_hash') || msg.includes('schema cache') || msg.includes('column')) {
+              window._itvHashSupported = false;
+              console.warn('[handleItvFiles] Columna file_hash no encontrada en BD. Detección de duplicados desactivada. Ejecutar el ALTER TABLE en Supabase para activarla.');
+              toast('⚠️ Detección de duplicados off — falta ejecutar SQL en Supabase. Continuando sin protección.', 'warn');
+            } else {
+              throw dupErr;
+            }
+          } else if (dup && dup.length > 0) {
+            const ok = confirm(`⚠️ Este archivo ("${f.name}") YA está subido como ITV de la matrícula ${dup[0].matricula}.\n\n¿Subirlo de todas formas?\n\n• Cancelar (recomendado) → no se hace nada.\n• Aceptar → se sube como nuevo registro (puede crear duplicados).`);
+            if (!ok) {
+              toast(`⏭️ ${f.name}: omitido — ya existe como ${dup[0].matricula}.`, 'warn');
+              continue;
+            }
           }
         }
       } catch (hashErr) {
-        // Si la columna file_hash no existe aún, ignoramos silenciosamente.
         console.warn('[handleItvFiles] Hash check skipped:', hashErr?.message || hashErr);
         fileHash = null;
       }
@@ -4323,11 +4335,12 @@ async function handleItvFiles(files) {
           fecha_caducidad: datos.fecha_caducidad || null,
           tipo_documento: datos.tipo_documento || null,
           file_url,
-          file_hash: fileHash,  // v103
           user_id: currentUser.id,
           observaciones: `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" — editar a mano`,
           updated_at: new Date().toISOString()
         };
+        // v103b: solo añadimos file_hash si la columna existe en BD (modo defensivo)
+        if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
         const { error: insErr } = await sb.from('itv').insert(rec);
         if (insErr) throw insErr;
         toast(`⚠️ ${f.name}: matrícula no clara. Guardado como ${placeholder} — edítalo desde el detalle.`, 'warn');
@@ -4349,10 +4362,11 @@ async function handleItvFiles(files) {
         fecha_caducidad: datos.fecha_caducidad || null,
         tipo_documento: datos.tipo_documento || null,
         file_url,
-        file_hash: fileHash,  // v103
         user_id: currentUser.id,
         updated_at: new Date().toISOString()
       };
+      // v103b: solo añadimos file_hash si la columna existe en BD (modo defensivo)
+      if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
       toast(`✓ ${matricula} procesada`);
