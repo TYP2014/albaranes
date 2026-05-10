@@ -4106,6 +4106,11 @@ async function saveItvModal() {
   const tipo_documento = document.getElementById('itvTipo').value || null;
   const observaciones = (document.getElementById('itvObs').value || '').trim() || null;
   if (!matricula) { toast('Matrícula requerida', 'err'); return; }
+  // v102: validación estricta de matrícula española moderna (4 dígitos + 3 consonantes).
+  // Avisa al usuario si la matrícula contiene vocales o no cumple formato.
+  if (!esMatriculaEspanolaEstricta(matricula)) {
+    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\nFormato esperado: 4 dígitos + 3 consonantes (sin vocales A,E,I,O,U ni Q,Ñ).\nEjemplos: 6118MLD, 1968JFV, 3628NMW.\n\n¿Guardar igualmente?`)) return;
+  }
   try {
     const { error } = await sb.from('itv')
       .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
@@ -4155,14 +4160,19 @@ async function reanalizarItv() {
       fr.onerror = rej;
       fr.readAsDataURL(blob);
     });
-    // Llamar a Claude con el prompt mejorado v101d
+    // Llamar a Claude con el prompt mejorado v102
     const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'));
     // Rellenar los campos del modal con los datos NUEVOS (sin guardar — el usuario revisa)
     if (datos.matricula) document.getElementById('itvMatricula').value = datos.matricula;
     if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
     if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
     if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
-    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+    // v102: aviso si la matrícula releída no cumple formato español estricto
+    if (datos.matricula && !esMatriculaEspanolaEstricta(datos.matricula)) {
+      toast(`⚠️ Matrícula leída "${datos.matricula}" no parece válida. Revísala antes de guardar.`, 'warn');
+    } else {
+      toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+    }
   } catch (e) {
     console.error('[reanalizarItv] Error:', e);
     toast('Error reanalizando: ' + (e.message || e), 'err');
@@ -4208,13 +4218,18 @@ async function handleItvFiles(files) {
       // 3. Llamar a IA para extraer datos
       toast(`🤖 Analizando ${f.name}...`);
       const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
-      // 4. Guardar en BD (UPSERT por matrícula — si ya existe, sustituye)
+      // 4. Validación estricta: si la matrícula no cumple formato español moderno
+      // (4 dígitos + 3 consonantes, sin vocales) NO la guardamos en BD para evitar
+      // basura tipo "2300NEO" que cruzó por la malla del prompt anterior.
+      // v102: el archivo SÍ se sube (ya está en Storage), pero el registro queda
+      // pendiente para que Juan Carlos lo cree a mano con la matrícula real.
       const matricula = (datos.matricula || '').trim().toUpperCase();
-      if (!matricula) {
-        toast(`⚠️ No se detectó matrícula en ${f.name}. Edítalo a mano.`, 'warn');
+      if (!esMatriculaEspanolaEstricta(matricula)) {
+        toast(`⚠️ ${f.name}: matrícula leída "${matricula || 'vacía'}" no es válida. Archivo subido — créalo a mano.`, 'warn');
+        continue;  // saltamos al siguiente archivo, no upsert
       }
       const rec = {
-        matricula: matricula || `DESCONOCIDA_${Date.now()}`,
+        matricula,
         fecha_itv: datos.fecha_itv || null,
         fecha_caducidad: datos.fecha_caducidad || null,
         tipo_documento: datos.tipo_documento || null,
@@ -4237,15 +4252,61 @@ async function handleItvFiles(files) {
 
 // Llamada a Claude para extraer datos de ITV
 async function callClaudeItv(b64, mediaType) {
-  // v101e: usar getKey() en lugar de localStorage.getItem('anthropic_key') (nombre incorrecto)
-  // getKey() es la función que usan albaranes y gasoil para obtener la clave correctamente.
+  // v102: fix bug v101e — antes usaba localStorage.getItem('anthropic_key') (clave incorrecta).
+  // La clave correcta es 'anth_key' y siempre se accede a través de getKey().
   const apiKey = getKey();
-  if (!apiKey) throw new Error('Clave API no configurada. Configúrala en la pestaña Albaranes (botón Cambiar).');
-  // v101d: prompt reforzado con los 3 formatos REALES que usa Juan Carlos:
-  // 1) Pegatina circular del parabrisas (Applus Iteuve - "Fecha:" + "Caduca:")
-  // 2) Informe oficial (Generalitat de Catalunya - campos numerados)
-  // 3) Permiso de circulación de vehículo nuevo (DGT - "Próxima ITV" en Observaciones)
+  if (!apiKey) throw new Error('Clave API no configurada');
+  // v102: prompt MUY reforzado tras detectar 2 errores graves en producción:
+  //   - 6102LSR: "02/09/2026" (2-sept-2026) leído como "9/2/2026" (9-feb-2026) → fecha invertida
+  //   - 6118MLD: matrícula leída como "2300NEO" (basura: 2300=clasificación + NEO=de IVECO).
+  //              Las españolas NO llevan vocales, así que "NEO" jamás puede ser parte de una.
+  // Cambios clave: sección dedicada al formato europeo de fechas, regla anti-vocales en
+  // matrículas, lista explícita de campos que NUNCA son matrícula, y temperature=0.
   const prompt = `Eres un experto en documentos de ITV (Inspección Técnica de Vehículos) de España y Cataluña. Analiza el documento adjunto y extrae los datos en JSON.
+
+═══════════════════════════════════════════════════════════════
+⚠️ REGLAS CRÍTICAS — LEER ANTES DE NADA
+═══════════════════════════════════════════════════════════════
+
+🔴 FORMATO DE FECHAS — SIEMPRE EUROPEO (DD/MM/YYYY)
+TODOS los documentos están en español o catalán. NUNCA están en formato americano.
+Ejemplos REALES de errores que han ocurrido y NO debes cometer:
+  • "02/09/2026" significa 2 de septiembre de 2026 → ISO: "2026-09-02"
+    (NO es 9 de febrero. JAMÁS interpretes el primer número como mes.)
+  • "02/10/2025" significa 2 de octubre de 2025 → ISO: "2025-10-02"
+    (NO es 10 de febrero.)
+  • "27/10/2026" significa 27 de octubre de 2026 → ISO: "2026-10-27"
+  • "13/11/2025" significa 13 de noviembre de 2025 → ISO: "2025-11-13"
+REGLA INVIOLABLE: en una fecha "X/Y/Z", X es siempre el DÍA, Y es siempre el MES.
+Si X > 12 esto se confirma trivialmente; si X ≤ 12 NO te dejes engañar, sigue siendo el día.
+Devuelve SIEMPRE en formato ISO YYYY-MM-DD.
+
+🔴 MATRÍCULAS ESPAÑOLAS — REGLAS DE FORMATO
+Formato moderno (post-2000) usado por TODA la flota: 4 DÍGITOS + 3 CONSONANTES.
+LAS LETRAS NUNCA SON VOCALES. NUNCA. Letras válidas (consonantes únicamente):
+  B C D F G H J K L M N P R S T V W X Y Z
+Letras PROHIBIDAS en matrículas modernas: A, E, I, O, U, Q, Ñ.
+Si lo que estás extrayendo contiene una vocal o Q, NO es la matrícula → busca otra vez.
+Ejemplos REALES de errores:
+  • "2300NEO" → INVÁLIDA (E y O son vocales). Probablemente leíste "2300" del campo
+    "Classificació vehicle" y "NEO" lo sacaste de "IVECO". La matrícula real está
+    en el campo "(2) Matrícula actual" y será algo como "6118MLD".
+
+🔴 CAMPOS QUE NUNCA SON LA MATRÍCULA
+En un informe de ITV hay muchos números y códigos. Estos NO son la matrícula:
+  • "Núm. inspecció" (nº de inspección, ej: 080900003646786)
+  • "Estació" (código estación, ej: 0809)
+  • "Classificació vehicle" (ej: 2300, N3) — número genérico, no es matrícula
+  • "Marca" / "Tipus" (ej: IVECO, BA3C, MAN)
+  • "Contrasenya d'homologació" (e3*2007/46/0135*25)
+  • "Número de bastidor" (VIN, 17 caracteres alfanuméricos, ej: WMA06KZZ0MP167972)
+  • "Codi defecte" (códigos como 1.3.2, 5.3.63)
+  • "km / hores de treball" (kilometraje)
+La MATRÍCULA está SIEMPRE en el campo etiquetado como:
+  • "(2) Matrícula actual" (informe Generalitat) ← AQUÍ y solo aquí
+  • "Matrícula" (pegatina) — texto en grande, centrado
+  • Campo "A" (permiso de circulación)
+A veces la matrícula viene con un sufijo entre paréntesis tipo "(E)" — quítalo.
 
 ═══════════════════════════════════════════════════════════════
 TIPOS DE DOCUMENTO Y CÓMO IDENTIFICARLOS
@@ -4258,14 +4319,14 @@ Datos a extraer:
   • "Fecha:" → fecha en que se PASÓ la ITV (DD/MM/YYYY) → fecha_itv
   • "Caduca:" → fecha de PRÓXIMA inspección (DD/MM/YYYY) → fecha_caducidad
   • Suele tener "FAVORABLE" como resultado y un código de estación (ej: "Iv: 0809")
-  • Suele aparecer también los KM del vehículo (ej: "49598 km") — IGNORAR, no se guardan
+  • Suele aparecer también los KM del vehículo (ej: "49598 km") — IGNORAR
 
 📌 TIPO 2 — "informe"
-Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos.
-Datos a extraer (campos numerados entre paréntesis):
-  • "(2) Matrícula actual" → matricula (formato puede ser "4839NBF(E)" — quitar el "(E)")
-  • "(3) Data d'inspecció" → fecha_itv (DD/MM/YYYY)
-  • "(8) Data propera inspecció" → fecha_caducidad (DD/MM/YYYY)
+Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos numerados.
+Datos a extraer (los números entre paréntesis SON las etiquetas oficiales del documento):
+  • "(2) Matrícula actual" → matricula (quitar sufijo "(E)" si aparece)
+  • "(3) Data d'inspecció" → fecha_itv (formato DD/MM/YYYY → ISO)
+  • "(8) Data propera inspecció" → fecha_caducidad (formato DD/MM/YYYY → ISO)
   • "(7) Resultat de la inspecció: FAVORABLE" → confirmar que es válido
   • Escrito en catalán: "data" = "fecha", "propera" = "próxima", "inspecció" = "inspección"
 
@@ -4273,37 +4334,34 @@ Datos a extraer (campos numerados entre paréntesis):
 Permiso de circulación oficial del Reino de España (DGT/Ministerio del Interior). Cabecera con escudo de España y "PERMISO DE CIRCULACIÓN" + "COMUNIDAD EUROPEA". Tabla con campos en filas: A, B, H, I, (I.1), (I.2), C.1.1, etc.
 Datos a extraer:
   • Campo "A" → matricula (ej: "3628NMW")
-  • Campo "I" o "(I.1)" → fecha de matriculación (la usaremos como fecha_itv si no hay otra) (DD-MM-YYYY)
-  • En el área de OBSERVACIONES (no manuscrito, está IMPRESO por la DGT) busca el texto:
-    "Documento válido si acompaña ITV en vigor. Próxima ITV: DD-MM-YYYY"
-    → fecha_caducidad = la fecha de "Próxima ITV"
+  • Campo "I" o "(I.1)" → fecha de matriculación → fecha_itv (DD-MM-YYYY → ISO)
+  • En OBSERVACIONES (impreso, no manuscrito): "Próxima ITV: DD-MM-YYYY"
+    → fecha_caducidad
   • Se usa para vehículos RECIÉN MATRICULADOS que aún no han pasado la primera ITV.
 
 ═══════════════════════════════════════════════════════════════
-REGLAS GENERALES
+REGLAS DE SALIDA
 ═══════════════════════════════════════════════════════════════
 
-✅ Matrícula española formato moderno: 4 dígitos + 3 letras (ej: "1234BCD"). Convertir a mayúsculas, quitar espacios y paréntesis sufijos como "(E)".
-✅ TODAS las fechas en formato ISO YYYY-MM-DD (convertir desde DD/MM/YYYY o DD-MM-YYYY).
-✅ Si una pegatina tiene "Caduca: 28/05/2026" → fecha_caducidad = "2026-05-28".
-✅ NO inventes datos. Si no encuentras un campo claramente, ponlo a null.
+✅ TODAS las fechas en formato ISO YYYY-MM-DD.
+✅ Matrícula en MAYÚSCULAS, sin espacios, sin paréntesis, sin guiones.
+✅ Si NO puedes leer la matrícula con seguridad o la que leíste contiene vocales, devuelve null.
+   Es preferible null (que el usuario lo edite a mano) a inventar basura.
+✅ Si la fecha no se puede leer con seguridad, devuelve null para esa fecha.
 ✅ "tipo_documento" debe ser EXACTAMENTE uno de: "pegatina", "informe", "permiso".
-
-═══════════════════════════════════════════════════════════════
-FORMATO DE SALIDA
-═══════════════════════════════════════════════════════════════
 
 Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 {
-  "matricula": "1968JFV",
-  "fecha_itv": "2025-11-11",
-  "fecha_caducidad": "2026-05-28",
-  "tipo_documento": "pegatina"
+  "matricula": "6118MLD",
+  "fecha_itv": "2025-10-02",
+  "fecha_caducidad": "2026-10-27",
+  "tipo_documento": "informe"
 }`;
 
   const body = {
     model: 'claude-haiku-4-5',
     max_tokens: 500,
+    temperature: 0,  // v102: máximo determinismo, sin creatividad al leer fechas/matrículas
     messages: [{
       role: 'user',
       content: [
@@ -5083,6 +5141,18 @@ function esMatriculaValida(mat) {
   if (!mat) return false;
   const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
   return /^\d{4}[A-Z]{3}$/.test(m) || /^\d{4}[A-Z]{3}\/\d{4}[A-Z]{3}$/.test(m);
+}
+
+// v102: validación ESTRICTA para matrículas españolas modernas (post-2000).
+// Las matrículas españolas modernas NUNCA contienen vocales (A,E,I,O,U) ni Q ni Ñ.
+// Solo consonantes válidas: B C D F G H J K L M N P R S T V W X Y Z (20 letras).
+// Se usa al leer ITVs porque la IA a veces confunde la matrícula con otros campos
+// numéricos del documento (clasificación de vehículo, bastidor, etc.) y mete basura
+// que cumple el formato genérico 4D+3L pero no es matrícula real.
+function esMatriculaEspanolaEstricta(mat) {
+  if (!mat) return false;
+  const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
+  return /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m);
 }
 
 // v89: si lo que lee la IA NO tiene formato matrícula válido, intenta extraer una de cualquier
