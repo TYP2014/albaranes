@@ -371,9 +371,16 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
       <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
+      <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
+      <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
       <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">⚙️ Usuarios</div>
     </div>
+
+    <!-- v101b: banner GLOBAL de avisos ITV. Visible en TODAS las pestañas para usuarios con
+         acceso ITV. Se actualiza al cargar y al cambiar de pestaña. Botón ✕ oculta hasta
+         el día siguiente (mañana al recargar vuelve a aparecer). -->
+    <div id="itvGlobalBanner" style="display:none"></div>
 
     <!-- TAB ALBARANES -->
     <div id="tabContentAlb" class="wrap">
@@ -523,6 +530,54 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               </tr></thead>
               <tbody id="tbodyPreli"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- v101: TAB ITV — solo visible para usuarios con puede_ver_itv=TRUE.
+         Estructura espejo de tab Albaranes: estadísticas + alertas + filtros + tabla -->
+    <div id="tabContentItv" class="wrap" style="display:none">
+      <div id="itvStatsBox" class="stats"></div>
+      <div id="itvAlertsBox"></div>
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn bp" onclick="document.getElementById('itvFileInput').click()">➕ Subir ITV</button>
+            <input type="file" id="itvFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleItvFiles(this.files)">
+          </div>
+        </div>
+        <div class="card-bd">
+          <div class="filters" id="filtersItv">
+            <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fItvMat" oninput="applyItvFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
+            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fItvEstado" onchange="applyItvFilters()"><option value="">Todos</option><option value="caducada">🔴 Caducada</option><option value="aviso">🟧 Aviso (15 días)</option><option value="vigente">🟢 Vigente</option></select></div>
+            <div class="fil-group"><label class="fil-label">Tipo doc</label><select class="fil-sel" id="fItvTipo" onchange="applyItvFilters()"><option value="">Todos</option><option value="pegatina">Pegatina</option><option value="informe">Informe</option><option value="permiso">Permiso circulación</option></select></div>
+            <div class="filter-actions"><button class="btn bs" onclick="resetItvFilters()">✕ Limpiar</button></div>
+          </div>
+          <div id="itvTableBox" style="overflow-x:auto;margin-top:14px">
+            <table class="t" id="itvTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA ITV</th><th>CADUCA</th><th>DÍAS</th><th>TIPO DOC</th><th>SUBIDO POR</th><th>SUBIDO EL</th></tr></thead><tbody id="itvTableBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal ITV (mismo patrón que albaranes/gasoil) -->
+      <div class="ov" id="itvOv" onclick="if(event.target===this)closeItvModal()">
+        <div class="modal">
+          <div class="modal-hd"><div class="st"><div class="dot"></div>DETALLE ITV</div><div style="display:flex;gap:8px"><button class="btn bp" id="itvSaveBtn" onclick="saveItvModal()">✓</button><button class="btn bs" onclick="closeItvModal()">✕</button></div></div>
+          <div class="modal-bd">
+            <div id="itvAlert"></div>
+            <div class="modal-grid">
+              <div class="mfields" id="itvFields"></div>
+              <div id="itvPreview"></div>
+            </div>
+          </div>
+          <div class="modal-ft">
+            <button class="btn br" id="itvBtnDel" onclick="deleteItvRecord()">Eliminar</button>
+            <div style="display:flex;gap:8px;margin-left:auto">
+              <button class="btn bs" onclick="closeItvModal()">Cancelar</button>
+              <button class="btn bp" onclick="saveItvModal()">Guardar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -732,10 +787,24 @@ async function doLogout() {
 // Cargar el mapa de usuarios (id -> nombre) para poder mostrar quién subió cada albarán
 async function loadUserMap() {
   try {
-    const { data, error } = await sb.from('profiles').select('id, name, role');
+    // v101: añadir puede_ver_itv para saber quién puede acceder a la pestaña ITV
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
-    (data || []).forEach(p => { userMap[p.id] = { name: p.name || '(sin nombre)', role: p.role || '' }; });
+    (data || []).forEach(p => { userMap[p.id] = { name: p.name || '(sin nombre)', role: p.role || '', puede_ver_itv: !!p.puede_ver_itv }; });
+    // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
+    if (currentUser?.id) {
+      const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
+      const tabItv = document.getElementById('tabItv');
+      if (tabItv) tabItv.style.display = tienePermisoITV ? '' : 'none';
+      window._tieneITV = tienePermisoITV;
+      // v101b: si tiene permiso, cargar ITVs INMEDIATAMENTE al iniciar la app
+      // para que el banner global de avisos aparezca en cualquier pestaña, no solo al
+      // entrar en la pestaña ITV. Así, desde el momento en que se loguea, ve los avisos.
+      if (tienePermisoITV) {
+        loadItvData().catch(e => console.warn('[loadUserMap] Error cargando ITVs al inicio:', e));
+      }
+    }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
 
@@ -3801,10 +3870,393 @@ function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${reco
 // Recuerda la última pestaña principal (alb o gas) para decidir qué mostrar en Subir
 let _lastMainTab = 'alb';
 
+// ============================================================
+// v101 — PESTAÑA ITV (control de inspecciones técnicas)
+// Solo accesible para usuarios con puede_ver_itv=TRUE en profiles.
+// La fecha de caducidad se LEE del documento (no se calcula), porque la
+// periodicidad varía según la edad del vehículo (anual hasta 10 años, luego
+// cada 6 meses, primera ITV a 1 año desde matriculación).
+// ============================================================
+let itvRecords = [];
+let filteredItv = [];
+let editItvId = null;
+const ITV_AVISO_DIAS = 15;  // umbral de aviso amarillo (15 días antes)
+
+// Estado de un registro ITV según la fecha de caducidad
+function _itvEstado(rec) {
+  if (!rec.fecha_caducidad) return { tipo: 'sin', dias: null, label: '?', icon: '⚪' };
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const cad = new Date(rec.fecha_caducidad + 'T00:00:00');
+  const dias = Math.round((cad - hoy) / 86400000);
+  if (dias < 0) return { tipo: 'caducada', dias, label: 'Caducada', icon: '🔴' };
+  if (dias <= ITV_AVISO_DIAS) return { tipo: 'aviso', dias, label: 'Aviso', icon: '🟧' };
+  return { tipo: 'vigente', dias, label: 'Vigente', icon: '🟢' };
+}
+
+// ============================================================
+// v101b: BANNER GLOBAL DE AVISOS ITV
+// Aparece en CUALQUIER pestaña para usuarios con acceso ITV.
+// Niveles escalonados: caducadas (rojo intenso), 1d, 2d, 3d (rojo→naranja→amarillo),
+// 4-15d (azul informativo). Botón ✕ oculta el aviso hasta el día siguiente
+// (se guarda en localStorage la fecha del último ocultamiento).
+// ============================================================
+const ITV_BANNER_HIDE_KEY = 'itv_banner_hidden_date';
+
+function _itvNivelAviso(dias) {
+  // Devuelve color y prioridad del aviso según los días que quedan
+  if (dias < 0) return { color: '#cc0000', bg: '#3a0a0a', icon: '🚨', label: 'CADUCADA', prio: 5 };
+  if (dias <= 1) return { color: '#ff3333', bg: '#3a0a0a', icon: '🔴', label: dias === 0 ? 'CADUCA HOY' : 'CADUCA MAÑANA', prio: 4 };
+  if (dias === 2) return { color: '#ff8800', bg: '#3a200a', icon: '⚠️', label: '2 DÍAS', prio: 3 };
+  if (dias === 3) return { color: '#ffcc00', bg: '#3a300a', icon: '📅', label: '3 DÍAS', prio: 2 };
+  if (dias <= 15) return { color: '#3399ff', bg: '#0a1f3a', icon: '📋', label: `${dias} DÍAS`, prio: 1 };
+  return null;  // no avisa
+}
+
+function renderItvGlobalBanner() {
+  // Solo renderizar si el usuario tiene acceso ITV
+  if (!window._tieneITV) {
+    const banner = document.getElementById('itvGlobalBanner');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  // Comprobar si el usuario ya ocultó el aviso HOY (localStorage)
+  const today = new Date().toISOString().slice(0, 10);  // 'YYYY-MM-DD'
+  const hiddenOn = localStorage.getItem(ITV_BANNER_HIDE_KEY);
+  const isHiddenToday = (hiddenOn === today);
+  // Buscar ITVs que requieren aviso (caducadas o ≤15 días)
+  const avisos = itvRecords
+    .map(r => ({ rec: r, est: _itvEstado(r) }))
+    .filter(x => x.est.tipo === 'caducada' || x.est.tipo === 'aviso')
+    .map(x => ({ ...x, nivel: _itvNivelAviso(x.est.dias) }))
+    .filter(x => x.nivel !== null)
+    // Ordenar por prioridad (caducadas primero, luego más cercanas)
+    .sort((a, b) => b.nivel.prio - a.nivel.prio || a.est.dias - b.est.dias);
+  const banner = document.getElementById('itvGlobalBanner');
+  if (!banner) return;
+  if (avisos.length === 0 || isHiddenToday) {
+    banner.style.display = 'none';
+    return;
+  }
+  // Tomar el nivel más alto (el más urgente) para el color de fondo del banner
+  const nivelTop = avisos[0].nivel;
+  // Texto del banner: si hay 1, ponemos "matrícula 1234ABC caduca en 2 días"
+  // Si hay varias, "3 ITVs requieren atención" + lista breve
+  let mensajeHtml = '';
+  if (avisos.length === 1) {
+    const a = avisos[0];
+    mensajeHtml = `<strong>${a.nivel.icon} ITV ${a.rec.matricula}</strong> · ${a.nivel.label}`;
+  } else {
+    // Resumen + lista corta
+    const top3 = avisos.slice(0, 3).map(a => `${a.nivel.icon} <strong>${a.rec.matricula}</strong> (${a.nivel.label.toLowerCase()})`).join(' · ');
+    const restoTxt = avisos.length > 3 ? ` · +${avisos.length - 3} más` : '';
+    mensajeHtml = `<strong>${avisos.length} ITVs requieren atención:</strong> ${top3}${restoTxt}`;
+  }
+  banner.style.display = 'block';
+  banner.innerHTML = `
+    <div style="background:${nivelTop.bg};border:1px solid ${nivelTop.color};border-left:4px solid ${nivelTop.color};border-radius:6px;padding:10px 14px;margin:10px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+      <div style="flex:1;color:#fff;line-height:1.5">${mensajeHtml}</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('itv')">🛡️ Ver ITV</button>
+        <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideItvBannerToday()" title="Ocultar hasta mañana">✕</button>
+      </div>
+    </div>`;
+}
+
+function hideItvBannerToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(ITV_BANNER_HIDE_KEY, today);
+  const banner = document.getElementById('itvGlobalBanner');
+  if (banner) banner.style.display = 'none';
+  toast('Aviso ITV ocultado hasta mañana');
+}
+
+async function loadItvData() {
+  if (!window._tieneITV) return;  // doble check de seguridad
+  try {
+    const { data, error } = await sb.from('itv').select('*').order('fecha_caducidad', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    itvRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    applyItvFilters();
+    updateItvStats();
+    renderItvAlerts();
+    document.getElementById('tabItvCount').textContent = itvRecords.filter(r => {
+      const e = _itvEstado(r);
+      return e.tipo === 'caducada' || e.tipo === 'aviso';
+    }).length;
+    // v101b: actualizar también el banner global de avisos (visible en todas las pestañas)
+    renderItvGlobalBanner();
+  } catch (e) {
+    console.error('[loadItvData] Error:', e);
+    toast('Error cargando ITVs: ' + (e.message || e), 'err');
+  }
+}
+
+function updateItvStats() {
+  const cad = itvRecords.filter(r => _itvEstado(r).tipo === 'caducada').length;
+  const avi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso').length;
+  const vig = itvRecords.filter(r => _itvEstado(r).tipo === 'vigente').length;
+  const box = document.getElementById('itvStatsBox');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="stat" style="--c:var(--er)"><div class="stat-l">Caducadas</div><div class="stat-v" style="color:var(--er)">${cad}</div><div class="stat-s">no aptas</div></div>
+    <div class="stat" style="--c:var(--wn)"><div class="stat-l">Caducan en ${ITV_AVISO_DIAS} días</div><div class="stat-v" style="color:var(--wn)">${avi}</div><div class="stat-s">aviso</div></div>
+    <div class="stat"><div class="stat-l">Vigentes</div><div class="stat-v">${vig}</div><div class="stat-s">en regla</div></div>
+    <div class="stat"><div class="stat-l">Total ITVs</div><div class="stat-v">${itvRecords.length}</div><div class="stat-s">vehículos registrados</div></div>`;
+}
+
+function renderItvAlerts() {
+  const cad = itvRecords.filter(r => _itvEstado(r).tipo === 'caducada');
+  const avi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso');
+  let html = '';
+  if (cad.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">🔴 <strong>${cad.length} ITV(s) CADUCADA(s)</strong> — pasar inspección urgente.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='caducada';applyItvFilters()">Ver</button></div></div>`;
+  if (avi.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟧 <strong>${avi.length} ITV(s) caducan en ${ITV_AVISO_DIAS} días o menos</strong> — preparar próxima inspección.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='aviso';applyItvFilters()">Ver</button></div></div>`;
+  document.getElementById('itvAlertsBox').innerHTML = html;
+}
+
+function applyItvFilters() {
+  const fMat = (document.getElementById('fItvMat')?.value || '').trim().toUpperCase();
+  const fEst = document.getElementById('fItvEstado')?.value || '';
+  const fTipo = document.getElementById('fItvTipo')?.value || '';
+  filteredItv = itvRecords.filter(r => {
+    if (fMat && !String(r.matricula || '').toUpperCase().includes(fMat)) return false;
+    if (fEst && _itvEstado(r).tipo !== fEst) return false;
+    if (fTipo && r.tipo_documento !== fTipo) return false;
+    return true;
+  });
+  // Ordenar siempre por caducidad: la más cercana primero
+  filteredItv.sort((a, b) => {
+    if (!a.fecha_caducidad) return 1;
+    if (!b.fecha_caducidad) return -1;
+    return a.fecha_caducidad.localeCompare(b.fecha_caducidad);
+  });
+  renderItvTable();
+}
+
+function resetItvFilters() {
+  ['fItvMat','fItvEstado','fItvTipo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyItvFilters();
+}
+
+function renderItvTable() {
+  const tb = document.getElementById('itvTableBody');
+  if (!tb) return;
+  if (!filteredItv.length) {
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--mu)">No hay ITVs registradas</td></tr>';
+    return;
+  }
+  const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-ES') : '—';
+  const fmtTSItv = ts => ts ? new Date(ts).toLocaleDateString('es-ES') : '—';
+  tb.innerHTML = filteredItv.map(r => {
+    const est = _itvEstado(r);
+    const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
+    const subPor = userMap[r.user_id]?.name || '—';
+    const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
+    return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
+      <td style="font-size:14px">${est.icon}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
+      <td>${fmtDate(r.fecha_itv)}</td>
+      <td style="font-weight:600">${fmtDate(r.fecha_caducidad)}</td>
+      <td>${diasTxt}</td>
+      <td><span class="badge">${tipoLbl}</span></td>
+      <td>${esc(subPor)}</td>
+      <td>${fmtTSItv(r.created_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openItvModal(dbId) {
+  const r = itvRecords.find(x => String(x.db_id) === String(dbId));
+  if (!r) return;
+  editItvId = dbId;
+  const fields = document.getElementById('itvFields');
+  fields.innerHTML = `
+    <div class="ig"><label>Matrícula</label><input id="itvMatricula" value="${esc(r.matricula || '')}" style="font-family:var(--mn);text-transform:uppercase"></div>
+    <div class="ig"><label>Fecha ITV</label><input type="date" id="itvFecha" value="${r.fecha_itv || ''}"></div>
+    <div class="ig"><label>Fecha caducidad</label><input type="date" id="itvCaducidad" value="${r.fecha_caducidad || ''}"></div>
+    <div class="ig"><label>Tipo documento</label><select id="itvTipo"><option value="">—</option><option value="pegatina" ${r.tipo_documento==='pegatina'?'selected':''}>Pegatina</option><option value="informe" ${r.tipo_documento==='informe'?'selected':''}>Informe</option><option value="permiso" ${r.tipo_documento==='permiso'?'selected':''}>Permiso circulación</option></select></div>
+    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="itvObs" value="${esc(r.observaciones || '')}"></div>`;
+  // Preview del archivo (foto o PDF)
+  const preview = document.getElementById('itvPreview');
+  if (r.file_url) {
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
+    if (isPdf) {
+      preview.innerHTML = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir PDF</a>`;
+    } else {
+      preview.innerHTML = `<img src="${r.file_url}" style="max-width:100%;max-height:70vh;border-radius:8px;border:1px solid var(--bd);cursor:pointer" onclick="window.open('${r.file_url}','_blank')">`;
+    }
+  } else {
+    preview.innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px">Sin documento adjunto</div>';
+  }
+  // Aviso de estado
+  const est = _itvEstado(r);
+  document.getElementById('itvAlert').innerHTML = `<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px">${est.icon} <strong>${est.label}</strong>${est.dias !== null ? ` · ${est.dias} días` : ''}</div>`;
+  document.getElementById('itvOv').classList.add('open');
+}
+
+function closeItvModal() {
+  document.getElementById('itvOv').classList.remove('open');
+  editItvId = null;
+}
+
+async function saveItvModal() {
+  const matricula = (document.getElementById('itvMatricula').value || '').trim().toUpperCase();
+  const fecha_itv = document.getElementById('itvFecha').value || null;
+  const fecha_caducidad = document.getElementById('itvCaducidad').value || null;
+  const tipo_documento = document.getElementById('itvTipo').value || null;
+  const observaciones = (document.getElementById('itvObs').value || '').trim() || null;
+  if (!matricula) { toast('Matrícula requerida', 'err'); return; }
+  try {
+    const { error } = await sb.from('itv')
+      .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
+      .eq('id', editItvId);
+    if (error) throw error;
+    closeItvModal();
+    await loadItvData();
+    toast('✓ ITV actualizada');
+  } catch (e) {
+    console.error('[saveItvModal] Error:', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteItvRecord() {
+  if (!confirm('¿Eliminar este registro de ITV?\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('itv').delete().eq('id', editItvId);
+    if (error) throw error;
+    closeItvModal();
+    await loadItvData();
+    toast('✓ Eliminado');
+  } catch (e) {
+    console.error('[deleteItvRecord] Error:', e);
+    toast('Error eliminando: ' + (e.message || e), 'err');
+  }
+}
+
+// Subir nuevo documento ITV: sube archivo, llama a IA, guarda en BD
+async function handleItvFiles(files) {
+  if (!files || !files.length) return;
+  if (!window._tieneITV) { toast('Sin permiso para subir ITV', 'err'); return; }
+  for (const f of files) {
+    try {
+      toast(`📤 Subiendo ${f.name}...`);
+      // 1. Subir archivo a Supabase Storage
+      const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
+      const path = `itv/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await sb.storage.from('albaranes').upload(path, f);
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('albaranes').getPublicUrl(path);
+      const file_url = urlData.publicUrl;
+      // 2. Convertir a base64 para llamar a IA
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      let b64;
+      if (isPdf) {
+        b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(f);
+        });
+      } else {
+        // Imagen — comprimir si hace falta
+        const imgFile = f.size > 4 * 1024 * 1024 ? await comprimirImagen(f, 1400, 0.8) : f;
+        b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(imgFile);
+        });
+      }
+      // 3. Llamar a IA para extraer datos
+      toast(`🤖 Analizando ${f.name}...`);
+      const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
+      // 4. Guardar en BD (UPSERT por matrícula — si ya existe, sustituye)
+      const matricula = (datos.matricula || '').trim().toUpperCase();
+      if (!matricula) {
+        toast(`⚠️ No se detectó matrícula en ${f.name}. Edítalo a mano.`, 'warn');
+      }
+      const rec = {
+        matricula: matricula || `DESCONOCIDA_${Date.now()}`,
+        fecha_itv: datos.fecha_itv || null,
+        fecha_caducidad: datos.fecha_caducidad || null,
+        tipo_documento: datos.tipo_documento || null,
+        file_url,
+        user_id: currentUser.id,
+        updated_at: new Date().toISOString()
+      };
+      // UPSERT por matricula (si existe, actualiza; si no, inserta)
+      const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
+      if (upsErr) throw upsErr;
+      toast(`✓ ${matricula} procesada`);
+    } catch (e) {
+      console.error('[handleItvFiles] Error procesando', f.name, ':', e);
+      toast(`✗ Error en ${f.name}: ${e.message || e}`, 'err');
+    }
+  }
+  document.getElementById('itvFileInput').value = '';
+  await loadItvData();
+}
+
+// Llamada a Claude para extraer datos de ITV
+async function callClaudeItv(b64, mediaType) {
+  const apiKey = localStorage.getItem('anthropic_key');
+  if (!apiKey) throw new Error('Clave API no configurada');
+  const prompt = `Eres un experto en documentos de ITV (Inspección Técnica de Vehículos) de España. Analiza el documento adjunto y extrae los datos en JSON.
+
+Tipos posibles de documento:
+1. **Pegatina ITV**: Pegatina circular de la ITV pegada en el parabrisas. Indica matrícula, fecha de inspección y "PRÓXIMA INSPECCIÓN" (que es la fecha de caducidad).
+2. **Informe ITV**: Documento oficial completo con resultado de la inspección. Indica matrícula, fecha de inspección, fecha de próxima ITV y resultado (favorable/desfavorable/negativa).
+3. **Permiso de circulación**: Documento del vehículo. Para vehículos recién matriculados, contiene una anotación tipo "primera ITV en X meses" o fecha de primera ITV.
+
+REGLAS:
+- La matrícula española tiene formato: 4 dígitos + 3 letras consonantes (ej: "1234BCD") o formato antiguo.
+- Las fechas deben extraerse en formato ISO YYYY-MM-DD.
+- "fecha_itv" = fecha en que se realizó la inspección.
+- "fecha_caducidad" = fecha hasta la cual la ITV es válida (próxima inspección obligatoria).
+- "tipo_documento" = uno de: "pegatina", "informe", "permiso".
+
+Responde SOLO con un JSON válido:
+{"matricula": "1234BCD", "fecha_itv": "2025-04-15", "fecha_caducidad": "2026-04-15", "tipo_documento": "pegatina"}
+
+Si no detectas algún campo, ponlo a null. NO inventes datos.`;
+
+  const body = {
+    model: 'claude-haiku-4-5',
+    max_tokens: 500,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+        { type: 'text', text: prompt }
+      ]
+    }]
+  };
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`Error API: ${resp.status} - ${txt.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  let text = data.content?.[0]?.text || '';
+  // Limpiar markdown si lo hay
+  text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[callClaudeItv] No se pudo parsear:', text);
+    throw new Error('Respuesta IA inválida');
+  }
+}
+
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
-  ['alb','preli','gas','subir','admin'].forEach(t => {
+  // v101: 'itv' añadido a la lista de pestañas
+  ['alb','preli','gas','itv','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -3822,6 +4274,8 @@ function switchTab(tab) {
   }
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
+  // v101: cargar ITVs al entrar en su pestaña
+  if (tab === 'itv') { loadItvData(); }
 }
 
 // ============================================================
@@ -3892,22 +4346,44 @@ async function loadUsers() {
     const delBtn = isMe
       ? `<button class="btn bs" disabled style="font-size:10px;padding:6px 10px;opacity:.4;cursor:not-allowed" title="No puedes borrarte a ti mismo">🗑</button>`
       : `<button class="btn br" id="delU_${u.id}" onclick="deleteUser('${u.id}','${(u.name || u.id).replace(/'/g, "\\'")}')" style="font-size:10px;padding:6px 10px" title="Eliminar usuario">🗑</button>`;
+    // v101: checkbox para gestionar acceso a ITV. Los conductores normalmente no lo necesitan.
+    // El propio admin actual no puede quitarse el permiso a sí mismo (para evitar bloqueos).
+    const itvCheck = `<label style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mn);font-size:10px;color:var(--mu);cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña ITV">
+      <input type="checkbox" ${u.puede_ver_itv ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleItvAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}">🛡️ ITV
+    </label>`;
     return `
     <div class="user-row">
       <div class="user-info">
         <div class="user-email">${u.name || u.id}</div>
         <div class="user-meta">${u.id}</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <select class="role-sel" onchange="updateRole('${u.id}',this.value)" ${isMe ? 'disabled title="No puedes cambiar tu propio rol"' : ''}>
           <option value="conductor" ${u.role==='conductor'?'selected':''}>🚛 Conductor</option>
           <option value="gestor" ${u.role==='gestor'?'selected':''}>📋 Gestor</option>
           <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
         </select>
+        ${itvCheck}
         ${delBtn}
       </div>
     </div>`;
   }).join('');
+}
+
+// v101: actualizar el flag puede_ver_itv en BD desde el checkbox de la pestaña Usuarios
+async function toggleItvAccess(userId, checked) {
+  try {
+    const { error } = await sb.from('profiles').update({ puede_ver_itv: checked }).eq('id', userId);
+    if (error) throw error;
+    // Actualizar userMap en memoria también para que se refleje sin recargar
+    if (userMap[userId]) userMap[userId].puede_ver_itv = checked;
+    toast(checked ? '✓ Acceso ITV concedido' : '✓ Acceso ITV retirado');
+  } catch (e) {
+    console.error('[toggleItvAccess] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+    // Revertir el checkbox visualmente si falló
+    loadUsers();
+  }
 }
 
 // Borrar usuario (de la tabla profiles). El usuario en auth.users queda huérfano:
