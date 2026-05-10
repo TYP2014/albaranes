@@ -4509,21 +4509,43 @@ del MISMO vehículo/remolque. Cada celda es una pegatina con su propia fecha y r
 Aparece en remolques que han pasado muchas ITVs (ITV semestral) y en la cabecera puedes
 ver "Núm. matrícula: R3542BBV" o similar (matrícula clara y única para todo el documento).
 
-⚠️ REGLA CRÍTICA: SOLO devolver datos de la ÚLTIMA pegatina FAVORABLE válida.
-   • IGNORA pegatinas con resultado "NEGATIVA" o "DESFAVORABLE" — no son ITVs pasadas válidas.
-   • De las que ponen "FAVORABLE", elige la que tiene la fecha "Caduca:" MÁS RECIENTE
-     (es decir, la más cercana a hoy o en el futuro).
-   • La caducidad de cualquier pegatina ANTIGUA ya está superada por una más nueva — no la cojas.
+⚠️ INSTRUCCIONES CRÍTICAS PARA HOJAS ADICIONALES (TIPO 4):
 
-Datos a extraer:
+1) DEBES detectar TODAS las pegatinas visibles en la hoja, una por una.
+2) DEBES devolver el campo "todas_pegatinas" con un array de objetos, uno por cada pegatina:
+   • "resultado": "FAVORABLE" | "DESFAVORABLE" | "NEGATIVA"
+   • "fecha_itv": fecha de inspección de esa pegatina (ISO YYYY-MM-DD), o null si no se ve
+   • "fecha_caducidad": fecha "Caduca:" de esa pegatina (ISO YYYY-MM-DD), o null
+3) NO TIENES QUE elegir tú la pegatina principal — el código JS elegirá la más reciente
+   FAVORABLE del array. Solo lista todas las que veas con sus datos.
+4) Pon también los campos "matricula", "fecha_itv" y "fecha_caducidad" del nivel principal
+   con tu mejor estimación de la última FAVORABLE, pero el array "todas_pegatinas" es el
+   que el código usará para corregir si te equivocaste.
+
+Datos de cabecera:
   • "Núm. matrícula:" en la cabecera (puede empezar por R si es remolque) → matricula
-  • De la última pegatina FAVORABLE: "Fecha:" o "Data:" → fecha_itv
-  • De la misma pegatina: "Caduca:" → fecha_caducidad
   • tipo_documento: "pegatina"
 
-Ejemplo: si una hoja tiene pegatinas con caducidades 25/02/2024, 25/08/2024, 25/02/2025,
-25/08/2025, 25/02/2026 y 25/08/2026, debes coger la de Caduca 25/08/2026 (la más reciente)
-ignorando todas las anteriores.
+Ejemplo de respuesta para hoja con varias pegatinas:
+{
+  "matricula": "R3542BBV",
+  "fecha_itv": "2026-02-03",
+  "fecha_caducidad": "2026-08-25",
+  "tipo_documento": "pegatina",
+  "todas_pegatinas": [
+    {"resultado": "NEGATIVA", "fecha_itv": "2023-08-22", "fecha_caducidad": null},
+    {"resultado": "FAVORABLE", "fecha_itv": "2023-08-25", "fecha_caducidad": "2024-02-25"},
+    {"resultado": "FAVORABLE", "fecha_itv": "2024-02-05", "fecha_caducidad": "2024-08-25"},
+    {"resultado": "FAVORABLE", "fecha_itv": "2024-07-30", "fecha_caducidad": "2025-02-25"},
+    {"resultado": "DESFAVORABLE", "fecha_itv": "2025-02-18", "fecha_caducidad": null},
+    {"resultado": "DESFAVORABLE", "fecha_itv": "2025-07-30", "fecha_caducidad": null},
+    {"resultado": "FAVORABLE", "fecha_itv": "2025-08-11", "fecha_caducidad": "2026-02-25"},
+    {"resultado": "FAVORABLE", "fecha_itv": "2026-02-03", "fecha_caducidad": "2026-08-25"}
+  ]
+}
+
+⚠️ Para TIPOS 1, 2 y 3 (pegatina simple, informe, permiso) NO incluyas "todas_pegatinas",
+omítelo o devuelve un array vacío [].
 
 ═══════════════════════════════════════════════════════════════
 REGLAS DE SALIDA
@@ -4549,7 +4571,8 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
     model: 'claude-sonnet-4-6',  // v103c: cambiado de Haiku a Sonnet — Haiku confundía
                                   // formato de fechas con día ≤ 12 (ej: 10/06/2026 → 6/10/2026).
                                   // Sonnet es más fiable y se procesan pocas ITVs (~1/día), coste mínimo.
-    max_tokens: 500,
+    max_tokens: 1500,  // v103g: subido de 500 a 1500 — para hojas con 9 pegatinas el array
+                       // todas_pegatinas puede ocupar bastante más texto en la respuesta.
     temperature: 0,  // v102: máximo determinismo, sin creatividad al leer fechas/matrículas
     messages: [{
       role: 'user',
@@ -4578,6 +4601,26 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   } catch (e) {
     console.error('[callClaudeItv] No se pudo parsear:', text);
     throw new Error('Respuesta IA inválida');
+  }
+  // v103g: si la respuesta contiene "todas_pegatinas" (hoja adicional con histórico),
+  // SIEMPRE corregimos los campos principales eligiendo la pegatina FAVORABLE con
+  // fecha_caducidad más reciente. Esto blinda contra el caso en que la IA detecta
+  // bien todas las pegatinas pero se equivoca al elegir cuál es la "principal".
+  if (Array.isArray(parsed.todas_pegatinas) && parsed.todas_pegatinas.length > 0) {
+    const favorables = parsed.todas_pegatinas
+      .filter(p => p && p.resultado === 'FAVORABLE' && p.fecha_caducidad);
+    if (favorables.length > 0) {
+      // Ordenar descendente por fecha_caducidad — la primera será la más reciente
+      favorables.sort((a, b) => String(b.fecha_caducidad).localeCompare(String(a.fecha_caducidad)));
+      const ultima = favorables[0];
+      if (ultima.fecha_caducidad !== parsed.fecha_caducidad) {
+        console.log(`[callClaudeItv] Corrigiendo selección de pegatina: la IA eligió ${parsed.fecha_caducidad}, pero la más reciente FAVORABLE es ${ultima.fecha_caducidad}. Auto-corregido.`);
+      }
+      parsed.fecha_itv = ultima.fecha_itv || parsed.fecha_itv;
+      parsed.fecha_caducidad = ultima.fecha_caducidad;
+    }
+    // Quitamos el array temporal antes de devolver — no se guarda en BD
+    delete parsed.todas_pegatinas;
   }
   // v103d: validación lógica de coherencia de fechas, MÁS INTELIGENTE que v103c.
   // Hay dos tipos de error que queremos detectar:
