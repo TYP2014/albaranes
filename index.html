@@ -105,6 +105,33 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .st{font-family:var(--dp);font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:8px}
 .dot{width:6px;height:6px;background:var(--c,var(--ac));border-radius:50%;box-shadow:0 0 6px var(--c,var(--ac));flex-shrink:0}
 
+/* v104b: layout de dos columnas para la pestaña ITV (Registro + Citas).
+   En pantallas grandes (>1100px) las dos cards van lado a lado al 50%.
+   En tablet/móvil se apilan en vertical para que sea legible. */
+.itv-twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media (max-width:1100px){.itv-twocol{grid-template-columns:1fr}}
+.itv-twocol .card{margin-bottom:0}
+/* Tablas más compactas y texto resaltado dentro del layout 2-col */
+.itv-twocol .card-hd{padding:11px 14px}
+.itv-twocol .card-bd{padding:12px 14px}
+.itv-twocol .st{font-size:14px;letter-spacing:1.5px}
+.itv-twocol .t{font-size:11px}
+.itv-twocol .t th{padding:6px 8px;font-size:10px;letter-spacing:0.6px}
+.itv-twocol .t td{padding:8px;font-weight:500}
+.itv-twocol .t td:nth-child(2){font-weight:800}  /* matrícula muy bold */
+.itv-twocol .t td:nth-child(4){font-weight:700}  /* fecha caduca/cita bold */
+.itv-twocol .filters{gap:6px}
+.itv-twocol .fil-group{flex:1 1 100px;min-width:80px}
+.itv-twocol .fil-label{font-size:9px}
+.itv-twocol .fil-sel{font-size:11px;padding:6px 8px}
+/* Ocultar columnas menos críticas (SUBIDO POR y SUBIDO EL) cuando está en 2-col */
+.itv-twocol .t th:nth-last-child(-n+2),
+.itv-twocol .t td:nth-last-child(-n+2){display:none}
+@media (max-width:1100px){
+  .itv-twocol .t th:nth-last-child(-n+2),
+  .itv-twocol .t td:nth-last-child(-n+2){display:table-cell}
+}
+
 /* QUEUE */
 .queue{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .qi{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:10px}
@@ -540,6 +567,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
+      <div id="itvCitasAlertsBox"></div>
+      <!-- v104b: layout de dos columnas (Registro ITV | Citas ITV) — 50/50 en desktop, apilado en móvil -->
+      <div class="itv-twocol">
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
@@ -562,8 +592,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         </div>
       </div>
 
-      <!-- v104: SECCIÓN DE CITAS ITV (nueva) -->
-      <div id="itvCitasAlertsBox"></div>
+      <!-- v104: SECCIÓN DE CITAS ITV (lado a lado con Registro ITV en desktop) -->
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="background:#fb923c;box-shadow:0 0 6px #fb923c"></div>PRÓXIMAS CITAS ITV</div>
@@ -584,6 +613,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </div>
         </div>
       </div>
+      </div><!-- /itv-twocol -->
 
       <!-- Modal ITV (mismo patrón que albaranes/gasoil) -->
       <div class="ov" id="itvOv" onclick="if(event.target===this)closeItvModal()">
