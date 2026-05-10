@@ -574,6 +574,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </div>
           <div class="modal-ft">
             <button class="btn br" id="itvBtnDel" onclick="deleteItvRecord()">Eliminar</button>
+            <button class="btn bw" id="itvBtnReanalizar" onclick="reanalizarItv()" title="Volver a procesar el documento con IA">🔄 Reanalizar IA</button>
             <div style="display:flex;gap:8px;margin-left:auto">
               <button class="btn bs" onclick="closeItvModal()">Cancelar</button>
               <button class="btn bp" onclick="saveItvModal()">Guardar</button>
@@ -4133,6 +4134,43 @@ async function deleteItvRecord() {
   }
 }
 
+// v101d: re-procesar el documento con IA. Útil cuando la primera lectura tuvo errores.
+// Descarga el archivo de Storage, lo manda otra vez a Claude y actualiza los campos del modal
+// (sin guardar todavía — el usuario revisa y luego pulsa Guardar).
+async function reanalizarItv() {
+  const r = itvRecords.find(x => String(x.db_id) === String(editItvId));
+  if (!r || !r.file_url) { toast('Sin documento para reanalizar', 'err'); return; }
+  const btn = document.getElementById('itvBtnReanalizar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analizando...'; }
+  try {
+    // Descargar el archivo desde Storage
+    const resp = await fetch(r.file_url);
+    if (!resp.ok) throw new Error('No se pudo descargar el documento');
+    const blob = await resp.blob();
+    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url) || blob.type === 'application/pdf';
+    // Convertir a base64
+    const b64 = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result.split(',')[1]);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    // Llamar a Claude con el prompt mejorado v101d
+    const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'));
+    // Rellenar los campos del modal con los datos NUEVOS (sin guardar — el usuario revisa)
+    if (datos.matricula) document.getElementById('itvMatricula').value = datos.matricula;
+    if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
+    if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
+    if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
+    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+  } catch (e) {
+    console.error('[reanalizarItv] Error:', e);
+    toast('Error reanalizando: ' + (e.message || e), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Reanalizar IA'; }
+  }
+}
+
 // Subir nuevo documento ITV: sube archivo, llama a IA, guarda en BD
 async function handleItvFiles(files) {
   if (!files || !files.length) return;
@@ -4140,12 +4178,12 @@ async function handleItvFiles(files) {
   for (const f of files) {
     try {
       toast(`📤 Subiendo ${f.name}...`);
-      // 1. Subir archivo a Supabase Storage
+      // 1. Subir archivo a Supabase Storage (bucket 'documentos', el mismo que albaranes/gasoil)
       const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
       const path = `itv/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await sb.storage.from('albaranes').upload(path, f);
+      const { error: upErr } = await sb.storage.from('documentos').upload(path, f);
       if (upErr) throw upErr;
-      const { data: urlData } = sb.storage.from('albaranes').getPublicUrl(path);
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
       const file_url = urlData.publicUrl;
       // 2. Convertir a base64 para llamar a IA
       const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
@@ -4201,24 +4239,65 @@ async function handleItvFiles(files) {
 async function callClaudeItv(b64, mediaType) {
   const apiKey = localStorage.getItem('anthropic_key');
   if (!apiKey) throw new Error('Clave API no configurada');
-  const prompt = `Eres un experto en documentos de ITV (Inspección Técnica de Vehículos) de España. Analiza el documento adjunto y extrae los datos en JSON.
+  // v101d: prompt reforzado con los 3 formatos REALES que usa Juan Carlos:
+  // 1) Pegatina circular del parabrisas (Applus Iteuve - "Fecha:" + "Caduca:")
+  // 2) Informe oficial (Generalitat de Catalunya - campos numerados)
+  // 3) Permiso de circulación de vehículo nuevo (DGT - "Próxima ITV" en Observaciones)
+  const prompt = `Eres un experto en documentos de ITV (Inspección Técnica de Vehículos) de España y Cataluña. Analiza el documento adjunto y extrae los datos en JSON.
 
-Tipos posibles de documento:
-1. **Pegatina ITV**: Pegatina circular de la ITV pegada en el parabrisas. Indica matrícula, fecha de inspección y "PRÓXIMA INSPECCIÓN" (que es la fecha de caducidad).
-2. **Informe ITV**: Documento oficial completo con resultado de la inspección. Indica matrícula, fecha de inspección, fecha de próxima ITV y resultado (favorable/desfavorable/negativa).
-3. **Permiso de circulación**: Documento del vehículo. Para vehículos recién matriculados, contiene una anotación tipo "primera ITV en X meses" o fecha de primera ITV.
+═══════════════════════════════════════════════════════════════
+TIPOS DE DOCUMENTO Y CÓMO IDENTIFICARLOS
+═══════════════════════════════════════════════════════════════
 
-REGLAS:
-- La matrícula española tiene formato: 4 dígitos + 3 letras consonantes (ej: "1234BCD") o formato antiguo.
-- Las fechas deben extraerse en formato ISO YYYY-MM-DD.
-- "fecha_itv" = fecha en que se realizó la inspección.
-- "fecha_caducidad" = fecha hasta la cual la ITV es válida (próxima inspección obligatoria).
-- "tipo_documento" = uno de: "pegatina", "informe", "permiso".
+📌 TIPO 1 — "pegatina"
+Pegatina circular pegada en el parabrisas (formato horizontal, fondo claro con texto APPLUS+ESPAÑA repetido en marca de agua).
+Datos a extraer:
+  • La matrícula aparece en grande (ej: "1968JFV")
+  • "Fecha:" → fecha en que se PASÓ la ITV (DD/MM/YYYY) → fecha_itv
+  • "Caduca:" → fecha de PRÓXIMA inspección (DD/MM/YYYY) → fecha_caducidad
+  • Suele tener "FAVORABLE" como resultado y un código de estación (ej: "Iv: 0809")
+  • Suele aparecer también los KM del vehículo (ej: "49598 km") — IGNORAR, no se guardan
 
-Responde SOLO con un JSON válido:
-{"matricula": "1234BCD", "fecha_itv": "2025-04-15", "fecha_caducidad": "2026-04-15", "tipo_documento": "pegatina"}
+📌 TIPO 2 — "informe"
+Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos.
+Datos a extraer (campos numerados entre paréntesis):
+  • "(2) Matrícula actual" → matricula (formato puede ser "4839NBF(E)" — quitar el "(E)")
+  • "(3) Data d'inspecció" → fecha_itv (DD/MM/YYYY)
+  • "(8) Data propera inspecció" → fecha_caducidad (DD/MM/YYYY)
+  • "(7) Resultat de la inspecció: FAVORABLE" → confirmar que es válido
+  • Escrito en catalán: "data" = "fecha", "propera" = "próxima", "inspecció" = "inspección"
 
-Si no detectas algún campo, ponlo a null. NO inventes datos.`;
+📌 TIPO 3 — "permiso"
+Permiso de circulación oficial del Reino de España (DGT/Ministerio del Interior). Cabecera con escudo de España y "PERMISO DE CIRCULACIÓN" + "COMUNIDAD EUROPEA". Tabla con campos en filas: A, B, H, I, (I.1), (I.2), C.1.1, etc.
+Datos a extraer:
+  • Campo "A" → matricula (ej: "3628NMW")
+  • Campo "I" o "(I.1)" → fecha de matriculación (la usaremos como fecha_itv si no hay otra) (DD-MM-YYYY)
+  • En el área de OBSERVACIONES (no manuscrito, está IMPRESO por la DGT) busca el texto:
+    "Documento válido si acompaña ITV en vigor. Próxima ITV: DD-MM-YYYY"
+    → fecha_caducidad = la fecha de "Próxima ITV"
+  • Se usa para vehículos RECIÉN MATRICULADOS que aún no han pasado la primera ITV.
+
+═══════════════════════════════════════════════════════════════
+REGLAS GENERALES
+═══════════════════════════════════════════════════════════════
+
+✅ Matrícula española formato moderno: 4 dígitos + 3 letras (ej: "1234BCD"). Convertir a mayúsculas, quitar espacios y paréntesis sufijos como "(E)".
+✅ TODAS las fechas en formato ISO YYYY-MM-DD (convertir desde DD/MM/YYYY o DD-MM-YYYY).
+✅ Si una pegatina tiene "Caduca: 28/05/2026" → fecha_caducidad = "2026-05-28".
+✅ NO inventes datos. Si no encuentras un campo claramente, ponlo a null.
+✅ "tipo_documento" debe ser EXACTAMENTE uno de: "pegatina", "informe", "permiso".
+
+═══════════════════════════════════════════════════════════════
+FORMATO DE SALIDA
+═══════════════════════════════════════════════════════════════
+
+Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
+{
+  "matricula": "1968JFV",
+  "fecha_itv": "2025-11-11",
+  "fecha_caducidad": "2026-05-28",
+  "tipo_documento": "pegatina"
+}`;
 
   const body = {
     model: 'claude-haiku-4-5',
