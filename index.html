@@ -544,6 +544,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn bs" onclick="openItvModalManual()" title="Crear ITV a mano sin documento">✏️ Nuevo manual</button>
             <button class="btn bp" onclick="document.getElementById('itvFileInput').click()">➕ Subir ITV</button>
             <input type="file" id="itvFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleItvFiles(this.files)">
           </div>
@@ -4008,9 +4009,12 @@ function updateItvStats() {
 function renderItvAlerts() {
   const cad = itvRecords.filter(r => _itvEstado(r).tipo === 'caducada');
   const avi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso');
+  // v103: registros con matrícula placeholder pendientes de editar manualmente
+  const pend = itvRecords.filter(r => r.matricula && r.matricula.startsWith('EDITAR_'));
   let html = '';
   if (cad.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">🔴 <strong>${cad.length} ITV(s) CADUCADA(s)</strong> — pasar inspección urgente.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='caducada';applyItvFilters()">Ver</button></div></div>`;
   if (avi.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟧 <strong>${avi.length} ITV(s) caducan en ${ITV_AVISO_DIAS} días o menos</strong> — preparar próxima inspección.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='aviso';applyItvFilters()">Ver</button></div></div>`;
+  if (pend.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠️ <strong>${pend.length} ITV(s) pendiente(s) de editar matrícula</strong> — la IA no las leyó claras, abre el detalle y corrígelas.</div></div>`;
   document.getElementById('itvAlertsBox').innerHTML = html;
 }
 
@@ -4052,9 +4056,15 @@ function renderItvTable() {
     const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
     const subPor = userMap[r.user_id]?.name || '—';
     const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
-    return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
-      <td style="font-size:14px">${est.icon}</td>
-      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
+    // v103: las matrículas placeholder "EDITAR_xxxxx" se muestran en rojo destacado
+    // con icono de aviso para que Juan Carlos sepa que tiene que editarlas a mano.
+    const esPendiente = r.matricula && r.matricula.startsWith('EDITAR_');
+    const matCell = esPendiente
+      ? `<span style="color:var(--er);font-weight:700">⚠️ ${esc(r.matricula)}</span><div style="font-size:11px;color:var(--er);font-weight:400;margin-top:2px">Pendiente — abrir y editar</div>`
+      : `${esc(r.matricula || '—')}`;
+    return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer${esPendiente ? ';background:rgba(239,68,68,0.06)' : ''}">
+      <td style="font-size:14px">${esPendiente ? '⚠️' : est.icon}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${matCell}</td>
       <td>${fmtDate(r.fecha_itv)}</td>
       <td style="font-weight:600">${fmtDate(r.fecha_caducidad)}</td>
       <td>${diasTxt}</td>
@@ -4091,6 +4101,33 @@ function openItvModal(dbId) {
   // Aviso de estado
   const est = _itvEstado(r);
   document.getElementById('itvAlert').innerHTML = `<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px">${est.icon} <strong>${est.label}</strong>${est.dias !== null ? ` · ${est.dias} días` : ''}</div>`;
+  // v103: mostrar Eliminar y Reanalizar (modo edición de existente)
+  const btnDel = document.getElementById('itvBtnDel');
+  const btnRea = document.getElementById('itvBtnReanalizar');
+  if (btnDel) btnDel.style.display = '';
+  if (btnRea) btnRea.style.display = r.file_url ? '' : 'none';
+  document.getElementById('itvOv').classList.add('open');
+}
+
+// v103: abrir modal en modo "crear nuevo manual" — sin registro existente, sin archivo.
+// Útil cuando Juan Carlos tiene los datos en mano (ej: vehículo nuevo) pero no el PDF,
+// o cuando el OCR ha fallado tanto que prefiere meterlo a mano de cero.
+function openItvModalManual() {
+  if (!window._tieneITV) { toast('Sin permiso para crear ITV', 'err'); return; }
+  editItvId = null;  // ← clave: null indica modo INSERT en saveItvModal
+  document.getElementById('itvFields').innerHTML = `
+    <div class="ig"><label>Matrícula</label><input id="itvMatricula" value="" placeholder="Ej: 6118MLD" style="font-family:var(--mn);text-transform:uppercase"></div>
+    <div class="ig"><label>Fecha ITV</label><input type="date" id="itvFecha" value=""></div>
+    <div class="ig"><label>Fecha caducidad</label><input type="date" id="itvCaducidad" value=""></div>
+    <div class="ig"><label>Tipo documento</label><select id="itvTipo"><option value="">—</option><option value="pegatina">Pegatina</option><option value="informe">Informe</option><option value="permiso">Permiso circulación</option></select></div>
+    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="itvObs" value="" placeholder="Opcional"></div>`;
+  document.getElementById('itvPreview').innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px;font-size:12px">📝 Modo manual — sin documento adjunto</div>';
+  document.getElementById('itvAlert').innerHTML = '<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px;color:var(--ac)">✏️ <strong>NUEVO ITV MANUAL</strong> — rellena matrícula, fechas y tipo de documento</div>';
+  // Ocultar botones que no aplican en modo nuevo
+  const btnDel = document.getElementById('itvBtnDel');
+  const btnRea = document.getElementById('itvBtnReanalizar');
+  if (btnDel) btnDel.style.display = 'none';
+  if (btnRea) btnRea.style.display = 'none';
   document.getElementById('itvOv').classList.add('open');
 }
 
@@ -4112,13 +4149,32 @@ async function saveItvModal() {
     if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\nFormato esperado: 4 dígitos + 3 consonantes (sin vocales A,E,I,O,U ni Q,Ñ).\nEjemplos: 6118MLD, 1968JFV, 3628NMW.\n\n¿Guardar igualmente?`)) return;
   }
   try {
-    const { error } = await sb.from('itv')
-      .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
-      .eq('id', editItvId);
-    if (error) throw error;
-    closeItvModal();
-    await loadItvData();
-    toast('✓ ITV actualizada');
+    // v103: si editItvId es null → INSERT (nuevo manual). Si tiene valor → UPDATE.
+    if (editItvId === null || editItvId === undefined) {
+      // Antes de insertar: comprobar que esa matrícula no exista ya (la columna es UNIQUE).
+      const yaExiste = itvRecords.some(r => r.matricula === matricula);
+      if (yaExiste) {
+        toast(`⚠️ La matrícula ${matricula} ya existe en la base de datos. Edita el registro existente en lugar de crear uno nuevo.`, 'err');
+        return;
+      }
+      const { error } = await sb.from('itv').insert({
+        matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones,
+        user_id: currentUser.id,
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      closeItvModal();
+      await loadItvData();
+      toast(`✓ ${matricula} creada manualmente`);
+    } else {
+      const { error } = await sb.from('itv')
+        .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
+        .eq('id', editItvId);
+      if (error) throw error;
+      closeItvModal();
+      await loadItvData();
+      toast('✓ ITV actualizada');
+    }
   } catch (e) {
     console.error('[saveItvModal] Error:', e);
     toast('Error guardando: ' + (e.message || e), 'err');
@@ -4182,11 +4238,44 @@ async function reanalizarItv() {
 }
 
 // Subir nuevo documento ITV: sube archivo, llama a IA, guarda en BD
+// v103: helper para detectar archivos duplicados (mismo PDF/imagen subido dos veces).
+// Calcula SHA-256 del binario del archivo. Dos archivos con el mismo hash son idénticos
+// byte a byte. Comparamos el hash contra la columna file_hash en la tabla itv para evitar
+// duplicar registros aunque la IA lea cosas distintas en cada intento del mismo archivo.
+async function sha256OfFile(file) {
+  const buf = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function handleItvFiles(files) {
   if (!files || !files.length) return;
   if (!window._tieneITV) { toast('Sin permiso para subir ITV', 'err'); return; }
   for (const f of files) {
     try {
+      // v103: detectar duplicados por hash ANTES de subir nada a Storage o llamar a IA.
+      // Si el mismo PDF/imagen ya está subido, avisamos sin malgastar Storage ni tokens.
+      // Si la columna file_hash no existe en BD aún (Juan Carlos pendiente del SQL),
+      // el SELECT fallará silenciosamente y se continúa sin chequeo (no-op de seguridad).
+      toast(`🔍 Verificando ${f.name}...`);
+      let fileHash = null;
+      try {
+        fileHash = await sha256OfFile(f);
+        const { data: dup, error: dupErr } = await sb.from('itv')
+          .select('matricula,file_url').eq('file_hash', fileHash).limit(1);
+        if (!dupErr && dup && dup.length > 0) {
+          const ok = confirm(`⚠️ Este archivo ("${f.name}") YA está subido como ITV de la matrícula ${dup[0].matricula}.\n\n¿Subirlo de todas formas?\n\n• Cancelar (recomendado) → no se hace nada.\n• Aceptar → se sube como nuevo registro (puede crear duplicados).`);
+          if (!ok) {
+            toast(`⏭️ ${f.name}: omitido — ya existe como ${dup[0].matricula}.`, 'warn');
+            continue;
+          }
+        }
+      } catch (hashErr) {
+        // Si la columna file_hash no existe aún, ignoramos silenciosamente.
+        console.warn('[handleItvFiles] Hash check skipped:', hashErr?.message || hashErr);
+        fileHash = null;
+      }
       toast(`📤 Subiendo ${f.name}...`);
       // 1. Subir archivo a Supabase Storage (bucket 'documentos', el mismo que albaranes/gasoil)
       const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
@@ -4218,26 +4307,52 @@ async function handleItvFiles(files) {
       // 3. Llamar a IA para extraer datos
       toast(`🤖 Analizando ${f.name}...`);
       const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
-      // 4. Validación estricta: si la matrícula no cumple formato español moderno
-      // (4 dígitos + 3 consonantes, sin vocales) NO la guardamos en BD para evitar
-      // basura tipo "2300NEO" que cruzó por la malla del prompt anterior.
-      // v102: el archivo SÍ se sube (ya está en Storage), pero el registro queda
-      // pendiente para que Juan Carlos lo cree a mano con la matrícula real.
       const matricula = (datos.matricula || '').trim().toUpperCase();
+      // v103: 3 caminos de guardado para evitar pérdida de archivos y machaque accidental:
+      //   A) Matrícula NO válida → INSERT con placeholder "EDITAR_XXXXXX" para que aparezca
+      //      en la lista marcada en rojo y Juan Carlos pueda editarla a mano sin perder el PDF.
+      //   B) Matrícula válida pero YA EXISTE en BD → confirm antes de sobrescribir.
+      //      Esto evita el bug del 6118MLD machacado por una mala lectura de otro vehículo.
+      //   C) Matrícula válida y nueva → INSERT normal.
       if (!esMatriculaEspanolaEstricta(matricula)) {
-        toast(`⚠️ ${f.name}: matrícula leída "${matricula || 'vacía'}" no es válida. Archivo subido — créalo a mano.`, 'warn');
-        continue;  // saltamos al siguiente archivo, no upsert
+        // Camino A: placeholder único legible (timestamp en base36 últimos 6 chars)
+        const placeholder = `EDITAR_${Date.now().toString(36).slice(-6).toUpperCase()}`;
+        const rec = {
+          matricula: placeholder,
+          fecha_itv: datos.fecha_itv || null,
+          fecha_caducidad: datos.fecha_caducidad || null,
+          tipo_documento: datos.tipo_documento || null,
+          file_url,
+          file_hash: fileHash,  // v103
+          user_id: currentUser.id,
+          observaciones: `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" — editar a mano`,
+          updated_at: new Date().toISOString()
+        };
+        const { error: insErr } = await sb.from('itv').insert(rec);
+        if (insErr) throw insErr;
+        toast(`⚠️ ${f.name}: matrícula no clara. Guardado como ${placeholder} — edítalo desde el detalle.`, 'warn');
+        continue;
       }
+      // Camino B: matrícula válida pero ya existe en BD → confirmar antes de machacar
+      const yaExiste = itvRecords.some(r => r.matricula === matricula);
+      if (yaExiste) {
+        const ok = confirm(`⚠️ La matrícula ${matricula} YA EXISTE en la base de datos.\n\n¿Sobrescribir con los datos del archivo "${f.name}"?\n\n• Aceptar → se actualiza con los datos nuevos.\n• Cancelar → no se toca el registro existente (recomendado si dudas).`);
+        if (!ok) {
+          toast(`⏭️ ${matricula}: omitida — el registro existente NO se ha tocado.`, 'warn');
+          continue;
+        }
+      }
+      // Camino C (o B confirmado): UPSERT normal
       const rec = {
         matricula,
         fecha_itv: datos.fecha_itv || null,
         fecha_caducidad: datos.fecha_caducidad || null,
         tipo_documento: datos.tipo_documento || null,
         file_url,
+        file_hash: fileHash,  // v103
         user_id: currentUser.id,
         updated_at: new Date().toISOString()
       };
-      // UPSERT por matricula (si existe, actualiza; si no, inserta)
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
       toast(`✓ ${matricula} procesada`);
