@@ -4237,8 +4237,10 @@ async function handleItvFiles(files) {
 
 // Llamada a Claude para extraer datos de ITV
 async function callClaudeItv(b64, mediaType) {
-  const apiKey = localStorage.getItem('anthropic_key');
-  if (!apiKey) throw new Error('Clave API no configurada');
+  // v101e: usar getKey() en lugar de localStorage.getItem('anthropic_key') (nombre incorrecto)
+  // getKey() es la función que usan albaranes y gasoil para obtener la clave correctamente.
+  const apiKey = getKey();
+  if (!apiKey) throw new Error('Clave API no configurada. Configúrala en la pestaña Albaranes (botón Cambiar).');
   // v101d: prompt reforzado con los 3 formatos REALES que usa Juan Carlos:
   // 1) Pegatina circular del parabrisas (Applus Iteuve - "Fecha:" + "Caduca:")
   // 2) Informe oficial (Generalitat de Catalunya - campos numerados)
