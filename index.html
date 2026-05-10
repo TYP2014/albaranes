@@ -4538,29 +4538,50 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
     console.error('[callClaudeItv] No se pudo parsear:', text);
     throw new Error('Respuesta IA inválida');
   }
-  // v103c: validación lógica de coherencia de fechas. Si la IA falla en distinguir
-  // día/mes (ej: 10/06/2026 leído como 6/10/2026), las fechas suelen quedar incoherentes:
-  //   • caducidad anterior o igual a la fecha de inspección → claramente mal
-  //   • diferencia muy distinta a 12 meses (típico ITV anual) → sospechoso
-  // Si detectamos algo raro, marcamos las fechas como null para que aparezca como
-  // EDITAR_xxx y Juan Carlos pueda verlo y corregirlo a mano.
+  // v103d: validación lógica de coherencia de fechas, MÁS INTELIGENTE que v103c.
+  // Hay dos tipos de error que queremos detectar:
+  //   1) Caducidad ≤ fecha ITV: imposible, claramente mal leído.
+  //   2) Inversión día/mes: la IA leyó "01/07/2026" como "07/01/2026" (7 enero en vez de 1 julio).
+  //      Lo detectamos comprobando si INVIRTIENDO día/mes de la caducidad la diferencia con
+  //      la fecha ITV se acerca mucho más a 365 días (ITV anual).
+  // NO bloqueamos por "diferencia rara" sin más, porque las INSPECCIONES CORRECTIVAS
+  // (segunda inspección tras una ITV con defectos) tienen legítimamente ~6 meses.
   if (parsed.fecha_itv && parsed.fecha_caducidad) {
     const dItv = new Date(parsed.fecha_itv + 'T00:00:00');
     const dCad = new Date(parsed.fecha_caducidad + 'T00:00:00');
     if (!isNaN(dItv) && !isNaN(dCad)) {
-      const diffMs = dCad - dItv;
-      const diffDias = diffMs / (1000 * 60 * 60 * 24);
-      // ITV típica: 11-13 meses entre inspección y caducidad (335-400 días).
-      // Permitimos un rango más amplio (200-450) por si hay casos raros (camiones nuevos, etc.).
+      const DIA = 1000 * 60 * 60 * 24;
+      const diffDias = (dCad - dItv) / DIA;
+      // Caso 1: caducidad anterior o igual → error claro
       if (diffDias <= 0) {
-        console.warn(`[callClaudeItv] Caducidad ≤ fecha ITV (${parsed.fecha_itv} → ${parsed.fecha_caducidad}). Posible error de día/mes invertido. Limpiando para revisión manual.`);
+        console.warn(`[callClaudeItv] Caducidad ≤ fecha ITV (${parsed.fecha_itv} → ${parsed.fecha_caducidad}). Error claro.`);
         parsed._fechasSospechosas = true;
         parsed._motivoSospecha = `Caducidad (${parsed.fecha_caducidad}) anterior o igual a fecha ITV (${parsed.fecha_itv})`;
         parsed.fecha_caducidad = null;
-      } else if (diffDias < 200 || diffDias > 450) {
-        console.warn(`[callClaudeItv] Diferencia ITV→caducidad sospechosa: ${diffDias.toFixed(0)} días. Marcando para revisión.`);
-        parsed._fechasSospechosas = true;
-        parsed._motivoSospecha = `Diferencia inusual de ${diffDias.toFixed(0)} días entre ITV y caducidad (típico: 365)`;
+      } else {
+        // Caso 2: probar inversión día/mes de la caducidad
+        const m = parsed.fecha_caducidad.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) {
+          const [_, yyyy, mm, dd] = m;
+          // Solo tiene sentido invertir si AMBOS día y mes son ≤ 12 (ambiguo)
+          if (parseInt(dd, 10) <= 12 && parseInt(mm, 10) <= 12 && dd !== mm) {
+            const invertida = `${yyyy}-${dd.padStart(2, '0')}-${mm.padStart(2, '0')}`;
+            const dInv = new Date(invertida + 'T00:00:00');
+            if (!isNaN(dInv)) {
+              const diffInv = (dInv - dItv) / DIA;
+              const desvioActual = Math.abs(diffDias - 365);
+              const desvioInvertido = Math.abs(diffInv - 365);
+              // Si la versión invertida queda mucho más cerca de 365 días (>60 días mejor)
+              // y además es positiva, es muy probable que la IA haya invertido día/mes.
+              if (diffInv > 0 && desvioInvertido < desvioActual - 60) {
+                console.warn(`[callClaudeItv] Posible inversión día/mes en caducidad: ${parsed.fecha_caducidad} (${diffDias}d) vs invertida ${invertida} (${diffInv}d). Marcando como sospechosa.`);
+                parsed._fechasSospechosas = true;
+                parsed._motivoSospecha = `Posible inversión día/mes: ${parsed.fecha_caducidad} (${diffDias.toFixed(0)}d) — ¿quizás ${invertida.split('-').reverse().join('/')} (${diffInv.toFixed(0)}d, más coherente con ITV anual)?`;
+                // No limpiamos la fecha — la dejamos para que el usuario decida al revisar
+              }
+            }
+          }
+        }
       }
     }
   }
