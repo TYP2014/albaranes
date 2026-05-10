@@ -4321,14 +4321,28 @@ async function handleItvFiles(files) {
       const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
       const matricula = (datos.matricula || '').trim().toUpperCase();
       // v103: 3 caminos de guardado para evitar pérdida de archivos y machaque accidental:
-      //   A) Matrícula NO válida → INSERT con placeholder "EDITAR_XXXXXX" para que aparezca
-      //      en la lista marcada en rojo y Juan Carlos pueda editarla a mano sin perder el PDF.
+      //   A) Matrícula NO válida O fechas sospechosas → INSERT con placeholder "EDITAR_XXXXXX"
+      //      para que aparezca en la lista marcada en rojo y Juan Carlos pueda revisar a mano.
       //   B) Matrícula válida pero YA EXISTE en BD → confirm antes de sobrescribir.
       //      Esto evita el bug del 6118MLD machacado por una mala lectura de otro vehículo.
       //   C) Matrícula válida y nueva → INSERT normal.
-      if (!esMatriculaEspanolaEstricta(matricula)) {
+      // v103c: si las fechas no cuadran (caducidad ≤ ITV o diferencia absurda), también
+      // mandamos al camino A para que el usuario revise — protección contra día/mes invertido.
+      const irACaminoA = !esMatriculaEspanolaEstricta(matricula) || datos._fechasSospechosas;
+      if (irACaminoA) {
         // Camino A: placeholder único legible (timestamp en base36 últimos 6 chars)
         const placeholder = `EDITAR_${Date.now().toString(36).slice(-6).toUpperCase()}`;
+        // v103c: observación distingue entre problema de matrícula vs fechas sospechosas
+        const matMal = !esMatriculaEspanolaEstricta(matricula);
+        const fechasMal = datos._fechasSospechosas;
+        let obs;
+        if (matMal && fechasMal) {
+          obs = `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" y fechas sospechosas (${datos._motivoSospecha}) — revisar a mano`;
+        } else if (fechasMal) {
+          obs = `⚠️ Matrícula OK (${matricula}) pero fechas sospechosas: ${datos._motivoSospecha} — revisar fechas a mano`;
+        } else {
+          obs = `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" — editar a mano`;
+        }
         const rec = {
           matricula: placeholder,
           fecha_itv: datos.fecha_itv || null,
@@ -4336,14 +4350,17 @@ async function handleItvFiles(files) {
           tipo_documento: datos.tipo_documento || null,
           file_url,
           user_id: currentUser.id,
-          observaciones: `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" — editar a mano`,
+          observaciones: obs,
           updated_at: new Date().toISOString()
         };
         // v103b: solo añadimos file_hash si la columna existe en BD (modo defensivo)
         if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
         const { error: insErr } = await sb.from('itv').insert(rec);
         if (insErr) throw insErr;
-        toast(`⚠️ ${f.name}: matrícula no clara. Guardado como ${placeholder} — edítalo desde el detalle.`, 'warn');
+        const motivo = (matMal && fechasMal) ? 'matrícula y fechas no cuadran'
+                     : fechasMal ? 'fechas sospechosas (posible día/mes invertido)'
+                     : 'matrícula no clara';
+        toast(`⚠️ ${f.name}: ${motivo}. Guardado como ${placeholder} — abre y revisa.`, 'warn');
         continue;
       }
       // Camino B: matrícula válida pero ya existe en BD → confirmar antes de machacar
@@ -4488,7 +4505,9 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 }`;
 
   const body = {
-    model: 'claude-haiku-4-5',
+    model: 'claude-sonnet-4-6',  // v103c: cambiado de Haiku a Sonnet — Haiku confundía
+                                  // formato de fechas con día ≤ 12 (ej: 10/06/2026 → 6/10/2026).
+                                  // Sonnet es más fiable y se procesan pocas ITVs (~1/día), coste mínimo.
     max_tokens: 500,
     temperature: 0,  // v102: máximo determinismo, sin creatividad al leer fechas/matrículas
     messages: [{
@@ -4512,12 +4531,40 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   let text = data.content?.[0]?.text || '';
   // Limpiar markdown si lo hay
   text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  let parsed;
   try {
-    return JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch (e) {
     console.error('[callClaudeItv] No se pudo parsear:', text);
     throw new Error('Respuesta IA inválida');
   }
+  // v103c: validación lógica de coherencia de fechas. Si la IA falla en distinguir
+  // día/mes (ej: 10/06/2026 leído como 6/10/2026), las fechas suelen quedar incoherentes:
+  //   • caducidad anterior o igual a la fecha de inspección → claramente mal
+  //   • diferencia muy distinta a 12 meses (típico ITV anual) → sospechoso
+  // Si detectamos algo raro, marcamos las fechas como null para que aparezca como
+  // EDITAR_xxx y Juan Carlos pueda verlo y corregirlo a mano.
+  if (parsed.fecha_itv && parsed.fecha_caducidad) {
+    const dItv = new Date(parsed.fecha_itv + 'T00:00:00');
+    const dCad = new Date(parsed.fecha_caducidad + 'T00:00:00');
+    if (!isNaN(dItv) && !isNaN(dCad)) {
+      const diffMs = dCad - dItv;
+      const diffDias = diffMs / (1000 * 60 * 60 * 24);
+      // ITV típica: 11-13 meses entre inspección y caducidad (335-400 días).
+      // Permitimos un rango más amplio (200-450) por si hay casos raros (camiones nuevos, etc.).
+      if (diffDias <= 0) {
+        console.warn(`[callClaudeItv] Caducidad ≤ fecha ITV (${parsed.fecha_itv} → ${parsed.fecha_caducidad}). Posible error de día/mes invertido. Limpiando para revisión manual.`);
+        parsed._fechasSospechosas = true;
+        parsed._motivoSospecha = `Caducidad (${parsed.fecha_caducidad}) anterior o igual a fecha ITV (${parsed.fecha_itv})`;
+        parsed.fecha_caducidad = null;
+      } else if (diffDias < 200 || diffDias > 450) {
+        console.warn(`[callClaudeItv] Diferencia ITV→caducidad sospechosa: ${diffDias.toFixed(0)} días. Marcando para revisión.`);
+        parsed._fechasSospechosas = true;
+        parsed._motivoSospecha = `Diferencia inusual de ${diffDias.toFixed(0)} días entre ITV y caducidad (típico: 365)`;
+      }
+    }
+  }
+  return parsed;
 }
 
 function switchTab(tab) {
