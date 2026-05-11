@@ -1646,7 +1646,7 @@ function renderQueues() {
     const isProcessing = type === 'alb' ? _processingAlb : _processingGas;
     const startTs = type === 'alb' ? _processingAlbStartTs : _processingGasStartTs;
     const elapsedMin = startTs > 0 ? (Date.now() - startTs) / 60000 : 0;
-    const isStuck = isProcessing && elapsedMin > 2; // bloqueado si lleva >2 min
+    const isStuck = isProcessing && elapsedMin > 5; // v104e: subido de 2 a 5 min porque Sonnet 4.6 es más lento que Haiku 4.5 (3-5s/albarán vs 1-2s) y con colas grandes el aviso de 2min era falso positivo
     // Caso especial: hay archivos atascados en 'processing' pero el flag NO está activo.
     // Eso significa que la cola se interrumpió (cuelgue, refresco, etc.) y ahora están huérfanos.
     // Los podemos rescatar marcándolos como 'pending' otra vez.
@@ -1747,7 +1747,7 @@ let _processingAlb = false;
 let _processingGas = false;
 let _processingAlbStartTs = 0; // timestamp del inicio para detectar bloqueos
 let _processingGasStartTs = 0;
-const _PROCESSING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos máx → si supera, asumir bloqueo y resetear
+const _PROCESSING_TIMEOUT_MS = 20 * 60 * 1000; // v104e: 20 min (antes 10) — Sonnet tarda 3-5s/albarán, una tanda de 100 albaranes puede pasar de 10 min sin estar bloqueada
 
 // Auto-desbloqueo: si el flag lleva activo más del timeout, lo reseteamos. Esto pilla los casos
 // raros donde una llamada a la API se queda esperando para siempre y nunca llama al finally.
@@ -1791,6 +1791,13 @@ async function processQueue(type) {
   if (type === 'gas' && _processingGas) return;
   if (type === 'alb') { _processingAlb = true; _processingAlbStartTs = Date.now(); }
   else { _processingGas = true; _processingGasStartTs = Date.now(); }
+
+  // v104e: auto-refresco visual cada 2s mientras procesa. Antes Juan Carlos tenía que
+  // recargar la página para ver el avance — esto hace que la cola se redibuje sola con
+  // el progreso en tiempo real sin necesidad de F5.
+  const _autoRefreshTimer = setInterval(() => {
+    try { renderQueues(); } catch (e) { /* ignore */ }
+  }, 2000);
 
   const key = getKey();
   if (!key) {
@@ -1848,6 +1855,8 @@ async function processQueue(type) {
       }
     }
   } finally {
+    // v104e: parar el auto-refresh visual al terminar
+    clearInterval(_autoRefreshTimer);
     if (type === 'alb') { _processingAlb = false; _processingAlbStartTs = 0; }
     else { _processingGas = false; _processingGasStartTs = 0; }
   }
@@ -2221,9 +2230,10 @@ Cabecera: logo triangular "Grupo Cementos Portland Valderrivas" arriba a la izqu
   • PLANTA-ORIGEN: lee SIEMPRE el campo "planta-origen" o "planta" del albarán. NO asumas ninguna planta por defecto — el grupo tiene varias instalaciones (Olérdola, Santa Margarida i els Monjos, Fábrica Integral de Els Monjos, y otras). Ejemplos vistos:
     - "A405 OLERDOLA / Crta C-15 km 10.5 (Cantera) / 08734 OLÉRDOLA" → origen = "Olèrdola"
     - "V073 FÁBRICA INTEGRAL DE ELS MONJOS / PLÀ DE L'ESTACIÓ S/N / 08730 SANTA MARGARIDA I ELS MONJOS" → origen = "Santa Margarida i els Monjos"
-  • OBRA-DESTINO: lee el PUEBLO del bloque "obra-destino". El bloque tiene formato: "[código] [NOMBRE OBRA o EMPRESA] / [DIRECCIÓN] / [CP] [PUEBLO]". El destino es el PUEBLO (última línea, después del CP). Ejemplos vistos:
-    - "2144148 ACCESOS FERROVIARIOS SU TRANSPORTE / C/ 100 POLIG. IND. EL PRATENC, S/N / 08020 EL PRAT DE LLOBREGAT (BARCELONA)" → destino = "El Prat"
-    - "V077 PORT DE BARCELONA / LG MUELLE DEL CONTRADIQUE SUR S/N / 08039 BARCELONA (BARCELONA)" → destino = "Port de Barcelona"
+  • OBRA-DESTINO: lee el bloque "obra-destino" para identificar la OBRA del destino. ⚠️ REGLA ESPECIAL v104f: si el bloque "obra-destino" contiene el texto "ACCESOS FERROVIARIOS" (ej: "ACCESOS FERROVIARIOS SU TRANSPORTE") → destino = "UTE Accesos Ferroviarios" (sin importar el pueblo del CP, porque la UTE tiene varias obras en distintos pueblos: El Prat, Olèrdola, etc.). Para el resto de casos, lee el PUEBLO del bloque (última línea, después del CP). Ejemplos:
+    - "2144148 ACCESOS FERROVIARIOS SU TRANSPORTE / C/ 100 POLIG. IND. EL PRATENC / 08020 EL PRAT DE LLOBREGAT" → destino = "UTE Accesos Ferroviarios" (REGLA ESPECIAL)
+    - "2144148 ACCESOS FERROVIARIOS SU TRANSPORTE / AUTOVIA C-15 S/N / 08734 OLERDOLA" → destino = "UTE Accesos Ferroviarios" (REGLA ESPECIAL, no Olèrdola)
+    - "V077 PORT DE BARCELONA / LG MUELLE DEL CONTRADIQUE SUR S/N / 08039 BARCELONA" → destino = "Port de Barcelona" (no es UTE, sigue regla normal)
   • CLIENTE/COMPRADOR: lee del bloque "cliente" (arriba a la izquierda, distinto del bloque "obra-destino"). Formato: "[código] [NOMBRE EMPRESA] / [DIRECCIÓN] / [CP] [CIUDAD]". Ejemplos:
     - "48907 UTE ACCESOS FERROVIARIOS FASE 1 / RONDA GUINARDO 99 / 08041 BARCELONA" → cliente = "UTE Accesos Ferroviarios"
     - "V073 FÁBRICA INTEGRAL DE ELS MONJOS / PLÀ DE L'ESTACIÓ S/N / 08730 SANTA MARGARIDA I ELS MONJOS" → cliente = "Fábrica Integral de Els Monjos"
@@ -2238,7 +2248,7 @@ Cabecera: logo cuadrado "CANTERAS CANRO, S.A." arriba a la izquierda; dirección
   • PROVEEDOR canónico SIEMPRE: "Canteras Canro, S.A."
   • ORIGEN/PLANTA: por defecto "Sant Fost de Campsentelles" (la cantera está allí, no hay otro campo de origen en estos albaranes).
   • CLIENTE: lee del bloque "CLIENTE" (parte central izquierda). Formato típico: "[código] [CIF] / [NOMBRE EMPRESA]". Ej: "408 ESU25883422 / UTE. ACCESOS FERROVIARIOS FASE 1" → cliente = "UTE Accesos Ferroviarios".
-  • DESTINO: lee del campo "DESTINO" (a la derecha del CLIENTE). Si está VACÍO, devuelve null. NO uses el cliente ni el origen como destino.
+  • DESTINO: lee del campo "DESTINO" (a la derecha del CLIENTE). ⚠️ REGLA ESPECIAL v104f: si el CLIENTE contiene "ACCESOS FERROVIARIOS" → destino = "UTE Accesos Ferroviarios" (aunque el campo DESTINO esté vacío). Para el resto: si el campo "DESTINO" está vacío, devuelve null. NO uses el origen como destino.
   • MATRÍCULA: bloque "MATRÍCULA" (cuadro central), formato 4 dígitos + 3 letras. Ej: "4210NGF".
   • TN: bloque "PESO" tiene 3 valores (bruto, tara y neto). El NETO es el menor de los 3 valores grandes (entre 20 y 36 toneladas), suele ser la última línea. Ej: "42,00 / 13,60 / 28,40" → tm=28.40.
   • FECHA: campo "FECHA" en formato "DD-MM-YYYY" o "DD/MM/YYYY". Ej: "13-04-2026".
@@ -5920,6 +5930,15 @@ const DESTINOS_CANONICOS = [
   // v104c: Port de Barcelona — destino para Portland Valderrivas (envíos de clinker
   // al puerto desde la Fábrica Integral de Els Monjos).
   { canon: 'Port de Barcelona', alias: ['Puerto de Barcelona', 'PORT DE BARCELONA', 'Muelle del Contradique Sur', 'Moll del Contradique Sud'] },
+  // v104f: UTE Accesos Ferroviarios — cliente que tiene obras en varios pueblos (El Prat,
+  // Olèrdola, etc.). Como el albarán solo identifica "ACCESOS FERROVIARIOS SU TRANSPORTE",
+  // se canoniza como destino único para no perder la trazabilidad del cliente.
+  { canon: 'UTE Accesos Ferroviarios', alias: [
+    'UTE Accesos F.', 'UTE Accesos F', 'UTE ACCESOS F',
+    'UTE Accesos Ferroviarios Fase 1', 'UTE ACCESOS FERROVIARIOS FASE 1',
+    'Accesos Ferroviarios', 'ACCESOS FERROVIARIOS',
+    'Accesos Ferroviarios Su Transporte', 'ACCESOS FERROVIARIOS SU TRANSPORTE'
+  ] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'La Roca', alias: ['La Roca del Vallès', 'Font Parera', 'P I Font Parera'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles'] },
