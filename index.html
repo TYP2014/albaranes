@@ -3744,14 +3744,32 @@ async function reanalizarTodo() {
   const protegidos = records.filter(r => r._manual).length;
   const aprocesar = records.length - protegidos;
   let confirmMsg = `Se revisarán ${aprocesar} albaranes y se corregirán origen, destino, matrícula y proveedor mal leídos.`;
-  if (protegidos > 0) confirmMsg += `\n\n⚠️ ${protegidos} albaranes editados manualmente NO se tocarán (protegidos).`;
+  if (protegidos > 0) confirmMsg += `\n\n⚠️ En los ${protegidos} albaranes editados manualmente SOLO se actualizará el transportista (canonización por matrícula). Origen, destino, proveedor y demás campos siguen protegidos.`;
   confirmMsg += '\n\n¿Continuar?';
   if (!confirm(confirmMsg)) return;
-  let cambios = 0, errores = 0, saltados = 0;
+  let cambios = 0, errores = 0, saltados = 0, manualesCanon = 0;
   toast(`🔧 Revisando ${aprocesar} albaranes...`);
   for (const r of records) {
-    // Si fue editado manualmente, NO tocar (proteger trabajo del usuario)
-    if (r._manual) { saltados++; continue; }
+    // v103c: para _manual, NO procesar el resto de campos, pero SÍ canonizar el transportista
+    // por matrícula (operación determinística y segura). Esto permite que el filtro por
+    // transportista deje de tener variantes raras en los albaranes editados a mano.
+    if (r._manual) {
+      saltados++;
+      if (r.tractora && r.db_id) {
+        const tOficial = getTransportista(r.tractora);
+        if (tOficial && tOficial !== r.transportista) {
+          console.log(`[manual+canon] Transportista: "${r.transportista || '(vacío)'}" → "${tOficial}" (mat ${r.tractora}, alb ${r.albaran})`);
+          const valorAnterior = r.transportista;
+          r.transportista = tOficial;
+          try {
+            const { error } = await sb.from('albaranes').update({ transportista: tOficial }).eq('id', r.db_id);
+            if (error) { errores++; r.transportista = valorAnterior; console.error('Error guardando manual+transp', r.albaran, error); }
+            else manualesCanon++;
+          } catch (e) { errores++; r.transportista = valorAnterior; console.error(e); }
+        }
+      }
+      continue;
+    }
     let cambio = false;
     const update = {};
     // Corregir destino (obra)
@@ -3869,8 +3887,14 @@ async function reanalizarTodo() {
   updateStats();
   renderAlerts();
   let resumen = '';
-  if (cambios > 0) resumen = `✓ ${cambios} corregidos`;
-  else resumen = 'No había nada que corregir';
+  if (cambios > 0 || manualesCanon > 0) {
+    const partes = [];
+    if (cambios > 0) partes.push(`${cambios} corregidos`);
+    if (manualesCanon > 0) partes.push(`${manualesCanon} manuales canonizados (transp.)`);
+    resumen = '✓ ' + partes.join(' · ');
+  } else {
+    resumen = 'No había nada que corregir';
+  }
   if (saltados > 0) resumen += ` · ${saltados} protegidos`;
   if (errores > 0) resumen += ` · ${errores} errores`;
   toast(resumen);
