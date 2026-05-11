@@ -913,14 +913,17 @@ async function aprenderMatricula(matricula, transportista, nombreUsuario) {
   if (!matricula || !transportista) return;
   const clean = String(matricula).trim().toUpperCase().replace(/\s+/g,'');
   if (!clean) return;
+  // v106: canonizar el transportista ANTES de guardar para evitar que se aprendan variantes
+  // raras ("ARIDFLOT, S.L." en lugar de "ARIDFLOT") que luego contaminan futuros albaranes.
+  const transFix = fixTransportista(transportista);
   // Si ya está en TRANSPORTISTAS oficial, no aprender (no sobrescribir el oficial)
   if (TRANSPORTISTAS[clean]) return;
-  // Si ya estaba aprendida con el mismo transportista, no hacer nada
-  if (MATRICULAS_APRENDIDAS[clean] === transportista) return;
+  // Si ya estaba aprendida con el mismo transportista (ya canonizado), no hacer nada
+  if (MATRICULAS_APRENDIDAS[clean] === transFix) return;
   try {
     const { error } = await sb.from('matriculas_aprendidas').upsert({
       matricula: clean,
-      transportista: transportista,
+      transportista: transFix,
       aprendido_de: nombreUsuario || '',
       user_id: currentUser?.id || null,
       updated_at: new Date().toISOString()
@@ -929,8 +932,8 @@ async function aprenderMatricula(matricula, transportista, nombreUsuario) {
       console.warn('[v87] No se pudo guardar matrícula aprendida:', error.message);
       return;
     }
-    MATRICULAS_APRENDIDAS[clean] = transportista;
-    console.log(`📌 [v87] Matrícula aprendida: ${clean} → ${transportista} (de ${nombreUsuario})`);
+    MATRICULAS_APRENDIDAS[clean] = transFix;
+    console.log(`📌 [v87] Matrícula aprendida: ${clean} → ${transFix} (de ${nombreUsuario})`);
   } catch (e) { console.warn('[v87] Error en aprenderMatricula:', e); }
 }
 
@@ -4088,6 +4091,22 @@ async function reanalizarTodo() {
           } catch (e) { errores++; r.transportista = valorAnterior; console.error(e); }
         }
       }
+      // v106: además, si el transportista actual (después del intento por matrícula) sigue
+      // siendo una variante rara reconocible por nombre, canonizarlo también. Cubre el caso
+      // de manual + matrícula desconocida + transportista guardado con variante rara.
+      if (r.transportista && r.db_id) {
+        const tFix = fixTransportista(r.transportista);
+        if (tFix !== r.transportista) {
+          console.log(`[manual+canon-nombre] "${r.transportista}" → "${tFix}" (alb ${r.albaran})`);
+          const valorAnterior = r.transportista;
+          r.transportista = tFix;
+          try {
+            const { error } = await sb.from('albaranes').update({ transportista: tFix }).eq('id', r.db_id);
+            if (error) { errores++; r.transportista = valorAnterior; console.error('Error guardando manual+nombre', r.albaran, error); }
+            else manualesCanon++;
+          } catch (e) { errores++; r.transportista = valorAnterior; console.error(e); }
+        }
+      }
       continue;
     }
     let cambio = false;
@@ -4190,6 +4209,18 @@ async function reanalizarTodo() {
         console.log(`Transportista hist: "${r.transportista || '(vacío)'}" → "${tOficial}" (mat ${r.tractora}, alb ${r.albaran})`);
         r.transportista = tOficial;
         update.transportista = tOficial;
+        cambio = true;
+      }
+    }
+    // v106: canonización adicional por NOMBRE (no por matrícula). Cubre los casos en los
+    // que la matrícula es desconocida pero el transportista guardado es una variante rara
+    // reconocible (ej. "ARIDFLOT, S.L." → "ARIDFLOT"). NO afecta a los que ya están canónicos.
+    if (r.transportista) {
+      const tFix = fixTransportista(r.transportista);
+      if (tFix !== r.transportista) {
+        console.log(`Transportista canonizado por nombre: "${r.transportista}" → "${tFix}" (alb ${r.albaran})`);
+        r.transportista = tFix;
+        update.transportista = tFix;
         cambio = true;
       }
     }
@@ -4922,6 +4953,36 @@ const TRANSPORTISTAS_OFICIALES = [
   'T. REFRIGERADOS DOMINGUEZ','T. SATIG 79','OP TRANS V.'
 ];
 
+// v106: red de seguridad agresiva para canonizar transportistas guardados con variantes
+// raras (OCR antiguo, matrículas aprendidas mal antes de v103, denominaciones legales con
+// "S.L." al final, etc.). Devuelve uno de los 13 oficiales si reconoce el nombre por
+// palabras clave; si no reconoce, devuelve el valor tal cual (no inventa). El orden de
+// las reglas importa: de más específico a más general.
+function fixTransportista(t) {
+  if (!t || typeof t !== 'string') return t;
+  const u = String(t).trim().toUpperCase().replace(/\s+/g, ' ');
+  if (!u) return t;
+  // Si ya está exacto en la lista oficial, devolver tal cual
+  const exacto = TRANSPORTISTAS_OFICIALES.find(o => o.toUpperCase() === u);
+  if (exacto) return exacto;
+  // Reglas por palabras clave (orden: más específico primero)
+  if (/\bTYP\s*2014\b|\bY\s*PORTES\s*2014\b|\bPORTES\s*2014\b/.test(u)) return 'TYP2014';
+  if (/\bHISPALIS\b/.test(u)) return 'TTES HISPALIS 2016';
+  if (/\bTRANSMARGAZ\b/.test(u)) return 'TRANSMARGAZ 2018';
+  if (/\bARIDFLOT\b/.test(u)) return 'ARIDFLOT';
+  if (/\bVALLDEPEREZ\b|JOSE\s*MIGUEL.*SEGURA/.test(u)) return 'JOSE MIGUEL VALLDEPEREZ';
+  if (/\bFCO\.?\s*OCA[NÑ]A\b|\bFRANCISCO\s*OCA[NÑ]A\b|\bOCA[NÑ]A\s*COSTALAGO\b/.test(u)) return 'FRANCISCO OCAÑA';
+  if (/\bCIPRIAN\b|\bBUSILA\b|\bGIURGIU\b/.test(u)) return 'CIPRIAN IOAN BUSILA';
+  if (/\bANTONIO\s*MARTIN\b/.test(u)) return 'ANTONIO MARTIN';
+  if (/\bJOAQUIN\s*CA[NÑ]AS\b/.test(u)) return 'JOAQUIN CAÑAS';
+  if (/\bMIGUEL\s*A\.?\s*GARCIA\b|\bMIGUEL\s*ANGEL\s*GARCIA\b/.test(u)) return 'MIGUEL A. GARCIA';
+  if (/\bREFRIGERADOS\s*DOMI[NG]+UEZ\b|\bT\.\s*REFRIGERADOS\b/.test(u)) return 'T. REFRIGERADOS DOMINGUEZ';
+  if (/\bSATIG\b/.test(u)) return 'T. SATIG 79';
+  if (/\bOP\s*TRANS\b/.test(u)) return 'OP TRANS V.';
+  // No se reconoce → devolver tal cual (quedará marcado como "no oficial" en el modal)
+  return t;
+}
+
 // v87: mapeo USUARIO (nombre del perfil en la app) → TRANSPORTISTA oficial.
 // Cuando un subcontratista sube un albarán con matrícula NUEVA (no en TRANSPORTISTAS),
 // la app le asigna automáticamente el transportista de su empresa y APRENDE la matrícula
@@ -5004,7 +5065,11 @@ function matriculaPrincipal(mat) {
 function getTransportista(mat) {
   if (!mat) return null;
   const clean = matriculaPrincipal(mat);
-  return TRANSPORTISTAS[clean] || MATRICULAS_APRENDIDAS[clean] || null;
+  // v106: aplicamos fixTransportista al resultado para canonizar valores que pudieron
+  // aprenderse con variantes raras (TYP2014 vs "TRANSPORTES Y PORTES 2014, S.L.", etc.)
+  // antes de tener todo este blindaje.
+  const raw = TRANSPORTISTAS[clean] || MATRICULAS_APRENDIDAS[clean] || null;
+  return raw ? fixTransportista(raw) : null;
 }
 
 // RED DE SEGURIDAD: corrige automáticamente destinos mal extraídos por la IA
