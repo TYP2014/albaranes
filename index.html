@@ -2443,20 +2443,13 @@ function analyzeRecords() {
 }
 
 function renderAlerts() {
-  const dups = records.filter(r => r._dup), warns = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible'));
-  const matDes = records.filter(r => !r._dup && r._matDesconocida);
-  const pendientes = records.filter(r => r.procesado === false);
-  let html = '';
-  if (pendientes.length) html += `<div class="alert-banner alert-pending"><div class="alert-txt">📥 <strong>${pendientes.length} albarán(es) pendiente(s) de procesar</strong> — subido(s) por conductor(es).</div><div style="display:flex;gap:6px;align-items:center"><button class="btn bp" style="font-size:10px;padding:5px 11px" onclick="procesarPendientes('alb')">⚡ Procesar con IA</button><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="descartarPendientes('alb')" title="Borra los pendientes de la base de datos. Útil si llevan tiempo bloqueados sin procesar.">🗑 Descartar</button></div></div>`;
-  if (dups.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">⛔ <strong>${dups.length} duplicado(s)</strong> — no se contabilizan.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('dup')">Ver</button></div></div>`;
-  // v91: banner específico para matrículas desconocidas. Llama la atención del admin para
-  // que asigne manualmente el transportista; al guardar se aprende la matrícula y futuros
-  // albaranes con esa misma matrícula se reconocerán solos.
-  if (matDes.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🚛 <strong>${matDes.length} albarán(es) con matrícula desconocida</strong> — revisar transportista.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('matdes')">Ver</button></div></div>`;
-  if (warns.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠ <strong>${warns.length} a revisar</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver</button></div></div>`;
-  document.getElementById('alertsBox').innerHTML = html;
-  // v104: actualizar también el bloque de Pendientes del día (envuelto en try porque depende
-  // de itvRecords y permisos que pueden no estar disponibles en todos los flujos).
+  // v104c: los banners individuales que había aquí (duplicados, mat. desconocidas,
+  // a revisar, pendientes IA) se han eliminado porque eran REDUNDANTES con el bloque
+  // "🎯 Pendientes de hoy" (mismos clics, misma información, doble de espacio en pantalla).
+  // Ahora esta función solo limpia el contenedor viejo (por si quedara HTML antiguo)
+  // y delega en renderPendientes, que controla la visibilidad por rol (solo admin).
+  const ab = document.getElementById('alertsBox');
+  if (ab) ab.innerHTML = '';
   try { renderPendientes(); } catch(e) { console.error('[renderPendientes]', e); }
 }
 
@@ -2466,8 +2459,8 @@ function renderAlerts() {
 function renderPendientes() {
   const box = document.getElementById('pendientesBox');
   if (!box) return;
-  // Conductor no tiene esta vista, así que ni mostrar
-  if (currentRole === 'conductor') { box.innerHTML = ''; return; }
+  // v104b: avisos operativos SOLO para admin. Gestores y conductores no los ven (pantalla limpia).
+  if (currentRole !== 'admin') { box.innerHTML = ''; return; }
 
   const pendIA = records.filter(r => r.procesado === false).length;
   const matDes = records.filter(r => !r._dup && r._matDesconocida).length;
