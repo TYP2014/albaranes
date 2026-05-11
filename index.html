@@ -2196,7 +2196,7 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
   }
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
-${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.':'Devuelve un objeto JSON (no array).'}
+${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.\n⚠️ REGLA ANTI-CONTAMINACIÓN CRÍTICA (v104d): cada albarán es ÚNICO e INDEPENDIENTE. Cuando proceses la página 2, NO copies valores de la página 1. Cuando proceses la página 3, NO copies de las anteriores. CADA albarán tiene SU PROPIA matrícula tractora, SU PROPIO remolque, SU PROPIA fecha, SU PROPIO TM, SU PROPIO nº de albarán. Si dos albaranes consecutivos PARECEN tener la misma matrícula, mira DOS VECES: probablemente sean diferentes (el camión hace varios viajes pero la matrícula puede coincidir entre viajes del mismo día — solo si REALMENTE coinciden en el PDF; nunca inventes coincidencias). NUNCA reutilices una matrícula leída en la página anterior si en la actual no la ves clara — prefiere devolver vacío.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
 - albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. En Cemex formato 77469/XXXXXX
 - fecha: DD/MM/YYYY
@@ -2253,7 +2253,7 @@ SOLO JSON válido, sin markdown.`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: isPdf ? 8000 : 1500, temperature: 0, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
   if (!res.ok) {
