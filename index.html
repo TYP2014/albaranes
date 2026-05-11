@@ -395,7 +395,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
             <button class="btn bp" id="btnDlFil" onclick="descargarArchivosFiltrados()" style="display:none">📦 Descargar archivos</button>
             <button class="btn bs" onclick="abrirResumenAgrupado()" style="display:flex;align-items:center;gap:5px" title="Resumen agrupado por Origen + Destino + Material con totales (respeta filtros activos)">📊 Resumen</button>
-            <button class="btn bw" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor)">🔄 Re-corregir TODO</button>
+            <button class="btn bw" id="btnReanalizarTodo" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor). Solo admin.">🔄 Re-corregir TODO</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -888,6 +888,11 @@ async function onLogin(user) {
     document.getElementById('adminView').style.display = 'block';
     if (currentRole === 'admin') {
       document.getElementById('tabAdmin').style.display = 'flex';
+    } else {
+      // v103b: el botón "Re-corregir TODO" toca el campo transportista (entre otros).
+      // Para mantener la política "solo admin cambia transportistas", lo ocultamos a gestores.
+      const btnReanalizar = document.getElementById('btnReanalizarTodo');
+      if (btnReanalizar) btnReanalizar.style.display = 'none';
     }
     renderSetup();
     await loadUserMap();
@@ -2134,7 +2139,7 @@ Campos a extraer:
 - bruto_kg: peso bruto en kg o null (peso del camión cargado, suele ser el mayor)
 - tm: toneladas métricas NETAS (cantidad real de material transportado). **REGLA ABSOLUTA: tm SIEMPRE entre 20 y 36 toneladas. Si calculas o lees un valor fuera de ese rango, has cogido el campo equivocado.** SIEMPRE coge el "NETO" o "PESO NETO" o "P.NET" o "Cantidad" en t del documento, NUNCA el "PESO SALIDA"/"TARA"/"P.BRUT"/"Peso de entrada"/"Peso de salida". Si solo ves Bruto y Tara/Salida, calcula NETO = Bruto - Tara. **EJEMPLO Holcim albarán de SALIDA (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos 31...): este albarán tiene "Peso de entrada: 12.920" (=TARA en kg), "Peso de salida: 40.620" (=BRUTO en kg) y "Cantidad: 27,700 / Unidad: t / TNE" (=NETO=27.700 toneladas). El tm correcto aquí es 27.700, NUNCA 40.620 ni 12.920. El campo "Cantidad" expresado en t/TNE es el neto real. NUNCA pongas como tm un valor en kg (4-5 dígitos como 40620, 41040), siempre en toneladas (2-3 dígitos como 27.7, 28.140).** En albaranes de RECEPCIÓN de Holcim el NETO aparece justo debajo del campo "MATERIAL DESCRIPCION" (NO confundir con "PESO ENTRADA"=bruto ni "PESO SALIDA"=tara). Si te sale menor de 20 TN, probablemente cogiste la tara por error. Si te sale mayor de 36 TN, probablemente cogiste el bruto por error.
 - producto: material transportado. **En albaranes CEMEX (cabecera "CEMEX ESPAÑA", nº 77469/XXXXXX): el bloque "Artículo" suele tener 3 líneas pero SOLO la PRIMERA es el material real. Las otras 2 son cargos administrativos de Cemex que NO se transportan: línea 60002786 "GESTIÓN MEDIOAMBIENTAL ÁRIDOS" y línea 60002866 "SUPLEMENTO FUEL ÁRIDOS ENTREGADO". COGE ÚNICAMENTE el código + descripción de la PRIMERA fila (formato típico: AG-T-4/12-C, AF-T-0/2-C, AF-T-0/4-C, AG-1-4/12-C u otro código de árido), e IGNORA las líneas con "GESTIÓN MEDIOAMBIENTAL" y "SUPLEMENTO FUEL". Ejemplo: si ves "10000377 AG-T-4/12-C / 60002786 GESTIÓN MEDIOAMBIENTAL ÁRIDOS / 60002866 SUPLEMENTO FUEL ÁRIDOS ENTREGADO" → producto = "AG-T-4/12-C". NUNCA concatenes las 3 líneas con punto y coma.**
-- transportista: empresa transportista
+- transportista: SIEMPRE devuelve null. NO intentes leer ni extraer la empresa transportista del PDF (aunque veas un campo "Transportista:", "Operador logístico:", "Transp. efectivo:" o similar). El sistema lo asigna automáticamente por la matrícula del camión y por el usuario que sube el albarán; cualquier valor que pongas aquí será ignorado o sobrescrito, así que devuelve null directamente.
 - hora_entrada: HH:MM o null
 - hora_salida: HH:MM o null
 - observaciones: texto adicional o null
@@ -2959,38 +2964,49 @@ function openModal(id) {
   // guardar se memoriza la matrícula en BD para que la próxima vez se reconozca sola.
   if (!r._dup && r._matDesconocida) {
     const matrShow = r.tractora ? esc(r.tractora) : '(vacía)';
-    const transActual = r.transportista || '';
-    const opts = ['<option value="">— Selecciona transportista —</option>']
-      .concat(TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${t === transActual ? ' selected' : ''}>${esc(t)}</option>`))
-      .join('');
-    // v91c: contar OTROS albaranes en memoria con la misma matrícula (normalizada).
-    // Si hay alguno, ofrecemos al admin un segundo checkbox para actualizarlos en lote.
-    const matNorm = String(r.tractora || '').trim().toUpperCase().replace(/\s+/g,'');
-    const otrosConMismaMat = matNorm ? records.filter(x =>
-      x !== r &&
-      !x._dup &&
-      x.db_id &&
-      x.tractora &&
-      String(x.tractora).trim().toUpperCase().replace(/\s+/g,'') === matNorm
-    ) : [];
-    const numOtros = otrosConMismaMat.length;
-    let histHtml = '';
-    if (numOtros > 0) {
-      histHtml = `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer;margin-top:6px">
-        <input type="checkbox" id="mAplicarHistorico" style="cursor:pointer">
-        Aplicar también a los <strong style="color:var(--wn)">${numOtros}</strong> albaranes existentes con esta matrícula
-      </label>`;
+    // v103b: SOLO el admin puede asignar transportista a una matrícula nueva (porque la
+    // asignación se aprende y afecta a todos los albaranes futuros + a la facturación).
+    // Los gestores ven un aviso informativo de solo lectura, sin select ni checkboxes.
+    if (currentRole === 'admin') {
+      const transActual = r.transportista || '';
+      const opts = ['<option value="">— Selecciona transportista —</option>']
+        .concat(TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${t === transActual ? ' selected' : ''}>${esc(t)}</option>`))
+        .join('');
+      // v91c: contar OTROS albaranes en memoria con la misma matrícula (normalizada).
+      // Si hay alguno, ofrecemos al admin un segundo checkbox para actualizarlos en lote.
+      const matNorm = String(r.tractora || '').trim().toUpperCase().replace(/\s+/g,'');
+      const otrosConMismaMat = matNorm ? records.filter(x =>
+        x !== r &&
+        !x._dup &&
+        x.db_id &&
+        x.tractora &&
+        String(x.tractora).trim().toUpperCase().replace(/\s+/g,'') === matNorm
+      ) : [];
+      const numOtros = otrosConMismaMat.length;
+      let histHtml = '';
+      if (numOtros > 0) {
+        histHtml = `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="mAplicarHistorico" style="cursor:pointer">
+          Aplicar también a los <strong style="color:var(--wn)">${numOtros}</strong> albaranes existentes con esta matrícula
+        </label>`;
+      }
+      alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
+        <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
+        <div style="font-size:11px;color:var(--mu);margin-bottom:8px">No está en la flota oficial ni en las aprendidas. Asigna el transportista para que la próxima vez se reconozca sola.</div>
+        <select id="mAsignarTransportista" onchange="document.getElementById('mf_transportista').value=this.value" style="width:100%;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font-size:13px;margin-bottom:6px">${opts}</select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer">
+          <input type="checkbox" id="mAprenderMat" checked style="cursor:pointer">
+          Aprender esta matrícula para futuros albaranes
+        </label>
+        ${histHtml}
+      </div>`;
+    } else {
+      // Gestor (o cualquier otro rol no-admin): banner informativo de solo lectura.
+      alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
+        <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
+        <div style="font-size:11px;color:var(--mu)">No está en la flota oficial ni en las aprendidas. Avisa al admin para que asigne el transportista.</div>
+      </div>`;
     }
-    alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
-      <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
-      <div style="font-size:11px;color:var(--mu);margin-bottom:8px">No está en la flota oficial ni en las aprendidas. Asigna el transportista para que la próxima vez se reconozca sola.</div>
-      <select id="mAsignarTransportista" onchange="document.getElementById('mf_transportista').value=this.value" style="width:100%;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font-size:13px;margin-bottom:6px">${opts}</select>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer">
-        <input type="checkbox" id="mAprenderMat" checked style="cursor:pointer">
-        Aprender esta matrícula para futuros albaranes
-      </label>
-      ${histHtml}
-    </div>`;
   }
   // v76: aviso si el albarán está marcado como editado manualmente — protegido contra reanálisis
   if (r._manual) alertHtml += `<div class="m-alert" style="background:rgba(0,232,122,.08);border:1px solid rgba(0,232,122,.3);color:var(--ac)">✏️ <strong>Editado manualmente.</strong> Protegido — Re-corregir TODO no afectará a este albarán.</div>`;
@@ -3065,7 +3081,35 @@ function openModal(id) {
       renderPdfPagePreview(cleanUrl, pageNum, 'pdfPreviewCanvas', 'pdfPreviewLoading');
     }, 50);
   }
-  document.getElementById('mFields').innerHTML = FIELDS.map(f => `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : ''}"></div>`).join('');
+  // v103: campo Transportista con tratamiento especial — ya no es un input de texto libre.
+  // - admin/gestor: SELECT cerrado con los 13 TRANSPORTISTAS_OFICIALES. Si el valor histórico
+  //   guardado no está en la lista oficial (ej. "ARIDFLOT, S.L." en vez de "ARIDFLOT"), se
+  //   muestra arriba con un aviso ⚠ para que se migre con un clic al oficial.
+  // - conductor: input bloqueado (disabled). Hoy los conductores no acceden al modal, pero
+  //   se deja preparado por si en el futuro se les habilita acceso a su listado.
+  // Resto de campos: como siempre, input editable libre.
+  document.getElementById('mFields').innerHTML = FIELDS.map(f => {
+    const val = r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : '';
+    if (f.k === 'transportista') {
+      // v103b: solo ADMIN puede editar este campo. Gestor y conductor ven el valor bloqueado.
+      // Motivo: cada empresa transportista factura SUS albaranes; cambiar el transportista
+      // de un albarán equivale a reasignar quién lo factura → operación delicada que solo
+      // hace el admin.
+      if (currentRole === 'admin') {
+        const valActual = r[f.k] || '';
+        const enLista = TRANSPORTISTAS_OFICIALES.includes(valActual);
+        let opts = `<option value=""${!valActual ? ' selected' : ''}>— Sin asignar —</option>`;
+        if (valActual && !enLista) {
+          opts += `<option value="${esc(valActual)}" selected style="color:#ffd970">⚠ ${esc(valActual)} (no oficial — elegir uno abajo)</option>`;
+        }
+        opts += TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${(enLista && t === valActual) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+        return `<div class="fg full"><label class="fl">${f.l}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
+      } else {
+        return `<div class="fg full"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}" disabled title="Solo oficina puede modificar este campo" style="background:var(--s2);color:var(--mu);cursor:not-allowed;opacity:.7"></div>`;
+      }
+    }
+    return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
+  }).join('');
   let footer = `<button class="btn br" id="btnDel" onclick="deleteRecord()">Eliminar</button>`;
   if (r._dup) footer += `<button class="btn bw" onclick="markAsValid()">✓ Marcar válido</button>`;
   footer += `<button class="btn bs" onclick="closeModal()">Cancelar</button><button class="btn bp" onclick="saveModal()">Guardar</button>`;
@@ -3689,6 +3733,13 @@ async function descargarArchivosFiltrados() {
 // Re-aplica las reglas de corrección (destino y matrícula) a todos los albaranes ya guardados
 // Útil cuando se actualizan las reglas y queremos arreglar registros antiguos sin reprocesarlos
 async function reanalizarTodo() {
+  // v103b: solo admin puede usar esta función (corrige también el campo transportista,
+  // que es operación restringida). Doble protección: el botón está oculto para gestores,
+  // pero por si alguien llama a la función desde consola, también la bloqueamos aquí.
+  if (currentRole !== 'admin') {
+    toast('Solo el admin puede usar Re-corregir TODO', 'err');
+    return;
+  }
   if (!records.length) { toast('No hay albaranes', 'err'); return; }
   const protegidos = records.filter(r => r._manual).length;
   const aprocesar = records.length - protegidos;
