@@ -98,6 +98,23 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .stat-v{font-family:var(--dp);font-size:28px;line-height:1}
 .stat-s{font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px}
 
+/* v104: PENDIENTES (chips de tareas del día) */
+.pend-wrap{background:linear-gradient(135deg,rgba(123,143,240,.06),rgba(0,232,122,.03));border:1px solid rgba(123,143,240,.22);border-radius:9px;padding:11px 14px;margin-bottom:14px}
+.pend-hd{font-family:var(--mn);font-size:10px;letter-spacing:1.5px;color:var(--in);font-weight:600;margin-bottom:8px;text-transform:uppercase}
+.pend-chips{display:flex;flex-wrap:wrap;gap:7px}
+.pend-chip{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:7px 11px;font-family:var(--mn);font-size:11px;color:var(--tx);cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
+.pend-chip:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.pend-chip .pic{font-size:14px;line-height:1}
+.pend-chip .pn{font-weight:700;font-size:14px;font-family:var(--dp)}
+.pend-chip .ptx{color:var(--mu);font-size:10px;letter-spacing:.5px}
+.pend-er{border-color:rgba(232,64,64,.45)}
+.pend-er .pn{color:var(--er)}
+.pend-wn{border-color:rgba(245,166,35,.45)}
+.pend-wn .pn{color:var(--wn)}
+.pend-in{border-color:rgba(123,143,240,.45)}
+.pend-in .pn{color:var(--in)}
+.pend-ok{background:rgba(0,232,122,.05);border:1px solid rgba(0,232,122,.22);border-radius:9px;padding:11px 14px;margin-bottom:14px;font-family:var(--mn);font-size:11px;color:var(--ac);text-align:center;letter-spacing:.8px}
+
 /* CARD */
 .card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;margin-bottom:18px;overflow:hidden}
 .card-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -386,6 +403,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div id="tabContentAlb" class="wrap">
       <div id="setupBox"></div>
       <div class="stats" id="statsBox"></div>
+      <!-- v104: bloque "🎯 Pendientes de hoy" — resumen rápido en chips clicables que sustituye
+           el escaneo visual de los banners. Se llena en renderPendientes(). -->
+      <div id="pendientesBox"></div>
       <div class="alerts" id="alertsBox"></div>
       <div class="card">
         <div class="card-hd">
@@ -2435,6 +2455,56 @@ function renderAlerts() {
   if (matDes.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🚛 <strong>${matDes.length} albarán(es) con matrícula desconocida</strong> — revisar transportista.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('matdes')">Ver</button></div></div>`;
   if (warns.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠ <strong>${warns.length} a revisar</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="filterByStatus('warn')">Ver</button></div></div>`;
   document.getElementById('alertsBox').innerHTML = html;
+  // v104: actualizar también el bloque de Pendientes del día (envuelto en try porque depende
+  // de itvRecords y permisos que pueden no estar disponibles en todos los flujos).
+  try { renderPendientes(); } catch(e) { console.error('[renderPendientes]', e); }
+}
+
+// v104: bloque "🎯 Pendientes de hoy" — cuadro de mando rápido del admin/gestor con chips
+// clicables que llevan al filtro o pestaña correspondiente. Si todo está al día, muestra un
+// mensaje verde. Si hay cualquier pendiente, lista solo las categorías con al menos 1.
+function renderPendientes() {
+  const box = document.getElementById('pendientesBox');
+  if (!box) return;
+  // Conductor no tiene esta vista, así que ni mostrar
+  if (currentRole === 'conductor') { box.innerHTML = ''; return; }
+
+  const pendIA = records.filter(r => r.procesado === false).length;
+  const matDes = records.filter(r => !r._dup && r._matDesconocida).length;
+  const warns  = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible')).length;
+  const dups   = records.filter(r => r._dup).length;
+
+  // ITVs solo cuentan si el usuario tiene permiso para verlas (puede_ver_itv=TRUE)
+  let itvCad = 0, itvAvi = 0;
+  const tienePermisoITV = !!(userMap && currentUser && userMap[currentUser.id]?.puede_ver_itv);
+  if (tienePermisoITV && Array.isArray(itvRecords) && itvRecords.length) {
+    itvCad = itvRecords.filter(r => _itvEstado(r).tipo === 'caducada').length;
+    itvAvi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso').length;
+  }
+
+  const total = pendIA + matDes + warns + dups + itvCad + itvAvi;
+  if (total === 0) {
+    box.innerHTML = `<div class="pend-ok">✓ Todo al día — sin pendientes</div>`;
+    return;
+  }
+
+  // Construir chips solo para las categorías con al menos 1
+  const chips = [];
+  if (pendIA) chips.push({ic:'📥', n:pendIA, tx:'pendientes IA',    cls:'pend-in', click:`procesarPendientes('alb')`});
+  if (dups)   chips.push({ic:'⛔', n:dups,   tx:'duplicados',        cls:'pend-er', click:`filterByStatus('dup')`});
+  if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
+  if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
+  if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
+  if (itvAvi) chips.push({ic:'🟧', n:itvAvi, tx:`ITVs <${ITV_AVISO_DIAS}d`, cls:'pend-wn', click:`switchTab('itv')`});
+
+  box.innerHTML = `
+    <div class="pend-wrap">
+      <div class="pend-hd">🎯 Pendientes de hoy</div>
+      <div class="pend-chips">
+        ${chips.map(c => `<button class="pend-chip ${c.cls}" onclick="${c.click}" title="${c.tx}"><span class="pic">${c.ic}</span><span class="pn">${c.n}</span><span class="ptx">${c.tx}</span></button>`).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function buildDropdowns() {
