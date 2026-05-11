@@ -105,33 +105,6 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .st{font-family:var(--dp);font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:8px}
 .dot{width:6px;height:6px;background:var(--c,var(--ac));border-radius:50%;box-shadow:0 0 6px var(--c,var(--ac));flex-shrink:0}
 
-/* v104b: layout de dos columnas para la pestaña ITV (Registro + Citas).
-   En pantallas grandes (>1100px) las dos cards van lado a lado al 50%.
-   En tablet/móvil se apilan en vertical para que sea legible. */
-.itv-twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-@media (max-width:1100px){.itv-twocol{grid-template-columns:1fr}}
-.itv-twocol .card{margin-bottom:0}
-/* Tablas más compactas y texto resaltado dentro del layout 2-col */
-.itv-twocol .card-hd{padding:11px 14px}
-.itv-twocol .card-bd{padding:12px 14px}
-.itv-twocol .st{font-size:14px;letter-spacing:1.5px}
-.itv-twocol .t{font-size:11px}
-.itv-twocol .t th{padding:6px 8px;font-size:10px;letter-spacing:0.6px}
-.itv-twocol .t td{padding:8px;font-weight:500}
-.itv-twocol .t td:nth-child(2){font-weight:800}  /* matrícula muy bold */
-.itv-twocol .t td:nth-child(4){font-weight:700}  /* fecha caduca/cita bold */
-.itv-twocol .filters{gap:6px}
-.itv-twocol .fil-group{flex:1 1 100px;min-width:80px}
-.itv-twocol .fil-label{font-size:9px}
-.itv-twocol .fil-sel{font-size:11px;padding:6px 8px}
-/* Ocultar columnas menos críticas (SUBIDO POR y SUBIDO EL) cuando está en 2-col */
-.itv-twocol .t th:nth-last-child(-n+2),
-.itv-twocol .t td:nth-last-child(-n+2){display:none}
-@media (max-width:1100px){
-  .itv-twocol .t th:nth-last-child(-n+2),
-  .itv-twocol .t td:nth-last-child(-n+2){display:table-cell}
-}
-
 /* QUEUE */
 .queue{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .qi{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:10px}
@@ -567,14 +540,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
-      <div id="itvCitasAlertsBox"></div>
-      <!-- v104b: layout de dos columnas (Registro ITV | Citas ITV) — 50/50 en desktop, apilado en móvil -->
-      <div class="itv-twocol">
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn bs" onclick="openItvModalManual()" title="Crear ITV a mano sin documento">✏️ Nuevo manual</button>
             <button class="btn bp" onclick="document.getElementById('itvFileInput').click()">➕ Subir ITV</button>
             <input type="file" id="itvFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleItvFiles(this.files)">
           </div>
@@ -591,29 +560,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </div>
         </div>
       </div>
-
-      <!-- v104: SECCIÓN DE CITAS ITV (lado a lado con Registro ITV en desktop) -->
-      <div class="card">
-        <div class="card-hd">
-          <div class="st"><div class="dot" style="background:#fb923c;box-shadow:0 0 6px #fb923c"></div>PRÓXIMAS CITAS ITV</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn bs" onclick="openCitaModalManual()" title="Crear cita a mano">✏️ Nueva manual</button>
-            <button class="btn bp" onclick="document.getElementById('citaFileInput').click()">📅 Subir cita</button>
-            <input type="file" id="citaFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleCitaFiles(this.files)">
-          </div>
-        </div>
-        <div class="card-bd">
-          <div class="filters" id="filtersCitas">
-            <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fCitaMat" oninput="applyCitasFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
-            <div class="fil-group"><label class="fil-label">Cuándo</label><select class="fil-sel" id="fCitaCuando" onchange="applyCitasFilters()"><option value="">Todas</option><option value="hoy">📌 Hoy/mañana</option><option value="semana">⏰ Esta semana</option><option value="futuras">🟢 Futuras</option><option value="pasadas">⚪ Pasadas</option></select></div>
-            <div class="filter-actions"><button class="btn bs" onclick="resetCitasFilters()">✕ Limpiar</button></div>
-          </div>
-          <div id="citasTableBox" style="overflow-x:auto;margin-top:14px">
-            <table class="t" id="citasTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA CITA</th><th>HORA</th><th>DÍAS</th><th>CENTRO</th><th>SUBIDO POR</th><th>SUBIDO EL</th></tr></thead><tbody id="citasTableBody"></tbody></table>
-          </div>
-        </div>
-      </div>
-      </div><!-- /itv-twocol -->
 
       <!-- Modal ITV (mismo patrón que albaranes/gasoil) -->
       <div class="ov" id="itvOv" onclick="if(event.target===this)closeItvModal()">
@@ -632,28 +578,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div style="display:flex;gap:8px;margin-left:auto">
               <button class="btn bs" onclick="closeItvModal()">Cancelar</button>
               <button class="btn bp" onclick="saveItvModal()">Guardar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- v104: Modal CITA ITV (nuevo) -->
-      <div class="ov" id="citaOv" onclick="if(event.target===this)closeCitaModal()">
-        <div class="modal">
-          <div class="modal-hd"><div class="st"><div class="dot" style="background:#fb923c;box-shadow:0 0 6px #fb923c"></div>DETALLE CITA ITV</div><div style="display:flex;gap:8px"><button class="btn bp" onclick="saveCitaModal()">✓</button><button class="btn bs" onclick="closeCitaModal()">✕</button></div></div>
-          <div class="modal-bd">
-            <div id="citaAlert"></div>
-            <div class="modal-grid">
-              <div class="mfields" id="citaFields"></div>
-              <div id="citaPreview"></div>
-            </div>
-          </div>
-          <div class="modal-ft">
-            <button class="btn br" id="citaBtnDel" onclick="deleteCitaRecord()">Eliminar</button>
-            <button class="btn bw" id="citaBtnReanalizar" onclick="reanalizarCita()" title="Volver a procesar la captura con IA">🔄 Reanalizar IA</button>
-            <div style="display:flex;gap:8px;margin-left:auto">
-              <button class="btn bs" onclick="closeCitaModal()">Cancelar</button>
-              <button class="btn bp" onclick="saveCitaModal()">Guardar</button>
             </div>
           </div>
         </div>
@@ -1646,7 +1570,7 @@ function renderQueues() {
     const isProcessing = type === 'alb' ? _processingAlb : _processingGas;
     const startTs = type === 'alb' ? _processingAlbStartTs : _processingGasStartTs;
     const elapsedMin = startTs > 0 ? (Date.now() - startTs) / 60000 : 0;
-    const isStuck = isProcessing && elapsedMin > 5; // v104e: subido de 2 a 5 min porque Sonnet 4.6 es más lento que Haiku 4.5 (3-5s/albarán vs 1-2s) y con colas grandes el aviso de 2min era falso positivo
+    const isStuck = isProcessing && elapsedMin > 2; // bloqueado si lleva >2 min
     // Caso especial: hay archivos atascados en 'processing' pero el flag NO está activo.
     // Eso significa que la cola se interrumpió (cuelgue, refresco, etc.) y ahora están huérfanos.
     // Los podemos rescatar marcándolos como 'pending' otra vez.
@@ -1747,7 +1671,7 @@ let _processingAlb = false;
 let _processingGas = false;
 let _processingAlbStartTs = 0; // timestamp del inicio para detectar bloqueos
 let _processingGasStartTs = 0;
-const _PROCESSING_TIMEOUT_MS = 20 * 60 * 1000; // v104e: 20 min (antes 10) — Sonnet tarda 3-5s/albarán, una tanda de 100 albaranes puede pasar de 10 min sin estar bloqueada
+const _PROCESSING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos máx → si supera, asumir bloqueo y resetear
 
 // Auto-desbloqueo: si el flag lleva activo más del timeout, lo reseteamos. Esto pilla los casos
 // raros donde una llamada a la API se queda esperando para siempre y nunca llama al finally.
@@ -1791,13 +1715,6 @@ async function processQueue(type) {
   if (type === 'gas' && _processingGas) return;
   if (type === 'alb') { _processingAlb = true; _processingAlbStartTs = Date.now(); }
   else { _processingGas = true; _processingGasStartTs = Date.now(); }
-
-  // v104e: auto-refresco visual cada 2s mientras procesa. Antes Juan Carlos tenía que
-  // recargar la página para ver el avance — esto hace que la cola se redibuje sola con
-  // el progreso en tiempo real sin necesidad de F5.
-  const _autoRefreshTimer = setInterval(() => {
-    try { renderQueues(); } catch (e) { /* ignore */ }
-  }, 2000);
 
   const key = getKey();
   if (!key) {
@@ -1855,8 +1772,6 @@ async function processQueue(type) {
       }
     }
   } finally {
-    // v104e: parar el auto-refresh visual al terminar
-    clearInterval(_autoRefreshTimer);
     if (type === 'alb') { _processingAlb = false; _processingAlbStartTs = 0; }
     else { _processingGas = false; _processingGasStartTs = 0; }
   }
@@ -2205,13 +2120,13 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
   }
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
-${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.\n⚠️ REGLA ANTI-CONTAMINACIÓN CRÍTICA (v104d): cada albarán es ÚNICO e INDEPENDIENTE. Cuando proceses la página 2, NO copies valores de la página 1. Cuando proceses la página 3, NO copies de las anteriores. CADA albarán tiene SU PROPIA matrícula tractora, SU PROPIO remolque, SU PROPIA fecha, SU PROPIO TM, SU PROPIO nº de albarán. Si dos albaranes consecutivos PARECEN tener la misma matrícula, mira DOS VECES: probablemente sean diferentes (el camión hace varios viajes pero la matrícula puede coincidir entre viajes del mismo día — solo si REALMENTE coinciden en el PDF; nunca inventes coincidencias). NUNCA reutilices una matrícula leída en la página anterior si en la actual no la ves clara — prefiere devolver vacío.':'Devuelve un objeto JSON (no array).'}
+${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
 - albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. En Cemex formato 77469/XXXXXX
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria. **CRÍTICO Holcim**: el cliente está en el campo "Cliente:" (suele aparecer junto al CÓDIGO de obra tipo CE44D, CE44E, CE44I y un nombre de planta como "Planta Hormigones Zona Franca", "Planta Hormigones Montcada", "La Roca", "Celra"). **NUNCA pongas como cliente lo que aparece en "Operador logístico:" ni en "Transp. efectivo:" — eso es el TRANSPORTISTA (PORTES 2014 IMPORT S.L. / TRANSPORTES Y PORTES 2014, S.L., CIF B90172735), NO un cliente. Si no encuentras el campo "Cliente:" o está vacío, devuelve null, NUNCA pongas Transportes y Portes 2014.**
-- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): **REGLA PREFERENTE PARA HOLCIM SALIDA**: en estos albaranes hay un bloque "Obra:" que contiene un CÓDIGO (ej. CE44D, CE44E, CE44K) Y JUSTO DEBAJO el NOMBRE DEL DESTINO en una línea propia. Lee SIEMPRE esa línea bajo el código como destino, NO el pueblo del CP. Mapeo confirmado: **CE44D → "Planta Hormigones Zona Franca"** (Calle C, sector B, 08040 Barcelona); **CE44K → "Planta de Montcada"** (Carretera Rivas Km 2, 08110 Montcada); **CE44E → "La Roca"** (Polígono Industrial Font de la Pare, 08430 La Roca); **CE44I → "Celra"** (C/TER Nº 70 POLG IND DE CELRA, 17460 Celra); **CES17 → "Riudellots de la Selva"**. Si el código no está en este mapeo, devuelve la línea de NOMBRE bajo el código tal cual aparece. El campo "Obra:" suele tener formato "[código numérico largo] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → leer destino del bloque "obra-destino" (ver bloque PORTLAND más abajo); Eco Àrids → pueblo del campo OBRA/DESTI. **CRÍTICO Eco Àrids 2025 (v99)**: en albaranes de "ECO ÀRIDS 2025, SL" (cabecera con logo de montañas, formato "Nº TICKET: XXXXXX"), el campo "OBRA/DESTI:" contiene el destino directamente (ej. "OBRA/DESTI: CELRA 5500116110" → destino = "Celra"; el número largo es código interno, ignorar). El cliente en estos albaranes es "HOLCIM ESPAÑA S.A.U.". El proveedor SIEMPRE es "Eco Àrids 2025, SL" (NUNCA "IDS 2025" — eso es OCR mal leído del logo de montañas). El origen es SIEMPRE "Bàscara a Esponellà" (es la planta de Eco Àrids, ver dirección "Ctra. de Bàscara a Esponellà"). **Aridcal (v99)**: en albaranes con cabecera "Document comercial Albarà d'entrega i carta de port" donde el campo "Origen:" o "Carregador:" pone "Aridcal, SAU" (Pont Major, Girona), el proveedor canónico es "Aridcal, SAU" Y el origen es "Aridcal" (NO "Pont Major"). El cliente es "HOLCIM ESPAÑA S.A.U." y el destino se lee del campo "Obra:" (ej. "PLANTA CELRÀ" → "Celra"). Estos albaranes Aridcal son siempre destino Celra (planta de hormigón Holcim).; **Àrids Garcia → extrae el PUEBLO del campo "Obra:" (puede ser La Roca, Llinars, Ports de Banyera, u otra obra distinta — NO asumir siempre La Roca, leer cada vez)**; **Canteras Canro → extrae lo que aparezca en el campo "DESTINO" (puede variar). Si el campo DESTINO está VACÍO en el albarán, devuelve null. NO uses el cliente ("UTE..."), la dirección de la cantera ("Sant Fost de Campsentelles") ni el origen como destino**; Molins → pueblo/obra del campo OBRA. **CRÍTICO Molins/Promsa**: en estos albaranes hay un bloque "OBRA" con formato "[código] - [NOMBRE OBRA]" (ej. "117 - ZONA FRANCA II", "45 - CUBELLES", "12 - LA ROCA"). El destino correcto es el NOMBRE de la obra (parte después del guión), NO la ciudad de la línea ADREÇA. Ejemplos: "117 - ZONA FRANCA II / C D SECTOR B 56 58 ZONA FRANC - 08019 (BARCELONA)" → "Zona Franca II" (NO "Barcelona"); "45 - CUBELLES / CAMÍ DE LES TRONES SN - 08074 (CUBELLES)" → "Cubelles". Si el nombre de obra es muy genérico (solo un pueblo como "CUBELLES"), entonces sí es ese pueblo
+- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): **REGLA PREFERENTE PARA HOLCIM SALIDA**: en estos albaranes hay un bloque "Obra:" que contiene un CÓDIGO (ej. CE44D, CE44E, CE44K) Y JUSTO DEBAJO el NOMBRE DEL DESTINO en una línea propia. Lee SIEMPRE esa línea bajo el código como destino, NO el pueblo del CP. Mapeo confirmado: **CE44D → "Planta Hormigones Zona Franca"** (Calle C, sector B, 08040 Barcelona); **CE44K → "Planta de Montcada"** (Carretera Rivas Km 2, 08110 Montcada); **CE44E → "La Roca"** (Polígono Industrial Font de la Pare, 08430 La Roca); **CE44I → "Celra"** (C/TER Nº 70 POLG IND DE CELRA, 17460 Celra); **CES17 → "Riudellots de la Selva"**. Si el código no está en este mapeo, devuelve la línea de NOMBRE bajo el código tal cual aparece. El campo "Obra:" suele tener formato "[código numérico largo] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "Riudellots de la Selva"; "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "Montornès del Vallès"; "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI. **CRÍTICO Eco Àrids 2025 (v99)**: en albaranes de "ECO ÀRIDS 2025, SL" (cabecera con logo de montañas, formato "Nº TICKET: XXXXXX"), el campo "OBRA/DESTI:" contiene el destino directamente (ej. "OBRA/DESTI: CELRA 5500116110" → destino = "Celra"; el número largo es código interno, ignorar). El cliente en estos albaranes es "HOLCIM ESPAÑA S.A.U.". El proveedor SIEMPRE es "Eco Àrids 2025, SL" (NUNCA "IDS 2025" — eso es OCR mal leído del logo de montañas). El origen es SIEMPRE "Bàscara a Esponellà" (es la planta de Eco Àrids, ver dirección "Ctra. de Bàscara a Esponellà"). **Aridcal (v99)**: en albaranes con cabecera "Document comercial Albarà d'entrega i carta de port" donde el campo "Origen:" o "Carregador:" pone "Aridcal, SAU" (Pont Major, Girona), el proveedor canónico es "Aridcal, SAU" Y el origen es "Aridcal" (NO "Pont Major"). El cliente es "HOLCIM ESPAÑA S.A.U." y el destino se lee del campo "Obra:" (ej. "PLANTA CELRÀ" → "Celra"). Estos albaranes Aridcal son siempre destino Celra (planta de hormigón Holcim).; **Sodira Iberia (v102)**: en albaranes con cabecera "SÔDIRA ROCAS INDUSTRIALES" (o "SODIRA" sin acento por OCR), el proveedor canónico es "Sodira Iberia, S.L." (campo "Cargador:"). El origen es "Cantera de Garraf" (campo "Punto de Expedición: CANTERA GARRAF" — siempre así por ahora, todos los albaranes de Sodira que recibimos cargan en Cantera de Garraf). El destino es "Puerto de Barcelona" cuando la obra menciona "PUERTO DE BARCELONA", "GARRAF-UTE", "SATO Y CNES.RUBAU UTE" o similares. El cliente típico es "SATO Y CNES.RUBAU UTE 4ª FASE AMPLIACIÓN ADOSADO". El material está en el campo "Descripción" (ej. "AG-40/300-T-C") — usar ese texto literal.; **Àrids Garcia → extrae el PUEBLO del campo "Obra:" (puede ser La Roca, Llinars, Ports de Banyera, u otra obra distinta — NO asumir siempre La Roca, leer cada vez)**; **Canteras Canro → extrae lo que aparezca en el campo "DESTINO" (puede variar). Si el campo DESTINO está VACÍO en el albarán, devuelve null. NO uses el cliente ("UTE..."), la dirección de la cantera ("Sant Fost de Campsentelles") ni el origen como destino**; Molins → pueblo/obra del campo OBRA. **CRÍTICO Molins/Promsa**: en estos albaranes hay un bloque "OBRA" con formato "[código] - [NOMBRE OBRA]" (ej. "117 - ZONA FRANCA II", "45 - CUBELLES", "12 - LA ROCA"). El destino correcto es el NOMBRE de la obra (parte después del guión), NO la ciudad de la línea ADREÇA. Ejemplos: "117 - ZONA FRANCA II / C D SECTOR B 56 58 ZONA FRANC - 08019 (BARCELONA)" → "Zona Franca II" (NO "Barcelona"); "45 - CUBELLES / CAMÍ DE LES TRONES SN - 08074 (CUBELLES)" → "Cubelles". Si el nombre de obra es muy genérico (solo un pueblo como "CUBELLES"), entonces sí es ese pueblo
 - planta: origen/carga. **En Holcim albaranes de SALIDA (cabecera "Albarán" o "Albarán de traslado", número 11 dígitos 31...): el origen real es SIEMPRE el campo "Punto expedición:", NO el campo "Planta:". El campo "Planta:" indica desde qué punto Holcim factura administrativamente (suele poner "Fábrica Montcada" siempre), mientras que "Punto expedición:" indica DE DÓNDE SE CARGÓ FÍSICAMENTE el material. Ejemplo: si ves "Planta: Fábrica Montcada / Punto expedición: Cantera de Garraf", el origen es "Cantera de Garraf" (es de áridos), NO "Fábrica Montcada". Si "Punto expedición" coincide con "Planta" (ambos "Fábrica Montcada"), entonces sí es Fábrica Montcada (es de cemento). En albaranes de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"), el origen es el "PROVEEDOR" del material entrante, NO la planta receptora.** En Cemex busca "Expedido". **CEMEX (v94): el origen es el TEXTO LITERAL del campo "Expedido...." del bloque "Datos Expedición" (ejemplo real: "CANTERA BEGUES"). Devuelve ese texto tal cual lo lees (con mayúsculas/minúsculas como aparezca), NO el pueblo del CP que viene en la línea de dirección debajo. Si tras "Expedido...." hay varias líneas (típicamente: nombre de cantera / dirección / CP+pueblo), coge SOLO la primera línea — el nombre de la cantera. Ejemplo: "Expedido.... CANTERA BEGUES / CRTRA GAVA-AVINYONET KM 13.2 / 08859 Begues (Barcelona)" → origen = "Cantera Begues" (NO "Begues").** **En Portland (Grupo Cementos Portland Valderrivas) busca SIEMPRE el campo "Planta" del albarán — tienen varias canteras (Olèrdola, Santa Margarida i els Monjos, y otras por toda España); NUNCA asumas siempre la misma, lee cada vez**. Canteras Canro sin origen → "Sant Fost de Campsentelles". **Élite Cementos: el origen es SIEMPRE el campo "Punto expedición:" del albarán, NO el campo "Planta:". El campo "Planta:" suele poner "Fábrica Montcada" pero "Punto expedición:" indica DE DÓNDE SE CARGÓ realmente (puede ser "Fábrica Montcada", "Molienda Tarragona", u otra). Lee siempre Punto expedición.** Eco Àrids 2025 → "Bàscara a Esponellà". Àrids Garcia → "Llinars del Vallès". **En Molins/Promsa (albaranes de venta de áridos, NO los de recepción Caliza Promsa): busca SIEMPRE el campo "CENTRAL" del albarán — tienen varias canteras: GARRAF ARID → "Cantera de Garraf"; OLESA DE BONESVALLS → "Olesa de Bonesvalls"; LLINARS → "Llinars del Vallès"; SANT VICENÇ → "Sant Vicenç dels Horts"; u otras. NUNCA asumas siempre Garraf, lee cada vez del CENTRAL.** EXCEPCIONES Holcim por material: "CALIZA GARRAF ZAHORRA" → "Cantera Garraf"; "ARCILLA SILICIA PAPIOL" → "Papiol"; "ARENA EXTRAIDA CANTERA MARTORELL" → "Martorell"; "Caliza Cemex" + Cemex España → "Cemex/Begues"; "Caliza Foj" + Canteras Foj → "Foj/Vallirana"; "Caliza Promsa" + Promotora Mediterranea (RECEPCIÓN, no venta) → "Garraf/Promsa"; "Árido reciclado" + Tecnocatalana → "Tecnocatalana de Runes, S.L."; "Árido siderúrgico blanco" + ADEC → "Adec/Vallirana"
 - tractora: matrícula camión OBLIGATORIA. **REGLA v92 — INSISTE EN LEER LA MATRÍCULA: prácticamente TODOS los albaranes de transporte llevan matrícula del vehículo físicamente impresa. Si en una primera mirada no la ves, MIRA OTRA VEZ con detenimiento, en este orden: (1) cuadro superior derecho del albarán (zona típica en Holcim, Cemex, Élite); (2) bloques etiquetados "Datos Expedición", "DATOS DEL TRANSPORTE", "TRANSPORTE"; (3) zona próxima al número de albarán y la fecha; (4) recuadros laterales o pies de página. Solo devuelve cadena vacía como ÚLTIMO RECURSO, cuando la zona donde DEBERÍA estar la matrícula está físicamente recortada del escaneo, manchada, doblada o tan borrosa que sus caracteres son indistinguibles. En documentos nítidos y legibles, NO se acepta devolver matrícula vacía — si lo haces, mira otra vez.** **FORMATO ESTRICTO: exactamente 4 dígitos + 3 letras españolas, sin guiones ni espacios (ejemplo de formato: 1748JGL, 9295JJZ, 4540MPW). Si no encuentras nada con ese formato exacto tras mirar dos veces, devuelve cadena vacía — NO inventes ni cojas otros números del documento.** **REGLA PRIMORDIAL v89: LEE EXACTAMENTE LO QUE PONE EL PDF EN LA LÍNEA DE MATRÍCULA, no fuerces ni inventes.** Está etiquetada como "Matrícula", "Matricula", "Mat:", "Tractora" o similar, normalmente en la zona superior junto al número de albarán. **En albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN"): la matrícula está SIEMPRE en el cuadro superior derecho del albarán. Dentro de ese cuadro hay un listado vertical con las etiquetas en este orden exacto, una bajo otra: PROVEEDOR: / TRANSPORTISTA: / PROPIETARIO: / MATRICULA: / REMOLQUE:. La matrícula que necesitas es el valor de "MATRICULA:" (formato 4 dígitos + 3 letras, ejemplo real: 0555NKM). La línea siguiente "REMOLQUE:" tiene un valor que típicamente EMPIEZA POR "R" mayúscula (ej: R0764BDB) — esa NO la cojas, es el remolque. Estos albaranes son simples y la matrícula SIEMPRE está rellena físicamente en el PDF; si no la lees a la primera, mira de nuevo este cuadro. Devuélvela tal cual aparece.** **🚛 CEMEX (CRÍTICO v89) — instrucciones precisas: identifica el albarán por la cabecera con logo "CEMEX ESPAÑA" y el número formato 77469/XXXXXX. Busca el BLOQUE DE LA IZQUIERDA llamado "Datos Expedición" (aparece en mitad de la página, lado izquierdo). Dentro de ese bloque hay un listado vertical de campos, cada uno empieza con un nombre seguido de puntos suspensivos (....) y luego el valor. Los CAMPOS APARECEN EN ESTE ORDEN exacto: "Producido....", "Expedido....", "Báscula de Ent....", "Báscula de Sal....", "Operador Tte....", "Transportista....", "Conductor....", "Matricula....", "Remolque(s)....", "Peso bruto....", "Tara....". Lo que necesitas es el valor de "**Matricula....**" (formato 4 dígitos + 3 letras, ej: 9295JJZ). La línea siguiente "Remolque(s)...." tiene un valor que EMPIEZA POR "R" mayúscula seguido de dígitos y letras (ej: R5640BDJ) — esa NO la cojas, es el remolque. La línea ANTERIOR a Matricula es "Conductor...." que tiene NOMBRE COMPLETO + DNI (ej: "Lahcen Ait Youssef Oudaoud Y5936655R 3032772") — el DNI NO es matrícula, descártalo. ⚠️ ESTRATEGIA: localiza VISUALMENTE la palabra "Matricula" (sin acento, con cuatro puntos) y devuelve el valor de SU MISMA LÍNEA, ignorando todo lo demás. Si la imagen está borrosa o no distingues bien, mira el conductor encima y el remolque debajo para orientarte: la matrícula tractora está EN MEDIO de esos dos.** **NO confundir matrícula con: dígitos sueltos sin letras (peso bruto, tara, báscula), CIFs (formato letra+8dígitos+letra como B85771269), DNIs/NIEs (X5936655R, 26950561N, 3032772EL RIO), códigos como referencias CemexGo (M469000XXXXXX), ni con la matrícula del remolque (empieza por R).** Si no la ves a primera vista, busca con detalle. **REGLA ANTI-INVENCIÓN v89: si el número que tienes NO es exactamente formato 4 dígitos + 3 letras consonantes, NO es matrícula — sigue buscando o devuelve vacío. NO uses listas predefinidas ni "corrijas" hacia matrículas conocidas. Devuelve EXACTAMENTE lo que ves.** Solo corrige errores OCR EVIDENTES de 1 carácter cuando sea ambiguo (I↔1, 0↔O, 8↔B), y solo si el resultado mantiene formato 4D+3L.
 - remolque: matrícula remolque o null
@@ -2223,37 +2138,6 @@ Campos a extraer:
 - hora_entrada: HH:MM o null
 - hora_salida: HH:MM o null
 - observaciones: texto adicional o null
-
-**🏭 BLOQUE PORTLAND / UNILAND (v104c) — TODOS LOS ALBARANES DEL GRUPO CEMENTOS PORTLAND VALDERRIVAS**
-Cabecera: logo triangular "Grupo Cementos Portland Valderrivas" arriba a la izquierda + logo "UNILAND" o "U" arriba a la derecha. Número albarán formato "D000XXXXXX" o "CA00XXXXXX". Aparece "VENTA DE GRANEL" o "TRASPASO DE SALIDA DE GIGNAL" cerca del número.
-  • PROVEEDOR canónico SIEMPRE: "Grupo Cementos Portland Valderrivas" (las palabras "UNILAND", "Portland Valderrivas", "Cementos Portland" son marcas del MISMO grupo).
-  • PLANTA-ORIGEN: lee SIEMPRE el campo "planta-origen" o "planta" del albarán. NO asumas ninguna planta por defecto — el grupo tiene varias instalaciones (Olérdola, Santa Margarida i els Monjos, Fábrica Integral de Els Monjos, y otras). Ejemplos vistos:
-    - "A405 OLERDOLA / Crta C-15 km 10.5 (Cantera) / 08734 OLÉRDOLA" → origen = "Olèrdola"
-    - "V073 FÁBRICA INTEGRAL DE ELS MONJOS / PLÀ DE L'ESTACIÓ S/N / 08730 SANTA MARGARIDA I ELS MONJOS" → origen = "Santa Margarida i els Monjos"
-  • OBRA-DESTINO: lee el bloque "obra-destino" para identificar la OBRA del destino. ⚠️ REGLA ESPECIAL v104f: si el bloque "obra-destino" contiene el texto "ACCESOS FERROVIARIOS" (ej: "ACCESOS FERROVIARIOS SU TRANSPORTE") → destino = "UTE Accesos Ferroviarios" (sin importar el pueblo del CP, porque la UTE tiene varias obras en distintos pueblos: El Prat, Olèrdola, etc.). Para el resto de casos, lee el PUEBLO del bloque (última línea, después del CP). Ejemplos:
-    - "2144148 ACCESOS FERROVIARIOS SU TRANSPORTE / C/ 100 POLIG. IND. EL PRATENC / 08020 EL PRAT DE LLOBREGAT" → destino = "UTE Accesos Ferroviarios" (REGLA ESPECIAL)
-    - "2144148 ACCESOS FERROVIARIOS SU TRANSPORTE / AUTOVIA C-15 S/N / 08734 OLERDOLA" → destino = "UTE Accesos Ferroviarios" (REGLA ESPECIAL, no Olèrdola)
-    - "V077 PORT DE BARCELONA / LG MUELLE DEL CONTRADIQUE SUR S/N / 08039 BARCELONA" → destino = "Port de Barcelona" (no es UTE, sigue regla normal)
-  • CLIENTE/COMPRADOR: lee del bloque "cliente" (arriba a la izquierda, distinto del bloque "obra-destino"). Formato: "[código] [NOMBRE EMPRESA] / [DIRECCIÓN] / [CP] [CIUDAD]". Ejemplos:
-    - "48907 UTE ACCESOS FERROVIARIOS FASE 1 / RONDA GUINARDO 99 / 08041 BARCELONA" → cliente = "UTE Accesos Ferroviarios"
-    - "V073 FÁBRICA INTEGRAL DE ELS MONJOS / PLÀ DE L'ESTACIÓ S/N / 08730 SANTA MARGARIDA I ELS MONJOS" → cliente = "Fábrica Integral de Els Monjos"
-  • TRACTORA y REMOLQUE: bloque "vehículo" con formato "Tractora: XXXXXLLL / Remolque: RXXXXLLL". Ej: "Tractora: 5085MXC / Remolque: R3316BDF" → tractora="5085MXC", remolque="R3316BDF". Otro ejemplo: "Tractora: 1213JCD / Remolque: R6318BCG" → tractora="1213JCD".
-  • TARA y BRUTO: bloque "vehículo" con formato "Tara: XX.XXX kg / Bruto: XX.XXX kg" (los puntos son separadores de miles, NO decimales). Ej: "Tara: 13.200 kg / Bruto: 42.520 kg" → tara_kg=13200, bruto_kg=42520.
-  • TM (toneladas netas): aparece directamente en la columna "T.M." del bloque producto (ej: "29,320" o "27,520" → tm=29.320 o 27.520). Si no está, calcula tm = (bruto_kg - tara_kg) / 1000.
-  • PRODUCTO: del bloque "producto", formato "[código] [DESCRIPCIÓN]". Ej: "21488 RECHAZO R-20" → producto="RECHAZO R-20"; "1 CLINKER GRIS GRANEL" → producto="CLINKER GRIS GRANEL".
-  • FECHA: campo "fecha" arriba (formato DD/MM/YYYY).
-
-**🪨 BLOQUE CANTERAS CANRO (refuerzo v104c)**
-Cabecera: logo cuadrado "CANTERAS CANRO, S.A." arriba a la izquierda; dirección "Ctra. de La Roca, km 10" en "Sant Fost de Campsentelles".
-  • PROVEEDOR canónico SIEMPRE: "Canteras Canro, S.A."
-  • ORIGEN/PLANTA: por defecto "Sant Fost de Campsentelles" (la cantera está allí, no hay otro campo de origen en estos albaranes).
-  • CLIENTE: lee del bloque "CLIENTE" (parte central izquierda). Formato típico: "[código] [CIF] / [NOMBRE EMPRESA]". Ej: "408 ESU25883422 / UTE. ACCESOS FERROVIARIOS FASE 1" → cliente = "UTE Accesos Ferroviarios".
-  • DESTINO: lee del campo "DESTINO" (a la derecha del CLIENTE). ⚠️ REGLA ESPECIAL v104f: si el CLIENTE contiene "ACCESOS FERROVIARIOS" → destino = "UTE Accesos Ferroviarios" (aunque el campo DESTINO esté vacío). Para el resto: si el campo "DESTINO" está vacío, devuelve null. NO uses el origen como destino.
-  • MATRÍCULA: bloque "MATRÍCULA" (cuadro central), formato 4 dígitos + 3 letras. Ej: "4210NGF".
-  • TN: bloque "PESO" tiene 3 valores (bruto, tara y neto). El NETO es el menor de los 3 valores grandes (entre 20 y 36 toneladas), suele ser la última línea. Ej: "42,00 / 13,60 / 28,40" → tm=28.40.
-  • FECHA: campo "FECHA" en formato "DD-MM-YYYY" o "DD/MM/YYYY". Ej: "13-04-2026".
-  • PRODUCTO: bloque "DESCRIPCIÓN". Ej: "Z-T-0/31,5-G SUBBALASTO".
-
 SOLO JSON válido, sin markdown.`;
 
   const contentBlock = isPdf
@@ -2263,7 +2147,7 @@ SOLO JSON válido, sin markdown.`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: isPdf ? 8000 : 1500, temperature: 0, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
   if (!res.ok) {
@@ -3998,10 +3882,6 @@ let itvRecords = [];
 let filteredItv = [];
 let editItvId = null;
 const ITV_AVISO_DIAS = 15;  // umbral de aviso amarillo (15 días antes)
-// v104: estado para CITAS de ITV — visitas programadas a la estación de inspección
-let itvCitasRecords = [];
-let filteredCitas = [];
-let editCitaId = null;
 
 // Estado de un registro ITV según la fecha de caducidad
 function _itvEstado(rec) {
@@ -4106,40 +3986,9 @@ async function loadItvData() {
     }).length;
     // v101b: actualizar también el banner global de avisos (visible en todas las pestañas)
     renderItvGlobalBanner();
-    // v104: cargar también las citas de ITV
-    await loadItvCitas();
   } catch (e) {
     console.error('[loadItvData] Error:', e);
     toast('Error cargando ITVs: ' + (e.message || e), 'err');
-  }
-}
-
-// v104: carga las citas programadas en la tabla itv_citas. Si la tabla no existe aún
-// (Juan Carlos pendiente del SQL), captura el error y deja la lista vacía.
-async function loadItvCitas() {
-  if (!window._tieneITV) return;
-  try {
-    const { data, error } = await sb.from('itv_citas').select('*').order('fecha_cita', { ascending: true });
-    if (error) {
-      // Si la tabla no existe aún, marcar como no disponible silenciosamente
-      const msg = String(error.message || error.code || '');
-      if (msg.includes('itv_citas') || msg.includes('schema cache') || msg.includes('relation')) {
-        window._itvCitasSupported = false;
-        console.warn('[loadItvCitas] Tabla itv_citas no encontrada. Funcionalidad desactivada hasta que se ejecute el SQL.');
-        // Mostrar un aviso suave en la sección de citas
-        const tb = document.getElementById('citasTableBody');
-        if (tb) tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--mu);font-size:11px">⚠️ Tabla itv_citas no creada todavía. Ejecuta el SQL en Supabase para activar esta sección.</td></tr>';
-        return;
-      }
-      throw error;
-    }
-    window._itvCitasSupported = true;
-    itvCitasRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
-    applyCitasFilters();
-    renderCitasAlerts();
-  } catch (e) {
-    console.error('[loadItvCitas] Error:', e);
-    toast('Error cargando citas ITV: ' + (e.message || e), 'err');
   }
 }
 
@@ -4159,12 +4008,9 @@ function updateItvStats() {
 function renderItvAlerts() {
   const cad = itvRecords.filter(r => _itvEstado(r).tipo === 'caducada');
   const avi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso');
-  // v103: registros con matrícula placeholder pendientes de editar manualmente
-  const pend = itvRecords.filter(r => r.matricula && r.matricula.startsWith('EDITAR_'));
   let html = '';
   if (cad.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">🔴 <strong>${cad.length} ITV(s) CADUCADA(s)</strong> — pasar inspección urgente.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='caducada';applyItvFilters()">Ver</button></div></div>`;
   if (avi.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟧 <strong>${avi.length} ITV(s) caducan en ${ITV_AVISO_DIAS} días o menos</strong> — preparar próxima inspección.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='aviso';applyItvFilters()">Ver</button></div></div>`;
-  if (pend.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">⚠️ <strong>${pend.length} ITV(s) pendiente(s) de editar matrícula</strong> — la IA no las leyó claras, abre el detalle y corrígelas.</div></div>`;
   document.getElementById('itvAlertsBox').innerHTML = html;
 }
 
@@ -4206,15 +4052,9 @@ function renderItvTable() {
     const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
     const subPor = userMap[r.user_id]?.name || '—';
     const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
-    // v103: las matrículas placeholder "EDITAR_xxxxx" se muestran en rojo destacado
-    // con icono de aviso para que Juan Carlos sepa que tiene que editarlas a mano.
-    const esPendiente = r.matricula && r.matricula.startsWith('EDITAR_');
-    const matCell = esPendiente
-      ? `<span style="color:var(--er);font-weight:700">⚠️ ${esc(r.matricula)}</span><div style="font-size:11px;color:var(--er);font-weight:400;margin-top:2px">Pendiente — abrir y editar</div>`
-      : `${esc(r.matricula || '—')}`;
-    return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer${esPendiente ? ';background:rgba(239,68,68,0.06)' : ''}">
-      <td style="font-size:14px">${esPendiente ? '⚠️' : est.icon}</td>
-      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${matCell}</td>
+    return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
+      <td style="font-size:14px">${est.icon}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
       <td>${fmtDate(r.fecha_itv)}</td>
       <td style="font-weight:600">${fmtDate(r.fecha_caducidad)}</td>
       <td>${diasTxt}</td>
@@ -4251,33 +4091,6 @@ function openItvModal(dbId) {
   // Aviso de estado
   const est = _itvEstado(r);
   document.getElementById('itvAlert').innerHTML = `<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px">${est.icon} <strong>${est.label}</strong>${est.dias !== null ? ` · ${est.dias} días` : ''}</div>`;
-  // v103: mostrar Eliminar y Reanalizar (modo edición de existente)
-  const btnDel = document.getElementById('itvBtnDel');
-  const btnRea = document.getElementById('itvBtnReanalizar');
-  if (btnDel) btnDel.style.display = '';
-  if (btnRea) btnRea.style.display = r.file_url ? '' : 'none';
-  document.getElementById('itvOv').classList.add('open');
-}
-
-// v103: abrir modal en modo "crear nuevo manual" — sin registro existente, sin archivo.
-// Útil cuando Juan Carlos tiene los datos en mano (ej: vehículo nuevo) pero no el PDF,
-// o cuando el OCR ha fallado tanto que prefiere meterlo a mano de cero.
-function openItvModalManual() {
-  if (!window._tieneITV) { toast('Sin permiso para crear ITV', 'err'); return; }
-  editItvId = null;  // ← clave: null indica modo INSERT en saveItvModal
-  document.getElementById('itvFields').innerHTML = `
-    <div class="ig"><label>Matrícula</label><input id="itvMatricula" value="" placeholder="Ej: 6118MLD" style="font-family:var(--mn);text-transform:uppercase"></div>
-    <div class="ig"><label>Fecha ITV</label><input type="date" id="itvFecha" value=""></div>
-    <div class="ig"><label>Fecha caducidad</label><input type="date" id="itvCaducidad" value=""></div>
-    <div class="ig"><label>Tipo documento</label><select id="itvTipo"><option value="">—</option><option value="pegatina">Pegatina</option><option value="informe">Informe</option><option value="permiso">Permiso circulación</option></select></div>
-    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="itvObs" value="" placeholder="Opcional"></div>`;
-  document.getElementById('itvPreview').innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px;font-size:12px">📝 Modo manual — sin documento adjunto</div>';
-  document.getElementById('itvAlert').innerHTML = '<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px;color:var(--ac)">✏️ <strong>NUEVO ITV MANUAL</strong> — rellena matrícula, fechas y tipo de documento</div>';
-  // Ocultar botones que no aplican en modo nuevo
-  const btnDel = document.getElementById('itvBtnDel');
-  const btnRea = document.getElementById('itvBtnReanalizar');
-  if (btnDel) btnDel.style.display = 'none';
-  if (btnRea) btnRea.style.display = 'none';
   document.getElementById('itvOv').classList.add('open');
 }
 
@@ -4293,41 +4106,14 @@ async function saveItvModal() {
   const tipo_documento = document.getElementById('itvTipo').value || null;
   const observaciones = (document.getElementById('itvObs').value || '').trim() || null;
   if (!matricula) { toast('Matrícula requerida', 'err'); return; }
-  // v102: validación estricta de matrícula española moderna (4 dígitos + 3 consonantes).
-  // v103e: también acepta remolques (R + 4 dígitos + 3 consonantes).
-  if (!esMatriculaEspanolaEstricta(matricula)) {
-    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\nFormatos esperados:\n  • Vehículo: 4 dígitos + 3 consonantes (ej: 6118MLD)\n  • Remolque: R + 4 dígitos + 3 consonantes (ej: R0197BCC)\nSin vocales A,E,I,O,U ni Q,Ñ.\n\n¿Guardar igualmente?`)) return;
-  }
   try {
-    // v103: si editItvId es null → INSERT (nuevo manual). Si tiene valor → UPDATE.
-    if (editItvId === null || editItvId === undefined) {
-      // Antes de insertar: comprobar que esa matrícula no exista ya (la columna es UNIQUE).
-      const yaExiste = itvRecords.some(r => r.matricula === matricula);
-      if (yaExiste) {
-        toast(`⚠️ La matrícula ${matricula} ya existe en la base de datos. Edita el registro existente en lugar de crear uno nuevo.`, 'err');
-        return;
-      }
-      const { error } = await sb.from('itv').insert({
-        matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones,
-        user_id: currentUser.id,
-        updated_at: new Date().toISOString()
-      });
-      if (error) throw error;
-      closeItvModal();
-      await loadItvData();
-      toast(`✓ ${matricula} creada manualmente`);
-    } else {
-      const { error } = await sb.from('itv')
-        .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
-        .eq('id', editItvId);
-      if (error) throw error;
-      // v104: borrar citas anteriores a la nueva caducidad para esta matrícula
-      // (la ITV ya pasó, las citas viejas ya no aplican).
-      await _borrarCitasVencidas(matricula, fecha_caducidad);
-      closeItvModal();
-      await loadItvData();
-      toast('✓ ITV actualizada');
-    }
+    const { error } = await sb.from('itv')
+      .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
+      .eq('id', editItvId);
+    if (error) throw error;
+    closeItvModal();
+    await loadItvData();
+    toast('✓ ITV actualizada');
   } catch (e) {
     console.error('[saveItvModal] Error:', e);
     toast('Error guardando: ' + (e.message || e), 'err');
@@ -4369,19 +4155,14 @@ async function reanalizarItv() {
       fr.onerror = rej;
       fr.readAsDataURL(blob);
     });
-    // Llamar a Claude con el prompt mejorado v102
+    // Llamar a Claude con el prompt mejorado v101d
     const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'));
     // Rellenar los campos del modal con los datos NUEVOS (sin guardar — el usuario revisa)
     if (datos.matricula) document.getElementById('itvMatricula').value = datos.matricula;
     if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
     if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
     if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
-    // v102: aviso si la matrícula releída no cumple formato español estricto
-    if (datos.matricula && !esMatriculaEspanolaEstricta(datos.matricula)) {
-      toast(`⚠️ Matrícula leída "${datos.matricula}" no parece válida. Revísala antes de guardar.`, 'warn');
-    } else {
-      toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
-    }
+    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
   } catch (e) {
     console.error('[reanalizarItv] Error:', e);
     toast('Error reanalizando: ' + (e.message || e), 'err');
@@ -4391,56 +4172,11 @@ async function reanalizarItv() {
 }
 
 // Subir nuevo documento ITV: sube archivo, llama a IA, guarda en BD
-// v103: helper para detectar archivos duplicados (mismo PDF/imagen subido dos veces).
-// Calcula SHA-256 del binario del archivo. Dos archivos con el mismo hash son idénticos
-// byte a byte. Comparamos el hash contra la columna file_hash en la tabla itv para evitar
-// duplicar registros aunque la IA lea cosas distintas en cada intento del mismo archivo.
-async function sha256OfFile(file) {
-  const buf = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 async function handleItvFiles(files) {
   if (!files || !files.length) return;
   if (!window._tieneITV) { toast('Sin permiso para subir ITV', 'err'); return; }
   for (const f of files) {
     try {
-      // v103: detectar duplicados por hash ANTES de subir nada a Storage o llamar a IA.
-      // Si el mismo PDF/imagen ya está subido, avisamos sin malgastar Storage ni tokens.
-      // v103b: modo defensivo — si la columna file_hash NO existe en BD (Juan Carlos
-      // pendiente de ejecutar el SQL), detectamos el error y desactivamos la detección
-      // hasta que se recargue la página. Así la app funciona aunque falte el SQL.
-      toast(`🔍 Verificando ${f.name}...`);
-      let fileHash = null;
-      try {
-        fileHash = await sha256OfFile(f);
-        if (window._itvHashSupported !== false) {
-          const { data: dup, error: dupErr } = await sb.from('itv')
-            .select('matricula,file_url').eq('file_hash', fileHash).limit(1);
-          if (dupErr) {
-            // Detectar si el error es porque la columna no existe
-            const msg = String(dupErr.message || dupErr.code || '');
-            if (msg.includes('file_hash') || msg.includes('schema cache') || msg.includes('column')) {
-              window._itvHashSupported = false;
-              console.warn('[handleItvFiles] Columna file_hash no encontrada en BD. Detección de duplicados desactivada. Ejecutar el ALTER TABLE en Supabase para activarla.');
-              toast('⚠️ Detección de duplicados off — falta ejecutar SQL en Supabase. Continuando sin protección.', 'warn');
-            } else {
-              throw dupErr;
-            }
-          } else if (dup && dup.length > 0) {
-            const ok = confirm(`⚠️ Este archivo ("${f.name}") YA está subido como ITV de la matrícula ${dup[0].matricula}.\n\n¿Subirlo de todas formas?\n\n• Cancelar (recomendado) → no se hace nada.\n• Aceptar → se sube como nuevo registro (puede crear duplicados).`);
-            if (!ok) {
-              toast(`⏭️ ${f.name}: omitido — ya existe como ${dup[0].matricula}.`, 'warn');
-              continue;
-            }
-          }
-        }
-      } catch (hashErr) {
-        console.warn('[handleItvFiles] Hash check skipped:', hashErr?.message || hashErr);
-        fileHash = null;
-      }
       toast(`📤 Subiendo ${f.name}...`);
       // 1. Subir archivo a Supabase Storage (bucket 'documentos', el mismo que albaranes/gasoil)
       const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
@@ -4472,62 +4208,13 @@ async function handleItvFiles(files) {
       // 3. Llamar a IA para extraer datos
       toast(`🤖 Analizando ${f.name}...`);
       const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
+      // 4. Guardar en BD (UPSERT por matrícula — si ya existe, sustituye)
       const matricula = (datos.matricula || '').trim().toUpperCase();
-      // v103: 3 caminos de guardado para evitar pérdida de archivos y machaque accidental:
-      //   A) Matrícula NO válida O fechas sospechosas → INSERT con placeholder "EDITAR_XXXXXX"
-      //      para que aparezca en la lista marcada en rojo y Juan Carlos pueda revisar a mano.
-      //   B) Matrícula válida pero YA EXISTE en BD → confirm antes de sobrescribir.
-      //      Esto evita el bug del 6118MLD machacado por una mala lectura de otro vehículo.
-      //   C) Matrícula válida y nueva → INSERT normal.
-      // v103c: si las fechas no cuadran (caducidad ≤ ITV o diferencia absurda), también
-      // mandamos al camino A para que el usuario revise — protección contra día/mes invertido.
-      const irACaminoA = !esMatriculaEspanolaEstricta(matricula) || datos._fechasSospechosas;
-      if (irACaminoA) {
-        // Camino A: placeholder único legible (timestamp en base36 últimos 6 chars)
-        const placeholder = `EDITAR_${Date.now().toString(36).slice(-6).toUpperCase()}`;
-        // v103c: observación distingue entre problema de matrícula vs fechas sospechosas
-        const matMal = !esMatriculaEspanolaEstricta(matricula);
-        const fechasMal = datos._fechasSospechosas;
-        let obs;
-        if (matMal && fechasMal) {
-          obs = `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" y fechas sospechosas (${datos._motivoSospecha}) — revisar a mano`;
-        } else if (fechasMal) {
-          obs = `⚠️ Matrícula OK (${matricula}) pero fechas sospechosas: ${datos._motivoSospecha} — revisar fechas a mano`;
-        } else {
-          obs = `⚠️ IA leyó matrícula "${matricula || '(vacía)'}" — editar a mano`;
-        }
-        const rec = {
-          matricula: placeholder,
-          fecha_itv: datos.fecha_itv || null,
-          fecha_caducidad: datos.fecha_caducidad || null,
-          tipo_documento: datos.tipo_documento || null,
-          file_url,
-          user_id: currentUser.id,
-          observaciones: obs,
-          updated_at: new Date().toISOString()
-        };
-        // v103b: solo añadimos file_hash si la columna existe en BD (modo defensivo)
-        if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
-        const { error: insErr } = await sb.from('itv').insert(rec);
-        if (insErr) throw insErr;
-        const motivo = (matMal && fechasMal) ? 'matrícula y fechas no cuadran'
-                     : fechasMal ? 'fechas sospechosas (posible día/mes invertido)'
-                     : 'matrícula no clara';
-        toast(`⚠️ ${f.name}: ${motivo}. Guardado como ${placeholder} — abre y revisa.`, 'warn');
-        continue;
+      if (!matricula) {
+        toast(`⚠️ No se detectó matrícula en ${f.name}. Edítalo a mano.`, 'warn');
       }
-      // Camino B: matrícula válida pero ya existe en BD → confirmar antes de machacar
-      const yaExiste = itvRecords.some(r => r.matricula === matricula);
-      if (yaExiste) {
-        const ok = confirm(`⚠️ La matrícula ${matricula} YA EXISTE en la base de datos.\n\n¿Sobrescribir con los datos del archivo "${f.name}"?\n\n• Aceptar → se actualiza con los datos nuevos.\n• Cancelar → no se toca el registro existente (recomendado si dudas).`);
-        if (!ok) {
-          toast(`⏭️ ${matricula}: omitida — el registro existente NO se ha tocado.`, 'warn');
-          continue;
-        }
-      }
-      // Camino C (o B confirmado): UPSERT normal
       const rec = {
-        matricula,
+        matricula: matricula || `DESCONOCIDA_${Date.now()}`,
         fecha_itv: datos.fecha_itv || null,
         fecha_caducidad: datos.fecha_caducidad || null,
         tipo_documento: datos.tipo_documento || null,
@@ -4535,12 +4222,9 @@ async function handleItvFiles(files) {
         user_id: currentUser.id,
         updated_at: new Date().toISOString()
       };
-      // v103b: solo añadimos file_hash si la columna existe en BD (modo defensivo)
-      if (window._itvHashSupported !== false && fileHash) rec.file_hash = fileHash;
+      // UPSERT por matricula (si existe, actualiza; si no, inserta)
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
-      // v104: borrar citas anteriores a la nueva caducidad — la ITV ya está pasada
-      await _borrarCitasVencidas(matricula, datos.fecha_caducidad);
       toast(`✓ ${matricula} procesada`);
     } catch (e) {
       console.error('[handleItvFiles] Error procesando', f.name, ':', e);
@@ -4551,513 +4235,37 @@ async function handleItvFiles(files) {
   await loadItvData();
 }
 
-// ============================================================
-// v104: CITAS ITV — gestión de visitas programadas a la estación
-// ============================================================
-
-// Estado de una cita según su fecha (similar a _itvEstado pero para citas)
-function _citaEstado(rec) {
-  if (!rec.fecha_cita) return { tipo: 'sin', dias: null, label: '?', icon: '⚪' };
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const fc = new Date(rec.fecha_cita + 'T00:00:00');
-  const dias = Math.round((fc - hoy) / (1000 * 60 * 60 * 24));
-  if (dias < 0) return { tipo: 'pasada', dias, label: 'pasada', icon: '⚪' };
-  if (dias === 0) return { tipo: 'hoy', dias, label: 'HOY', icon: '🔥' };
-  if (dias === 1) return { tipo: 'manana', dias, label: 'mañana', icon: '🔥' };
-  if (dias <= 3) return { tipo: 'urgente', dias, label: 'próxima', icon: '🟠' };
-  if (dias <= 7) return { tipo: 'semana', dias, label: 'esta semana', icon: '🟡' };
-  return { tipo: 'futura', dias, label: 'programada', icon: '🟢' };
-}
-
-function renderCitasAlerts() {
-  const hoy = itvCitasRecords.filter(r => {
-    const e = _citaEstado(r);
-    return e.tipo === 'hoy' || e.tipo === 'manana';
-  });
-  const urgentes = itvCitasRecords.filter(r => _citaEstado(r).tipo === 'urgente');
-  const box = document.getElementById('itvCitasAlertsBox');
-  if (!box) return;
-  let html = '';
-  if (hoy.length > 0) {
-    html += `<div class="alert-banner alert-cad"><div class="alert-txt">🔥 <strong>${hoy.length} cita(s) HOY/MAÑANA</strong> — preparar el vehículo.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fCitaCuando').value='hoy';applyCitasFilters()">Ver</button></div></div>`;
-  }
-  if (urgentes.length > 0) {
-    html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟠 <strong>${urgentes.length} cita(s) en 3 días o menos</strong>.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fCitaCuando').value='semana';applyCitasFilters()">Ver</button></div></div>`;
-  }
-  box.innerHTML = html;
-}
-
-function applyCitasFilters() {
-  const fMat = (document.getElementById('fCitaMat')?.value || '').toUpperCase().trim();
-  const fCuando = document.getElementById('fCitaCuando')?.value || '';
-  filteredCitas = itvCitasRecords.filter(r => {
-    if (fMat && !String(r.matricula || '').toUpperCase().includes(fMat)) return false;
-    if (fCuando) {
-      const est = _citaEstado(r);
-      if (fCuando === 'hoy' && est.tipo !== 'hoy' && est.tipo !== 'manana') return false;
-      if (fCuando === 'semana' && !['hoy', 'manana', 'urgente', 'semana'].includes(est.tipo)) return false;
-      if (fCuando === 'futuras' && (est.tipo === 'pasada' || est.tipo === 'sin')) return false;
-      if (fCuando === 'pasadas' && est.tipo !== 'pasada') return false;
-    }
-    return true;
-  });
-  // Ordenar: futuras primero (próximas arriba), pasadas al final
-  filteredCitas.sort((a, b) => {
-    const ea = _citaEstado(a), eb = _citaEstado(b);
-    if (ea.tipo === 'pasada' && eb.tipo !== 'pasada') return 1;
-    if (eb.tipo === 'pasada' && ea.tipo !== 'pasada') return -1;
-    return String(a.fecha_cita || '').localeCompare(String(b.fecha_cita || ''));
-  });
-  renderCitasTable();
-}
-
-function resetCitasFilters() {
-  const m = document.getElementById('fCitaMat'); if (m) m.value = '';
-  const c = document.getElementById('fCitaCuando'); if (c) c.value = '';
-  applyCitasFilters();
-}
-
-function renderCitasTable() {
-  const tb = document.getElementById('citasTableBody');
-  if (!tb) return;
-  if (window._itvCitasSupported === false) return;  // ya muestra el aviso
-  if (!filteredCitas.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--mu)">No hay citas programadas</td></tr>';
-    return;
-  }
-  const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-ES') : '—';
-  const fmtTS = ts => ts ? new Date(ts).toLocaleDateString('es-ES') : '—';
-  tb.innerHTML = filteredCitas.map(r => {
-    const est = _citaEstado(r);
-    const diasTxt = est.dias === null ? '—'
-      : (est.dias < 0 ? `<span style="color:var(--mu)">${est.dias}</span>`
-      : (est.dias <= 3 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>`
-      : (est.dias <= 7 ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>`
-      : `<span style="color:var(--ac)">${est.dias}</span>`)));
-    const subPor = userMap[r.user_id]?.name || '—';
-    const esPasada = est.tipo === 'pasada';
-    return `<tr onclick="openCitaModal(${r.db_id})" style="cursor:pointer${esPasada ? ';opacity:0.55' : ''}">
-      <td style="font-size:14px">${est.icon}</td>
-      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
-      <td>${fmtDate(r.fecha_cita)}</td>
-      <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
-      <td>${diasTxt}</td>
-      <td>${esc(r.centro || '—')}</td>
-      <td>${esc(subPor)}</td>
-      <td>${fmtTS(r.created_at)}</td>
-    </tr>`;
-  }).join('');
-}
-
-function openCitaModal(dbId) {
-  const r = itvCitasRecords.find(x => String(x.db_id) === String(dbId));
-  if (!r) return;
-  editCitaId = dbId;
-  document.getElementById('citaFields').innerHTML = `
-    <div class="ig"><label>Matrícula</label><input id="citaMatricula" value="${esc(r.matricula || '')}" style="font-family:var(--mn);text-transform:uppercase"></div>
-    <div class="ig"><label>Fecha cita</label><input type="date" id="citaFecha" value="${r.fecha_cita || ''}"></div>
-    <div class="ig"><label>Hora cita</label><input type="time" id="citaHora" value="${r.hora_cita || ''}"></div>
-    <div class="ig"><label>Centro ITV</label><input id="citaCentro" value="${esc(r.centro || '')}" placeholder="Ej: Vilafranca del Penedès"></div>
-    <div class="ig" style="grid-column:1/-1"><label>Dirección</label><input id="citaDireccion" value="${esc(r.direccion || '')}" placeholder="Dirección del centro"></div>
-    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="citaObs" value="${esc(r.observaciones || '')}"></div>`;
-  // Preview del archivo si lo hay
-  const preview = document.getElementById('citaPreview');
-  if (r.file_url) {
-    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
-    if (isPdf) {
-      preview.innerHTML = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir PDF</a>`;
-    } else {
-      preview.innerHTML = `<img src="${r.file_url}" style="max-width:100%;max-height:70vh;border-radius:8px;border:1px solid var(--bd);cursor:pointer" onclick="window.open('${r.file_url}','_blank')">`;
-    }
-  } else {
-    preview.innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px">Sin captura adjunta</div>';
-  }
-  // Aviso de estado
-  const est = _citaEstado(r);
-  document.getElementById('citaAlert').innerHTML = `<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px">${est.icon} <strong>${est.label}</strong>${est.dias !== null ? ` · ${est.dias} días` : ''}</div>`;
-  // Mostrar botones
-  const btnDel = document.getElementById('citaBtnDel');
-  const btnRea = document.getElementById('citaBtnReanalizar');
-  if (btnDel) btnDel.style.display = '';
-  if (btnRea) btnRea.style.display = r.file_url ? '' : 'none';
-  document.getElementById('citaOv').classList.add('open');
-}
-
-function openCitaModalManual() {
-  if (!window._tieneITV) { toast('Sin permiso', 'err'); return; }
-  if (window._itvCitasSupported === false) { toast('Tabla itv_citas no creada en BD aún. Ejecuta el SQL en Supabase.', 'err'); return; }
-  editCitaId = null;
-  document.getElementById('citaFields').innerHTML = `
-    <div class="ig"><label>Matrícula</label><input id="citaMatricula" value="" placeholder="Ej: 6118MLD" style="font-family:var(--mn);text-transform:uppercase"></div>
-    <div class="ig"><label>Fecha cita</label><input type="date" id="citaFecha" value=""></div>
-    <div class="ig"><label>Hora cita</label><input type="time" id="citaHora" value=""></div>
-    <div class="ig"><label>Centro ITV</label><input id="citaCentro" value="" placeholder="Ej: Vilafranca del Penedès"></div>
-    <div class="ig" style="grid-column:1/-1"><label>Dirección</label><input id="citaDireccion" value="" placeholder="Opcional"></div>
-    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><input id="citaObs" value="" placeholder="Opcional"></div>`;
-  document.getElementById('citaPreview').innerHTML = '<div style="color:var(--mu);text-align:center;padding:40px;font-size:12px">📝 Cita manual — sin captura adjunta</div>';
-  document.getElementById('citaAlert').innerHTML = '<div style="margin-bottom:12px;padding:10px;border-radius:6px;background:var(--s2);font-family:var(--mn);font-size:11px;color:var(--ac)">✏️ <strong>NUEVA CITA MANUAL</strong> — rellena matrícula, fecha y hora</div>';
-  const btnDel = document.getElementById('citaBtnDel');
-  const btnRea = document.getElementById('citaBtnReanalizar');
-  if (btnDel) btnDel.style.display = 'none';
-  if (btnRea) btnRea.style.display = 'none';
-  document.getElementById('citaOv').classList.add('open');
-}
-
-function closeCitaModal() {
-  document.getElementById('citaOv').classList.remove('open');
-  editCitaId = null;
-}
-
-async function saveCitaModal() {
-  const matricula = (document.getElementById('citaMatricula').value || '').trim().toUpperCase();
-  const fecha_cita = document.getElementById('citaFecha').value || null;
-  const hora_cita = document.getElementById('citaHora').value || null;
-  const centro = (document.getElementById('citaCentro').value || '').trim() || null;
-  const direccion = (document.getElementById('citaDireccion').value || '').trim() || null;
-  const observaciones = (document.getElementById('citaObs').value || '').trim() || null;
-  if (!matricula) { toast('Matrícula requerida', 'err'); return; }
-  if (!fecha_cita) { toast('Fecha de cita requerida', 'err'); return; }
-  if (!esMatriculaEspanolaEstricta(matricula)) {
-    if (!confirm(`⚠️ "${matricula}" no parece matrícula española válida.\n\n¿Guardar igualmente?`)) return;
-  }
-  try {
-    if (editCitaId === null || editCitaId === undefined) {
-      // INSERT (cita nueva manual)
-      const { error } = await sb.from('itv_citas').insert({
-        matricula, fecha_cita, hora_cita, centro, direccion, observaciones,
-        user_id: currentUser.id, updated_at: new Date().toISOString()
-      });
-      if (error) throw error;
-      closeCitaModal();
-      await loadItvCitas();
-      toast(`✓ Cita ${matricula} creada`);
-    } else {
-      // UPDATE (editar existente)
-      const { error } = await sb.from('itv_citas')
-        .update({ matricula, fecha_cita, hora_cita, centro, direccion, observaciones, updated_at: new Date().toISOString() })
-        .eq('id', editCitaId);
-      if (error) throw error;
-      closeCitaModal();
-      await loadItvCitas();
-      toast('✓ Cita actualizada');
-    }
-  } catch (e) {
-    console.error('[saveCitaModal] Error:', e);
-    toast('Error guardando: ' + (e.message || e), 'err');
-  }
-}
-
-async function deleteCitaRecord() {
-  if (!confirm('¿Eliminar esta cita?\n\nEsta acción no se puede deshacer.')) return;
-  try {
-    const { error } = await sb.from('itv_citas').delete().eq('id', editCitaId);
-    if (error) throw error;
-    closeCitaModal();
-    await loadItvCitas();
-    toast('✓ Cita eliminada');
-  } catch (e) {
-    console.error('[deleteCitaRecord] Error:', e);
-    toast('Error eliminando: ' + (e.message || e), 'err');
-  }
-}
-
-async function reanalizarCita() {
-  const r = itvCitasRecords.find(x => String(x.db_id) === String(editCitaId));
-  if (!r || !r.file_url) { toast('Sin captura para reanalizar', 'err'); return; }
-  const btn = document.getElementById('citaBtnReanalizar');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analizando...'; }
-  try {
-    const resp = await fetch(r.file_url);
-    if (!resp.ok) throw new Error('No se pudo descargar la captura');
-    const blob = await resp.blob();
-    const isPdf = /\.pdf(\?|#|$)/i.test(r.file_url) || blob.type === 'application/pdf';
-    const b64 = await new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(fr.result.split(',')[1]);
-      fr.onerror = rej;
-      fr.readAsDataURL(blob);
-    });
-    const datos = await callClaudeItvCita(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'));
-    if (datos.matricula) document.getElementById('citaMatricula').value = datos.matricula;
-    if (datos.fecha_cita) document.getElementById('citaFecha').value = datos.fecha_cita;
-    if (datos.hora_cita) document.getElementById('citaHora').value = datos.hora_cita;
-    if (datos.centro) document.getElementById('citaCentro').value = datos.centro;
-    if (datos.direccion) document.getElementById('citaDireccion').value = datos.direccion;
-    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
-  } catch (e) {
-    console.error('[reanalizarCita] Error:', e);
-    toast('Error: ' + (e.message || e), 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Reanalizar IA'; }
-  }
-}
-
-async function handleCitaFiles(files) {
-  if (!files || !files.length) return;
-  if (!window._tieneITV) { toast('Sin permiso para subir citas', 'err'); return; }
-  if (window._itvCitasSupported === false) { toast('Tabla itv_citas no creada en BD aún. Ejecuta el SQL en Supabase.', 'err'); return; }
-  for (const f of files) {
-    try {
-      toast(`📤 Subiendo ${f.name}...`);
-      const ext = (f.name.split('.').pop() || 'bin').toLowerCase();
-      const path = `itv_citas/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await sb.storage.from('documentos').upload(path, f);
-      if (upErr) throw upErr;
-      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
-      const file_url = urlData.publicUrl;
-      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
-      let b64;
-      if (isPdf) {
-        b64 = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result.split(',')[1]);
-          r.onerror = rej;
-          r.readAsDataURL(f);
-        });
-      } else {
-        const imgFile = f.size > 4 * 1024 * 1024 ? await comprimirImagen(f, 1400, 0.8) : f;
-        b64 = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result.split(',')[1]);
-          r.onerror = rej;
-          r.readAsDataURL(imgFile);
-        });
-      }
-      toast(`🤖 Analizando ${f.name}...`);
-      const datos = await callClaudeItvCita(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
-      const matricula = (datos.matricula || '').trim().toUpperCase();
-      // Si la matrícula no es válida o falta la fecha, guardar como pendiente de revisión
-      if (!esMatriculaEspanolaEstricta(matricula) || !datos.fecha_cita) {
-        const placeholder = `EDITAR_${Date.now().toString(36).slice(-6).toUpperCase()}`;
-        const rec = {
-          matricula: esMatriculaEspanolaEstricta(matricula) ? matricula : placeholder,
-          fecha_cita: datos.fecha_cita || new Date().toISOString().slice(0, 10),  // hoy si no se leyó
-          hora_cita: datos.hora_cita || null,
-          centro: datos.centro || null,
-          direccion: datos.direccion || null,
-          file_url,
-          user_id: currentUser.id,
-          observaciones: '⚠️ IA no leyó todos los datos — revisar a mano',
-          updated_at: new Date().toISOString()
-        };
-        const { error: insErr } = await sb.from('itv_citas').insert(rec);
-        if (insErr) throw insErr;
-        toast(`⚠️ ${f.name}: datos incompletos. Revisar desde el detalle.`, 'warn');
-        continue;
-      }
-      const rec = {
-        matricula,
-        fecha_cita: datos.fecha_cita,
-        hora_cita: datos.hora_cita || null,
-        centro: datos.centro || null,
-        direccion: datos.direccion || null,
-        file_url,
-        user_id: currentUser.id,
-        updated_at: new Date().toISOString()
-      };
-      const { error: insErr } = await sb.from('itv_citas').insert(rec);
-      if (insErr) throw insErr;
-      toast(`✓ Cita ${matricula} (${datos.fecha_cita}) creada`);
-    } catch (e) {
-      console.error('[handleCitaFiles] Error:', e);
-      toast(`✗ Error en ${f.name}: ${e.message || e}`, 'err');
-    }
-  }
-  document.getElementById('citaFileInput').value = '';
-  await loadItvCitas();
-}
-
-// v104: helper que borra las citas con fecha anterior o igual a la nueva caducidad
-// para una matrícula concreta. Se llama después de actualizar una ITV (manual o IA)
-// para que las citas que ya cumplieron su función desaparezcan automáticamente.
-// Si la tabla no existe (SQL pendiente), no hace nada.
-async function _borrarCitasVencidas(matricula, fechaCaducidad) {
-  if (!matricula || !fechaCaducidad) return;
-  if (window._itvCitasSupported === false) return;
-  try {
-    const { error, count } = await sb.from('itv_citas')
-      .delete({ count: 'exact' })
-      .eq('matricula', matricula)
-      .lte('fecha_cita', fechaCaducidad);
-    if (error) {
-      // Si la tabla no existe, ignorar silenciosamente
-      const msg = String(error.message || error.code || '');
-      if (msg.includes('itv_citas') || msg.includes('schema cache') || msg.includes('relation')) return;
-      console.warn('[_borrarCitasVencidas] Error:', error);
-      return;
-    }
-    if (count && count > 0) {
-      console.log(`[_borrarCitasVencidas] Borradas ${count} cita(s) vencida(s) de ${matricula}`);
-    }
-  } catch (e) {
-    console.warn('[_borrarCitasVencidas] Excepción:', e);
-  }
-}
-
-// v104: prompt específico para extraer datos de capturas/PDFs de citas ITV.
-// Las capturas suelen ser de mensajería (WhatsApp/email) o pantalla del web de Applus,
-// con formato estructurado: "Centro:", "Para el día:", "Matrícula del vehículo:", etc.
-async function callClaudeItvCita(b64, mediaType) {
-  const apiKey = getKey();
-  if (!apiKey) throw new Error('Clave API no configurada');
-  const prompt = `Eres un experto en extraer datos de confirmaciones de cita de ITV en España.
-
-Las capturas pueden venir de:
-  • Mensajes de email/WhatsApp con la confirmación de Applus o la estación ITV
-  • Pantallas del portal web donde se reservó la cita
-  • Justificantes en PDF
-
-Datos a extraer:
-  • matricula: matrícula del vehículo (formato 4D+3L o R+4D+3L para remolques).
-    Solo consonantes (B C D F G H J K L M N P R S T V W X Y Z), sin vocales A,E,I,O,U,Q,Ñ.
-    Suele aparecer tras "Matrícula del vehículo:", "Matrícula:", o similar.
-  • fecha_cita: fecha de la cita en formato ISO YYYY-MM-DD.
-    Tras "Para el día:", "Fecha:", "Día:" o similar. Cuidado con formato europeo DD/MM/YYYY.
-    Si pone "Miércoles, 17 de Junio de 2026" → "2026-06-17".
-  • hora_cita: hora en formato HH:MM (24h). Tras "a las", "Hora:" o similar. Ej: "14:30".
-  • centro: nombre del centro ITV (ej: "Vilafranca del Penedès", "Sant Boi", "Olèrdola").
-    Suele estar tras "Centro seleccionado:", "Centro:" o similar.
-  • direccion: dirección completa del centro si aparece. Ej: "Av. Hostal Nou Polígono Industrial Sant Pere Molanta".
-
-REGLAS:
-✅ Fechas SIEMPRE en formato europeo DD/MM/YYYY al leerlas, salida en ISO YYYY-MM-DD.
-✅ Si NO encuentras un dato con seguridad, devuelve null para ese campo.
-✅ Matrícula en MAYÚSCULAS sin espacios.
-
-Responde SOLO con JSON válido (sin markdown):
-{
-  "matricula": "7683JGB",
-  "fecha_cita": "2026-06-17",
-  "hora_cita": "14:30",
-  "centro": "Vilafranca del Penedès",
-  "direccion": "Av. Hostal Nou Polígono Industrial Sant Pere Molanta, Sant Miquel d'Olèrdola"
-}`;
-  const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 500,
-    temperature: 0,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
-        { type: 'text', text: prompt }
-      ]
-    }]
-  };
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Error API: ${resp.status} - ${txt.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  let text = data.content?.[0]?.text || '';
-  text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('[callClaudeItvCita] No se pudo parsear:', text);
-    throw new Error('Respuesta IA inválida');
-  }
-}
-
 // Llamada a Claude para extraer datos de ITV
 async function callClaudeItv(b64, mediaType) {
-  // v102: fix bug v101e — antes usaba localStorage.getItem('anthropic_key') (clave incorrecta).
-  // La clave correcta es 'anth_key' y siempre se accede a través de getKey().
+  // v101e: usar getKey() en lugar de localStorage.getItem('anthropic_key') (nombre incorrecto)
+  // getKey() es la función que usan albaranes y gasoil para obtener la clave correctamente.
   const apiKey = getKey();
-  if (!apiKey) throw new Error('Clave API no configurada');
-  // v102: prompt MUY reforzado tras detectar 2 errores graves en producción:
-  //   - 6102LSR: "02/09/2026" (2-sept-2026) leído como "9/2/2026" (9-feb-2026) → fecha invertida
-  //   - 6118MLD: matrícula leída como "2300NEO" (basura: 2300=clasificación + NEO=de IVECO).
-  //              Las españolas NO llevan vocales, así que "NEO" jamás puede ser parte de una.
-  // Cambios clave: sección dedicada al formato europeo de fechas, regla anti-vocales en
-  // matrículas, lista explícita de campos que NUNCA son matrícula, y temperature=0.
+  if (!apiKey) throw new Error('Clave API no configurada. Configúrala en la pestaña Albaranes (botón Cambiar).');
+  // v101d: prompt reforzado con los 3 formatos REALES que usa Juan Carlos:
+  // 1) Pegatina circular del parabrisas (Applus Iteuve - "Fecha:" + "Caduca:")
+  // 2) Informe oficial (Generalitat de Catalunya - campos numerados)
+  // 3) Permiso de circulación de vehículo nuevo (DGT - "Próxima ITV" en Observaciones)
   const prompt = `Eres un experto en documentos de ITV (Inspección Técnica de Vehículos) de España y Cataluña. Analiza el documento adjunto y extrae los datos en JSON.
-
-═══════════════════════════════════════════════════════════════
-⚠️ REGLAS CRÍTICAS — LEER ANTES DE NADA
-═══════════════════════════════════════════════════════════════
-
-🔴 FORMATO DE FECHAS — SIEMPRE EUROPEO (DD/MM/YYYY)
-TODOS los documentos están en español o catalán. NUNCA están en formato americano.
-Ejemplos REALES de errores que han ocurrido y NO debes cometer:
-  • "02/09/2026" significa 2 de septiembre de 2026 → ISO: "2026-09-02"
-    (NO es 9 de febrero. JAMÁS interpretes el primer número como mes.)
-  • "02/10/2025" significa 2 de octubre de 2025 → ISO: "2025-10-02"
-    (NO es 10 de febrero.)
-  • "27/10/2026" significa 27 de octubre de 2026 → ISO: "2026-10-27"
-  • "13/11/2025" significa 13 de noviembre de 2025 → ISO: "2025-11-13"
-REGLA INVIOLABLE: en una fecha "X/Y/Z", X es siempre el DÍA, Y es siempre el MES.
-Si X > 12 esto se confirma trivialmente; si X ≤ 12 NO te dejes engañar, sigue siendo el día.
-Devuelve SIEMPRE en formato ISO YYYY-MM-DD.
-
-🔴 MATRÍCULAS ESPAÑOLAS — REGLAS DE FORMATO
-Formato moderno (post-2000) usado por la flota:
-  • VEHÍCULO (camión/turismo): 4 DÍGITOS + 3 CONSONANTES (ej: 6118MLD, 1968JFV)
-  • REMOLQUE: letra R + 4 DÍGITOS + 3 CONSONANTES (ej: R0197BCC, R5640BDJ)
-LAS LETRAS NUNCA SON VOCALES. NUNCA. Letras válidas (consonantes únicamente):
-  B C D F G H J K L M N P R S T V W X Y Z
-Letras PROHIBIDAS en matrículas modernas: A, E, I, O, U, Q, Ñ.
-Si lo que estás extrayendo contiene una vocal o Q (después de la primera R en remolques),
-NO es la matrícula → busca otra vez.
-Ejemplos REALES de errores:
-  • "2300NEO" → INVÁLIDA (E y O son vocales). Probablemente leíste "2300" del campo
-    "Classificació vehicle" y "NEO" lo sacaste de "IVECO". La matrícula real está
-    en el campo "(2) Matrícula actual" y será algo como "6118MLD".
-Las pegatinas de REMOLQUES tienen formato similar a las de camión pero con la R inicial.
-
-🔴 CAMPOS QUE NUNCA SON LA MATRÍCULA
-En un informe de ITV hay muchos números y códigos. Estos NO son la matrícula:
-  • "Núm. inspecció" (nº de inspección, ej: 080900003646786)
-  • "Estació" (código estación, ej: 0809)
-  • "Classificació vehicle" (ej: 2300, N3) — número genérico, no es matrícula
-  • "Marca" / "Tipus" (ej: IVECO, BA3C, MAN)
-  • "Contrasenya d'homologació" (e3*2007/46/0135*25)
-  • "Número de bastidor" (VIN, 17 caracteres alfanuméricos, ej: WMA06KZZ0MP167972)
-  • "Codi defecte" (códigos como 1.3.2, 5.3.63)
-  • "km / hores de treball" (kilometraje)
-La MATRÍCULA está SIEMPRE en el campo etiquetado como:
-  • "(2) Matrícula actual" (informe Generalitat) ← AQUÍ y solo aquí
-  • "Matrícula" (pegatina) — texto en grande, centrado
-  • Campo "A" (permiso de circulación)
-A veces la matrícula viene con un sufijo entre paréntesis tipo "(E)" — quítalo.
 
 ═══════════════════════════════════════════════════════════════
 TIPOS DE DOCUMENTO Y CÓMO IDENTIFICARLOS
 ═══════════════════════════════════════════════════════════════
 
 📌 TIPO 1 — "pegatina"
-Pegatina circular o cuadrada pegada en el parabrisas. Hay DOS variantes habituales:
-
-VARIANTE 1A (Applus completa, formato horizontal):
-  • Fondo claro con texto APPLUS+ESPAÑA repetido en marca de agua
+Pegatina circular pegada en el parabrisas (formato horizontal, fondo claro con texto APPLUS+ESPAÑA repetido en marca de agua).
+Datos a extraer:
   • La matrícula aparece en grande (ej: "1968JFV")
-  • "Fecha:" → fecha de la inspección PASADA → fecha_itv
-  • "Caduca:" → fecha de PRÓXIMA inspección → fecha_caducidad
-  • "FAVORABLE" como resultado, "Iv: 0809" como código de estación
-  • Suele aparecer KM del vehículo — IGNORAR
-
-VARIANTE 1B (pegatina minimalista, formato compacto):
-  • Suele decir "Favorable" (en mayúsculas o minúsculas, no "FAVORABLE" siempre)
-  • Matrícula directamente, sin etiqueta "Matrícula:" delante. Puede ser de REMOLQUE
-    (empezando por R, ej: "R0197BCC")
-  • "F.In.:" o "F.Insp.:" → fecha_itv (es la abreviatura de "Fecha Inspección")
-  • "Cad.:" o "F.Cad.:" → fecha_caducidad (abreviatura de "Caducidad")
-  • Puede incluir "ITV - 0820" o similar (código estación) e identificador IN0XXXXXXX
-  • Sin marca de agua APPLUS visible
-
-En AMBAS variantes, las fechas siguen formato DD/MM/YYYY (europeo).
+  • "Fecha:" → fecha en que se PASÓ la ITV (DD/MM/YYYY) → fecha_itv
+  • "Caduca:" → fecha de PRÓXIMA inspección (DD/MM/YYYY) → fecha_caducidad
+  • Suele tener "FAVORABLE" como resultado y un código de estación (ej: "Iv: 0809")
+  • Suele aparecer también los KM del vehículo (ej: "49598 km") — IGNORAR, no se guardan
 
 📌 TIPO 2 — "informe"
-Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos numerados.
-Datos a extraer (los números entre paréntesis SON las etiquetas oficiales del documento):
-  • "(2) Matrícula actual" → matricula (quitar sufijo "(E)" si aparece)
-  • "(3) Data d'inspecció" → fecha_itv (formato DD/MM/YYYY → ISO)
-  • "(8) Data propera inspecció" → fecha_caducidad (formato DD/MM/YYYY → ISO)
+Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos.
+Datos a extraer (campos numerados entre paréntesis):
+  • "(2) Matrícula actual" → matricula (formato puede ser "4839NBF(E)" — quitar el "(E)")
+  • "(3) Data d'inspecció" → fecha_itv (DD/MM/YYYY)
+  • "(8) Data propera inspecció" → fecha_caducidad (DD/MM/YYYY)
   • "(7) Resultat de la inspecció: FAVORABLE" → confirmar que es válido
   • Escrito en catalán: "data" = "fecha", "propera" = "próxima", "inspecció" = "inspección"
 
@@ -5065,83 +4273,37 @@ Datos a extraer (los números entre paréntesis SON las etiquetas oficiales del 
 Permiso de circulación oficial del Reino de España (DGT/Ministerio del Interior). Cabecera con escudo de España y "PERMISO DE CIRCULACIÓN" + "COMUNIDAD EUROPEA". Tabla con campos en filas: A, B, H, I, (I.1), (I.2), C.1.1, etc.
 Datos a extraer:
   • Campo "A" → matricula (ej: "3628NMW")
-  • Campo "I" o "(I.1)" → fecha de matriculación → fecha_itv (DD-MM-YYYY → ISO)
-  • En OBSERVACIONES (impreso, no manuscrito): "Próxima ITV: DD-MM-YYYY"
-    → fecha_caducidad
+  • Campo "I" o "(I.1)" → fecha de matriculación (la usaremos como fecha_itv si no hay otra) (DD-MM-YYYY)
+  • En el área de OBSERVACIONES (no manuscrito, está IMPRESO por la DGT) busca el texto:
+    "Documento válido si acompaña ITV en vigor. Próxima ITV: DD-MM-YYYY"
+    → fecha_caducidad = la fecha de "Próxima ITV"
   • Se usa para vehículos RECIÉN MATRICULADOS que aún no han pasado la primera ITV.
 
-📌 TIPO 4 — "pegatina" (HOJA ADICIONAL CON HISTORIAL)
-Hoja DIN A4 titulada "HOJA ADICIONAL DE TARJETAS ITV" con cabecera "Applus+ Iteuve Technology, S.L.".
-Contiene una REJILLA con MÚLTIPLES pegatinas pegadas (típicamente 6-9 pegatinas), todas
-del MISMO vehículo/remolque. Cada celda es una pegatina con su propia fecha y resultado.
-Aparece en remolques que han pasado muchas ITVs (ITV semestral) y en la cabecera puedes
-ver "Núm. matrícula: R3542BBV" o similar (matrícula clara y única para todo el documento).
-
-⚠️ INSTRUCCIONES CRÍTICAS PARA HOJAS ADICIONALES (TIPO 4):
-
-1) DEBES detectar TODAS las pegatinas visibles en la hoja, una por una.
-2) DEBES devolver el campo "todas_pegatinas" con un array de objetos, uno por cada pegatina:
-   • "resultado": "FAVORABLE" | "DESFAVORABLE" | "NEGATIVA"
-   • "fecha_itv": fecha de inspección de esa pegatina (ISO YYYY-MM-DD), o null si no se ve
-   • "fecha_caducidad": fecha "Caduca:" de esa pegatina (ISO YYYY-MM-DD), o null
-3) NO TIENES QUE elegir tú la pegatina principal — el código JS elegirá la más reciente
-   FAVORABLE del array. Solo lista todas las que veas con sus datos.
-4) Pon también los campos "matricula", "fecha_itv" y "fecha_caducidad" del nivel principal
-   con tu mejor estimación de la última FAVORABLE, pero el array "todas_pegatinas" es el
-   que el código usará para corregir si te equivocaste.
-
-Datos de cabecera:
-  • "Núm. matrícula:" en la cabecera (puede empezar por R si es remolque) → matricula
-  • tipo_documento: "pegatina"
-
-Ejemplo de respuesta para hoja con varias pegatinas:
-{
-  "matricula": "R3542BBV",
-  "fecha_itv": "2026-02-03",
-  "fecha_caducidad": "2026-08-25",
-  "tipo_documento": "pegatina",
-  "todas_pegatinas": [
-    {"resultado": "NEGATIVA", "fecha_itv": "2023-08-22", "fecha_caducidad": null},
-    {"resultado": "FAVORABLE", "fecha_itv": "2023-08-25", "fecha_caducidad": "2024-02-25"},
-    {"resultado": "FAVORABLE", "fecha_itv": "2024-02-05", "fecha_caducidad": "2024-08-25"},
-    {"resultado": "FAVORABLE", "fecha_itv": "2024-07-30", "fecha_caducidad": "2025-02-25"},
-    {"resultado": "DESFAVORABLE", "fecha_itv": "2025-02-18", "fecha_caducidad": null},
-    {"resultado": "DESFAVORABLE", "fecha_itv": "2025-07-30", "fecha_caducidad": null},
-    {"resultado": "FAVORABLE", "fecha_itv": "2025-08-11", "fecha_caducidad": "2026-02-25"},
-    {"resultado": "FAVORABLE", "fecha_itv": "2026-02-03", "fecha_caducidad": "2026-08-25"}
-  ]
-}
-
-⚠️ Para TIPOS 1, 2 y 3 (pegatina simple, informe, permiso) NO incluyas "todas_pegatinas",
-omítelo o devuelve un array vacío [].
-
 ═══════════════════════════════════════════════════════════════
-REGLAS DE SALIDA
+REGLAS GENERALES
 ═══════════════════════════════════════════════════════════════
 
-✅ TODAS las fechas en formato ISO YYYY-MM-DD.
-✅ Matrícula en MAYÚSCULAS, sin espacios, sin paréntesis, sin guiones.
-✅ Si NO puedes leer la matrícula con seguridad o la que leíste contiene vocales, devuelve null.
-   Es preferible null (que el usuario lo edite a mano) a inventar basura.
-✅ Si la fecha no se puede leer con seguridad, devuelve null para esa fecha.
+✅ Matrícula española formato moderno: 4 dígitos + 3 letras (ej: "1234BCD"). Convertir a mayúsculas, quitar espacios y paréntesis sufijos como "(E)".
+✅ TODAS las fechas en formato ISO YYYY-MM-DD (convertir desde DD/MM/YYYY o DD-MM-YYYY).
+✅ Si una pegatina tiene "Caduca: 28/05/2026" → fecha_caducidad = "2026-05-28".
+✅ NO inventes datos. Si no encuentras un campo claramente, ponlo a null.
 ✅ "tipo_documento" debe ser EXACTAMENTE uno de: "pegatina", "informe", "permiso".
-   (TIPO 4 también devuelve "pegatina" — porque son pegatinas, solo en formato hoja.)
+
+═══════════════════════════════════════════════════════════════
+FORMATO DE SALIDA
+═══════════════════════════════════════════════════════════════
 
 Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 {
-  "matricula": "6118MLD",
-  "fecha_itv": "2025-10-02",
-  "fecha_caducidad": "2026-10-27",
-  "tipo_documento": "informe"
+  "matricula": "1968JFV",
+  "fecha_itv": "2025-11-11",
+  "fecha_caducidad": "2026-05-28",
+  "tipo_documento": "pegatina"
 }`;
 
   const body = {
-    model: 'claude-sonnet-4-6',  // v103c: cambiado de Haiku a Sonnet — Haiku confundía
-                                  // formato de fechas con día ≤ 12 (ej: 10/06/2026 → 6/10/2026).
-                                  // Sonnet es más fiable y se procesan pocas ITVs (~1/día), coste mínimo.
-    max_tokens: 1500,  // v103g: subido de 500 a 1500 — para hojas con 9 pegatinas el array
-                       // todas_pegatinas puede ocupar bastante más texto en la respuesta.
-    temperature: 0,  // v102: máximo determinismo, sin creatividad al leer fechas/matrículas
+    model: 'claude-haiku-4-5',
+    max_tokens: 500,
     messages: [{
       role: 'user',
       content: [
@@ -5163,81 +4325,12 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   let text = data.content?.[0]?.text || '';
   // Limpiar markdown si lo hay
   text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-  let parsed;
   try {
-    parsed = JSON.parse(text);
+    return JSON.parse(text);
   } catch (e) {
     console.error('[callClaudeItv] No se pudo parsear:', text);
     throw new Error('Respuesta IA inválida');
   }
-  // v103g: si la respuesta contiene "todas_pegatinas" (hoja adicional con histórico),
-  // SIEMPRE corregimos los campos principales eligiendo la pegatina FAVORABLE con
-  // fecha_caducidad más reciente. Esto blinda contra el caso en que la IA detecta
-  // bien todas las pegatinas pero se equivoca al elegir cuál es la "principal".
-  if (Array.isArray(parsed.todas_pegatinas) && parsed.todas_pegatinas.length > 0) {
-    const favorables = parsed.todas_pegatinas
-      .filter(p => p && p.resultado === 'FAVORABLE' && p.fecha_caducidad);
-    if (favorables.length > 0) {
-      // Ordenar descendente por fecha_caducidad — la primera será la más reciente
-      favorables.sort((a, b) => String(b.fecha_caducidad).localeCompare(String(a.fecha_caducidad)));
-      const ultima = favorables[0];
-      if (ultima.fecha_caducidad !== parsed.fecha_caducidad) {
-        console.log(`[callClaudeItv] Corrigiendo selección de pegatina: la IA eligió ${parsed.fecha_caducidad}, pero la más reciente FAVORABLE es ${ultima.fecha_caducidad}. Auto-corregido.`);
-      }
-      parsed.fecha_itv = ultima.fecha_itv || parsed.fecha_itv;
-      parsed.fecha_caducidad = ultima.fecha_caducidad;
-    }
-    // Quitamos el array temporal antes de devolver — no se guarda en BD
-    delete parsed.todas_pegatinas;
-  }
-  // v103d: validación lógica de coherencia de fechas, MÁS INTELIGENTE que v103c.
-  // Hay dos tipos de error que queremos detectar:
-  //   1) Caducidad ≤ fecha ITV: imposible, claramente mal leído.
-  //   2) Inversión día/mes: la IA leyó "01/07/2026" como "07/01/2026" (7 enero en vez de 1 julio).
-  //      Lo detectamos comprobando si INVIRTIENDO día/mes de la caducidad la diferencia con
-  //      la fecha ITV se acerca mucho más a 365 días (ITV anual).
-  // NO bloqueamos por "diferencia rara" sin más, porque las INSPECCIONES CORRECTIVAS
-  // (segunda inspección tras una ITV con defectos) tienen legítimamente ~6 meses.
-  if (parsed.fecha_itv && parsed.fecha_caducidad) {
-    const dItv = new Date(parsed.fecha_itv + 'T00:00:00');
-    const dCad = new Date(parsed.fecha_caducidad + 'T00:00:00');
-    if (!isNaN(dItv) && !isNaN(dCad)) {
-      const DIA = 1000 * 60 * 60 * 24;
-      const diffDias = (dCad - dItv) / DIA;
-      // Caso 1: caducidad anterior o igual → error claro
-      if (diffDias <= 0) {
-        console.warn(`[callClaudeItv] Caducidad ≤ fecha ITV (${parsed.fecha_itv} → ${parsed.fecha_caducidad}). Error claro.`);
-        parsed._fechasSospechosas = true;
-        parsed._motivoSospecha = `Caducidad (${parsed.fecha_caducidad}) anterior o igual a fecha ITV (${parsed.fecha_itv})`;
-        parsed.fecha_caducidad = null;
-      } else {
-        // Caso 2: probar inversión día/mes de la caducidad
-        const m = parsed.fecha_caducidad.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (m) {
-          const [_, yyyy, mm, dd] = m;
-          // Solo tiene sentido invertir si AMBOS día y mes son ≤ 12 (ambiguo)
-          if (parseInt(dd, 10) <= 12 && parseInt(mm, 10) <= 12 && dd !== mm) {
-            const invertida = `${yyyy}-${dd.padStart(2, '0')}-${mm.padStart(2, '0')}`;
-            const dInv = new Date(invertida + 'T00:00:00');
-            if (!isNaN(dInv)) {
-              const diffInv = (dInv - dItv) / DIA;
-              const desvioActual = Math.abs(diffDias - 365);
-              const desvioInvertido = Math.abs(diffInv - 365);
-              // Si la versión invertida queda mucho más cerca de 365 días (>60 días mejor)
-              // y además es positiva, es muy probable que la IA haya invertido día/mes.
-              if (diffInv > 0 && desvioInvertido < desvioActual - 60) {
-                console.warn(`[callClaudeItv] Posible inversión día/mes en caducidad: ${parsed.fecha_caducidad} (${diffDias}d) vs invertida ${invertida} (${diffInv}d). Marcando como sospechosa.`);
-                parsed._fechasSospechosas = true;
-                parsed._motivoSospecha = `Posible inversión día/mes: ${parsed.fecha_caducidad} (${diffDias.toFixed(0)}d) — ¿quizás ${invertida.split('-').reverse().join('/')} (${diffInv.toFixed(0)}d, más coherente con ITV anual)?`;
-                // No limpiamos la fecha — la dejamos para que el usuario decida al revisar
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return parsed;
 }
 
 function switchTab(tab) {
@@ -5581,7 +4674,7 @@ const PROVEEDORES_CANONICOS = [
   ] },
   { canon: 'Canteras Canro, S.A.', alias: [] },
   // Proveedores nuevos (mayo 2026):
-  { canon: 'Grupo Cementos Portland Valderrivas', alias: ['Grupo Portland Valderrivas', 'Cementos Portland Valderrivas', 'Portland Valderrivas', 'UNILAND', 'Uniland', 'GRUPO CEMENTOS PORTLAND VALDERRIVAS S.A.', 'Cementos Portland Valderrivas S.A.', 'Portland Valderrivas S.A.'] },
+  { canon: 'Grupo Cementos Portland Valderrivas', alias: ['Grupo Portland Valderrivas', 'Cementos Portland Valderrivas'] },
   { canon: 'Àrids Garcia', alias: [
     'Arids Garcia',
     'Àrids Garcia Pedrera Gar 1, S.L.U.',
@@ -5607,6 +4700,15 @@ const PROVEEDORES_CANONICOS = [
     'Tecnocatalana de Runes SL', 'Tecnocatalana de Runes',
     'TECNOCATALANA DE RUNES, SL', 'Tecnocatalana de Runes, SL',
     'Tecnocatalana'
+  ] },
+  // v102: Sodira Iberia, S.L. — proveedor de áridos desde Cantera de Garraf a obra externa
+  // (Puerto de Barcelona). Cabecera del albarán "SÔDIRA ROCAS INDUSTRIALES" (con acento
+  // circunflejo). El OCR puede leer "SODIRA" sin acento, "Sódira", "Sòdira", etc.
+  { canon: 'Sodira Iberia, S.L.', alias: [
+    'SODIRA IBERIA SL', 'SODIRA IBERIA S.L.', 'SODIRA IBERIA, SL',
+    'Sodira Iberia SL', 'Sodira Iberia',
+    'SODIRA', 'Sodira', 'SÔDIRA', 'SÓDIRA', 'SÒDIRA',
+    'SODIRA ROCAS INDUSTRIALES', 'Sodira Rocas Industriales'
   ] }
 ];
 
@@ -5782,7 +4884,12 @@ function inferOrigenFromProducto(producto) {
 // REGLAS ORIGEN POR PROVEEDOR: cuando el proveedor tiene cantera fija conocida
 // (independiente del material). Vacía por ahora — los proveedores leen su propio campo "Planta"
 // del albarán. Si en el futuro algún proveedor tuviera siempre la misma cantera, se añade aquí.
-const PROVEEDOR_A_ORIGEN = [];
+// v102: si el proveedor es Sodira Iberia → origen siempre Cantera de Garraf
+// (es la única cantera de Sodira que usamos). Si en el futuro Sodira tuviera otra
+// cantera, Juan Carlos avisará para añadir más reglas.
+const PROVEEDOR_A_ORIGEN = [
+  { match: /SODIRA|S[ÔÓÒ]DIRA/i, origen: 'Cantera de Garraf' }
+];
 
 // Función consolidada: prueba primero material, luego proveedor.
 // Devuelve el origen inferido o null si ninguna regla aplica.
@@ -5901,6 +5008,26 @@ const REGLAS_DESTINO = [
       return /ZONA\s+FRANCA\s+II/.test(obra) || /ZONA\s+FRANCA\s+II/.test(cliente) || /\b117\b.*ZONA\s+FRANCA/.test(obra);
     },
     destino: 'Zona Franca II'
+  },
+  // v102: Sodira Iberia → Puerto de Barcelona (cuando la obra/cliente contiene texto
+  // relacionado con UTE/PUERTO/SATO RUBAU). Si Sodira tiene un destino distinto a Puerto
+  // de Barcelona, Juan Carlos avisará para añadir otra regla. Por ahora: si es Sodira
+  // y la obra menciona PUERTO/UTE/RUBAU → destino Puerto de Barcelona.
+  {
+    match: (d) => {
+      const prov = String(d.proveedor || '').toUpperCase();
+      const obra = String(d.obra || '').toUpperCase();
+      const cliente = String(d.cliente || '').toUpperCase();
+      const esSodira = /SODIRA/.test(prov) || /S[ÔÓÒ]DIRA/.test(prov);
+      if (!esSodira) return false;
+      // Si la obra/cliente menciona Puerto de Barcelona, UTE Rubau, o GARRAF-UTE → es ahí
+      const tienePuerto = /PUERTO\s+DE\s+BARCELONA/.test(obra) || /PUERTO\s+DE\s+BARCELONA/.test(cliente)
+        || /SATO\s+Y\s+CNES/.test(obra) || /SATO\s+Y\s+CNES/.test(cliente)
+        || /RUBAU\s+UTE/.test(obra) || /RUBAU\s+UTE/.test(cliente)
+        || /GARRAF\W*UTE/.test(obra) || /GARRAF\W*UTE/.test(cliente);
+      return tienePuerto;
+    },
+    destino: 'Puerto de Barcelona'
   }
 ];
 
@@ -5927,18 +5054,6 @@ const DESTINOS_CANONICOS = [
   { canon: 'Zona Franca', alias: [] },
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
-  // v104c: Port de Barcelona — destino para Portland Valderrivas (envíos de clinker
-  // al puerto desde la Fábrica Integral de Els Monjos).
-  { canon: 'Port de Barcelona', alias: ['Puerto de Barcelona', 'PORT DE BARCELONA', 'Muelle del Contradique Sur', 'Moll del Contradique Sud'] },
-  // v104f: UTE Accesos Ferroviarios — cliente que tiene obras en varios pueblos (El Prat,
-  // Olèrdola, etc.). Como el albarán solo identifica "ACCESOS FERROVIARIOS SU TRANSPORTE",
-  // se canoniza como destino único para no perder la trazabilidad del cliente.
-  { canon: 'UTE Accesos Ferroviarios', alias: [
-    'UTE Accesos F.', 'UTE Accesos F', 'UTE ACCESOS F',
-    'UTE Accesos Ferroviarios Fase 1', 'UTE ACCESOS FERROVIARIOS FASE 1',
-    'Accesos Ferroviarios', 'ACCESOS FERROVIARIOS',
-    'Accesos Ferroviarios Su Transporte', 'ACCESOS FERROVIARIOS SU TRANSPORTE'
-  ] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'La Roca', alias: ['La Roca del Vallès', 'Font Parera', 'P I Font Parera'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles'] },
@@ -5956,6 +5071,18 @@ const DESTINOS_CANONICOS = [
     'Planta de Celra', 'Planta de Celrà',
     'Planta Hormigón Celra', 'Planta Hormigón Celrà', 'Planta de Hormigón Celrà',
     '17460 Celra', '17460 Celrà'
+  ] },
+  // v102: Puerto de Barcelona — destino de albaranes de Sodira Iberia (obras portuarias).
+  // El albarán de Sodira pone "PUERTO DE BARCELONA" en el campo Obra/Cliente.
+  // Variantes habituales: con/sin "de", inglés/catalán...
+  { canon: 'Puerto de Barcelona', alias: [
+    'PUERTO DE BARCELONA', 'Puerto Barcelona', 'PUERTO BARCELONA',
+    'Port de Barcelona', 'PORT DE BARCELONA', 'Port Barcelona',
+    'Puerto BCN', 'Port BCN',
+    // Sato y CNES Rubau UTE — cliente típico de obras del puerto:
+    'Sato y Cnes. Rubau UTE 4ª Fase Ampliación Adosado',
+    'SATO Y CNES.RUBAU UTE 4ª FASE AMPLIACIÓN ADOSADO',
+    'GARRAF-UTE 4ªFASE'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
@@ -6002,22 +5129,6 @@ function esMatriculaValida(mat) {
   if (!mat) return false;
   const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
   return /^\d{4}[A-Z]{3}$/.test(m) || /^\d{4}[A-Z]{3}\/\d{4}[A-Z]{3}$/.test(m);
-}
-
-// v102: validación ESTRICTA para matrículas españolas modernas (post-2000).
-// Las matrículas españolas modernas NUNCA contienen vocales (A,E,I,O,U) ni Q ni Ñ.
-// Solo consonantes válidas: B C D F G H J K L M N P R S T V W X Y Z (20 letras).
-// v103e: aceptamos también matrículas de REMOLQUE — formato "R + 4 dígitos + 3 consonantes"
-// (ej: R0197BCC). Los remolques también pasan ITV y deben poder registrarse.
-// Se usa al leer ITVs porque la IA a veces confunde la matrícula con otros campos
-// numéricos del documento (clasificación de vehículo, bastidor, etc.) y mete basura
-// que cumple el formato genérico 4D+3L pero no es matrícula real.
-function esMatriculaEspanolaEstricta(mat) {
-  if (!mat) return false;
-  const m = String(mat).toUpperCase().replace(/\s+/g, '').replace(/-/g, '').trim();
-  // Vehículo: 4 dígitos + 3 consonantes  | Remolque: R + 4 dígitos + 3 consonantes
-  return /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m) ||
-         /^R\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(m);
 }
 
 // v89: si lo que lee la IA NO tiene formato matrícula válido, intenta extraer una de cualquier
