@@ -386,6 +386,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="pb"><div class="pf" id="pfAlb" style="width:0%"></div></div>
           <span class="qc" id="qcAlb">0 pendiente(s)</span>
           <button class="btn bp" id="procBtnAlb" onclick="processQueue('alb')" disabled>⚡ Procesar con IA</button>
+          <!-- v107e: botón de desbloqueo visible sin F12 -->
+          <button class="btn br" id="resetBtnAlb" onclick="resetColaAlb()" style="font-size:10px;padding:5px 9px" title="Si la cola se queda colgada, púlsame para limpiarla y poder reintentar">🔄 Reiniciar</button>
         </div>
       </div>
 
@@ -677,6 +679,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               <div class="pb"><div class="pf" id="pfAlb2" style="width:0%"></div></div>
               <span class="qc" id="qcAlb2">0 pendiente(s)</span>
               <button class="btn bp" id="procBtnAlb2" onclick="processQueue('alb')" disabled>⚡ Procesar con IA</button>
+              <!-- v107e: botón de desbloqueo visible sin F12 -->
+              <button class="btn br" id="resetBtnAlb2" onclick="resetColaAlb()" style="font-size:10px;padding:5px 9px" title="Si la cola se queda colgada, púlsame para limpiarla y poder reintentar">🔄 Reiniciar</button>
             </div>
           </div>
         </div>
@@ -1491,7 +1495,7 @@ async function uploadAsConductor(files, type) {
 
   // v78: timeout más permisivo para 4G mala (90s vs 45s anteriores).
   // Usa la función global withTimeout (declarada arriba).
-  const TIMEOUT_MS = 90000;
+  const TIMEOUT_MS = 180000; // v107e: subido de 90s a 180s para evitar cuelgues de Storage
 
   // v78: reintentos automáticos (2 intentos) si la red es errática
   async function subirConReintentos(it) {
@@ -1821,6 +1825,28 @@ function resetProcessing() {
   }
 }
 
+// v107e: reset COMPLETO de la cola de albaranes (visible desde botón "🔄 Reiniciar").
+// Útil cuando la cola se queda colgada con archivos en "Leyendo con IA..." que nunca
+// terminan. Limpia el array de pendientes, el flag de procesamiento, y refresca la UI.
+// El usuario puede volver a arrastrar los PDFs sin necesidad de refrescar la página.
+function resetColaAlb() {
+  const pendientes = pendingAlb.length;
+  const enCurso = pendingAlb.filter(x => x.status === 'processing').length;
+  if (pendientes === 0 && !_processingAlb) {
+    toast('La cola ya está vacía 👍');
+    return;
+  }
+  const msg = enCurso > 0
+    ? `Hay ${pendientes} archivo(s) en cola (${enCurso} procesándose). ¿Limpiar todo y empezar de nuevo?`
+    : `Hay ${pendientes} archivo(s) en cola. ¿Limpiar para volver a empezar?`;
+  if (!confirm(msg)) return;
+  pendingAlb = [];
+  _processingAlb = false;
+  _processingAlbStartTs = 0;
+  try { renderQueues(); } catch(e) {}
+  toast('🔄 Cola limpia. Vuelve a arrastrar los PDFs si quieres reintentar.');
+}
+
 async function processQueue(type) {
   // Auto-desbloqueo si el flag lleva activo demasiado tiempo (caso de cuelgue)
   checkProcessingStuck(type);
@@ -1917,10 +1943,30 @@ async function _processOne(it, type, key, timeoutMs) {
     let usedSharedFallback = false;
 
     if (!it.skipUpload) {
-      try {
-        fileUrl = await withTimeout(uploadFile(it.file, type), 60000, 'subiendo PDF/imagen a Storage');
-      } catch (e) {
-        console.warn('[v71] Upload del archivo individual falló:', it.name, e);
+      // v107e: timeout 60s → 180s (3 min) + 2 reintentos automáticos.
+      // Causa raíz del problema: Storage de Supabase a veces tarda más de 60s con PDFs
+      // grandes o cuando la red va lenta. Antes el upload fallaba y caía al fallback,
+      // pero Juan Carlos veía "Leyendo con IA..." colgado eternamente sin entender por qué.
+      // Ahora: 3 intentos con timeout amplio. Si todos fallan, cae al fallback (sharedPdfUrl)
+      // sin cuelgue. Pausa progresiva entre intentos para dar tiempo a Storage a recuperarse.
+      const STORAGE_TIMEOUT_MS = 180000; // 3 min
+      const MAX_REINTENTOS = 2; // 1er intento + 2 reintentos = 3 totales
+      for (let intento = 0; intento <= MAX_REINTENTOS; intento++) {
+        try {
+          fileUrl = await withTimeout(uploadFile(it.file, type), STORAGE_TIMEOUT_MS, 'subiendo PDF/imagen a Storage');
+          if (fileUrl) break; // éxito
+        } catch (e) {
+          console.warn(`[v107e] Upload intento ${intento + 1}/${MAX_REINTENTOS + 1} falló para ${it.name}:`, e.message || e);
+          if (intento < MAX_REINTENTOS) {
+            // Pausa progresiva entre reintentos: 3s, 6s
+            const pausaMs = 3000 * (intento + 1);
+            console.log(`[v107e] Esperando ${pausaMs}ms antes de reintentar...`);
+            await sleep(pausaMs);
+          }
+        }
+      }
+      if (!fileUrl) {
+        console.warn(`[v107e] Upload abandonado tras ${MAX_REINTENTOS + 1} intentos. Caerá al fallback si está disponible.`);
       }
     }
 
