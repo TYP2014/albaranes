@@ -6104,6 +6104,24 @@ const DESTINOS_CANONICOS = [
   { canon: 'UTE Obras Vallbona', alias: [
     'UTE OBRAS VALLBONA', '382 - UTE OBRAS VALLBONA', '382 UTE OBRAS VALLBONA',
     'OBRAS VALLBONA', 'Obras Vallbona'
+  ] },
+  // v107L: tipos de servicio "por horas" dentro de instalaciones. NO son obras de transporte
+  // tradicional sino días enteros que el camión trabaja dentro de una cantera o fábrica.
+  // Albaranes manuales que rellena la oficina (admin/gestor) cuando hay este tipo de jornada.
+  { canon: 'Horas Interior Cantera', alias: [
+    'HORAS INTERIOR CANTERA', 'Horas interior cantera',
+    'HORAS INT. CANTERA', 'Horas Int. Cantera', 'Horas Int Cantera',
+    'HORAS INTERIOR DE CANTERA', 'Horas interior de cantera',
+    'HORAS DE TRABAJO INTERIOR CANTERA', 'INTERIOR CANTERA'
+  ] },
+  { canon: 'Horas Trabajo Int. Fábrica', alias: [
+    'HORAS TRABAJO INT. FABRICA', 'HORAS TRABAJO INT FABRICA',
+    'Horas Trabajo Int. Fabrica', 'Horas Trabajo Int Fabrica',
+    'HORAS INTERIOR FABRICA', 'HORAS INTERIOR FÁBRICA',
+    'Horas Interior Fabrica', 'Horas Interior Fábrica',
+    'HORAS DE TRABAJO INTERIOR FABRICA', 'HORAS DE TRABAJO INT FABRICA',
+    'HORAS INT. FABRICA', 'HORAS INT FABRICA', 'INTERIOR FABRICA', 'INTERIOR FÁBRICA',
+    'HORAS INTERIOR FAB', 'HORAS INTERIOR FAB.'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
