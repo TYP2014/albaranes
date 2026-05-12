@@ -5652,6 +5652,19 @@ const PROVEEDORES_CANONICOS = [
     'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
     'ALBESA'
   ] },
+  // v107M: CGM Centre — gestión medioambiental (Igualada, Polígon Ind. Les Comes 08700).
+  // Albaranes manuscritos de "ALBARÀ DE TRANSPORT" donde el material es HORAS DE TRABAJO.
+  // Forma corta del canónico para que quepa bien en columnas; el nombre largo va como alias.
+  { canon: 'CGM Centre de Gestió M.', alias: [
+    'CGM Centre de Gestió Mediambiental, S.L.', 'CGM Centre de Gestió Mediambiental S.L.',
+    'CGM Centre de Gestió Mediambiental s.l.', 'CGM Centre de Gestió Mediambiental SL',
+    'CGM Centre de Gestio Mediambiental, S.L.', 'CGM Centre de Gestio Mediambiental s.l.',
+    'CGM CENTRE DE GESTIÓ MEDIAMBIENTAL', 'CGM CENTRE DE GESTIO MEDIAMBIENTAL',
+    'CGM Centre de Gestió Mediambiental', 'CGM Centre de Gestio Mediambiental',
+    'Centre de Gestió Mediambiental', 'Centre de Gestio Mediambiental',
+    'CGM Centre de Gestió M', 'CGM Centre de Gestio M.', 'CGM Centre de Gestio M',
+    'CGM Centre', 'CGM'
+  ] },
   // v107j: KM5 Cantera El Rocà — cantera de Dosrius (Maresme), aparece como "Pedrera El Rocà"
   // en el PDF pero internamente la llamamos así. Misma forma para proveedor y origen.
   // Acento grave catalán (Rocà), no agudo. Importante mantener la grafía exacta.
@@ -5825,6 +5838,15 @@ const ORIGENES_CANONICOS = [
     'ALBESA ÀRIDS, S.L.', 'Albesa Àrids, S.L.',
     'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
     'ALBESA', 'Albesa', '25135 Albesa', 'Albesa (Lleida)'
+  ] },
+  // v107M: Santa Margarida de Montbui — pueblo de la Anoia, cerca de Igualada.
+  // Distinto de "Santa Margarida i els Monjos" (Alt Penedès) que ya existe arriba.
+  // Alias en español (SANTA MARGARITA DE MONTBUI) por si la IA lo lee así del PDF.
+  { canon: 'Santa Margarida de Montbui', alias: [
+    'SANTA MARGARIDA DE MONTBUI', 'Santa Margarita de Montbui', 'SANTA MARGARITA DE MONTBUI',
+    'Sta. Margarida de Montbui', 'Sta Margarida de Montbui',
+    'Sta. Margarita de Montbui', 'STA MARGARITA DE MONTBUI',
+    'Montbui', 'MONTBUI', 'Santa Margarida Montbui'
   ] },
   { canon: 'Martorell', alias: [] },
   { canon: 'Jorba', alias: [] },
@@ -6122,6 +6144,12 @@ const DESTINOS_CANONICOS = [
     'HORAS DE TRABAJO INTERIOR FABRICA', 'HORAS DE TRABAJO INT FABRICA',
     'HORAS INT. FABRICA', 'HORAS INT FABRICA', 'INTERIOR FABRICA', 'INTERIOR FÁBRICA',
     'HORAS INTERIOR FAB', 'HORAS INTERIOR FAB.'
+  ] },
+  // v107M: Igualada (capital de l'Anoia). Destino habitual de CGM Centre y otros
+  // albaranes manuales con jornadas de horas en la zona.
+  { canon: 'Igualada', alias: [
+    'IGUALADA', '08700 Igualada', '08700 IGUALADA',
+    'Igualada (Barcelona)', 'IGUALADA (BARCELONA)'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
