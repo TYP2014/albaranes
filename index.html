@@ -5610,6 +5610,17 @@ const PROVEEDORES_CANONICOS = [
     'Promotora Mediterránea-2 S.A.', 'Promed-2', 'Promed 2'
   ] },
   { canon: 'Canteras Canro, S.A.', alias: [] },
+  // v107j: KM5 Cantera El Rocà — cantera de Dosrius (Maresme), aparece como "Pedrera El Rocà"
+  // en el PDF pero internamente la llamamos así. Misma forma para proveedor y origen.
+  // Acento grave catalán (Rocà), no agudo. Importante mantener la grafía exacta.
+  { canon: 'KM5 Cantera El Rocà', alias: [
+    'KM5 CANTERA EL ROCÀ', 'KM5 Cantera El Rocá', 'KM5 CANTERA EL ROCÁ',
+    'KM5 Cantera El Roca', 'KM5 CANTERA EL ROCA',
+    'Cantera El Rocà', 'Cantera El Rocá', 'Cantera El Roca',
+    'CANTERA EL ROCÀ', 'CANTERA EL ROCÁ', 'CANTERA EL ROCA',
+    'Pedrera El Rocà', 'Pedrera "El Rocà"', 'PEDRERA EL ROCÀ',
+    'El Rocà', 'EL ROCÀ'
+  ] },
   // Proveedores nuevos (mayo 2026):
   { canon: 'Grupo Cementos Portland Valderrivas', alias: ['Grupo Portland Valderrivas', 'Cementos Portland Valderrivas'] },
   { canon: 'Àrids Garcia', alias: [
@@ -5754,6 +5765,17 @@ const ORIGENES_CANONICOS = [
   // v94: Cantera Begues (Cemex). Origen literal del campo "Expedido...." en albaranes Cemex.
   // Distinto de "Begues" (pueblo) y "Cemex/Begues" (notación Holcim recepción).
   { canon: 'Cantera Begues', alias: ['CANTERA BEGUES', 'Cantera de Begues', 'Cantera-Begues'] },
+  // v107j: KM5 Cantera El Rocà — cantera en Dosrius (Maresme). Misma grafía que en
+  // PROVEEDORES_CANONICOS (acento grave catalán Rocà). En el PDF aparece como
+  // "Pedrera El Rocà" o "Cantera El Rocà" sin el "KM5" delante; los alias lo cubren.
+  { canon: 'KM5 Cantera El Rocà', alias: [
+    'KM5 CANTERA EL ROCÀ', 'KM5 Cantera El Rocá', 'KM5 CANTERA EL ROCÁ',
+    'KM5 Cantera El Roca', 'KM5 CANTERA EL ROCA',
+    'Cantera El Rocà', 'Cantera El Rocá', 'Cantera El Roca',
+    'CANTERA EL ROCÀ', 'CANTERA EL ROCÁ', 'CANTERA EL ROCA',
+    'Pedrera El Rocà', 'Pedrera "El Rocà"', 'PEDRERA EL ROCÀ',
+    'El Rocà', 'EL ROCÀ', 'Dosrius'
+  ] },
   { canon: 'Martorell', alias: [] },
   { canon: 'Jorba', alias: [] },
   // Canteras de Promsa (venta de áridos)
@@ -6020,6 +6042,18 @@ const DESTINOS_CANONICOS = [
     'Sato y Cnes. Rubau UTE 4ª Fase Ampliación Adosado',
     'SATO Y CNES.RUBAU UTE 4ª FASE AMPLIACIÓN ADOSADO',
     'GARRAF-UTE 4ªFASE'
+  ] },
+  // v107j: Destinos UTE — obras concretas que se repiten. Las añadimos como canónicos
+  // para que los gestores puedan elegirlas en el desplegable y no haya variantes OCR.
+  { canon: 'UTE Sede Central Frio Bogat', alias: [
+    'UTE SEDE CENTRAL FRIO BOGAT', 'UTE. SEDE CENTRAL FRIO BOGAT',
+    'UTE. Sede Central Frio Bogat', 'UTE Sede Central Frío Bogat',
+    'UTE SEDE CENTRAL FRÍO BOGAT', 'SEDE CENTRAL FRIO BOGAT',
+    'Sede Central Frio Bogat'
+  ] },
+  { canon: 'UTE Obras Vallbona', alias: [
+    'UTE OBRAS VALLBONA', '382 - UTE OBRAS VALLBONA', '382 UTE OBRAS VALLBONA',
+    'OBRAS VALLBONA', 'Obras Vallbona'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
