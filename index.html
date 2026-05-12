@@ -141,6 +141,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .prod-total-row td{background:var(--bg2);font-family:var(--mn);color:var(--tx);border-top:2px solid var(--pu);padding:14px 12px;font-weight:700}
 .prod-empty{text-align:center;padding:50px;color:var(--mu);font-family:var(--mn);font-size:13px;background:var(--bg2);border-radius:9px}
 @media (max-width:768px){.prod-kpis{grid-template-columns:repeat(2,1fr)}.prod-bar-cell{width:80px}}
+/* v107h: layout 2 columnas para pestaña ITV (ITVs + Citas). En tablets/móvil se apila. */
+.itv-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1100px){.itv-grid{grid-template-columns:1fr}}
+.itv-grid .card{margin-bottom:0}
 
 /* CARD */
 .card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;margin-bottom:18px;overflow:hidden}
@@ -419,8 +423,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
-      <!-- v105: pestaña Producción mensual por transportista (admin + gestor) -->
-      <div class="tab" id="tabProduccion" onclick="switchTab('produccion')">📊 Producción</div>
+      <!-- v107g: pestaña Producción solo para admin. Se muestra dinámicamente desde
+           loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
+           y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
+      <div class="tab" id="tabProduccion" onclick="switchTab('produccion')" style="display:none">📊 Producción</div>
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
       <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">⚙️ Usuarios</div>
     </div>
@@ -587,27 +593,52 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     </div>
 
     <!-- v101: TAB ITV — solo visible para usuarios con puede_ver_itv=TRUE.
-         Estructura espejo de tab Albaranes: estadísticas + alertas + filtros + tabla -->
+         v107h: layout en 2 columnas — izquierda ITVs registradas, derecha citas próximas.
+         En móvil se apila automáticamente (responsive con grid). -->
     <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
-      <div class="card">
-        <div class="card-hd">
-          <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn bp" onclick="document.getElementById('itvFileInput').click()">➕ Subir ITV</button>
-            <input type="file" id="itvFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleItvFiles(this.files)">
+      <!-- v107h: Grid de 2 columnas para ITVs + Citas. En móvil se apila. -->
+      <div class="itv-grid">
+        <!-- Columna izquierda: REGISTRO DE ITV (igual que antes) -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot"></div>REGISTRO DE ITV</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn bp" onclick="document.getElementById('itvFileInput').click()">➕ Subir ITV</button>
+              <input type="file" id="itvFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleItvFiles(this.files)">
+            </div>
+          </div>
+          <div class="card-bd">
+            <div class="filters" id="filtersItv">
+              <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fItvMat" oninput="applyItvFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
+              <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fItvEstado" onchange="applyItvFilters()"><option value="">Todos</option><option value="caducada">🔴 Caducada</option><option value="aviso">🟧 Aviso (15 días)</option><option value="vigente">🟢 Vigente</option></select></div>
+              <div class="fil-group"><label class="fil-label">Tipo doc</label><select class="fil-sel" id="fItvTipo" onchange="applyItvFilters()"><option value="">Todos</option><option value="pegatina">Pegatina</option><option value="informe">Informe</option><option value="permiso">Permiso circulación</option></select></div>
+              <div class="filter-actions"><button class="btn bs" onclick="resetItvFilters()">✕ Limpiar</button></div>
+            </div>
+            <div id="itvTableBox" style="overflow-x:auto;margin-top:14px">
+              <table class="t" id="itvTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA ITV</th><th>CADUCA</th><th>DÍAS</th><th>TIPO DOC</th></tr></thead><tbody id="itvTableBody"></tbody></table>
+            </div>
           </div>
         </div>
-        <div class="card-bd">
-          <div class="filters" id="filtersItv">
-            <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fItvMat" oninput="applyItvFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
-            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fItvEstado" onchange="applyItvFilters()"><option value="">Todos</option><option value="caducada">🔴 Caducada</option><option value="aviso">🟧 Aviso (15 días)</option><option value="vigente">🟢 Vigente</option></select></div>
-            <div class="fil-group"><label class="fil-label">Tipo doc</label><select class="fil-sel" id="fItvTipo" onchange="applyItvFilters()"><option value="">Todos</option><option value="pegatina">Pegatina</option><option value="informe">Informe</option><option value="permiso">Permiso circulación</option></select></div>
-            <div class="filter-actions"><button class="btn bs" onclick="resetItvFilters()">✕ Limpiar</button></div>
+
+        <!-- v107h: Columna derecha: PRÓXIMAS CITAS ITV -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot" style="--c:var(--wn)"></div>PRÓXIMAS CITAS ITV</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn bp" onclick="openCitaModalNew()">➕ Nueva cita</button>
+            </div>
           </div>
-          <div id="itvTableBox" style="overflow-x:auto;margin-top:14px">
-            <table class="t" id="itvTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA ITV</th><th>CADUCA</th><th>DÍAS</th><th>TIPO DOC</th><th>SUBIDO POR</th><th>SUBIDO EL</th></tr></thead><tbody id="itvTableBody"></tbody></table>
+          <div class="card-bd">
+            <div class="filters">
+              <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fCitaMat" oninput="applyCitasFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
+              <div class="fil-group"><label class="fil-label">Cuándo</label><select class="fil-sel" id="fCitaCuando" onchange="applyCitasFilters()"><option value="">Todas</option><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="futuras">Futuras (todas)</option><option value="pasadas">Pasadas</option></select></div>
+              <div class="filter-actions"><button class="btn bs" onclick="resetCitasFilters()">✕ Limpiar</button></div>
+            </div>
+            <div id="citasTableBox" style="overflow-x:auto;margin-top:14px">
+              <table class="t" id="citasTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA CITA</th><th>HORA</th><th>DÍAS</th><th>CENTRO</th></tr></thead><tbody id="citasTableBody"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -629,6 +660,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div style="display:flex;gap:8px;margin-left:auto">
               <button class="btn bs" onclick="closeItvModal()">Cancelar</button>
               <button class="btn bp" onclick="saveItvModal()">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v107h: Modal CITA ITV (para crear/editar citas) -->
+      <div class="ov" id="citaOv" onclick="if(event.target===this)closeCitaModal()">
+        <div class="modal" style="max-width:600px">
+          <div class="modal-hd"><div class="st"><div class="dot" style="--c:var(--wn)"></div>DETALLE CITA ITV</div><div style="display:flex;gap:8px"><button class="btn bs" onclick="closeCitaModal()">✕</button></div></div>
+          <div class="modal-bd">
+            <div class="mfields" id="citaFields"></div>
+          </div>
+          <div class="modal-ft">
+            <button class="btn br" id="citaBtnDel" onclick="deleteCitaRecord()" style="display:none">Eliminar</button>
+            <div style="display:flex;gap:8px;margin-left:auto">
+              <button class="btn bs" onclick="closeCitaModal()">Cancelar</button>
+              <button class="btn bp" onclick="saveCitaModal()">Guardar</button>
             </div>
           </div>
         </div>
@@ -969,6 +1017,10 @@ async function onLogin(user) {
     document.getElementById('adminView').style.display = 'block';
     if (currentRole === 'admin') {
       document.getElementById('tabAdmin').style.display = 'flex';
+      // v107g: pestaña Producción solo visible para admin (datos globales de toda la flota).
+      // Para gestores como María del Mar queda oculta — no necesitan ver datos consolidados.
+      const tProd = document.getElementById('tabProduccion');
+      if (tProd) tProd.style.display = 'flex';
     } else {
       // v103b: el botón "Re-corregir TODO" toca el campo transportista (entre otros).
       // Para mantener la política "solo admin cambia transportistas", lo ocultamos a gestores.
@@ -4528,6 +4580,11 @@ let filteredItv = [];
 let editItvId = null;
 const ITV_AVISO_DIAS = 15;  // umbral de aviso amarillo (15 días antes)
 
+// v107h: estado de las CITAS ITV
+let itvCitasRecords = [];
+let filteredCitas = [];
+let editCitaId = null;
+
 // Estado de un registro ITV según la fecha de caducidad
 function _itvEstado(rec) {
   if (!rec.fecha_caducidad) return { tipo: 'sin', dias: null, label: '?', icon: '⚪' };
@@ -4631,9 +4688,172 @@ async function loadItvData() {
     }).length;
     // v101b: actualizar también el banner global de avisos (visible en todas las pestañas)
     renderItvGlobalBanner();
+    // v107h: cargar también citas (en paralelo, sin esperar)
+    loadItvCitas().catch(e => console.warn('[loadItvCitas] Error:', e));
   } catch (e) {
     console.error('[loadItvData] Error:', e);
     toast('Error cargando ITVs: ' + (e.message || e), 'err');
+  }
+}
+
+// v107h: cargar citas ITV (próximas inspecciones programadas)
+async function loadItvCitas() {
+  if (!window._tieneITV) return;
+  try {
+    const { data, error } = await sb.from('itv_citas').select('*').order('fecha_cita', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    itvCitasRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    applyCitasFilters();
+  } catch (e) {
+    console.error('[loadItvCitas] Error:', e);
+  }
+}
+
+// v107h: estado de una cita según su fecha
+function _citaEstado(rec) {
+  if (!rec.fecha_cita) return { tipo: 'sin', dias: null, icon: '⚪' };
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const cita = new Date(rec.fecha_cita + 'T00:00:00');
+  const dias = Math.round((cita - hoy) / (1000 * 60 * 60 * 24));
+  if (dias < 0) return { tipo: 'pasada', dias, icon: '⚫' };
+  if (dias === 0) return { tipo: 'hoy', dias, icon: '🔴' };
+  if (dias <= 3) return { tipo: 'urgente', dias, icon: '🟠' };
+  return { tipo: 'futura', dias, icon: '🟢' };
+}
+
+function applyCitasFilters() {
+  const fMat = (document.getElementById('fCitaMat')?.value || '').trim().toUpperCase();
+  const fCuando = document.getElementById('fCitaCuando')?.value || '';
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  filteredCitas = itvCitasRecords.filter(r => {
+    if (fMat && !String(r.matricula || '').toUpperCase().includes(fMat)) return false;
+    if (fCuando) {
+      if (!r.fecha_cita) return false;
+      const cita = new Date(r.fecha_cita + 'T00:00:00');
+      const dias = Math.round((cita - hoy) / (1000 * 60 * 60 * 24));
+      if (fCuando === 'hoy' && dias !== 0) return false;
+      if (fCuando === 'semana' && (dias < 0 || dias > 7)) return false;
+      if (fCuando === 'mes' && (dias < 0 || dias > 31)) return false;
+      if (fCuando === 'futuras' && dias < 0) return false;
+      if (fCuando === 'pasadas' && dias >= 0) return false;
+    }
+    return true;
+  });
+  // Ordenar por fecha ascendente (más cercana primero)
+  filteredCitas.sort((a, b) => {
+    if (!a.fecha_cita) return 1;
+    if (!b.fecha_cita) return -1;
+    return a.fecha_cita.localeCompare(b.fecha_cita);
+  });
+  renderCitasTable();
+}
+
+function resetCitasFilters() {
+  ['fCitaMat','fCitaCuando'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyCitasFilters();
+}
+
+function renderCitasTable() {
+  const tb = document.getElementById('citasTableBody');
+  if (!tb) return;
+  if (!filteredCitas.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--mu)">No hay citas registradas</td></tr>';
+    return;
+  }
+  const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-ES') : '—';
+  tb.innerHTML = filteredCitas.map(r => {
+    const est = _citaEstado(r);
+    const diasTxt = est.dias === null ? '—' :
+      (est.tipo === 'pasada' ? `<span style="color:var(--mu)">${est.dias}</span>` :
+       est.tipo === 'hoy' ? `<span style="color:var(--er);font-weight:700">HOY</span>` :
+       est.tipo === 'urgente' ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` :
+       `<span style="color:var(--ac)">${est.dias}</span>`);
+    return `<tr onclick="openCitaModal(${r.db_id})" style="cursor:pointer">
+      <td style="font-size:14px">${est.icon}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
+      <td>${fmtDate(r.fecha_cita)}</td>
+      <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
+      <td>${diasTxt}</td>
+      <td style="font-size:11px">${esc(r.centro || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// v107h: abrir modal de cita (existente o nueva)
+function openCitaModal(dbId) {
+  const r = itvCitasRecords.find(x => String(x.db_id) === String(dbId));
+  if (!r) return;
+  editCitaId = dbId;
+  _renderCitaModalFields(r, false);
+  document.getElementById('citaBtnDel').style.display = 'inline-block';
+  document.getElementById('citaOv').classList.add('open');
+}
+
+function openCitaModalNew() {
+  editCitaId = null;
+  _renderCitaModalFields({ matricula: '', fecha_cita: '', hora_cita: '', centro: 'Vilafranca del Penedès', direccion: '', observaciones: '' }, true);
+  document.getElementById('citaBtnDel').style.display = 'none';
+  document.getElementById('citaOv').classList.add('open');
+}
+
+function _renderCitaModalFields(r, esNueva) {
+  const fields = document.getElementById('citaFields');
+  fields.innerHTML = `
+    <div class="ig"><label>Matrícula</label><input id="citaMatricula" value="${esc(r.matricula || '')}" style="font-family:var(--mn);text-transform:uppercase" placeholder="Ej: 1234ABC"></div>
+    <div class="ig"><label>Fecha cita</label><input type="date" id="citaFecha" value="${r.fecha_cita || ''}"></div>
+    <div class="ig"><label>Hora cita</label><input id="citaHora" value="${esc(r.hora_cita || '')}" placeholder="Ej: 14:30" style="font-family:var(--mn)"></div>
+    <div class="ig"><label>Centro</label><input id="citaCentro" value="${esc(r.centro || 'Vilafranca del Penedès')}"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Dirección</label><input id="citaDireccion" value="${esc(r.direccion || '')}"></div>
+    <div class="ig" style="grid-column:1/-1"><label>Observaciones</label><textarea id="citaObservaciones" rows="2">${esc(r.observaciones || '')}</textarea></div>
+  `;
+}
+
+function closeCitaModal() {
+  document.getElementById('citaOv').classList.remove('open');
+  editCitaId = null;
+}
+
+async function saveCitaModal() {
+  const matricula = (document.getElementById('citaMatricula').value || '').trim().toUpperCase().replace(/\s+/g,'');
+  const fecha_cita = document.getElementById('citaFecha').value || null;
+  const hora_cita = (document.getElementById('citaHora').value || '').trim() || null;
+  const centro = (document.getElementById('citaCentro').value || '').trim() || null;
+  const direccion = (document.getElementById('citaDireccion').value || '').trim() || null;
+  const observaciones = (document.getElementById('citaObservaciones').value || '').trim() || null;
+  if (!matricula) { toast('La matrícula es obligatoria', 'err'); return; }
+  if (!fecha_cita) { toast('La fecha de la cita es obligatoria', 'err'); return; }
+  const payload = { matricula, fecha_cita, hora_cita, centro, direccion, observaciones, updated_at: new Date().toISOString() };
+  try {
+    if (editCitaId) {
+      const { error } = await sb.from('itv_citas').update(payload).eq('id', editCitaId);
+      if (error) throw error;
+      toast('✓ Cita actualizada');
+    } else {
+      payload.user_id = currentUser.id;
+      const { error } = await sb.from('itv_citas').insert(payload);
+      if (error) throw error;
+      toast('✓ Cita creada');
+    }
+    closeCitaModal();
+    await loadItvCitas();
+  } catch (e) {
+    console.error('[saveCitaModal] Error:', e);
+    toast('Error guardando cita: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteCitaRecord() {
+  if (!editCitaId) return;
+  if (!confirm('¿Eliminar esta cita?\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('itv_citas').delete().eq('id', editCitaId);
+    if (error) throw error;
+    closeCitaModal();
+    await loadItvCitas();
+    toast('✓ Cita eliminada');
+  } catch (e) {
+    console.error('[deleteCitaRecord] Error:', e);
+    toast('Error eliminando cita: ' + (e.message || e), 'err');
   }
 }
 
