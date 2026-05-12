@@ -3649,11 +3649,44 @@ function openModal(id) {
   document.getElementById('mFields').innerHTML = FIELDS.map(f => {
     const val = r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : '';
     if (f.k === 'transportista') {
-      // v103b: solo ADMIN puede editar este campo. Gestor y conductor ven el valor bloqueado.
-      // Motivo: cada empresa transportista factura SUS albaranes; cambiar el transportista
-      // de un albarán equivale a reasignar quién lo factura → operación delicada que solo
-      // hace el admin.
-      if (currentRole === 'admin') {
+      // v103b + v107k: lógica por rol y tipo de gestor.
+      // Distinguimos 4 casos:
+      //  (1) ADMIN → dropdown editable con los 13 oficiales (puede cambiar el transportista).
+      //  (2) GESTOR OFICINA (María del Mar, Admin... cualquier gestor NO en USUARIO_A_TRANSPORTISTA)
+      //      → dropdown editable con los 13 oficiales, igual que admin. Pueden gestionar
+      //      todos los transportistas porque trabajan en oficina y ven todo el flujo.
+      //  (3) GESTOR SUBCONTRATADO (TRANSMARGAZ, ARIDFLOT, etc. — su nombre o email está
+      //      en USUARIO_A_TRANSPORTISTA) → dropdown con SOLO su empresa, preseleccionada.
+      //      Motivo: solo suben sus propios albaranes y, si la IA no detectó el transportista
+      //      por matrícula ilegible u otro motivo, al editar le aparece SU empresa por defecto
+      //      para asignarla con un solo clic en Guardar.
+      //  (4) CONDUCTOR → input bloqueado de solo lectura (no acceden al modal hoy).
+      const nombreUsuario = userMap[currentUser?.id]?.name || '';
+      const transportistaSubcontratado = USUARIO_A_TRANSPORTISTA[nombreUsuario];
+      const esGestorSubcontratado = currentRole === 'gestor' && transportistaSubcontratado;
+
+      if (esGestorSubcontratado) {
+        // v107k: solo ve su empresa, preseleccionada. La opción está disponible para que
+        // pueda confirmar al guardar; "— Sin asignar —" sigue disponible por si el albarán
+        // realmente no es suyo (caso raro pero posible, ej. error de subida).
+        const suEmpresa = transportistaSubcontratado;
+        const valActual = r[f.k] || '';
+        // Si el valor actual coincide con su empresa, marcarlo seleccionado. Si está vacío,
+        // pre-seleccionar su empresa por defecto (caso típico: matrícula ilegible que la IA
+        // no pudo identificar y por eso quedó sin transportista).
+        const empresaSelected = (!valActual || valActual === suEmpresa) ? ' selected' : '';
+        let opts = `<option value="">— Sin asignar —</option>`;
+        // Si el valor actual NO es la empresa del subcontratado (caso raro: ej. error o
+        // albarán de otra empresa subido por error), mostrarlo en amarillo arriba como aviso.
+        if (valActual && valActual !== suEmpresa) {
+          opts += `<option value="${esc(valActual)}" selected style="color:#ffd970">⚠ ${esc(valActual)} (no es tu empresa)</option>`;
+        }
+        opts += `<option value="${esc(suEmpresa)}"${empresaSelected}>${esc(suEmpresa)}</option>`;
+        return `<div class="fg full"><label class="fl">${f.l}</label><select class="fi" id="mf_${f.k}" title="Solo tu empresa está disponible. Si crees que es un error, avisa a oficina.">${opts}</select></div>`;
+      }
+
+      if (currentRole === 'admin' || currentRole === 'gestor') {
+        // Admin y gestor oficina: dropdown con los 13 oficiales (comportamiento v103b).
         const valActual = r[f.k] || '';
         const enLista = TRANSPORTISTAS_OFICIALES.includes(valActual);
         let opts = `<option value=""${!valActual ? ' selected' : ''}>— Sin asignar —</option>`;
@@ -3662,9 +3695,10 @@ function openModal(id) {
         }
         opts += TRANSPORTISTAS_OFICIALES.map(t => `<option value="${esc(t)}"${(enLista && t === valActual) ? ' selected' : ''}>${esc(t)}</option>`).join('');
         return `<div class="fg full"><label class="fl">${f.l}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
-      } else {
-        return `<div class="fg full"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}" disabled title="Solo oficina puede modificar este campo" style="background:var(--s2);color:var(--mu);cursor:not-allowed;opacity:.7"></div>`;
       }
+
+      // Conductor: solo lectura
+      return `<div class="fg full"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}" disabled title="Solo oficina puede modificar este campo" style="background:var(--s2);color:var(--mu);cursor:not-allowed;opacity:.7"></div>`;
     }
     // v107i: Proveedor / Origen / Destino como SELECT cerrado para admin y gestor.
     // Si en el futuro hay que añadir un proveedor/origen/destino nuevo, Juan Carlos avisa
@@ -5610,6 +5644,14 @@ const PROVEEDORES_CANONICOS = [
     'Promotora Mediterránea-2 S.A.', 'Promed-2', 'Promed 2'
   ] },
   { canon: 'Canteras Canro, S.A.', alias: [] },
+  // v107k: Albesa Àrids — cantera de Lleida (25135 Albesa, Lleida). Pocas veces al mes
+  // pero recurrente. PDF tiene logo "ALBESA ÀRIDS". Misma grafía en proveedor y origen.
+  { canon: 'Albesa Àrids', alias: [
+    'ALBESA ÀRIDS', 'ALBESA ARIDS', 'Albesa Arids',
+    'ALBESA ÀRIDS, S.L.', 'Albesa Àrids, S.L.', 'Albesa Arids, S.L.',
+    'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
+    'ALBESA'
+  ] },
   // v107j: KM5 Cantera El Rocà — cantera de Dosrius (Maresme), aparece como "Pedrera El Rocà"
   // en el PDF pero internamente la llamamos así. Misma forma para proveedor y origen.
   // Acento grave catalán (Rocà), no agudo. Importante mantener la grafía exacta.
@@ -5775,6 +5817,14 @@ const ORIGENES_CANONICOS = [
     'CANTERA EL ROCÀ', 'CANTERA EL ROCÁ', 'CANTERA EL ROCA',
     'Pedrera El Rocà', 'Pedrera "El Rocà"', 'PEDRERA EL ROCÀ',
     'El Rocà', 'EL ROCÀ', 'Dosrius'
+  ] },
+  // v107k: Albesa Àrids — cantera en 25135 Albesa (Lleida). Misma grafía que en
+  // PROVEEDORES_CANONICOS. Pocas subidas al mes pero recurrente.
+  { canon: 'Albesa Àrids', alias: [
+    'ALBESA ÀRIDS', 'ALBESA ARIDS', 'Albesa Arids',
+    'ALBESA ÀRIDS, S.L.', 'Albesa Àrids, S.L.',
+    'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
+    'ALBESA', 'Albesa', '25135 Albesa', 'Albesa (Lleida)'
   ] },
   { canon: 'Martorell', alias: [] },
   { canon: 'Jorba', alias: [] },
