@@ -1097,6 +1097,28 @@ async function saveGasRecord(data) {
   // v98: limpieza de propiedades internas igual que en saveRecord (consistencia)
   Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
+  // v107f: RED DE SEGURIDAD para gasoil. Bug detectado en tickets Repsol:
+  // a veces la IA confunde la columna "€/L" (precio por litro, ej. 1,789) con la
+  // columna "LITRES" (litros, ej. 484,80). Si los litros leídos están entre 1,2 y 2,2
+  // es casi seguro que es un precio €/L. Añadimos aviso a observaciones para que Juan
+  // Carlos lo revise (NO descartamos el registro porque podría llevarse un dato legítimo).
+  const litrosNum = parseFloat(rec.litros);
+  if (!isNaN(litrosNum) && litrosNum >= 1.2 && litrosNum <= 2.2) {
+    console.warn(`[v107f gasoil ALERTA] litros=${litrosNum} parece un precio €/L, no litros. Marcando a revisar.`);
+    rec.observaciones = (rec.observaciones ? rec.observaciones + ' · ' : '') + '⚠️ A REVISAR: litros entre 1,2-2,2 (¿precio €/L confundido?)';
+  }
+  // v107f: cross-check con importe y precio_litro. Si tenemos los 3 datos, verificar
+  // que litros × precio_litro ≈ importe (margen del 15% para impuestos/redondeos).
+  const importeNum = parseFloat(rec.importe);
+  const precioNum = parseFloat(rec.precio_litro);
+  if (!isNaN(litrosNum) && !isNaN(importeNum) && !isNaN(precioNum) && litrosNum > 0 && precioNum > 0) {
+    const importeCalculado = litrosNum * precioNum;
+    const desviacion = Math.abs(importeCalculado - importeNum) / importeNum;
+    if (desviacion > 0.15) {
+      console.warn(`[v107f gasoil ALERTA] No cuadra: ${litrosNum}L × ${precioNum}€/L = ${importeCalculado.toFixed(2)}€ pero importe leído es ${importeNum}€ (desviación ${(desviacion*100).toFixed(0)}%). Marcando a revisar.`);
+      rec.observaciones = (rec.observaciones ? rec.observaciones + ' · ' : '') + `⚠️ A REVISAR: no cuadra ${litrosNum}L × ${precioNum}€/L ≠ ${importeNum}€`;
+    }
+  }
   // v98: si data.db_id existe, hacer UPDATE en lugar de INSERT (necesario para procesar
   // pendientes de gasoil sin crear duplicados — ver fix v98 en _processOne)
   if (data.db_id) {
@@ -2466,17 +2488,38 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
 async function callClaudeGas(b64, mediaType, key, isPdf, signal) {
   const prompt = `Eres un OCR experto en tickets de gasoil y adblue de camiones en España.
 Extrae los datos del ticket de repostaje.
-${isPdf ? 'Devuelve un ARRAY JSON.' : 'Devuelve un objeto JSON (no array).'}
-Campos:
+${isPdf ? 'Devuelve un ARRAY JSON (un objeto por cada producto facturado en el ticket).' : 'Devuelve un objeto JSON (no array).'}
+
+**IMPORTANTE — ESTRUCTURA TÍPICA DE TICKETS REPSOL/CEPSA/BP:**
+La mayoría de tickets españoles tienen una tabla con estas columnas:
+  PRODUCTE | €/L | LITRES | IMPORT
+  ---------|-----|--------|-------
+  Diesel e+| 1,789 | 484,80 | 867,31
+  AdBlue   | 1,609 | 52,00  | 83,67
+
+**REGLA CRÍTICA — DISTINGUIR €/L vs LITROS:**
+- La columna "€/L" (precio por litro) tiene valores entre **1,200 y 2,200** con 3 decimales (ej: 1,789 / 1,609 / 1,890). NUNCA es "litros".
+- La columna "LITRES" o "LITROS" tiene valores que normalmente van entre 20 y 800 (un camión puede repostar entre 50 y 500 litros típicos). Pueden tener 2 decimales (ej: 484,80 / 52,00 / 327,15).
+- Si ves "1,789" o "1,609" en una posición → es PRECIO €/L, NUNCA litros.
+- Si ves "484,80" o "52,00" → eso son LITROS.
+
+**Campos a devolver:**
 - fecha: DD/MM/YYYY
-- tractora: matrícula del vehículo (formato 4 dígitos + 3 letras) o null
-- proveedor: empresa gasolinera/proveedor (ej: Repsol, Cepsa, BP, etc.)
-- tipo: "gasoil" o "adblue"
-- litros: número de litros (solo número) o null
-- importe: importe total en euros (solo número) o null
-- precio_litro: precio por litro (solo número) o null
-- num_ticket: número del ticket o albarán o null
+- tractora: matrícula del vehículo (formato 4 dígitos + 3 letras, ej "6521NHV"). Suele estar en línea "Cliente: XXXX-XXX" — quitar el guión. NO confundir con el número del concesionario ni el comercio.
+- proveedor: empresa gasolinera (ej: Repsol, Cepsa, BP, Galp, Disa)
+- tipo: "gasoil" si el producto contiene "Diesel", "Gasoil", "GOA", "Diésel". "adblue" si contiene "AdBlue", "Ad Blue", "Urea"
+- litros: el número de la columna LITRES/LITROS (ej 484.80 o 52.00). **NUNCA** un número entre 1,2 y 2,2 — eso sería €/L.
+- importe: importe total en euros del producto (columna IMPORT, ej 867.31 o 83.67)
+- precio_litro: precio por litro (columna €/L, ej 1.789 o 1.609)
+- num_ticket: número del ticket (busca "N. de ticket: XXXXXXXXXX" o "Nº ticket"). Suele ser un número largo de 10-12 dígitos. NO confundir con "Comerç:", "Concessió:", "Nº operació:" (son códigos internos diferentes).
 - observaciones: texto adicional o null
+
+**SI HAY VARIOS PRODUCTOS EN UN MISMO TICKET** (ej: Diesel + AdBlue en la misma compra): devuelve un objeto por cada uno, repitiendo fecha/matrícula/proveedor/num_ticket (todos los productos comparten el mismo ticket).
+
+**VERIFICACIÓN antes de devolver:**
+- ¿litros está entre 1,2 y 2,2? → es PRECIO, vuelve a leer y busca el número de LITRES (debería ser 2 o 3 dígitos)
+- ¿importe = litros × precio_litro aproximadamente? Si no cuadra, has leído mal alguna columna.
+
 SOLO JSON válido, sin markdown.`;
 
   const contentBlock = isPdf
