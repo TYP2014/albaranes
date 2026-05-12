@@ -3592,71 +3592,91 @@ async function saveModal() {
   console.log('[saveModal] Cambios:', cambios);
   console.log('[saveModal] Datos a guardar:', r);
 
-  // Cerrar modal y bloquearlo para evitar dobles clicks mientras guardamos
-  const guardarBtn = document.querySelector('#mFooter .bp');
-  if (guardarBtn) { guardarBtn.disabled = true; guardarBtn.textContent = 'Guardando...'; }
+  // v107d: GUARDADO INSTANTÁNEO — cerramos modal y refrescamos UI ANTES de esperar
+  // a Supabase. Antes esto tardaba 2-5 segundos porque hacía `await saveRecord` + `await
+  // loadData()` (recargar los 2197 albaranes). Ahora:
+  // 1) Modal se cierra al instante
+  // 2) UI se actualiza con los cambios en memoria (ya están aplicados al record r)
+  // 3) Supabase se actualiza en SEGUNDO PLANO (no bloquea al usuario)
+  // 4) Si Supabase falla, revertimos el cambio en memoria y avisamos
+  // Esto ahorra al admin docenas de refrescos manuales al día.
 
+  // Cerrar modal AL INSTANTE
+  closeModal();
+
+  // Refrescar UI local con los cambios ya aplicados a r
   try {
-    // 1) Guardar en BD y esperar confirmación
-    await saveRecord(r);
+    analyzeRecords();
+    applyFilters();
+    updateStats();
+    renderAlerts();
+  } catch (eUi) { console.error('[saveModal] Error refrescando UI local:', eUi); }
 
-    // v91: aprender la matrícula nueva en Supabase. No bloqueamos el flujo si falla.
-    if (aprenderTras) {
-      const nombreUsuario = userMap[currentUser?.id]?.name || currentUser?.email || 'admin';
-      aprenderMatricula(aprenderTras.matricula, aprenderTras.transportista, nombreUsuario);
-    }
-
-    // v91c: aplicar el transportista a los albaranes históricos con la misma matrícula.
-    // UPDATE masivo en una sola llamada usando .in('id', ids). Si falla, avisamos pero
-    // no revertimos el guardado del albarán actual ni de la matrícula aprendida.
-    let histActualizados = 0;
-    if (aplicarHistorico) {
-      try {
-        const { error: errHist } = await sb.from('albaranes')
-          .update({ transportista: aplicarHistorico.transportista })
-          .in('id', aplicarHistorico.ids);
-        if (errHist) {
-          console.error('[v91c] Error aplicando histórico:', errHist);
-          toast(`✗ Error en histórico: ${errHist.message}`, 'err');
-        } else {
-          histActualizados = aplicarHistorico.ids.length;
-          console.log(`[v91c] Histórico actualizado: ${histActualizados} albaranes con matrícula ${r.tractora} → ${aplicarHistorico.transportista}`);
-        }
-      } catch (e) {
-        console.error('[v91c] Excepción aplicando histórico:', e);
-        toast(`✗ Error en histórico: ${e.message}`, 'err');
-      }
-    }
-
-    // 2) Recordar el ID que estamos editando para volver a marcar _manual tras la recarga
-    const editedId = r.db_id;
-
-    // 3) Recargar TODO desde BD — fuente de verdad. Esto refresca tabla, stats, alertas, dropdowns.
-    //    Garantiza que lo que ves en pantalla es exactamente lo que hay en Supabase.
-    await loadData();
-
-    // 4) Volver a aplicar la marca _manual sobre el registro recargado (loadData no la trae de BD)
-    if (editedId) {
-      const reloaded = records.find(x => String(x.db_id) === String(editedId));
-      if (reloaded) reloaded._manual = true;
-    }
-
-    closeModal();
-    if (cambios.length === 0 && histActualizados === 0) toast('Sin cambios');
-    else {
-      const partes = [];
-      if (cambios.length > 0) partes.push(`${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'}`);
-      if (histActualizados > 0) partes.push(`+${histActualizados} hist.`);
-      toast(`✓ Guardado (${partes.join(' · ')})`);
-    }
-  } catch (e) {
-    // Revertir cambios en memoria si falla
-    Object.assign(r, original);
-    console.error('[saveModal] Error completo:', e);
-    const msg = e.message || JSON.stringify(e);
-    toast(`✗ Error guardando: ${msg}`, 'err');
-    if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = 'Guardar'; }
+  // Mensaje optimista
+  if (cambios.length === 0) {
+    toast('Sin cambios');
+  } else {
+    toast(`✓ Guardando ${cambios.length} ${cambios.length === 1 ? 'cambio' : 'cambios'}...`);
   }
+
+  // Guardar en BD EN SEGUNDO PLANO (sin await — el usuario ya puede seguir trabajando)
+  (async () => {
+    try {
+      // 1) Guardar en BD
+      await saveRecord(r);
+
+      // 2) Aprender matrícula si procede
+      if (aprenderTras) {
+        const nombreUsuario = userMap[currentUser?.id]?.name || currentUser?.email || 'admin';
+        aprenderMatricula(aprenderTras.matricula, aprenderTras.transportista, nombreUsuario);
+      }
+
+      // 3) Aplicar a histórico si procede (UPDATE masivo)
+      let histActualizados = 0;
+      if (aplicarHistorico) {
+        try {
+          const { error: errHist } = await sb.from('albaranes')
+            .update({ transportista: aplicarHistorico.transportista })
+            .in('id', aplicarHistorico.ids);
+          if (errHist) {
+            console.error('[v91c] Error aplicando histórico:', errHist);
+            toast(`✗ Error en histórico: ${errHist.message}`, 'err');
+          } else {
+            histActualizados = aplicarHistorico.ids.length;
+            // Aplicar también en memoria a esos registros
+            records.forEach(x => {
+              if (aplicarHistorico.ids.includes(x.db_id)) {
+                x.transportista = aplicarHistorico.transportista;
+              }
+            });
+            try { applyFilters(); updateStats(); } catch(e) {}
+            console.log(`[v91c] Histórico actualizado: ${histActualizados} albaranes con matrícula ${r.tractora} → ${aplicarHistorico.transportista}`);
+          }
+        } catch (e) {
+          console.error('[v91c] Excepción aplicando histórico:', e);
+          toast(`✗ Error en histórico: ${e.message}`, 'err');
+        }
+      }
+
+      // 4) Mensaje final de éxito
+      const partes = [];
+      if (cambios.length > 0) partes.push(`${cambios.length} ${cambios.length === 1 ? 'cambio guardado' : 'cambios guardados'}`);
+      if (histActualizados > 0) partes.push(`+${histActualizados} hist.`);
+      if (partes.length > 0) toast(`✓ ${partes.join(' · ')}`);
+    } catch (e) {
+      // Revertir cambios en memoria y avisar
+      console.error('[saveModal] Error completo:', e);
+      Object.assign(r, original);
+      try {
+        analyzeRecords();
+        applyFilters();
+        updateStats();
+        renderAlerts();
+      } catch (eUi) {}
+      const msg = e.message || JSON.stringify(e);
+      toast(`✗ Error guardando — cambios revertidos: ${msg}`, 'err');
+    }
+  })();
 }
 
 function markAsValid() {
