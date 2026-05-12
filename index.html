@@ -3638,6 +3638,13 @@ function openModal(id) {
   //   muestra arriba con un aviso ⚠ para que se migre con un clic al oficial.
   // - conductor: input bloqueado (disabled). Hoy los conductores no acceden al modal, pero
   //   se deja preparado por si en el futuro se les habilita acceso a su listado.
+  // v107i: Proveedor, Origen (planta) y Destino (obra) reciben el mismo tratamiento que
+  // transportista — dropdown cerrado para admin/gestor con la lista de canónicos oficiales
+  // (PROVEEDORES_CANONICOS / ORIGENES_CANONICOS / DESTINOS_CANONICOS) ordenados
+  // alfabéticamente. Motivo: editar a mano introducía variantes que rompían filtros y
+  // exportes (mayúsculas raras, espacios, faltas OCR). Ahora el editor solo puede ELEGIR;
+  // si necesita un valor nuevo, avisa a admin para añadirlo al canónico. Si el valor
+  // histórico guardado no está en la lista, aparece arriba con ⚠ para canonizar con un clic.
   // Resto de campos: como siempre, input editable libre.
   document.getElementById('mFields').innerHTML = FIELDS.map(f => {
     const val = r[f.k] != null ? String(r[f.k]).replace(/"/g,'&quot;') : '';
@@ -3658,6 +3665,25 @@ function openModal(id) {
       } else {
         return `<div class="fg full"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}" disabled title="Solo oficina puede modificar este campo" style="background:var(--s2);color:var(--mu);cursor:not-allowed;opacity:.7"></div>`;
       }
+    }
+    // v107i: Proveedor / Origen / Destino como SELECT cerrado para admin y gestor.
+    // Si en el futuro hay que añadir un proveedor/origen/destino nuevo, Juan Carlos avisa
+    // y se añade a la lista CANONICOS correspondiente — NO se permite escribir libre aquí.
+    if ((f.k === 'proveedor' || f.k === 'planta' || f.k === 'obra')
+        && (currentRole === 'admin' || currentRole === 'gestor')) {
+      const lista = f.k === 'proveedor' ? PROVEEDORES_CANONICOS
+                  : f.k === 'planta'    ? ORIGENES_CANONICOS
+                  :                       DESTINOS_CANONICOS;
+      // Solo los nombres canónicos (sin alias) ordenados alfabéticamente en español
+      const oficiales = lista.map(x => x.canon).sort((a, b) => a.localeCompare(b, 'es'));
+      const valActual = r[f.k] || '';
+      const enLista = oficiales.includes(valActual);
+      let opts = `<option value=""${!valActual ? ' selected' : ''}>— Sin asignar —</option>`;
+      if (valActual && !enLista) {
+        opts += `<option value="${esc(valActual)}" selected style="color:#ffd970">⚠ ${esc(valActual)} (no oficial — elegir uno abajo)</option>`;
+      }
+      opts += oficiales.map(o => `<option value="${esc(o)}"${(enLista && o === valActual) ? ' selected' : ''}>${esc(o)}</option>`).join('');
+      return `<div class="fg full"><label class="fl">${f.l}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
     }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
