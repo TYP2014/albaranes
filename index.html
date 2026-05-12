@@ -1322,55 +1322,79 @@ async function addFiles(files, type) {
           const scale = numPages > 30 ? 1.4 : (numPages > 10 ? 1.6 : 2.5);
           const quality = numPages > 30 ? 0.7 : 0.85;
 
+          // v107c: contador de páginas añadidas con éxito, para avisar al final.
+          let pagsAnadidas = 0;
+
           for (let p = 1; p <= numPages; p++) {
             if (numPages > 10 && p % 5 === 0) {
               toast(`📄 Procesando ${f.name}: página ${p}/${numPages}...`);
             }
-            const page = await pdf.getPage(p);
-            const viewport = page.getViewport({ scale });
-            const canvas = document.createElement('canvas');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            const ctx = canvas.getContext('2d');
-            await page.render({ canvasContext: ctx, viewport }).promise;
-            const dataUrl = canvas.toDataURL('image/jpeg', quality);
-            const imgB64 = dataUrl.split(',')[1];
-            const baseName = f.name.replace(/\.pdf$/i, '');
-            const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
-
-            // v71: usar canvas.toBlob() nativo en lugar de atob+Uint8Array (más fiable
-            // entre navegadores). Si por lo que sea no se construye el Blob, dejamos
-            // pageFile=null y _processOne usará el sharedPdfUrl como fallback.
-            let pageFile = null;
             try {
-              const pageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-              if (pageBlob) {
-                pageFile = new File([pageBlob], pageName, { type: 'image/jpeg' });
-              }
-            } catch (eBlob) {
-              console.warn('[v71] toBlob falló para', pageName, eBlob);
-            }
-            canvas.width = 0; canvas.height = 0;
+              // v107c: timeout por página (30s). Antes, si pdf.getPage() o page.render()
+              // se colgaban silenciosamente, el bucle se quedaba parado para siempre y
+              // el PDF nunca llegaba a la cola — síntoma: toast "Dividiendo..." pero
+              // cola vacía y sin error visible. Ahora si una página tarda más de 30s,
+              // lanza excepción y caemos al fallback "PDF entero" al final del catch.
+              const pageWork = (async () => {
+                const page = await pdf.getPage(p);
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                const imgB64 = dataUrl.split(',')[1];
+                const baseName = f.name.replace(/\.pdf$/i, '');
+                const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
 
-            if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
-              pending.push({
-                id: Date.now() + Math.random() + p,
-                file: pageFile || f,         // si no hay JPG, fallback al PDF original
-                b64: imgB64,                  // siempre el JPG va a la API (más rápido)
-                status: 'pending',
-                isPdf: false,
-                name: pageName,
-                mediaType: 'image/jpeg',
-                sharedPdfUrl: sharedPdfUrl,   // respaldo: PDF compartido si JPG falla
-                pageNum: p,                   // para construir #page=N en fallback
-                hasJpgFile: !!pageFile        // marca si tenemos JPG real para subir
-              });
-            }
+                let pageFile = null;
+                try {
+                  const pageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+                  if (pageBlob) {
+                    pageFile = new File([pageBlob], pageName, { type: 'image/jpeg' });
+                  }
+                } catch (eBlob) {
+                  console.warn('[v71] toBlob falló para', pageName, eBlob);
+                }
+                canvas.width = 0; canvas.height = 0;
 
-            if (p % 10 === 0) {
-              renderQueues();
-              await sleep(0);
+                if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
+                  pending.push({
+                    id: Date.now() + Math.random() + p,
+                    file: pageFile || f,
+                    b64: imgB64,
+                    status: 'pending',
+                    isPdf: false,
+                    name: pageName,
+                    mediaType: 'image/jpeg',
+                    sharedPdfUrl: sharedPdfUrl,
+                    pageNum: p,
+                    hasJpgFile: !!pageFile
+                  });
+                  return true;
+                }
+                return false;
+              })();
+              const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout 30s en página ' + p)), 30000));
+              const added = await Promise.race([pageWork, timeoutPromise]);
+              if (added) pagsAnadidas++;
+            } catch (errPag) {
+              console.error(`[v107c] Falló página ${p}/${numPages} de ${f.name}:`, errPag);
+              toast(`⚠️ Página ${p} de ${f.name} no se pudo procesar`, 'warn');
+              // Continuamos con las siguientes páginas (no abortamos todo el PDF)
             }
+            // v107c: render INMEDIATO tras cada página (antes era cada 10). Así
+            // el usuario ve aparecer cada página en la cola al instante, y si algo
+            // falla a partir de cierta página, al menos las anteriores ya están listas.
+            renderQueues();
+            await sleep(0);
+          }
+          // v107c: confirmación al final de la división
+          if (pagsAnadidas > 0) {
+            toast(`✓ ${f.name}: ${pagsAnadidas} páginas listas para procesar`);
+          } else {
+            toast(`⚠️ No se pudo añadir ninguna página de ${f.name}`, 'err');
           }
           renderQueues();
         }
@@ -2063,33 +2087,34 @@ async function _processOne(it, type, key, timeoutMs) {
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
         }
-        // v107: red de seguridad específica para Sodira — el nº albarán debe tener formato
-        // "1/01718/XXXXXX". Si la IA se confunde y coge códigos cliente (21240000), obra
-        // (21240002), CIF (B87730180), etc., los limpiamos y dejamos solo el formato correcto.
-        // También limpiamos prefijo "Albarán" si la IA lo incluyó.
+        // v107b: red de seguridad específica para Sodira. El nº albarán SIEMPRE tiene formato
+        // exacto "1/01718/XXXXXX" (6 dígitos al final). Lógica:
+        // 1) Si el valor ya está en formato correcto → nada que hacer.
+        // 2) Si contiene "1/01718/XXXXXX" en algún lado → extraerlo limpio.
+        // 3) Si contiene solo "01718/XXXXXX" (sin el "1/" inicial) → reconstruirlo.
+        // 4) Si tiene 6 dígitos seguidos típicos de Sodira (122xxx-124xxx) → reconstruirlo.
+        // 5) Si no encaja en nada → marcar como "a revisar" y dejar el valor.
         if (data.proveedor && /Sodira/i.test(data.proveedor) && data.albaran) {
           const original = String(data.albaran).trim();
-          // 1) Buscar patrón "1/01718/XXXXXX" dentro del valor (con o sin espacios)
-          const matchSodira = original.match(/1\s*\/\s*01718\s*\/\s*\d{6}/);
-          if (matchSodira) {
-            const limpio = matchSodira[0].replace(/\s+/g, '');
-            if (limpio !== original) {
+          const formatoCorrecto = /^1\/01718\/\d{6}$/;
+          if (!formatoCorrecto.test(original)) {
+            let limpio = null;
+            // Patrón 1: contiene "1/01718/XXXXXX" exacto o con espacios
+            let m = original.match(/1\s*\/\s*01718\s*\/\s*(\d{6})/);
+            if (m) {
+              limpio = `1/01718/${m[1]}`;
+            } else {
+              // Patrón 2: contiene "01718/XXXXXX" pero falta el "1/" inicial
+              m = original.match(/(?:^|[^0-9])01718\s*\/\s*(\d{6})/);
+              if (m) limpio = `1/01718/${m[1]}`;
+            }
+            if (limpio) {
               console.log(`[Sodira albaran fix] "${original}" → "${limpio}"`);
               data.albaran = limpio;
-            }
-          } else {
-            // 2) No hay patrón Sodira válido pero pone "Albarán" delante: quitar prefijo
-            const sinPrefijo = original.replace(/^(Albar[áa]n[\s:]*)/i, '').trim();
-            if (sinPrefijo !== original && /^1\/01718\/\d{6}$/.test(sinPrefijo)) {
-              console.log(`[Sodira albaran fix prefijo] "${original}" → "${sinPrefijo}"`);
-              data.albaran = sinPrefijo;
             } else {
-              // 3) Si el valor es un código sospechoso conocido (CIF cliente, obra, etc.),
-              // marcar el registro como "a revisar" en lugar de aceptarlo
-              if (/^(21240000|21240001|21240002|U\d{8}|B\d{8}|ENV\/|15018284)/.test(original)) {
-                console.warn(`[Sodira albaran ALERTA] valor sospechoso "${original}" — no es nº albarán Sodira`);
-                data._quality = 'warn';
-              }
+              // No se pudo limpiar → marcar como "a revisar" para que Juan Carlos lo vea
+              console.warn(`[Sodira albaran ALERTA] valor sospechoso "${original}" — no es nº albarán Sodira válido. Marcado a revisar.`);
+              data._quality = 'warn';
             }
           }
         }
@@ -4286,14 +4311,22 @@ async function reanalizarTodo() {
         cambio = true;
       }
     }
-    // v107: corrección retroactiva del Nº albarán Sodira (limpia variantes mal leídas
-    // como "21240001/01718/122921", "Albarán 1/01718/123026" → "1/01718/XXXXXX").
+    // v107b: corrección retroactiva ROBUSTA del Nº albarán Sodira (limpia variantes mal
+    // leídas como "21240001/01718/122921", "Albarán 1/01718/123026", "01718/123112",
+    // "21240002" → reconstruye al formato "1/01718/XXXXXX").
     if (r.proveedor && /Sodira/i.test(r.proveedor) && r.albaran) {
       const original = String(r.albaran).trim();
-      const matchSodira = original.match(/1\s*\/\s*01718\s*\/\s*\d{6}/);
-      if (matchSodira) {
-        const limpio = matchSodira[0].replace(/\s+/g, '');
-        if (limpio !== original) {
+      const formatoCorrecto = /^1\/01718\/\d{6}$/;
+      if (!formatoCorrecto.test(original)) {
+        let limpio = null;
+        let m = original.match(/1\s*\/\s*01718\s*\/\s*(\d{6})/);
+        if (m) {
+          limpio = `1/01718/${m[1]}`;
+        } else {
+          m = original.match(/(?:^|[^0-9])01718\s*\/\s*(\d{6})/);
+          if (m) limpio = `1/01718/${m[1]}`;
+        }
+        if (limpio && limpio !== original) {
           console.log(`[Sodira albaran retro] "${original}" → "${limpio}" (db_id ${r.db_id})`);
           r.albaran = limpio;
           update.albaran = limpio;
@@ -4862,19 +4895,15 @@ function switchTab(tab) {
   if (tab === 'itv') { loadItvData(); }
   // v105: cargar tabla de producción al entrar en su pestaña
   if (tab === 'produccion') { loadProduccion(); }
-  // v107: refresco inteligente al entrar en Albaranes. Si han pasado >5s desde la última
-  // carga (caso típico: estabas en "Subir" procesando, ahora vuelves a "Albaranes"),
-  // refrescamos automáticamente la tabla. Si has cambiado por curiosidad y vuelves enseguida,
-  // no recargamos para no penalizar la navegación. Si hay procesamiento en curso, refrescamos
-  // siempre (los nuevos albaranes pueden estar llegando).
+  // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
+  // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
+  // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
+  // siempre que se entra en Albaranes, recarga (es una sola petición a Supabase, rápido).
+  // El usuario nota la actualización; no se queda con datos viejos.
   if (tab === 'alb') {
-    const now = Date.now();
-    const haPasado5s = (now - _lastLoadDataTs) > 5000;
-    const procesando = _processingAlb;
-    if (haPasado5s || procesando) {
-      // Sin await para no bloquear el render de la pestaña — la tabla se actualiza al llegar.
-      loadData().catch(e => console.error('[switchTab→alb] refresh falló:', e));
-    }
+    // Sin await: deja que la UI muestre la pestaña enseguida, y la tabla se actualiza
+    // cuando llegan los datos. loadData() ya se encarga de re-renderizar todo.
+    loadData().catch(e => console.error('[switchTab→alb] refresh falló:', e));
   }
 }
 
