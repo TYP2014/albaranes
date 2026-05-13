@@ -5632,7 +5632,18 @@ function fixCliente(c) {
 // La función fixProveedor normaliza la entrada (sin tildes, sin puntuación, mayúsculas)
 // y la compara contra el canónico O contra cualquier alias para devolver siempre la versión correcta.
 const PROVEEDORES_CANONICOS = [
-  { canon: 'Holcim España, S.A.U.', alias: ['Fábrica Montcada'] },
+  // v107P: ampliar alias de Holcim España para cubrir variantes raras detectadas en BD
+  // (Holcim suelto, HOLCIM mayúsculas, HOLCIM (ESPAÑA), S.A. — antiguo nombre Lafarge-Holcim)
+  { canon: 'Holcim España, S.A.U.', alias: [
+    'Fábrica Montcada',
+    'Holcim', 'HOLCIM', 'holcim',
+    'Holcim España', 'HOLCIM ESPAÑA', 'Holcim Espana', 'HOLCIM ESPANA',
+    'Holcim España, S.A.', 'Holcim España S.A.', 'HOLCIM ESPAÑA, S.A.',
+    'Holcim España SAU', 'Holcim Espana SAU', 'HOLCIM ESPAÑA SAU',
+    'HOLCIM (ESPAÑA), S.A.', 'Holcim (España), S.A.', 'Holcim (Espana), S.A.',
+    'HOLCIM (ESPAÑA), S.A.U.', 'Holcim (España), S.A.U.',
+    'Lafarge Holcim', 'LafargeHolcim', 'LAFARGE HOLCIM'  // nombre antiguo
+  ] },
   { canon: 'Élite Cementos, S.L.U.', alias: [] },
   { canon: 'Cemex España Operaciones, S.L.U.', alias: ['Cemex España', 'Cemex España Operaciones', 'Cemex España Operaciones, S.L.U', 'Cemex Operaciones'] },
   { canon: 'Guixos Canals, S.L.', alias: [] },
