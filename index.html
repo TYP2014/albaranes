@@ -5817,7 +5817,25 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
-  { canon: 'Cantera de Garraf', alias: ['Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf', 'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID'] },
+  // v107R: añadidos alias GARRAF ASLAND (cantera Asland antigua) y PUESTO EXP. GARRAF
+  // (variantes que aparecían en albaranes históricos antes de canonizar)
+  { canon: 'Cantera de Garraf', alias: [
+    'Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf',
+    'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID',
+    'GARRAF ASLAND', 'Garraf Asland', 'Cantera Asland', 'CANTERA ASLAND',
+    'PUESTO EXP. GARRAF', 'Puesto Exp. Garraf', 'Puesto Exp Garraf',
+    'PUESTO EXP GARRAF', 'Puesto expedición Garraf', 'Puesto Expedición Garraf'
+  ] },
+  // v107R: Hercal — cantera/planta donde cargamos a veces. Nombre corto por decisión
+  // de Juan Carlos. PLANTA RCD CAN BARBA es como aparece a veces escrito en albaranes;
+  // unificamos todo bajo "Hercal" para que sea consistente.
+  { canon: 'Hercal', alias: [
+    'HERCAL', 'hercal',
+    'PLANTA RCD CAN BARBA', 'Planta RCD Can Barba', 'Planta Rcd Can Barba',
+    'PLANTA RCD CANBARBA', 'RCD CAN BARBA', 'Rcd Can Barba',
+    'Can Barba', 'CAN BARBA', 'CANBARBA',
+    'Hercal SA', 'HERCAL SA', 'Hercal, S.A.', 'HERCAL, S.A.', 'Hercal S.A.'
+  ] },
   // Holcim — plantas de cemento (NO confundir con Cantera de Garraf, que es de áridos)
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada'] },
   { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'Holcim Tarragona', 'Molleda Tarragona', 'Molleda de Tarragona', 'Mollenda Tarragona', 'Mollenda de Tarragona', 'Molienda Tarragoma', 'Mollienda Tarragona'] },
