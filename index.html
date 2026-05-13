@@ -5646,11 +5646,11 @@ const PROVEEDORES_CANONICOS = [
   { canon: 'Canteras Canro, S.A.', alias: [] },
   // v107k: Albesa Àrids — cantera de Lleida (25135 Albesa, Lleida). Pocas veces al mes
   // pero recurrente. PDF tiene logo "ALBESA ÀRIDS". Misma grafía en proveedor y origen.
+  // v107N: quitado alias 'ALBESA' suelto (Juan Carlos no lo quiere por separado en filtros)
   { canon: 'Albesa Àrids', alias: [
     'ALBESA ÀRIDS', 'ALBESA ARIDS', 'Albesa Arids',
     'ALBESA ÀRIDS, S.L.', 'Albesa Àrids, S.L.', 'Albesa Arids, S.L.',
-    'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
-    'ALBESA'
+    'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa'
   ] },
   // v107M: CGM Centre — gestión medioambiental (Igualada, Polígon Ind. Les Comes 08700).
   // Albaranes manuscritos de "ALBARÀ DE TRANSPORT" donde el material es HORAS DE TRABAJO.
@@ -5819,7 +5819,25 @@ const ORIGENES_CANONICOS = [
   { canon: 'Begues', alias: [] },
   // v94: Cantera Begues (Cemex). Origen literal del campo "Expedido...." en albaranes Cemex.
   // Distinto de "Begues" (pueblo) y "Cemex/Begues" (notación Holcim recepción).
-  { canon: 'Cantera Begues', alias: ['CANTERA BEGUES', 'Cantera de Begues', 'Cantera-Begues'] },
+  // v107N: unificar todas las variantes de la cantera Cemex en Begues bajo un único canónico.
+  // Decisión Juan Carlos: todo lo que diga Cemex o variantes de Begues va al mismo canon.
+  // EXCEPCIÓN: "Begues" a secas (33 albaranes en BD) se deja sin tocar — demasiado genérico
+  // para asumir que TODOS son la cantera Cemex; los iremos canonizando al editarlos uno a uno.
+  { canon: 'CANTERA BEGUES/CEMEX', alias: [
+    'CANTERA BEGUES', 'Cantera BEGUES', 'Cantera Begues', 'cantera begues',
+    'Cantera de Begues', 'CANTERA DE BEGUES', 'Cantera-Begues',
+    'CANTERA DE BUGUES', 'Cantera de Bugues',   // typo OCR común
+    'CANTERA BAGUES', 'Cantera Bagues',          // typo OCR común
+    'Cemex/Begues', 'CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES',
+    'Cemex Begues', 'CEMEX BEGUES',
+    'Cemex', 'CEMEX'                              // Cemex a secas → siempre Begues según Juan Carlos
+  ] },
+  // v107N: Cantera Las Iglas → alias de Jorba (Juan Carlos confirma: son albaranes de yeso de Jorba)
+  { canon: 'Jorba', alias: [
+    'JORBA', 'jorba',
+    'Cantera Las Iglas - Jorba', 'Cantera Las Iglas', 'CANTERA LAS IGLAS',
+    'Cantera Las Iglesias', 'CANTERA LAS IGLESIAS', 'Las Iglas', 'Las Iglesias'
+  ] },
   // v107j: KM5 Cantera El Rocà — cantera en Dosrius (Maresme). Misma grafía que en
   // PROVEEDORES_CANONICOS (acento grave catalán Rocà). En el PDF aparece como
   // "Pedrera El Rocà" o "Cantera El Rocà" sin el "KM5" delante; los alias lo cubren.
@@ -5833,11 +5851,12 @@ const ORIGENES_CANONICOS = [
   ] },
   // v107k: Albesa Àrids — cantera en 25135 Albesa (Lleida). Misma grafía que en
   // PROVEEDORES_CANONICOS. Pocas subidas al mes pero recurrente.
+  // v107N: quitados 'ALBESA' y 'Albesa' sueltos (Juan Carlos no los quiere por separado)
   { canon: 'Albesa Àrids', alias: [
     'ALBESA ÀRIDS', 'ALBESA ARIDS', 'Albesa Arids',
     'ALBESA ÀRIDS, S.L.', 'Albesa Àrids, S.L.',
     'ÀRIDS ALBESA', 'Àrids Albesa', 'ARIDS ALBESA', 'Arids Albesa',
-    'ALBESA', 'Albesa', '25135 Albesa', 'Albesa (Lleida)'
+    '25135 Albesa', 'Albesa (Lleida)'
   ] },
   // v107M: Santa Margarida de Montbui — pueblo de la Anoia, cerca de Igualada.
   // Distinto de "Santa Margarida i els Monjos" (Alt Penedès) que ya existe arriba.
@@ -5849,7 +5868,6 @@ const ORIGENES_CANONICOS = [
     'Montbui', 'MONTBUI', 'Santa Margarida Montbui'
   ] },
   { canon: 'Martorell', alias: [] },
-  { canon: 'Jorba', alias: [] },
   // Canteras de Promsa (venta de áridos)
   { canon: 'Olesa de Bonesvalls', alias: ['Olesa', 'Promsa Olesa'] },
   { canon: 'Sant Vicenç dels Horts', alias: ['Sant Vicenç', 'Sant Vicens'] },
@@ -6150,6 +6168,12 @@ const DESTINOS_CANONICOS = [
   { canon: 'Igualada', alias: [
     'IGUALADA', '08700 Igualada', '08700 IGUALADA',
     'Igualada (Barcelona)', 'IGUALADA (BARCELONA)'
+  ] },
+  // v107N: Cubelles (Garraf, costa). Destino habitual que faltaba para marcar a mano
+  // cuando la IA no detecta el destino del PDF.
+  { canon: 'Cubelles', alias: [
+    'CUBELLES', '08880 Cubelles', '08880 CUBELLES',
+    'Cubelles (Barcelona)', 'CUBELLES (BARCELONA)'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
