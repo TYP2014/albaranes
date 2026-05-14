@@ -3999,11 +3999,26 @@ function closeGasModal() { document.getElementById('ovGas').classList.remove('op
 async function saveGasModal() {
   const r = gasoilRecords.find(x => String(x.db_id) === String(editGasId) || String(x._id) === String(editGasId));
   if (!r) return;
+  // v107i: BUG ARREGLADO. El código antiguo hacía `sb.from('gasoil').update(r)` pasando
+  // el objeto entero del record. Eso incluía campos LOCALES (db_id, _id, _ts, _fromPending,
+  // _quality...) que NO son columnas reales de la tabla `gasoil` en Supabase. Resultado:
+  // PATCH .../gasoil → 400 Bad Request, los cambios nunca llegaban a la BD, y al recargar
+  // volvían a aparecer los datos originales que leyó la IA del ticket.
+  // Solución: delegar en saveGasRecord (línea ~1147), que YA hace la limpieza correcta
+  // (Object.keys → delete _*, delete db_id) y usa el .eq('id', db_id) para el WHERE.
+  // Además añadimos snapshot + revertir si falla, igual que saveModal de albaranes (v107d).
+  const original = { ...r };
   GAS_FIELDS.forEach(f => { const v = document.getElementById('mgf_' + f.k)?.value?.trim(); r[f.k] = v || null; });
   try {
-    if (r.db_id) await sb.from('gasoil').update(r).eq('id', r.db_id);
+    if (r.db_id) await saveGasRecord(r);
     applyGasFilters(); closeGasModal(); toast('✓ Guardado');
-  } catch (e) { toast('Error: ' + e.message, 'err'); }
+  } catch (e) {
+    // Revertir cambios en memoria (la BD no se actualizó)
+    Object.assign(r, original);
+    try { applyGasFilters(); } catch (eUi) {}
+    console.error('[saveGasModal] Error:', e);
+    toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
+  }
 }
 
 // Borra ticket de gasoil con patrón doble clic (10s para confirmar)
