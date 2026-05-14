@@ -423,6 +423,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
+      <!-- v107j: pestaña Neumáticos oculta por defecto. Se muestra a usuarios con puede_ver_neumaticos=TRUE.
+           Para Transmargaz, además, el campo empresa_neumaticos='TRANSMARGAZ' los limita a su subpestaña. -->
+      <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none">🛞 Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
       <!-- v107g: pestaña Producción solo para admin. Se muestra dinámicamente desde
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
@@ -708,8 +711,50 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
 
-    <!-- TAB SUBIR -->
-    <div id="tabContentSubir" class="wrap" style="display:none">
+    <!-- v107j: TAB NEUMÁTICOS -->
+    <div id="tabContentNeum" class="wrap" style="display:none">
+      <!-- Subpestañas por empresa -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="neumSubtabs">
+        <button class="btn bp" id="neumSubTYP2014" onclick="switchNeumEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
+        <button class="btn bs" id="neumSubHISPALIS" onclick="switchNeumEmpresa('HISPALIS')" style="font-size:11px">🚚 HISPALIS</button>
+        <button class="btn bs" id="neumSubTRANSMARGAZ" onclick="switchNeumEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ</button>
+      </div>
+
+      <!-- Tarjetas de stock -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>STOCK ACTUAL · <span id="neumEmpresaTitulo">TYP2014</span></div>
+        </div>
+        <div class="card-bd" id="neumStockBox" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+          <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando stock...</div>
+        </div>
+      </div>
+
+      <!-- Acciones rápidas -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--pu)"></div>ACCIONES</div>
+        </div>
+        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn bw" onclick="openNeumMovimientoModal('inventario_inicial')" style="font-size:11px">📥 Inventario inicial</button>
+          <button class="btn bp" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Nueva compra</button>
+          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Registrar montaje</button>
+          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura/desecho)</button>
+          <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;margin-left:auto">🔄 Refrescar</button>
+        </div>
+      </div>
+
+      <!-- Histórico de movimientos -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>HISTÓRICO DE MOVIMIENTOS</div>
+        </div>
+        <div class="card-bd" id="neumHistBox" style="overflow-x:auto">
+          <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando histórico...</div>
+        </div>
+      </div>
+    </div>
+
       <div style="max-width:800px">
         <div id="setupBoxSubir"></div>
         <!-- ALBARAN -->
@@ -801,6 +846,24 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
     <div class="modal-ft" id="mgFooter"></div>
+  </div>
+</div>
+
+<!-- v107j: MODAL NEUMÁTICOS (movimiento: inventario, compra, montaje, baja) -->
+<div class="ov" id="ovNeum">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd">
+      <div class="modal-title" id="neumModalTitulo">MOVIMIENTO DE NEUMÁTICOS</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeNeumModal()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="neumModalFields"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn br" id="btnDelNeum" onclick="deleteNeumMov()" style="display:none">Eliminar</button>
+      <button class="btn bs" onclick="closeNeumModal()">Cancelar</button>
+      <button class="btn bp" onclick="saveNeumModal()">Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -915,10 +978,18 @@ async function doLogout() {
 async function loadUserMap() {
   try {
     // v101: añadir puede_ver_itv para saber quién puede acceder a la pestaña ITV
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv');
+    // v107j: añadir puede_ver_neumaticos + empresa_neumaticos para la pestaña Neumáticos.
+    // empresa_neumaticos=NULL → ve las 3 subpestañas (admin/gestor). 'TRANSMARGAZ' → solo la suya.
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
-    (data || []).forEach(p => { userMap[p.id] = { name: p.name || '(sin nombre)', role: p.role || '', puede_ver_itv: !!p.puede_ver_itv }; });
+    (data || []).forEach(p => { userMap[p.id] = {
+      name: p.name || '(sin nombre)',
+      role: p.role || '',
+      puede_ver_itv: !!p.puede_ver_itv,
+      puede_ver_neumaticos: !!p.puede_ver_neumaticos,
+      empresa_neumaticos: p.empresa_neumaticos || null
+    }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
@@ -930,6 +1001,15 @@ async function loadUserMap() {
       // entrar en la pestaña ITV. Así, desde el momento en que se loguea, ve los avisos.
       if (tienePermisoITV) {
         loadItvData().catch(e => console.warn('[loadUserMap] Error cargando ITVs al inicio:', e));
+      }
+      // v107j: lo mismo para Neumáticos
+      const tienePermisoNeum = !!userMap[currentUser.id]?.puede_ver_neumaticos;
+      const tabNeum = document.getElementById('tabNeum');
+      if (tabNeum) tabNeum.style.display = tienePermisoNeum ? '' : 'none';
+      window._tieneNeum = tienePermisoNeum;
+      window._empresaNeum = userMap[currentUser.id]?.empresa_neumaticos || null;
+      if (tienePermisoNeum) {
+        loadNeumData().catch(e => console.warn('[loadUserMap] Error cargando Neumáticos al inicio:', e));
       }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
@@ -5276,8 +5356,8 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
-  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido.
-  ['alb','preli','gas','itv','produccion','subir','admin'].forEach(t => {
+  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido.
+  ['alb','preli','gas','itv','neum','produccion','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -5299,6 +5379,8 @@ function switchTab(tab) {
   if (tab === 'itv') { loadItvData(); }
   // v105: cargar tabla de producción al entrar en su pestaña
   if (tab === 'produccion') { loadProduccion(); }
+  // v107j: cargar Neumáticos al entrar en su pestaña
+  if (tab === 'neum') { loadNeumData(); }
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
@@ -6933,6 +7015,395 @@ function exportPreliExcel() {
   const fname = `preliquidacion_${(preli.cliente||'').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
   XLSX.writeFile(wb, fname);
   toast(`✓ Excel descargado`);
+}
+
+// ============================================================
+// v107j — NEUMÁTICOS (stock y consumo)
+// Tablas: neumaticos_movimientos, neumaticos_modelos, neumaticos_alertas_config
+// 3 empresas: TYP2014 / HISPALIS / TRANSMARGAZ
+// Movimientos: inventario_inicial, compra, montaje, baja, ajuste
+// ============================================================
+let neumMovimientos = [];      // todos los movimientos cargados de BD
+let neumModelos = [];          // catálogo de modelos (marca+modelo+medida → uso)
+let neumAlertasConfig = [];    // umbrales configurables
+let neumEmpresaActiva = 'TYP2014';   // qué subpestaña se ve
+let editNeumMovId = null;      // ID del movimiento que se está editando
+
+// Cargar TODO de Neumáticos desde Supabase. Llamado al inicio (si tiene permiso)
+// y al entrar en la pestaña. También expone la cuenta para la badge.
+async function loadNeumData() {
+  if (!window._tieneNeum) return;
+  try {
+    // Si el usuario está limitado a una empresa concreta, forzar esa subpestaña.
+    if (window._empresaNeum && neumEmpresaActiva !== window._empresaNeum) {
+      neumEmpresaActiva = window._empresaNeum;
+    }
+    // Ocultar subpestañas que no puede ver
+    if (window._empresaNeum) {
+      ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+        const btn = document.getElementById('neumSub' + emp);
+        if (btn) btn.style.display = (emp === window._empresaNeum) ? '' : 'none';
+      });
+    }
+    // 1) Catálogo de modelos
+    const { data: dM, error: eM } = await sb.from('neumaticos_modelos').select('*');
+    if (eM) throw eM;
+    neumModelos = dM || [];
+    // 2) Config de alertas
+    const { data: dA, error: eA } = await sb.from('neumaticos_alertas_config').select('*');
+    if (eA) throw eA;
+    neumAlertasConfig = dA || [];
+    // 3) Movimientos
+    const { data: dMov, error: eMov } = await sb.from('neumaticos_movimientos').select('*').order('fecha', { ascending: false });
+    if (eMov) throw eMov;
+    neumMovimientos = dMov || [];
+    // Badge: nº de avisos activos (stock bajo) de la empresa actual
+    const avisos = _neumCalcularAvisos(neumEmpresaActiva).length;
+    const badge = document.getElementById('tabNeumCount');
+    if (badge) badge.textContent = avisos;
+    // Pintar
+    renderNeum();
+  } catch (e) {
+    console.error('[loadNeumData] Error:', e);
+    toast('Error cargando neumáticos: ' + (e.message || e), 'err');
+  }
+}
+
+// Cambia la subpestaña de empresa activa
+function switchNeumEmpresa(emp) {
+  if (window._empresaNeum && emp !== window._empresaNeum) {
+    toast('No tienes permiso para esa empresa', 'err');
+    return;
+  }
+  neumEmpresaActiva = emp;
+  // Actualizar botones (visualmente el activo en verde)
+  ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(e => {
+    const btn = document.getElementById('neumSub' + e);
+    if (!btn) return;
+    btn.classList.remove('bp','bs');
+    btn.classList.add(e === emp ? 'bp' : 'bs');
+  });
+  renderNeum();
+}
+
+// Devuelve el stock actual para una empresa, agrupado por (medida + modelo).
+// Suma cantidad de todos los movimientos: positivos suman (inventario, compra),
+// negativos restan (montaje, baja). Devuelve array de {medida, marca, modelo, uso, stock, precio_neto_unitario_ultimo}.
+function _neumCalcularStock(empresa) {
+  const map = {};   // clave = "medida|marca|modelo"
+  neumMovimientos.filter(m => m.empresa === empresa).forEach(m => {
+    const key = `${m.medida || '?'}|${m.marca || '?'}|${m.modelo || '?'}`;
+    if (!map[key]) {
+      map[key] = {
+        medida: m.medida, marca: m.marca, modelo: m.modelo, uso: m.uso,
+        stock: 0, precio_neto_unitario_ultimo: null, fecha_ultimo: null
+      };
+    }
+    map[key].stock += (m.cantidad || 0);
+    // Guardar precio neto de la última compra (para mostrarlo en la tarjeta)
+    if (m.tipo === 'compra' && m.precio_neto_unitario) {
+      if (!map[key].fecha_ultimo || m.fecha > map[key].fecha_ultimo) {
+        map[key].fecha_ultimo = m.fecha;
+        map[key].precio_neto_unitario_ultimo = m.precio_neto_unitario;
+      }
+    }
+  });
+  // Ordenar por medida, luego por uso (motriz / dirección / remolque)
+  return Object.values(map).sort((a, b) => {
+    if (a.medida !== b.medida) return (a.medida || '').localeCompare(b.medida || '');
+    return (a.uso || '').localeCompare(b.uso || '');
+  });
+}
+
+// Obtiene el umbral aplicable a una combinación (lo más específico que encaje).
+// Por ahora solo usamos el GLOBAL; en el futuro se pueden añadir por medida/modelo.
+function _neumUmbral(empresa, marca, modelo, medida) {
+  const cfg = neumAlertasConfig.filter(c => c.activo !== false);
+  // Específico por empresa+medida+modelo > empresa+medida > empresa > global
+  const score = c => (c.empresa === empresa ? 100 : (c.empresa === 'GLOBAL' ? 1 : 0))
+                  + (c.medida === medida ? 10 : 0)
+                  + (c.modelo === modelo ? 5 : 0)
+                  + (c.marca === marca ? 2 : 0);
+  const best = cfg.sort((a, b) => score(b) - score(a))[0];
+  return best ? best.umbral : 4;
+}
+
+// Devuelve la lista de combinaciones con stock por debajo del umbral
+function _neumCalcularAvisos(empresa) {
+  return _neumCalcularStock(empresa).filter(s => {
+    const u = _neumUmbral(empresa, s.marca, s.modelo, s.medida);
+    return s.stock <= u && s.stock > 0;   // si stock=0 no avisamos (ya no hay nada que gestionar)
+  });
+}
+
+// Pinta la pestaña: stock + histórico
+function renderNeum() {
+  document.getElementById('neumEmpresaTitulo').textContent = neumEmpresaActiva;
+  const stock = _neumCalcularStock(neumEmpresaActiva);
+  const box = document.getElementById('neumStockBox');
+  if (!stock.length) {
+    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px;text-align:center">Sin movimientos para <strong>${esc(neumEmpresaActiva)}</strong>. Pulsa <strong>📥 Inventario inicial</strong> para empezar.</div>`;
+  } else {
+    box.innerHTML = stock.map(s => {
+      const umbral = _neumUmbral(neumEmpresaActiva, s.marca, s.modelo, s.medida);
+      const alerta = s.stock <= umbral;
+      const color = alerta ? 'var(--er)' : (s.stock <= umbral * 2 ? '#ffb84d' : 'var(--ok)');
+      const icon = alerta ? '⚠️' : '✅';
+      const precio = s.precio_neto_unitario_ultimo
+        ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">~${parseFloat(s.precio_neto_unitario_ultimo).toFixed(2)} €/ud</div>` : '';
+      const usoLabel = s.uso ? `<span style="font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase">${esc(s.uso)}</span>` : '';
+      return `
+        <div style="border:1px solid ${color};border-radius:8px;padding:12px;background:rgba(0,0,0,.15)">
+          <div style="font-family:var(--mn);font-size:11px;color:var(--mu)">${esc(s.medida || '—')} · ${usoLabel}</div>
+          <div style="font-family:var(--mn);font-size:11px;color:var(--ac);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
+          <div style="font-size:28px;font-weight:bold;color:${color};margin-top:6px">${icon} ${s.stock} ud</div>
+          ${precio}
+        </div>`;
+    }).join('');
+  }
+  // Histórico
+  const hist = neumMovimientos.filter(m => m.empresa === neumEmpresaActiva);
+  const histBox = document.getElementById('neumHistBox');
+  if (!hist.length) {
+    histBox.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px;text-align:center">Sin histórico.</div>`;
+  } else {
+    histBox.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
+            <th style="padding:6px">FECHA</th>
+            <th style="padding:6px">TIPO</th>
+            <th style="padding:6px">MEDIDA · MODELO</th>
+            <th style="padding:6px;text-align:right">UDS</th>
+            <th style="padding:6px">TRACTORA</th>
+            <th style="padding:6px">FACTURA / OBS</th>
+            <th style="padding:6px"></th>
+          </tr>
+        </thead>
+        <tbody>
+        ${hist.map(m => {
+          const tipoIcon = {
+            'inventario_inicial':'📥', 'compra':'➕', 'montaje':'🔧', 'baja':'🗑️', 'ajuste':'✏️'
+          }[m.tipo] || '·';
+          const tipoLbl = {
+            'inventario_inicial':'Inv.inicial', 'compra':'Compra', 'montaje':'Montaje', 'baja':'Baja', 'ajuste':'Ajuste'
+          }[m.tipo] || m.tipo;
+          const sign = m.cantidad > 0 ? '+' : '';
+          const cantColor = m.cantidad > 0 ? 'var(--ok)' : 'var(--er)';
+          const extra = m.tipo === 'compra' ? esc(m.num_factura || m.proveedor || '') : esc(m.observaciones || m.conductor || '');
+          return `<tr style="border-bottom:1px solid var(--bd)">
+            <td style="padding:6px;white-space:nowrap">${esc((m.fecha || '').split('T')[0].split('-').reverse().join('/'))}</td>
+            <td style="padding:6px;white-space:nowrap">${tipoIcon} ${tipoLbl}</td>
+            <td style="padding:6px">${esc(m.medida || '')} · ${esc(m.marca || '')} ${esc(m.modelo || '')}</td>
+            <td style="padding:6px;text-align:right;color:${cantColor};font-weight:bold">${sign}${m.cantidad}</td>
+            <td style="padding:6px">${esc(m.tractora || m.remolque || '')}</td>
+            <td style="padding:6px;color:var(--mu)">${extra}</td>
+            <td style="padding:6px"><button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openNeumMovimientoModal(null, '${m.id}')">Editar</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`;
+  }
+}
+
+// Abre el modal. Si se pasa un id, edita ese movimiento. Si se pasa un tipo, crea nuevo.
+function openNeumMovimientoModal(tipo, id) {
+  editNeumMovId = id || null;
+  const m = id ? neumMovimientos.find(x => x.id === id) : null;
+  const tipoFinal = m ? m.tipo : tipo;
+  // Título según tipo
+  const titulos = {
+    'inventario_inicial': '📥 INVENTARIO INICIAL',
+    'compra': '➕ NUEVA COMPRA',
+    'montaje': '🔧 REGISTRAR MONTAJE',
+    'baja': '🗑️ BAJA (rotura/desecho)',
+    'ajuste': '✏️ AJUSTE MANUAL'
+  };
+  document.getElementById('neumModalTitulo').textContent = titulos[tipoFinal] || 'MOVIMIENTO';
+  // Construir formulario según tipo
+  const hoy = new Date().toISOString().slice(0, 10);
+  const v = (k) => m ? esc(m[k] != null ? String(m[k]) : '') : '';
+  const empresaActual = m ? m.empresa : neumEmpresaActiva;
+  // Opciones del select de modelos (catálogo)
+  const modeloOpts = neumModelos.map(mo => {
+    const sel = (m && m.marca === mo.marca && m.modelo === mo.modelo && m.medida === mo.medida) ? ' selected' : '';
+    return `<option value="${esc(mo.marca + '|' + mo.modelo + '|' + mo.medida + '|' + (mo.uso || ''))}"${sel}>${esc(mo.marca)} · ${esc(mo.modelo)} · ${esc(mo.medida)} (${esc(mo.uso || '?')})</option>`;
+  }).join('');
+  // Sección común: empresa + fecha + producto
+  let camposComunes = `
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Empresa</label>
+      <select class="fi" id="neumF_empresa">
+        <option value="TYP2014"${empresaActual==='TYP2014'?' selected':''}>🏢 TYP2014</option>
+        <option value="HISPALIS"${empresaActual==='HISPALIS'?' selected':''}>🚚 HISPALIS</option>
+        <option value="TRANSMARGAZ"${empresaActual==='TRANSMARGAZ'?' selected':''}>🚛 TRANSMARGAZ</option>
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Fecha</label>
+      <input class="fi" type="date" id="neumF_fecha" value="${m ? esc(m.fecha) : hoy}">
+    </div>
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">Modelo (del catálogo)</label>
+      <select class="fi" id="neumF_modelo" onchange="_neumOnModeloChange()">
+        <option value="">— Elige un modelo o pon Marca/Modelo/Medida manualmente —</option>
+        ${modeloOpts}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Marca</label><input class="fi" id="neumF_marca" value="${v('marca')}" placeholder="Continental"></div>
+      <div class="fg"><label class="fl">Modelo</label><input class="fi" id="neumF_modelo_txt" value="${v('modelo')}" placeholder="Hybrid HD5"></div>
+      <div class="fg"><label class="fl">Medida</label><input class="fi" id="neumF_medida" value="${v('medida')}" placeholder="315/80R22.5"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Uso (motriz / dirección / remolque)</label>
+      <input class="fi" id="neumF_uso" value="${v('uso')}" placeholder="se rellena solo del catálogo">
+    </div>`;
+  // Sección variable por tipo
+  let camposVariables = '';
+  if (tipoFinal === 'compra') {
+    const cant = m ? Math.abs(m.cantidad) : '';
+    camposVariables = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="fl">Cantidad (uds)</label><input class="fi" type="number" id="neumF_cantidad" value="${cant}" min="1" step="1"></div>
+        <div class="fg"><label class="fl">Precio bruto unitario (€)</label><input class="fi" type="number" id="neumF_precio_unitario" value="${v('precio_unitario')}" step="0.01"></div>
+      </div>
+      <div class="fg" style="margin-bottom:10px"><label class="fl">Precio NETO unitario con descuentos+tasa NFU (€)</label>
+        <input class="fi" type="number" id="neumF_precio_neto" value="${v('precio_neto_unitario')}" step="0.01" placeholder="opcional, para cuentas reales">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="fl">Proveedor</label><input class="fi" id="neumF_proveedor" value="${v('proveedor')}" placeholder="Neumáticos Soledad"></div>
+        <div class="fg"><label class="fl">Nº factura</label><input class="fi" id="neumF_num_factura" value="${v('num_factura')}" placeholder="N0000046886"></div>
+      </div>
+      <div class="fg full" style="margin-bottom:10px"><label class="fl">Observaciones</label>
+        <input class="fi" id="neumF_observaciones" value="${v('observaciones')}" placeholder="opcional">
+      </div>`;
+  } else if (tipoFinal === 'montaje' || tipoFinal === 'baja') {
+    const cant = m ? Math.abs(m.cantidad) : '';
+    const labelCant = tipoFinal === 'montaje' ? 'Cantidad montada (uds)' : 'Cantidad dada de baja (uds)';
+    camposVariables = `
+      <div class="fg" style="margin-bottom:10px"><label class="fl">${labelCant}</label>
+        <input class="fi" type="number" id="neumF_cantidad" value="${cant}" min="1" step="1">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="fl">Tractora (matrícula)</label><input class="fi" id="neumF_tractora" value="${v('tractora')}" placeholder="5360JZR" style="text-transform:uppercase"></div>
+        <div class="fg"><label class="fl">Remolque (matrícula)</label><input class="fi" id="neumF_remolque" value="${v('remolque')}" placeholder="opcional" style="text-transform:uppercase"></div>
+      </div>
+      <div class="fg full" style="margin-bottom:10px"><label class="fl">Conductor / Observaciones</label>
+        <input class="fi" id="neumF_observaciones" value="${v('observaciones')}" placeholder="${tipoFinal==='baja'?'motivo de la baja: rotura, desgaste...':'datos extra'}">
+      </div>`;
+  } else {
+    // inventario_inicial o ajuste
+    const cant = m ? m.cantidad : '';
+    const ayuda = tipoFinal === 'inventario_inicial'
+      ? 'Cantidad que tenéis HOY físicamente en almacén.'
+      : 'Positivo para sumar, negativo para restar (corrección manual).';
+    camposVariables = `
+      <div class="fg" style="margin-bottom:10px"><label class="fl">Cantidad (uds) <span style="color:var(--mu);font-size:9px">${ayuda}</span></label>
+        <input class="fi" type="number" id="neumF_cantidad" value="${cant}" step="1">
+      </div>
+      <div class="fg full" style="margin-bottom:10px"><label class="fl">Observaciones</label>
+        <input class="fi" id="neumF_observaciones" value="${v('observaciones')}" placeholder="opcional">
+      </div>`;
+  }
+  // Pintar
+  document.getElementById('neumModalFields').innerHTML = camposComunes + camposVariables
+    + `<input type="hidden" id="neumF_tipo" value="${esc(tipoFinal)}">`;
+  // Botón eliminar: visible solo al editar
+  document.getElementById('btnDelNeum').style.display = m ? '' : 'none';
+  document.getElementById('ovNeum').classList.add('open');
+}
+
+// Cuando se elige un modelo del catálogo, autorrellenar marca/modelo/medida/uso
+function _neumOnModeloChange() {
+  const sel = document.getElementById('neumF_modelo').value;
+  if (!sel) return;
+  const [marca, modelo, medida, uso] = sel.split('|');
+  document.getElementById('neumF_marca').value = marca || '';
+  document.getElementById('neumF_modelo_txt').value = modelo || '';
+  document.getElementById('neumF_medida').value = medida || '';
+  document.getElementById('neumF_uso').value = uso || '';
+}
+
+function closeNeumModal() {
+  document.getElementById('ovNeum').classList.remove('open');
+  editNeumMovId = null;
+}
+
+async function saveNeumModal() {
+  // Leer todos los campos
+  const tipo = document.getElementById('neumF_tipo').value;
+  const empresa = document.getElementById('neumF_empresa').value;
+  const fecha = document.getElementById('neumF_fecha').value;
+  const marca = (document.getElementById('neumF_marca').value || '').trim();
+  const modelo = (document.getElementById('neumF_modelo_txt').value || '').trim();
+  const medida = (document.getElementById('neumF_medida').value || '').trim();
+  const uso = (document.getElementById('neumF_uso').value || '').trim() || null;
+  const cantInput = document.getElementById('neumF_cantidad').value;
+  if (!medida) { toast('La medida es obligatoria', 'err'); return; }
+  if (!fecha) { toast('La fecha es obligatoria', 'err'); return; }
+  if (cantInput === '' || isNaN(parseInt(cantInput))) { toast('La cantidad es obligatoria', 'err'); return; }
+  let cantidad = parseInt(cantInput);
+  // Convertir el signo según el tipo:
+  // - inventario_inicial / compra: SIEMPRE positivo (entrada)
+  // - montaje / baja: SIEMPRE negativo (salida)
+  // - ajuste: respeta el signo que ponga el usuario
+  if (tipo === 'inventario_inicial' || tipo === 'compra') cantidad = Math.abs(cantidad);
+  else if (tipo === 'montaje' || tipo === 'baja') cantidad = -Math.abs(cantidad);
+  // Campos opcionales según tipo
+  const payload = { empresa, tipo, fecha, marca: marca || null, modelo: modelo || null, medida, uso, cantidad };
+  if (tipo === 'compra') {
+    payload.proveedor = (document.getElementById('neumF_proveedor').value || '').trim() || null;
+    payload.num_factura = (document.getElementById('neumF_num_factura').value || '').trim() || null;
+    const pu = parseFloat(document.getElementById('neumF_precio_unitario').value);
+    const pn = parseFloat(document.getElementById('neumF_precio_neto').value);
+    payload.precio_unitario = isNaN(pu) ? null : pu;
+    payload.precio_neto_unitario = isNaN(pn) ? null : pn;
+    if (!isNaN(pu)) payload.precio_total = pu * Math.abs(cantidad);
+  }
+  if (tipo === 'montaje' || tipo === 'baja') {
+    payload.tractora = (document.getElementById('neumF_tractora').value || '').trim().toUpperCase().replace(/\s+/g,'') || null;
+    payload.remolque = (document.getElementById('neumF_remolque').value || '').trim().toUpperCase().replace(/\s+/g,'') || null;
+  }
+  const obs = document.getElementById('neumF_observaciones');
+  if (obs) payload.observaciones = (obs.value || '').trim() || null;
+  payload.updated_at = new Date().toISOString();
+  // Validación de stock: si es salida, comprobar que hay suficiente
+  if (cantidad < 0) {
+    const stock = _neumCalcularStock(empresa).find(s => s.medida === medida && s.marca === marca && s.modelo === modelo);
+    const stockActual = stock ? stock.stock : 0;
+    if (stockActual + cantidad < 0) {
+      if (!confirm(`⚠️ Stock insuficiente: solo hay ${stockActual} ud de ${medida} ${modelo}. ¿Guardar de todas formas?`)) return;
+    }
+  }
+  try {
+    if (editNeumMovId) {
+      const { error } = await sb.from('neumaticos_movimientos').update(payload).eq('id', editNeumMovId);
+      if (error) throw error;
+      toast('✓ Movimiento actualizado');
+    } else {
+      payload.user_id = currentUser.id;
+      const { error } = await sb.from('neumaticos_movimientos').insert(payload);
+      if (error) throw error;
+      toast('✓ Movimiento guardado');
+    }
+    closeNeumModal();
+    await loadNeumData();
+  } catch (e) {
+    console.error('[saveNeumModal] Error:', e);
+    toast('Error guardando: ' + (e.message || JSON.stringify(e)), 'err');
+  }
+}
+
+async function deleteNeumMov() {
+  if (!editNeumMovId) return;
+  if (!confirm('¿Eliminar este movimiento?\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('neumaticos_movimientos').delete().eq('id', editNeumMovId);
+    if (error) throw error;
+    closeNeumModal();
+    await loadNeumData();
+    toast('✓ Eliminado');
+  } catch (e) {
+    console.error('[deleteNeumMov] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
 }
 
 // Init
