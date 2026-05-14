@@ -760,6 +760,13 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <!-- v107M: TAB VACACIONES -->
     <div id="tabContentVac" class="wrap" style="display:none">
 
+      <!-- v107N: Subpestañas por empresa -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="vacSubtabs">
+        <button class="btn bp" id="vacSubTYP2014" onclick="switchVacEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
+        <button class="btn bs" id="vacSubHISPALIS" onclick="switchVacEmpresa('HISPALIS')" style="font-size:11px">🚚 HISPALIS</button>
+        <button class="btn bs" id="vacSubTRANSMARGAZ" onclick="switchVacEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ</button>
+      </div>
+
       <!-- Resumen + acciones arriba -->
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -781,7 +788,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <!-- Tabla de trabajadores con saldos -->
       <div class="card">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ac)"></div>TRABAJADORES Y SALDOS <span id="vacAnioTitulo" style="color:var(--mu);font-weight:normal">· 2026</span></div>
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>TRABAJADORES Y SALDOS · <span id="vacEmpresaTitulo">TYP2014</span> <span id="vacAnioTitulo" style="color:var(--mu);font-weight:normal">· 2026</span></div>
         </div>
         <div class="card-bd" id="vacTablaBox" style="overflow-x:auto">
           <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando trabajadores...</div>
@@ -1073,7 +1080,8 @@ async function loadUserMap() {
     // v107j: añadir puede_ver_neumaticos + empresa_neumaticos para la pestaña Neumáticos.
     // empresa_neumaticos=NULL → ve las 3 subpestañas (admin/gestor). 'TRANSMARGAZ' → solo la suya.
     // v107M: añadir puede_ver_vacaciones para la pestaña Vacaciones.
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones');
+    // v107N: añadir empresa_vacaciones para filtrar subpestañas (igual que neumáticos pero admin NO ve Transmargaz).
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
     (data || []).forEach(p => { userMap[p.id] = {
@@ -1082,7 +1090,8 @@ async function loadUserMap() {
       puede_ver_itv: !!p.puede_ver_itv,
       puede_ver_neumaticos: !!p.puede_ver_neumaticos,
       empresa_neumaticos: p.empresa_neumaticos || null,
-      puede_ver_vacaciones: !!p.puede_ver_vacaciones
+      puede_ver_vacaciones: !!p.puede_ver_vacaciones,
+      empresa_vacaciones: p.empresa_vacaciones || null
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
@@ -1110,6 +1119,8 @@ async function loadUserMap() {
       const tabVac = document.getElementById('tabVac');
       if (tabVac) tabVac.style.display = tienePermisoVac ? '' : 'none';
       window._tieneVac = tienePermisoVac;
+      // v107N: empresa_vacaciones limita qué subpestañas ve (lista separada por comas)
+      window._empresaVac = userMap[currentUser.id]?.empresa_vacaciones || null;
       if (tienePermisoVac) {
         loadVacData().catch(e => console.warn('[loadUserMap] Error cargando Vacaciones al inicio:', e));
       }
@@ -7576,12 +7587,35 @@ let vacFestivos = [];          // calendario de festivos
 let vacMostrarArchivados = false;
 let vacAnioActivo = new Date().getFullYear();
 let vacMesCalendario = new Date();    // mes mostrado en el calendario visual
+let vacEmpresaActiva = 'TYP2014';     // v107N: subpestaña activa (TYP2014/HISPALIS/TRANSMARGAZ)
 let editTrabId = null;
 let editVacPerId = null;
 
 async function loadVacData() {
   if (!window._tieneVac) return;
   try {
+    // v107N: ajustar subpestañas visibles según permisos del usuario.
+    // window._empresaVac contiene la lista de empresas permitidas separada por comas.
+    // NULL = ve las 3. 'TYP2014,HISPALIS' = ve 2. 'TRANSMARGAZ' = ve solo Transmargaz.
+    const empresasPermitidas = window._empresaVac
+      ? window._empresaVac.split(',').map(s => s.trim())
+      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+    ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+      const btn = document.getElementById('vacSub' + emp);
+      if (btn) btn.style.display = empresasPermitidas.includes(emp) ? '' : 'none';
+    });
+    // Si la empresa activa no está permitida, cambiar a la primera permitida
+    if (!empresasPermitidas.includes(vacEmpresaActiva)) {
+      vacEmpresaActiva = empresasPermitidas[0] || 'TYP2014';
+    }
+    // Actualizar botón activo visualmente
+    empresasPermitidas.forEach(emp => {
+      const btn = document.getElementById('vacSub' + emp);
+      if (btn) {
+        btn.classList.remove('bp','bs');
+        btn.classList.add(emp === vacEmpresaActiva ? 'bp' : 'bs');
+      }
+    });
     const [r1, r2, r3] = await Promise.all([
       sb.from('trabajadores').select('*').order('nombre'),
       sb.from('vacaciones_periodos').select('*').order('fecha_inicio', { ascending: false }),
@@ -7606,6 +7640,25 @@ async function loadVacData() {
     console.error('[loadVacData] Error:', e);
     toast('Error cargando vacaciones: ' + (e.message || e), 'err');
   }
+}
+
+// v107N: cambiar de subpestaña de empresa
+function switchVacEmpresa(emp) {
+  const empresasPermitidas = window._empresaVac
+    ? window._empresaVac.split(',').map(s => s.trim())
+    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+  if (!empresasPermitidas.includes(emp)) {
+    toast('No tienes permiso para esa empresa', 'err');
+    return;
+  }
+  vacEmpresaActiva = emp;
+  empresasPermitidas.forEach(e => {
+    const btn = document.getElementById('vacSub' + e);
+    if (!btn) return;
+    btn.classList.remove('bp','bs');
+    btn.classList.add(e === emp ? 'bp' : 'bs');
+  });
+  renderVac();
 }
 
 // Helper: comprueba si una fecha (YYYY-MM-DD) es festivo
@@ -7654,13 +7707,22 @@ function renderVac() {
   vacAnioActivo = parseInt(document.getElementById('vacAnio')?.value) || new Date().getFullYear();
   const tit = document.getElementById('vacAnioTitulo');
   if (tit) tit.textContent = '· ' + vacAnioActivo;
-  // Filtrar trabajadores según toggle de archivados
-  const trabs = vacTrabajadores.filter(t => vacMostrarArchivados ? t.archivado : !t.archivado);
+  // v107N: actualizar título de empresa activa
+  const titEmp = document.getElementById('vacEmpresaTitulo');
+  if (titEmp) titEmp.textContent = vacEmpresaActiva;
+  // v107N: filtrar trabajadores por empresa activa + toggle de archivados
+  // - Si empresa del trabajador coincide → se ve
+  // - Si trabajador tiene empresa NULL → solo se ve en TYP2014 (default para legacy)
+  const trabs = vacTrabajadores.filter(t => {
+    const empMatch = t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
+    if (!empMatch) return false;
+    return vacMostrarArchivados ? t.archivado : !t.archivado;
+  });
   const box = document.getElementById('vacTablaBox');
   if (!trabs.length) {
     const msg = vacMostrarArchivados
-      ? 'No hay trabajadores archivados.'
-      : 'No hay trabajadores activos. Pulsa <strong>➕ Añadir trabajador</strong> para empezar.';
+      ? `No hay trabajadores archivados en ${vacEmpresaActiva}.`
+      : `No hay trabajadores activos en <strong>${vacEmpresaActiva}</strong>. Pulsa <strong>➕ Añadir trabajador</strong> para empezar.`;
     box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:18px;text-align:center">${msg}</div>`;
   } else {
     box.innerHTML = `
@@ -7734,9 +7796,13 @@ function _vacRenderCalendario() {
     const dow = fechaObj.getDay();
     const esFinde = dow === 0 || dow === 6;
     const esFestivo = _vacEsFestivo(fechaStr);
-    // Periodos activos este día
+    // Periodos activos este día (v107N: filtrados por empresa activa también)
     const periodosDia = vacPeriodos.filter(p => {
-      return p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr;
+      if (p.fecha_inicio > fechaStr || p.fecha_fin < fechaStr) return false;
+      // Solo periodos cuyo trabajador pertenece a la empresa activa
+      const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+      if (!t) return false;
+      return t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
     });
     dias.push({ d, fechaStr, esFinde, esFestivo, periodosDia });
   }
@@ -7795,9 +7861,9 @@ function openTrabajadorModal(id) {
       <div class="fg"><label class="fl">Empresa</label>
         <select class="fi" id="trabF_empresa">
           <option value="">—</option>
-          <option value="TYP2014"${t?.empresa==='TYP2014'?' selected':''}>TYP2014</option>
-          <option value="HISPALIS"${t?.empresa==='HISPALIS'?' selected':''}>HISPALIS</option>
-          <option value="TRANSMARGAZ"${t?.empresa==='TRANSMARGAZ'?' selected':''}>TRANSMARGAZ</option>
+          <option value="TYP2014"${(t?.empresa==='TYP2014') || (!t && vacEmpresaActiva==='TYP2014')?' selected':''}>TYP2014</option>
+          <option value="HISPALIS"${(t?.empresa==='HISPALIS') || (!t && vacEmpresaActiva==='HISPALIS')?' selected':''}>HISPALIS</option>
+          <option value="TRANSMARGAZ"${(t?.empresa==='TRANSMARGAZ') || (!t && vacEmpresaActiva==='TRANSMARGAZ')?' selected':''}>TRANSMARGAZ</option>
         </select>
       </div>
     </div>
@@ -7895,9 +7961,18 @@ function openVacPeriodoModal(periodoId, trabajadorIdPrefill) {
   editVacPerId = periodoId || null;
   const p = periodoId ? vacPeriodos.find(x => x.id === periodoId) : null;
   document.getElementById('vacPerModalTitulo').textContent = p ? 'EDITAR PERIODO' : 'NUEVO PERIODO';
-  // Trabajadores activos para el dropdown (si edita, incluir también archivados)
+  // Trabajadores para el dropdown (v107N: solo de la empresa activa)
+  // Si editamos, incluir el trabajador del periodo aunque no sea de la empresa activa.
+  // Si está archivado, incluirlo solo si es el del periodo editado.
   const trabsOpciones = vacTrabajadores
-    .filter(t => !t.archivado || (p && t.id === p.trabajador_id))
+    .filter(t => {
+      // En edición: siempre incluir el trabajador del periodo
+      if (p && t.id === p.trabajador_id) return true;
+      // Excluir archivados
+      if (t.archivado) return false;
+      // Filtrar por empresa activa (con fallback a TYP2014 para trabajadores sin empresa)
+      return t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
+    })
     .map(t => {
       const sel = (p && p.trabajador_id === t.id) || (trabajadorIdPrefill === t.id) ? ' selected' : '';
       return `<option value="${t.id}"${sel}>${esc(t.nombre)}${t.archivado ? ' (archivado)' : ''}</option>`;
