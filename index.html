@@ -7202,7 +7202,7 @@ function renderNeum() {
             <td style="padding:6px">${esc(m.medida || '')} · ${esc(m.marca || '')} ${esc(m.modelo || '')}</td>
             <td style="padding:6px;text-align:right;color:${cantColor};font-weight:bold">${sign}${m.cantidad}</td>
             <td style="padding:6px">${esc(m.tractora || m.remolque || '')}</td>
-            <td style="padding:6px;color:var(--mu)">${extra}</td>
+            <td style="padding:6px;color:var(--mu)">${m.file_url ? `<a href="${esc(m.file_url)}" target="_blank" style="color:var(--ac);margin-right:6px" title="Ver archivo adjunto">📎</a>` : ''}${extra}</td>
             <td style="padding:6px"><button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openNeumMovimientoModal(null, '${m.id}')">Editar</button></td>
           </tr>`;
         }).join('')}
@@ -7278,7 +7278,8 @@ function openNeumMovimientoModal(tipo, id) {
       </div>
       <div class="fg full" style="margin-bottom:10px"><label class="fl">Observaciones</label>
         <input class="fi" id="neumF_observaciones" value="${v('observaciones')}" placeholder="opcional">
-      </div>`;
+      </div>
+      ${_neumCampoArchivo(m, 'factura de compra (opcional)')}`;
   } else if (tipoFinal === 'montaje' || tipoFinal === 'baja') {
     const cant = m ? Math.abs(m.cantidad) : '';
     const labelCant = tipoFinal === 'montaje' ? 'Cantidad montada (uds)' : 'Cantidad dada de baja (uds)';
@@ -7292,7 +7293,8 @@ function openNeumMovimientoModal(tipo, id) {
       </div>
       <div class="fg full" style="margin-bottom:10px"><label class="fl">Conductor / Observaciones</label>
         <input class="fi" id="neumF_observaciones" value="${v('observaciones')}" placeholder="${tipoFinal==='baja'?'motivo de la baja: rotura, desgaste...':'datos extra'}">
-      </div>`;
+      </div>
+      ${_neumCampoArchivo(m, tipoFinal === 'baja' ? 'foto de la rueda (opcional)' : 'albarán del taller (opcional)')}`;
   } else {
     // inventario_inicial o ajuste
     const cant = m ? m.cantidad : '';
@@ -7324,6 +7326,24 @@ function _neumOnModeloChange() {
   document.getElementById('neumF_modelo_txt').value = modelo || '';
   document.getElementById('neumF_medida').value = medida || '';
   document.getElementById('neumF_uso').value = uso || '';
+}
+
+// v107L: helper para el campo de "Adjuntar archivo". Si el movimiento ya tiene un archivo,
+// muestra un enlace para verlo y opción de reemplazarlo. Si no, solo el selector de archivo.
+function _neumCampoArchivo(m, etiqueta) {
+  const tieneArchivo = m && m.file_url;
+  const verActual = tieneArchivo
+    ? `<div style="margin-bottom:6px;font-family:var(--mn);font-size:10px">
+         📎 <a href="${esc(m.file_url)}" target="_blank" style="color:var(--ac)">Ver archivo actual</a>
+         <span style="color:var(--mu)"> · sube otro para reemplazarlo</span>
+       </div>` : '';
+  return `
+    <div class="fg full" style="margin-bottom:10px">
+      <label class="fl">📎 Adjuntar ${etiqueta}</label>
+      ${verActual}
+      <input class="fi" type="file" id="neumF_archivo" accept="image/*,.pdf" style="padding:6px">
+      <div id="neumF_archivoStatus" style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px"></div>
+    </div>`;
 }
 
 function closeNeumModal() {
@@ -7377,8 +7397,39 @@ async function saveNeumModal() {
       if (!confirm(`⚠️ Stock insuficiente: solo hay ${stockActual} ud de ${medida} ${modelo}. ¿Guardar de todas formas?`)) return;
     }
   }
+  // v107L: subir archivo si el usuario lo seleccionó. Si falla la subida, avisamos
+  // PERO guardamos igual el movimiento (no perder dato por un fallo de Storage).
+  const fileInput = document.getElementById('neumF_archivo');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+  let archivoSubido = false;
+  if (file) {
+    const statusBox = document.getElementById('neumF_archivoStatus');
+    if (statusBox) statusBox.textContent = '📤 Subiendo archivo...';
+    try {
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const ts = Date.now();
+      const safeTipo = tipo.replace(/_/g, '-');
+      const filename = `neumaticos/${empresa}/${safeTipo}_${ts}.${ext}`;
+      const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, {
+        upsert: false, contentType: file.type || 'application/octet-stream'
+      });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
+      if (urlData && urlData.publicUrl) {
+        payload.file_url = urlData.publicUrl;
+        archivoSubido = true;
+        if (statusBox) statusBox.textContent = '✓ Archivo subido';
+      }
+    } catch (e) {
+      console.error('[saveNeumModal] Error subiendo archivo:', e);
+      toast('⚠️ Archivo no subido: ' + (e.message || e) + '. El movimiento sí se guardará.', 'err');
+      if (statusBox) statusBox.textContent = '✗ Error: ' + (e.message || e);
+    }
+  }
   try {
     if (editNeumMovId) {
+      // Al editar: solo sobrescribir file_url si el usuario subió un nuevo archivo
+      if (!archivoSubido) delete payload.file_url;
       const { error } = await sb.from('neumaticos_movimientos').update(payload).eq('id', editNeumMovId);
       if (error) throw error;
       toast('✓ Movimiento actualizado');
