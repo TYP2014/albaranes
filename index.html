@@ -426,6 +426,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <!-- v107j: pestaña Neumáticos oculta por defecto. Se muestra a usuarios con puede_ver_neumaticos=TRUE.
            Para Transmargaz, además, el campo empresa_neumaticos='TRANSMARGAZ' los limita a su subpestaña. -->
       <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none">🛞 Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
+      <!-- v107M: pestaña Vacaciones oculta por defecto. Se muestra a usuarios con puede_ver_vacaciones=TRUE. -->
+      <div class="tab" id="tabVac" onclick="switchTab('vac')" style="display:none">🏖️ Vacaciones <span class="tab-badge" id="tabVacCount">0</span></div>
       <!-- v107g: pestaña Producción solo para admin. Se muestra dinámicamente desde
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
@@ -755,6 +757,54 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
 
+    <!-- v107M: TAB VACACIONES -->
+    <div id="tabContentVac" class="wrap" style="display:none">
+
+      <!-- Resumen + acciones arriba -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn bp" onclick="openTrabajadorModal()" style="font-size:11px">➕ Añadir trabajador</button>
+          <button class="btn bw" onclick="openVacPeriodoModal()" style="font-size:11px">📅 Registrar vacaciones</button>
+          <button class="btn bs" onclick="vacToggleArchivados()" id="vacBtnArchivados" style="font-size:11px">👁️ Ver archivados</button>
+          <button class="btn bs" onclick="loadVacData()" style="font-size:11px">🔄 Refrescar</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px;color:var(--mu)">
+          Año:
+          <select class="fi" id="vacAnio" onchange="renderVac()" style="font-size:11px;padding:4px 8px;width:auto">
+            <option value="2026" selected>2026</option>
+            <option value="2027">2027</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabla de trabajadores con saldos -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>TRABAJADORES Y SALDOS <span id="vacAnioTitulo" style="color:var(--mu);font-weight:normal">· 2026</span></div>
+        </div>
+        <div class="card-bd" id="vacTablaBox" style="overflow-x:auto">
+          <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando trabajadores...</div>
+        </div>
+      </div>
+
+      <!-- Calendario mensual visual -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--pu)"></div>CALENDARIO MENSUAL</div>
+          <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px">
+            <button class="btn bs" onclick="vacCambiarMes(-1)" style="padding:4px 8px;font-size:11px">◀</button>
+            <span id="vacMesTitulo" style="min-width:130px;text-align:center;color:var(--ac)">—</span>
+            <button class="btn bs" onclick="vacCambiarMes(1)" style="padding:4px 8px;font-size:11px">▶</button>
+          </div>
+        </div>
+        <div class="card-bd" id="vacCalendarioBox" style="overflow-x:auto">
+          <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando calendario...</div>
+        </div>
+      </div>
+
+    </div>
+
     <!-- TAB SUBIR -->
     <!-- v107k: restaurada apertura del div que se rompió en v107j. Sin este div las cards de
          Subir Albaranes y Subir Tickets Gasoil quedaban sueltas y aparecían siempre visibles
@@ -872,6 +922,43 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
+<!-- v107M: MODAL TRABAJADOR (alta/edición de trabajadores) -->
+<div class="ov" id="ovTrab">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd">
+      <div class="modal-title" id="trabModalTitulo">NUEVO TRABAJADOR</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeTrabModal()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="trabModalFields"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn br" id="btnDelTrab" onclick="archivarTrabajador()" style="display:none">🗄️ Archivar (dar de baja)</button>
+      <button class="btn bw" id="btnReactTrab" onclick="reactivarTrabajador()" style="display:none">♻️ Reactivar</button>
+      <button class="btn bs" onclick="closeTrabModal()">Cancelar</button>
+      <button class="btn bp" onclick="saveTrabModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107M: MODAL PERIODO VACACIONES (registrar/editar un periodo) -->
+<div class="ov" id="ovVacPer">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd">
+      <div class="modal-title" id="vacPerModalTitulo">REGISTRAR PERIODO</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeVacPerModal()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="vacPerModalFields"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn br" id="btnDelVacPer" onclick="deleteVacPer()" style="display:none">Eliminar</button>
+      <button class="btn bs" onclick="closeVacPerModal()">Cancelar</button>
+      <button class="btn bp" onclick="saveVacPerModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NUEVO USUARIO -->
 <div class="ov" id="ovNewUser">
   <div class="modal" style="max-width:420px">
@@ -985,7 +1072,8 @@ async function loadUserMap() {
     // v101: añadir puede_ver_itv para saber quién puede acceder a la pestaña ITV
     // v107j: añadir puede_ver_neumaticos + empresa_neumaticos para la pestaña Neumáticos.
     // empresa_neumaticos=NULL → ve las 3 subpestañas (admin/gestor). 'TRANSMARGAZ' → solo la suya.
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos');
+    // v107M: añadir puede_ver_vacaciones para la pestaña Vacaciones.
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
     (data || []).forEach(p => { userMap[p.id] = {
@@ -993,7 +1081,8 @@ async function loadUserMap() {
       role: p.role || '',
       puede_ver_itv: !!p.puede_ver_itv,
       puede_ver_neumaticos: !!p.puede_ver_neumaticos,
-      empresa_neumaticos: p.empresa_neumaticos || null
+      empresa_neumaticos: p.empresa_neumaticos || null,
+      puede_ver_vacaciones: !!p.puede_ver_vacaciones
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
@@ -1015,6 +1104,14 @@ async function loadUserMap() {
       window._empresaNeum = userMap[currentUser.id]?.empresa_neumaticos || null;
       if (tienePermisoNeum) {
         loadNeumData().catch(e => console.warn('[loadUserMap] Error cargando Neumáticos al inicio:', e));
+      }
+      // v107M: lo mismo para Vacaciones
+      const tienePermisoVac = !!userMap[currentUser.id]?.puede_ver_vacaciones;
+      const tabVac = document.getElementById('tabVac');
+      if (tabVac) tabVac.style.display = tienePermisoVac ? '' : 'none';
+      window._tieneVac = tienePermisoVac;
+      if (tienePermisoVac) {
+        loadVacData().catch(e => console.warn('[loadUserMap] Error cargando Vacaciones al inicio:', e));
       }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
@@ -5361,8 +5458,8 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
-  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido.
-  ['alb','preli','gas','itv','neum','produccion','subir','admin'].forEach(t => {
+  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
+  ['alb','preli','gas','itv','neum','vac','produccion','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -5386,6 +5483,8 @@ function switchTab(tab) {
   if (tab === 'produccion') { loadProduccion(); }
   // v107j: cargar Neumáticos al entrar en su pestaña
   if (tab === 'neum') { loadNeumData(); }
+  // v107M: cargar Vacaciones al entrar en su pestaña
+  if (tab === 'vac') { loadVacData(); }
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
@@ -7460,6 +7559,493 @@ async function deleteNeumMov() {
     console.error('[deleteNeumMov] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
   }
+}
+
+// ============================================================
+// v107M — VACACIONES Y ASUNTOS PROPIOS
+// Tablas: trabajadores, vacaciones_periodos, vacaciones_festivos
+// 30 días vacaciones + 2 días asuntos propios por trabajador/año
+// Cómputo elegible periodo a periodo: naturales o laborables
+// ============================================================
+const VAC_DIAS_VACACIONES = 30;       // por trabajador y año
+const VAC_DIAS_ASUNTOS_PROPIOS = 2;
+
+let vacTrabajadores = [];     // todos los trabajadores (activos + archivados)
+let vacPeriodos = [];          // todos los periodos
+let vacFestivos = [];          // calendario de festivos
+let vacMostrarArchivados = false;
+let vacAnioActivo = new Date().getFullYear();
+let vacMesCalendario = new Date();    // mes mostrado en el calendario visual
+let editTrabId = null;
+let editVacPerId = null;
+
+async function loadVacData() {
+  if (!window._tieneVac) return;
+  try {
+    const [r1, r2, r3] = await Promise.all([
+      sb.from('trabajadores').select('*').order('nombre'),
+      sb.from('vacaciones_periodos').select('*').order('fecha_inicio', { ascending: false }),
+      sb.from('vacaciones_festivos').select('*').order('fecha')
+    ]);
+    if (r1.error) throw r1.error;
+    if (r2.error) throw r2.error;
+    if (r3.error) throw r3.error;
+    vacTrabajadores = r1.data || [];
+    vacPeriodos = r2.data || [];
+    vacFestivos = r3.data || [];
+    // Badge: nº de trabajadores activos
+    const badge = document.getElementById('tabVacCount');
+    if (badge) badge.textContent = vacTrabajadores.filter(t => !t.archivado).length;
+    // Inicializar año seleccionado (si no hay selector aún cargado)
+    const sel = document.getElementById('vacAnio');
+    if (sel) {
+      vacAnioActivo = parseInt(sel.value) || new Date().getFullYear();
+    }
+    renderVac();
+  } catch (e) {
+    console.error('[loadVacData] Error:', e);
+    toast('Error cargando vacaciones: ' + (e.message || e), 'err');
+  }
+}
+
+// Helper: comprueba si una fecha (YYYY-MM-DD) es festivo
+function _vacEsFestivo(fechaStr) {
+  return vacFestivos.some(f => f.fecha === fechaStr);
+}
+
+// Helper: cuenta días entre 2 fechas según cómputo (incluye los dos extremos)
+function _vacContarDias(inicio, fin, computo) {
+  if (!inicio || !fin) return 0;
+  const ini = new Date(inicio + 'T00:00:00');
+  const en = new Date(fin + 'T00:00:00');
+  if (en < ini) return 0;
+  let dias = 0;
+  const cursor = new Date(ini);
+  while (cursor <= en) {
+    if (computo === 'naturales') {
+      dias++;
+    } else {
+      // laborables: lunes a viernes y no festivo
+      const dia = cursor.getDay();   // 0=domingo, 6=sábado
+      const fechaStr = cursor.toISOString().slice(0, 10);
+      if (dia !== 0 && dia !== 6 && !_vacEsFestivo(fechaStr)) dias++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dias;
+}
+
+// Helper: calcula los saldos de un trabajador en un año dado
+function _vacSaldoTrabajador(trabajadorId, anio) {
+  const periodos = vacPeriodos.filter(p => p.trabajador_id === trabajadorId && p.anio === anio);
+  const usadasVac = periodos.filter(p => p.tipo === 'vacaciones').reduce((s, p) => s + (p.dias_contados || 0), 0);
+  const usadasAP = periodos.filter(p => p.tipo === 'asuntos_propios').reduce((s, p) => s + (p.dias_contados || 0), 0);
+  return {
+    vac_disfrutadas: usadasVac,
+    vac_restantes: VAC_DIAS_VACACIONES - usadasVac,
+    ap_disfrutados: usadasAP,
+    ap_restantes: VAC_DIAS_ASUNTOS_PROPIOS - usadasAP,
+    periodos
+  };
+}
+
+function renderVac() {
+  // Actualizar año en título
+  vacAnioActivo = parseInt(document.getElementById('vacAnio')?.value) || new Date().getFullYear();
+  const tit = document.getElementById('vacAnioTitulo');
+  if (tit) tit.textContent = '· ' + vacAnioActivo;
+  // Filtrar trabajadores según toggle de archivados
+  const trabs = vacTrabajadores.filter(t => vacMostrarArchivados ? t.archivado : !t.archivado);
+  const box = document.getElementById('vacTablaBox');
+  if (!trabs.length) {
+    const msg = vacMostrarArchivados
+      ? 'No hay trabajadores archivados.'
+      : 'No hay trabajadores activos. Pulsa <strong>➕ Añadir trabajador</strong> para empezar.';
+    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:18px;text-align:center">${msg}</div>`;
+  } else {
+    box.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
+            <th style="padding:8px">NOMBRE</th>
+            <th style="padding:8px">EMPRESA</th>
+            <th style="padding:8px">🏖️ VACACIONES (uso / total)</th>
+            <th style="padding:8px">🎯 ASUNTOS PROPIOS</th>
+            <th style="padding:8px">PERIODOS</th>
+            <th style="padding:8px"></th>
+          </tr>
+        </thead>
+        <tbody>
+        ${trabs.map(t => {
+          const s = _vacSaldoTrabajador(t.id, vacAnioActivo);
+          const pctVac = Math.min(100, (s.vac_disfrutadas / VAC_DIAS_VACACIONES) * 100);
+          const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? '#ffb84d' : 'var(--ok)');
+          const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:9px;padding:2px 6px;border-radius:3px;margin-left:6px">ARCHIVADO</span>` : '';
+          return `<tr style="border-bottom:1px solid var(--bd)">
+            <td style="padding:8px;color:var(--ac)">${esc(t.nombre)}${archivadoBadge}</td>
+            <td style="padding:8px;color:var(--mu)">${esc(t.empresa || '—')}</td>
+            <td style="padding:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;min-width:80px">
+                  <div style="width:${pctVac}%;height:100%;background:${colorVac};transition:width .3s"></div>
+                </div>
+                <span style="color:${colorVac};font-weight:bold;white-space:nowrap">${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES}</span>
+                <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
+              </div>
+            </td>
+            <td style="padding:8px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
+            <td style="padding:8px">${s.periodos.length}</td>
+            <td style="padding:8px;text-align:right">
+              <button class="btn bs" style="font-size:9px;padding:4px 8px;margin-right:4px" onclick="openVacTrabajadorDetalle('${t.id}')">Ver periodos</button>
+              <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openTrabajadorModal('${t.id}')">Editar</button>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`;
+  }
+  // Calendario
+  _vacRenderCalendario();
+}
+
+// === Calendario mensual visual ===
+function vacCambiarMes(delta) {
+  vacMesCalendario.setMonth(vacMesCalendario.getMonth() + delta);
+  _vacRenderCalendario();
+}
+
+function _vacRenderCalendario() {
+  const mes = vacMesCalendario.getMonth();
+  const anio = vacMesCalendario.getFullYear();
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const titulo = document.getElementById('vacMesTitulo');
+  if (titulo) titulo.textContent = `${meses[mes]} ${anio}`;
+  // Días del mes
+  const diasMes = new Date(anio, mes + 1, 0).getDate();
+  // Primer día de la semana (lunes=1, domingo=0). Ajustar para empezar en lunes.
+  const primerDia = new Date(anio, mes, 1).getDay();
+  const offset = primerDia === 0 ? 6 : primerDia - 1;
+  // Construir array de días con info
+  const dias = [];
+  for (let i = 0; i < offset; i++) dias.push(null);
+  for (let d = 1; d <= diasMes; d++) {
+    const fechaStr = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const fechaObj = new Date(fechaStr + 'T00:00:00');
+    const dow = fechaObj.getDay();
+    const esFinde = dow === 0 || dow === 6;
+    const esFestivo = _vacEsFestivo(fechaStr);
+    // Periodos activos este día
+    const periodosDia = vacPeriodos.filter(p => {
+      return p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr;
+    });
+    dias.push({ d, fechaStr, esFinde, esFestivo, periodosDia });
+  }
+  // Render
+  const box = document.getElementById('vacCalendarioBox');
+  if (!box) return;
+  const cabecera = ['L','M','X','J','V','S','D'].map(d =>
+    `<div style="text-align:center;font-family:var(--mn);font-size:10px;color:var(--mu);padding:6px">${d}</div>`
+  ).join('');
+  const celdas = dias.map(c => {
+    if (!c) return `<div style="min-height:60px"></div>`;
+    const bg = c.esFestivo ? 'rgba(255,80,80,.08)' : (c.esFinde ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.02)');
+    const colorDia = c.esFestivo ? 'var(--er)' : (c.esFinde ? 'var(--mu)' : 'var(--fg)');
+    const trabajadoresHoy = c.periodosDia.slice(0, 3).map(p => {
+      const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+      const nombreCorto = (t?.nombre || '?').split(' ')[0];
+      const color = p.tipo === 'asuntos_propios' ? '#a78bfa' : '#34d399';
+      return `<div style="font-size:9px;background:${color};color:#000;padding:1px 4px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${esc(p.tipo)}">${esc(nombreCorto)}</div>`;
+    }).join('');
+    const masTexto = c.periodosDia.length > 3
+      ? `<div style="font-size:9px;color:var(--mu);margin-top:2px">+${c.periodosDia.length - 3} más</div>` : '';
+    return `<div style="min-height:60px;border:1px solid var(--bd);border-radius:4px;padding:4px;background:${bg}">
+      <div style="font-family:var(--mn);font-size:11px;color:${colorDia}">${c.d}</div>
+      ${trabajadoresHoy}${masTexto}
+    </div>`;
+  }).join('');
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">${cabecera}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${celdas}</div>
+    <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.5);border-radius:2px;vertical-align:middle"></span> Festivo</span>
+    </div>`;
+}
+
+function vacToggleArchivados() {
+  vacMostrarArchivados = !vacMostrarArchivados;
+  const btn = document.getElementById('vacBtnArchivados');
+  if (btn) btn.textContent = vacMostrarArchivados ? '👤 Ver activos' : '👁️ Ver archivados';
+  renderVac();
+}
+
+// === Modal trabajador ===
+function openTrabajadorModal(id) {
+  editTrabId = id || null;
+  const t = id ? vacTrabajadores.find(x => x.id === id) : null;
+  document.getElementById('trabModalTitulo').textContent = t ? 'EDITAR TRABAJADOR' : 'NUEVO TRABAJADOR';
+  const v = (k) => t ? esc(t[k] != null ? String(t[k]) : '') : '';
+  document.getElementById('trabModalFields').innerHTML = `
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">Nombre completo</label>
+      <input class="fi" id="trabF_nombre" value="${v('nombre')}" placeholder="Carlos Calderón">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">DNI/NIE</label><input class="fi" id="trabF_dni" value="${v('dni')}" placeholder="12345678X"></div>
+      <div class="fg"><label class="fl">Empresa</label>
+        <select class="fi" id="trabF_empresa">
+          <option value="">—</option>
+          <option value="TYP2014"${t?.empresa==='TYP2014'?' selected':''}>TYP2014</option>
+          <option value="HISPALIS"${t?.empresa==='HISPALIS'?' selected':''}>HISPALIS</option>
+          <option value="TRANSMARGAZ"${t?.empresa==='TRANSMARGAZ'?' selected':''}>TRANSMARGAZ</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Rol/Puesto</label><input class="fi" id="trabF_rol" value="${v('rol')}" placeholder="Conductor"></div>
+      <div class="fg"><label class="fl">Fecha alta</label><input class="fi" type="date" id="trabF_alta" value="${t?.fecha_alta || ''}"></div>
+    </div>
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
+      <input class="fi" id="trabF_notas" value="${v('notas')}" placeholder="opcional">
+    </div>`;
+  document.getElementById('btnDelTrab').style.display = (t && !t.archivado) ? '' : 'none';
+  document.getElementById('btnReactTrab').style.display = (t && t.archivado) ? '' : 'none';
+  document.getElementById('ovTrab').classList.add('open');
+}
+
+function closeTrabModal() {
+  document.getElementById('ovTrab').classList.remove('open');
+  editTrabId = null;
+}
+
+async function saveTrabModal() {
+  const nombre = (document.getElementById('trabF_nombre').value || '').trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const payload = {
+    nombre,
+    dni: (document.getElementById('trabF_dni').value || '').trim() || null,
+    empresa: document.getElementById('trabF_empresa').value || null,
+    rol: (document.getElementById('trabF_rol').value || '').trim() || null,
+    fecha_alta: document.getElementById('trabF_alta').value || null,
+    notas: (document.getElementById('trabF_notas').value || '').trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  try {
+    if (editTrabId) {
+      const { error } = await sb.from('trabajadores').update(payload).eq('id', editTrabId);
+      if (error) throw error;
+      toast('✓ Trabajador actualizado');
+    } else {
+      const { error } = await sb.from('trabajadores').insert(payload);
+      if (error) throw error;
+      toast('✓ Trabajador creado');
+    }
+    closeTrabModal();
+    await loadVacData();
+  } catch (e) {
+    console.error('[saveTrabModal] Error:', e);
+    toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
+  }
+}
+
+async function archivarTrabajador() {
+  if (!editTrabId) return;
+  const t = vacTrabajadores.find(x => x.id === editTrabId);
+  const motivo = prompt(`¿Motivo de baja para ${t?.nombre}?\n(voluntaria / despido / jubilacion / otro)`, 'voluntaria');
+  if (motivo === null) return;
+  try {
+    const { error } = await sb.from('trabajadores').update({
+      archivado: true,
+      fecha_baja: new Date().toISOString().slice(0, 10),
+      motivo_baja: motivo || null,
+      updated_at: new Date().toISOString()
+    }).eq('id', editTrabId);
+    if (error) throw error;
+    closeTrabModal();
+    await loadVacData();
+    toast('✓ Trabajador archivado (su historial se conserva)');
+  } catch (e) {
+    console.error('[archivarTrabajador] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+async function reactivarTrabajador() {
+  if (!editTrabId) return;
+  if (!confirm('¿Reactivar este trabajador?')) return;
+  try {
+    const { error } = await sb.from('trabajadores').update({
+      archivado: false,
+      fecha_baja: null,
+      motivo_baja: null,
+      updated_at: new Date().toISOString()
+    }).eq('id', editTrabId);
+    if (error) throw error;
+    closeTrabModal();
+    await loadVacData();
+    toast('✓ Trabajador reactivado');
+  } catch (e) {
+    console.error('[reactivarTrabajador] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+// === Modal periodo de vacaciones ===
+function openVacPeriodoModal(periodoId, trabajadorIdPrefill) {
+  editVacPerId = periodoId || null;
+  const p = periodoId ? vacPeriodos.find(x => x.id === periodoId) : null;
+  document.getElementById('vacPerModalTitulo').textContent = p ? 'EDITAR PERIODO' : 'NUEVO PERIODO';
+  // Trabajadores activos para el dropdown (si edita, incluir también archivados)
+  const trabsOpciones = vacTrabajadores
+    .filter(t => !t.archivado || (p && t.id === p.trabajador_id))
+    .map(t => {
+      const sel = (p && p.trabajador_id === t.id) || (trabajadorIdPrefill === t.id) ? ' selected' : '';
+      return `<option value="${t.id}"${sel}>${esc(t.nombre)}${t.archivado ? ' (archivado)' : ''}</option>`;
+    }).join('');
+  const v = (k) => p ? esc(p[k] != null ? String(p[k]) : '') : '';
+  const hoy = new Date().toISOString().slice(0, 10);
+  document.getElementById('vacPerModalFields').innerHTML = `
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">Trabajador</label>
+      <select class="fi" id="vacPerF_trab" ${p ? 'disabled' : ''}>
+        <option value="">— Elige trabajador —</option>
+        ${trabsOpciones}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Tipo</label>
+        <select class="fi" id="vacPerF_tipo" onchange="_vacPerRecalcular()">
+          <option value="vacaciones"${p?.tipo==='vacaciones'?' selected':''}>🏖️ Vacaciones</option>
+          <option value="asuntos_propios"${p?.tipo==='asuntos_propios'?' selected':''}>🎯 Asuntos propios</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Cómputo</label>
+        <select class="fi" id="vacPerF_computo" onchange="_vacPerRecalcular()">
+          <option value="naturales"${p?.computo==='naturales'?' selected':''}>⚖️ Días naturales</option>
+          <option value="laborables"${p?.computo==='laborables'?' selected':''}>💼 Días laborables</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Fecha inicio</label>
+        <input class="fi" type="date" id="vacPerF_inicio" value="${p?.fecha_inicio || hoy}" onchange="_vacPerRecalcular()">
+      </div>
+      <div class="fg"><label class="fl">Fecha fin</label>
+        <input class="fi" type="date" id="vacPerF_fin" value="${p?.fecha_fin || hoy}" onchange="_vacPerRecalcular()">
+      </div>
+    </div>
+    <div class="fg full" style="margin-bottom:10px;padding:10px;border:1px dashed var(--bd);border-radius:6px;background:rgba(255,255,255,.02)">
+      <div style="font-family:var(--mn);font-size:11px;color:var(--mu)">Días que descuenta:</div>
+      <div style="font-family:var(--mn);font-size:18px;color:var(--ac);font-weight:bold;margin-top:4px" id="vacPerF_calculo">—</div>
+    </div>
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">Observaciones</label>
+      <input class="fi" id="vacPerF_observaciones" value="${v('observaciones')}" placeholder="opcional">
+    </div>`;
+  document.getElementById('btnDelVacPer').style.display = p ? '' : 'none';
+  document.getElementById('ovVacPer').classList.add('open');
+  _vacPerRecalcular();
+}
+
+// Recalcula los días contados en el modal en tiempo real
+function _vacPerRecalcular() {
+  const inicio = document.getElementById('vacPerF_inicio')?.value;
+  const fin = document.getElementById('vacPerF_fin')?.value;
+  const computo = document.getElementById('vacPerF_computo')?.value;
+  const calc = document.getElementById('vacPerF_calculo');
+  if (!inicio || !fin || !calc) { if (calc) calc.textContent = '—'; return; }
+  if (new Date(fin) < new Date(inicio)) {
+    calc.textContent = '⚠️ La fecha fin no puede ser anterior';
+    calc.style.color = 'var(--er)';
+    return;
+  }
+  const dias = _vacContarDias(inicio, fin, computo);
+  calc.textContent = `${dias} día${dias===1?'':'s'} (${computo})`;
+  calc.style.color = 'var(--ac)';
+}
+
+function closeVacPerModal() {
+  document.getElementById('ovVacPer').classList.remove('open');
+  editVacPerId = null;
+}
+
+async function saveVacPerModal() {
+  const trabajador_id = document.getElementById('vacPerF_trab').value;
+  if (!trabajador_id) { toast('Elige un trabajador', 'err'); return; }
+  const tipo = document.getElementById('vacPerF_tipo').value;
+  const computo = document.getElementById('vacPerF_computo').value;
+  const fecha_inicio = document.getElementById('vacPerF_inicio').value;
+  const fecha_fin = document.getElementById('vacPerF_fin').value;
+  if (!fecha_inicio || !fecha_fin) { toast('Fechas obligatorias', 'err'); return; }
+  if (new Date(fecha_fin) < new Date(fecha_inicio)) { toast('La fecha fin no puede ser anterior', 'err'); return; }
+  const dias_contados = _vacContarDias(fecha_inicio, fecha_fin, computo);
+  if (dias_contados <= 0) { toast('El periodo cuenta 0 días — revisa fechas/cómputo', 'err'); return; }
+  const anio = parseInt(fecha_inicio.slice(0, 4));
+  const observaciones = (document.getElementById('vacPerF_observaciones').value || '').trim() || null;
+  // Validar saldo disponible (avisar pero no bloquear)
+  const saldo = _vacSaldoTrabajador(trabajador_id, anio);
+  const yaEnEste = editVacPerId
+    ? (vacPeriodos.find(p => p.id === editVacPerId)?.dias_contados || 0)
+    : 0;
+  const restantes = tipo === 'vacaciones'
+    ? saldo.vac_restantes + yaEnEste
+    : saldo.ap_restantes + yaEnEste;
+  if (dias_contados > restantes) {
+    const t = vacTrabajadores.find(x => x.id === trabajador_id);
+    if (!confirm(`⚠️ ${t?.nombre || ''} solo tiene ${restantes} día(s) ${tipo === 'vacaciones' ? 'de vacaciones' : 'de asuntos propios'} restantes en ${anio}. Vas a registrar ${dias_contados}. ¿Continuar?`)) return;
+  }
+  const payload = { trabajador_id, tipo, computo, fecha_inicio, fecha_fin, dias_contados, anio, observaciones, updated_at: new Date().toISOString() };
+  try {
+    if (editVacPerId) {
+      const { error } = await sb.from('vacaciones_periodos').update(payload).eq('id', editVacPerId);
+      if (error) throw error;
+      toast('✓ Periodo actualizado');
+    } else {
+      payload.user_id = currentUser.id;
+      const { error } = await sb.from('vacaciones_periodos').insert(payload);
+      if (error) throw error;
+      toast('✓ Periodo registrado');
+    }
+    closeVacPerModal();
+    await loadVacData();
+  } catch (e) {
+    console.error('[saveVacPerModal] Error:', e);
+    toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
+  }
+}
+
+async function deleteVacPer() {
+  if (!editVacPerId) return;
+  if (!confirm('¿Eliminar este periodo?\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('vacaciones_periodos').delete().eq('id', editVacPerId);
+    if (error) throw error;
+    closeVacPerModal();
+    await loadVacData();
+    toast('✓ Eliminado');
+  } catch (e) {
+    console.error('[deleteVacPer] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+// Vista de detalle de un trabajador: lista sus periodos del año
+function openVacTrabajadorDetalle(trabajadorId) {
+  const t = vacTrabajadores.find(x => x.id === trabajadorId);
+  if (!t) return;
+  const s = _vacSaldoTrabajador(trabajadorId, vacAnioActivo);
+  if (!s.periodos.length) {
+    if (confirm(`${t.nombre} no tiene periodos en ${vacAnioActivo}.\n\n¿Registrar uno nuevo?`)) {
+      openVacPeriodoModal(null, trabajadorId);
+    }
+    return;
+  }
+  const lines = s.periodos.map(p => {
+    const icon = p.tipo === 'vacaciones' ? '🏖️' : '🎯';
+    const computoIcon = p.computo === 'naturales' ? '⚖️' : '💼';
+    const fIni = p.fecha_inicio.split('-').reverse().join('/');
+    const fFin = p.fecha_fin.split('-').reverse().join('/');
+    return `${icon} ${computoIcon} ${fIni} → ${fFin} · ${p.dias_contados}d${p.observaciones ? ' · ' + p.observaciones : ''}`;
+  }).join('\n');
+  alert(`${t.nombre} · ${vacAnioActivo}\n\n🏖️ Vacaciones: ${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES} (${s.vac_restantes} rest.)\n🎯 Asuntos propios: ${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} (${s.ap_restantes} rest.)\n\nPERIODOS:\n${lines}\n\nPulsa los días en el calendario o "Registrar vacaciones" para añadir/editar.`);
 }
 
 // Init
