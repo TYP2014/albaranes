@@ -5981,13 +5981,12 @@ function fixDestino(d) {
 // v107W: lista CANÓNICA de clientes/compradores. Antes el campo cliente era libre y la app
 // guardaba lo que la IA detectara. Ahora hay una lista cerrada para admin/gestor en el modal
 // igual que proveedores. Si en el futuro hace falta un cliente nuevo, Juan Carlos lo añade aquí.
-// Comprende:
-//   - 5 nuevos clientes a los que TYP2014 emite factura por transportes (Mayo 2026)
-//   - Plantas hormigoneras que aparecen como "Cargador Contractual" / "Empresa Cargadora" en
-//     los albaranes habituales (Holcim, Cemex) — la IA suele ponerlas aquí cuando son
-//     clientes finales del transporte (no del material).
+// v107AC: ampliada con 10 clientes reales del grupo TYP2014/Hispalis/Transmargaz (Mayo 2026).
+// El concepto clave: CLIENTE = a quién FACTURAMOS transportes (lo que nos ingresa).
+// Esto NO descarta que también sean proveedores (caso típico: Holcim nos vende cemento Y nos
+// encarga transportes que les facturamos — son ambos roles a la vez).
 const CLIENTES_CANONICOS = [
-  // v107W: 5 razones sociales reales a las que TYP2014 emite factura por transportes
+  // === Grupo de subcontratistas a los que TYP2014 emite facturas por transportes ===
   { canon: 'Control Demeter, S.L.', alias: [
     'Control Demeter', 'CONTROL DEMETER', 'Control Demeter SL',
     'Control Demeter S.L.', 'CONTROL DEMETER, S.L.', 'CONTROL DEMETER SL'
@@ -6016,7 +6015,51 @@ const CLIENTES_CANONICOS = [
     'Transports Enric Rifé SL', 'Transports Enric Rifé, S.L.',
     'TRANSPORTS ENRIC RIFE SL', 'TRANSPORTS ENRIC RIFE, S.L.'
   ] },
-  // Plantas hormigoneras Holcim como clientes (cuando son el destinatario final del transporte)
+  // === v107AC: 2 nuevos clientes — empresas de gestión medioambiental / restauración ===
+  { canon: 'Centre de Gestió Mediambiental, S.L.', alias: [
+    'Centre de Gestio Mediambiental', 'Centre de Gestió Mediambiental',
+    'CENTRE DE GESTIÓ MEDIAMBIENTAL', 'CENTRE DE GESTIO MEDIAMBIENTAL',
+    'Centre Gestio Mediambiental', 'Centre Gestió Mediambiental',
+    'CENTRE DE GESTIO MEDIAMBIENTAL SL', 'Centre de Gestió Mediambiental SL',
+    'Centre Destio Mediambiental', 'Centre Destio Mediambental',
+    'Mediambiental', 'MEDIAMBIENTAL',
+    'C.G. Mediambiental', 'CG Mediambiental'
+  ] },
+  { canon: 'Pecop, Restauracions Arquitectòniques, S.L.', alias: [
+    'Pecop Restauracions Arquitectòniques', 'PECOP RESTAURACIONS ARQUITECTÒNIQUES',
+    'Pecop Restauracions Arquitectoniques', 'PECOP RESTAURACIONS ARQUITECTONIQUES',
+    'Pecop Restauracions', 'PECOP RESTAURACIONS',
+    'Pecop, Restauracions', 'PECOP, RESTAURACIONS',
+    'Pecop Arquitectòniques', 'Pecop Arquitectoniques',
+    'Pecop SL', 'Pecop S.L.', 'PECOP SL', 'PECOP S.L.',
+    'Pecop', 'PECOP',
+    'B43467968'  // NIF como alias por si la IA lee el NIF en vez del nombre
+  ] },
+  // === v107AC: grandes proveedores que TAMBIÉN son clientes (les facturamos transportes) ===
+  // Holcim: nos vende cemento Y nos encarga transportes hacia/desde sus plantas
+  { canon: 'Holcim España, S.A.U.', alias: [
+    'Holcim España', 'Holcim Espana', 'HOLCIM ESPAÑA',
+    'Holcim España SAU', 'Holcim España S.A.U.', 'HOLCIM ESPAÑA SAU',
+    'Holcim España, S.A.', 'Holcim España SA', 'HOLCIM ESPAÑA S.A.U.',
+    'Holcim', 'HOLCIM'
+  ] },
+  // Cemex: igual que Holcim, vende cemento y encarga transportes
+  { canon: 'Cemex España Operaciones, S.L.U.', alias: [
+    'Cemex España', 'Cemex España Operaciones',
+    'Cemex España Operaciones, S.L.U', 'Cemex Operaciones',
+    'CEMEX ESPAÑA', 'CEMEX ESPAÑA OPERACIONES',
+    'Cemex España S.L.U.', 'CEMEX ESPAÑA SLU',
+    'Cemex', 'CEMEX'
+  ] },
+  // Canteras Canro: cantera proveedora que también te encarga transportes
+  { canon: 'Canteras Canro, S.A.', alias: [
+    'Canteras Canro', 'CANTERAS CANRO',
+    'Canteras Canro SA', 'Canteras Canro S.A.',
+    'CANTERAS CANRO SA', 'CANTERAS CANRO S.A.',
+    'Cantera Canro', 'CANTERA CANRO',
+    'Canro', 'CANRO'
+  ] },
+  // === Plantas hormigoneras Holcim (cuando son destinatario final del transporte interno) ===
   { canon: 'Planta Hormigones Zona Franca', alias: [
     'PLANTA HORMIGONES ZONA FRANCA', 'Planta Hormigon Zona Franca',
     'Planta Hormigón Zona Franca', 'PH Zona Franca'
