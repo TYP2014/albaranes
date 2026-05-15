@@ -6039,32 +6039,6 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
-  // v107P: 5 orígenes NUEVOS de escombros (puntos donde se carga material reciclado / escombros)
-  // Añadidos al principio porque son orígenes específicos y deben coincidir antes que otros más genéricos
-  { canon: 'Escombros planta La Roca', alias: [
-    'Escombros La Roca', 'ESCOMBROS LA ROCA', 'PLANTA ESCOMBROS LA ROCA',
-    'Escombros La Roca del Vallès', 'Escombros La Roca del Valles',
-    'Planta escombros La Roca', 'Planta de escombros La Roca'
-  ] },
-  { canon: 'Escombros planta Zona Franca', alias: [
-    'Escombros Zona Franca', 'ESCOMBROS ZONA FRANCA',
-    'Planta escombros Zona Franca', 'Planta de escombros Zona Franca',
-    'Escombros ZF', 'PLANTA ESCOMBROS ZF'
-  ] },
-  { canon: 'Escombros planta Celra', alias: [
-    'Escombros Celra', 'Escombros Celrà', 'ESCOMBROS CELRA', 'ESCOMBROS CELRÀ',
-    'Planta escombros Celra', 'Planta escombros Celrà',
-    'Planta de escombros Celra', 'Planta de escombros Celrà'
-  ] },
-  { canon: 'Escombros Cemex Montcada', alias: [
-    'Escombros Cemex Montcada i Reixac', 'ESCOMBROS CEMEX MONTCADA',
-    'Cemex Escombros Montcada', 'Planta escombros Cemex Montcada'
-  ] },
-  { canon: 'Escombros Cemex Sant Just', alias: [
-    'Escombros Cemex Sant Just Desvern', 'Escombros Cemex St. Just',
-    'ESCOMBROS CEMEX SANT JUST', 'ESCOMBROS CEMEX SANT JUST DESVERN',
-    'Cemex Escombros Sant Just', 'Planta escombros Cemex Sant Just'
-  ] },
   // v107R: añadidos alias GARRAF ASLAND (cantera Asland antigua) y PUESTO EXP. GARRAF
   // (variantes que aparecían en albaranes históricos antes de canonizar)
   { canon: 'Cantera de Garraf', alias: [
@@ -6201,7 +6175,17 @@ const MATERIAL_A_ORIGEN = [
   { match: /[ÁA]RIDO\s+SIDER[ÚU]RGICO/i, origen: 'Adec/Vallirana' },
   // v99c: Árido reciclado (de Tecnocatalana de Runes, S.L.) → Tecnocatalana de Runes, S.L.
   // Antes el origen lo dejaba caer en otra rama; ahora aseguramos que ponga el nombre completo.
-  { match: /[ÁA]RIDO\s+RECICLADO/i, origen: 'Tecnocatalana de Runes, S.L.' }
+  { match: /[ÁA]RIDO\s+RECICLADO/i, origen: 'Tecnocatalana de Runes, S.L.' },
+  // v107R: ESCOMBROS — cuando el material del albarán indica una planta de escombros concreta,
+  // el origen es esa misma planta. Cliente típico HOLCIM, destino típico Puigfel/Rubi o Girona Runes.
+  // Cada regla cubre múltiples grafías (con/sin "planta", con/sin tildes, mayúsculas...).
+  // ORDEN IMPORTANTE: las más específicas primero (Zona Franca antes que La Roca para evitar
+  // ambigüedades; Cemex Sant Just antes que Sant Just suelto, etc.)
+  { match: /ESCOMBROS\s+(PLANTA\s+)?ZONA\s+FRANCA/i, origen: 'Planta Hormigones Zona Franca' },
+  { match: /ESCOMBROS\s+(PLANTA\s+)?CELR[AÀ]/i, origen: 'Celra' },
+  { match: /ESCOMBROS\s+CEMEX\s+MONTCADA/i, origen: 'Planta de Montcada' },
+  { match: /ESCOMBROS\s+CEMEX\s+SANT\s+JUST/i, origen: 'Sant Just Desvern' },
+  { match: /ESCOMBROS\s+(PLANTA\s+)?LA\s+ROCA/i, origen: 'La Roca' }
 ];
 
 // Si el producto identifica claramente la cantera de origen, devuélvela. Si no, null.
