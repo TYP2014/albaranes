@@ -6337,6 +6337,32 @@ function inferDestino(data) {
 
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
+  // v107O: 5 destinos NUEVOS de escombros (puntos limpios / plantas de reciclaje)
+  // Añadidos al principio porque son destinos específicos y deben coincidir antes que otros más genéricos
+  { canon: 'Escombros planta La Roca', alias: [
+    'Escombros La Roca', 'ESCOMBROS LA ROCA', 'PLANTA ESCOMBROS LA ROCA',
+    'Escombros La Roca del Vallès', 'Escombros La Roca del Valles',
+    'Planta escombros La Roca', 'Planta de escombros La Roca'
+  ] },
+  { canon: 'Escombros planta Zona Franca', alias: [
+    'Escombros Zona Franca', 'ESCOMBROS ZONA FRANCA',
+    'Planta escombros Zona Franca', 'Planta de escombros Zona Franca',
+    'Escombros ZF', 'PLANTA ESCOMBROS ZF'
+  ] },
+  { canon: 'Escombros planta Celra', alias: [
+    'Escombros Celra', 'Escombros Celrà', 'ESCOMBROS CELRA', 'ESCOMBROS CELRÀ',
+    'Planta escombros Celra', 'Planta escombros Celrà',
+    'Planta de escombros Celra', 'Planta de escombros Celrà'
+  ] },
+  { canon: 'Escombros Cemex Montcada', alias: [
+    'Escombros Cemex Montcada i Reixac', 'ESCOMBROS CEMEX MONTCADA',
+    'Cemex Escombros Montcada', 'Planta escombros Cemex Montcada'
+  ] },
+  { canon: 'Escombros Cemex Sant Just', alias: [
+    'Escombros Cemex Sant Just Desvern', 'Escombros Cemex St. Just',
+    'ESCOMBROS CEMEX SANT JUST', 'ESCOMBROS CEMEX SANT JUST DESVERN',
+    'Cemex Escombros Sant Just', 'Planta escombros Cemex Sant Just'
+  ] },
   // Fábrica Montcada: planta de Holcim que recibe materias primas (yeso, calizas externas,
   // árido siderúrgico, arcillas, arena, árido reciclado). Destino fijo de albaranes de RECEPCIÓN.
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada'] },
