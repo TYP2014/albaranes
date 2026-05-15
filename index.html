@@ -799,11 +799,18 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <!-- Calendario mensual visual -->
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--pu)"></div>CALENDARIO MENSUAL</div>
-          <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px">
-            <button class="btn bs" onclick="vacCambiarMes(-1)" style="padding:4px 8px;font-size:11px">◀</button>
-            <span id="vacMesTitulo" style="min-width:130px;text-align:center;color:var(--ac)">—</span>
-            <button class="btn bs" onclick="vacCambiarMes(1)" style="padding:4px 8px;font-size:11px">▶</button>
+          <div class="st"><div class="dot" style="--c:var(--pu)"></div><span id="vacCalTit">CALENDARIO MENSUAL</span></div>
+          <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px;flex-wrap:wrap">
+            <!-- v107X: toggle Mes/Año para ver vacaciones de todo el año de un vistazo -->
+            <div style="display:flex;gap:4px;margin-right:8px;border:1px solid var(--bd);border-radius:4px;padding:2px">
+              <button class="btn bp" id="vacBtnVistaMes" onclick="vacCambiarVista('mes')" style="padding:3px 8px;font-size:10px">Mes</button>
+              <button class="btn bs" id="vacBtnVistaAnio" onclick="vacCambiarVista('anio')" style="padding:3px 8px;font-size:10px">Año</button>
+            </div>
+            <div id="vacNavMes" style="display:flex;gap:6px;align-items:center">
+              <button class="btn bs" onclick="vacCambiarMes(-1)" style="padding:4px 8px;font-size:11px">◀</button>
+              <span id="vacMesTitulo" style="min-width:130px;text-align:center;color:var(--ac)">—</span>
+              <button class="btn bs" onclick="vacCambiarMes(1)" style="padding:4px 8px;font-size:11px">▶</button>
+            </div>
           </div>
         </div>
         <div class="card-bd" id="vacCalendarioBox" style="overflow-x:auto">
@@ -7779,6 +7786,7 @@ let vacFestivos = [];          // calendario de festivos
 let vacMostrarArchivados = false;
 let vacAnioActivo = new Date().getFullYear();
 let vacMesCalendario = new Date();    // mes mostrado en el calendario visual
+let vacVistaCalendario = 'mes';        // v107X: 'mes' o 'anio'
 let vacEmpresaActiva = 'TYP2014';     // v107N: subpestaña activa (TYP2014/HISPALIS/TRANSMARGAZ)
 let editTrabId = null;
 let editVacPerId = null;
@@ -7962,13 +7970,40 @@ function renderVac() {
   _vacRenderCalendario();
 }
 
-// === Calendario mensual visual ===
+// === Calendario visual de vacaciones ===
 function vacCambiarMes(delta) {
   vacMesCalendario.setMonth(vacMesCalendario.getMonth() + delta);
   _vacRenderCalendario();
 }
 
+// v107X: alternar entre vista mensual y anual (12 mini-calendarios)
+function vacCambiarVista(vista) {
+  vacVistaCalendario = vista;
+  const btnMes = document.getElementById('vacBtnVistaMes');
+  const btnAnio = document.getElementById('vacBtnVistaAnio');
+  const nav = document.getElementById('vacNavMes');
+  const tit = document.getElementById('vacCalTit');
+  if (btnMes && btnAnio) {
+    btnMes.classList.toggle('bp', vista === 'mes');
+    btnMes.classList.toggle('bs', vista !== 'mes');
+    btnAnio.classList.toggle('bp', vista === 'anio');
+    btnAnio.classList.toggle('bs', vista !== 'anio');
+  }
+  // En vista año, ocultar la navegación de mes y cambiar título
+  if (nav) nav.style.display = vista === 'mes' ? 'flex' : 'none';
+  if (tit) tit.textContent = vista === 'mes' ? 'CALENDARIO MENSUAL' : 'CALENDARIO ANUAL';
+  _vacRenderCalendario();
+}
+
 function _vacRenderCalendario() {
+  if (vacVistaCalendario === 'anio') {
+    _vacRenderCalendarioAnio();
+  } else {
+    _vacRenderCalendarioMes();
+  }
+}
+
+function _vacRenderCalendarioMes() {
   const mes = vacMesCalendario.getMonth();
   const anio = vacMesCalendario.getFullYear();
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -8028,6 +8063,83 @@ function _vacRenderCalendario() {
       <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.5);border-radius:2px;vertical-align:middle"></span> Festivo</span>
+    </div>`;
+}
+
+// v107X: vista AÑO COMPLETO. 12 mini-calendarios para previsión visual rápida.
+// Cada día tiene un fondo coloreado según haya vacaciones/asuntos propios/festivo.
+// Solo muestra los datos del año seleccionado en vacAnioActivo y de la empresa activa.
+function _vacRenderCalendarioAnio() {
+  const anio = vacAnioActivo || new Date().getFullYear();
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  // Pre-calcular periodos válidos para esta empresa
+  const periodosEmpresa = vacPeriodos.filter(p => {
+    const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+    if (!t) return false;
+    return t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
+  });
+  // Renderizar cada mes como mini-card
+  const mesesHTML = [];
+  for (let m = 0; m < 12; m++) {
+    const diasMes = new Date(anio, m + 1, 0).getDate();
+    const primerDia = new Date(anio, m, 1).getDay();
+    const offset = primerDia === 0 ? 6 : primerDia - 1;
+    const cabeceraMini = ['L','M','X','J','V','S','D'].map(d =>
+      `<div style="text-align:center;font-family:var(--mn);font-size:8px;color:var(--mu);padding:1px 0">${d}</div>`
+    ).join('');
+    const celdasMini = [];
+    for (let i = 0; i < offset; i++) celdasMini.push('<div></div>');
+    for (let d = 1; d <= diasMes; d++) {
+      const fechaStr = `${anio}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const fechaObj = new Date(fechaStr + 'T00:00:00');
+      const dow = fechaObj.getDay();
+      const esFinde = dow === 0 || dow === 6;
+      const esFestivo = _vacEsFestivo(fechaStr);
+      const esHoy = fechaStr === hoyStr;
+      // ¿Hay periodos activos este día?
+      const periodosDia = periodosEmpresa.filter(p => p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr);
+      const hayVac = periodosDia.some(p => p.tipo !== 'asuntos_propios');
+      const hayAP = periodosDia.some(p => p.tipo === 'asuntos_propios');
+      let bg = 'transparent';
+      if (hayVac && hayAP) bg = 'linear-gradient(135deg,#34d399 50%,#a78bfa 50%)';
+      else if (hayVac) bg = '#34d399';
+      else if (hayAP) bg = '#a78bfa';
+      else if (esFestivo) bg = 'rgba(255,80,80,.3)';
+      else if (esFinde) bg = 'rgba(255,255,255,.04)';
+      let color = (hayVac || hayAP) ? '#000' : (esFestivo ? 'var(--er)' : (esFinde ? 'var(--mu)' : 'var(--fg)'));
+      const borde = esHoy ? 'border:1.5px solid var(--ac)' : '';
+      const tooltip = periodosDia.length
+        ? periodosDia.map(p => {
+            const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+            return `${t?.nombre || '?'} (${p.tipo === 'asuntos_propios' ? 'AP' : 'Vac'})`;
+          }).join(', ')
+        : (esFestivo ? 'Festivo' : '');
+      // Click para abrir periodo si hay uno
+      const onclick = periodosDia.length === 1
+        ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" style="cursor:pointer"` : '';
+      celdasMini.push(`<div title="${esc(tooltip)}" ${onclick} style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:9px;color:${color};background:${bg};border-radius:2px;${borde}">${d}</div>`);
+    }
+    mesesHTML.push(`
+      <div style="border:1px solid var(--bd);border-radius:6px;padding:8px;background:rgba(255,255,255,.01)">
+        <div style="font-family:var(--mn);font-size:11px;color:var(--ac);text-align:center;margin-bottom:6px">${meses[m]} ${anio}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">${cabeceraMini}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${celdasMini.join('')}</div>
+      </div>
+    `);
+  }
+  const box = document.getElementById('vacCalendarioBox');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      ${mesesHTML.join('')}
+    </div>
+    <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.3);border-radius:2px;vertical-align:middle"></span> Festivo</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border:1.5px solid var(--ac);border-radius:2px;vertical-align:middle"></span> Hoy</span>
     </div>`;
 }
 
