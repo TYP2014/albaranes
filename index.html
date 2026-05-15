@@ -3907,11 +3907,13 @@ function openModal(id) {
     // v107i: Proveedor / Origen / Destino como SELECT cerrado para admin y gestor.
     // Si en el futuro hay que añadir un proveedor/origen/destino nuevo, Juan Carlos avisa
     // y se añade a la lista CANONICOS correspondiente — NO se permite escribir libre aquí.
-    if ((f.k === 'proveedor' || f.k === 'planta' || f.k === 'obra')
+    // v107W: añadido cliente/comprador con misma lógica (CLIENTES_CANONICOS).
+    if ((f.k === 'proveedor' || f.k === 'planta' || f.k === 'obra' || f.k === 'cliente')
         && (currentRole === 'admin' || currentRole === 'gestor')) {
       const lista = f.k === 'proveedor' ? PROVEEDORES_CANONICOS
                   : f.k === 'planta'    ? ORIGENES_CANONICOS
-                  :                       DESTINOS_CANONICOS;
+                  : f.k === 'obra'      ? DESTINOS_CANONICOS
+                  :                       CLIENTES_CANONICOS;
       // Solo los nombres canónicos (sin alias) ordenados alfabéticamente en español
       const oficiales = lista.map(x => x.canon).sort((a, b) => a.localeCompare(b, 'es'));
       const valActual = r[f.k] || '';
@@ -3953,6 +3955,7 @@ async function saveModal() {
       if (f.k === 'proveedor') newVal = matchExacto(newVal, PROVEEDORES_CANONICOS) || newVal;
       else if (f.k === 'planta') newVal = matchExacto(newVal, ORIGENES_CANONICOS) || newVal;
       else if (f.k === 'obra') newVal = matchExacto(newVal, DESTINOS_CANONICOS) || newVal;
+      else if (f.k === 'cliente') newVal = matchExacto(newVal, CLIENTES_CANONICOS) || newVal;
       // v107U: quitada la canonización automática de matrícula al guardar manualmente.
       // El problema: fixMatricula busca variantes ortográficas (cambia W↔N, I↔1, etc.) y si
       // alguna variante coincide con una matrícula oficial, devuelve esa, pisando lo que el
@@ -5871,6 +5874,56 @@ function fixDestino(d) {
   return _matchDestino(d);
 }
 
+// v107W: lista CANÓNICA de clientes/compradores. Antes el campo cliente era libre y la app
+// guardaba lo que la IA detectara. Ahora hay una lista cerrada para admin/gestor en el modal
+// igual que proveedores. Si en el futuro hace falta un cliente nuevo, Juan Carlos lo añade aquí.
+// Comprende:
+//   - 5 nuevos clientes a los que TYP2014 emite factura por transportes (Mayo 2026)
+//   - Plantas hormigoneras que aparecen como "Cargador Contractual" / "Empresa Cargadora" en
+//     los albaranes habituales (Holcim, Cemex) — la IA suele ponerlas aquí cuando son
+//     clientes finales del transporte (no del material).
+const CLIENTES_CANONICOS = [
+  // v107W: 5 razones sociales reales a las que TYP2014 emite factura por transportes
+  { canon: 'Control Demeter, S.L.', alias: [
+    'Control Demeter', 'CONTROL DEMETER', 'Control Demeter SL',
+    'Control Demeter S.L.', 'CONTROL DEMETER, S.L.', 'CONTROL DEMETER SL'
+  ] },
+  { canon: 'Llantada e Hijos, S.L.', alias: [
+    'Llantada e Hijos', 'LLANTADA E HIJOS', 'Llantada e Hijos SL',
+    'Llantada Hijos', 'LLANTADA E HIJOS, S.L.', 'LLANTADA E HIJOS SL',
+    'Llantada', 'LLANTADA'
+  ] },
+  { canon: 'OP Trans Vallés, S.L.', alias: [
+    'OP Trans Vallés', 'OP TRANS VALLÉS', 'OP TRANS VALLES',
+    'OP Trans Valles', 'Op Trans Vallés', 'Op Trans Valles',
+    'OP TRANS VALLES SL', 'OP TRANS VALLES, S.L.', 'OP Trans Vallés SL',
+    'OPTRANS VALLES', 'Optrans Valles'
+  ] },
+  { canon: 'Transports Satig 79, S.L.', alias: [
+    'Transports Satig 79', 'TRANSPORTS SATIG 79', 'Satig 79',
+    'SATIG 79', 'T. Satig 79', 'T. SATIG 79',
+    'Transports Satig 79 SL', 'TRANSPORTS SATIG 79 SL',
+    'TRANSPORTS SATIG 79, S.L.', 'Satig', 'SATIG'
+  ] },
+  { canon: 'Transports Enric Rifé, S.L.', alias: [
+    'Transports Enric Rifé', 'TRANSPORTS ENRIC RIFÉ',
+    'Transports Enric Rife', 'TRANSPORTS ENRIC RIFE',
+    'Enric Rifé', 'ENRIC RIFÉ', 'Enric Rife', 'ENRIC RIFE',
+    'Transports Enric Rifé SL', 'Transports Enric Rifé, S.L.',
+    'TRANSPORTS ENRIC RIFE SL', 'TRANSPORTS ENRIC RIFE, S.L.'
+  ] },
+  // Plantas hormigoneras Holcim como clientes (cuando son el destinatario final del transporte)
+  { canon: 'Planta Hormigones Zona Franca', alias: [
+    'PLANTA HORMIGONES ZONA FRANCA', 'Planta Hormigon Zona Franca',
+    'Planta Hormigón Zona Franca', 'PH Zona Franca'
+  ] },
+  { canon: 'Planta Hormigones Montcada', alias: [
+    'PLANTA HORMIGONES MONTCADA', 'Planta Hormigon Montcada',
+    'Planta Hormigón Montcada', 'PH Montcada', 'Montcada (Hormig)',
+    'Montcada Hormig'
+  ] }
+];
+
 // fixCliente: canoniza variantes OCR de plantas conocidas en el campo COMPRADOR/CLIENTE.
 // Pilla "Planta Horígenes Zona Franca", "Planta Hormagones Zona Franca", "Planta Hormoigones..."
 // y similares OCR-mal-leídos, y los unifica al nombre oficial.
@@ -5883,6 +5936,15 @@ function fixCliente(c) {
   // o variantes, lo borramos (era confusión OCR del campo "Operador logístico").
   if (/TRANSPORTES?\s+Y\s+PORTES\s+2014/i.test(u) || /PORTES\s+2014\s+IMPORT/i.test(u)) {
     return null;
+  }
+  // v107W: intentar canonizar contra CLIENTES_CANONICOS (match contra canon o alias normalizado)
+  const norm = (s) => String(s||'').toUpperCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+  const cn = norm(c);
+  for (const cli of CLIENTES_CANONICOS) {
+    if (norm(cli.canon) === cn) return cli.canon;
+    for (const al of (cli.alias || [])) {
+      if (norm(al) === cn) return cli.canon;
+    }
   }
   // Patrón flexible: "PLANTA HOR<cualquier cosa> ZONA FRANCA" → forma canónica
   if (/^PLANTA\s+HOR\S*\s*ZONA\s+FRANCA/i.test(u)) return 'Planta Hormigones Zona Franca';
