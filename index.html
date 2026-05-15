@@ -419,6 +419,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   <div id="adminView" style="display:none">
     <div class="tabs">
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
+      <!-- v107V: Subir movida junto a Albaranes — más cómodo el flujo subir → ver albaranes -->
+      <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
       <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
@@ -432,7 +434,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
       <div class="tab" id="tabProduccion" onclick="switchTab('produccion')" style="display:none">📊 Producción</div>
-      <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
       <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">⚙️ Usuarios</div>
     </div>
 
@@ -6452,6 +6453,19 @@ const DESTINOS_CANONICOS = [
     'GIRONA RUNES', 'Girona runes', 'girona runes',
     'GIRONARUNES', 'GironaRunes',
     'Runes Girona', 'RUNES GIRONA'
+  ] },
+  // v107V: CANTERA BEGUES/CEMEX como DESTINO (ya existía como origen).
+  // Para albaranes donde se transporta material HACIA la cantera Cemex de Begues
+  // (rellenos, escombros para reciclar, etc.). Misma grafía y alias que el origen.
+  { canon: 'CANTERA BEGUES/CEMEX', alias: [
+    'CANTERA BEGUES', 'Cantera BEGUES', 'Cantera Begues', 'cantera begues',
+    'Cantera de Begues', 'CANTERA DE BEGUES', 'Cantera-Begues',
+    'Cemex/Begues', 'CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES',
+    'Cemex Begues', 'CEMEX BEGUES',
+    'BEGUES/CANTERA CEMEX', 'Begues/Cantera Cemex',
+    'BEGUES/CEMEX', 'Begues/Cemex',
+    'Begues', 'BEGUES', 'begues',
+    'Cemex Begues Cantera', 'CEMEX BEGUES CANTERA'
   ] },
   // Fábrica Montcada: planta de Holcim que recibe materias primas (yeso, calizas externas,
   // árido siderúrgico, arcillas, arena, árido reciclado). Destino fijo de albaranes de RECEPCIÓN.
