@@ -6039,6 +6039,39 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
+  // v107T: 5 plantas Holcim/Cemex añadidas como orígenes (antes solo eran destinos).
+  // Necesarias para registrar transportes que SALEN de estas plantas (ej. escombros hacia
+  // vertedero Puigfel/Rubi o Girona Runes; también servicios y traslados internos).
+  // Comparten nombre con los destinos canónicos para mantener la coherencia.
+  { canon: 'Planta de Montcada', alias: [
+    'Planta Hormigones Montcada', 'Planta Hormigon Montcada', 'PH Montcada',
+    'Planta Hormig\u00f3n Montcada', 'PLANTA DE MONTCADA',
+    'Planta hormigon Montcada', 'Planta Hormigones Montcada (Hormig)'
+  ] },
+  { canon: 'Planta Hormigones Zona Franca', alias: [
+    'PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF',
+    'PLANTA HORMIGONES ZONA FRANCA', 'Planta hormigones Zona Franca',
+    'Planta Hormig\u00f3n Zona Franca', 'Planta Horigon Zona Franca'
+  ] },
+  { canon: 'Sant Just Desvern', alias: [
+    'Sant Just', 'St. Just Desvern', 'St Just Desvern',
+    'SANT JUST DESVERN', 'Sant just Desvern',
+    'Sant Just Devern', 'SANT JUST DEVERN',                  // typo OCR común (pierde la S)
+    'Hormig\u00f3n Sant Just', 'Hormigon Sant Just',
+    'Planta Sant Just', 'PLANTA SANT JUST'
+  ] },
+  { canon: 'Celra', alias: [
+    'Celr\u00e0', 'CELRA', 'CELR\u00c0',
+    'Planta Celra', 'Planta Celr\u00e0', 'PLANTA CELRA', 'PLANTA CELR\u00c0',
+    'Planta de Celra', 'Planta de Celr\u00e0',
+    'Planta Hormig\u00f3n Celra', 'Planta Hormig\u00f3n Celr\u00e0',
+    '17460 Celra', '17460 Celr\u00e0'
+  ] },
+  { canon: 'La Roca', alias: [
+    'La Roca del Vall\u00e8s', 'La Roca del Valles', 'LA ROCA DEL VALL\u00c8S', 'LA ROCA DEL VALLES',
+    'LA ROCA', 'la roca', 'Font Parera', 'P I Font Parera',
+    'Planta La Roca', 'PLANTA LA ROCA', 'Planta de La Roca'
+  ] },
   // v107R: añadidos alias GARRAF ASLAND (cantera Asland antigua) y PUESTO EXP. GARRAF
   // (variantes que aparecían en albaranes históricos antes de canonizar)
   { canon: 'Cantera de Garraf', alias: [
@@ -6081,7 +6114,11 @@ const ORIGENES_CANONICOS = [
     'CANTERA BAGUES', 'Cantera Bagues',          // typo OCR común
     'Cemex/Begues', 'CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES',
     'Cemex Begues', 'CEMEX BEGUES',
-    'Cemex', 'CEMEX'                              // Cemex a secas → siempre Begues según Juan Carlos
+    'Cemex', 'CEMEX',                             // Cemex a secas → siempre Begues según Juan Carlos
+    // v107S: añadidas variantes con el orden invertido "Begues/Cantera Cemex"
+    'BEGUES/CANTERA CEMEX', 'Begues/Cantera Cemex', 'begues/cantera cemex',
+    'BEGUES/CEMEX', 'Begues/Cemex', 'begues/cemex',
+    'Begues Cantera Cemex', 'BEGUES CANTERA CEMEX'
   ] },
   // v107N: Cantera Las Iglas → alias de Jorba (Juan Carlos confirma: son albaranes de yeso de Jorba)
   { canon: 'Jorba', alias: [
