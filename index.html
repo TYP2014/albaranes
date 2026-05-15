@@ -510,9 +510,18 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 
     <!-- TAB GASOIL -->
     <div id="tabContentGas" class="wrap" style="display:none">
+
+      <!-- v107Y: Subpestañas por empresa (filtrado por matrícula). Misma lógica de privacidad
+           que Vacaciones: admin/Maria ven TYP2014+HISPALIS, Transmargaz solo la suya. -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="gasSubtabs">
+        <button class="btn bp" id="gasSubTYP2014" onclick="switchGasEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
+        <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:11px">🚚 T. HISPALIS 2016</button>
+        <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
+      </div>
+
       <div class="card">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL</div>
+          <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts">
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
           </div>
@@ -1022,6 +1031,8 @@ let userMap = {};
 let gasoilRecords = [];
 let filtered = [];
 let filteredGas = [];
+// v107Y: subpestaña de empresa activa en Gasoil (TYP2014/HISPALIS/TRANSMARGAZ)
+let gasEmpresaActiva = 'TYP2014';
 let pendingAlb = [];
 let pendingGas = [];
 // v84: orden por defecto = 'created_at' descendente (lo más recién subido arriba).
@@ -1305,6 +1316,35 @@ async function loadData() {
     if (fromG > 50000) break;
   }
   gasoilRecords = allGas.map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
+
+  // v107Y: ajustar subpestañas visibles de Gasoil según permisos (misma lógica que Vacaciones).
+  // window._empresaVac viene de loadUserMap, contiene la lista de empresas permitidas.
+  try {
+    const empresasGasPermitidas = window._empresaVac
+      ? window._empresaVac.split(',').map(s => s.trim())
+      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+    ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+      const btn = document.getElementById('gasSub' + emp);
+      if (btn) btn.style.display = empresasGasPermitidas.includes(emp) ? '' : 'none';
+    });
+    // Si la empresa activa no está permitida, cambiar a la primera permitida
+    if (!empresasGasPermitidas.includes(gasEmpresaActiva)) {
+      gasEmpresaActiva = empresasGasPermitidas[0] || 'TYP2014';
+    }
+    // Asegurar visual correcto del botón activo
+    empresasGasPermitidas.forEach(e => {
+      const btn = document.getElementById('gasSub' + e);
+      if (!btn) return;
+      btn.classList.remove('bp','bs');
+      btn.classList.add(e === gasEmpresaActiva ? 'bp' : 'bs');
+    });
+    // Título inicial
+    const tit = document.getElementById('gasEmpresaTitulo');
+    if (tit) {
+      const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+      tit.textContent = labels[gasEmpresaActiva] || gasEmpresaActiva;
+    }
+  } catch (e) { console.warn('[loadData] No se pudieron ajustar subpestañas Gasoil:', e); }
 
   analyzeRecords();
   applyFilters();
@@ -3409,8 +3449,49 @@ function applyFilters() {
 }
 
 function applyGasFilters() {
-  filteredGas = [...gasoilRecords];
+  // v107Y: filtrar por empresa activa según la matrícula del vehículo.
+  // Aprovecha el mapa TRANSPORTISTAS (matrícula → transportista oficial) que ya existe.
+  // Matrículas de remolques que empiezan por R suelen ser de Transmargaz.
+  // Si no hay matrícula o no está mapeada → solo se ve en TYP2014 (por defecto).
+  const empresaCanonica = {
+    'TYP2014': 'TYP2014',
+    'HISPALIS': 'TTES HISPALIS 2016',
+    'TRANSMARGAZ': 'TRANSMARGAZ 2018'
+  }[gasEmpresaActiva] || 'TYP2014';
+  filteredGas = gasoilRecords.filter(r => {
+    const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+    if (!mat) return gasEmpresaActiva === 'TYP2014';  // sin matrícula → default TYP2014
+    // Buscar en mapa TRANSPORTISTAS (puede contener variantes con/sin guión)
+    const transp = TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora];
+    if (transp) return transp === empresaCanonica;
+    // Si no está en el mapa, mostrar solo en TYP2014 (default) para que no se pierdan
+    return gasEmpresaActiva === 'TYP2014';
+  });
   renderGasTable();
+}
+
+// v107Y: cambiar de subpestaña de empresa en Gasoil
+function switchGasEmpresa(emp) {
+  const empresasPermitidas = window._empresaVac
+    ? window._empresaVac.split(',').map(s => s.trim())
+    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+  if (!empresasPermitidas.includes(emp)) {
+    toast('No tienes permiso para esa empresa', 'err');
+    return;
+  }
+  gasEmpresaActiva = emp;
+  ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(e => {
+    const btn = document.getElementById('gasSub' + e);
+    if (!btn) return;
+    btn.classList.remove('bp','bs');
+    btn.classList.add(e === emp ? 'bp' : 'bs');
+  });
+  const tit = document.getElementById('gasEmpresaTitulo');
+  if (tit) {
+    const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+    tit.textContent = labels[emp] || emp;
+  }
+  applyGasFilters();
 }
 
 function resetFilters() { 
