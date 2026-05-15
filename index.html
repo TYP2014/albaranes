@@ -813,8 +813,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="st"><div class="dot" style="--c:var(--pu)"></div><span id="vacCalTit">CALENDARIO MENSUAL</span></div>
           <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px;flex-wrap:wrap">
             <!-- v107X: toggle Mes/Año para ver vacaciones de todo el año de un vistazo -->
+            <!-- v107AA: añadida vista 3 meses (intermedia: ver trimestre detallado) -->
             <div style="display:flex;gap:4px;margin-right:8px;border:1px solid var(--bd);border-radius:4px;padding:2px">
               <button class="btn bp" id="vacBtnVistaMes" onclick="vacCambiarVista('mes')" style="padding:3px 8px;font-size:10px">Mes</button>
+              <button class="btn bs" id="vacBtnVista3m" onclick="vacCambiarVista('3meses')" style="padding:3px 8px;font-size:10px">3 meses</button>
               <button class="btn bs" id="vacBtnVistaAnio" onclick="vacCambiarVista('anio')" style="padding:3px 8px;font-size:10px">Año</button>
             </div>
             <div id="vacNavMes" style="display:flex;gap:6px;align-items:center">
@@ -8075,27 +8077,39 @@ function vacCambiarMes(delta) {
 }
 
 // v107X: alternar entre vista mensual y anual (12 mini-calendarios)
+// v107AA: añadida vista 3 meses (anterior + actual + siguiente)
 function vacCambiarVista(vista) {
   vacVistaCalendario = vista;
   const btnMes = document.getElementById('vacBtnVistaMes');
+  const btn3m = document.getElementById('vacBtnVista3m');
   const btnAnio = document.getElementById('vacBtnVistaAnio');
   const nav = document.getElementById('vacNavMes');
   const tit = document.getElementById('vacCalTit');
   if (btnMes && btnAnio) {
     btnMes.classList.toggle('bp', vista === 'mes');
     btnMes.classList.toggle('bs', vista !== 'mes');
+    if (btn3m) {
+      btn3m.classList.toggle('bp', vista === '3meses');
+      btn3m.classList.toggle('bs', vista !== '3meses');
+    }
     btnAnio.classList.toggle('bp', vista === 'anio');
     btnAnio.classList.toggle('bs', vista !== 'anio');
   }
-  // En vista año, ocultar la navegación de mes y cambiar título
-  if (nav) nav.style.display = vista === 'mes' ? 'flex' : 'none';
-  if (tit) tit.textContent = vista === 'mes' ? 'CALENDARIO MENSUAL' : 'CALENDARIO ANUAL';
+  // Navegación de mes visible en vistas Mes y 3 meses (no en Año)
+  if (nav) nav.style.display = vista === 'anio' ? 'none' : 'flex';
+  // Título adaptado a cada vista
+  if (tit) {
+    const titulos = { 'mes': 'CALENDARIO MENSUAL', '3meses': 'CALENDARIO 3 MESES', 'anio': 'CALENDARIO ANUAL' };
+    tit.textContent = titulos[vista] || 'CALENDARIO';
+  }
   _vacRenderCalendario();
 }
 
 function _vacRenderCalendario() {
   if (vacVistaCalendario === 'anio') {
     _vacRenderCalendarioAnio();
+  } else if (vacVistaCalendario === '3meses') {
+    _vacRenderCalendario3Meses();
   } else {
     _vacRenderCalendarioMes();
   }
@@ -8176,6 +8190,117 @@ function _vacRenderCalendarioMes() {
       <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.5);border-radius:2px;vertical-align:middle"></span> Festivo</span>
+    </div>`;
+}
+
+// v107AA: vista 3 MESES. Muestra el mes anterior + el actual + el siguiente lado a lado.
+// Tamaño intermedio entre vista Mes (1 grande) y vista Año (12 mini). Ideal para
+// planificar verano (jun-jul-ago) o Navidad (dic-ene-feb) con detalle medio.
+// Usa el botón ◀▶ para navegar moviendo el "centro" del trío de meses.
+function _vacRenderCalendario3Meses() {
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  // Centro = vacMesCalendario; lados = mes anterior y siguiente
+  const centroMes = vacMesCalendario.getMonth();
+  const centroAnio = vacMesCalendario.getFullYear();
+  const titulo = document.getElementById('vacMesTitulo');
+  if (titulo) {
+    const antMes = new Date(centroAnio, centroMes - 1, 1);
+    const sigMes = new Date(centroAnio, centroMes + 1, 1);
+    titulo.textContent = `${meses[antMes.getMonth()].slice(0,3)} · ${meses[centroMes]} ${centroAnio} · ${meses[sigMes.getMonth()].slice(0,3)}`;
+  }
+  // Pre-filtrar periodos por empresa activa
+  const periodosEmpresa = vacPeriodos.filter(p => {
+    const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+    if (!t) return false;
+    return t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
+  });
+  // Colores por tipo (mismo esquema que en mes y año)
+  const tipoColor = {
+    'vacaciones': '#34d399',
+    'asuntos_propios': '#a78bfa',
+    'baja_medica': '#fbbf24',
+    'permiso_retribuido': '#60a5fa',
+    'falta_injustificada': '#ef4444'
+  };
+  const tipoLabel = {
+    'vacaciones': 'Vac', 'asuntos_propios': 'AP',
+    'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
+  };
+  // Renderizar cada uno de los 3 meses (offset: -1, 0, +1)
+  const mesesHTML = [];
+  for (let off = -1; off <= 1; off++) {
+    const fecha = new Date(centroAnio, centroMes + off, 1);
+    const m = fecha.getMonth();
+    const a = fecha.getFullYear();
+    const diasMes = new Date(a, m + 1, 0).getDate();
+    const primerDia = fecha.getDay();
+    const offset = primerDia === 0 ? 6 : primerDia - 1;
+    const cabecera = ['L','M','X','J','V','S','D'].map(d =>
+      `<div style="text-align:center;font-family:var(--mn);font-size:10px;color:var(--mu);padding:3px 0">${d}</div>`
+    ).join('');
+    const celdas = [];
+    for (let i = 0; i < offset; i++) celdas.push('<div></div>');
+    for (let d = 1; d <= diasMes; d++) {
+      const fechaStr = `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const fechaObj = new Date(fechaStr + 'T00:00:00');
+      const dow = fechaObj.getDay();
+      const esFinde = dow === 0 || dow === 6;
+      const esFestivo = _vacEsFestivo(fechaStr);
+      const esHoy = fechaStr === hoyStr;
+      const periodosDia = periodosEmpresa.filter(p => p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr);
+      // Color de fondo según periodo(s)
+      let bg = 'transparent';
+      if (periodosDia.length === 1) bg = tipoColor[periodosDia[0].tipo] || '#34d399';
+      else if (periodosDia.length > 1) {
+        const c1 = tipoColor[periodosDia[0].tipo] || '#34d399';
+        const c2 = tipoColor[periodosDia[1].tipo] || '#a78bfa';
+        bg = `linear-gradient(135deg,${c1} 50%,${c2} 50%)`;
+      } else if (esFestivo) bg = 'rgba(255,80,80,.18)';
+      else if (esFinde) bg = 'rgba(255,255,255,.04)';
+      const color = periodosDia.length ? '#000' : (esFestivo ? 'var(--er)' : (esFinde ? 'var(--mu)' : 'var(--fg)'));
+      const borde = esHoy ? 'border:1.5px solid var(--ac)' : '';
+      // En vista 3 meses, mostramos nombre corto del trabajador en pequeño debajo del día
+      const nombreCorto = periodosDia.length === 1
+        ? (vacTrabajadores.find(x => x.id === periodosDia[0].trabajador_id)?.nombre || '').split(' ')[0]
+        : (periodosDia.length > 1 ? `+${periodosDia.length}` : '');
+      const tooltip = periodosDia.length
+        ? periodosDia.map(p => {
+            const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+            return `${t?.nombre || '?'} (${tipoLabel[p.tipo] || p.tipo})`;
+          }).join(', ')
+        : (esFestivo ? 'Festivo' : '');
+      const onclick = periodosDia.length === 1
+        ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" style="cursor:pointer;${borde ? borde+';' : ''}background:${bg}"`
+        : `style="${borde ? borde+';' : ''}background:${bg}"`;
+      celdas.push(`<div title="${esc(tooltip)}" ${onclick} style="min-height:38px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;border-radius:3px;color:${color}">
+        <div style="font-family:var(--mn);font-size:11px;line-height:1">${d}</div>
+        ${nombreCorto ? `<div style="font-size:8px;line-height:1;margin-top:1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombreCorto)}</div>` : ''}
+      </div>`);
+    }
+    mesesHTML.push(`
+      <div style="border:1px solid var(--bd);border-radius:6px;padding:10px;background:rgba(255,255,255,.01)">
+        <div style="font-family:var(--mn);font-size:13px;color:var(--ac);text-align:center;margin-bottom:8px">${meses[m]} ${a}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px">${cabecera}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${celdas.join('')}</div>
+      </div>
+    `);
+  }
+  const box = document.getElementById('vacCalendarioBox');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      ${mesesHTML.join('')}
+    </div>
+    <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.18);border-radius:2px;vertical-align:middle"></span> Festivo</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border:1.5px solid var(--ac);border-radius:2px;vertical-align:middle"></span> Hoy</span>
     </div>`;
 }
 
