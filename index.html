@@ -8614,17 +8614,22 @@ async function saveVacPerModal() {
   if (dias_contados <= 0) { toast('El periodo cuenta 0 días — revisa fechas/cómputo', 'err'); return; }
   const anio = parseInt(fecha_inicio.slice(0, 4));
   const observaciones = (document.getElementById('vacPerF_observaciones').value || '').trim() || null;
-  // Validar saldo disponible (avisar pero no bloquear)
-  const saldo = _vacSaldoTrabajador(trabajador_id, anio);
-  const yaEnEste = editVacPerId
-    ? (vacPeriodos.find(p => p.id === editVacPerId)?.dias_contados || 0)
-    : 0;
-  const restantes = tipo === 'vacaciones'
-    ? saldo.vac_restantes + yaEnEste
-    : saldo.ap_restantes + yaEnEste;
-  if (dias_contados > restantes) {
-    const t = vacTrabajadores.find(x => x.id === trabajador_id);
-    if (!confirm(`⚠️ ${t?.nombre || ''} solo tiene ${restantes} día(s) ${tipo === 'vacaciones' ? 'de vacaciones' : 'de asuntos propios'} restantes en ${anio}. Vas a registrar ${dias_contados}. ¿Continuar?`)) return;
+  // Validar saldo disponible (avisar pero no bloquear).
+  // v107AB: solo validar contra saldo si el tipo es vacaciones o asuntos_propios.
+  // Los tipos informativos (baja médica, permiso retribuido, falta injustificada) NO
+  // consumen saldo de los 30+2 días, así que no tiene sentido avisar de saldo agotado.
+  if (tipo === 'vacaciones' || tipo === 'asuntos_propios') {
+    const saldo = _vacSaldoTrabajador(trabajador_id, anio);
+    const yaEnEste = editVacPerId
+      ? (vacPeriodos.find(p => p.id === editVacPerId)?.dias_contados || 0)
+      : 0;
+    const restantes = tipo === 'vacaciones'
+      ? saldo.vac_restantes + yaEnEste
+      : saldo.ap_restantes + yaEnEste;
+    if (dias_contados > restantes) {
+      const t = vacTrabajadores.find(x => x.id === trabajador_id);
+      if (!confirm(`⚠️ ${t?.nombre || ''} solo tiene ${restantes} día(s) ${tipo === 'vacaciones' ? 'de vacaciones' : 'de asuntos propios'} restantes en ${anio}. Vas a registrar ${dias_contados}. ¿Continuar?`)) return;
+    }
   }
   const payload = { trabajador_id, tipo, computo, fecha_inicio, fecha_fin, dias_contados, anio, observaciones, updated_at: new Date().toISOString() };
   try {
