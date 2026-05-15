@@ -3952,7 +3952,15 @@ async function saveModal() {
       if (f.k === 'proveedor') newVal = matchExacto(newVal, PROVEEDORES_CANONICOS) || newVal;
       else if (f.k === 'planta') newVal = matchExacto(newVal, ORIGENES_CANONICOS) || newVal;
       else if (f.k === 'obra') newVal = matchExacto(newVal, DESTINOS_CANONICOS) || newVal;
-      else if (f.k === 'tractora') newVal = fixMatricula(newVal) || newVal;
+      // v107U: quitada la canonización automática de matrícula al guardar manualmente.
+      // El problema: fixMatricula busca variantes ortográficas (cambia W↔N, I↔1, etc.) y si
+      // alguna variante coincide con una matrícula oficial, devuelve esa, pisando lo que el
+      // usuario escribió. Ejemplo: usuario escribe "4210NGF" pero la flota tiene "4210WGF" →
+      // fixMatricula devuelve "4210WGF" en lugar de "4210NGF". Al editar manualmente, lo que
+      // escribe el usuario manda SIEMPRE. La normalización mínima (mayúsculas, sin espacios)
+      // sí la mantenemos.
+      else if (f.k === 'tractora') newVal = String(newVal).toUpperCase().replace(/\s+/g, '').replace(/-/g, '');
+      else if (f.k === 'remolque') newVal = String(newVal).toUpperCase().replace(/\s+/g, '').replace(/-/g, '');
     }
     if (String(r[f.k] || '') !== String(newVal || '')) {
       cambios.push(`${f.l}: "${r[f.k]}" → "${newVal}"`);
@@ -4028,6 +4036,38 @@ async function saveModal() {
     try {
       // 1) Guardar en BD
       await saveRecord(r);
+
+      // v107U: VERIFICACIÓN POST-GUARDADO. Re-leer el albarán de BD y comparar con lo que
+      // mandamos. Si difiere → bug silencioso (RLS, trigger, otro proceso pisando...).
+      // Esto antes no se hacía y por eso bugs como el de la matrícula pasaban desapercibidos.
+      if (r.db_id) {
+        try {
+          const { data: verif, error: vErr } = await sb.from('albaranes').select('*').eq('id', r.db_id).single();
+          if (!vErr && verif) {
+            const camposVerif = ['tractora', 'proveedor', 'planta', 'obra', 'producto', 'cliente', 'albaran', 'fecha', 'transportista'];
+            const discrepancias = [];
+            camposVerif.forEach(k => {
+              const enviado = String(r[k] || '');
+              const enBd = String(verif[k] || '');
+              if (enviado !== enBd) {
+                discrepancias.push(`${k}: enviado="${enviado}" pero BD tiene="${enBd}"`);
+              }
+            });
+            if (discrepancias.length > 0) {
+              console.error('[saveModal v107U] ⚠️ DISCREPANCIAS tras guardar (alb ' + r.albaran + '):', discrepancias);
+              toast(`⚠️ Algunos cambios no se guardaron correctamente. F12 para detalles.`, 'err');
+              // Actualizar el record en memoria con lo que realmente hay en BD para que
+              // la UI refleje la verdad (y el usuario sepa que tiene que reintentar)
+              camposVerif.forEach(k => { r[k] = verif[k]; });
+              try { applyFilters(); updateStats(); } catch(e){}
+            } else {
+              console.log(`[saveModal v107U] ✓ Verificación OK — todos los campos guardados correctamente (alb ${r.albaran})`);
+            }
+          }
+        } catch (eV) {
+          console.warn('[saveModal v107U] No se pudo verificar el guardado:', eV);
+        }
+      }
 
       // 2) Aprender matrícula si procede
       if (aprenderTras) {
