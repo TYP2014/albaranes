@@ -473,6 +473,8 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="fil-group"><label class="fil-label">Matrícula</label><details class="fil-multi" id="fMatBox"><summary id="fMatSum">Todas</summary><div class="fil-multi-list" id="fMatList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Transportista</label><details class="fil-multi" id="fTransBox"><summary id="fTransSum">Todos</summary><div class="fil-multi-list" id="fTransList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Material</label><details class="fil-multi" id="fMatMatBox"><summary id="fMatMatSum">Todos</summary><div class="fil-multi-list" id="fMatMatList"></div></details></div>
+            <!-- v107Z: filtro Cliente añadido (antes COMPRADOR, ahora CLIENTE) -->
+            <div class="fil-group"><label class="fil-label">Cliente</label><details class="fil-multi" id="fClienteBox"><summary id="fClienteSum">Todos</summary><div class="fil-multi-list" id="fClienteList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido por</label><details class="fil-multi" id="fSubidoPorBox"><summary id="fSubidoPorSum">Todos</summary><div class="fil-multi-list" id="fSubidoPorList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido el</label><input class="fil-inp" type="date" id="fSubidoEl" oninput="applyFilters()" title="Filtra por la fecha en que se subió a la app (no la fecha del albarán)"></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
@@ -495,7 +497,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                 <th id="th-planta" onclick="sortBy('planta')">Origen</th>
                 <th id="th-obra" onclick="sortBy('obra')">Destino</th>
                 <th id="th-producto" onclick="sortBy('producto')">Material</th>
-                <th id="th-cliente" onclick="sortBy('cliente')">Comprador</th>
+                <th id="th-cliente" onclick="sortBy('cliente')">Cliente</th>
                 <th>Subido por</th>
                 <th id="th-created_at" onclick="sortBy('created_at')">Subido</th>
                 <th></th>
@@ -1052,6 +1054,9 @@ let selectedOrigenes = new Set();
 let selectedDestinos = new Set();
 let selectedMateriales = new Set();
 let selectedSubidoPor = new Set();
+// v107Z: filtro CLIENTE (antes era COMPRADOR sin filtro). Sirve para ver albaranes
+// que se facturan a un cliente concreto (ej. los nuevos Control Demeter, OP Trans Vallés, etc.)
+let selectedClientes = new Set();
 // Mapa centralizado de listId → set, para que las funciones msToggle/msSelectAll
 // funcionen con CUALQUIER multi-select sin tener que hacer if/else infinitos.
 const _msSets = {
@@ -1061,7 +1066,8 @@ const _msSets = {
   fOrigenList: () => selectedOrigenes,
   fDestinoList: () => selectedDestinos,
   fMatMatList: () => selectedMateriales,
-  fSubidoPorList: () => selectedSubidoPor
+  fSubidoPorList: () => selectedSubidoPor,
+  fClienteList: () => selectedClientes
 };
 
 // ============================================================
@@ -3253,6 +3259,10 @@ function buildDropdowns() {
   buildMultiSelect('fDestinoList', 'fDestinoSum', unique('obra'), selectedDestinos, 'Todos', 'destinos');
   // Multi-select de materiales — útil para "TN de yeso + arcilla" en una sola consulta
   buildMultiSelect('fMatMatList', 'fMatMatSum', unique('producto'), selectedMateriales, 'Todos', 'materiales');
+  // v107Z: Multi-select de CLIENTES (antes COMPRADOR). Recopila los clientes únicos detectados
+  // en albaranes y los muestra como filtro. Útil para "facturas pendientes a Control Demeter"
+  // o "ver todos los albaranes facturables a OP Trans Vallés", etc.
+  buildMultiSelect('fClienteList', 'fClienteSum', unique('cliente'), selectedClientes, 'Todos', 'clientes');
   // Multi-select de "Subido por": recopila los user_id que aparecen en los albaranes y los traduce a nombres
   const userIdsConAlb = [...new Set(records.filter(r => !r._dup && r.user_id).map(r => r.user_id))];
   const nombresSubidoPor = userIdsConAlb
@@ -3375,6 +3385,8 @@ function applyFilters() {
     }
     // v100: Material y Subido por también multi-select
     if (!matchMulti(r.producto, selectedMateriales)) return false;
+    // v107Z: filtro por CLIENTE
+    if (!matchMulti(r.cliente, selectedClientes)) return false;
     if (selectedSubidoPor.size > 0) {
       const nombreSub = userMap[r.user_id]?.name || '';
       const subN = norm(nombreSub);
@@ -3437,6 +3449,7 @@ function applyFilters() {
     || selectedMatriculas.size > 0
     || selectedTransportistas.size > 0
     || selectedMateriales.size > 0
+    || selectedClientes.size > 0
     || selectedSubidoPor.size > 0
     || subidoEl || estado
     || (document.getElementById('srchIn')?.value || '')
@@ -3504,6 +3517,7 @@ function resetFilters() {
   selectedOrigenes.clear();
   selectedDestinos.clear();
   selectedMateriales.clear();
+  selectedClientes.clear();
   selectedSubidoPor.clear();
   // Actualizar summaries de todos
   msUpdateSummary('fMatSum', selectedMatriculas, 'Todas', 'matrículas');
@@ -3786,7 +3800,7 @@ function updateStats() {
 const FIELDS = [
   {k:'fecha',l:'Fecha'},{k:'tractora',l:'Matrícula'},{k:'tm',l:'TN Netas'},{k:'precio',l:'Precio (€/TN)'},
   {k:'albaran',l:'Nº Albarán',full:true},{k:'proveedor',l:'Proveedor',full:true},{k:'planta',l:'Origen',full:true},
-  {k:'obra',l:'Destino',full:true},{k:'producto',l:'Material',full:true},{k:'cliente',l:'Comprador',full:true},
+  {k:'obra',l:'Destino',full:true},{k:'producto',l:'Material',full:true},{k:'cliente',l:'Cliente',full:true},
   {k:'remolque',l:'Remolque'},{k:'transportista',l:'Transportista',full:true},
   {k:'tara_kg',l:'Tara (kg)'},{k:'bruto_kg',l:'Bruto (kg)'},
   {k:'hora_entrada',l:'H. Entrada'},{k:'hora_salida',l:'H. Salida'},{k:'observaciones',l:'Observaciones',full:true},
@@ -7972,6 +7986,9 @@ function _vacContarDias(inicio, fin, computo) {
 // Helper: calcula los saldos de un trabajador en un año dado
 function _vacSaldoTrabajador(trabajadorId, anio) {
   const periodos = vacPeriodos.filter(p => p.trabajador_id === trabajadorId && p.anio === anio);
+  // v107Z: solo se cuentan vacaciones / asuntos propios para los saldos del trabajador.
+  // Bajas médicas, permisos retribuidos y faltas injustificadas se MUESTRAN en el calendario
+  // pero NO consumen días de vacaciones (son categorías informativas, no descuento).
   const usadasVac = periodos.filter(p => p.tipo === 'vacaciones').reduce((s, p) => s + (p.dias_contados || 0), 0);
   const usadasAP = periodos.filter(p => p.tipo === 'asuntos_propios').reduce((s, p) => s + (p.dias_contados || 0), 0);
   return {
@@ -8127,8 +8144,20 @@ function _vacRenderCalendarioMes() {
     const trabajadoresHoy = c.periodosDia.slice(0, 3).map(p => {
       const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
       const nombreCorto = (t?.nombre || '?').split(' ')[0];
-      const color = p.tipo === 'asuntos_propios' ? '#a78bfa' : '#34d399';
-      return `<div style="font-size:9px;background:${color};color:#000;padding:1px 4px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${esc(p.tipo)}">${esc(nombreCorto)}</div>`;
+      // v107Z: cada tipo tiene su color
+      const colorMap = {
+        'vacaciones': '#34d399',           // verde
+        'asuntos_propios': '#a78bfa',      // morado
+        'baja_medica': '#fbbf24',          // amarillo
+        'permiso_retribuido': '#60a5fa',   // azul
+        'falta_injustificada': '#ef4444'   // rojo
+      };
+      const labelMap = {
+        'vacaciones': 'Vac', 'asuntos_propios': 'AP',
+        'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
+      };
+      const color = colorMap[p.tipo] || '#34d399';
+      return `<div style="font-size:9px;background:${color};color:#000;padding:1px 4px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${labelMap[p.tipo] || p.tipo}">${esc(nombreCorto)}</div>`;
     }).join('');
     const masTexto = c.periodosDia.length > 3
       ? `<div style="font-size:9px;color:var(--mu);margin-top:2px">+${c.periodosDia.length - 3} más</div>` : '';
@@ -8143,6 +8172,9 @@ function _vacRenderCalendarioMes() {
     <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
       <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.5);border-radius:2px;vertical-align:middle"></span> Festivo</span>
     </div>`;
 }
@@ -8181,20 +8213,31 @@ function _vacRenderCalendarioAnio() {
       const esHoy = fechaStr === hoyStr;
       // ¿Hay periodos activos este día?
       const periodosDia = periodosEmpresa.filter(p => p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr);
-      const hayVac = periodosDia.some(p => p.tipo !== 'asuntos_propios');
-      const hayAP = periodosDia.some(p => p.tipo === 'asuntos_propios');
+      // v107Z: colores por tipo (todos los nuevos)
+      const tipoColor = {
+        'vacaciones': '#34d399',
+        'asuntos_propios': '#a78bfa',
+        'baja_medica': '#fbbf24',
+        'permiso_retribuido': '#60a5fa',
+        'falta_injustificada': '#ef4444'
+      };
       let bg = 'transparent';
-      if (hayVac && hayAP) bg = 'linear-gradient(135deg,#34d399 50%,#a78bfa 50%)';
-      else if (hayVac) bg = '#34d399';
-      else if (hayAP) bg = '#a78bfa';
-      else if (esFestivo) bg = 'rgba(255,80,80,.3)';
+      if (periodosDia.length === 1) {
+        bg = tipoColor[periodosDia[0].tipo] || '#34d399';
+      } else if (periodosDia.length > 1) {
+        // Múltiples tipos: gradiente con los 2 primeros
+        const c1 = tipoColor[periodosDia[0].tipo] || '#34d399';
+        const c2 = tipoColor[periodosDia[1].tipo] || '#a78bfa';
+        bg = `linear-gradient(135deg,${c1} 50%,${c2} 50%)`;
+      } else if (esFestivo) bg = 'rgba(255,80,80,.3)';
       else if (esFinde) bg = 'rgba(255,255,255,.04)';
-      let color = (hayVac || hayAP) ? '#000' : (esFestivo ? 'var(--er)' : (esFinde ? 'var(--mu)' : 'var(--fg)'));
+      let color = periodosDia.length ? '#000' : (esFestivo ? 'var(--er)' : (esFinde ? 'var(--mu)' : 'var(--fg)'));
       const borde = esHoy ? 'border:1.5px solid var(--ac)' : '';
       const tooltip = periodosDia.length
         ? periodosDia.map(p => {
             const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
-            return `${t?.nombre || '?'} (${p.tipo === 'asuntos_propios' ? 'AP' : 'Vac'})`;
+            const labels = {'vacaciones':'Vac','asuntos_propios':'AP','baja_medica':'Baja','permiso_retribuido':'Permiso','falta_injustificada':'Falta'};
+            return `${t?.nombre || '?'} (${labels[p.tipo] || p.tipo})`;
           }).join(', ')
         : (esFestivo ? 'Festivo' : '');
       // Click para abrir periodo si hay uno
@@ -8219,6 +8262,9 @@ function _vacRenderCalendarioAnio() {
     <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
       <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.3);border-radius:2px;vertical-align:middle"></span> Festivo</span>
       <span><span style="display:inline-block;width:10px;height:10px;border:1.5px solid var(--ac);border-radius:2px;vertical-align:middle"></span> Hoy</span>
     </div>`;
@@ -8376,6 +8422,9 @@ function openVacPeriodoModal(periodoId, trabajadorIdPrefill) {
         <select class="fi" id="vacPerF_tipo" onchange="_vacPerRecalcular()">
           <option value="vacaciones"${p?.tipo==='vacaciones'?' selected':''}>🏖️ Vacaciones</option>
           <option value="asuntos_propios"${p?.tipo==='asuntos_propios'?' selected':''}>🎯 Asuntos propios</option>
+          <option value="baja_medica"${p?.tipo==='baja_medica'?' selected':''}>🏥 Baja médica</option>
+          <option value="permiso_retribuido"${p?.tipo==='permiso_retribuido'?' selected':''}>📋 Permiso retribuido</option>
+          <option value="falta_injustificada"${p?.tipo==='falta_injustificada'?' selected':''}>❌ Falta injustificada</option>
         </select>
       </div>
       <div class="fg"><label class="fl">Cómputo</label>
