@@ -2396,6 +2396,16 @@ async function _processOne(it, type, key, timeoutMs) {
           console.log(`Destino inferido: → "${inferidoDest}"`);
           data.obra = inferidoDest;
         }
+        // v107Q: regla específica Girona Runes. Cuando el destino del albarán es "Girona Runes"
+        // (vertedero/gestor de residuos de Girona), el origen siempre es "Celra" (de la planta
+        // de hormigón de Holcim Celra de donde salen los residuos). Esto cubre el caso típico
+        // de Holcim Celra → Girona Runes con residuos de hormigón.
+        if (data.obra && /girona\s*runes/i.test(data.obra)) {
+          if (!data.planta || !/celra/i.test(data.planta)) {
+            console.log(`[Girona Runes] forzando origen → "Celra"`);
+            data.planta = 'Celra';
+          }
+        }
         // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
@@ -6029,6 +6039,32 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
+  // v107P: 5 orígenes NUEVOS de escombros (puntos donde se carga material reciclado / escombros)
+  // Añadidos al principio porque son orígenes específicos y deben coincidir antes que otros más genéricos
+  { canon: 'Escombros planta La Roca', alias: [
+    'Escombros La Roca', 'ESCOMBROS LA ROCA', 'PLANTA ESCOMBROS LA ROCA',
+    'Escombros La Roca del Vallès', 'Escombros La Roca del Valles',
+    'Planta escombros La Roca', 'Planta de escombros La Roca'
+  ] },
+  { canon: 'Escombros planta Zona Franca', alias: [
+    'Escombros Zona Franca', 'ESCOMBROS ZONA FRANCA',
+    'Planta escombros Zona Franca', 'Planta de escombros Zona Franca',
+    'Escombros ZF', 'PLANTA ESCOMBROS ZF'
+  ] },
+  { canon: 'Escombros planta Celra', alias: [
+    'Escombros Celra', 'Escombros Celrà', 'ESCOMBROS CELRA', 'ESCOMBROS CELRÀ',
+    'Planta escombros Celra', 'Planta escombros Celrà',
+    'Planta de escombros Celra', 'Planta de escombros Celrà'
+  ] },
+  { canon: 'Escombros Cemex Montcada', alias: [
+    'Escombros Cemex Montcada i Reixac', 'ESCOMBROS CEMEX MONTCADA',
+    'Cemex Escombros Montcada', 'Planta escombros Cemex Montcada'
+  ] },
+  { canon: 'Escombros Cemex Sant Just', alias: [
+    'Escombros Cemex Sant Just Desvern', 'Escombros Cemex St. Just',
+    'ESCOMBROS CEMEX SANT JUST', 'ESCOMBROS CEMEX SANT JUST DESVERN',
+    'Cemex Escombros Sant Just', 'Planta escombros Cemex Sant Just'
+  ] },
   // v107R: añadidos alias GARRAF ASLAND (cantera Asland antigua) y PUESTO EXP. GARRAF
   // (variantes que aparecían en albaranes históricos antes de canonizar)
   { canon: 'Cantera de Garraf', alias: [
@@ -6337,31 +6373,24 @@ function inferDestino(data) {
 
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
-  // v107O: 5 destinos NUEVOS de escombros (puntos limpios / plantas de reciclaje)
-  // Añadidos al principio porque son destinos específicos y deben coincidir antes que otros más genéricos
-  { canon: 'Escombros planta La Roca', alias: [
-    'Escombros La Roca', 'ESCOMBROS LA ROCA', 'PLANTA ESCOMBROS LA ROCA',
-    'Escombros La Roca del Vallès', 'Escombros La Roca del Valles',
-    'Planta escombros La Roca', 'Planta de escombros La Roca'
+  // v107Q: vertederos / gestores de residuos. Albaranes con código LER 17xxxx (residuos de construcción).
+  // Cliente típico HOLCIM ESPAÑA SAU. Salen de obras u plantas Holcim hacia el gestor de residuos.
+  // PUIGFEL/RUBI: planta Cova Solera en Rubí (Compositor Shumann S/N, Pol. Can Jardi). El albarán
+  // pone "Destí càrrega Gestor: E-796.02 COVA SOLERA - RUBI". Múltiples orígenes (La Roca, Zona Franca, etc).
+  { canon: 'Puigfel/Rubi', alias: [
+    'PUIGFEL/RUBI', 'Puigfel Rubi', 'PUIGFEL RUBI', 'Puigfel',
+    'PUIGFEL', 'PUIGFEL S.A.U.', 'PUIGFEL SAU', 'PUIGFEL S.A.U',
+    'Cova Solera', 'COVA SOLERA', 'Cova Solera - Rubi', 'COVA SOLERA - RUBI',
+    'Cova Solera Rubi', 'Cova Solera Rubí', 'Puigfel/Rubí',
+    'E-796.02', 'E-796.02 COVA SOLERA - RUBI'
   ] },
-  { canon: 'Escombros planta Zona Franca', alias: [
-    'Escombros Zona Franca', 'ESCOMBROS ZONA FRANCA',
-    'Planta escombros Zona Franca', 'Planta de escombros Zona Franca',
-    'Escombros ZF', 'PLANTA ESCOMBROS ZF'
-  ] },
-  { canon: 'Escombros planta Celra', alias: [
-    'Escombros Celra', 'Escombros Celrà', 'ESCOMBROS CELRA', 'ESCOMBROS CELRÀ',
-    'Planta escombros Celra', 'Planta escombros Celrà',
-    'Planta de escombros Celra', 'Planta de escombros Celrà'
-  ] },
-  { canon: 'Escombros Cemex Montcada', alias: [
-    'Escombros Cemex Montcada i Reixac', 'ESCOMBROS CEMEX MONTCADA',
-    'Cemex Escombros Montcada', 'Planta escombros Cemex Montcada'
-  ] },
-  { canon: 'Escombros Cemex Sant Just', alias: [
-    'Escombros Cemex Sant Just Desvern', 'Escombros Cemex St. Just',
-    'ESCOMBROS CEMEX SANT JUST', 'ESCOMBROS CEMEX SANT JUST DESVERN',
-    'Cemex Escombros Sant Just', 'Planta escombros Cemex Sant Just'
+  // GIRONA RUNES: vertedero/gestor de residuos en Girona. Origen SIEMPRE Celra (la planta de
+  // Holcim de Celra envía sus residuos aquí). Cliente típico HOLCIM ESPAÑA SAU.
+  // Se registra la regla "origen = Celra" en aplicarReglasFijasAlbaran (más abajo).
+  { canon: 'Girona Runes', alias: [
+    'GIRONA RUNES', 'Girona runes', 'girona runes',
+    'GIRONARUNES', 'GironaRunes',
+    'Runes Girona', 'RUNES GIRONA'
   ] },
   // Fábrica Montcada: planta de Holcim que recibe materias primas (yeso, calizas externas,
   // árido siderúrgico, arcillas, arena, árido reciclado). Destino fijo de albaranes de RECEPCIÓN.
