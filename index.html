@@ -1134,8 +1134,24 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </select></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <div class="fg"><label class="fl">Intervalo meses</label><input class="fi" type="number" id="tallerAddMeses" value="12"></div>
-        <div class="fg"><label class="fl">Intervalo km</label><input class="fi" type="number" id="tallerAddKm" value="60000"></div>
+        <div class="fg"><label class="fl">Intervalo tiempo</label>
+          <select class="fi" id="tallerAddMeses">
+            <option value="6">6 meses</option>
+            <option value="12" selected>12 meses</option>
+            <option value="18">18 meses</option>
+            <option value="24">24 meses</option>
+          </select></div>
+        <div class="fg"><label class="fl">Intervalo km</label>
+          <select class="fi" id="tallerAddKm">
+            <option value="20000">20.000 km</option>
+            <option value="30000">30.000 km</option>
+            <option value="40000">40.000 km</option>
+            <option value="50000">50.000 km</option>
+            <option value="60000" selected>60.000 km</option>
+            <option value="80000">80.000 km</option>
+            <option value="100000">100.000 km</option>
+            <option value="120000">120.000 km</option>
+          </select></div>
       </div>
       <div class="fg full"><label class="fl">Nota (opcional)</label><input class="fi" id="tallerAddNota" placeholder="Ej: Cisterna Holcim"></div>
     </div>
@@ -5388,12 +5404,6 @@ function renderTallerGlobalBanner() {
   const banner = document.getElementById('tallerGlobalBanner');
   if (!banner) return;
   if (!window._tieneTaller) { banner.style.display = 'none'; return; }
-  // ¿Ocultado hoy?
-  const today = new Date().toISOString().slice(0, 10);
-  if (localStorage.getItem(TALLER_BANNER_HIDE_KEY) === today) {
-    banner.style.display = 'none';
-    return;
-  }
   if (!Array.isArray(tallerVehiculos) || !tallerVehiculos.length) {
     banner.style.display = 'none';
     return;
@@ -5402,52 +5412,65 @@ function renderTallerGlobalBanner() {
   const permitidas = window._empresaTaller
     ? window._empresaTaller.split(',').map(s => s.trim())
     : ['TYP2014','HISPALIS','TRANSMARGAZ'];
-  // Vehículos en estado vencido o pronto
-  const avisos = tallerVehiculos
+
+  // Agrupar vehículos por nivel: vencido / pronto / plan
+  const grupos = { vencido: [], pronto: [], plan: [] };
+  tallerVehiculos
     .filter(v => permitidas.includes(v.empresa))
-    .map(v => ({ v, e: _tallerEstadoVehiculo(v) }))
-    .filter(x => x.e.estado === 'vencido' || x.e.estado === 'pronto')
-    .sort((a, b) => {
-      const ord = { vencido: 0, pronto: 1 };
-      return ord[a.e.estado] - ord[b.e.estado];
+    .forEach(v => {
+      const e = _tallerEstadoVehiculo(v);
+      if (grupos[e.estado]) grupos[e.estado].push(v);
     });
-  if (!avisos.length) { banner.style.display = 'none'; return; }
 
-  const hayVencido = avisos.some(a => a.e.estado === 'vencido');
-  // Color: rojo si hay algún vencido, naranja si solo "pronto"
-  const color = hayVencido ? '#ff5050' : '#ff9500';
-  const bg = hayVencido ? 'rgba(255,80,80,.10)' : 'rgba(255,149,0,.10)';
+  // Config visual de cada nivel. La key se usa para ocultar ese color por separado.
+  const niveles = [
+    { key: 'vencido', icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'mantenimiento VENCIDO',  txtPl: 'vehículos con mantenimiento VENCIDO' },
+    { key: 'pronto',  icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'mantenimiento próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con mantenimiento próximo' },
+    { key: 'plan',    icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'mantenimiento a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos a planificar' }
+  ];
 
-  let mensajeHtml;
-  if (avisos.length === 1) {
-    const a = avisos[0];
-    const ic = a.e.estado === 'vencido' ? '🔴' : '🟠';
-    const txt = a.e.estado === 'vencido' ? 'mantenimiento VENCIDO' : 'mantenimiento próximo';
-    mensajeHtml = `<strong>${ic} ${esc(a.v.matricula)}</strong> · ${txt}`;
-  } else {
-    const top3 = avisos.slice(0, 3).map(a => {
-      const ic = a.e.estado === 'vencido' ? '🔴' : '🟠';
-      return `${ic} <strong>${esc(a.v.matricula)}</strong>`;
-    }).join(' · ');
-    const resto = avisos.length > 3 ? ` · +${avisos.length - 3} más` : '';
-    mensajeHtml = `<strong>${avisos.length} vehículos requieren mantenimiento:</strong> ${top3}${resto}`;
+  const today = new Date().toISOString().slice(0, 10);
+  let html = '';
+  for (const n of niveles) {
+    const lista = grupos[n.key];
+    if (!lista.length) continue;
+    // ¿Este color ocultado hoy? (clave separada por nivel)
+    if (localStorage.getItem(TALLER_BANNER_HIDE_KEY + '_' + n.key) === today) continue;
+
+    let mensaje;
+    if (lista.length === 1) {
+      mensaje = `<strong>${n.icon} ${esc(lista[0].matricula)}</strong> · ${n.txt}`;
+    } else {
+      const top3 = lista.slice(0, 3).map(v => `${n.icon} <strong>${esc(v.matricula)}</strong>`).join(' · ');
+      const resto = lista.length > 3 ? ` · +${lista.length - 3} más` : '';
+      mensaje = `<strong>${lista.length} ${n.txtPl}:</strong> ${top3}${resto}`;
+    }
+    html += `
+      <div style="background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+        <div style="flex:1;color:#fff;line-height:1.5">🔧 ${mensaje}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
+          <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideTallerBannerToday('${n.key}')" title="Ocultar este aviso hasta mañana">✕</button>
+        </div>
+      </div>`;
   }
+
+  if (!html) { banner.style.display = 'none'; return; }
   banner.style.display = 'block';
-  banner.innerHTML = `
-    <div style="background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:10px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
-      <div style="flex:1;color:#fff;line-height:1.5">🔧 ${mensajeHtml}</div>
-      <div style="display:flex;gap:6px">
-        <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
-        <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideTallerBannerToday()" title="Ocultar hasta mañana">✕</button>
-      </div>
-    </div>`;
+  banner.innerHTML = html;
 }
 
-function hideTallerBannerToday() {
+// v107AK: oculta SOLO el nivel indicado (vencido/pronto/plan) hasta mañana.
+// Así el taller puede cerrar el amarillo pero seguir viendo el rojo, etc.
+function hideTallerBannerToday(nivel) {
   const today = new Date().toISOString().slice(0, 10);
-  localStorage.setItem(TALLER_BANNER_HIDE_KEY, today);
-  const banner = document.getElementById('tallerGlobalBanner');
-  if (banner) banner.style.display = 'none';
+  if (nivel) {
+    localStorage.setItem(TALLER_BANNER_HIDE_KEY + '_' + nivel, today);
+  } else {
+    // compatibilidad: sin argumento oculta los 3
+    ['vencido','pronto','plan'].forEach(k => localStorage.setItem(TALLER_BANNER_HIDE_KEY + '_' + k, today));
+  }
+  renderTallerGlobalBanner();
   toast('Aviso Taller ocultado hasta mañana');
 }
 
@@ -9188,8 +9211,9 @@ function _tallerEstadoVehiculo(v) {
     const kmProx = ultimo.km + intKm;
     proxKmStr = kmProx.toLocaleString('es-ES') + ' km';
     const kmRest = kmProx - kmActual;
+    // v107AK: umbrales km según Juan Carlos: 10.000 (plan) / 5.000 (pronto) / 0 (vencido)
     if (kmRest <= 0) estadoKm = 'vencido';
-    else if (kmRest <= 3000) estadoKm = 'pronto';
+    else if (kmRest <= 5000) estadoKm = 'pronto';
     else if (kmRest <= 10000) estadoKm = 'plan';
   }
 
@@ -9206,9 +9230,24 @@ function _tallerEstadoVehiculo(v) {
   };
 }
 
+// v107AK: genera <option> de tiempo marcando el valor actual. Si el valor
+// guardado no está en la lista, lo añade para no perderlo.
+function _tallerOpcsMeses(actual) {
+  const vals = [6, 12, 18, 24];
+  if (!vals.includes(actual)) vals.push(actual);
+  vals.sort((a, b) => a - b);
+  return vals.map(m => `<option value="${m}"${m === actual ? ' selected' : ''}>${m} meses</option>`).join('');
+}
+function _tallerOpcsKm(actual) {
+  const vals = [20000, 30000, 40000, 50000, 60000, 80000, 100000, 120000];
+  if (!vals.includes(actual)) vals.push(actual);
+  vals.sort((a, b) => a - b);
+  return vals.map(k => `<option value="${k}"${k === actual ? ' selected' : ''}>${k.toLocaleString('es-ES')} km</option>`).join('');
+}
+
 function _tallerSemaforo(estado) {
   if (estado === 'vencido') return '<span title="Vencido" style="font-size:14px">🔴</span>';
-  if (estado === 'pronto')  return '<span title="Pronto (≤15 días o ≤3.000 km)" style="font-size:14px">🟠</span>';
+  if (estado === 'pronto')  return '<span title="Pronto (≤15 días o ≤5.000 km)" style="font-size:14px">🟠</span>';
   if (estado === 'plan')    return '<span title="Planificar (≤1 mes o ≤10.000 km)" style="font-size:14px">🟡</span>';
   if (estado === 'sinmant') return '<span title="Sin mantenimientos registrados" style="font-size:14px">⚪</span>';
   return '<span title="Al día" style="font-size:14px">🟢</span>';
@@ -9294,8 +9333,10 @@ function tallerAbrirModal(vehId) {
       ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
     </div>
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo meses</label><br><input type="number" class="fi" id="tallerVintMeses" value="${v.intervalo_meses || 12}" style="width:80px;font-size:11px;padding:4px"></div>
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo km</label><br><input type="number" class="fi" id="tallerVintKm" value="${v.intervalo_km || 60000}" style="width:100px;font-size:11px;padding:4px"></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo tiempo</label><br>
+        <select class="fi" id="tallerVintMeses" style="font-size:11px;padding:4px">${_tallerOpcsMeses(v.intervalo_meses || 12)}</select></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo km</label><br>
+        <select class="fi" id="tallerVintKm" style="font-size:11px;padding:4px">${_tallerOpcsKm(v.intervalo_km || 60000)}</select></div>
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:100px;font-size:11px;padding:4px"></div>
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
     </div>
