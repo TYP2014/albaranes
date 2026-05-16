@@ -851,7 +851,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <button class="btn bs" id="tallerSubTRANSMARGAZ" onclick="switchTallerEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
       </div>
 
-      <!-- v107AH: selector de vista dentro de Taller: Mantenimientos vs Recambios -->
+      <!-- v107AI: selector de vista dentro de Taller: Mantenimientos vs Recambios -->
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:10px" id="tallerVistaSel">
         <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:11px">🔧 Mantenimientos</button>
         <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:11px">📦 Recambios</button>
@@ -887,7 +887,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
       </div><!-- fin vista mantenimientos -->
 
-      <!-- ===== VISTA RECAMBIOS (v107AH) ===== -->
+      <!-- ===== VISTA RECAMBIOS (v107AI) ===== -->
       <div id="tallerVistaRecambiosBox" style="display:none">
         <div class="card">
           <div class="card-hd">
@@ -1140,7 +1140,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
-<!-- v107AH: MODAL DETALLE de un documento de recambios (albarán/factura) -->
+<!-- v107AI: MODAL DETALLE de un documento de recambios (albarán/factura) -->
 <div class="ov" id="ovRecambiosDet">
   <div class="modal" style="max-width:1000px">
     <div class="modal-hd">
@@ -9076,7 +9076,7 @@ function switchTallerEmpresa(emp) {
   _tallerActualizarSubtabs();
   renderTallerTabla();
   renderTallerAvisos();
-  // v107AH: si está activa la vista Recambios, recargar los de la nueva empresa
+  // v107AI: si está activa la vista Recambios, recargar los de la nueva empresa
   if (tallerVistaActiva === 'recambios') loadRecambiosData();
 }
 
@@ -9418,7 +9418,7 @@ async function tallerImportarKmExcel(file) {
 }
 
 // ============================================================
-// MÓDULO RECAMBIOS (v107AH · Fase 1) — albaranes/facturas taller
+// MÓDULO RECAMBIOS (v107AI · Fase 1) — albaranes/facturas taller
 // Privacidad:
 //  - TALLER (no admin): sube y ve SOLO albaranes de las 3 empresas. NO facturas.
 //  - Admin (Juan Carlos): ve todo (albaranes + facturas), sube ambos, concilia (Fase 2).
@@ -9621,7 +9621,24 @@ function _fileToB64(file) {
 }
 function _num(v) {
   if (v == null || v === '') return null;
-  const n = parseFloat(String(v).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+  // v107AI: si la IA ya devuelve un número JSON (ej. 320.37), usarlo TAL CUAL.
+  // El bug anterior quitaba el punto decimal y convertía 320.37 en 32037.
+  if (typeof v === 'number') return isNaN(v) ? null : v;
+  let s = String(v).trim().replace(/[€\s]/g, '');
+  // Detectar formato: si tiene coma Y punto, el último separador es el decimal.
+  const tieneComa = s.includes(','), tienePunto = s.includes('.');
+  if (tieneComa && tienePunto) {
+    // Formato español "1.234,56" → el punto es miles, la coma decimal
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+    // Formato inglés "1,234.56" → la coma es miles, el punto decimal
+    else s = s.replace(/,/g, '');
+  } else if (tieneComa) {
+    // Solo coma → decimal español "320,37"
+    s = s.replace(',', '.');
+  }
+  // Solo punto o sin separadores → ya está en formato parseable
+  s = s.replace(/[^\d.-]/g, '');
+  const n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
 function _recambiosFecha(f) {
@@ -9679,7 +9696,7 @@ Campos a extraer (JSON):
 IMPORTANTE:
 - Lee CADA línea con su cantidad, precio y descuento. La cantidad es CRÍTICA (es lo que el usuario quiere verificar).
 - Para facturas que agrupan albaranes (como Zona Franca/IVECO o IVECO Auto Distribución): asocia cada línea a su nº de albarán (campo "albaran" de cada línea). El nº de albarán aparece como "Nº Albaran C12603354" o "ALBARÁN Nº. 01141" o "Albarán AR 445865" antes de su grupo de líneas.
-- Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90.
+- Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90. DEVUELVE los números como NÚMERO JSON con punto decimal (ej: 320.37, 1126.47, 33.90), NUNCA como texto con coma ni con separador de miles. El total de "320,37 €" debe devolverse como 320.37 (NO 32037).
 - Si un dato no aparece, pon null. NO inventes.
 - Devuelve SOLO el JSON, sin texto adicional ni markdown.`;
 
