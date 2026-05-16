@@ -1263,6 +1263,16 @@ async function loadUserMap() {
       if (tienePermisoTaller) {
         loadTallerData().catch(e => console.warn('[loadUserMap] Error cargando Taller al inicio:', e));
       }
+      // v107AF: ITV en SOLO LECTURA para usuarios con Taller que NO son admin.
+      // El usuario TALLER ve la pestaña ITV y el banner de avisos (para saber
+      // qué vehículos preparar) pero NO puede subir documentos, crear citas,
+      // editar ni eliminar. La gestión de ITV la sigue llevando admin/oficina.
+      const rolActual = (userMap[currentUser.id]?.role || '').toLowerCase();
+      window._itvSoloLectura = tienePermisoTaller && rolActual !== 'admin';
+      if (window._itvSoloLectura) {
+        // Aplicar el blindaje en cuanto el DOM esté listo
+        setTimeout(_aplicarItvSoloLectura, 100);
+      }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
@@ -5201,6 +5211,31 @@ function _itvNivelAviso(dias) {
   return null;  // no avisa
 }
 
+// v107AF: oculta TODOS los botones de edición de ITV y Citas para usuarios
+// en modo solo-lectura (usuario TALLER). Se llama al cargar y al entrar en
+// la pestaña ITV (porque las tablas se re-renderizan dinámicamente).
+function _aplicarItvSoloLectura() {
+  if (!window._itvSoloLectura) return;
+  // Botones fijos del HTML (Subir ITV, Nueva cita, Guardar, Eliminar del modal)
+  const sel = [
+    'button[onclick*="itvFileInput"]',          // ➕ Subir ITV
+    'button[onclick*="openCitaModalNew"]',      // ➕ Nueva cita
+    '#itvSaveBtn',                              // ✓ guardar modal
+    '#itvBtnDel',                               // Eliminar del modal
+    'button[onclick*="saveItvModal"]',          // Guardar
+    'button[onclick*="deleteItvRecord"]',       // Eliminar registro
+    'button[onclick*="saveCitaModal"]',         // Guardar cita
+    'button[onclick*="deleteCitaRecord"]'       // Eliminar cita
+  ];
+  document.querySelectorAll(sel.join(',')).forEach(b => { b.style.display = 'none'; });
+  // Quitar el onclick de las filas de ITV/citas para que no abran el modal de edición.
+  // (En solo lectura, ver la tabla es suficiente; no se abre el modal editable.)
+  document.querySelectorAll('#itvTableBody tr, #citasTableBody tr').forEach(tr => {
+    tr.style.cursor = 'default';
+    tr.onclick = null;
+  });
+}
+
 function renderItvGlobalBanner() {
   // Solo renderizar si el usuario tiene acceso ITV
   if (!window._tieneITV) {
@@ -5363,6 +5398,8 @@ function renderCitasTable() {
       <td style="font-size:11px">${esc(r.centro || '—')}</td>
     </tr>`;
   }).join('');
+  // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
+  _aplicarItvSoloLectura();
 }
 
 // v107h: abrir modal de cita (existente o nueva)
@@ -5514,6 +5551,8 @@ function renderItvTable() {
       <td>${fmtTSItv(r.created_at)}</td>
     </tr>`;
   }).join('');
+  // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
+  _aplicarItvSoloLectura();
 }
 
 function openItvModal(dbId) {
@@ -5807,7 +5846,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // v101: cargar ITVs al entrar en su pestaña
-  if (tab === 'itv') { loadItvData(); }
+  if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
   if (tab === 'produccion') { loadProduccion(); }
   // v107j: cargar Neumáticos al entrar en su pestaña
