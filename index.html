@@ -445,6 +445,12 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
          el día siguiente (mañana al recargar vuelve a aparecer). -->
     <div id="itvGlobalBanner" style="display:none"></div>
 
+    <!-- v107AJ: banner global de avisos de TALLER (mantenimientos que vencen
+         pronto o ya vencidos). Mismo patrón que el de ITV: visible en todas
+         las pestañas para quien tenga acceso a Taller. Botón ✕ oculta hasta
+         el día siguiente. -->
+    <div id="tallerGlobalBanner" style="display:none"></div>
+
     <!-- TAB ALBARANES -->
     <div id="tabContentAlb" class="wrap">
       <div id="setupBox"></div>
@@ -5280,6 +5286,7 @@ function _itvEstado(rec) {
 // (se guarda en localStorage la fecha del último ocultamiento).
 // ============================================================
 const ITV_BANNER_HIDE_KEY = 'itv_banner_hidden_date';
+const TALLER_BANNER_HIDE_KEY = 'taller_banner_hidden_date';  // v107AJ
 
 function _itvNivelAviso(dias) {
   // Devuelve color y prioridad del aviso según los días que quedan
@@ -5372,6 +5379,76 @@ function hideItvBannerToday() {
   const banner = document.getElementById('itvGlobalBanner');
   if (banner) banner.style.display = 'none';
   toast('Aviso ITV ocultado hasta mañana');
+}
+
+// v107AJ: banner global de avisos de TALLER (mantenimientos vencidos o próximos).
+// Mismo patrón visual que el de ITV. Solo se muestra a quien tiene acceso a Taller.
+// Recorre TODAS las empresas que el usuario puede ver (no solo la subpestaña activa).
+function renderTallerGlobalBanner() {
+  const banner = document.getElementById('tallerGlobalBanner');
+  if (!banner) return;
+  if (!window._tieneTaller) { banner.style.display = 'none'; return; }
+  // ¿Ocultado hoy?
+  const today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(TALLER_BANNER_HIDE_KEY) === today) {
+    banner.style.display = 'none';
+    return;
+  }
+  if (!Array.isArray(tallerVehiculos) || !tallerVehiculos.length) {
+    banner.style.display = 'none';
+    return;
+  }
+  // Empresas que el usuario puede ver (igual lógica que las subpestañas)
+  const permitidas = window._empresaTaller
+    ? window._empresaTaller.split(',').map(s => s.trim())
+    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+  // Vehículos en estado vencido o pronto
+  const avisos = tallerVehiculos
+    .filter(v => permitidas.includes(v.empresa))
+    .map(v => ({ v, e: _tallerEstadoVehiculo(v) }))
+    .filter(x => x.e.estado === 'vencido' || x.e.estado === 'pronto')
+    .sort((a, b) => {
+      const ord = { vencido: 0, pronto: 1 };
+      return ord[a.e.estado] - ord[b.e.estado];
+    });
+  if (!avisos.length) { banner.style.display = 'none'; return; }
+
+  const hayVencido = avisos.some(a => a.e.estado === 'vencido');
+  // Color: rojo si hay algún vencido, naranja si solo "pronto"
+  const color = hayVencido ? '#ff5050' : '#ff9500';
+  const bg = hayVencido ? 'rgba(255,80,80,.10)' : 'rgba(255,149,0,.10)';
+
+  let mensajeHtml;
+  if (avisos.length === 1) {
+    const a = avisos[0];
+    const ic = a.e.estado === 'vencido' ? '🔴' : '🟠';
+    const txt = a.e.estado === 'vencido' ? 'mantenimiento VENCIDO' : 'mantenimiento próximo';
+    mensajeHtml = `<strong>${ic} ${esc(a.v.matricula)}</strong> · ${txt}`;
+  } else {
+    const top3 = avisos.slice(0, 3).map(a => {
+      const ic = a.e.estado === 'vencido' ? '🔴' : '🟠';
+      return `${ic} <strong>${esc(a.v.matricula)}</strong>`;
+    }).join(' · ');
+    const resto = avisos.length > 3 ? ` · +${avisos.length - 3} más` : '';
+    mensajeHtml = `<strong>${avisos.length} vehículos requieren mantenimiento:</strong> ${top3}${resto}`;
+  }
+  banner.style.display = 'block';
+  banner.innerHTML = `
+    <div style="background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:10px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+      <div style="flex:1;color:#fff;line-height:1.5">🔧 ${mensajeHtml}</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
+        <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideTallerBannerToday()" title="Ocultar hasta mañana">✕</button>
+      </div>
+    </div>`;
+}
+
+function hideTallerBannerToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(TALLER_BANNER_HIDE_KEY, today);
+  const banner = document.getElementById('tallerGlobalBanner');
+  if (banner) banner.style.display = 'none';
+  toast('Aviso Taller ocultado hasta mañana');
 }
 
 async function loadItvData() {
@@ -9046,6 +9123,7 @@ async function loadTallerData() {
     _tallerActualizarSubtabs();
     renderTallerTabla();
     renderTallerAvisos();
+    renderTallerGlobalBanner();  // v107AJ: banner global visible en todas las pestañas
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
