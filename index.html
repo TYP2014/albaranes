@@ -430,6 +430,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none">🛞 Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
       <!-- v107M: pestaña Vacaciones oculta por defecto. Se muestra a usuarios con puede_ver_vacaciones=TRUE. -->
       <div class="tab" id="tabVac" onclick="switchTab('vac')" style="display:none">🏖️ Vacaciones <span class="tab-badge" id="tabVacCount">0</span></div>
+      <!-- v107AE: pestaña Taller oculta por defecto. Se muestra a usuarios con puede_ver_taller=TRUE.
+           Para Transmargaz, empresa_taller='TRANSMARGAZ' los limita a su subpestaña. -->
+      <div class="tab" id="tabTaller" onclick="switchTab('taller')" style="display:none">🔧 Taller <span class="tab-badge" id="tabTallerCount">0</span></div>
       <!-- v107g: pestaña Producción solo para admin. Se muestra dinámicamente desde
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
@@ -833,6 +836,49 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
 
     </div>
 
+    <!-- ============================================================ -->
+    <!-- TAB TALLER (v107AE) — control de mantenimientos de vehículos  -->
+    <!-- 3 subpestañas con privacidad (igual que Gasoil/Vacaciones).   -->
+    <!-- Tabla de vehículos con semáforo 🟢🟡🔴 según km/tiempo desde   -->
+    <!-- el último mantenimiento. Click en fila → modal con historial. -->
+    <!-- ============================================================ -->
+    <div id="tabContentTaller" class="wrap" style="display:none">
+
+      <!-- Subpestañas por empresa -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="tallerSubtabs">
+        <button class="btn bp" id="tallerSubTYP2014" onclick="switchTallerEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
+        <button class="btn bs" id="tallerSubHISPALIS" onclick="switchTallerEmpresa('HISPALIS')" style="font-size:11px">🚚 T. HISPALIS 2016</button>
+        <button class="btn bs" id="tallerSubTRANSMARGAZ" onclick="switchTallerEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
+      </div>
+
+      <!-- Avisos de mantenimiento (igual estilo que la barra ITV) -->
+      <div id="tallerAvisos" style="display:none;margin-bottom:14px"></div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--wn)"></div>VEHÍCULOS · <span id="tallerEmpresaTitulo">TYP2014</span></div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="document.getElementById('tallerExcelInput').click()">📥 Importar km ASG Trans</button>
+            <input type="file" id="tallerExcelInput" accept=".xls,.xlsx" style="display:none" onchange="tallerImportarKmExcel(this.files[0])">
+            <button class="btn bs" onclick="tallerAddVehiculoModal()">➕ Añadir vehículo</button>
+          </div>
+        </div>
+        <div class="card-bd" style="overflow-x:auto">
+          <table class="tbl" id="tallerTabla">
+            <thead>
+              <tr>
+                <th>Estado</th><th>Matrícula</th><th>Tipo</th><th>KM actual</th>
+                <th>Último mant.</th><th>Próximo (tiempo)</th><th>Próximo (km)</th><th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tallerTablaBody">
+              <tr><td colspan="8" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">Cargando vehículos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB SUBIR -->
     <!-- v107k: restaurada apertura del div que se rompió en v107j. Sin este div las cards de
          Subir Albaranes y Subir Tickets Gasoil quedaban sueltas y aparecían siempre visibles
@@ -987,6 +1033,59 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
+<!-- v107AE: MODAL MANTENIMIENTOS de un vehículo (historial editable) -->
+<div class="ov" id="ovTallerMant">
+  <div class="modal" style="max-width:1000px">
+    <div class="modal-hd">
+      <div class="modal-title" id="tallerMantTitulo">MANTENIMIENTOS</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeTallerMant()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="tallerMantBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bs" onclick="closeTallerMant()">Cancelar</button>
+      <button class="btn bp" id="tallerMantSaveBtn">💾 Guardar mantenimientos</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107AE: MODAL NUEVO VEHÍCULO (alta manual) -->
+<div class="ov" id="ovTallerNuevo">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hd">
+      <div class="modal-title">NUEVO VEHÍCULO</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeTallerNuevo()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="fg full" style="margin-bottom:10px"><label class="fl">Matrícula</label>
+        <input class="fi" id="tallerAddMat" placeholder="Ej: 1234ABC o R1234ABC" style="text-transform:uppercase"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="fl">Empresa</label>
+          <select class="fi" id="tallerAddEmp">
+            <option value="TYP2014">TYP2014</option>
+            <option value="HISPALIS">T. HISPALIS 2016</option>
+            <option value="TRANSMARGAZ">TRANSMARGAZ 2018</option>
+          </select></div>
+        <div class="fg"><label class="fl">Tipo</label>
+          <select class="fi" id="tallerAddTipo">
+            <option value="tractora">Tractora</option>
+            <option value="semirremolque">Semirremolque</option>
+          </select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="fl">Intervalo meses</label><input class="fi" type="number" id="tallerAddMeses" value="12"></div>
+        <div class="fg"><label class="fl">Intervalo km</label><input class="fi" type="number" id="tallerAddKm" value="60000"></div>
+      </div>
+      <div class="fg full"><label class="fl">Nota (opcional)</label><input class="fi" id="tallerAddNota" placeholder="Ej: Cisterna Holcim"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bs" onclick="closeTallerNuevo()">Cancelar</button>
+      <button class="btn bp" onclick="tallerCrearVehiculo()">Crear vehículo</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NUEVO USUARIO -->
 <div class="ov" id="ovNewUser">
   <div class="modal" style="max-width:420px">
@@ -1108,7 +1207,8 @@ async function loadUserMap() {
     // empresa_neumaticos=NULL → ve las 3 subpestañas (admin/gestor). 'TRANSMARGAZ' → solo la suya.
     // v107M: añadir puede_ver_vacaciones para la pestaña Vacaciones.
     // v107N: añadir empresa_vacaciones para filtrar subpestañas (igual que neumáticos pero admin NO ve Transmargaz).
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones');
+    // v107AE: añadir puede_ver_taller + empresa_taller para la pestaña Taller (mismo patrón que vacaciones).
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
     (data || []).forEach(p => { userMap[p.id] = {
@@ -1118,7 +1218,9 @@ async function loadUserMap() {
       puede_ver_neumaticos: !!p.puede_ver_neumaticos,
       empresa_neumaticos: p.empresa_neumaticos || null,
       puede_ver_vacaciones: !!p.puede_ver_vacaciones,
-      empresa_vacaciones: p.empresa_vacaciones || null
+      empresa_vacaciones: p.empresa_vacaciones || null,
+      puede_ver_taller: !!p.puede_ver_taller,
+      empresa_taller: p.empresa_taller || null
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
@@ -1150,6 +1252,16 @@ async function loadUserMap() {
       window._empresaVac = userMap[currentUser.id]?.empresa_vacaciones || null;
       if (tienePermisoVac) {
         loadVacData().catch(e => console.warn('[loadUserMap] Error cargando Vacaciones al inicio:', e));
+      }
+      // v107AE: lo mismo para Taller (mantenimientos de flota)
+      const tienePermisoTaller = !!userMap[currentUser.id]?.puede_ver_taller;
+      const tabTaller = document.getElementById('tabTaller');
+      if (tabTaller) tabTaller.style.display = tienePermisoTaller ? '' : 'none';
+      window._tieneTaller = tienePermisoTaller;
+      // empresa_taller limita qué subpestañas ve (igual lógica que vacaciones: admin NO ve Transmargaz)
+      window._empresaTaller = userMap[currentUser.id]?.empresa_taller || null;
+      if (tienePermisoTaller) {
+        loadTallerData().catch(e => console.warn('[loadUserMap] Error cargando Taller al inicio:', e));
       }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
@@ -5676,7 +5788,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','produccion','subir','admin'].forEach(t => {
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -5702,6 +5814,8 @@ function switchTab(tab) {
   if (tab === 'neum') { loadNeumData(); }
   // v107M: cargar Vacaciones al entrar en su pestaña
   if (tab === 'vac') { loadVacData(); }
+  // v107AE: cargar Taller al entrar en su pestaña
+  if (tab === 'taller') { loadTallerData(); }
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
@@ -8776,6 +8890,410 @@ function openVacTrabajadorDetalle(trabajadorId) {
     return `${icon} ${computoIcon} ${fIni} → ${fFin} · ${p.dias_contados}d${p.observaciones ? ' · ' + p.observaciones : ''}`;
   }).join('\n');
   alert(`${t.nombre} · ${vacAnioActivo}\n\n🏖️ Vacaciones: ${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES} (${s.vac_restantes} rest.)\n🎯 Asuntos propios: ${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} (${s.ap_restantes} rest.)\n\nPERIODOS:\n${lines}\n\nPulsa los días en el calendario o "Registrar vacaciones" para añadir/editar.`);
+}
+
+// ============================================================
+// MÓDULO TALLER (v107AE) — control de mantenimientos de flota
+// ============================================================
+let tallerVehiculos = [];      // filas de taller_vehiculos
+let tallerMantenimientos = []; // filas de taller_mantenimientos
+let tallerEmpresaActiva = 'TYP2014';
+
+async function loadTallerData() {
+  try {
+    // Ajustar subpestañas según permisos (igual que Gasoil/Vacaciones)
+    const permitidas = window._empresaTaller
+      ? window._empresaTaller.split(',').map(s => s.trim())
+      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+    ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+      const btn = document.getElementById('tallerSub' + emp);
+      if (btn) btn.style.display = permitidas.includes(emp) ? '' : 'none';
+    });
+    if (!permitidas.includes(tallerEmpresaActiva)) tallerEmpresaActiva = permitidas[0] || 'TYP2014';
+
+    const [vehRes, manRes] = await Promise.all([
+      sb.from('taller_vehiculos').select('*').eq('activo', true),
+      sb.from('taller_mantenimientos').select('*').order('fecha', { ascending: false })
+    ]);
+    if (vehRes.error) throw vehRes.error;
+    if (manRes.error) throw manRes.error;
+    tallerVehiculos = vehRes.data || [];
+    tallerMantenimientos = manRes.data || [];
+
+    // Badge con total de vehículos de la empresa activa
+    const cnt = document.getElementById('tabTallerCount');
+    if (cnt) cnt.textContent = tallerVehiculos.length;
+
+    _tallerActualizarSubtabs();
+    renderTallerTabla();
+    renderTallerAvisos();
+  } catch (e) {
+    console.error('[loadTallerData] Error:', e);
+    const body = document.getElementById('tallerTablaBody');
+    if (body) body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error cargando taller: ${esc(e.message || e)}</td></tr>`;
+  }
+}
+
+function _tallerActualizarSubtabs() {
+  ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(e => {
+    const btn = document.getElementById('tallerSub' + e);
+    if (!btn) return;
+    btn.classList.remove('bp','bs');
+    btn.classList.add(e === tallerEmpresaActiva ? 'bp' : 'bs');
+  });
+  const tit = document.getElementById('tallerEmpresaTitulo');
+  if (tit) {
+    const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+    tit.textContent = labels[tallerEmpresaActiva] || tallerEmpresaActiva;
+  }
+}
+
+function switchTallerEmpresa(emp) {
+  const permitidas = window._empresaTaller
+    ? window._empresaTaller.split(',').map(s => s.trim())
+    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+  if (!permitidas.includes(emp)) { toast('No tienes permiso para esa empresa', 'err'); return; }
+  tallerEmpresaActiva = emp;
+  _tallerActualizarSubtabs();
+  renderTallerTabla();
+  renderTallerAvisos();
+}
+
+// Calcula el estado de mantenimiento de un vehículo: devuelve
+// { estado:'ok'|'plan'|'pronto'|'vencido', ultimaFecha, ultimoKm, proxFecha, motivo }
+function _tallerEstadoVehiculo(v) {
+  const mants = tallerMantenimientos
+    .filter(m => m.matricula === v.matricula)
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  const ultimo = mants[0] || null;
+  const intMeses = v.intervalo_meses || 12;
+  const intKm = v.intervalo_km || 60000;
+  const hoy = new Date();
+
+  let estadoTiempo = 'ok', proxFechaStr = '—';
+  if (ultimo && ultimo.fecha) {
+    const fUlt = new Date(ultimo.fecha + 'T00:00:00');
+    const fProx = new Date(fUlt); fProx.setMonth(fProx.getMonth() + intMeses);
+    proxFechaStr = `${String(fProx.getDate()).padStart(2,'0')}/${String(fProx.getMonth()+1).padStart(2,'0')}/${fProx.getFullYear()}`;
+    const diasRest = Math.floor((fProx - hoy) / 86400000);
+    if (diasRest < 0) estadoTiempo = 'vencido';
+    else if (diasRest <= 15) estadoTiempo = 'pronto';
+    else if (diasRest <= 31) estadoTiempo = 'plan';
+  } else {
+    estadoTiempo = 'sinmant';
+  }
+
+  let estadoKm = 'ok', proxKmStr = '—';
+  const kmActual = v.km_actual || 0;
+  if (ultimo && ultimo.km != null && kmActual > 0) {
+    const kmProx = ultimo.km + intKm;
+    proxKmStr = kmProx.toLocaleString('es-ES') + ' km';
+    const kmRest = kmProx - kmActual;
+    if (kmRest <= 0) estadoKm = 'vencido';
+    else if (kmRest <= 3000) estadoKm = 'pronto';
+    else if (kmRest <= 10000) estadoKm = 'plan';
+  }
+
+  // El estado peor manda (vencido > pronto > plan > ok)
+  const orden = { vencido: 4, pronto: 3, plan: 2, sinmant: 2, ok: 1 };
+  const peor = orden[estadoTiempo] >= orden[estadoKm] ? estadoTiempo : estadoKm;
+  return {
+    estado: peor,
+    ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
+    ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
+    proxFecha: proxFechaStr,
+    proxKm: proxKmStr,
+    numMants: mants.length
+  };
+}
+
+function _tallerSemaforo(estado) {
+  if (estado === 'vencido') return '<span title="Vencido" style="font-size:14px">🔴</span>';
+  if (estado === 'pronto')  return '<span title="Pronto (≤15 días o ≤3.000 km)" style="font-size:14px">🟠</span>';
+  if (estado === 'plan')    return '<span title="Planificar (≤1 mes o ≤10.000 km)" style="font-size:14px">🟡</span>';
+  if (estado === 'sinmant') return '<span title="Sin mantenimientos registrados" style="font-size:14px">⚪</span>';
+  return '<span title="Al día" style="font-size:14px">🟢</span>';
+}
+
+function renderTallerTabla() {
+  const body = document.getElementById('tallerTablaBody');
+  if (!body) return;
+  const vs = tallerVehiculos
+    .filter(v => v.empresa === tallerEmpresaActiva)
+    .sort((a, b) => {
+      // Ordenar por estado (peor primero) y luego matrícula
+      const ea = _tallerEstadoVehiculo(a).estado, eb = _tallerEstadoVehiculo(b).estado;
+      const ord = { vencido: 0, pronto: 1, plan: 2, sinmant: 3, ok: 4 };
+      if (ord[ea] !== ord[eb]) return ord[ea] - ord[eb];
+      return (a.matricula || '').localeCompare(b.matricula || '');
+    });
+  if (!vs.length) {
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">No hay vehículos en ${tallerEmpresaActiva}</td></tr>`;
+    return;
+  }
+  body.innerHTML = vs.map(v => {
+    const e = _tallerEstadoVehiculo(v);
+    const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? '🚛' : '🚚';
+    return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
+      <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
+      <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
+      <td style="font-size:11px">${tipoIcon} ${v.tipo_vehiculo === 'semirremolque' ? 'Remolque' : 'Tractora'}</td>
+      <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
+      <td style="font-size:11px">${e.ultimaFecha}</td>
+      <td style="font-size:11px">${e.proxFecha}</td>
+      <td style="font-size:11px">${e.proxKm}</td>
+      <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();tallerAbrirModal('${v.id}')">Ver / ${e.numMants}</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTallerAvisos() {
+  const box = document.getElementById('tallerAvisos');
+  if (!box) return;
+  const vs = tallerVehiculos.filter(v => v.empresa === tallerEmpresaActiva);
+  const alertas = [];
+  vs.forEach(v => {
+    const e = _tallerEstadoVehiculo(v);
+    if (e.estado === 'vencido') alertas.push(`🔴 ${v.matricula} VENCIDO`);
+    else if (e.estado === 'pronto') alertas.push(`🟠 ${v.matricula} pronto`);
+  });
+  if (!alertas.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<div style="background:rgba(255,140,0,.08);border:1px solid rgba(255,140,0,.3);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">
+    🔧 <b>${alertas.length}</b> vehículo(s) requieren mantenimiento: ${alertas.slice(0, 8).map(esc).join(' · ')}${alertas.length > 8 ? ` · +${alertas.length - 8} más` : ''}
+  </div>`;
+}
+
+// Modal de un vehículo: historial de mantenimientos editable (mín. 15 líneas)
+let _tallerVehIdActual = null;
+function tallerAbrirModal(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  _tallerVehIdActual = vehId;
+  const mants = tallerMantenimientos
+    .filter(m => m.matricula === v.matricula)
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  const filas = [...mants];
+  while (filas.length < 15) filas.push(null);
+
+  const rowsHtml = filas.map((m, i) => `
+    <tr data-idx="${i}" data-id="${m?.id || ''}">
+      <td><input type="date" class="fi tallerMF" value="${m?.fecha || ''}" style="font-size:11px;padding:4px"></td>
+      <td><input type="number" class="fi tallerMK" value="${m?.km != null ? m.km : ''}" placeholder="km" style="font-size:11px;padding:4px;width:90px"></td>
+      <td><input type="text" class="fi tallerMT" value="${m ? esc(m.tipo || '') : ''}" placeholder="Ej: Cambio aceite + filtro" style="font-size:11px;padding:4px"></td>
+      <td><input type="text" class="fi tallerMN" value="${m ? esc(m.notas || '') : ''}" placeholder="notas" style="font-size:11px;padding:4px"></td>
+      <td><input type="text" class="fi tallerMR" value="${m ? esc(m.realizado_por || '') : ''}" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
+      <td style="text-align:center">${m?.id ? `<button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarLinea('${m.id}','${vehId}')">🗑</button>` : ''}</td>
+    </tr>`).join('');
+
+  document.getElementById('tallerMantTitulo').textContent = `🔧 MANTENIMIENTOS · ${v.matricula}`;
+  document.getElementById('tallerMantBody').innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
+      <span>Empresa: <b style="color:var(--fg)">${esc(v.empresa)}</b></span>
+      <span>Tipo: <b style="color:var(--fg)">${v.tipo_vehiculo === 'semirremolque' ? 'Semirremolque' : 'Tractora'}</b></span>
+      <span>KM actual: <b style="color:var(--fg)">${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'}</b></span>
+      ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
+    </div>
+    <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo meses</label><br><input type="number" class="fi" id="tallerVintMeses" value="${v.intervalo_meses || 12}" style="width:80px;font-size:11px;padding:4px"></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo km</label><br><input type="number" class="fi" id="tallerVintKm" value="${v.intervalo_km || 60000}" style="width:100px;font-size:11px;padding:4px"></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:100px;font-size:11px;padding:4px"></div>
+      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="tallerModalTabla">
+        <thead><tr>
+          <th style="font-size:10px">Fecha</th><th style="font-size:10px">KM</th>
+          <th style="font-size:10px">Tipo (libre)</th><th style="font-size:10px">Notas</th>
+          <th style="font-size:10px">Realizado por</th><th style="font-size:10px"></th>
+        </tr></thead>
+        <tbody id="tallerModalBody">${rowsHtml}</tbody>
+      </table>
+    </div>
+    <button class="btn bs" style="font-size:11px;margin-top:10px" onclick="tallerAddLinea()">➕ Añadir línea</button>`;
+  const saveBtn = document.getElementById('tallerMantSaveBtn');
+  if (saveBtn) saveBtn.onclick = () => tallerGuardarMantenimientos(vehId);
+  document.getElementById('ovTallerMant').classList.add('open');
+}
+
+function closeTallerMant() { document.getElementById('ovTallerMant').classList.remove('open'); }
+function closeTallerNuevo() { document.getElementById('ovTallerNuevo').classList.remove('open'); }
+
+function tallerAddLinea() {
+  const body = document.getElementById('tallerModalBody');
+  if (!body) return;
+  const i = body.children.length;
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-idx', i);
+  tr.setAttribute('data-id', '');
+  tr.innerHTML = `
+    <td><input type="date" class="fi tallerMF" style="font-size:11px;padding:4px"></td>
+    <td><input type="number" class="fi tallerMK" placeholder="km" style="font-size:11px;padding:4px;width:90px"></td>
+    <td><input type="text" class="fi tallerMT" placeholder="Ej: Cambio aceite + filtro" style="font-size:11px;padding:4px"></td>
+    <td><input type="text" class="fi tallerMN" placeholder="notas" style="font-size:11px;padding:4px"></td>
+    <td><input type="text" class="fi tallerMR" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
+    <td></td>`;
+  body.appendChild(tr);
+}
+
+async function tallerGuardarMantenimientos(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const filas = [...document.querySelectorAll('#tallerModalBody tr')];
+  const aInsertar = [], aActualizar = [];
+  for (const tr of filas) {
+    const id = tr.getAttribute('data-id');
+    const fecha = tr.querySelector('.tallerMF')?.value || '';
+    const kmRaw = tr.querySelector('.tallerMK')?.value || '';
+    const tipo = (tr.querySelector('.tallerMT')?.value || '').trim();
+    const notas = (tr.querySelector('.tallerMN')?.value || '').trim();
+    const realizado = (tr.querySelector('.tallerMR')?.value || '').trim();
+    // Línea vacía → ignorar. Línea con datos → necesita fecha y tipo
+    if (!fecha && !tipo && !kmRaw && !notas && !realizado) continue;
+    if (!fecha || !tipo) { toast('Cada línea con datos necesita Fecha y Tipo', 'err'); return; }
+    const reg = {
+      empresa: v.empresa, matricula: v.matricula, fecha,
+      km: kmRaw ? parseInt(kmRaw, 10) : null,
+      tipo, notas: notas || null, realizado_por: realizado || null,
+      user_id: currentUser?.id || null
+    };
+    if (id) aActualizar.push({ id, ...reg });
+    else aInsertar.push(reg);
+  }
+  try {
+    if (aInsertar.length) {
+      const { error } = await sb.from('taller_mantenimientos').insert(aInsertar);
+      if (error) throw error;
+    }
+    for (const r of aActualizar) {
+      const { id, ...rest } = r;
+      rest.updated_at = new Date().toISOString();
+      const { error } = await sb.from('taller_mantenimientos').update(rest).eq('id', id);
+      if (error) throw error;
+    }
+    toast(`Guardado: ${aInsertar.length} nuevos, ${aActualizar.length} actualizados`, 'ok');
+    closeTallerMant();
+    await loadTallerData();
+  } catch (e) {
+    console.error('[tallerGuardarMantenimientos]', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
+  }
+}
+
+async function tallerBorrarLinea(manId, vehId) {
+  if (!confirm('¿Borrar esta línea de mantenimiento?')) return;
+  try {
+    const { error } = await sb.from('taller_mantenimientos').delete().eq('id', manId);
+    if (error) throw error;
+    toast('Línea borrada', 'ok');
+    closeTallerMant();
+    await loadTallerData();
+    tallerAbrirModal(vehId);
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+async function tallerGuardarVehiculo(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const intMeses = parseInt(document.getElementById('tallerVintMeses')?.value || '12', 10);
+  const intKm = parseInt(document.getElementById('tallerVintKm')?.value || '60000', 10);
+  const kmActualRaw = document.getElementById('tallerVkmActual')?.value || '';
+  const upd = { intervalo_meses: intMeses, intervalo_km: intKm, updated_at: new Date().toISOString() };
+  if (kmActualRaw) { upd.km_actual = parseInt(kmActualRaw, 10); upd.km_actual_fecha = new Date().toISOString().slice(0, 10); }
+  try {
+    const { error } = await sb.from('taller_vehiculos').update(upd).eq('id', vehId);
+    if (error) throw error;
+    toast('Configuración guardada', 'ok');
+    await loadTallerData();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// Añadir vehículo nuevo manualmente (compra de camión, etc.)
+function tallerAddVehiculoModal() {
+  // Limpiar campos
+  document.getElementById('tallerAddMat').value = '';
+  document.getElementById('tallerAddTipo').value = 'tractora';
+  document.getElementById('tallerAddMeses').value = 12;
+  document.getElementById('tallerAddKm').value = 60000;
+  document.getElementById('tallerAddNota').value = '';
+  const sel = document.getElementById('tallerAddEmp');
+  if (sel) sel.value = tallerEmpresaActiva;
+  document.getElementById('ovTallerNuevo').classList.add('open');
+}
+
+async function tallerCrearVehiculo() {
+  const mat = (document.getElementById('tallerAddMat')?.value || '').toUpperCase().replace(/[\s-]/g, '').trim();
+  const emp = document.getElementById('tallerAddEmp')?.value;
+  const tipo = document.getElementById('tallerAddTipo')?.value;
+  const meses = parseInt(document.getElementById('tallerAddMeses')?.value || '12', 10);
+  const km = parseInt(document.getElementById('tallerAddKm')?.value || '60000', 10);
+  const nota = (document.getElementById('tallerAddNota')?.value || '').trim();
+  if (!mat) { toast('Pon una matrícula', 'err'); return; }
+  try {
+    const { error } = await sb.from('taller_vehiculos').insert({
+      empresa: emp, matricula: mat, tipo_vehiculo: tipo,
+      intervalo_meses: meses, intervalo_km: km, notas: nota || null, activo: true
+    });
+    if (error) throw error;
+    toast('Vehículo creado: ' + mat, 'ok');
+    closeTallerNuevo();
+    await loadTallerData();
+  } catch (e) {
+    if (/duplicate|unique/i.test(e.message || '')) toast('Esa matrícula ya existe', 'err');
+    else toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+// Importar km del Excel de ASG Trans (formato "Gasóleo Profesional": todos los
+// vehículos juntos con Matrícula + Cuentakilómetros fin) o el formato de 1 vehículo.
+async function tallerImportarKmExcel(file) {
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+    // Buscar la fila de cabecera (contiene "Matrícula" y "Cuentakilómetros")
+    let headerIdx = -1, colMat = -1, colKmFin = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const fila = (rows[i] || []).map(c => String(c || '').toLowerCase());
+      const jMat = fila.findIndex(c => c.includes('matr'));
+      const jKm = fila.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
+      const jKm2 = fila.findIndex(c => c.includes('cuentakil'));
+      if (jMat >= 0 && (jKm >= 0 || jKm2 >= 0)) {
+        headerIdx = i; colMat = jMat; colKmFin = jKm >= 0 ? jKm : jKm2; break;
+      }
+    }
+    if (headerIdx < 0) { toast('No reconozco el formato del Excel (falta Matrícula/Cuentakilómetros)', 'err'); return; }
+
+    let actualizados = 0, noEncontrados = [], saltadosCero = 0;
+    const fechaImport = new Date().toISOString().slice(0, 10);
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const fila = rows[i] || [];
+      const matRaw = String(fila[colMat] || '').toUpperCase().replace(/[\s-]/g, '').trim();
+      if (!matRaw || !/^R?\d/.test(matRaw)) continue; // fila no válida
+      const kmVal = parseInt(String(fila[colKmFin] || '0').replace(/[^\d]/g, ''), 10);
+      if (!kmVal || kmVal <= 0) { saltadosCero++; continue; } // no machacar km bueno con 0
+      const v = tallerVehiculos.find(x => x.matricula === matRaw);
+      if (!v) { noEncontrados.push(matRaw); continue; }
+      // Solo actualizar si el km nuevo es mayor o igual al guardado (el cuentakm no baja)
+      if (v.km_actual && kmVal < v.km_actual) continue;
+      const { error } = await sb.from('taller_vehiculos')
+        .update({ km_actual: kmVal, km_actual_fecha: fechaImport, updated_at: new Date().toISOString() })
+        .eq('id', v.id);
+      if (!error) actualizados++;
+    }
+    let msg = `✅ ${actualizados} vehículos actualizados`;
+    if (saltadosCero) msg += ` · ${saltadosCero} sin datos (km 0, ignorados)`;
+    if (noEncontrados.length) msg += ` · ${noEncontrados.length} no encontrados: ${noEncontrados.slice(0, 5).join(', ')}${noEncontrados.length > 5 ? '...' : ''}`;
+    toast(msg, actualizados ? 'ok' : 'err');
+    await loadTallerData();
+  } catch (e) {
+    console.error('[tallerImportarKmExcel]', e);
+    toast('Error leyendo Excel: ' + (e.message || e), 'err');
+  }
+  // Limpiar el input para poder re-subir el mismo archivo
+  const inp = document.getElementById('tallerExcelInput'); if (inp) inp.value = '';
 }
 
 // Init
