@@ -1273,6 +1273,15 @@ async function loadUserMap() {
         // Aplicar el blindaje en cuanto el DOM esté listo
         setTimeout(_aplicarItvSoloLectura, 100);
       }
+      // v107AG: el usuario TALLER (Taller + no admin) no necesita ver
+      // Preliquidaciones ni Gasoil (son de gestión de transporte, no de taller).
+      // Se ocultan SOLO para él; admin/gestores de transporte las siguen viendo.
+      if (tienePermisoTaller && rolActual !== 'admin') {
+        const tabPreli = document.getElementById('tabPreli');
+        const tabGas = document.getElementById('tabGas');
+        if (tabPreli) tabPreli.style.display = 'none';
+        if (tabGas) tabGas.style.display = 'none';
+      }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
