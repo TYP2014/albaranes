@@ -851,6 +851,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <button class="btn bs" id="tallerSubTRANSMARGAZ" onclick="switchTallerEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
       </div>
 
+      <!-- v107AH: selector de vista dentro de Taller: Mantenimientos vs Recambios -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:10px" id="tallerVistaSel">
+        <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:11px">🔧 Mantenimientos</button>
+        <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:11px">📦 Recambios</button>
+      </div>
+
+      <!-- ===== VISTA MANTENIMIENTOS (la de siempre) ===== -->
+      <div id="tallerVistaMantBox">
       <!-- Avisos de mantenimiento (igual estilo que la barra ITV) -->
       <div id="tallerAvisos" style="display:none;margin-bottom:14px"></div>
 
@@ -877,6 +885,52 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </table>
         </div>
       </div>
+      </div><!-- fin vista mantenimientos -->
+
+      <!-- ===== VISTA RECAMBIOS (v107AH) ===== -->
+      <div id="tallerVistaRecambiosBox" style="display:none">
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot" style="--c:var(--ac)"></div>RECAMBIOS · <span id="recambiosEmpresaTitulo">TYP2014</span></div>
+            <div class="tbl-acts">
+              <button class="btn bp" id="recambiosBtnSubirAlb" onclick="document.getElementById('recambiosFileAlb').click()">➕ Subir albarán</button>
+              <input type="file" id="recambiosFileAlb" accept="image/*,.pdf" multiple style="display:none" onchange="recambiosSubir(this.files,'albaran')">
+              <button class="btn bs" id="recambiosBtnSubirFac" onclick="document.getElementById('recambiosFileFac').click()" style="display:none">🧾 Subir factura</button>
+              <input type="file" id="recambiosFileFac" accept="image/*,.pdf" multiple style="display:none" onchange="recambiosSubir(this.files,'factura')">
+            </div>
+          </div>
+          <div class="card-bd">
+            <!-- Filtros -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+              <select class="fi" id="recambiosFiltroTipo" onchange="renderRecambios()" style="font-size:11px;max-width:160px">
+                <option value="">Todos los tipos</option>
+                <option value="albaran">Solo albaranes</option>
+                <option value="factura">Solo facturas</option>
+                <option value="abono">Solo abonos</option>
+              </select>
+              <select class="fi" id="recambiosFiltroProv" onchange="renderRecambios()" style="font-size:11px;max-width:200px">
+                <option value="">Todos los proveedores</option>
+              </select>
+              <input class="fi" id="recambiosFiltroBuscar" oninput="renderRecambios()" placeholder="Buscar nº, ref..." style="font-size:11px;max-width:180px">
+              <span id="recambiosResumen" style="font-size:11px;color:var(--mu);font-family:var(--mn);margin-left:auto"></span>
+            </div>
+            <div id="recambiosColaBox" style="display:none;margin-bottom:10px"></div>
+            <div style="overflow-x:auto">
+              <table class="tbl" id="recambiosTabla">
+                <thead>
+                  <tr>
+                    <th>Tipo</th><th>Proveedor</th><th>Nº doc</th><th>Fecha</th>
+                    <th>Base</th><th>IVA</th><th>Total</th><th>Estado</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="recambiosTablaBody">
+                  <tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">Sin documentos todavía. Sube un albarán con el botón de arriba.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div><!-- fin vista recambios -->
     </div>
 
     <!-- TAB SUBIR -->
@@ -1082,6 +1136,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div class="modal-ft">
       <button class="btn bs" onclick="closeTallerNuevo()">Cancelar</button>
       <button class="btn bp" onclick="tallerCrearVehiculo()">Crear vehículo</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107AH: MODAL DETALLE de un documento de recambios (albarán/factura) -->
+<div class="ov" id="ovRecambiosDet">
+  <div class="modal" style="max-width:1000px">
+    <div class="modal-hd">
+      <div class="modal-title" id="recambiosDetTitulo">DETALLE</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeRecambiosDet()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="recambiosDetBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn br" id="recambiosDetBtnDel">Eliminar</button>
+      <button class="btn bs" onclick="closeRecambiosDet()">Cerrar</button>
     </div>
   </div>
 </div>
@@ -9005,6 +9076,8 @@ function switchTallerEmpresa(emp) {
   _tallerActualizarSubtabs();
   renderTallerTabla();
   renderTallerAvisos();
+  // v107AH: si está activa la vista Recambios, recargar los de la nueva empresa
+  if (tallerVistaActiva === 'recambios') loadRecambiosData();
 }
 
 // Calcula el estado de mantenimiento de un vehículo: devuelve
@@ -9342,6 +9415,353 @@ async function tallerImportarKmExcel(file) {
   }
   // Limpiar el input para poder re-subir el mismo archivo
   const inp = document.getElementById('tallerExcelInput'); if (inp) inp.value = '';
+}
+
+// ============================================================
+// MÓDULO RECAMBIOS (v107AH · Fase 1) — albaranes/facturas taller
+// Privacidad:
+//  - TALLER (no admin): sube y ve SOLO albaranes de las 3 empresas. NO facturas.
+//  - Admin (Juan Carlos): ve todo (albaranes + facturas), sube ambos, concilia (Fase 2).
+//  - Transmargaz: ve SOLO sus albaranes + sus facturas. No concilia.
+// ============================================================
+let recambiosDocs = [];          // filas de recambios_albaranes
+let tallerVistaActiva = 'mant';  // 'mant' | 'recambios'
+
+function switchTallerVista(v) {
+  tallerVistaActiva = v;
+  const mb = document.getElementById('tallerVistaMantBox');
+  const rb = document.getElementById('tallerVistaRecambiosBox');
+  const bm = document.getElementById('tallerVistaMant');
+  const br = document.getElementById('tallerVistaRecambios');
+  if (v === 'recambios') {
+    if (mb) mb.style.display = 'none';
+    if (rb) rb.style.display = '';
+    if (bm) { bm.classList.remove('bp'); bm.classList.add('bs'); }
+    if (br) { br.classList.remove('bs'); br.classList.add('bp'); }
+    loadRecambiosData();
+  } else {
+    if (mb) mb.style.display = '';
+    if (rb) rb.style.display = 'none';
+    if (bm) { bm.classList.remove('bs'); bm.classList.add('bp'); }
+    if (br) { br.classList.remove('bp'); br.classList.add('bs'); }
+  }
+}
+
+// ¿Es el usuario TALLER (rol no admin con permiso taller)? → no ve facturas, no concilia
+function _recambiosEsTaller() {
+  return !!window._tieneTaller && (userMap[currentUser?.id]?.role || '').toLowerCase() !== 'admin';
+}
+function _recambiosEsAdmin() {
+  return (userMap[currentUser?.id]?.role || '').toLowerCase() === 'admin';
+}
+
+async function loadRecambiosData() {
+  try {
+    // Empresa activa = la subpestaña de Taller seleccionada
+    const emp = tallerEmpresaActiva || 'TYP2014';
+    let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('fecha', { ascending: false });
+    const { data, error } = await q;
+    if (error) throw error;
+    let docs = data || [];
+
+    // Filtrado por privacidad:
+    if (_recambiosEsTaller()) {
+      // TALLER: solo albaranes (nunca facturas ni abonos)
+      docs = docs.filter(d => d.tipo_doc === 'albaran');
+    }
+    // (Admin y Transmargaz ven todo lo de su empresa; Transmargaz ya está
+    //  limitado porque solo puede entrar a su subpestaña TRANSMARGAZ.)
+    recambiosDocs = docs;
+
+    // Botones según rol: el botón de factura solo lo ve admin o Transmargaz (no TALLER)
+    const btnFac = document.getElementById('recambiosBtnSubirFac');
+    if (btnFac) btnFac.style.display = _recambiosEsTaller() ? 'none' : '';
+
+    // Título empresa
+    const tit = document.getElementById('recambiosEmpresaTitulo');
+    if (tit) {
+      const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+      tit.textContent = labels[emp] || emp;
+    }
+    // Rellenar filtro de proveedores
+    const provSel = document.getElementById('recambiosFiltroProv');
+    if (provSel) {
+      const provs = [...new Set(recambiosDocs.map(d => d.proveedor).filter(Boolean))].sort();
+      const actual = provSel.value;
+      provSel.innerHTML = '<option value="">Todos los proveedores</option>' +
+        provs.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+      provSel.value = actual;
+    }
+    renderRecambios();
+  } catch (e) {
+    console.error('[loadRecambiosData]', e);
+    const body = document.getElementById('recambiosTablaBody');
+    if (body) body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error: ${esc(e.message || e)}</td></tr>`;
+  }
+}
+
+function renderRecambios() {
+  const body = document.getElementById('recambiosTablaBody');
+  if (!body) return;
+  const fTipo = document.getElementById('recambiosFiltroTipo')?.value || '';
+  const fProv = document.getElementById('recambiosFiltroProv')?.value || '';
+  const fBuscar = (document.getElementById('recambiosFiltroBuscar')?.value || '').toLowerCase().trim();
+
+  let docs = [...recambiosDocs];
+  if (fTipo) docs = docs.filter(d => d.tipo_doc === fTipo);
+  if (fProv) docs = docs.filter(d => d.proveedor === fProv);
+  if (fBuscar) docs = docs.filter(d => {
+    const enCab = `${d.num_documento || ''} ${d.proveedor || ''}`.toLowerCase().includes(fBuscar);
+    const enLin = (d.lineas || []).some(l => `${l.codigo || ''} ${l.descripcion || ''}`.toLowerCase().includes(fBuscar));
+    return enCab || enLin;
+  });
+
+  const resumen = document.getElementById('recambiosResumen');
+  if (resumen) {
+    const nAlb = docs.filter(d => d.tipo_doc === 'albaran').length;
+    const nFac = docs.filter(d => d.tipo_doc === 'factura').length;
+    resumen.textContent = `${docs.length} doc · ${nAlb} albaranes · ${nFac} facturas`;
+  }
+
+  if (!docs.length) {
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">Sin documentos. Sube un albarán con el botón de arriba.</td></tr>`;
+    return;
+  }
+  const tipoBadge = t => t === 'factura'
+    ? '<span style="background:rgba(255,180,0,.15);color:#ffb400;padding:2px 7px;border-radius:4px;font-size:10px">🧾 Factura</span>'
+    : t === 'abono'
+    ? '<span style="background:rgba(255,80,80,.15);color:#ff5050;padding:2px 7px;border-radius:4px;font-size:10px">↩️ Abono</span>'
+    : '<span style="background:rgba(0,232,122,.12);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px">📦 Albarán</span>';
+  body.innerHTML = docs.map(d => {
+    const est = d.conciliado
+      ? '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>'
+      : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
+    const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
+    const nLin = (d.lineas || []).length;
+    return `<tr style="cursor:pointer" onclick="recambiosVerDetalle('${d.id}')">
+      <td>${tipoBadge(d.tipo_doc)}</td>
+      <td style="font-size:11px">${esc(d.proveedor || '—')}</td>
+      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}</td>
+      <td style="font-size:11px">${fecha}</td>
+      <td style="font-family:var(--mn);font-size:11px">${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</td>
+      <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
+      <td style="font-family:var(--mn);font-size:12px;color:var(--fg)"><b>${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
+      <td>${est}</td>
+      <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// Sube uno o varios documentos (albarán o factura) y los lee con IA
+async function recambiosSubir(files, tipoForzado) {
+  if (!files || !files.length) return;
+  const key = getKey();
+  if (!key) { toast('Falta la API key de Anthropic (config)', 'err'); return; }
+  const emp = tallerEmpresaActiva || 'TYP2014';
+  const colaBox = document.getElementById('recambiosColaBox');
+  const arr = [...files];
+  let ok = 0, err = 0;
+  if (colaBox) { colaBox.style.display = 'block'; }
+
+  for (let i = 0; i < arr.length; i++) {
+    const f = arr[i];
+    if (colaBox) colaBox.innerHTML = `<div style="background:rgba(0,232,122,.06);border:1px solid rgba(0,232,122,.25);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">⏳ Procesando ${i + 1}/${arr.length}: ${esc(f.name)}...</div>`;
+    try {
+      const isPdf = /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name);
+      const b64 = await _fileToB64(f);
+      const parsed = await callClaudeRecambio(b64, f.type || (isPdf ? 'application/pdf' : 'image/jpeg'), key, isPdf);
+      const docs = Array.isArray(parsed) ? parsed : [parsed];
+      for (const doc of docs) {
+        // tipoForzado viene del botón pulsado; si la IA detecta factura y se subió como
+        // albarán (o viceversa) respetamos lo que diga la IA salvo que no esté claro.
+        let tipo = tipoForzado;
+        if (doc.tipo_detectado === 'factura' || doc.tipo_detectado === 'albaran' || doc.tipo_detectado === 'abono') {
+          tipo = doc.tipo_detectado;
+        }
+        const reg = {
+          tipo_doc: tipo,
+          empresa: emp,
+          proveedor: doc.proveedor || null,
+          proveedor_nif: doc.proveedor_nif || null,
+          num_documento: doc.num_documento || null,
+          fecha: _recambiosFecha(doc.fecha),
+          base_imponible: _num(doc.base_imponible),
+          iva: _num(doc.iva),
+          total: _num(doc.total),
+          lineas: doc.lineas || [],
+          observaciones: doc.observaciones || null,
+          user_id: currentUser?.id || null
+        };
+        const { error } = await sb.from('recambios_albaranes').insert(reg);
+        if (error) throw error;
+        ok++;
+      }
+    } catch (e) {
+      console.error('[recambiosSubir]', f.name, e);
+      err++;
+    }
+  }
+  if (colaBox) {
+    colaBox.innerHTML = `<div style="background:${err ? 'rgba(255,140,0,.08)' : 'rgba(0,232,122,.06)'};border:1px solid ${err ? 'rgba(255,140,0,.3)' : 'rgba(0,232,122,.25)'};border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">✅ ${ok} guardados${err ? ` · ⚠️ ${err} con error (revisar consola)` : ''}</div>`;
+    setTimeout(() => { colaBox.style.display = 'none'; }, 6000);
+  }
+  toast(`Recambios: ${ok} guardados${err ? `, ${err} con error` : ''}`, err ? 'warn' : 'ok');
+  // Limpiar inputs
+  ['recambiosFileAlb','recambiosFileFac'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  await loadRecambiosData();
+}
+
+function _fileToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(file);
+  });
+}
+function _num(v) {
+  if (v == null || v === '') return null;
+  const n = parseFloat(String(v).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+  return isNaN(n) ? null : n;
+}
+function _recambiosFecha(f) {
+  if (!f) return null;
+  // admite DD/MM/YYYY o DD/MM/YY o YYYY-MM-DD
+  const s = String(f).trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    let y = m[3]; if (y.length === 2) y = '20' + y;
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+
+// IA: lee un albarán o factura de recambios y devuelve estructura JSON
+async function callClaudeRecambio(b64, mediaType, key, isPdf) {
+  if (!b64 || typeof b64 !== 'string' || b64.length < 100) {
+    throw new Error('Archivo vacío o corrupto — vuelve a subirlo');
+  }
+  const prompt = `Eres un OCR experto en albaranes y facturas de RECAMBIOS de automoción/camión en España (proveedores como Zona Franca Alari Sepauto/IVECO, Autosur de Levante, IVECO Auto Distribución, LARAUTO, RS TURIA, y otros).
+
+${isPdf ? 'El PDF puede tener VARIAS PÁGINAS. Si es UN único documento de varias páginas (una factura larga), devuelve UN SOLO objeto JSON juntando TODAS las líneas de todas las páginas. Si hay documentos DISTINTOS, devuelve un ARRAY con un objeto por documento.' : 'Devuelve UN objeto JSON (no array).'}
+
+Determina primero el TIPO de documento:
+- "factura": pone la palabra FACTURA, tiene Nº Factura, base imponible, IVA y TOTAL FACTURA. Suele agrupar varios albaranes dentro.
+- "albaran": es un albarán/nota de entrega individual (puede o no traer precios), no tiene IVA desglosado.
+- "abono": es un abono/nota de crédito/devolución (importes en negativo o pone ABONO).
+
+Campos a extraer (JSON):
+{
+  "tipo_detectado": "albaran" | "factura" | "abono",
+  "proveedor": "nombre del proveedor que EMITE el documento (ej: LARAUTO S.A., RS TURIA, Zona Franca Alari Sepauto S.A., Autosur de Levante S.A., IVECO Auto Distribución)",
+  "proveedor_nif": "CIF del proveedor emisor (ej: A58685892). NO el del cliente B90172735/B90286337",
+  "num_documento": "nº de la factura o del albarán (ej: F/000603, R12600399, FB01224, 2026006075)",
+  "fecha": "DD/MM/YYYY del documento",
+  "base_imponible": número (base imponible / suma sin IVA). Punto decimal con coma española.,
+  "iva": número (cuota de IVA en euros, NO el porcentaje),
+  "total": número (TOTAL del documento con IVA),
+  "observaciones": "texto corto si hay algo relevante escrito (ej: nombre a mano, 'POR RUTA'), o null",
+  "lineas": [
+    {
+      "albaran": "nº de albarán al que pertenece esta línea, SI el documento es una factura que agrupa albaranes y lo indica (ej: C12603354, AR 445865, 2026/004197). Si es un albarán suelto, repite su propio número. Si no hay, null",
+      "codigo": "referencia/código del artículo (ej: 5801269683, AS40253131, N908613). Si no hay, null",
+      "descripcion": "descripción del artículo (ej: RADIADOR/CALEFA, FILTRO ACEITE, JUNTA)",
+      "cantidad": número (unidades),
+      "precio": número (precio unitario sin IVA),
+      "dto": número (porcentaje de descuento, 0 si no hay),
+      "importe": número (importe de la línea = total de esa línea)
+    }
+  ]
+}
+
+IMPORTANTE:
+- Lee CADA línea con su cantidad, precio y descuento. La cantidad es CRÍTICA (es lo que el usuario quiere verificar).
+- Para facturas que agrupan albaranes (como Zona Franca/IVECO o IVECO Auto Distribución): asocia cada línea a su nº de albarán (campo "albaran" de cada línea). El nº de albarán aparece como "Nº Albaran C12603354" o "ALBARÁN Nº. 01141" o "Albarán AR 445865" antes de su grupo de líneas.
+- Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90.
+- Si un dato no aparece, pon null. NO inventes.
+- Devuelve SOLO el JSON, sin texto adicional ni markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetchAnthropicConReintento(
+    { model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] },
+    key, null, 'callClaudeRecambio'
+  );
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  return JSON.parse(text);
+}
+
+// Modal de detalle de un documento de recambios
+function recambiosVerDetalle(id) {
+  const d = recambiosDocs.find(x => x.id === id);
+  if (!d) return;
+  const lineas = d.lineas || [];
+  const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
+  const tipoTxt = d.tipo_doc === 'factura' ? '🧾 FACTURA' : d.tipo_doc === 'abono' ? '↩️ ABONO' : '📦 ALBARÁN';
+  const lineasHtml = lineas.length ? lineas.map(l => `
+    <tr>
+      <td style="font-size:10px;font-family:var(--mn)">${esc(l.albaran || '—')}</td>
+      <td style="font-size:10px;font-family:var(--mn)">${esc(l.codigo || '—')}</td>
+      <td style="font-size:11px">${esc(l.descripcion || '—')}</td>
+      <td style="font-size:11px;text-align:right">${l.cantidad != null ? l.cantidad : '—'}</td>
+      <td style="font-size:11px;text-align:right">${l.precio != null ? Number(l.precio).toFixed(2) : '—'}</td>
+      <td style="font-size:11px;text-align:right">${l.dto ? l.dto + '%' : '—'}</td>
+      <td style="font-size:11px;text-align:right">${l.importe != null ? Number(l.importe).toFixed(2) : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--mu);font-size:11px;padding:14px">Sin líneas leídas</td></tr>';
+
+  document.getElementById('recambiosDetTitulo').textContent = `${tipoTxt} · ${d.proveedor || ''} · ${d.num_documento || ''}`;
+  document.getElementById('recambiosDetBody').innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
+      <span>Proveedor: <b style="color:var(--fg)">${esc(d.proveedor || '—')}</b></span>
+      <span>NIF: <b style="color:var(--fg)">${esc(d.proveedor_nif || '—')}</b></span>
+      <span>Nº: <b style="color:var(--fg)">${esc(d.num_documento || '—')}</b></span>
+      <span>Fecha: <b style="color:var(--fg)">${fecha}</b></span>
+      <span>Empresa: <b style="color:var(--fg)">${esc(d.empresa || '—')}</b></span>
+    </div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px">
+      <span>Base: <b>${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</b></span>
+      <span>IVA: <b>${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</b></span>
+      <span>Total: <b style="color:var(--ac)">${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></span>
+    </div>
+    ${d.observaciones ? `<div style="font-size:11px;color:var(--mu);margin-bottom:10px">📝 ${esc(d.observaciones)}</div>` : ''}
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr>
+          <th style="font-size:10px">Albarán</th><th style="font-size:10px">Código</th>
+          <th style="font-size:10px">Descripción</th><th style="font-size:10px;text-align:right">Cant</th>
+          <th style="font-size:10px;text-align:right">Precio</th><th style="font-size:10px;text-align:right">Dto</th>
+          <th style="font-size:10px;text-align:right">Importe</th>
+        </tr></thead>
+        <tbody>${lineasHtml}</tbody>
+      </table>
+    </div>`;
+  // Botón eliminar: admin siempre; TALLER solo sus albaranes; Transmargaz sus docs
+  const btnDel = document.getElementById('recambiosDetBtnDel');
+  if (btnDel) btnDel.onclick = () => recambiosEliminar(d.id);
+  document.getElementById('ovRecambiosDet').classList.add('open');
+}
+function closeRecambiosDet() { document.getElementById('ovRecambiosDet').classList.remove('open'); }
+
+async function recambiosEliminar(id) {
+  if (!confirm('¿Eliminar este documento de recambios?')) return;
+  try {
+    const { error } = await sb.from('recambios_albaranes').delete().eq('id', id);
+    if (error) throw error;
+    toast('Documento eliminado', 'ok');
+    closeRecambiosDet();
+    await loadRecambiosData();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
 // Init
