@@ -445,7 +445,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
          el día siguiente (mañana al recargar vuelve a aparecer). -->
     <div id="itvGlobalBanner" style="display:none"></div>
 
-    <!-- v107AJ: banner global de avisos de TALLER (mantenimientos que vencen
+    <!-- v107AL: banner global de avisos de TALLER (mantenimientos que vencen
          pronto o ya vencidos). Mismo patrón que el de ITV: visible en todas
          las pestañas para quien tenga acceso a Taller. Botón ✕ oculta hasta
          el día siguiente. -->
@@ -857,7 +857,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <button class="btn bs" id="tallerSubTRANSMARGAZ" onclick="switchTallerEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
       </div>
 
-      <!-- v107AI: selector de vista dentro de Taller: Mantenimientos vs Recambios -->
+      <!-- v107AL: selector de vista dentro de Taller: Mantenimientos vs Recambios -->
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:10px" id="tallerVistaSel">
         <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:11px">🔧 Mantenimientos</button>
         <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:11px">📦 Recambios</button>
@@ -893,7 +893,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
       </div><!-- fin vista mantenimientos -->
 
-      <!-- ===== VISTA RECAMBIOS (v107AI) ===== -->
+      <!-- ===== VISTA RECAMBIOS (v107AL) ===== -->
       <div id="tallerVistaRecambiosBox" style="display:none">
         <div class="card">
           <div class="card-hd">
@@ -1162,7 +1162,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
-<!-- v107AI: MODAL DETALLE de un documento de recambios (albarán/factura) -->
+<!-- v107AL: MODAL DETALLE de un documento de recambios (albarán/factura) -->
 <div class="ov" id="ovRecambiosDet">
   <div class="modal" style="max-width:1000px">
     <div class="modal-hd">
@@ -1175,6 +1175,22 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div class="modal-ft">
       <button class="btn br" id="recambiosDetBtnDel">Eliminar</button>
       <button class="btn bs" onclick="closeRecambiosDet()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107AL: MODAL INFORME DE CONCILIACIÓN (factura ↔ albaranes) -->
+<div class="ov" id="ovRecambiosInf">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-hd">
+      <div class="modal-title" id="recambiosInfTitulo">CONCILIACIÓN</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeRecambiosInf()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="recambiosInfBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bp" onclick="closeRecambiosInf()">Entendido</button>
     </div>
   </div>
 </div>
@@ -5302,7 +5318,7 @@ function _itvEstado(rec) {
 // (se guarda en localStorage la fecha del último ocultamiento).
 // ============================================================
 const ITV_BANNER_HIDE_KEY = 'itv_banner_hidden_date';
-const TALLER_BANNER_HIDE_KEY = 'taller_banner_hidden_date';  // v107AJ
+const TALLER_BANNER_HIDE_KEY = 'taller_banner_hidden_date';  // v107AL
 
 function _itvNivelAviso(dias) {
   // Devuelve color y prioridad del aviso según los días que quedan
@@ -5397,7 +5413,7 @@ function hideItvBannerToday() {
   toast('Aviso ITV ocultado hasta mañana');
 }
 
-// v107AJ: banner global de avisos de TALLER (mantenimientos vencidos o próximos).
+// v107AL: banner global de avisos de TALLER (mantenimientos vencidos o próximos).
 // Mismo patrón visual que el de ITV. Solo se muestra a quien tiene acceso a Taller.
 // Recorre TODAS las empresas que el usuario puede ver (no solo la subpestaña activa).
 function renderTallerGlobalBanner() {
@@ -5460,7 +5476,7 @@ function renderTallerGlobalBanner() {
   banner.innerHTML = html;
 }
 
-// v107AK: oculta SOLO el nivel indicado (vencido/pronto/plan) hasta mañana.
+// v107AL: oculta SOLO el nivel indicado (vencido/pronto/plan) hasta mañana.
 // Así el taller puede cerrar el amarillo pero seguir viendo el rojo, etc.
 function hideTallerBannerToday(nivel) {
   const today = new Date().toISOString().slice(0, 10);
@@ -9146,7 +9162,7 @@ async function loadTallerData() {
     _tallerActualizarSubtabs();
     renderTallerTabla();
     renderTallerAvisos();
-    renderTallerGlobalBanner();  // v107AJ: banner global visible en todas las pestañas
+    renderTallerGlobalBanner();  // v107AL: banner global visible en todas las pestañas
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
@@ -9177,7 +9193,7 @@ function switchTallerEmpresa(emp) {
   _tallerActualizarSubtabs();
   renderTallerTabla();
   renderTallerAvisos();
-  // v107AI: si está activa la vista Recambios, recargar los de la nueva empresa
+  // v107AL: si está activa la vista Recambios, recargar los de la nueva empresa
   if (tallerVistaActiva === 'recambios') loadRecambiosData();
 }
 
@@ -9211,7 +9227,7 @@ function _tallerEstadoVehiculo(v) {
     const kmProx = ultimo.km + intKm;
     proxKmStr = kmProx.toLocaleString('es-ES') + ' km';
     const kmRest = kmProx - kmActual;
-    // v107AK: umbrales km según Juan Carlos: 10.000 (plan) / 5.000 (pronto) / 0 (vencido)
+    // v107AL: umbrales km según Juan Carlos: 10.000 (plan) / 5.000 (pronto) / 0 (vencido)
     if (kmRest <= 0) estadoKm = 'vencido';
     else if (kmRest <= 5000) estadoKm = 'pronto';
     else if (kmRest <= 10000) estadoKm = 'plan';
@@ -9230,7 +9246,7 @@ function _tallerEstadoVehiculo(v) {
   };
 }
 
-// v107AK: genera <option> de tiempo marcando el valor actual. Si el valor
+// v107AL: genera <option> de tiempo marcando el valor actual. Si el valor
 // guardado no está en la lista, lo añade para no perderlo.
 function _tallerOpcsMeses(actual) {
   const vals = [6, 12, 18, 24];
@@ -9537,7 +9553,7 @@ async function tallerImportarKmExcel(file) {
 }
 
 // ============================================================
-// MÓDULO RECAMBIOS (v107AI · Fase 1) — albaranes/facturas taller
+// MÓDULO RECAMBIOS (v107AL · Fase 1) — albaranes/facturas taller
 // Privacidad:
 //  - TALLER (no admin): sube y ve SOLO albaranes de las 3 empresas. NO facturas.
 //  - Admin (Juan Carlos): ve todo (albaranes + facturas), sube ambos, concilia (Fase 2).
@@ -9646,6 +9662,23 @@ function renderRecambios() {
     body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">Sin documentos. Sube un albarán con el botón de arriba.</td></tr>`;
     return;
   }
+  // v107AL: detectar duplicados (mismo tipo+empresa+proveedor+nº doc).
+  // Se marca en rojo cualquier documento que aparezca 2+ veces.
+  const _claveDup = x => `${x.tipo_doc}|${x.empresa}|${_recambNorm(x.proveedor)}|${_recambNorm(x.num_documento)}`;
+  const _conteo = {};
+  recambiosDocs.forEach(x => {
+    if (!x.num_documento || !x.proveedor) return;
+    const k = _claveDup(x);
+    _conteo[k] = (_conteo[k] || 0) + 1;
+  });
+  const esDuplicado = d => d.num_documento && d.proveedor && _conteo[_claveDup(d)] > 1;
+  const nDup = docs.filter(esDuplicado).length;
+
+  const resumenDup = document.getElementById('recambiosResumen');
+  if (resumenDup && nDup) {
+    resumenDup.innerHTML += ` · <span style="color:#ff5050">⚠️ ${nDup} duplicado(s)</span>`;
+  }
+
   const tipoBadge = t => t === 'factura'
     ? '<span style="background:rgba(255,180,0,.15);color:#ffb400;padding:2px 7px;border-radius:4px;font-size:10px">🧾 Factura</span>'
     : t === 'abono'
@@ -9657,16 +9690,28 @@ function renderRecambios() {
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    return `<tr style="cursor:pointer" onclick="recambiosVerDetalle('${d.id}')">
+    // v107AL: botón Conciliar solo en facturas y solo para admin
+    const btnConciliar = (d.tipo_doc === 'factura' && _recambiosEsAdmin())
+      ? `<button class="btn bp" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">🔍 Conciliar</button>`
+      : '';
+    // v107AL: marca de duplicado
+    const dup = esDuplicado(d);
+    const trStyle = dup
+      ? 'cursor:pointer;background:rgba(255,80,80,.08);border-left:3px solid #ff5050'
+      : 'cursor:pointer';
+    const dupTag = dup
+      ? ' <span style="background:rgba(255,80,80,.2);color:#ff5050;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:bold" title="Este documento está duplicado (mismo proveedor y nº)">⚠️ DUPLICADO</span>'
+      : '';
+    return `<tr style="${trStyle}" onclick="recambiosVerDetalle('${d.id}')">
       <td>${tipoBadge(d.tipo_doc)}</td>
       <td style="font-size:11px">${esc(d.proveedor || '—')}</td>
-      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}</td>
+      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}${dupTag}</td>
       <td style="font-size:11px">${fecha}</td>
       <td style="font-family:var(--mn);font-size:11px">${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</td>
       <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
       <td style="font-family:var(--mn);font-size:12px;color:var(--fg)"><b>${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
       <td>${est}</td>
-      <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
+      <td style="white-space:nowrap">${btnConciliar}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
     </tr>`;
   }).join('');
 }
@@ -9711,6 +9756,22 @@ async function recambiosSubir(files, tipoForzado) {
           observaciones: doc.observaciones || null,
           user_id: currentUser?.id || null
         };
+        // v107AL: detectar duplicado (mismo proveedor + nº documento + empresa + tipo).
+        // Avisa y deja decidir; si el usuario cancela, se salta este documento.
+        if (reg.num_documento && reg.proveedor) {
+          const dupNum = _recambNorm(reg.num_documento);
+          const dupProv = _recambNorm(reg.proveedor);
+          const yaExiste = recambiosDocs.some(x =>
+            x.tipo_doc === reg.tipo_doc &&
+            x.empresa === reg.empresa &&
+            _recambNorm(x.num_documento) === dupNum &&
+            _recambNorm(x.proveedor) === dupProv
+          );
+          if (yaExiste) {
+            const segir = confirm(`⚠️ Ya existe un ${reg.tipo_doc} con nº "${reg.num_documento}" de "${reg.proveedor}" en ${reg.empresa}.\n\n¿Subirlo igualmente? (Cancelar = saltar este documento)`);
+            if (!segir) { continue; }
+          }
+        }
         const { error } = await sb.from('recambios_albaranes').insert(reg);
         if (error) throw error;
         ok++;
@@ -9740,7 +9801,7 @@ function _fileToB64(file) {
 }
 function _num(v) {
   if (v == null || v === '') return null;
-  // v107AI: si la IA ya devuelve un número JSON (ej. 320.37), usarlo TAL CUAL.
+  // v107AL: si la IA ya devuelve un número JSON (ej. 320.37), usarlo TAL CUAL.
   // El bug anterior quitaba el punto decimal y convertía 320.37 en 32037.
   if (typeof v === 'number') return isNaN(v) ? null : v;
   let s = String(v).trim().replace(/[€\s]/g, '');
@@ -9899,6 +9960,186 @@ async function recambiosEliminar(id) {
     await loadRecambiosData();
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
+
+// ============================================================
+// RECAMBIOS Fase 2 (v107AL) — conciliación factura ↔ albaranes
+// Solo admin. Cruza una factura con los albaranes del mismo
+// proveedor (por nº de albarán; si no hay, por proveedor+fecha)
+// y compara línea a línea (referencia o descripción; cantidad y
+// precio; margen ±0,02€ para ignorar redondeos).
+// ============================================================
+const RECAMB_MARGEN = 0.02;
+
+function _recambNorm(s) {
+  return String(s || '').toUpperCase().replace(/[\s.\-_/]/g, '').trim();
+}
+
+async function recambiosConciliar(facturaId) {
+  const factura = recambiosDocs.find(d => d.id === facturaId);
+  if (!factura) { toast('Factura no encontrada', 'err'); return; }
+  if (factura.tipo_doc !== 'factura') { toast('Solo se concilian facturas', 'err'); return; }
+
+  // Traer TODOS los albaranes de la misma empresa (no filtrados por privacidad,
+  // admin los ve todos) para cruzarlos con la factura.
+  let albaranes = [];
+  try {
+    const { data, error } = await sb.from('recambios_albaranes')
+      .select('*')
+      .eq('empresa', factura.empresa)
+      .eq('tipo_doc', 'albaran');
+    if (error) throw error;
+    albaranes = data || [];
+  } catch (e) {
+    toast('Error cargando albaranes: ' + (e.message || e), 'err');
+    return;
+  }
+
+  // Filtrar albaranes del MISMO proveedor (comparación flexible)
+  const provFac = _recambNorm(factura.proveedor);
+  const albProv = albaranes.filter(a => {
+    const p = _recambNorm(a.proveedor);
+    return p && provFac && (p.includes(provFac) || provFac.includes(p) || p === provFac);
+  });
+
+  // Construir índice de líneas de la factura agrupadas por nº de albarán
+  const lineasFac = (factura.lineas || []).map(l => ({ ...l, _alb: _recambNorm(l.albaran) }));
+  const numsAlbEnFactura = [...new Set(lineasFac.map(l => l._alb).filter(Boolean))];
+
+  const informe = { ok: [], avisos: [], albNoEnFactura: [], albNoSubidos: [] };
+
+  // Para cada albarán que tengo subido, buscar su correspondencia en la factura
+  const albCruzados = new Set();
+  for (const alb of albProv) {
+    const numAlb = _recambNorm(alb.num_documento);
+    // Líneas de la factura que pertenecen a este albarán (por nº)
+    let lineasDeEste = numAlb ? lineasFac.filter(l => l._alb && (l._alb === numAlb || l._alb.includes(numAlb) || numAlb.includes(l._alb))) : [];
+    // Si la factura no trae nº de albarán, cruzar por proveedor+fecha
+    let modoCruce = 'nº albarán';
+    if (!lineasDeEste.length && !numsAlbEnFactura.length) {
+      lineasDeEste = lineasFac;  // factura sin desglose por albarán → comparar todo
+      modoCruce = 'proveedor+fecha';
+    }
+    if (!lineasDeEste.length) {
+      informe.albNoEnFactura.push({ alb, motivo: `Albarán ${alb.num_documento || '?'} no aparece en la factura` });
+      continue;
+    }
+    albCruzados.add(numAlb);
+
+    // Comparar cada línea del albarán con las de la factura
+    for (const lAlb of (alb.lineas || [])) {
+      const refA = _recambNorm(lAlb.codigo);
+      const descA = _recambNorm(lAlb.descripcion);
+      // Emparejar: primero por referencia, si no por descripción
+      let match = lineasDeEste.find(lF => refA && _recambNorm(lF.codigo) === refA);
+      if (!match) match = lineasDeEste.find(lF => descA && _recambNorm(lF.descripcion) === descA);
+      if (!match) {
+        informe.avisos.push(`⚠️ ${alb.num_documento || ''}: "${lAlb.descripcion || lAlb.codigo || '?'}" del albarán NO aparece en la factura`);
+        continue;
+      }
+      // Comparar cantidad
+      const cantA = Number(lAlb.cantidad) || 0;
+      const cantF = Number(match.cantidad) || 0;
+      if (Math.abs(cantA - cantF) > 0.001) {
+        informe.avisos.push(`⚠️ ${alb.num_documento || ''} · ${lAlb.descripcion || lAlb.codigo}: cantidad albarán ${cantA} vs factura ${cantF}`);
+      }
+      // Comparar precio unitario (con margen ±0,02€)
+      const pA = Number(lAlb.precio);
+      const pF = Number(match.precio);
+      if (!isNaN(pA) && !isNaN(pF) && Math.abs(pA - pF) > RECAMB_MARGEN) {
+        informe.avisos.push(`⚠️ ${alb.num_documento || ''} · ${lAlb.descripcion || lAlb.codigo}: precio albarán ${pA.toFixed(2)}€ vs factura ${pF.toFixed(2)}€`);
+      }
+    }
+    if (!informe.avisos.some(a => a.includes(alb.num_documento || '\u0000'))) {
+      informe.ok.push(`✅ ${alb.num_documento || '?'} (${(alb.lineas || []).length} líneas) cuadra`);
+    }
+  }
+
+  // Albaranes que están en la factura pero NO los subí
+  for (const numF of numsAlbEnFactura) {
+    const subido = albProv.some(a => {
+      const n = _recambNorm(a.num_documento);
+      return n && (n === numF || n.includes(numF) || numF.includes(n));
+    });
+    if (!subido) {
+      informe.albNoSubidos.push(numF);
+    }
+  }
+
+  // v107AL: CARGOS FANTASMA — líneas de la factura que NO casan con ninguna
+  // línea de ningún albarán subido (ni por referencia ni por descripción).
+  informe.fantasma = [];
+  // Reunir todas las líneas de todos los albaranes del proveedor
+  const todasLineasAlb = [];
+  albProv.forEach(a => (a.lineas || []).forEach(l => todasLineasAlb.push(l)));
+  for (const lF of lineasFac) {
+    const refF = _recambNorm(lF.codigo);
+    const descF = _recambNorm(lF.descripcion);
+    const casa = todasLineasAlb.some(lA =>
+      (refF && _recambNorm(lA.codigo) === refF) ||
+      (descF && _recambNorm(lA.descripcion) === descF)
+    );
+    if (!casa && (refF || descF)) {
+      const imp = lF.importe != null ? ` (${Number(lF.importe).toFixed(2)}€)` : '';
+      informe.fantasma.push(`💸 "${lF.descripcion || lF.codigo || '?'}"${imp} está en la factura pero NO viene de ningún albarán subido`);
+    }
+  }
+
+  // v107AL: verificar que el TOTAL de la factura cuadra (base + IVA = total)
+  informe.totalCuadra = null;
+  if (factura.base_imponible != null && factura.iva != null && factura.total != null) {
+    const calc = factura.base_imponible + factura.iva;
+    informe.totalCuadra = Math.abs(calc - factura.total) <= 0.05;
+    if (!informe.totalCuadra) {
+      informe.avisos.push(`⚠️ El total de la factura no cuadra: base ${factura.base_imponible.toFixed(2)}€ + IVA ${factura.iva.toFixed(2)}€ = ${calc.toFixed(2)}€, pero la factura pone ${factura.total.toFixed(2)}€`);
+    }
+  }
+
+  _recambiosMostrarInforme(factura, informe, albProv.length);
+
+  // Marcar la factura como conciliada (revisada)
+  try {
+    await sb.from('recambios_albaranes')
+      .update({ conciliado: true, updated_at: new Date().toISOString() })
+      .eq('id', facturaId);
+    await loadRecambiosData();
+  } catch (e) { console.warn('[recambiosConciliar] no se pudo marcar conciliado:', e); }
+}
+
+function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
+  const fantasma = inf.fantasma || [];
+  const hayProblemas = inf.avisos.length || inf.albNoEnFactura.length || inf.albNoSubidos.length || fantasma.length;
+  const cab = hayProblemas
+    ? `<div style="background:rgba(255,140,0,.10);border:1px solid #ff9500;border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:#fff">⚠️ <b>Hay diferencias que revisar</b> entre la factura y tus albaranes.</div>`
+    : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:#fff">✅ <b>Todo cuadra.</b> La factura coincide con los albaranes subidos.</div>`;
+
+  const seccion = (titulo, items, color) => items.length ? `
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--mn);font-size:12px;color:${color};margin-bottom:6px;font-weight:bold">${titulo} (${items.length})</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${items.map(t => `<div style="font-size:12px;color:var(--fg);line-height:1.4;padding:4px 8px;background:rgba(255,255,255,.02);border-radius:4px">${esc(typeof t === 'string' ? t : t.motivo)}</div>`).join('')}
+      </div>
+    </div>` : '';
+
+  document.getElementById('recambiosInfTitulo').textContent = `🔍 Conciliación · ${factura.proveedor || ''} · ${factura.num_documento || ''}`;
+  document.getElementById('recambiosInfBody').innerHTML = `
+    ${cab}
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
+      <span>Factura total: <b style="color:var(--ac)">${factura.total != null ? factura.total.toFixed(2) + '€' : '—'}</b></span>
+      <span>Albaranes del proveedor cruzados: <b style="color:var(--fg)">${totalAlbProv}</b></span>
+      ${inf.totalCuadra === true ? '<span style="color:var(--ac)">✅ Total factura cuadra</span>' : inf.totalCuadra === false ? '<span style="color:#ff5050">⚠️ Total factura NO cuadra</span>' : ''}
+    </div>
+    ${seccion('✅ Albaranes que cuadran', inf.ok, 'var(--ac)')}
+    ${seccion('💸 Cargos en la factura SIN albarán (revisar bien)', fantasma, '#ff5050')}
+    ${seccion('⚠️ Diferencias detectadas', inf.avisos, '#ff9500')}
+    ${seccion('⚠️ Albaranes en la factura que NO subiste', inf.albNoSubidos.map(n => `Falta subir el albarán ${n} (está en la factura)`), '#ff9500')}
+    ${seccion('⚠️ Albaranes subidos que NO están en la factura', inf.albNoEnFactura, '#ff9500')}
+    ${!inf.ok.length && !hayProblemas ? '<div style="font-size:12px;color:var(--mu)">No se encontraron albaranes de este proveedor para cruzar. Sube primero los albaranes del mes.</div>' : ''}
+    <div style="margin-top:14px;font-size:11px;color:var(--mu);line-height:1.5;border-top:1px solid var(--bd);padding-top:10px">
+      ℹ️ La IA señala posibles diferencias para que las revises tú. Margen de ±0,02€ aplicado (ignora redondeos). Verifica siempre el documento original antes de reclamar.
+    </div>`;
+  document.getElementById('ovRecambiosInf').classList.add('open');
+}
+function closeRecambiosInf() { document.getElementById('ovRecambiosInf').classList.remove('open'); }
 
 // Init
 initApp();
