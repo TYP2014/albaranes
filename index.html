@@ -1728,14 +1728,35 @@ async function saveGasRecord(data) {
   }
   // v98: si data.db_id existe, hacer UPDATE en lugar de INSERT (necesario para procesar
   // pendientes de gasoil sin crear duplicados — ver fix v98 en _processOne)
-  if (data.db_id) {
-    const { error } = await sb.from('gasoil').update(rec).eq('id', data.db_id);
-    if (error) throw error;
-    return data.db_id;
+  // v107AR: RED DE SEGURIDAD DEFINITIVA contra el error "Could not find the
+  // 'X' column of 'gasoil'". La IA a veces devuelve campos que NO son columnas
+  // de la tabla gasoil (num_cuenta, importe_total, etc — pasa sobre todo al
+  // subir páginas sueltas de facturas SOLRED por el botón de tickets normales).
+  // En lugar de ir tapando campo a campo (whack-a-mole infinito), si Supabase
+  // rechaza una columna inexistente la quitamos automáticamente y reintentamos.
+  // Así nunca se pierde un dato válido y este error no vuelve a salir jamás.
+  async function _gasGuardar(esUpdate) {
+    for (let intento = 0; intento < 12; intento++) {
+      let resp;
+      if (esUpdate) {
+        resp = await sb.from('gasoil').update(rec).eq('id', data.db_id);
+      } else {
+        resp = await sb.from('gasoil').insert(rec).select().single();
+      }
+      if (!resp.error) return esUpdate ? data.db_id : (resp.data && resp.data.id);
+      const msg = String(resp.error.message || '');
+      const m = msg.match(/Could not find the '([^']+)' column/i);
+      if (resp.error.code === 'PGRST204' && m && m[1] && (m[1] in rec)) {
+        console.warn('[v107AR gasoil] columna inexistente "' + m[1] + '": la quito y reintento');
+        delete rec[m[1]];
+        continue;
+      }
+      throw resp.error;
+    }
+    throw new Error('No pude guardar el gasoil: demasiadas columnas desconocidas en el ticket');
   }
-  const { data: inserted, error } = await sb.from('gasoil').insert(rec).select().single();
-  if (error) throw error;
-  return inserted.id;
+  if (data.db_id) return await _gasGuardar(true);
+  return await _gasGuardar(false);
 }
 
 async function deleteRecordDB(dbId) {
