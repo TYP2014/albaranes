@@ -539,6 +539,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                  marca con la empresa de la subpestaña activa (gasEmpresaActiva). -->
             <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
             <input type="file" id="gasUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gas'); this.value='';">
+            <button class="btn bs" onclick="openGasResumen()">📅 Resumen mes</button>
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
           </div>
         </div>
@@ -1040,6 +1041,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
     <div class="modal-ft" id="mgFooter"></div>
+  </div>
+</div>
+
+<!-- v107AO: MODAL RESUMEN MENSUAL GASOIL (litros por camión y mes, tabla cruzada) -->
+<div class="ov" id="ovGasResumen">
+  <div class="modal" style="max-width:980px">
+    <div class="modal-hd">
+      <div class="modal-title" id="gasResumenTitulo">RESUMEN LITROS</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeGasResumen()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="gasResumenBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bp" id="btnGasResumenXls" onclick="exportGasResumenExcel()">📊 Descargar Excel (resumen + detalle)</button>
+      <button class="btn bs" onclick="closeGasResumen()">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -5352,6 +5370,167 @@ function exportGasoilExcel() {
   const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = [10,10,18,10,8,10,8,14,24].map(w=>({wch:w}));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Gasoil');
   XLSX.writeFile(wb, `gasoil_${new Date().toISOString().slice(0,10)}.xlsx`); toast('✓ Excel gasoil exportado');
+}
+
+// ===== v107AO: RESUMEN MENSUAL DE LITROS POR CAMIÓN (tabla cruzada) =====
+// Usa filteredGas (ya filtrado por la subpestaña de empresa activa, misma
+// privacidad que el resto de Gasoil). NO toca nada existente.
+const _GAS_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function _gasResumenLitros(v) {
+  // Litros robusto: admite coma decimal española y números ya en formato JS.
+  if (v == null) return 0;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+
+function _gasResumenCalcular() {
+  // Agrupa los tickets de la empresa activa por matrícula × mes.
+  const meses = {};   // "YYYY-MM" -> { label, order }
+  const filas = {};   // matriculaNorm -> { display, total, repTotal, porMes:{}, repMes:{} }
+
+  (filteredGas || []).forEach(r => {
+    const L = _gasResumenLitros(r.litros);
+
+    const matRaw = (r.tractora || '').toString().trim();
+    const matKey = matRaw.toUpperCase().replace(/[\s-]/g, '') || '__SINMAT__';
+    const matDisp = matRaw || 'Sin matrícula';
+
+    let mesKey = '__SINFECHA__', mesLabel = 'Sin fecha', order = 99999999;
+    const p = (r.fecha || '').toString().trim().split('/');
+    if (p.length === 3 && p[2]) {
+      const yy = parseInt(p[2], 10), mm = parseInt(p[1], 10);
+      if (!isNaN(yy) && !isNaN(mm) && mm >= 1 && mm <= 12) {
+        mesKey = yy + '-' + String(mm).padStart(2, '0');
+        mesLabel = _GAS_MESES[mm - 1] + ' ' + yy;
+        order = yy * 100 + mm;
+      }
+    }
+    if (!meses[mesKey]) meses[mesKey] = { label: mesLabel, order };
+
+    if (!filas[matKey]) filas[matKey] = { display: matDisp, total: 0, repTotal: 0, porMes: {}, repMes: {} };
+    const fil = filas[matKey];
+    fil.porMes[mesKey] = (fil.porMes[mesKey] || 0) + L;
+    fil.repMes[mesKey] = (fil.repMes[mesKey] || 0) + 1;
+    fil.total += L;
+    fil.repTotal += 1;
+  });
+
+  const mesesOrden = Object.keys(meses).sort((a, b) => meses[a].order - meses[b].order);
+  const filasOrden = Object.keys(filas).sort((a, b) => filas[a].display.localeCompare(filas[b].display, 'es'));
+  return { meses, mesesOrden, filas, filasOrden };
+}
+
+function _gasFmtL(n) {
+  if (!n) return '';
+  return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+}
+
+function _gasEmpresaLabel() {
+  const labels = { 'TYP2014': 'TYP2014', 'HISPALIS': 'T. HISPALIS 2016', 'TRANSMARGAZ': 'TRANSMARGAZ 2018' };
+  return labels[gasEmpresaActiva] || gasEmpresaActiva;
+}
+
+function openGasResumen() {
+  const empLabel = _gasEmpresaLabel();
+  document.getElementById('gasResumenTitulo').textContent = 'RESUMEN LITROS · ' + empLabel;
+  const body = document.getElementById('gasResumenBody');
+  const btnXls = document.getElementById('btnGasResumenXls');
+
+  if (!filteredGas || !filteredGas.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tickets de gasoil para ' + empLabel + '.</div>';
+    if (btnXls) btnXls.style.display = 'none';
+    document.getElementById('ovGasResumen').classList.add('open');
+    return;
+  }
+  if (btnXls) btnXls.style.display = '';
+
+  const d = _gasResumenCalcular();
+  window._gasResumenData = d; // lo reutiliza el Excel
+
+  // Totales por mes y total general
+  const totMes = {};
+  d.mesesOrden.forEach(mk => {
+    totMes[mk] = d.filasOrden.reduce((s, fk) => s + (d.filas[fk].porMes[mk] || 0), 0);
+  });
+  const totGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].total, 0);
+
+  const stick = 'position:sticky;left:0;background:var(--sf);z-index:1';
+  let h = '<div style="overflow-x:auto;max-width:100%"><table style="min-width:100%">';
+  h += '<thead><tr>';
+  h += '<th style="' + stick + ';text-align:left">Matrícula</th>';
+  d.mesesOrden.forEach(mk => { h += '<th style="text-align:right;cursor:default">' + d.meses[mk].label + '</th>'; });
+  h += '<th style="text-align:right;color:var(--ac);cursor:default">TOTAL</th>';
+  h += '</tr></thead><tbody>';
+
+  d.filasOrden.forEach(fk => {
+    const f = d.filas[fk];
+    h += '<tr style="cursor:default">';
+    h += '<td class="tag-mat" style="' + stick + ';font-weight:600">' + f.display + '</td>';
+    d.mesesOrden.forEach(mk => {
+      const v = f.porMes[mk];
+      h += '<td style="text-align:right">' + (v ? _gasFmtL(v) + ' L' : '<span style="color:var(--mu)">·</span>') + '</td>';
+    });
+    h += '<td style="text-align:right;font-weight:700;color:var(--ac)">' + _gasFmtL(f.total) + ' L</td>';
+    h += '</tr>';
+  });
+
+  h += '<tr style="cursor:default;border-top:2px solid var(--bd)">';
+  h += '<td style="' + stick + ';font-weight:700">TOTAL</td>';
+  d.mesesOrden.forEach(mk => { h += '<td style="text-align:right;font-weight:700">' + _gasFmtL(totMes[mk]) + ' L</td>'; });
+  h += '<td style="text-align:right;font-weight:800;color:var(--ac)">' + _gasFmtL(totGen) + ' L</td>';
+  h += '</tr>';
+  h += '</tbody></table></div>';
+  h += '<div style="margin-top:12px;font-size:10px;color:var(--mu);font-family:var(--mn);line-height:1.5">· = ese camión no repostó ese mes · Cada casilla = litros sumados de todos los tickets del camión en ese mes · El Excel incluye además una hoja "Detalle" con cada ticket por separado.</div>';
+
+  body.innerHTML = h;
+  document.getElementById('ovGasResumen').classList.add('open');
+}
+
+function closeGasResumen() {
+  document.getElementById('ovGasResumen').classList.remove('open');
+}
+
+function exportGasResumenExcel() {
+  if (!filteredGas || !filteredGas.length) { toast('No hay tickets', 'err'); return; }
+  const d = window._gasResumenData || _gasResumenCalcular();
+  const empLabel = _gasEmpresaLabel();
+
+  // --- Hoja 1: RESUMEN (tabla cruzada matrícula × mes) ---
+  const cab = ['MATRÍCULA', ...d.mesesOrden.map(mk => d.meses[mk].label), 'TOTAL', 'Nº REPOSTAJES'];
+  const filasXls = d.filasOrden.map(fk => {
+    const f = d.filas[fk];
+    return [f.display, ...d.mesesOrden.map(mk => f.porMes[mk] ? Number(f.porMes[mk].toFixed(2)) : ''), Number(f.total.toFixed(2)), f.repTotal];
+  });
+  const totMes = {};
+  d.mesesOrden.forEach(mk => { totMes[mk] = d.filasOrden.reduce((s, fk) => s + (d.filas[fk].porMes[mk] || 0), 0); });
+  const totGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].total, 0);
+  const repGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].repTotal, 0);
+  const filaTot = ['TOTAL', ...d.mesesOrden.map(mk => Number(totMes[mk].toFixed(2))), Number(totGen.toFixed(2)), repGen];
+  const rows1 = [['RESUMEN LITROS GASOIL · ' + empLabel], [], cab, ...filasXls, [], filaTot];
+  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  ws1['!cols'] = [{ wch: 14 }, ...d.mesesOrden.map(() => ({ wch: 11 })), { wch: 12 }, { wch: 13 }];
+
+  // --- Hoja 2: DETALLE (cada ticket de la empresa activa, una fila) ---
+  const det = [['FECHA', 'MATRÍCULA', 'PROVEEDOR', 'TIPO', 'LITROS', 'IMPORTE', '€/LITRO', 'Nº TICKET', 'OBSERVACIONES']];
+  // Orden cronológico por fecha
+  const orden = (filteredGas || []).slice().sort((a, b) => parseDate(a.fecha || '') - parseDate(b.fecha || ''));
+  orden.forEach(r => {
+    det.push([
+      r.fecha || '', r.tractora || '', r.proveedor || '', r.tipo || '',
+      r.litros != null ? _gasResumenLitros(r.litros) : '',
+      r.importe || '', r.precio_litro || '', r.num_ticket || '', r.observaciones || ''
+    ]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(det);
+  ws2['!cols'] = [10, 10, 18, 9, 9, 10, 9, 14, 26].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
+  const safe = empLabel.replace(/[^A-Za-z0-9]+/g, '_');
+  XLSX.writeFile(wb, `gasoil_resumen_${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast('✓ Excel resumen exportado (' + empLabel + ')');
 }
 
 function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${records.length} albaranes?`)) return; records = []; analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); toast('Eliminados'); }
