@@ -534,6 +534,11 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts">
+            <!-- v107AN: botón Subir ticket aquí mismo, para no tener que ir
+                 arriba al botón Subir general en cada empresa. El ticket se
+                 marca con la empresa de la subpestaña activa (gasEmpresaActiva). -->
+            <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
+            <input type="file" id="gasUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gas'); this.value='';">
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
           </div>
         </div>
@@ -1554,7 +1559,7 @@ async function loadData() {
   let allGas = [];
   let fromG = 0;
   while (true) {
-    // v107AM: ordenar por created_at (cuándo se subió) en vez de fecha del
+    // v107AN: ordenar por created_at (cuándo se subió) en vez de fecha del
     // ticket, para que el recién subido aparezca SIEMPRE arriba (igual que
     // hicimos en Albaranes). Antes un ticket con fecha antigua se "perdía".
     let queryG = sb.from('gasoil').select('*').order('created_at', { ascending: false }).range(fromG, fromG + PAGE - 1);
@@ -1638,6 +1643,11 @@ async function saveRecord(data) {
 
 async function saveGasRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
+  // v107AN: guardar la empresa de la subpestaña donde se subió el ticket.
+  // La subpestaña manda; la corrección por matrícula se hace en applyGasFilters.
+  if (!rec.empresa_subida && !data.db_id) {
+    rec.empresa_subida = gasEmpresaActiva || 'TYP2014';
+  }
   // v98: limpieza de propiedades internas igual que en saveRecord (consistencia)
   Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
@@ -3107,7 +3117,8 @@ La mayoría de tickets españoles tienen una tabla con estas columnas:
 
 **Campos a devolver:**
 - fecha: DD/MM/YYYY
-- tractora: matrícula del vehículo (formato 4 dígitos + 3 letras, ej "6521NHV"). Suele estar en línea "Cliente: XXXX-XXX" — quitar el guión. NO confundir con el número del concesionario ni el comercio.
+- tractora: matrícula del vehículo (formato español: 4 dígitos + 3 letras, ej "6521NHV", "4380MPL"). En tickets REPSOL/CAMPSA/SOLRED suele venir en la línea "Cliente: 4380MPL" (ESA es la matrícula, NO un código de cliente — léela con MUCHO cuidado letra a letra: la M, N, V, W se confunden fácil). Quitar guiones/espacios. NO confundir con "Comercio:", "Concesión:", "Nº Operación:", "Term:" (esos son códigos internos). Si ves "Cliente:" seguido de algo con formato matrícula española, ESA es la tractora.
+- empresa_ticket: si el ticket pone una línea "Empresa: ..." úsala para identificar la empresa del grupo. "TRANSPORTES HI" o "HISPALIS" → "HISPALIS". "TRANSPORTES Y PORTES" o "TYP" → "TYP2014". "TRANSMARGAZ" → "TRANSMARGAZ". Si no aparece, null.
 - proveedor: empresa gasolinera (ej: Repsol, Cepsa, BP, Galp, Disa)
 - tipo: "gasoil" si el producto contiene "Diesel", "Gasoil", "GOA", "Diésel". "adblue" si contiene "AdBlue", "Ad Blue", "Urea"
 - litros: el número de la columna LITRES/LITROS (ej 484.80 o 52.00). **NUNCA** un número entre 1,2 y 2,2 — eso sería €/L.
@@ -3755,24 +3766,56 @@ function applyFilters() {
 }
 
 function applyGasFilters() {
-  // v107Y: filtrar por empresa activa según la matrícula del vehículo.
-  // Aprovecha el mapa TRANSPORTISTAS (matrícula → transportista oficial) que ya existe.
-  // Matrículas de remolques que empiezan por R suelen ser de Transmargaz.
-  // Si no hay matrícula o no está mapeada → solo se ve en TYP2014 (por defecto).
-  const empresaCanonica = {
-    'TYP2014': 'TYP2014',
-    'HISPALIS': 'TTES HISPALIS 2016',
-    'TRANSMARGAZ': 'TRANSMARGAZ 2018'
-  }[gasEmpresaActiva] || 'TYP2014';
+  // v107AN: NUEVA lógica de clasificación por empresa.
+  // 1) Si el ticket tiene empresa_subida (subpestaña donde se subió) → esa MANDA.
+  // 2) PERO si la matrícula del ticket pertenece a OTRA empresa del grupo
+  //    (según mapa TRANSPORTISTAS), se reclasifica al dueño real y se anota
+  //    para avisar al usuario ("este ticket era de Hispalis, lo moví").
+  // 3) Tickets antiguos sin empresa_subida → lógica anterior (por matrícula).
+  const GRUPO = { 'TYP2014':'TYP2014', 'HISPALIS':'TTES HISPALIS 2016', 'TRANSMARGAZ':'TRANSMARGAZ 2018' };
+  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ' };
+  const empresaCanonica = GRUPO[gasEmpresaActiva] || 'TYP2014';
+  const avisosReclasif = [];
+
   filteredGas = gasoilRecords.filter(r => {
     const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
-    if (!mat) return gasEmpresaActiva === 'TYP2014';  // sin matrícula → default TYP2014
-    // Buscar en mapa TRANSPORTISTAS (puede contener variantes con/sin guión)
-    const transp = TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora];
-    if (transp) return transp === empresaCanonica;
-    // Si no está en el mapa, mostrar solo en TYP2014 (default) para que no se pierdan
-    return gasEmpresaActiva === 'TYP2014';
+    const transp = mat ? (TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora]) : null;
+    // Empresa "dueña real" según la matrícula (solo si está en el grupo)
+    const tabDueño = transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null;
+
+    // ¿A qué empresa pertenece este ticket?
+    let empresaTicket;
+    if (r.empresa_subida) {
+      // La subpestaña donde se subió MANDA...
+      empresaTicket = r.empresa_subida;
+      // ...salvo que la matrícula sea de otra empresa del grupo → corregir + avisar
+      if (tabDueño && tabDueño !== r.empresa_subida) {
+        empresaTicket = tabDueño;
+        avisosReclasif.push({
+          mat: r.tractora || '?',
+          de: r.empresa_subida,
+          a: tabDueño,
+          ticket: r.num_ticket || ''
+        });
+      }
+    } else {
+      // Tickets antiguos sin empresa_subida → lógica anterior (por matrícula)
+      if (!mat) empresaTicket = 'TYP2014';
+      else if (transp) empresaTicket = tabDueño || 'TYP2014';
+      else empresaTicket = 'TYP2014';
+    }
+    return empresaTicket === gasEmpresaActiva;
   });
+
+  // v107AN: avisar de reclasificaciones (solo una vez por sesión y empresa)
+  if (avisosReclasif.length && !window._gasAvisoMostrado?.[gasEmpresaActiva]) {
+    window._gasAvisoMostrado = window._gasAvisoMostrado || {};
+    window._gasAvisoMostrado[gasEmpresaActiva] = true;
+    const ej = avisosReclasif[0];
+    const labels = { 'TYP2014':'TYP2014', 'HISPALIS':'Hispalis', 'TRANSMARGAZ':'Transmargaz' };
+    const extra = avisosReclasif.length > 1 ? ` (y ${avisosReclasif.length - 1} más)` : '';
+    toast(`ℹ️ ${avisosReclasif.length} ticket(s) reubicado(s) por matrícula: ${ej.mat} → ${labels[ej.a] || ej.a}${extra}`, 'warn');
+  }
   renderGasTable();
 }
 
@@ -9155,8 +9198,11 @@ async function loadTallerData() {
     ]);
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
-    tallerVehiculos = vehRes.data || [];
-    tallerMantenimientos = manRes.data || [];
+    // v107AN: filtrar por empresas permitidas (window._empresaTaller).
+    // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
+    // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
+    tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
+    tallerMantenimientos = (manRes.data || []).filter(m => permitidas.includes(m.empresa));
 
     // Badge con total de vehículos de la empresa activa
     const cnt = document.getElementById('tabTallerCount');
@@ -9592,12 +9638,18 @@ function _recambiosEsTaller() {
 function _recambiosEsAdmin() {
   return (userMap[currentUser?.id]?.role || '').toLowerCase() === 'admin';
 }
+// v107AN: ¿es el usuario Transmargaz? (su empresa_taller es solo TRANSMARGAZ).
+// Transmargaz puede conciliar SUS facturas (las de empresa TRANSMARGAZ).
+function _recambiosEsTransmargaz() {
+  const emp = (window._empresaTaller || '').split(',').map(s => s.trim());
+  return !_recambiosEsAdmin() && emp.length === 1 && emp[0] === 'TRANSMARGAZ';
+}
 
 async function loadRecambiosData() {
   try {
     // Empresa activa = la subpestaña de Taller seleccionada
     const emp = tallerEmpresaActiva || 'TYP2014';
-    // v107AM: ordenar por created_at (cuándo se subió) para que el último
+    // v107AN: ordenar por created_at (cuándo se subió) para que el último
     // subido aparezca SIEMPRE arriba, no mezclado por la fecha del documento.
     let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('created_at', { ascending: false });
     const { data, error } = await q;
@@ -9695,8 +9747,13 @@ function renderRecambios() {
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    // v107AL: botón Conciliar solo en facturas y solo para admin
-    const btnConciliar = (d.tipo_doc === 'factura' && _recambiosEsAdmin())
+    // v107AN: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
+    // Transmargaz concilia SOLO sus facturas (empresa TRANSMARGAZ). TALLER nunca.
+    const puedeConciliar = d.tipo_doc === 'factura' && (
+      _recambiosEsAdmin() ||
+      (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
+    );
+    const btnConciliar = puedeConciliar
       ? `<button class="btn bp" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">🔍 Conciliar</button>`
       : '';
     // v107AL: marca de duplicado
