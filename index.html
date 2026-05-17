@@ -534,19 +534,11 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts">
-            <!-- v107AÑ: botón Subir ticket aquí mismo, para no tener que ir
+            <!-- v107AO: botón Subir ticket aquí mismo, para no tener que ir
                  arriba al botón Subir general en cada empresa. El ticket se
                  marca con la empresa de la subpestaña activa (gasEmpresaActiva). -->
             <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
             <input type="file" id="gasUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gas'); this.value='';">
-            <button class="btn bs" onclick="openGasResumen()">📅 Resumen mes</button>
-            <button class="btn bs" onclick="openGasConsumo()">🛣️ Consumo km</button>
-            <!-- v107AQ: subir la FACTURA MENSUAL de SOLRED/Repsol entera (6 pág).
-                 La app la lee de una vez, detecta empresa por el CIF y crea un
-                 registro de gasoil por cada repostaje. NO pasa por addFiles ni
-                 por la cola de páginas: es un flujo propio (solredImportarFactura). -->
-            <button class="btn bs" onclick="document.getElementById('solredFileInput').click()">📄 Subir factura SOLRED</button>
-            <input type="file" id="solredFileInput" accept=".pdf,application/pdf" style="display:none" onchange="solredImportarFactura(this.files[0]); this.value='';">
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
           </div>
         </div>
@@ -1051,45 +1043,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
-<!-- v107AO: MODAL RESUMEN MENSUAL GASOIL (litros por camión y mes, tabla cruzada) -->
-<div class="ov" id="ovGasResumen">
-  <div class="modal" style="max-width:980px">
-    <div class="modal-hd">
-      <div class="modal-title" id="gasResumenTitulo">RESUMEN LITROS</div>
-      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeGasResumen()">✕</button>
-    </div>
-    <div class="modal-bd">
-      <div id="gasResumenBody"></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn bp" id="btnGasResumenXls" onclick="exportGasResumenExcel()">📊 Descargar Excel (resumen + detalle)</button>
-      <button class="btn bs" onclick="closeGasResumen()">Cerrar</button>
-    </div>
-  </div>
-</div>
-
-<!-- v107AP: MODAL CONSUMO KM (litros / km recorridos = L/100km por camión y periodo) -->
-<div class="ov" id="ovGasConsumo">
-  <div class="modal" style="max-width:980px">
-    <div class="modal-hd">
-      <div class="modal-title" id="gasConsumoTitulo">CONSUMO L/100KM</div>
-      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeGasConsumo()">✕</button>
-    </div>
-    <div class="modal-bd">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <button class="btn bp" onclick="document.getElementById('kmExcelInput').click()">📤 Subir km (Excel Gasóleo Profesional)</button>
-        <input type="file" id="kmExcelInput" accept=".xls,.xlsx" style="display:none" onchange="kmImportarExcel(this.files[0])">
-        <span style="font-size:10px;color:var(--mu);font-family:var(--mn)">El archivo lleva el CIF → la empresa se detecta sola</span>
-      </div>
-      <div id="gasConsumoBody"></div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn bp" id="btnGasConsumoXls" onclick="exportGasConsumoExcel()">📊 Descargar Excel</button>
-      <button class="btn bs" onclick="closeGasConsumo()">Cerrar</button>
-    </div>
-  </div>
-</div>
-
 <!-- v107j: MODAL NEUMÁTICOS (movimiento: inventario, compra, montaje, baja) -->
 <div class="ov" id="ovNeum">
   <div class="modal" style="max-width:560px">
@@ -1470,6 +1423,52 @@ async function loadMatriculasAprendidas() {
   } catch (e) { console.warn('[v87] Error en loadMatriculasAprendidas:', e); }
 }
 
+// Carga la tabla tarjetas_repsol (tarjeta → matrícula → empresa). Igual patrón
+// que loadMatriculasAprendidas. Se usa en gasoil para tickets Repsol/SOLRED
+// que solo traen el nº de tarjeta y no la matrícula directa.
+async function loadTarjetasRepsol() {
+  try {
+    const { data, error } = await sb.from('tarjetas_repsol').select('tarjeta, matricula, empresa');
+    if (error) {
+      if (error.message && /does not exist|relation/i.test(error.message)) {
+        console.warn('[tarjetas] Tabla tarjetas_repsol no existe todavía. Crea la tabla en Supabase cuando tengas los datos.');
+        return;
+      }
+      console.warn('[tarjetas] Error cargando tarjetas_repsol:', error.message);
+      return;
+    }
+    TARJETAS_REPSOL = {};
+    (data || []).forEach(r => {
+      // Normalizar la tarjeta: quitar asteriscos, espacios y guiones, mayúsculas.
+      // Guardamos por los últimos dígitos (lo que aparece en el ticket: ***0321).
+      const tj = String(r.tarjeta || '').replace(/[\s*\-]/g, '').toUpperCase();
+      if (tj && r.matricula) {
+        TARJETAS_REPSOL[tj] = {
+          matricula: String(r.matricula).trim().toUpperCase().replace(/\s+/g, ''),
+          empresa: String(r.empresa || '').trim().toUpperCase()
+        };
+      }
+    });
+    console.log(`[tarjetas] ${Object.keys(TARJETAS_REPSOL).length} tarjetas Repsol cargadas`);
+  } catch (e) { console.warn('[tarjetas] Error en loadTarjetasRepsol:', e); }
+}
+
+// Dada una cadena de tarjeta del ticket (ej "***0321" o "************0321"),
+// busca su matrícula/empresa. Compara por terminación porque el ticket suele
+// ocultar los primeros dígitos con asteriscos.
+function buscarTarjetaRepsol(tarjetaTicket) {
+  if (!tarjetaTicket) return null;
+  const limpia = String(tarjetaTicket).replace(/[\s*\-]/g, '').toUpperCase();
+  if (!limpia) return null;
+  // 1) Coincidencia exacta
+  if (TARJETAS_REPSOL[limpia]) return TARJETAS_REPSOL[limpia];
+  // 2) Coincidencia por terminación (el ticket trae solo los últimos dígitos)
+  for (const k of Object.keys(TARJETAS_REPSOL)) {
+    if (k.endsWith(limpia) || limpia.endsWith(k)) return TARJETAS_REPSOL[k];
+  }
+  return null;
+}
+
 // v87: aprender una matrícula nueva. Inserta o actualiza en Supabase y refresca el diccionario
 // en memoria. Se llama desde _processOne cuando un subcontratista identificable sube un
 // albarán con matrícula no oficial.
@@ -1542,6 +1541,7 @@ async function onLogin(user) {
     renderSetup();
     await loadUserMap();
     await loadMatriculasAprendidas();
+    await loadTarjetasRepsol();
     await loadData();
   }
 }
@@ -1606,7 +1606,7 @@ async function loadData() {
   let allGas = [];
   let fromG = 0;
   while (true) {
-    // v107AÑ: ordenar por created_at (cuándo se subió) en vez de fecha del
+    // v107AO: ordenar por created_at (cuándo se subió) en vez de fecha del
     // ticket, para que el recién subido aparezca SIEMPRE arriba (igual que
     // hicimos en Albaranes). Antes un ticket con fecha antigua se "perdía".
     let queryG = sb.from('gasoil').select('*').order('created_at', { ascending: false }).range(fromG, fromG + PAGE - 1);
@@ -1690,15 +1690,17 @@ async function saveRecord(data) {
 
 async function saveGasRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
-  // v107AÑ: guardar la empresa de la subpestaña donde se subió el ticket.
+  // v107AO: guardar la empresa de la subpestaña donde se subió el ticket.
   // La subpestaña manda; la corrección por matrícula se hace en applyGasFilters.
   if (!rec.empresa_subida && !data.db_id) {
     rec.empresa_subida = gasEmpresaActiva || 'TYP2014';
   }
-  // v107AÑ: 'empresa_ticket' lo devuelve la IA (del prompt v107AÑ) SOLO para
+  // v107AO: 'empresa_ticket' lo devuelve la IA (del prompt v107AO) SOLO para
   // ayudar a clasificar, pero NO es una columna de la tabla gasoil. Hay que
   // quitarlo antes de guardar o Supabase da error "column does not exist".
   delete rec.empresa_ticket;
+  delete rec.num_tarjeta;  // igual: ayuda a clasificar pero no es columna gasoil
+  delete rec.tarjeta;
   // v98: limpieza de propiedades internas igual que en saveRecord (consistencia)
   Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
@@ -1934,7 +1936,7 @@ async function addFiles(files, type) {
             r.onerror = () => res('');
             r.readAsDataURL(f);
           });
-          // v107AÑ: validar b64 (mismo fix que abajo para evitar error 400)
+          // v107AO: validar b64 (mismo fix que abajo para evitar error 400)
           if (!b64 || b64.length < 50) {
             console.error('[addFiles] base64 inválido (PDF 1 pág) para', f.name);
             toast(`⚠️ No se pudo leer "${f.name}". Inténtalo de nuevo o súbelo como foto (JPG).`, 'err');
@@ -2073,10 +2075,10 @@ async function addFiles(files, type) {
           const parts = String(result).split(',');
           res(parts.length > 1 ? parts[1] : '');
         };
-        r.onerror = () => res('');  // v107AÑ: no rechazar, devolver vacío y validar abajo
+        r.onerror = () => res('');  // v107AO: no rechazar, devolver vacío y validar abajo
         r.readAsDataURL(imgFile);
       });
-      // v107AÑ: FIX error 400 "base64.data: Input should be a valid string".
+      // v107AO: FIX error 400 "base64.data: Input should be a valid string".
       // Pasaba al subir un TICKET DE GASOIL EN PDF: si el FileReader fallaba,
       // b64 quedaba vacío/undefined y se mandaba igual a la API → error 400.
       // Ahora si b64 no es un string válido, NO añadimos a la cola y avisamos.
@@ -2898,12 +2900,30 @@ async function _processOne(it, type, key, timeoutMs) {
           data.db_id = it._fromPending.id;
           data.procesado = true;
         }
-        // v107AÑ: si la IA detectó la empresa por el texto del ticket
+        // v107AO: si la IA detectó la empresa por el texto del ticket
         // ("Empresa: TRANSPORTES HI" → HISPALIS), usar ESA como empresa_subida
         // (es más fiable que la subpestaña si el usuario subió donde no toca).
         // Si no, se queda con la subpestaña activa (lo hace saveGasRecord).
         if (data.empresa_ticket && ['TYP2014','HISPALIS','TRANSMARGAZ'].includes(data.empresa_ticket)) {
           data.empresa_subida = data.empresa_ticket;
+        }
+        // Tabla tarjetas_repsol: si el ticket trae nº de tarjeta SOLRED,
+        // buscar a qué camión/empresa pertenece. Útil cuando el ticket NO
+        // trae matrícula clara. La tarjeta manda sobre lo demás (es el dato
+        // más fiable: cada tarjeta está asignada a un camión concreto).
+        const numTj = data.num_tarjeta || data.tarjeta || null;
+        if (numTj && Object.keys(TARJETAS_REPSOL).length) {
+          const hit = buscarTarjetaRepsol(numTj);
+          if (hit) {
+            // Si la matrícula leída por la IA no coincide o falta, usar la de la tarjeta
+            if (!data.tractora || data.tractora.toUpperCase().replace(/[\s-]/g,'') !== hit.matricula) {
+              console.log(`[tarjetas] Ticket tarjeta ${numTj} → ${hit.matricula} (${hit.empresa})`);
+              data.tractora = hit.matricula;
+            }
+            if (['TYP2014','HISPALIS','TRANSMARGAZ'].includes(hit.empresa)) {
+              data.empresa_subida = hit.empresa;
+            }
+          }
         }
         const dbId = await saveGasRecord(data);
         data._id = Date.now() + Math.random();
@@ -3200,6 +3220,7 @@ La mayoría de tickets españoles tienen una tabla con estas columnas:
 - fecha: DD/MM/YYYY
 - tractora: matrícula del vehículo (formato español: 4 dígitos + 3 letras, ej "6521NHV", "4380MPL"). En tickets REPSOL/CAMPSA/SOLRED suele venir en la línea "Cliente: 4380MPL" (ESA es la matrícula, NO un código de cliente — léela con MUCHO cuidado letra a letra: la M, N, V, W se confunden fácil). Quitar guiones/espacios. NO confundir con "Comercio:", "Concesión:", "Nº Operación:", "Term:" (esos son códigos internos). Si ves "Cliente:" seguido de algo con formato matrícula española, ESA es la tractora.
 - empresa_ticket: si el ticket pone una línea "Empresa: ..." úsala para identificar la empresa del grupo. "TRANSPORTES HI" o "HISPALIS" → "HISPALIS". "TRANSPORTES Y PORTES" o "TYP" → "TYP2014". "TRANSMARGAZ" → "TRANSMARGAZ". Si no aparece, null.
+- num_tarjeta: en tickets REPSOL/CAMPSA/SOLRED, el número de tarjeta que suele venir como "SOLRED CLASICA ************0321" o "***0321". Devuelve solo los dígitos visibles (los del final, ej "0321"). Si no aparece, null.
 - proveedor: empresa gasolinera (ej: Repsol, Cepsa, BP, Galp, Disa)
 - tipo: "gasoil" si el producto contiene "Diesel", "Gasoil", "GOA", "Diésel". "adblue" si contiene "AdBlue", "Ad Blue", "Urea"
 - litros: el número de la columna LITRES/LITROS (ej 484.80 o 52.00). **NUNCA** un número entre 1,2 y 2,2 — eso sería €/L.
@@ -3236,199 +3257,6 @@ SOLO JSON válido, sin markdown.`;
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(text);
   return Array.isArray(parsed) ? parsed : [parsed];
-}
-
-// ============================================================
-// v107AQ — FACTURA MENSUAL SOLRED / REPSOL (lectura completa)
-// ============================================================
-// Sube la factura mensual ENTERA (varias páginas). NO pasa por addFiles
-// ni por la cola de páginas: la enviamos COMPLETA a la IA (modelo Sonnet,
-// más fiable para un documento denso de ~50 líneas) y creamos un registro
-// de gasoil por cada repostaje del detalle. La empresa se detecta por el
-// CIF/NIF de la factura (mismo mapa _KM_CIF_EMP que Consumo km).
-// NO toca callClaudeGas (los tickets sueltos siguen igual).
-
-async function callClaudeSolred(b64, key, signal) {
-  const prompt = `Eres un OCR experto en FACTURAS MENSUALES de SOLRED / Repsol Empresas (tarjetas de gasoil de flotas de camiones en Espana). Recibes la factura mensual COMPLETA (varias paginas).
-
-DEVUELVE SOLO un objeto JSON valido (sin markdown, sin texto extra) con esta forma exacta:
-{
-  "num_factura": "numero que aparece como 'Num. Factura' (ej A260441051)",
-  "nif_cliente": "valor que aparece tras 'NIF' en la primera pagina (ej ESB90286337). Copialo tal cual",
-  "cuenta": "valor de 'Num. de Cuenta' (ej 010000682827)",
-  "periodo_ini": "fecha inicio DD/MM/YYYY (de 'Fecha de operacion DD/MM/YYYY AL DD/MM/YYYY')",
-  "periodo_fin": "fecha fin DD/MM/YYYY",
-  "lineas": [ ... ]
-}
-
-QUE ES UNA LINEA: en las paginas tituladas "Resumen de operaciones realizadas con tarjetas SOLRED" hay BLOQUES, uno por tarjeta. Cada bloque empieza con una cabecera tipo:
-   "No de Tarjeta 7078 8368 2827 0271   No de Matricula 9295-JJZ"
-y debajo una TABLA con filas. CADA FILA de esa tabla (cada repostaje) es UNA linea del array "lineas".
-
-REGLAS CRITICAS:
-- IGNORA por completo la PRIMERA pagina (conceptos globales, "Descuento Extra SOLRED", "DESCUENTO CTS DESPUES IMPUESTO", "Total Factura"). NO son repostajes.
-- IGNORA la pagina "Resumen tarjetas": esa solo tiene TOTALES del mes por tarjeta, NO repostajes individuales.
-- Extrae UNICAMENTE las filas de detalle dentro de los bloques por tarjeta. Puede haber entre 20 y 80 filas en total. NO te dejes ninguna.
-- La matricula y el numero de tarjeta de cada fila se TOMAN DE LA CABECERA del bloque al que pertenece la fila.
-
-CADA objeto de "lineas":
-- "num_tarjeta": numero de tarjeta de la cabecera del bloque, SOLO DIGITOS sin espacios (ej "7078836828270271").
-- "matricula": matricula de la cabecera del bloque, 4 digitos + 3 letras, SIN guiones ni espacios, mayusculas (ej "9295-JJZ" -> "9295JJZ").
-- "ref": valor de la columna "Ref" de esa fila (numero largo, ej "1129125").
-- "fecha": de la columna "Fecha / Hora" toma dia y mes (ej "02/04") y anade el ANO del periodo -> "DD/MM/YYYY".
-- "concepto": texto de la columna "Concepto" (ej "DIESEL E+ NEOTECH (L)", "ADBLUE REPSOL (L)", "ADBLUE").
-- "tipo": "gasoil" si el concepto contiene DIESEL, GASOIL, GOA o DIESEL; "adblue" si contiene ADBLUE o UREA.
-- "establecimiento": texto de la columna "Establecimiento".
-- "cantidad": numero de la columna "Cantidad" (son LITROS, ej 480,00 -> 480.00). NUNCA la columna "Kms". NUNCA un valor entre 1,0 y 2,3 (eso es un PRECIO por litro).
-- "precio_litro": numero de la columna "Precio iva inc. (EUR)" (ej 1,669 -> 1.669).
-- "importe": numero de la columna mas a la derecha "Importe Total EUR iva inc." (ej 801,12 -> 801.12).
-
-NUMEROS ESPANOLES: el punto son miles y la coma decimales. "1.361,33" -> 1361.33 ; "480,00" -> 480.00 ; "1,669" -> 1.669. Devuelve numeros con punto decimal y SIN separador de miles.
-
-VERIFICACION por linea: importe debe ser aproximadamente cantidad x precio_litro (admite variacion por IVA/redondeo). Si un valor NO aparece fisicamente en la fila, pon null (no inventes).
-
-DEVUELVE SOLO EL JSON.`;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      messages: [{ role: 'user', content: [
-        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-        { type: 'text', text: prompt }
-      ] }]
-    }),
-    signal: signal
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    const err = new Error(e.error?.message || ('HTTP ' + res.status));
-    err.status = res.status;
-    throw err;
-  }
-  const d = await res.json();
-  let text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
-  const i = text.indexOf('{'), j = text.lastIndexOf('}');
-  if (i !== -1 && j !== -1 && j > i) text = text.slice(i, j + 1);
-  return JSON.parse(text);
-}
-
-// Normaliza un CIF/NIF leido ("ESB90286337", "B-90286337") a "B90286337".
-function _solredCif(nif) {
-  let s = String(nif || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (s.indexOf('ES') === 0) s = s.slice(2);
-  return s;
-}
-
-// Numero espanol -> Number (o null). "1.234,56" -> 1234.56
-function _solredNum(v) {
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number') return isNaN(v) ? null : v;
-  let s = String(v).trim().replace(/\s/g, '');
-  if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n;
-}
-
-async function solredImportarFactura(file) {
-  if (!file) return;
-  if (currentRole === 'conductor') {
-    toast('La factura mensual de SOLRED la sube la oficina, no el conductor.', 'warn');
-    return;
-  }
-  const key = getKey();
-  if (!key) { toast('Configura tu API Key primero', 'err'); return; }
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  if (!isPdf) { toast('La factura SOLRED tiene que ser un PDF.', 'err'); return; }
-
-  try {
-    toast('📄 Leyendo la factura SOLRED entera… (puede tardar 1-2 min, no cierres)', 'warn');
-
-    // 1) PDF -> base64 (mismo patrón que addFiles para PDF de 1 página)
-    const b64 = await new Promise((res) => {
-      const r = new FileReader();
-      r.onload = e => { const p = String(e.target.result || '').split(','); res(p.length > 1 ? p[1] : ''); };
-      r.onerror = () => res('');
-      r.readAsDataURL(file);
-    });
-    if (!b64 || b64.length < 50) { toast('No pude leer el PDF. Vuelve a intentarlo.', 'err'); return; }
-
-    // 2) La IA lee la factura completa
-    const out = await callClaudeSolred(b64, key);
-    let lineas = Array.isArray(out) ? out : (out && Array.isArray(out.lineas) ? out.lineas : []);
-    if (!lineas.length) { toast('⚠️ No detecté repostajes. ¿Seguro que es una factura mensual de SOLRED?', 'err'); return; }
-
-    // 3) Empresa por el CIF de la factura (mismo mapa que Consumo km)
-    const cif = _solredCif(out && out.nif_cliente);
-    let empresa = _KM_CIF_EMP[cif] || null;
-    if (!empresa) {
-      empresa = gasEmpresaActiva;
-      toast('⚠️ No reconocí el CIF de la factura. La asigno a la empresa activa (' + _gasEmpresaLabel() + '). Revísalo.', 'warn');
-    }
-    const numFactura = (out && out.num_factura) ? String(out.num_factura) : '';
-
-    // 4) Subir el PDF a Storage UNA vez (mismo file_url para todas las filas)
-    let fileUrl = null;
-    try { fileUrl = await uploadFile(file, 'gas'); } catch (e) { console.warn('[v107AQ] PDF no subido (seguimos sin imagen):', e); }
-
-    // 5) Anti-duplicados: nº de operación ya guardado para esta empresa
-    const yaExisten = new Set();
-    try {
-      const { data: prev } = await sb.from('gasoil').select('num_ticket,fecha,tipo').eq('empresa_subida', empresa);
-      (prev || []).forEach(r => yaExisten.add(String(r.num_ticket || '') + '|' + String(r.fecha || '') + '|' + String(r.tipo || '')));
-    } catch (e) { console.warn('[v107AQ] no pude comprobar duplicados:', e); }
-
-    // 6) Construir registros y filtrar duplicados
-    const nuevos = [];
-    let saltados = 0;
-    for (const l of lineas) {
-      const ref = l.ref != null ? String(l.ref).trim() : '';
-      const fecha = normFecha(l.fecha);
-      const tipo = (String(l.tipo || '').toLowerCase().indexOf('adblue') !== -1 ||
-                    String(l.concepto || '').toUpperCase().indexOf('ADBLUE') !== -1) ? 'adblue' : 'gasoil';
-      const dupKey = ref + '|' + fecha + '|' + tipo;
-      if (ref && yaExisten.has(dupKey)) { saltados++; continue; }
-      const mat = String(l.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const litros = _solredNum(l.cantidad);
-      let obs = 'Factura SOLRED ' + (numFactura || '') + (l.establecimiento ? ' · ' + String(l.establecimiento).trim() : '');
-      // Misma red de seguridad que v107f: litros entre 1,2 y 2,3 = probable precio €/L
-      if (litros !== null && litros >= 1.2 && litros <= 2.3) obs += ' · ⚠️ A REVISAR: litros parece un precio €/L';
-      nuevos.push({
-        fecha: fecha,
-        tractora: mat,
-        proveedor: 'Repsol',
-        tipo: tipo,
-        litros: litros,
-        importe: _solredNum(l.importe),
-        precio_litro: _solredNum(l.precio_litro),
-        num_ticket: ref,
-        observaciones: obs.trim(),
-        file_url: fileUrl,
-        user_id: currentUser.id,
-        empresa_subida: empresa
-      });
-      yaExisten.add(dupKey);
-    }
-
-    if (!nuevos.length) {
-      toast('Esta factura ya estaba cargada (' + saltados + ' repostajes ya existían). No he duplicado nada.', 'warn');
-      return;
-    }
-
-    // 7) Insertar en bloque y refrescar la lista
-    const { data: inserted, error } = await sb.from('gasoil').insert(nuevos).select();
-    if (error) throw error;
-    (inserted || []).forEach(r => { r._id = Date.now() + Math.random(); r.db_id = r.id; gasoilRecords.unshift(r); });
-    document.getElementById('tabGasCount').textContent = gasoilRecords.length;
-    try { applyGasFilters(); } catch (e) { console.warn(e); }
-
-    toast('✅ Factura SOLRED cargada: ' + nuevos.length + ' repostajes de ' + empresa + (saltados ? ' (' + saltados + ' ya estaban, omitidos)' : ''), 'ok');
-  } catch (e) {
-    console.error('[v107AQ solredImportarFactura]', e);
-    toast('❌ Error leyendo la factura SOLRED: ' + (e.message || e), 'err');
-  }
 }
 
 // ============================================================
@@ -4040,7 +3868,7 @@ function applyFilters() {
 }
 
 function applyGasFilters() {
-  // v107AÑ: NUEVA lógica de clasificación por empresa.
+  // v107AO: NUEVA lógica de clasificación por empresa.
   // 1) Si el ticket tiene empresa_subida (subpestaña donde se subió) → esa MANDA.
   // 2) PERO si la matrícula del ticket pertenece a OTRA empresa del grupo
   //    (según mapa TRANSPORTISTAS), se reclasifica al dueño real y se anota
@@ -4081,7 +3909,7 @@ function applyGasFilters() {
     return empresaTicket === gasEmpresaActiva;
   });
 
-  // v107AÑ: avisar de reclasificaciones (solo una vez por sesión y empresa)
+  // v107AO: avisar de reclasificaciones (solo una vez por sesión y empresa)
   if (avisosReclasif.length && !window._gasAvisoMostrado?.[gasEmpresaActiva]) {
     window._gasAvisoMostrado = window._gasAvisoMostrado || {};
     window._gasAvisoMostrado[gasEmpresaActiva] = true;
@@ -5594,384 +5422,6 @@ function exportGasoilExcel() {
   XLSX.writeFile(wb, `gasoil_${new Date().toISOString().slice(0,10)}.xlsx`); toast('✓ Excel gasoil exportado');
 }
 
-// ===== v107AO: RESUMEN MENSUAL DE LITROS POR CAMIÓN (tabla cruzada) =====
-// Usa filteredGas (ya filtrado por la subpestaña de empresa activa, misma
-// privacidad que el resto de Gasoil). NO toca nada existente.
-const _GAS_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-
-function _gasResumenLitros(v) {
-  // Litros robusto: admite coma decimal española y números ya en formato JS.
-  if (v == null) return 0;
-  const n = parseFloat(String(v).replace(',', '.'));
-  return isNaN(n) ? 0 : n;
-}
-
-function _gasResumenCalcular() {
-  // Agrupa los tickets de la empresa activa por matrícula × mes.
-  const meses = {};   // "YYYY-MM" -> { label, order }
-  const filas = {};   // matriculaNorm -> { display, total, repTotal, porMes:{}, repMes:{} }
-
-  (filteredGas || []).forEach(r => {
-    const L = _gasResumenLitros(r.litros);
-
-    const matRaw = (r.tractora || '').toString().trim();
-    const matKey = matRaw.toUpperCase().replace(/[\s-]/g, '') || '__SINMAT__';
-    const matDisp = matRaw || 'Sin matrícula';
-
-    let mesKey = '__SINFECHA__', mesLabel = 'Sin fecha', order = 99999999;
-    const p = (r.fecha || '').toString().trim().split('/');
-    if (p.length === 3 && p[2]) {
-      const yy = parseInt(p[2], 10), mm = parseInt(p[1], 10);
-      if (!isNaN(yy) && !isNaN(mm) && mm >= 1 && mm <= 12) {
-        mesKey = yy + '-' + String(mm).padStart(2, '0');
-        mesLabel = _GAS_MESES[mm - 1] + ' ' + yy;
-        order = yy * 100 + mm;
-      }
-    }
-    if (!meses[mesKey]) meses[mesKey] = { label: mesLabel, order };
-
-    if (!filas[matKey]) filas[matKey] = { display: matDisp, total: 0, repTotal: 0, porMes: {}, repMes: {} };
-    const fil = filas[matKey];
-    fil.porMes[mesKey] = (fil.porMes[mesKey] || 0) + L;
-    fil.repMes[mesKey] = (fil.repMes[mesKey] || 0) + 1;
-    fil.total += L;
-    fil.repTotal += 1;
-  });
-
-  const mesesOrden = Object.keys(meses).sort((a, b) => meses[a].order - meses[b].order);
-  const filasOrden = Object.keys(filas).sort((a, b) => filas[a].display.localeCompare(filas[b].display, 'es'));
-  return { meses, mesesOrden, filas, filasOrden };
-}
-
-function _gasFmtL(n) {
-  if (!n) return '';
-  return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-}
-
-function _gasEmpresaLabel() {
-  const labels = { 'TYP2014': 'TYP2014', 'HISPALIS': 'T. HISPALIS 2016', 'TRANSMARGAZ': 'TRANSMARGAZ 2018' };
-  return labels[gasEmpresaActiva] || gasEmpresaActiva;
-}
-
-function openGasResumen() {
-  const empLabel = _gasEmpresaLabel();
-  document.getElementById('gasResumenTitulo').textContent = 'RESUMEN LITROS · ' + empLabel;
-  const body = document.getElementById('gasResumenBody');
-  const btnXls = document.getElementById('btnGasResumenXls');
-
-  if (!filteredGas || !filteredGas.length) {
-    body.innerHTML = '<div style="text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tickets de gasoil para ' + empLabel + '.</div>';
-    if (btnXls) btnXls.style.display = 'none';
-    document.getElementById('ovGasResumen').classList.add('open');
-    return;
-  }
-  if (btnXls) btnXls.style.display = '';
-
-  const d = _gasResumenCalcular();
-  window._gasResumenData = d; // lo reutiliza el Excel
-
-  // Totales por mes y total general
-  const totMes = {};
-  d.mesesOrden.forEach(mk => {
-    totMes[mk] = d.filasOrden.reduce((s, fk) => s + (d.filas[fk].porMes[mk] || 0), 0);
-  });
-  const totGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].total, 0);
-
-  const stick = 'position:sticky;left:0;background:var(--sf);z-index:1';
-  let h = '<div style="overflow-x:auto;max-width:100%"><table style="min-width:100%">';
-  h += '<thead><tr>';
-  h += '<th style="' + stick + ';text-align:left">Matrícula</th>';
-  d.mesesOrden.forEach(mk => { h += '<th style="text-align:right;cursor:default">' + d.meses[mk].label + '</th>'; });
-  h += '<th style="text-align:right;color:var(--ac);cursor:default">TOTAL</th>';
-  h += '</tr></thead><tbody>';
-
-  d.filasOrden.forEach(fk => {
-    const f = d.filas[fk];
-    h += '<tr style="cursor:default">';
-    h += '<td class="tag-mat" style="' + stick + ';font-weight:600">' + f.display + '</td>';
-    d.mesesOrden.forEach(mk => {
-      const v = f.porMes[mk];
-      h += '<td style="text-align:right">' + (v ? _gasFmtL(v) + ' L' : '<span style="color:var(--mu)">·</span>') + '</td>';
-    });
-    h += '<td style="text-align:right;font-weight:700;color:var(--ac)">' + _gasFmtL(f.total) + ' L</td>';
-    h += '</tr>';
-  });
-
-  h += '<tr style="cursor:default;border-top:2px solid var(--bd)">';
-  h += '<td style="' + stick + ';font-weight:700">TOTAL</td>';
-  d.mesesOrden.forEach(mk => { h += '<td style="text-align:right;font-weight:700">' + _gasFmtL(totMes[mk]) + ' L</td>'; });
-  h += '<td style="text-align:right;font-weight:800;color:var(--ac)">' + _gasFmtL(totGen) + ' L</td>';
-  h += '</tr>';
-  h += '</tbody></table></div>';
-  h += '<div style="margin-top:12px;font-size:10px;color:var(--mu);font-family:var(--mn);line-height:1.5">· = ese camión no repostó ese mes · Cada casilla = litros sumados de todos los tickets del camión en ese mes · El Excel incluye además una hoja "Detalle" con cada ticket por separado.</div>';
-
-  body.innerHTML = h;
-  document.getElementById('ovGasResumen').classList.add('open');
-}
-
-function closeGasResumen() {
-  document.getElementById('ovGasResumen').classList.remove('open');
-}
-
-function exportGasResumenExcel() {
-  if (!filteredGas || !filteredGas.length) { toast('No hay tickets', 'err'); return; }
-  const d = window._gasResumenData || _gasResumenCalcular();
-  const empLabel = _gasEmpresaLabel();
-
-  // --- Hoja 1: RESUMEN (tabla cruzada matrícula × mes) ---
-  const cab = ['MATRÍCULA', ...d.mesesOrden.map(mk => d.meses[mk].label), 'TOTAL', 'Nº REPOSTAJES'];
-  const filasXls = d.filasOrden.map(fk => {
-    const f = d.filas[fk];
-    return [f.display, ...d.mesesOrden.map(mk => f.porMes[mk] ? Number(f.porMes[mk].toFixed(2)) : ''), Number(f.total.toFixed(2)), f.repTotal];
-  });
-  const totMes = {};
-  d.mesesOrden.forEach(mk => { totMes[mk] = d.filasOrden.reduce((s, fk) => s + (d.filas[fk].porMes[mk] || 0), 0); });
-  const totGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].total, 0);
-  const repGen = d.filasOrden.reduce((s, fk) => s + d.filas[fk].repTotal, 0);
-  const filaTot = ['TOTAL', ...d.mesesOrden.map(mk => Number(totMes[mk].toFixed(2))), Number(totGen.toFixed(2)), repGen];
-  const rows1 = [['RESUMEN LITROS GASOIL · ' + empLabel], [], cab, ...filasXls, [], filaTot];
-  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
-  ws1['!cols'] = [{ wch: 14 }, ...d.mesesOrden.map(() => ({ wch: 11 })), { wch: 12 }, { wch: 13 }];
-
-  // --- Hoja 2: DETALLE (cada ticket de la empresa activa, una fila) ---
-  const det = [['FECHA', 'MATRÍCULA', 'PROVEEDOR', 'TIPO', 'LITROS', 'IMPORTE', '€/LITRO', 'Nº TICKET', 'OBSERVACIONES']];
-  // Orden cronológico por fecha
-  const orden = (filteredGas || []).slice().sort((a, b) => parseDate(a.fecha || '') - parseDate(b.fecha || ''));
-  orden.forEach(r => {
-    det.push([
-      r.fecha || '', r.tractora || '', r.proveedor || '', r.tipo || '',
-      r.litros != null ? _gasResumenLitros(r.litros) : '',
-      r.importe || '', r.precio_litro || '', r.num_ticket || '', r.observaciones || ''
-    ]);
-  });
-  const ws2 = XLSX.utils.aoa_to_sheet(det);
-  ws2['!cols'] = [10, 10, 18, 9, 9, 10, 9, 14, 26].map(w => ({ wch: w }));
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
-  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle');
-  const safe = empLabel.replace(/[^A-Za-z0-9]+/g, '_');
-  XLSX.writeFile(wb, `gasoil_resumen_${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  toast('✓ Excel resumen exportado (' + empLabel + ')');
-}
-
-// ===== v107AP: CONSUMO L/100KM (litros del periodo ÷ km recorridos) =====
-// Lee el Excel "Gasóleo Profesional" (ASG Trans) y lo guarda en la tabla
-// km_periodos (historial de periodos). NO toca taller_vehiculos.
-// La empresa se detecta por el CIF del archivo. Privacidad: igual que
-// el resto de Gasoil (subpestaña activa = gasEmpresaActiva).
-const _KM_CIF_EMP = { 'B90172735': 'TYP2014', 'B90286337': 'HISPALIS', 'B67316752': 'TRANSMARGAZ' };
-let kmPeriodos = [];
-
-// Convierte "YYYY-MM-DD" o "DD/MM/YYYY" a timestamp (medianoche local).
-function _kmTS(s) {
-  if (!s) return NaN;
-  s = String(s).trim();
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
-  const d = new Date(s); return isNaN(d) ? NaN : d.getTime();
-}
-
-function _kmFmtFecha(iso) {
-  if (!iso) return '—';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(iso);
-}
-
-async function _kmFetch() {
-  try {
-    const { data, error } = await sb.from('km_periodos').select('*').order('fecha_inicio', { ascending: true });
-    if (error) { console.warn('[_kmFetch]', error.message); kmPeriodos = []; return; }
-    kmPeriodos = data || [];
-  } catch (e) { console.warn('[_kmFetch]', e); kmPeriodos = []; }
-}
-
-async function kmImportarExcel(file) {
-  const inp = document.getElementById('kmExcelInput');
-  if (!file) { if (inp) inp.value = ''; return; }
-  try {
-    toast('Leyendo Excel de km…', 'warn');
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
-
-    // 1) Detectar empresa por CIF (en cualquier celda de las primeras filas)
-    let empresa = null, cifDet = null;
-    for (let i = 0; i < Math.min(rows.length, 25); i++) {
-      const txt = (rows[i] || []).map(c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).join(' ');
-      for (const cif in _KM_CIF_EMP) {
-        if (txt.includes(cif)) { empresa = _KM_CIF_EMP[cif]; cifDet = cif; break; }
-      }
-      if (empresa) break;
-    }
-    if (!empresa) {
-      empresa = gasEmpresaActiva;
-      toast('⚠️ No encontré el CIF en el archivo. Lo asigno a la empresa activa (' + _gasEmpresaLabel() + '). Revisa que sea correcto.', 'warn');
-    }
-
-    // 2) Buscar fila de cabecera y sus columnas
-    let h = -1, cMat = -1, cFi = -1, cKmI = -1, cFf = -1, cKmF = -1, cDif = -1;
-    for (let i = 0; i < rows.length; i++) {
-      const f = (rows[i] || []).map(c => String(c || '').toLowerCase());
-      const jMat = f.findIndex(c => c.includes('matr'));
-      if (jMat < 0) continue;
-      const jFi = f.findIndex(c => c.includes('fecha') && c.includes('inici'));
-      const jKmI = f.findIndex(c => c.includes('cuentakil') && c.includes('inici'));
-      const jFf = f.findIndex(c => c.includes('fecha') && c.includes('fin'));
-      const jKmF = f.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
-      const jDif = f.findIndex(c => c.includes('diferen'));
-      if (jFi >= 0 || jDif >= 0 || jKmF >= 0) {
-        h = i; cMat = jMat; cFi = jFi; cKmI = jKmI; cFf = jFf; cKmF = jKmF; cDif = jDif; break;
-      }
-    }
-    if (h < 0) { toast('No reconozco el formato (falta Matrícula / Fecha / Diferencia)', 'err'); if (inp) inp.value = ''; return; }
-
-    const num = v => { const n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10); return isNaN(n) ? null : n; };
-    const fechaISO = v => {
-      if (v == null || v === '') return null;
-      const s = String(v).trim();
-      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-      if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
-      const sn = Number(s);
-      if (!isNaN(sn) && sn > 20000 && sn < 90000) {
-        const d = new Date(Date.UTC(1899, 11, 30) + sn * 86400000);
-        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
-      }
-      const d = new Date(s); return isNaN(d) ? null : d.toISOString().slice(0, 10);
-    };
-
-    const filas = [];
-    for (let i = h + 1; i < rows.length; i++) {
-      const f = rows[i] || [];
-      const matRaw = String(f[cMat] || '').toUpperCase().replace(/[\s-]/g, '').trim();
-      if (!matRaw || !/^R?\d/.test(matRaw)) continue;
-      const fi = cFi >= 0 ? fechaISO(f[cFi]) : null;
-      const ff = cFf >= 0 ? fechaISO(f[cFf]) : null;
-      const kmI = cKmI >= 0 ? num(f[cKmI]) : null;
-      const kmF = cKmF >= 0 ? num(f[cKmF]) : null;
-      let dif = cDif >= 0 ? num(f[cDif]) : null;
-      if (dif == null && kmF != null && kmI != null) dif = kmF - kmI;
-      if (!fi || !ff || dif == null || dif < 0) continue;
-      filas.push({
-        empresa, cif: cifDet, matricula: matRaw,
-        fecha_inicio: fi, km_inicio: kmI,
-        fecha_fin: ff, km_fin: kmF, km_diferencia: dif,
-        user_id: currentUser?.id || null,
-        updated_at: new Date().toISOString()
-      });
-    }
-    if (!filas.length) { toast('No encontré filas de vehículos válidas en el Excel', 'err'); if (inp) inp.value = ''; return; }
-
-    const { error } = await sb.from('km_periodos').upsert(filas, { onConflict: 'matricula,fecha_inicio,fecha_fin,empresa' });
-    if (error) { console.error('[kmImportarExcel] upsert', error); toast('Error guardando en Supabase: ' + error.message, 'err'); if (inp) inp.value = ''; return; }
-
-    const labels = { 'TYP2014': 'TYP2014', 'HISPALIS': 'Hispalis', 'TRANSMARGAZ': 'Transmargaz' };
-    toast(`✅ ${filas.length} vehículos importados (${labels[empresa] || empresa})`, 'ok');
-    if (empresa !== gasEmpresaActiva) {
-      toast(`ℹ️ El archivo es de ${labels[empresa] || empresa}. Cámbiate a esa subpestaña para ver su consumo.`, 'warn');
-    }
-    await _kmFetch();
-    _gasConsumoRender();
-  } catch (e) {
-    console.error('[kmImportarExcel]', e);
-    toast('Error leyendo Excel: ' + (e.message || e), 'err');
-  }
-  if (inp) inp.value = '';
-}
-
-function _gasConsumoCalcular() {
-  // Por cada periodo de km de la empresa activa: sumar litros de ese camión
-  // cuyas fechas caen dentro del periodo y calcular L/100km.
-  return (kmPeriodos || [])
-    .filter(p => p.empresa === gasEmpresaActiva)
-    .map(p => {
-      const matKey = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
-      const tIni = _kmTS(p.fecha_inicio), tFin = _kmTS(p.fecha_fin);
-      let litros = 0, nRep = 0;
-      (gasoilRecords || []).forEach(r => {
-        const m = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
-        if (m !== matKey) return;
-        const td = _kmTS(r.fecha);
-        if (isNaN(td) || isNaN(tIni) || isNaN(tFin)) return;
-        if (td >= tIni && td <= tFin) { litros += _gasResumenLitros(r.litros); nRep++; }
-      });
-      const km = Number(p.km_diferencia) || 0;
-      const l100 = (km > 0 && litros > 0) ? (litros / km * 100) : null;
-      return { matricula: p.matricula, fi: p.fecha_inicio, ff: p.fecha_fin, km, litros, nRep, l100 };
-    })
-    .sort((a, b) => (_kmTS(a.fi) - _kmTS(b.fi)) || a.matricula.localeCompare(b.matricula, 'es'));
-}
-
-function _gasConsumoRender() {
-  const empLabel = _gasEmpresaLabel();
-  document.getElementById('gasConsumoTitulo').textContent = 'CONSUMO L/100KM · ' + empLabel;
-  const body = document.getElementById('gasConsumoBody');
-  const btn = document.getElementById('btnGasConsumoXls');
-  const filas = _gasConsumoCalcular();
-  window._gasConsumoFilas = filas;
-  if (!filas.length) {
-    body.innerHTML = '<div style="text-align:center;padding:34px;font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.6">No hay datos de km para ' + empLabel + '.<br>Sube el Excel "Gasóleo Profesional" con el botón de arriba.</div>';
-    if (btn) btn.style.display = 'none';
-    return;
-  }
-  if (btn) btn.style.display = '';
-  const fmtN = (n, d = 0) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
-  let h = '<div style="overflow-x:auto;max-width:100%"><table style="min-width:100%"><thead><tr>';
-  h += '<th style="text-align:left">Matrícula</th><th style="text-align:left;cursor:default">Periodo</th><th style="text-align:right;cursor:default">Litros</th><th style="text-align:right;cursor:default">Km recorridos</th><th style="text-align:right;cursor:default;color:var(--ac)">L/100 km</th>';
-  h += '</tr></thead><tbody>';
-  filas.forEach(f => {
-    const cons = f.l100 != null
-      ? '<b style="color:var(--ac)">' + fmtN(f.l100, 1) + '</b>'
-      : '<span style="color:var(--mu)" title="No hay tickets de gasoil en ese periodo">—</span>';
-    h += '<tr style="cursor:default">';
-    h += '<td class="tag-mat" style="font-weight:600">' + f.matricula + '</td>';
-    h += '<td style="font-size:10px;color:var(--mu)">' + _kmFmtFecha(f.fi) + ' → ' + _kmFmtFecha(f.ff) + '</td>';
-    h += '<td style="text-align:right">' + (f.litros ? fmtN(f.litros, 1) + ' L' : '<span style="color:var(--mu)">0</span>') + '</td>';
-    h += '<td style="text-align:right">' + (f.km ? fmtN(f.km, 0) + ' km' : '—') + '</td>';
-    h += '<td style="text-align:right">' + cons + '</td>';
-    h += '</tr>';
-  });
-  h += '</tbody></table></div>';
-  h += '<div style="margin-top:12px;font-size:10px;color:var(--mu);font-family:var(--mn);line-height:1.5">L/100 km = litros echados en el periodo ÷ km recorridos × 100 · "—" = no hay tickets de gasoil subidos en ese periodo (revísalos) · Los km salen del archivo "Gasóleo Profesional"; los litros, de los tickets ya subidos.</div>';
-  body.innerHTML = h;
-}
-
-async function openGasConsumo() {
-  document.getElementById('gasConsumoTitulo').textContent = 'CONSUMO L/100KM · ' + _gasEmpresaLabel();
-  document.getElementById('gasConsumoBody').innerHTML = '<div style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:12px">Cargando…</div>';
-  const btn = document.getElementById('btnGasConsumoXls'); if (btn) btn.style.display = 'none';
-  document.getElementById('ovGasConsumo').classList.add('open');
-  await _kmFetch();
-  _gasConsumoRender();
-}
-
-function closeGasConsumo() { document.getElementById('ovGasConsumo').classList.remove('open'); }
-
-function exportGasConsumoExcel() {
-  const filas = window._gasConsumoFilas || _gasConsumoCalcular();
-  if (!filas.length) { toast('No hay datos de consumo', 'err'); return; }
-  const empLabel = _gasEmpresaLabel();
-  const rows = [['CONSUMO L/100KM · ' + empLabel], [],
-    ['MATRÍCULA', 'PERIODO INICIO', 'PERIODO FIN', 'LITROS', 'Nº REPOSTAJES', 'KM RECORRIDOS', 'L/100 KM']];
-  filas.forEach(f => rows.push([
-    f.matricula, _kmFmtFecha(f.fi), _kmFmtFecha(f.ff),
-    f.litros ? Number(f.litros.toFixed(2)) : 0, f.nRep,
-    f.km || '', f.l100 != null ? Number(f.l100.toFixed(2)) : ''
-  ]));
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [12, 14, 14, 10, 13, 14, 10].map(w => ({ wch: w }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Consumo');
-  const safe = empLabel.replace(/[^A-Za-z0-9]+/g, '_');
-  XLSX.writeFile(wb, `consumo_km_${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  toast('✓ Excel consumo exportado (' + empLabel + ')');
-}
-
 function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${records.length} albaranes?`)) return; records = []; analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); toast('Eliminados'); }
 
 // ============================================================
@@ -6977,6 +6427,9 @@ const USUARIO_A_TRANSPORTISTA = {
 // v87: matrículas aprendidas dinámicamente. Se cargan de Supabase al inicio y se mezclan
 // con TRANSPORTISTAS al consultar. Cuando se aprende una nueva, se inserta en BD.
 let MATRICULAS_APRENDIDAS = {};
+// Tarjetas Repsol/SOLRED → {matricula, empresa}. Se carga de tabla tarjetas_repsol.
+// Para tickets Repsol que solo traen nº de tarjeta y no matrícula directa.
+let TARJETAS_REPSOL = {};
 
 // v83: diccionario MATRICULA → TRANSPORTISTA oficial (autocorrección por matrícula).
 // 116 matrículas mapeadas a los 13 transportistas oficiales. Cuando la IA procesa un albarán,
@@ -9850,7 +9303,7 @@ async function loadTallerData() {
     ]);
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
-    // v107AÑ: filtrar por empresas permitidas (window._empresaTaller).
+    // v107AO: filtrar por empresas permitidas (window._empresaTaller).
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
     tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
@@ -10290,7 +9743,7 @@ function _recambiosEsTaller() {
 function _recambiosEsAdmin() {
   return (userMap[currentUser?.id]?.role || '').toLowerCase() === 'admin';
 }
-// v107AÑ: ¿es el usuario Transmargaz? (su empresa_taller es solo TRANSMARGAZ).
+// v107AO: ¿es el usuario Transmargaz? (su empresa_taller es solo TRANSMARGAZ).
 // Transmargaz puede conciliar SUS facturas (las de empresa TRANSMARGAZ).
 function _recambiosEsTransmargaz() {
   const emp = (window._empresaTaller || '').split(',').map(s => s.trim());
@@ -10301,7 +9754,7 @@ async function loadRecambiosData() {
   try {
     // Empresa activa = la subpestaña de Taller seleccionada
     const emp = tallerEmpresaActiva || 'TYP2014';
-    // v107AÑ: ordenar por created_at (cuándo se subió) para que el último
+    // v107AO: ordenar por created_at (cuándo se subió) para que el último
     // subido aparezca SIEMPRE arriba, no mezclado por la fecha del documento.
     let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('created_at', { ascending: false });
     const { data, error } = await q;
@@ -10399,7 +9852,7 @@ function renderRecambios() {
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    // v107AÑ: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
+    // v107AO: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
     // Transmargaz concilia SOLO sus facturas (empresa TRANSMARGAZ). TALLER nunca.
     const puedeConciliar = d.tipo_doc === 'factura' && (
       _recambiosEsAdmin() ||
