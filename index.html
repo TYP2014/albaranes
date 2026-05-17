@@ -540,6 +540,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
             <input type="file" id="gasUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gas'); this.value='';">
             <button class="btn bs" onclick="openGasResumen()">📅 Resumen mes</button>
+            <button class="btn bs" onclick="openGasConsumo()">🛣️ Consumo km</button>
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
           </div>
         </div>
@@ -1057,6 +1058,28 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     <div class="modal-ft">
       <button class="btn bp" id="btnGasResumenXls" onclick="exportGasResumenExcel()">📊 Descargar Excel (resumen + detalle)</button>
       <button class="btn bs" onclick="closeGasResumen()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107AP: MODAL CONSUMO KM (litros / km recorridos = L/100km por camión y periodo) -->
+<div class="ov" id="ovGasConsumo">
+  <div class="modal" style="max-width:980px">
+    <div class="modal-hd">
+      <div class="modal-title" id="gasConsumoTitulo">CONSUMO L/100KM</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeGasConsumo()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <button class="btn bp" onclick="document.getElementById('kmExcelInput').click()">📤 Subir km (Excel Gasóleo Profesional)</button>
+        <input type="file" id="kmExcelInput" accept=".xls,.xlsx" style="display:none" onchange="kmImportarExcel(this.files[0])">
+        <span style="font-size:10px;color:var(--mu);font-family:var(--mn)">El archivo lleva el CIF → la empresa se detecta sola</span>
+      </div>
+      <div id="gasConsumoBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bp" id="btnGasConsumoXls" onclick="exportGasConsumoExcel()">📊 Descargar Excel</button>
+      <button class="btn bs" onclick="closeGasConsumo()">Cerrar</button>
     </div>
   </div>
 </div>
@@ -5531,6 +5554,223 @@ function exportGasResumenExcel() {
   const safe = empLabel.replace(/[^A-Za-z0-9]+/g, '_');
   XLSX.writeFile(wb, `gasoil_resumen_${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   toast('✓ Excel resumen exportado (' + empLabel + ')');
+}
+
+// ===== v107AP: CONSUMO L/100KM (litros del periodo ÷ km recorridos) =====
+// Lee el Excel "Gasóleo Profesional" (ASG Trans) y lo guarda en la tabla
+// km_periodos (historial de periodos). NO toca taller_vehiculos.
+// La empresa se detecta por el CIF del archivo. Privacidad: igual que
+// el resto de Gasoil (subpestaña activa = gasEmpresaActiva).
+const _KM_CIF_EMP = { 'B90172735': 'TYP2014', 'B90286337': 'HISPALIS', 'B67316752': 'TRANSMARGAZ' };
+let kmPeriodos = [];
+
+// Convierte "YYYY-MM-DD" o "DD/MM/YYYY" a timestamp (medianoche local).
+function _kmTS(s) {
+  if (!s) return NaN;
+  s = String(s).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+  const d = new Date(s); return isNaN(d) ? NaN : d.getTime();
+}
+
+function _kmFmtFecha(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(iso);
+}
+
+async function _kmFetch() {
+  try {
+    const { data, error } = await sb.from('km_periodos').select('*').order('fecha_inicio', { ascending: true });
+    if (error) { console.warn('[_kmFetch]', error.message); kmPeriodos = []; return; }
+    kmPeriodos = data || [];
+  } catch (e) { console.warn('[_kmFetch]', e); kmPeriodos = []; }
+}
+
+async function kmImportarExcel(file) {
+  const inp = document.getElementById('kmExcelInput');
+  if (!file) { if (inp) inp.value = ''; return; }
+  try {
+    toast('Leyendo Excel de km…', 'warn');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+
+    // 1) Detectar empresa por CIF (en cualquier celda de las primeras filas)
+    let empresa = null, cifDet = null;
+    for (let i = 0; i < Math.min(rows.length, 25); i++) {
+      const txt = (rows[i] || []).map(c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).join(' ');
+      for (const cif in _KM_CIF_EMP) {
+        if (txt.includes(cif)) { empresa = _KM_CIF_EMP[cif]; cifDet = cif; break; }
+      }
+      if (empresa) break;
+    }
+    if (!empresa) {
+      empresa = gasEmpresaActiva;
+      toast('⚠️ No encontré el CIF en el archivo. Lo asigno a la empresa activa (' + _gasEmpresaLabel() + '). Revisa que sea correcto.', 'warn');
+    }
+
+    // 2) Buscar fila de cabecera y sus columnas
+    let h = -1, cMat = -1, cFi = -1, cKmI = -1, cFf = -1, cKmF = -1, cDif = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const f = (rows[i] || []).map(c => String(c || '').toLowerCase());
+      const jMat = f.findIndex(c => c.includes('matr'));
+      if (jMat < 0) continue;
+      const jFi = f.findIndex(c => c.includes('fecha') && c.includes('inici'));
+      const jKmI = f.findIndex(c => c.includes('cuentakil') && c.includes('inici'));
+      const jFf = f.findIndex(c => c.includes('fecha') && c.includes('fin'));
+      const jKmF = f.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
+      const jDif = f.findIndex(c => c.includes('diferen'));
+      if (jFi >= 0 || jDif >= 0 || jKmF >= 0) {
+        h = i; cMat = jMat; cFi = jFi; cKmI = jKmI; cFf = jFf; cKmF = jKmF; cDif = jDif; break;
+      }
+    }
+    if (h < 0) { toast('No reconozco el formato (falta Matrícula / Fecha / Diferencia)', 'err'); if (inp) inp.value = ''; return; }
+
+    const num = v => { const n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10); return isNaN(n) ? null : n; };
+    const fechaISO = v => {
+      if (v == null || v === '') return null;
+      const s = String(v).trim();
+      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+      const sn = Number(s);
+      if (!isNaN(sn) && sn > 20000 && sn < 90000) {
+        const d = new Date(Date.UTC(1899, 11, 30) + sn * 86400000);
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+      }
+      const d = new Date(s); return isNaN(d) ? null : d.toISOString().slice(0, 10);
+    };
+
+    const filas = [];
+    for (let i = h + 1; i < rows.length; i++) {
+      const f = rows[i] || [];
+      const matRaw = String(f[cMat] || '').toUpperCase().replace(/[\s-]/g, '').trim();
+      if (!matRaw || !/^R?\d/.test(matRaw)) continue;
+      const fi = cFi >= 0 ? fechaISO(f[cFi]) : null;
+      const ff = cFf >= 0 ? fechaISO(f[cFf]) : null;
+      const kmI = cKmI >= 0 ? num(f[cKmI]) : null;
+      const kmF = cKmF >= 0 ? num(f[cKmF]) : null;
+      let dif = cDif >= 0 ? num(f[cDif]) : null;
+      if (dif == null && kmF != null && kmI != null) dif = kmF - kmI;
+      if (!fi || !ff || dif == null || dif < 0) continue;
+      filas.push({
+        empresa, cif: cifDet, matricula: matRaw,
+        fecha_inicio: fi, km_inicio: kmI,
+        fecha_fin: ff, km_fin: kmF, km_diferencia: dif,
+        user_id: currentUser?.id || null,
+        updated_at: new Date().toISOString()
+      });
+    }
+    if (!filas.length) { toast('No encontré filas de vehículos válidas en el Excel', 'err'); if (inp) inp.value = ''; return; }
+
+    const { error } = await sb.from('km_periodos').upsert(filas, { onConflict: 'matricula,fecha_inicio,fecha_fin,empresa' });
+    if (error) { console.error('[kmImportarExcel] upsert', error); toast('Error guardando en Supabase: ' + error.message, 'err'); if (inp) inp.value = ''; return; }
+
+    const labels = { 'TYP2014': 'TYP2014', 'HISPALIS': 'Hispalis', 'TRANSMARGAZ': 'Transmargaz' };
+    toast(`✅ ${filas.length} vehículos importados (${labels[empresa] || empresa})`, 'ok');
+    if (empresa !== gasEmpresaActiva) {
+      toast(`ℹ️ El archivo es de ${labels[empresa] || empresa}. Cámbiate a esa subpestaña para ver su consumo.`, 'warn');
+    }
+    await _kmFetch();
+    _gasConsumoRender();
+  } catch (e) {
+    console.error('[kmImportarExcel]', e);
+    toast('Error leyendo Excel: ' + (e.message || e), 'err');
+  }
+  if (inp) inp.value = '';
+}
+
+function _gasConsumoCalcular() {
+  // Por cada periodo de km de la empresa activa: sumar litros de ese camión
+  // cuyas fechas caen dentro del periodo y calcular L/100km.
+  return (kmPeriodos || [])
+    .filter(p => p.empresa === gasEmpresaActiva)
+    .map(p => {
+      const matKey = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+      const tIni = _kmTS(p.fecha_inicio), tFin = _kmTS(p.fecha_fin);
+      let litros = 0, nRep = 0;
+      (gasoilRecords || []).forEach(r => {
+        const m = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+        if (m !== matKey) return;
+        const td = _kmTS(r.fecha);
+        if (isNaN(td) || isNaN(tIni) || isNaN(tFin)) return;
+        if (td >= tIni && td <= tFin) { litros += _gasResumenLitros(r.litros); nRep++; }
+      });
+      const km = Number(p.km_diferencia) || 0;
+      const l100 = (km > 0 && litros > 0) ? (litros / km * 100) : null;
+      return { matricula: p.matricula, fi: p.fecha_inicio, ff: p.fecha_fin, km, litros, nRep, l100 };
+    })
+    .sort((a, b) => (_kmTS(a.fi) - _kmTS(b.fi)) || a.matricula.localeCompare(b.matricula, 'es'));
+}
+
+function _gasConsumoRender() {
+  const empLabel = _gasEmpresaLabel();
+  document.getElementById('gasConsumoTitulo').textContent = 'CONSUMO L/100KM · ' + empLabel;
+  const body = document.getElementById('gasConsumoBody');
+  const btn = document.getElementById('btnGasConsumoXls');
+  const filas = _gasConsumoCalcular();
+  window._gasConsumoFilas = filas;
+  if (!filas.length) {
+    body.innerHTML = '<div style="text-align:center;padding:34px;font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.6">No hay datos de km para ' + empLabel + '.<br>Sube el Excel "Gasóleo Profesional" con el botón de arriba.</div>';
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+  if (btn) btn.style.display = '';
+  const fmtN = (n, d = 0) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+  let h = '<div style="overflow-x:auto;max-width:100%"><table style="min-width:100%"><thead><tr>';
+  h += '<th style="text-align:left">Matrícula</th><th style="text-align:left;cursor:default">Periodo</th><th style="text-align:right;cursor:default">Litros</th><th style="text-align:right;cursor:default">Km recorridos</th><th style="text-align:right;cursor:default;color:var(--ac)">L/100 km</th>';
+  h += '</tr></thead><tbody>';
+  filas.forEach(f => {
+    const cons = f.l100 != null
+      ? '<b style="color:var(--ac)">' + fmtN(f.l100, 1) + '</b>'
+      : '<span style="color:var(--mu)" title="No hay tickets de gasoil en ese periodo">—</span>';
+    h += '<tr style="cursor:default">';
+    h += '<td class="tag-mat" style="font-weight:600">' + f.matricula + '</td>';
+    h += '<td style="font-size:10px;color:var(--mu)">' + _kmFmtFecha(f.fi) + ' → ' + _kmFmtFecha(f.ff) + '</td>';
+    h += '<td style="text-align:right">' + (f.litros ? fmtN(f.litros, 1) + ' L' : '<span style="color:var(--mu)">0</span>') + '</td>';
+    h += '<td style="text-align:right">' + (f.km ? fmtN(f.km, 0) + ' km' : '—') + '</td>';
+    h += '<td style="text-align:right">' + cons + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<div style="margin-top:12px;font-size:10px;color:var(--mu);font-family:var(--mn);line-height:1.5">L/100 km = litros echados en el periodo ÷ km recorridos × 100 · "—" = no hay tickets de gasoil subidos en ese periodo (revísalos) · Los km salen del archivo "Gasóleo Profesional"; los litros, de los tickets ya subidos.</div>';
+  body.innerHTML = h;
+}
+
+async function openGasConsumo() {
+  document.getElementById('gasConsumoTitulo').textContent = 'CONSUMO L/100KM · ' + _gasEmpresaLabel();
+  document.getElementById('gasConsumoBody').innerHTML = '<div style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:12px">Cargando…</div>';
+  const btn = document.getElementById('btnGasConsumoXls'); if (btn) btn.style.display = 'none';
+  document.getElementById('ovGasConsumo').classList.add('open');
+  await _kmFetch();
+  _gasConsumoRender();
+}
+
+function closeGasConsumo() { document.getElementById('ovGasConsumo').classList.remove('open'); }
+
+function exportGasConsumoExcel() {
+  const filas = window._gasConsumoFilas || _gasConsumoCalcular();
+  if (!filas.length) { toast('No hay datos de consumo', 'err'); return; }
+  const empLabel = _gasEmpresaLabel();
+  const rows = [['CONSUMO L/100KM · ' + empLabel], [],
+    ['MATRÍCULA', 'PERIODO INICIO', 'PERIODO FIN', 'LITROS', 'Nº REPOSTAJES', 'KM RECORRIDOS', 'L/100 KM']];
+  filas.forEach(f => rows.push([
+    f.matricula, _kmFmtFecha(f.fi), _kmFmtFecha(f.ff),
+    f.litros ? Number(f.litros.toFixed(2)) : 0, f.nRep,
+    f.km || '', f.l100 != null ? Number(f.l100.toFixed(2)) : ''
+  ]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [12, 14, 14, 10, 13, 14, 10].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consumo');
+  const safe = empLabel.replace(/[^A-Za-z0-9]+/g, '_');
+  XLSX.writeFile(wb, `consumo_km_${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast('✓ Excel consumo exportado (' + empLabel + ')');
 }
 
 function clearAll() { if (!records.length) return; if (!confirm(`¿Borrar ${records.length} albaranes?`)) return; records = []; analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); toast('Eliminados'); }
