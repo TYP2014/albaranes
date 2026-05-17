@@ -1554,7 +1554,10 @@ async function loadData() {
   let allGas = [];
   let fromG = 0;
   while (true) {
-    let queryG = sb.from('gasoil').select('*').order('fecha', { ascending: false }).range(fromG, fromG + PAGE - 1);
+    // v107AM: ordenar por created_at (cuándo se subió) en vez de fecha del
+    // ticket, para que el recién subido aparezca SIEMPRE arriba (igual que
+    // hicimos en Albaranes). Antes un ticket con fecha antigua se "perdía".
+    let queryG = sb.from('gasoil').select('*').order('created_at', { ascending: false }).range(fromG, fromG + PAGE - 1);
     if (currentRole === 'gestor') queryG = queryG.eq('user_id', currentUser.id);
     const { data: gd } = await queryG;
     if (!gd || gd.length === 0) break;
@@ -9594,7 +9597,9 @@ async function loadRecambiosData() {
   try {
     // Empresa activa = la subpestaña de Taller seleccionada
     const emp = tallerEmpresaActiva || 'TYP2014';
-    let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('fecha', { ascending: false });
+    // v107AM: ordenar por created_at (cuándo se subió) para que el último
+    // subido aparezca SIEMPRE arriba, no mezclado por la fecha del documento.
+    let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('created_at', { ascending: false });
     const { data, error } = await q;
     if (error) throw error;
     let docs = data || [];
