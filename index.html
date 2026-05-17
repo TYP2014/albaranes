@@ -534,7 +534,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts">
-            <!-- v107AN: botón Subir ticket aquí mismo, para no tener que ir
+            <!-- v107AÑ: botón Subir ticket aquí mismo, para no tener que ir
                  arriba al botón Subir general en cada empresa. El ticket se
                  marca con la empresa de la subpestaña activa (gasEmpresaActiva). -->
             <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
@@ -1559,7 +1559,7 @@ async function loadData() {
   let allGas = [];
   let fromG = 0;
   while (true) {
-    // v107AN: ordenar por created_at (cuándo se subió) en vez de fecha del
+    // v107AÑ: ordenar por created_at (cuándo se subió) en vez de fecha del
     // ticket, para que el recién subido aparezca SIEMPRE arriba (igual que
     // hicimos en Albaranes). Antes un ticket con fecha antigua se "perdía".
     let queryG = sb.from('gasoil').select('*').order('created_at', { ascending: false }).range(fromG, fromG + PAGE - 1);
@@ -1643,11 +1643,15 @@ async function saveRecord(data) {
 
 async function saveGasRecord(data) {
   const rec = { ...data, user_id: currentUser.id };
-  // v107AN: guardar la empresa de la subpestaña donde se subió el ticket.
+  // v107AÑ: guardar la empresa de la subpestaña donde se subió el ticket.
   // La subpestaña manda; la corrección por matrícula se hace en applyGasFilters.
   if (!rec.empresa_subida && !data.db_id) {
     rec.empresa_subida = gasEmpresaActiva || 'TYP2014';
   }
+  // v107AÑ: 'empresa_ticket' lo devuelve la IA (del prompt v107AÑ) SOLO para
+  // ayudar a clasificar, pero NO es una columna de la tabla gasoil. Hay que
+  // quitarlo antes de guardar o Supabase da error "column does not exist".
+  delete rec.empresa_ticket;
   // v98: limpieza de propiedades internas igual que en saveRecord (consistencia)
   Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
@@ -1866,19 +1870,29 @@ async function addFiles(files, type) {
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
 
-    if (isPdf && type === 'alb' && typeof pdfjsLib !== 'undefined') {
+    if (isPdf && (type === 'alb' || type === 'gas') && typeof pdfjsLib !== 'undefined') {
       try {
         const arrayBuffer = await f.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdf.numPages;
 
         if (numPages === 1) {
-          const b64 = await new Promise((res, rej) => {
+          const b64 = await new Promise((res) => {
             const r = new FileReader();
-            r.onload = e => res(e.target.result.split(',')[1]);
-            r.onerror = rej;
+            r.onload = e => {
+              const result = e.target.result || '';
+              const parts = String(result).split(',');
+              res(parts.length > 1 ? parts[1] : '');
+            };
+            r.onerror = () => res('');
             r.readAsDataURL(f);
           });
+          // v107AÑ: validar b64 (mismo fix que abajo para evitar error 400)
+          if (!b64 || b64.length < 50) {
+            console.error('[addFiles] base64 inválido (PDF 1 pág) para', f.name);
+            toast(`⚠️ No se pudo leer "${f.name}". Inténtalo de nuevo o súbelo como foto (JPG).`, 'err');
+            continue;
+          }
           if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
             pending.push({ id: Date.now() + Math.random(), file: f, b64, status: 'pending', isPdf: true, name: f.name, mediaType: 'application/pdf' });
           }
@@ -2007,10 +2021,23 @@ async function addFiles(files, type) {
       }
       const b64 = await new Promise((res, rej) => {
         const r = new FileReader();
-        r.onload = e => res(e.target.result.split(',')[1]);
-        r.onerror = rej;
+        r.onload = e => {
+          const result = e.target.result || '';
+          const parts = String(result).split(',');
+          res(parts.length > 1 ? parts[1] : '');
+        };
+        r.onerror = () => res('');  // v107AÑ: no rechazar, devolver vacío y validar abajo
         r.readAsDataURL(imgFile);
       });
+      // v107AÑ: FIX error 400 "base64.data: Input should be a valid string".
+      // Pasaba al subir un TICKET DE GASOIL EN PDF: si el FileReader fallaba,
+      // b64 quedaba vacío/undefined y se mandaba igual a la API → error 400.
+      // Ahora si b64 no es un string válido, NO añadimos a la cola y avisamos.
+      if (!b64 || typeof b64 !== 'string' || b64.length < 50) {
+        console.error('[addFiles] base64 inválido para', f.name, '— no se añade a la cola');
+        toast(`⚠️ No se pudo leer "${f.name}". Prueba a subirlo como foto (JPG) en vez de PDF, o vuelve a intentarlo.`, 'err');
+        continue;
+      }
       if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
         pending.push({ id, file: imgFile, b64, status: 'pending', isPdf, name: f.name, mediaType: isPdf ? 'application/pdf' : (imgFile.type || 'image/jpeg') });
       }
@@ -2823,6 +2850,13 @@ async function _processOne(it, type, key, timeoutMs) {
         if (it._fromPending && it._fromPending.table === 'gasoil') {
           data.db_id = it._fromPending.id;
           data.procesado = true;
+        }
+        // v107AÑ: si la IA detectó la empresa por el texto del ticket
+        // ("Empresa: TRANSPORTES HI" → HISPALIS), usar ESA como empresa_subida
+        // (es más fiable que la subpestaña si el usuario subió donde no toca).
+        // Si no, se queda con la subpestaña activa (lo hace saveGasRecord).
+        if (data.empresa_ticket && ['TYP2014','HISPALIS','TRANSMARGAZ'].includes(data.empresa_ticket)) {
+          data.empresa_subida = data.empresa_ticket;
         }
         const dbId = await saveGasRecord(data);
         data._id = Date.now() + Math.random();
@@ -3766,7 +3800,7 @@ function applyFilters() {
 }
 
 function applyGasFilters() {
-  // v107AN: NUEVA lógica de clasificación por empresa.
+  // v107AÑ: NUEVA lógica de clasificación por empresa.
   // 1) Si el ticket tiene empresa_subida (subpestaña donde se subió) → esa MANDA.
   // 2) PERO si la matrícula del ticket pertenece a OTRA empresa del grupo
   //    (según mapa TRANSPORTISTAS), se reclasifica al dueño real y se anota
@@ -3807,7 +3841,7 @@ function applyGasFilters() {
     return empresaTicket === gasEmpresaActiva;
   });
 
-  // v107AN: avisar de reclasificaciones (solo una vez por sesión y empresa)
+  // v107AÑ: avisar de reclasificaciones (solo una vez por sesión y empresa)
   if (avisosReclasif.length && !window._gasAvisoMostrado?.[gasEmpresaActiva]) {
     window._gasAvisoMostrado = window._gasAvisoMostrado || {};
     window._gasAvisoMostrado[gasEmpresaActiva] = true;
@@ -9198,7 +9232,7 @@ async function loadTallerData() {
     ]);
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
-    // v107AN: filtrar por empresas permitidas (window._empresaTaller).
+    // v107AÑ: filtrar por empresas permitidas (window._empresaTaller).
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
     tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
@@ -9638,7 +9672,7 @@ function _recambiosEsTaller() {
 function _recambiosEsAdmin() {
   return (userMap[currentUser?.id]?.role || '').toLowerCase() === 'admin';
 }
-// v107AN: ¿es el usuario Transmargaz? (su empresa_taller es solo TRANSMARGAZ).
+// v107AÑ: ¿es el usuario Transmargaz? (su empresa_taller es solo TRANSMARGAZ).
 // Transmargaz puede conciliar SUS facturas (las de empresa TRANSMARGAZ).
 function _recambiosEsTransmargaz() {
   const emp = (window._empresaTaller || '').split(',').map(s => s.trim());
@@ -9649,7 +9683,7 @@ async function loadRecambiosData() {
   try {
     // Empresa activa = la subpestaña de Taller seleccionada
     const emp = tallerEmpresaActiva || 'TYP2014';
-    // v107AN: ordenar por created_at (cuándo se subió) para que el último
+    // v107AÑ: ordenar por created_at (cuándo se subió) para que el último
     // subido aparezca SIEMPRE arriba, no mezclado por la fecha del documento.
     let q = sb.from('recambios_albaranes').select('*').eq('empresa', emp).order('created_at', { ascending: false });
     const { data, error } = await q;
@@ -9747,7 +9781,7 @@ function renderRecambios() {
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    // v107AN: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
+    // v107AÑ: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
     // Transmargaz concilia SOLO sus facturas (empresa TRANSMARGAZ). TALLER nunca.
     const puedeConciliar = d.tipo_doc === 'factura' && (
       _recambiosEsAdmin() ||
