@@ -2816,6 +2816,30 @@ async function _processOne(it, type, key, timeoutMs) {
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
         }
+        // v107AS: COBRO POR VIAJE (no por tonelada). Albaranes de TECNOCATALANA
+        // con material "Árido reciclado" se facturan a tanto el viaje, NO por TN.
+        // En estos casos guardamos tm = 1 (= 1 viaje) en vez del peso real, para
+        // que las sumas/preliquidaciones cuenten viajes y no toneladas.
+        // SEGURIDAD: solo actúa si proveedor Tecnocatalana Y material árido
+        // reciclado (las DOS condiciones). Si falta una, el albarán se lee
+        // normal con sus toneladas de siempre. Guardamos las TN reales en
+        // observaciones por si algún día hacen falta (no se pierde el dato).
+        {
+          const _prov = String(data.proveedor || '').toLowerCase();
+          const _mat  = String(data.material || '').toLowerCase();
+          const _esTecno = _prov.indexOf('tecnocatalana') !== -1;
+          const _esAridoRec = _mat.indexOf('rido reciclado') !== -1 || _mat.indexOf('arido reciclado') !== -1;
+          if (_esTecno && _esAridoRec) {
+            const _tnReal = parseFloat(data.tm);
+            if (!isNaN(_tnReal) && _tnReal !== 1) {
+              data.observaciones = (data.observaciones ? String(data.observaciones) + ' · ' : '')
+                + 'Cobro por viaje (TN real ' + _tnReal + ')';
+              console.log('[v107AS por viaje] Tecnocatalana + Árido reciclado: tm '
+                + _tnReal + ' → 1 (TN real guardada en observaciones)');
+            }
+            data.tm = 1;
+          }
+        }
         // v107b: red de seguridad específica para Sodira. El nº albarán SIEMPRE tiene formato
         // exacto "1/01718/XXXXXX" (6 dígitos al final). Lógica:
         // 1) Si el valor ya está en formato correcto → nada que hacer.
