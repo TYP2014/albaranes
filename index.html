@@ -10115,6 +10115,15 @@ async function recambiosSubir(files, tipoForzado) {
     try {
       const isPdf = /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name);
       const b64 = await _fileToB64(f);
+      // v107BA: guardar el PDF/foto en Storage para poder verlo/descargarlo
+      // luego en el modal (igual que albaranes de transporte). Si falla la
+      // subida del archivo, seguimos igualmente (no perdemos los datos leídos).
+      let _recFileUrl = null;
+      try {
+        _recFileUrl = await uploadFile(f, 'recambios');
+      } catch (e) {
+        console.warn('[v107BA recambios] no pude subir el archivo a Storage (seguimos sin él):', e);
+      }
       const parsed = await callClaudeRecambio(b64, f.type || (isPdf ? 'application/pdf' : 'image/jpeg'), key, isPdf);
       const docs = Array.isArray(parsed) ? parsed : [parsed];
       for (const doc of docs) {
@@ -10136,6 +10145,7 @@ async function recambiosSubir(files, tipoForzado) {
           total: _num(doc.total),
           lineas: doc.lineas || [],
           observaciones: doc.observaciones || null,
+          file_url: _recFileUrl,
           user_id: currentUser?.id || null
         };
         // v107AZ: RED DE SEGURIDAD del proveedor. Si la IA puso una de NUESTRAS
@@ -10330,6 +10340,9 @@ function recambiosVerDetalle(id) {
       <span>Total: <b style="color:var(--ac)">${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></span>
     </div>
     ${d.observaciones ? `<div style="font-size:11px;color:var(--mu);margin-bottom:10px">📝 ${esc(d.observaciones)}</div>` : ''}
+    ${d.file_url ? `<div style="margin-bottom:14px">
+      <a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="btn bp" style="padding:7px 14px;font-size:11px;text-decoration:none;display:inline-block">📄 Ver / descargar albarán</a>
+    </div>` : `<div style="font-size:11px;color:var(--mu);margin-bottom:14px">📄 (Sin archivo guardado — documento subido antes de la v107BA)</div>`}
     <div style="overflow-x:auto">
       <table class="tbl">
         <thead><tr>
