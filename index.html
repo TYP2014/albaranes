@@ -2742,6 +2742,11 @@ async function _processOne(it, type, key, timeoutMs) {
 
     it.b64 = null; // liberar memoria
 
+    // FASE 2: contador de repostajes de factura OMITIDOS por duplicado
+    // (ya estaban en BD: misma factura + mismo nº albarán interno + tipo).
+    let _facturaDupOmitidos = 0;
+    let _facturaTotal = 0;
+
     for (const data of results) {
       // v71: si usamos fallback (PDF compartido) añadir #page=N. Si subimos JPG individual,
       // fileUrl ya apunta a la imagen directa y NO se añade hash. Si todo falló, null.
@@ -3242,6 +3247,29 @@ async function _processOne(it, type, key, timeoutMs) {
           if (data.num_factura) data.num_factura = String(data.num_factura);
           if (data.albaran_interno) data.albaran_interno = String(data.albaran_interno);
           if (!data.proveedor) data.proveedor = 'Neumáticos Soledad';
+          // FASE 2 ANTI-DUPLICADOS: un repostaje de factura es DUPLICADO si
+          // ya existe otro en BD con la MISMA combinación de:
+          //   nº factura + nº albarán interno + tipo (gasoil/adblue).
+          // Si los 3 coinciden → es exactamente el mismo repostaje (subiste
+          // la factura 2 veces) → NO lo volvemos a guardar. Si cambia
+          // cualquiera de los 3 → es un repostaje distinto → sí se guarda.
+          _facturaTotal++;
+          const _nf = String(data.num_factura || '').trim().toLowerCase();
+          const _nalb = String(data.albaran_interno || '').trim().toLowerCase();
+          const _tp = String(data.tipo || '').trim().toLowerCase();
+          if (_nf && _nalb) {
+            const _yaExiste = gasoilRecords.some(r =>
+              String(r.num_factura || '').trim().toLowerCase() === _nf &&
+              String(r.albaran_interno || '').trim().toLowerCase() === _nalb &&
+              String(r.tipo || '').trim().toLowerCase() === _tp
+            );
+            if (_yaExiste) {
+              _facturaDupOmitidos++;
+              console.warn('[Fase 2 anti-dup] repostaje ya existe (factura '
+                + _nf + ' / albarán ' + _nalb + ' / ' + _tp + ') → OMITIDO');
+              continue; // saltar este repostaje, NO guardarlo
+            }
+          }
         }
         const dbId = await saveGasRecord(data);
         data._id = Date.now() + Math.random();
@@ -3249,6 +3277,22 @@ async function _processOne(it, type, key, timeoutMs) {
         data._ts = new Date().toISOString();
         gasoilRecords.unshift(data);
       }
+    }
+    // FASE 2: si esta factura tenía repostajes que YA estaban en BD
+    // (subida por segunda vez), avisar al usuario claramente.
+    if (_facturaDupOmitidos > 0) {
+      const _guardados = _facturaTotal - _facturaDupOmitidos;
+      const _msg = _guardados > 0
+        ? ('Esta factura ya estaba parcialmente: omitidos ' + _facturaDupOmitidos
+           + ' repostajes repetidos, guardados ' + _guardados + ' nuevos.')
+        : ('Esta factura YA estaba subida: omitidos los ' + _facturaDupOmitidos
+           + ' repostajes (ninguno nuevo, no se ha duplicado nada).');
+      console.warn('[Fase 2 anti-dup] ' + _msg);
+      try {
+        if (typeof toast === 'function') toast(_msg, _guardados > 0 ? 'ok' : 'warn');
+        else if (typeof showToast === 'function') showToast(_msg);
+        else alert(_msg);
+      } catch (e) { alert(_msg); }
     }
     it.status = 'done';
     // v98: ya no necesitamos borrar/actualizar el pendiente aquí porque saveRecord lo hizo
