@@ -10138,6 +10138,21 @@ async function recambiosSubir(files, tipoForzado) {
           observaciones: doc.observaciones || null,
           user_id: currentUser?.id || null
         };
+        // v107AZ: RED DE SEGURIDAD del proveedor. Si la IA puso una de NUESTRAS
+        // empresas como proveedor (error real: confunde el destinatario con el
+        // emisor), lo marcamos para revisar — el proveedor real es otro (el del
+        // logo de la marca de recambios). NO lo borramos (perderíamos el dato),
+        // pero avisamos claramente para que Juan Carlos lo corrija a mano.
+        {
+          const _p = String(reg.proveedor || '').toLowerCase();
+          const _nuestras = /transportes\s*y\s*portes\s*2014|transportes\s*hispalis\s*2016|transmargaz|^typ\s*2014$/i;
+          const _nifNuestro = /b\s*90172735|b\s*90286337|b\s*67316752/i.test(String(reg.proveedor_nif || ''));
+          if (_p && (_nuestras.test(_p) || _nifNuestro)) {
+            console.warn('[v107AZ recambios] proveedor mal leído como NUESTRA empresa ("' + reg.proveedor + '") → marcado para revisar');
+            reg.observaciones = (reg.observaciones ? reg.observaciones + ' · ' : '')
+              + '⚠️ REVISAR PROVEEDOR: la IA leyó "' + reg.proveedor + '" (somos nosotros, el cliente). El proveedor real es la marca del logo.';
+          }
+        }
         // v107AL: detectar duplicado (mismo proveedor + nº documento + empresa + tipo).
         // Avisa y deja decidir; si el usuario cancela, se salta este documento.
         if (reg.num_documento && reg.proveedor) {
@@ -10256,6 +10271,7 @@ Campos a extraer (JSON):
 }
 
 IMPORTANTE:
+- ⚠️ PROVEEDOR (CRÍTICO, error real detectado): el proveedor es SIEMPRE quien EMITE y FACTURA el documento — es el del LOGO/CABECERA de arriba (ej. "RS TURIA", "LARAUTO", "Autosur de Levante", "IVECO Auto Distribución", "Zona Franca Alari Sepauto"). NUNCA es "TRANSPORTES Y PORTES 2014, S.L." ni "TRANSPORTES HISPALIS 2016" ni "TRANSMARGAZ" — esas SOMOS NOSOTROS, el CLIENTE que recibe el recambio, aunque aparezcan en un recuadro grande en la zona del destinatario. Señal infalible: si el CIF junto a ese nombre es B90172735, B90286337 o B67316752, ESE es el cliente (nosotros), NO el proveedor. El proveedor es el OTRO nombre, el del logo de la marca de recambios. Ejemplo real: en un albarán onde el logo pone "RS TURIA - RECAMBIOS Y ACCESORIOS" y a la derecha hay un recuadro con "TRANSPORTES Y PORTES 2014, S.L. ... CIF B90172735", el proveedor es "RS TURIA" (NUNCA "Transportes y Portes 2014").
 - Lee CADA línea con su cantidad, precio y descuento. La cantidad es CRÍTICA (es lo que el usuario quiere verificar).
 - Para facturas que agrupan albaranes (como Zona Franca/IVECO o IVECO Auto Distribución): asocia cada línea a su nº de albarán (campo "albaran" de cada línea). El nº de albarán aparece como "Nº Albaran C12603354" o "ALBARÁN Nº. 01141" o "Albarán AR 445865" antes de su grupo de líneas.
 - Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90. DEVUELVE los números como NÚMERO JSON con punto decimal (ej: 320.37, 1126.47, 33.90), NUNCA como texto con coma ni con separador de miles. El total de "320,37 €" debe devolverse como 320.37 (NO 32037).
