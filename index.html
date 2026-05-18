@@ -10232,8 +10232,8 @@ async function gasImportarKmExcel(file) {
       const { error } = await sb.from('km_periodos').insert({
         matricula: mat, empresa: empresaDoc || null,
         fecha_inicio: fIni, fecha_fin: fFin,
-        km_inicio: kIni || null, km_fin: kFin || null, km_recorridos: dif,
-        cif_empresa: cifDoc || null,
+        km_inicio: kIni || null, km_fin: kFin || null, km_diferencia: dif,
+        cif: cifDoc || null,
         user_id: currentUser ? currentUser.id : null
       });
       if (!error) { guardados++; claveExiste.add(clave); }
