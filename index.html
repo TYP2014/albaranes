@@ -2829,6 +2829,41 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+        // v107AV: regla específica PUIGFEL / COVA SOLERA (escombro de hormigón
+        // que sale de una planta/obra Holcim → vertedero Puigfel/Cova Solera en
+        // Rubí). A diferencia de Girona Runes (origen fijo Celra), aquí el
+        // ORIGEN VARÍA (casi siempre Zona Franca o La Roca, confirmado por Juan
+        // Carlos 18/05). El DESTINO sí es fijo: "Puigfel".
+        //
+        // La IA lee mal estos albaranes (destino vacío, origen = "Cova Solera").
+        // Lo correcto: el camión CARGA en la obra Holcim (campo "Origen càrrega
+        // Obra": Zona Franca / La Roca) y DESCARGA en Puigfel/Cova Solera.
+        // Forzamos: DESTINO = "Puigfel"; ORIGEN = Zona Franca o La Roca según el
+        // texto que haya leído la IA (en proveedor/origen/destino/producto).
+        {
+          const _pf = (String(data.proveedor || '') + ' '
+                     + String(data.obra || '') + ' '
+                     + String(data.planta || '')).toLowerCase();
+          const _esPF = _pf.indexOf('puigfel') !== -1
+                     || _pf.indexOf('cova solera') !== -1;
+          if (_esPF) {
+            if (data.obra !== 'Puigfel') {
+              console.log('[v107AV Puigfel] forzando DESTINO → "Puigfel" (era "' + (data.obra || '') + '")');
+              data.obra = 'Puigfel';
+            }
+            // El origen real está en el texto leído por la IA. Buscamos los
+            // orígenes conocidos de Puigfel (de momento Zona Franca y La Roca;
+            // si aparecen más, Juan Carlos los irá indicando).
+            const _txtOrig = (_pf + ' ' + String(data.producto || '')).toLowerCase();
+            let _origPF = null;
+            if (/zona\s*franca/.test(_txtOrig)) _origPF = 'Zona Franca';
+            else if (/la\s*roca/.test(_txtOrig)) _origPF = 'La Roca';
+            if (_origPF && data.planta !== _origPF) {
+              console.log('[v107AV Puigfel] forzando ORIGEN → "' + _origPF + '" (era "' + (data.planta || '') + '")');
+              data.planta = _origPF;
+            }
+          }
+        }
         // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
