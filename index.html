@@ -1395,6 +1395,26 @@ async function loadUserMap() {
         const tabGas = document.getElementById('tabGas');
         if (tabPreli) tabPreli.style.display = 'none';
         if (tabGas) tabGas.style.display = 'none';
+        // v107BB: el usuario TALLER tampoco necesita ALBARANES ni SUBIR (son
+        // los albaranes de transporte, no le competen — él solo gestiona
+        // Taller/Recambios). Se ocultan SOLO para él. El admin y los gestores
+        // de transporte los siguen viendo con normalidad (su trabajo diario).
+        const tabAlb = document.getElementById('tabAlb');
+        const tabSubir = document.getElementById('tabSubir');
+        if (tabAlb) tabAlb.style.display = 'none';
+        if (tabSubir) tabSubir.style.display = 'none';
+        // CRÍTICO: si la pestaña activa al entrar es Albaranes o Subir (ahora
+        // ocultas para él), lo llevamos a su pestaña Taller para que NO se
+        // quede con la pantalla en blanco.
+        setTimeout(function () {
+          try {
+            const albActivo = tabAlb && tabAlb.classList.contains('active');
+            const subActivo = tabSubir && tabSubir.classList.contains('active');
+            if (albActivo || subActivo) {
+              switchTab('taller');
+            }
+          } catch (e) { console.warn('[v107BB] no pude redirigir a Taller:', e); }
+        }, 150);
       }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
