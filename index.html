@@ -10162,8 +10162,9 @@ async function gasImportarKmExcel(file) {
     };
     let cifDoc = '', empresaDoc = '';
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
-      const fila = (rows[i] || []).map(c => String(c || '').toUpperCase().replace(/[\s.\-]/g, ''));
-      for (const cel of fila) {
+      const fila = (rows[i] || []);
+      for (const celRaw of fila) {
+        const cel = String(celRaw == null ? '' : celRaw).toUpperCase().replace(/[\s.\-]/g, '');
         const m = cel.match(/B\d{8}/);
         if (m && CIF_EMP[m[0]]) { cifDoc = m[0]; empresaDoc = CIF_EMP[m[0]]; break; }
       }
@@ -10173,7 +10174,7 @@ async function gasImportarKmExcel(file) {
     // 2) Periodo global (fila "Período  dd/mm/aaaa  dd/mm/aaaa").
     let perIni = '', perFin = '';
     for (let i = 0; i < Math.min(rows.length, 10); i++) {
-      const fila = (rows[i] || []).map(c => String(c || ''));
+      const fila = (rows[i] || []).map(c => String(c == null ? '' : c));
       if (fila.some(c => c.toLowerCase().includes('per') && c.toLowerCase().includes('odo'))) {
         const fechas = fila.filter(c => /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(c));
         if (fechas.length >= 2) { perIni = fechas[0]; perFin = fechas[1]; }
@@ -10184,7 +10185,7 @@ async function gasImportarKmExcel(file) {
     // 3) Cabecera de la tabla (Matrícula + Cuentakilómetros inicio/fin).
     let hIdx = -1, cMat = -1, cFIni = -1, cKIni = -1, cFFin = -1, cKFin = -1, cDif = -1;
     for (let i = 0; i < rows.length; i++) {
-      const f = (rows[i] || []).map(c => String(c || '').toLowerCase());
+      const f = (rows[i] || []).map(c => String(c == null ? '' : c).toLowerCase());
       const jM = f.findIndex(c => c.includes('matr'));
       const jKI = f.findIndex(c => c.includes('cuentakil') && c.includes('inicio'));
       const jKF = f.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
