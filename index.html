@@ -1395,10 +1395,20 @@ async function loadUserMap() {
         const tabGas = document.getElementById('tabGas');
         if (tabPreli) tabPreli.style.display = 'none';
         if (tabGas) tabGas.style.display = 'none';
-        // v107BB: el usuario TALLER tampoco necesita ALBARANES ni SUBIR (son
-        // los albaranes de transporte, no le competen — él solo gestiona
-        // Taller/Recambios). Se ocultan SOLO para él. El admin y los gestores
-        // de transporte los siguen viendo con normalidad (su trabajo diario).
+      }
+      // v107BI: ocultar ALBARANES y SUBIR SOLO al usuario Taller PURO
+      // (taller@typ2014.local). El error de v107BB era usar la condición
+      // amplia "tienePermisoTaller && no admin", que sin querer también
+      // ocultaba estas pestañas a transmargaz-logística y a otros
+      // subcontratados que SÍ tienen permiso de Taller pero NECESITAN ver y
+      // subir albaranes de transporte. Ahora la condición es EXACTA: solo
+      // el email taller@typ2014.local pierde estas dos pestañas. TODOS los
+      // demás (admin, gestores, subcontratados, transmargaz-logística...)
+      // las ven y usan con normalidad.
+      const _emailUsuario = (currentUser?.email || '').toLowerCase().trim();
+      if (_emailUsuario === 'taller@typ2014.local') {
+        // El usuario TALLER puro solo gestiona Taller/Recambios; los
+        // albaranes de transporte no le competen.
         const tabAlb = document.getElementById('tabAlb');
         const tabSubir = document.getElementById('tabSubir');
         if (tabAlb) tabAlb.style.display = 'none';
@@ -1413,7 +1423,7 @@ async function loadUserMap() {
             if (albActivo || subActivo) {
               switchTab('taller');
             }
-          } catch (e) { console.warn('[v107BB] no pude redirigir a Taller:', e); }
+          } catch (e) { console.warn('[v107BI] no pude redirigir a Taller:', e); }
         }, 150);
       }
     }
