@@ -2644,6 +2644,15 @@ async function processQueue(type) {
   }, 2500);
 
   if (totalDone > 0) toast(`✓ ${totalDone} archivo(s) procesados`);
+
+  // FASE 2: si durante el proceso se detectó una factura repetida, mostrar
+  // el aviso AHORA (terminada toda la cola), con alert para que el usuario
+  // lo vea sí o sí (no se pierde como un toast entre los mensajes).
+  if (window._avisoFacturaDup) {
+    const _av = window._avisoFacturaDup;
+    window._avisoFacturaDup = null;
+    setTimeout(() => { try { alert(_av); } catch (e) {} }, 400);
+  }
 }
 
 async function _processOne(it, type, key, timeoutMs) {
@@ -3279,20 +3288,23 @@ async function _processOne(it, type, key, timeoutMs) {
       }
     }
     // FASE 2: si esta factura tenía repostajes que YA estaban en BD
-    // (subida por segunda vez), avisar al usuario claramente.
+    // (subida por segunda vez), avisar al usuario CLARAMENTE. Usamos alert
+    // (ventana con Aceptar) porque es un aviso IMPORTANTE que NO se puede
+    // perder: un toast de 4s se escapa entre los mensajes del proceso de la
+    // cola y el usuario no lo ve (no tiene F12 abierto en su día a día).
     if (_facturaDupOmitidos > 0) {
       const _guardados = _facturaTotal - _facturaDupOmitidos;
       const _msg = _guardados > 0
-        ? ('Esta factura ya estaba parcialmente: omitidos ' + _facturaDupOmitidos
-           + ' repostajes repetidos, guardados ' + _guardados + ' nuevos.')
-        : ('Esta factura YA estaba subida: omitidos los ' + _facturaDupOmitidos
-           + ' repostajes (ninguno nuevo, no se ha duplicado nada).');
-      console.warn('[Fase 2 anti-dup] ' + _msg);
-      try {
-        if (typeof toast === 'function') toast(_msg, _guardados > 0 ? 'ok' : 'warn');
-        else if (typeof showToast === 'function') showToast(_msg);
-        else alert(_msg);
-      } catch (e) { alert(_msg); }
+        ? ('⚠️ FACTURA PARCIALMENTE REPETIDA\n\nSe han omitido ' + _facturaDupOmitidos
+           + ' repostajes que ya estaban subidos.\nSe han guardado ' + _guardados
+           + ' repostajes nuevos.\n\nNo se ha duplicado nada.')
+        : ('⚠️ ESTA FACTURA YA ESTABA SUBIDA\n\nLos ' + _facturaDupOmitidos
+           + ' repostajes ya estaban en el sistema.\nNo se ha guardado ni duplicado nada.\n\n(Es seguro: la app ha evitado el duplicado.)');
+      console.warn('[Fase 2 anti-dup] ' + _msg.replace(/\n/g, ' '));
+      // Guardamos el aviso para mostrarlo al terminar TODA la cola (no en
+      // medio del proceso, donde se solaparía). Lo recoge processQueue.
+      window._avisoFacturaDup = _msg;
+      try { if (typeof toast === 'function') toast('Factura repetida: ' + _facturaDupOmitidos + ' repostajes omitidos (no duplicado)', 'warn'); } catch (e) {}
     }
     it.status = 'done';
     // v98: ya no necesitamos borrar/actualizar el pendiente aquí porque saveRecord lo hizo
