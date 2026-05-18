@@ -2802,41 +2802,106 @@ async function _processOne(it, type, key, timeoutMs) {
           console.log(`Destino inferido: → "${inferidoDest}"`);
           data.obra = inferidoDest;
         }
-        // v107Q: regla específica Girona Runes. Cuando el destino del albarán es "Girona Runes"
-        // (vertedero/gestor de residuos de Girona), el origen siempre es "Celra" (de la planta
-        // de hormigón de Holcim Celra de donde salen los residuos). Esto cubre el caso típico
-        // de Holcim Celra → Girona Runes con residuos de hormigón.
-        if (data.obra && /girona\s*runes/i.test(data.obra)) {
-          if (!data.planta || !/celra/i.test(data.planta)) {
-            console.log(`[Girona Runes] forzando origen → "Celra"`);
-            data.planta = 'Celra';
+        // v107AU: regla específica GIRONA RUNES (escombro de hormigón que sale de
+        // la planta Holcim de Celra → vertedero/gestor Girona Runes). El nombre
+        // "Girona Runes" / "Girona de Runes" SOLO aparece en estos albaranes de
+        // escombro, NUNCA en Aridcal (confirmado por Juan Carlos 18/05) — por eso
+        // detectar ese nombre en CUALQUIER campo (proveedor, origen O destino) es
+        // seguro y no afecta a Aridcal.
+        //
+        // La IA suele leer estos albaranes con origen y destino CRUZADOS (pone
+        // "Girona Runes" como origen y "Celra" como destino, cuando es al revés:
+        // el camión CARGA en Celra Holcim y DESCARGA en Girona Runes). Forzamos
+        // siempre: ORIGEN = "Celra", DESTINO = "Girona Runes".
+        {
+          const _gr = (String(data.proveedor || '') + ' '
+                     + String(data.obra || '') + ' '
+                     + String(data.planta || '')).toLowerCase();
+          const _esGR = /girona\s*(de\s*)?runes/.test(_gr);
+          if (_esGR) {
+            if (data.planta !== 'Celra') {
+              console.log('[v107AU Girona Runes] forzando ORIGEN → "Celra" (era "' + (data.planta || '') + '")');
+              data.planta = 'Celra';
+            }
+            if (data.obra !== 'Girona Runes') {
+              console.log('[v107AU Girona Runes] forzando DESTINO → "Girona Runes" (era "' + (data.obra || '') + '")');
+              data.obra = 'Girona Runes';
+            }
           }
         }
         // Red de seguridad: normalizar grafía del proveedor (FÁBRICA / FABRICA / Fábrica → uniforme)
         if (data.proveedor) {
           data.proveedor = fixProveedor(data.proveedor);
         }
-        // v107AS: COBRO POR VIAJE (no por tonelada). Albaranes de TECNOCATALANA
-        // con material "Árido reciclado" se facturan a tanto el viaje, NO por TN.
-        // En estos casos guardamos tm = 1 (= 1 viaje) en vez del peso real, para
-        // que las sumas/preliquidaciones cuenten viajes y no toneladas.
-        // SEGURIDAD: solo actúa si proveedor Tecnocatalana Y material árido
-        // reciclado (las DOS condiciones). Si falta una, el albarán se lee
-        // normal con sus toneladas de siempre. Guardamos las TN reales en
-        // observaciones por si algún día hacen falta (no se pierde el dato).
+        // v107AT: COBRO POR VIAJE (no por tonelada). Hay transportes que se
+        // facturan a tanto el viaje, NO por toneladas. En esos casos guardamos
+        // tm = 1 (= 1 viaje) en vez del peso real, para que las sumas y
+        // preliquidaciones cuenten VIAJES y no toneladas. Las TN reales se
+        // guardan en observaciones por si algún día hacen falta (no se pierde).
+        //
+        // Son TRES casos, todos con DOBLE condición de seguridad para no tocar
+        // ningún otro albarán (sobre todo Aridcal, que se parece muchísimo a
+        // Girona Runes pero NO va por viaje — trae áridos limpios, no escombros):
+        //
+        //  1) TECNOCATALANA + producto "Árido reciclado"
+        //  2) GIRONA RUNES (escombro que sale de Holcim Celra → Girona Runes)
+        //     SEGURIDAD: el código de residuo "170101" (CER/LER de escombro de
+        //     hormigón) debe estar en el producto. Aridcal trae árido limpio y
+        //     NUNCA lleva 170101 → así Aridcal queda 100% protegido.
+        //  3) PUIGFEL / COVA SOLERA (escombro que sale de planta Holcim →
+        //     Puigfel/Rubí). Mismo blindaje con "170101".
+        //
+        // v107AT FIX: en albaranes el campo del material se llama "producto"
+        // (NO "material" — ese era un bug de la v107AS anterior que hacía que
+        // la regla de Tecnocatalana no se aplicara nunca).
         {
           const _prov = String(data.proveedor || '').toLowerCase();
-          const _mat  = String(data.material || '').toLowerCase();
-          const _esTecno = _prov.indexOf('tecnocatalana') !== -1;
-          const _esAridoRec = _mat.indexOf('rido reciclado') !== -1 || _mat.indexOf('arido reciclado') !== -1;
-          if (_esTecno && _esAridoRec) {
+          const _dest = String(data.obra || '').toLowerCase();
+          const _orig = String(data.planta || '').toLowerCase();
+          const _prod = String(data.producto || '').toLowerCase();
+          const _todo = _prov + ' ' + _dest + ' ' + _orig;
+
+          // Caso 1: Tecnocatalana + Árido reciclado
+          const _esTecno = _todo.indexOf('tecnocatalana') !== -1;
+          const _esAridoRec = _prod.indexOf('rido reciclado') !== -1
+                            || _prod.indexOf('arido reciclado') !== -1;
+
+          // Código de residuo de escombro de hormigón (CER/LER 170101).
+          // Cubrimos variantes "170101", "17 01 01" y "17.01.01".
+          const _esEscombro170101 = /17\s*[\.\s]?\s*01\s*[\.\s]?\s*01/.test(_prod)
+                                  || _prod.indexOf('170101') !== -1;
+
+          // Caso 2: Girona Runes (escombro Celra → vertedero Girona Runes).
+          // v107AU: ya NO exigimos el código 170101 porque la IA a menudo NO lo
+          // lee (corta "RESTES FORMIGÓ (CER 170101)" en "RESTES FORMIGÓ"). El
+          // nombre "Girona Runes" por sí solo YA es señal segura: ese nombre
+          // SOLO aparece en estos albaranes de escombro, NUNCA en Aridcal
+          // (confirmado por Juan Carlos). Aridcal pone "Aridcal, SAU" como
+          // proveedor — jamás "Girona Runes" → Aridcal queda 100% protegido.
+          const _esGironaRunes = /girona\s*(de\s*)?runes/.test(_todo);
+
+          // Caso 3: Puigfel / Cova Solera (escombro) — proveedor/destino menciona
+          // puigfel o cova solera Y el producto es escombro 170101. Aquí SÍ
+          // mantenemos el 170101 como seguridad (Puigfel es menos unívoco).
+          const _esPuigfel = _todo.indexOf('puigfel') !== -1
+                           || _todo.indexOf('cova solera') !== -1;
+
+          const _porViaje =
+                (_esTecno && _esAridoRec)
+             || _esGironaRunes
+             || (_esPuigfel && _esEscombro170101);
+
+          if (_porViaje) {
             const _tnReal = parseFloat(data.tm);
             if (!isNaN(_tnReal) && _tnReal !== 1) {
               data.observaciones = (data.observaciones ? String(data.observaciones) + ' · ' : '')
                 + 'Cobro por viaje (TN real ' + _tnReal + ')';
-              console.log('[v107AS por viaje] Tecnocatalana + Árido reciclado: tm '
-                + _tnReal + ' → 1 (TN real guardada en observaciones)');
             }
+            const _cual = (_esTecno && _esAridoRec) ? 'Tecnocatalana+Árido reciclado'
+                        : _esGironaRunes ? 'Girona Runes+escombro 170101'
+                        : 'Puigfel/Cova Solera+escombro 170101';
+            console.log('[v107AT por viaje] ' + _cual + ': tm '
+              + (isNaN(_tnReal) ? '?' : _tnReal) + ' → 1 (TN real en observaciones)');
             data.tm = 1;
           }
         }
