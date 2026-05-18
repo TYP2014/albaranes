@@ -544,7 +544,13 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                  trae MUCHOS repostajes dentro. Usa tipo 'gasfac'. -->
             <button class="btn bp" onclick="document.getElementById('gasFacUploadInline').click()">📄 Subir factura</button>
             <input type="file" id="gasFacUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gasfac'); this.value='';">
-            <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel gasoil</button>
+            <!-- FASE 4a: subir el Excel de km del tacógrafo (formato "Gasóleo
+                 Profesional"). Lectura directa por código (no IA): formato
+                 fijo con Matrícula/Cuentakilómetros/periodo. Para calcular
+                 consumo L/100km cruzando con los litros de las facturas. -->
+            <button class="btn bp" onclick="document.getElementById('gasKmUploadInline').click()">📊 Subir km (tacógrafo)</button>
+            <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
+            <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel detalle</button>
           </div>
         </div>
         <div class="card-bd">
@@ -10131,6 +10137,120 @@ async function tallerImportarKmExcel(file) {
   }
   // Limpiar el input para poder re-subir el mismo archivo
   const inp = document.getElementById('tallerExcelInput'); if (inp) inp.value = '';
+}
+
+// FASE 4a: leer el Excel de KM del tacógrafo ("Gasóleo Profesional") y
+// guardarlo en la tabla km_periodos. Formato fijo (lectura directa, sin
+// IA): arriba DATOS EMPRESA + CIF + Período (2 fechas); luego filas con
+// Matrícula / Fecha inicio / Km inicio / Fecha fin / Km fin / Diferencia.
+// Detecta la empresa por el CIF. Anti-duplicados: mismo matrícula +
+// fecha_inicio + fecha_fin no se vuelve a guardar.
+async function gasImportarKmExcel(file) {
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+
+    // 1) Empresa por CIF (mismo mapeo que las facturas).
+    const CIF_EMP = {
+      'B90172735': 'TYP2014',
+      'B90286337': 'HISPALIS',
+      'B67316752': 'TRANSMARGAZ',
+      'B02657435': 'PORTES2014IMPORT'
+    };
+    let cifDoc = '', empresaDoc = '';
+    for (let i = 0; i < Math.min(rows.length, 8); i++) {
+      const fila = (rows[i] || []).map(c => String(c || '').toUpperCase().replace(/[\s.\-]/g, ''));
+      for (const cel of fila) {
+        const m = cel.match(/B\d{8}/);
+        if (m && CIF_EMP[m[0]]) { cifDoc = m[0]; empresaDoc = CIF_EMP[m[0]]; break; }
+      }
+      if (cifDoc) break;
+    }
+
+    // 2) Periodo global (fila "Período  dd/mm/aaaa  dd/mm/aaaa").
+    let perIni = '', perFin = '';
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const fila = (rows[i] || []).map(c => String(c || ''));
+      if (fila.some(c => c.toLowerCase().includes('per') && c.toLowerCase().includes('odo'))) {
+        const fechas = fila.filter(c => /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(c));
+        if (fechas.length >= 2) { perIni = fechas[0]; perFin = fechas[1]; }
+        break;
+      }
+    }
+
+    // 3) Cabecera de la tabla (Matrícula + Cuentakilómetros inicio/fin).
+    let hIdx = -1, cMat = -1, cFIni = -1, cKIni = -1, cFFin = -1, cKFin = -1, cDif = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const f = (rows[i] || []).map(c => String(c || '').toLowerCase());
+      const jM = f.findIndex(c => c.includes('matr'));
+      const jKI = f.findIndex(c => c.includes('cuentakil') && c.includes('inicio'));
+      const jKF = f.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
+      if (jM >= 0 && jKI >= 0 && jKF >= 0) {
+        hIdx = i; cMat = jM; cKIni = jKI; cKFin = jKF;
+        cFIni = f.findIndex(c => c.includes('fecha') && c.includes('inicio'));
+        cFFin = f.findIndex(c => c.includes('fecha') && c.includes('fin'));
+        cDif = f.findIndex(c => c.includes('diferencia'));
+        break;
+      }
+    }
+    if (hIdx < 0) { toast('No reconozco el Excel de km (falta Matrícula/Cuentakilómetros inicio/fin)', 'err'); return; }
+
+    // 4) Cargar lo ya existente para anti-duplicados.
+    const { data: yaBd } = await sb.from('km_periodos').select('matricula,fecha_inicio,fecha_fin');
+    const claveExiste = new Set((yaBd || []).map(r =>
+      String(r.matricula || '').toUpperCase() + '|' + (r.fecha_inicio || '') + '|' + (r.fecha_fin || '')));
+
+    const toISO = (s) => {
+      const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (!m) return null;
+      let [_, d, mes, y] = m; if (y.length === 2) y = '20' + y;
+      return y + '-' + mes.padStart(2, '0') + '-' + d.padStart(2, '0');
+    };
+    const fIniISO = toISO(perIni), fFinISO = toISO(perFin);
+
+    let guardados = 0, dupOmitidos = 0, sinDatos = 0;
+    for (let i = hIdx + 1; i < rows.length; i++) {
+      const fila = rows[i] || [];
+      const mat = String(fila[cMat] || '').toUpperCase().replace(/[\s\-]/g, '').trim();
+      if (!mat || !/^R?\d/.test(mat)) continue;
+      const kIni = parseInt(String(fila[cKIni] || '0').replace(/[^\d]/g, ''), 10) || 0;
+      const kFin = parseInt(String(fila[cKFin] || '0').replace(/[^\d]/g, ''), 10) || 0;
+      let dif = cDif >= 0 ? (parseInt(String(fila[cDif] || '0').replace(/[^\d]/g, ''), 10) || 0) : 0;
+      if (!dif && kFin && kIni) dif = kFin - kIni;
+      // fecha inicio/fin: de la fila si existe, si no la del periodo global
+      const fIni = (cFIni >= 0 ? toISO(fila[cFIni]) : null) || fIniISO;
+      const fFin = (cFFin >= 0 ? toISO(fila[cFFin]) : null) || fFinISO;
+      if (!dif || dif <= 0) { sinDatos++; continue; }
+      const clave = mat + '|' + (fIni || '') + '|' + (fFin || '');
+      if (claveExiste.has(clave)) { dupOmitidos++; continue; }
+      const { error } = await sb.from('km_periodos').insert({
+        matricula: mat, empresa: empresaDoc || null,
+        fecha_inicio: fIni, fecha_fin: fFin,
+        km_inicio: kIni || null, km_fin: kFin || null, km_recorridos: dif,
+        cif_empresa: cifDoc || null,
+        user_id: currentUser ? currentUser.id : null
+      });
+      if (!error) { guardados++; claveExiste.add(clave); }
+      else console.warn('[gasImportarKmExcel] error guardando ' + mat + ':', error.message);
+    }
+
+    let msg = '✅ Km tacógrafo: ' + guardados + ' camiones guardados';
+    if (empresaDoc) msg += ' (' + empresaDoc + ')';
+    if (perIni && perFin) msg += ' · periodo ' + perIni + ' a ' + perFin;
+    if (dupOmitidos) msg += ' · ' + dupOmitidos + ' ya estaban (omitidos)';
+    if (sinDatos) msg += ' · ' + sinDatos + ' sin km (ignorados)';
+    console.log('[gasImportarKmExcel] ' + msg);
+    toast(msg, guardados ? 'ok' : 'warn');
+    if (dupOmitidos && !guardados) {
+      setTimeout(() => { try { alert('⚠️ ESTE EXCEL DE KM YA ESTABA SUBIDO\n\nLos ' + dupOmitidos + ' camiones de este periodo ya estaban.\nNo se ha duplicado nada.'); } catch (e) {} }, 300);
+    }
+  } catch (e) {
+    console.error('[gasImportarKmExcel]', e);
+    toast('Error leyendo Excel de km: ' + (e.message || e), 'err');
+  }
 }
 
 // ============================================================
