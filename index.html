@@ -7118,6 +7118,20 @@ function fixProveedor(p) {
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
 const ORIGENES_CANONICOS = [
+  // v107BH: orígenes de cisterna de cemento CEMEX (de dónde sale el camión
+  // cargado del silo). Necesarios para que NO salgan como "no oficial" en el
+  // modal. La canonización v107AY ya los deja con este nombre exacto.
+  { canon: 'SILO BARCELONA MUELLE ADOSADO', alias: [
+    'Silo Barcelona Muelle Adosado', 'SILO BARCELONA MUELLE ADOSADO, S/N',
+    'Silo Barcelona', 'SILO BARCELONA', 'Silo Barcelona Muelle',
+    'SILO BARCELONA MUELLE', 'Muelle Adosado'
+  ] },
+  { canon: 'Alcanar', alias: [
+    'ALCANAR', 'FCA. ALCANAR', 'Fca. Alcanar', 'FABRICA ALCANAR',
+    'Fábrica Alcanar', 'Fabrica Alcanar', 'FCA ALCANAR',
+    'Fca. Alcañar', 'FCA. ALCAÑAR', 'Fábrica Alcañar',
+    'Fabrica Integral de Alcanar', 'FABRICA INTEGRAL DE ALCANAR'
+  ] },
   // v107T: 5 plantas Holcim/Cemex añadidas como orígenes (antes solo eran destinos).
   // Necesarias para registrar transportes que SALEN de estas plantas (ej. escombros hacia
   // vertedero Puigfel/Rubi o Girona Runes; también servicios y traslados internos).
@@ -7516,6 +7530,11 @@ const DESTINOS_CANONICOS = [
   // la misma zona industrial, son destinos distintos para clientes distintos.
   { canon: 'Zona Franca II', alias: ['ZONA FRANCA II', '117 - ZONA FRANCA II', 'Zona Franca 2'] },
   { canon: 'Zona Franca', alias: [] },
+  { canon: 'Sant Celoni', alias: [
+    'SANT CELONI', 'IN SANT CELONI', 'IN SANT CELONI -(AYMAR, S.A.)',
+    'SANT CELONI -(AYMAR, S.A.)', 'Sant Celoni (Aymar)', 'St Celoni',
+    'St. Celoni', 'IN SANT CELONI -(AYMAR S.A.)'
+  ] },
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
