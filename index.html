@@ -2913,9 +2913,27 @@ async function _processOne(it, type, key, timeoutMs) {
               console.log('[v107AX CEMEX cisterna] forzando CLIENTE → "Cemex España Operaciones, S.L.U." (era "' + (data.cliente || '') + '")');
               data.cliente = 'Cemex España Operaciones, S.L.U.';
             }
-            // El ORIGEN ya lo lee la regla CEMEX v94 del campo "Expedido"
-            // (FCA. ALCANAR / SILO BARCELONA... — varía según dónde cargó).
-            // Aquí NO lo tocamos: confiamos en lo que leyó la IA del Expedido.
+            // v107AY: CANONIZAR el ORIGEN. La regla CEMEX v94 lee el campo
+            // "Expedido", pero la IA lo escribe de muchas formas distintas para
+            // el MISMO sitio (Silo Barcelona / SILO BARCELONA / Silo Barcelona
+            // Muelle... y Fábrica Alcanar / Fca. Alcañar / Fábrica Alcanar).
+            // Eso causa duplicados en resúmenes. Unificamos a nombre fijo:
+            //   - cualquier "silo" + "barcelona" → "SILO BARCELONA MUELLE ADOSADO"
+            //   - cualquier "alcanar"/"alcañar" → "Alcanar"
+            // Si es otro origen distinto, lo dejamos tal cual (Juan Carlos
+            // avisará si aparecen más sitios de carga).
+            const _o = String(data.planta || '').toLowerCase();
+            if (/silo/.test(_o) && /barcelona/.test(_o)) {
+              if (data.planta !== 'SILO BARCELONA MUELLE ADOSADO') {
+                console.log('[v107AY CEMEX origen] "' + data.planta + '" → "SILO BARCELONA MUELLE ADOSADO"');
+                data.planta = 'SILO BARCELONA MUELLE ADOSADO';
+              }
+            } else if (/alca[nñ]ar/.test(_o)) {
+              if (data.planta !== 'Alcanar') {
+                console.log('[v107AY CEMEX origen] "' + data.planta + '" → "Alcanar"');
+                data.planta = 'Alcanar';
+              }
+            }
             console.log('[v107AX CEMEX cisterna] cemento a granel detectado (origen='
               + (data.planta || '?') + ', destino=' + (data.obra || '?') + ')');
           }
