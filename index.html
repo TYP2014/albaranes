@@ -2731,6 +2731,16 @@ async function processQueue(type) {
     window._avisoFacturaDup = null;
     setTimeout(() => { try { alert(_av); } catch (e) {} }, 400);
   }
+
+  // v107BN: si durante el proceso el servidor de IA estuvo saturado y agotó
+  // todos los reintentos, mostrar el aviso CLARO ahora (terminada la cola),
+  // con alert para que el usuario lo vea seguro y sepa que NO es su app y
+  // que sus albaranes NO se han perdido (puede reintentarlos).
+  if (window._avisoSaturacion) {
+    const _avs = window._avisoSaturacion;
+    window._avisoSaturacion = null;
+    setTimeout(() => { try { alert(_avs); } catch (e) {} }, 700);
+  }
 }
 
 async function _processOne(it, type, key, timeoutMs) {
@@ -3423,7 +3433,28 @@ async function _processOne(it, type, key, timeoutMs) {
     // un 400 "Input should be a valid string". Mantener b64 para que los reintentos puedan
     // mandar los datos reales. La memoria se libera cuando processQueue saca el item del
     // array pending al final del flujo (status='error' tras agotar reintentos).
-    toast('Error en ' + it.name + ': ' + e.message, 'err');
+    // v107BN: si el fallo es por SATURACIÓN del servidor de Anthropic (529 y
+    // similares, agotados todos los reintentos + el cambio a Sonnet), avisar
+    // de forma CLARA y tranquilizadora — que el usuario sepa que NO es su app
+    // ni su PDF, que el albarán NO se ha perdido (queda en la cola con botón
+    // de reintentar), y que pruebe de nuevo en unos minutos.
+    const esSat = e && (e.esSaturacion === true || e.status === 529 || e.status === 503
+      || (e.message && /saturaci|overload|529|503/i.test(e.message)));
+    if (esSat) {
+      console.warn('[v107BN] Saturación de Anthropic agotó todos los reintentos para', it.name, e);
+      try {
+        toast('⚠️ El servidor de IA de Anthropic está saturado ahora mismo (no es tu app ni el PDF). "' + it.name + '" queda en la cola: pulsa "Reintentar" en unos minutos.', 'warn');
+      } catch (e2) {}
+      // Aviso visible que no se pierde entre toasts (igual que el de facturas dup)
+      window._avisoSaturacion = 'EL SERVIDOR DE IA DE ANTHROPIC ESTÁ SATURADO\n\n'
+        + 'No es un fallo de tu aplicación ni del documento. Está pasando estos días '
+        + 'porque hay mucha demanda (modelo nuevo).\n\n'
+        + 'TUS ALBARANES NO SE HAN PERDIDO: están en la cola marcados con error.\n'
+        + 'Espera unos minutos y pulsa el botón "↻ Reintentar errores" (o "Procesar '
+        + 'con IA" otra vez). En cuanto el servidor se libere, los leerá bien.';
+    } else {
+      toast('Error en ' + it.name + ': ' + e.message, 'err');
+    }
     console.error('Error en', it.name, e);
     renderQueues();
     return false;
@@ -3464,29 +3495,59 @@ const MATRICULAS_VALIDAS = [
 // ============================================================
 // CLAUDE PROMPTS
 // ============================================================
-// v107AD: helper que llama a la API de Anthropic con REINTENTO AUTOMÁTICO ante saturación.
-// La API devuelve 529 (Overloaded) o 429 (Rate limit) cuando está saturada — son errores
-// TEMPORALES. Antes, al primer 529 el albarán quedaba en error y a veces la lectura salía
-// mal por la saturación. Ahora reintentamos hasta 4 veces con espera creciente
-// (2s, 5s, 12s, 25s) antes de rendirnos. Esto mejora mucho la fiabilidad cuando Anthropic
-// está cargado (típico en horas punta).
+// v107BN: helper que llama a la API de Anthropic con REINTENTO AUTOMÁTICO
+// ante saturación (error 529 Overloaded / 429 / 500 / 503).
+// MEJORAS v107BN frente a v107AD:
+//  (1) Más reintentos y mejor repartidos: 6 esperas crecientes con un
+//      poco de aleatoriedad ("jitter") para no chocar con otros reintentos
+//      y pescar mejor el momento en que el servidor de Anthropic se libera.
+//  (2) FALLBACK DE MODELO: si tras 3 reintentos el modelo principal
+//      (Haiku) sigue saturado, cambia AUTOMÁTICAMENTE a Sonnet 4.6 para
+//      los siguientes intentos. Haiku y Sonnet rara vez están saturados a
+//      la vez (Haiku es el más usado del mundo). Esto reduce muchísimo el
+//      cuelgue por 529 SIN COSTAR DINERO extra de plan.
+//  (3) Si TODO falla igualmente, lanza un error con .status para que quien
+//      llama pueda avisar claramente al usuario (no quedarse mudo).
 async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
-  const esperas = [2000, 5000, 12000, 25000]; // ms entre reintentos
+  // 6 esperas (ms). Total ~3 minutos repartido, que cubre la mayoría de
+  // saturaciones (suelen durar de segundos a 1-2 minutos).
+  const esperasBase = [2000, 5000, 10000, 20000, 35000, 55000];
+  // A partir de este reintento, si sigue saturado, probar con Sonnet.
+  const INTENTO_CAMBIO_MODELO = 3;
+  const modeloOriginal = body && body.model ? body.model : '';
+  let modeloActual = modeloOriginal;
+  let cambiadoASonnet = false;
   let ultimoError = null;
-  for (let intento = 0; intento <= esperas.length; intento++) {
+
+  const jitter = (ms) => ms + Math.floor(Math.random() * 1500); // 0–1.5s extra
+
+  for (let intento = 0; intento <= esperasBase.length; intento++) {
+    // ¿Toca cambiar de modelo? (solo si el original era Haiku)
+    if (!cambiadoASonnet && intento >= INTENTO_CAMBIO_MODELO
+        && /haiku/i.test(modeloOriginal)) {
+      modeloActual = 'claude-sonnet-4-6';
+      cambiadoASonnet = true;
+      console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] Haiku sigue saturado tras ${INTENTO_CAMBIO_MODELO} intentos → cambio a Sonnet 4.6 para los siguientes.`);
+      try { toast('Servidor de IA saturado: probando con modelo alternativo…', 'warn'); } catch (e) {}
+    }
+    // Construir el body de ESTE intento con el modelo que toque.
+    const bodyEsteIntento = (modeloActual && modeloActual !== modeloOriginal)
+      ? Object.assign({}, body, { model: modeloActual })
+      : body;
+
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(bodyEsteIntento),
         signal: signal
       });
       if (res.ok) return res;
       // 529 = Overloaded, 429 = Rate limit, 500/503 = errores temporales del servidor
       const esTemporal = res.status === 529 || res.status === 429 || res.status === 500 || res.status === 503;
-      if (esTemporal && intento < esperas.length) {
-        const espera = esperas[intento];
-        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación). Reintento ${intento + 1}/${esperas.length} en ${espera / 1000}s...`);
+      if (esTemporal && intento < esperasBase.length) {
+        const espera = jitter(esperasBase[intento]);
+        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación, modelo ${modeloActual || '?'}). Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s...`);
         await sleep(espera);
         continue; // reintentar
       }
@@ -3494,6 +3555,7 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       const e = await res.json().catch(() => ({}));
       const err = new Error(e.error?.message || `HTTP ${res.status}`);
       err.status = res.status;
+      err.esSaturacion = esTemporal; // marca para que quien llama avise claro
       throw err;
     } catch (e) {
       // Si es AbortError (el usuario canceló), no reintentar
@@ -3502,16 +3564,18 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       // Si el error tiene status y NO es temporal, lanzar ya (no reintentar)
       if (e.status && e.status !== 529 && e.status !== 429 && e.status !== 500 && e.status !== 503) throw e;
       // Error de red u otro → reintentar si quedan intentos
-      if (intento < esperas.length) {
-        const espera = esperas[intento];
-        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] Error de red. Reintento ${intento + 1}/${esperas.length} en ${espera / 1000}s...`, e.message || e);
+      if (intento < esperasBase.length) {
+        const espera = jitter(esperasBase[intento]);
+        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] Error de red. Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s...`, e.message || e);
         await sleep(espera);
         continue;
       }
       throw e;
     }
   }
-  throw ultimoError || new Error('Fallo tras todos los reintentos');
+  const errFinal = ultimoError || new Error('Fallo tras todos los reintentos');
+  errFinal.esSaturacion = true; // se agotaron todos los reintentos por saturación
+  throw errFinal;
 }
 
 async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
