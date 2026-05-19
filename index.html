@@ -8178,6 +8178,24 @@ const DESTINOS_CANONICOS = [
     '17457 RIUDELLOTS DE LA SELVA', '17457 Riudellots de la Selva',
     'RIUDELLOTS DE LA SELVA 1', 'Riudellots de la Selva 1'
   ] },
+  // v107BQ: destino Gironella (pueblo del Berguedà, Barcelona). Aparece en
+  // albaranes Holcim MANUSCRITOS (escritos a mano) en el campo
+  // "Destino/Población". La IA a veces lo lee mal en manuscrito (ej.
+  // "Trusella" en vez de "Gironella"); por eso se incluyen alias con las
+  // lecturas erróneas tipicas para que se canonice bien.
+  { canon: 'Gironella', alias: [
+    'GIRONELLA', 'gironella',
+    'Trusella', 'TRUSELLA', 'Trusela', 'Gironela', 'GIRONELA',
+    '08680 Gironella', '08680 GIRONELLA'
+  ] },
+  // v107BQ: destino Malgrat de Mar (Maresme, Barcelona). Campo "Obra:" de
+  // albaranes Holcim (ej. "0100663180 MALGRAT ... 08380 Malgrat de Mar").
+  // La IA lo leyo mal como "Campllong"; alias con esa lectura y variantes.
+  { canon: 'Malgrat de Mar', alias: [
+    'MALGRAT DE MAR', 'Malgrat', 'MALGRAT', 'malgrat de mar',
+    'Campllong', 'CAMPLLONG',
+    '08380 Malgrat de Mar', '08380 MALGRAT DE MAR'
+  ] },
   // v102: Puerto de Barcelona — destino de albaranes de Sodira Iberia (obras portuarias).
   // El albarán de Sodira pone "PUERTO DE BARCELONA" en el campo Obra/Cliente.
   // Variantes habituales: con/sin "de", inglés/catalán...
