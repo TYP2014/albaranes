@@ -4529,15 +4529,23 @@ function applyFilters() {
       else if (sortCol === 'tm') { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
       // v84: created_at viene como timestamp ISO de Supabase. Parseamos a número (ms desde 1970)
       // para ordenar correctamente. Los más recientes tienen número mayor.
-      else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
+      // v107CA: cuando el orden es por "Subido", NO comparamos el created_at
+      // al milisegundo (al subir 10 albaranes en paralelo cada uno acaba en
+      // un milisegundo distinto y se mezclaban). Lo redondeamos al MINUTO:
+      // así todos los albaranes del mismo archivo (subidos en el mismo
+      // minuto) cuentan como "misma tanda", y dentro de esa tanda mandan el
+      // número de página del archivo (1, 2, 3...). Resultado: el bloque que
+      // acabas de subir sale arriba, y DENTRO en el orden del archivo.
+      else if (sortCol === 'created_at') {
+        const _min = (v) => v ? Math.floor(new Date(v).getTime() / 60000) : 0;
+        av = _min(av); bv = _min(bv);
+      }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       if (av !== bv) return av < bv ? -sortDir : sortDir;
-      // v107BZ: si el orden es por "Subido" (created_at) y dos albaranes
-      // tienen la MISMA fecha de subida (típico al subir un archivo de
-      // varios albaranes de golpe), desempatar por el ORDEN DEL ARCHIVO
-      // (página 1 antes que la 2, etc.) para que NO se mezclen y se puedan
-      // repasar con la captura de arriba a abajo sin dar saltos. La página
-      // 1 del archivo sale como la 1ª del bloque, la 2 como la 2ª, etc.
+      // v107CA: misma tanda de subida (mismo minuto) → ordenar por el ORDEN
+      // DEL ARCHIVO (página 1 arriba, luego 2, 3...), SIEMPRE ascendente,
+      // para repasar con la captura de arriba a abajo sin saltos. Esto se
+      // aplica solo cuando el orden activo es "Subido".
       if (sortCol === 'created_at') {
         const sa = (typeof a._seqArchivo === 'number') ? a._seqArchivo : 0;
         const sb2 = (typeof b._seqArchivo === 'number') ? b._seqArchivo : 0;
