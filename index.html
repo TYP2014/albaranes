@@ -1486,6 +1486,51 @@ async function loadUserMap() {
           } catch (e) { console.warn('[v107BI] no pude redirigir a Taller:', e); }
         }, 150);
       }
+
+      // ============================================================
+      // v107BS: CAPA FINAL DE VISIBILIDAD DE PESTAÑAS (la última que se
+      // ejecuta, encima de toda la lógica de permisos por empresa anterior).
+      // REGLA: solo 3 personas ven las pestañas de gestión (Preliquidaciones,
+      // Gasoil, ITV, Neumáticos, Vacaciones, Taller, Producción, Usuarios):
+      //   - Admin (cualquiera con role admin, ej. Juan Carlos)
+      //   - María del Mar      → mariadelmar@typ2014.local
+      //   - Logística/Transmargaz → logistica@ttesyportes.2014
+      // TODOS LOS DEMÁS (gestores que no sean María del Mar, conductores,
+      // subcontratados, usuario Taller...) solo ven ALBARANES y SUBIR.
+      // IMPORTANTE: esto SOLO muestra/oculta la pestaña entera del menú. NO
+      // toca la privacidad interna por empresa (Transmargaz caja cerrada,
+      // empresa_neumaticos, empresa_taller, admin sin Transmargaz en Taller,
+      // etc.) — todo eso queda EXACTAMENTE igual que antes.
+      const _emailFinal = (currentUser?.email || '').toLowerCase().trim();
+      const _rolFinal = (userMap[currentUser.id]?.role || '').toLowerCase();
+      const _esAdminFinal = (_rolFinal === 'admin') || (currentRole === 'admin');
+      const _esMariaDelMar = (_emailFinal === 'mariadelmar@typ2014.local');
+      const _esLogistica   = (_emailFinal === 'logistica@ttesyportes.2014');
+      const _veTodo = _esAdminFinal || _esMariaDelMar || _esLogistica;
+
+      if (!_veTodo) {
+        // No es ninguno de los 3 → ocultar TODAS las pestañas extra,
+        // dejar solo Albaranes y Subir.
+        ['tabPreli', 'tabGas', 'tabItv', 'tabNeum', 'tabVac',
+         'tabTaller', 'tabProduccion', 'tabAdmin'].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+        // Si por lo que sea la pestaña activa al entrar es una de las
+        // ocultas, llevarlo a Albaranes para que no quede pantalla en blanco.
+        setTimeout(function () {
+          try {
+            const algunaExtraActiva = ['tabPreli','tabGas','tabItv','tabNeum',
+              'tabVac','tabTaller','tabProduccion','tabAdmin']
+              .some(function (id) {
+                const e = document.getElementById(id);
+                return e && e.classList.contains('active');
+              });
+            if (algunaExtraActiva) switchTab('alb');
+          } catch (e) { console.warn('[v107BS] redirigir a Albaranes:', e); }
+        }, 200);
+      }
+      // ============================================================
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
