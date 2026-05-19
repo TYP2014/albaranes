@@ -5319,7 +5319,18 @@ function openModal(id) {
         opts += `<option value="${esc(valActual)}" selected style="color:#ffd970">⚠ ${esc(valActual)} (no oficial — elegir uno abajo)</option>`;
       }
       opts += oficiales.map(o => `<option value="${esc(o)}"${(enLista && o === valActual) ? ' selected' : ''}>${esc(o)}</option>`).join('');
-      return `<div class="fg full"><label class="fl">${f.l}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
+      // v107BR: botón "✏️ Escribir" SOLO para admin (no gestor). Permite a
+      // Juan Carlos teclear a mano cualquier destino/origen/proveedor/cliente
+      // nuevo que no esté en la lista oficial, sin esperar a que se añada al
+      // código. El botón cambia el desplegable por una casilla de texto libre.
+      // Cuando haya muchos escritos a mano, se recogen y se añaden a la lista
+      // oficial de golpe. El valor escrito a mano se guarda tal cual (si por
+      // casualidad coincide con un alias oficial, matchExacto lo canoniza al
+      // guardar, que es lo deseable).
+      const btnManual = (currentRole === 'admin')
+        ? `<button type="button" class="bm" onclick="_modoEscribir('mf_${f.k}','${f.k}')" style="margin-left:6px;padding:4px 8px;font-size:11px;background:#1f2a1f;color:#7CFC7C;border:1px solid #2f4a2f;border-radius:6px;cursor:pointer">✏️ Escribir</button>`
+        : '';
+      return `<div class="fg full"><label class="fl">${f.l}${btnManual}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
     }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
@@ -5331,6 +5342,40 @@ function openModal(id) {
 }
 
 function closeModal() { document.getElementById('ov').classList.remove('open'); editId = null; }
+
+// v107BR: cambia el desplegable de destino/origen/proveedor/cliente por una
+// casilla de TEXTO LIBRE para que el admin pueda escribir a mano un valor
+// nuevo que no esté en la lista oficial (sin esperar a que se añada al
+// código). Solo se llama desde el botón "✏️ Escribir" que solo ve el admin.
+// El id del campo es el mismo (mf_XXX) así que saveModal lo lee igual.
+function _modoEscribir(campoId, fk) {
+  const sel = document.getElementById(campoId);
+  if (!sel) return;
+  // Valor actual: lo que esté seleccionado (si es un aviso "no oficial",
+  // quitamos el adorno para dejar solo el nombre).
+  let actual = sel.value || '';
+  if (sel.selectedOptions && sel.selectedOptions[0]) {
+    const txt = sel.selectedOptions[0].textContent || '';
+    if (txt.indexOf('no oficial') >= 0) {
+      // el value ya es el nombre limpio, lo dejamos
+    }
+  }
+  const cont = sel.parentNode;
+  const input = document.createElement('input');
+  input.className = 'fi';
+  input.id = campoId;            // MISMO id para que saveModal lo lea igual
+  input.value = actual;
+  input.placeholder = 'Escribe el valor correcto y guarda';
+  input.setAttribute('autocomplete', 'off');
+  sel.replaceWith(input);
+  input.focus();
+  input.select();
+  // Oculta el botón Escribir (ya está en modo texto, no tiene sentido repetir)
+  try {
+    const btn = cont.querySelector('.bm');
+    if (btn) btn.style.display = 'none';
+  } catch (e) {}
+}
 
 async function saveModal() {
   const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
