@@ -1317,7 +1317,7 @@ let pendingGas = [];
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
 // es clickable para invertir orden o cambiar por otra.
 let sortCol = 'created_at', sortDir = -1;
-// v107CF: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
+// v107CG: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
 // limpia y definitiva el problema de albaranes revueltos al subir un archivo
 // de varias páginas (causa: se procesan 5 en paralelo, CONCURRENCY=5, y el que
 // la IA termina antes se guarda antes → created_at revuelto).
@@ -1329,7 +1329,7 @@ let sortCol = 'created_at', sortDir = -1;
 //                     una tanda se ordena ascendente → pág 1 arriba del bloque.
 //
 // Ambos se guardan en columnas REALES de la BD (tanda_subida, pag_archivo)
-// para que el orden aguante refrescos (el fallo de v107CF era que el sello
+// para que el orden aguante refrescos (el fallo de v107CG era que el sello
 // vivía solo en memoria y loadData lo borraba al recargar).
 //
 // Base alta para no chocar con histórico viejo (tanda NULL → va al final,
@@ -1773,12 +1773,35 @@ async function loadData() {
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
     _manual: r.manual_edit === true,
-    // v107CF: recuperar los sellos de orden desde columnas reales de BD.
+    // v107CG: recuperar los sellos de orden desde columnas reales de BD.
     // Albaranes viejos (sin columna) → undefined → se ordenan como antes
     // (no se rompe nada del histórico de ~2940 albaranes).
     _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
     _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
   }));
+
+  // v107CG: BUG FIX del contador de TANDA. Hasta ahora window._tandaSubida
+  // empezaba SIEMPRE en 1 al cargar la app, así que cada vez que se refrescaba
+  // la página (cambiar de ?v107X a ?v107Y, etc.) el contador se reiniciaba y
+  // TODAS las subidas distintas acababan con tanda_subida=1 → se mezclaban
+  // entre sí en el listado. Solución: al cargar, mirar la tanda MÁS ALTA que
+  // ya hay guardada en la BD y continuar desde la siguiente. Así cada subida
+  // tiene un número de tanda ÚNICO de verdad, aunque se refresque mil veces,
+  // y el orden entre archivos distintos (lo último subido arriba) funciona.
+  try {
+    let maxTanda = 0;
+    for (const r of allRows) {
+      if (typeof r.tanda_subida === 'number' && r.tanda_subida > maxTanda) {
+        maxTanda = r.tanda_subida;
+      }
+    }
+    // El próximo archivo que se suba usará maxTanda + 1 (o el contador actual
+    // si por lo que sea ya iba más alto en esta misma sesión).
+    window._tandaSubida = Math.max(window._tandaSubida || 1, maxTanda + 1);
+    console.log('[v107CG] Contador de tanda continúa desde:', window._tandaSubida, '(máx en BD:', maxTanda + ')');
+  } catch (eT) {
+    console.warn('[v107CG] No se pudo calcular tanda máxima:', eT);
+  }
 
   // v82: idem para gasoil
   let allGas = [];
@@ -1850,7 +1873,7 @@ async function saveRecord(data) {
   // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
   // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
   if (data._manual === true) rec.manual_edit = true;
-  // v107CF: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
+  // v107CG: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
   // columnas REALES (tanda_subida, pag_archivo) ANTES del borrado automático
   // de propiedades "_". Se hace SIEMPRE que el dato traiga sello (no solo en
   // INSERT): cuando un conductor subió el albarán antes, al procesarlo se
@@ -2131,7 +2154,7 @@ async function addFiles(files, type) {
   // con "suma y sigue", hay que verlo completo).
   const _esFactura = (type === 'gasfac');
   for (const f of files) {
-    // v107CF: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
+    // v107CG: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
     // sube de 1 en 1 y es global a la sesión. Todas las páginas de ESTE
     // archivo comparten este número de tanda; el nº de página dentro del
     // archivo lo da el bucle de división del PDF (variable p).
@@ -2255,7 +2278,7 @@ async function addFiles(files, type) {
                     mediaType: 'image/jpeg',
                     sharedPdfUrl: sharedPdfUrl,
                     pageNum: p,
-                    // v107CF: sellos de orden — tanda del archivo + nº de página.
+                    // v107CG: sellos de orden — tanda del archivo + nº de página.
                     // Se asignan AQUÍ (al encolar), no cuando la IA termina.
                     _tandaSubida: _tandaActual,
                     _pagArchivo: p,
@@ -3424,9 +3447,9 @@ async function _processOne(it, type, key, timeoutMs) {
           data.db_id = it._fromPending.id;  // fuerza UPDATE en saveRecord
           data.procesado = true;             // sale del banner pendiente
         }
-        // v107CF: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
+        // v107CG: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
         // de llamar a saveRecord, porque saveRecord es quien los escribe en
-        // las columnas BD (tanda_subida, pag_archivo). En v107CF se asignaban
+        // las columnas BD (tanda_subida, pag_archivo). En v107CG se asignaban
         // DESPUÉS de saveRecord → llegaban undefined → se guardaba NULL en BD
         // → el orden seguía revuelto. Ahora se asignan aquí, justo antes.
         if (typeof it._tandaSubida === 'number') data._tandaSubida = it._tandaSubida;
@@ -4516,9 +4539,9 @@ function applyFilters() {
       else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       // ============================================================
-      // v107CF: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
+      // v107CG: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
       // ============================================================
-      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CF o
+      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CG o
       // posterior), el orden lo mandan los sellos, NO el created_at (que sale
       // revuelto porque se procesan 5 en paralelo: gana quien la IA termina
       // antes). Lógica:
