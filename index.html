@@ -1516,25 +1516,46 @@ async function loadUserMap() {
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esLogistica;
 
       if (!_veTodo) {
-        // No es ninguno de los 3 → ocultar TODAS las pestañas extra,
-        // dejar solo Albaranes y Subir.
-        ['tabPreli', 'tabGas', 'tabItv', 'tabNeum', 'tabVac',
-         'tabTaller', 'tabProduccion', 'tabAdmin'].forEach(function (id) {
+        // No es ninguno de los 3 → ocultar las pestañas extra, dejar solo
+        // Albaranes y Subir.
+        // v107BY: EXCEPCIÓN — el usuario TALLER (taller@typ2014.local) y
+        // cualquier usuario con permiso ITV o Taller SÍ debe seguir viendo
+        // ESAS pestañas concretas (es su trabajo). Antes la regla v107BS le
+        // ocultaba ITV y Taller sin querer. Ahora: a quien NO ve todo se le
+        // ocultan Preli/Gas/Neum/Vac/Producción/Usuarios SIEMPRE, pero ITV y
+        // Taller solo se ocultan si NO tiene su permiso correspondiente. Así
+        // el usuario Taller recupera ITV y Taller, y un conductor normal
+        // (sin esos permisos) sigue viendo solo Albaranes y Subir.
+        const _permITV    = !!userMap[currentUser.id]?.puede_ver_itv;
+        const _permTaller = !!userMap[currentUser.id]?.puede_ver_taller;
+        const _ocultarFinal = ['tabPreli', 'tabGas', 'tabNeum', 'tabVac',
+          'tabProduccion', 'tabAdmin'];
+        if (!_permITV)    _ocultarFinal.push('tabItv');
+        if (!_permTaller) _ocultarFinal.push('tabTaller');
+        _ocultarFinal.forEach(function (id) {
           const el = document.getElementById(id);
           if (el) el.style.display = 'none';
         });
-        // Si por lo que sea la pestaña activa al entrar es una de las
-        // ocultas, llevarlo a Albaranes para que no quede pantalla en blanco.
+        // Si tiene permiso ITV/Taller, asegurar que esas pestañas SÍ se ven
+        // (por si alguna regla anterior las dejó ocultas).
+        if (_permITV) { const e = document.getElementById('tabItv'); if (e) e.style.display = ''; }
+        if (_permTaller) { const e = document.getElementById('tabTaller'); if (e) e.style.display = ''; }
+        // Si la pestaña activa al entrar quedó oculta, llevarlo a una visible
+        // (Taller si tiene permiso, si no Albaranes) para no dejar pantalla
+        // en blanco.
         setTimeout(function () {
           try {
-            const algunaExtraActiva = ['tabPreli','tabGas','tabItv','tabNeum',
-              'tabVac','tabTaller','tabProduccion','tabAdmin']
-              .some(function (id) {
-                const e = document.getElementById(id);
-                return e && e.classList.contains('active');
-              });
-            if (algunaExtraActiva) switchTab('alb');
-          } catch (e) { console.warn('[v107BS] redirigir a Albaranes:', e); }
+            const ocultas = _ocultarFinal;
+            const algunaOcultaActiva = ocultas.some(function (id) {
+              const e = document.getElementById(id);
+              return e && e.classList.contains('active');
+            });
+            if (algunaOcultaActiva) {
+              if (_permTaller) switchTab('taller');
+              else if (_permITV) switchTab('itv');
+              else switchTab('alb');
+            }
+          } catch (e) { console.warn('[v107BY] redirigir:', e); }
         }, 200);
       } else {
         // SÍ es admin / María del Mar / logística → garantizar que ven
