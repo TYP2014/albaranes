@@ -221,7 +221,7 @@ tbody tr{transition:background .1s;cursor:pointer}
 tbody tr:hover{background:var(--s2)}
 tbody tr.row-dup{background:rgba(232,64,64,.05);opacity:.7}
 tbody tr.row-warn{background:rgba(245,166,35,.04)}
-.tag-n{background:rgba(255,255,255,.08);color:#ffffff;padding:3px 9px;border-radius:4px;font-size:13px;font-weight:700;border:1px solid rgba(255,255,255,.25);letter-spacing:.3px}
+.tag-n{background:rgba(0,232,122,.1);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px;border:1px solid rgba(0,232,122,.2)}
 .tag-tm{color:var(--wn);font-weight:600;font-size:12px}
 .tag-mat{color:var(--pu)}
 .tag-prov{color:var(--in)}
@@ -1317,6 +1317,24 @@ let pendingGas = [];
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
 // es clickable para invertir orden o cambiar por otra.
 let sortCol = 'created_at', sortDir = -1;
+// v107CC: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
+// limpia y definitiva el problema de albaranes revueltos al subir un archivo
+// de varias páginas (causa: se procesan 5 en paralelo, CONCURRENCY=5, y el que
+// la IA termina antes se guarda antes → created_at revuelto).
+//
+//  · _tandaSubida  = nº de TANDA. Sube 1 cada vez que se procesa un archivo
+//                     nuevo (o un grupo de imágenes sueltas en una subida).
+//                     La tanda más alta es la más reciente → va ARRIBA.
+//  · _pagArchivo   = nº de PÁGINA dentro de ese archivo (1,2,3...). Dentro de
+//                     una tanda se ordena ascendente → pág 1 arriba del bloque.
+//
+// Ambos se guardan en columnas REALES de la BD (tanda_subida, pag_archivo)
+// para que el orden aguante refrescos (el fallo de v107CC era que el sello
+// vivía solo en memoria y loadData lo borraba al recargar).
+//
+// Base alta para no chocar con histórico viejo (tanda NULL → va al final,
+// ordenado como siempre, sin romperse).
+window._tandaSubida = window._tandaSubida || 1;
 let editId = null, editGasId = null;
 let anthropicKey = '';
 // Filtros multi-selección: guardan las matrículas/transportistas marcados con checkbox
@@ -1516,46 +1534,25 @@ async function loadUserMap() {
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esLogistica;
 
       if (!_veTodo) {
-        // No es ninguno de los 3 → ocultar las pestañas extra, dejar solo
-        // Albaranes y Subir.
-        // v107BY: EXCEPCIÓN — el usuario TALLER (taller@typ2014.local) y
-        // cualquier usuario con permiso ITV o Taller SÍ debe seguir viendo
-        // ESAS pestañas concretas (es su trabajo). Antes la regla v107BS le
-        // ocultaba ITV y Taller sin querer. Ahora: a quien NO ve todo se le
-        // ocultan Preli/Gas/Neum/Vac/Producción/Usuarios SIEMPRE, pero ITV y
-        // Taller solo se ocultan si NO tiene su permiso correspondiente. Así
-        // el usuario Taller recupera ITV y Taller, y un conductor normal
-        // (sin esos permisos) sigue viendo solo Albaranes y Subir.
-        const _permITV    = !!userMap[currentUser.id]?.puede_ver_itv;
-        const _permTaller = !!userMap[currentUser.id]?.puede_ver_taller;
-        const _ocultarFinal = ['tabPreli', 'tabGas', 'tabNeum', 'tabVac',
-          'tabProduccion', 'tabAdmin'];
-        if (!_permITV)    _ocultarFinal.push('tabItv');
-        if (!_permTaller) _ocultarFinal.push('tabTaller');
-        _ocultarFinal.forEach(function (id) {
+        // No es ninguno de los 3 → ocultar TODAS las pestañas extra,
+        // dejar solo Albaranes y Subir.
+        ['tabPreli', 'tabGas', 'tabItv', 'tabNeum', 'tabVac',
+         'tabTaller', 'tabProduccion', 'tabAdmin'].forEach(function (id) {
           const el = document.getElementById(id);
           if (el) el.style.display = 'none';
         });
-        // Si tiene permiso ITV/Taller, asegurar que esas pestañas SÍ se ven
-        // (por si alguna regla anterior las dejó ocultas).
-        if (_permITV) { const e = document.getElementById('tabItv'); if (e) e.style.display = ''; }
-        if (_permTaller) { const e = document.getElementById('tabTaller'); if (e) e.style.display = ''; }
-        // Si la pestaña activa al entrar quedó oculta, llevarlo a una visible
-        // (Taller si tiene permiso, si no Albaranes) para no dejar pantalla
-        // en blanco.
+        // Si por lo que sea la pestaña activa al entrar es una de las
+        // ocultas, llevarlo a Albaranes para que no quede pantalla en blanco.
         setTimeout(function () {
           try {
-            const ocultas = _ocultarFinal;
-            const algunaOcultaActiva = ocultas.some(function (id) {
-              const e = document.getElementById(id);
-              return e && e.classList.contains('active');
-            });
-            if (algunaOcultaActiva) {
-              if (_permTaller) switchTab('taller');
-              else if (_permITV) switchTab('itv');
-              else switchTab('alb');
-            }
-          } catch (e) { console.warn('[v107BY] redirigir:', e); }
+            const algunaExtraActiva = ['tabPreli','tabGas','tabItv','tabNeum',
+              'tabVac','tabTaller','tabProduccion','tabAdmin']
+              .some(function (id) {
+                const e = document.getElementById(id);
+                return e && e.classList.contains('active');
+              });
+            if (algunaExtraActiva) switchTab('alb');
+          } catch (e) { console.warn('[v107BS] redirigir a Albaranes:', e); }
         }, 200);
       } else {
         // SÍ es admin / María del Mar / logística → garantizar que ven
@@ -1775,7 +1772,12 @@ async function loadData() {
     ...r,
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
-    _manual: r.manual_edit === true
+    _manual: r.manual_edit === true,
+    // v107CC: recuperar los sellos de orden desde columnas reales de BD.
+    // Albaranes viejos (sin columna) → undefined → se ordenan como antes
+    // (no se rompe nada del histórico de ~2940 albaranes).
+    _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
+    _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
   }));
 
   // v82: idem para gasoil
@@ -1848,6 +1850,14 @@ async function saveRecord(data) {
   // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
   // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
   if (data._manual === true) rec.manual_edit = true;
+  // v107CC: los sellos de orden (_tandaSubida, _pagArchivo, internos) se copian
+  // a las columnas REALES (tanda_subida, pag_archivo) ANTES del borrado
+  // automático de propiedades "_". Solo en INSERT (sin db_id): nunca tocamos
+  // estos campos en un UPDATE para no pisar el orden de un albarán ya guardado.
+  if (!data.db_id) {
+    if (typeof data._tandaSubida === 'number') rec.tanda_subida = data._tandaSubida;
+    if (typeof data._pagArchivo === 'number') rec.pag_archivo = data._pagArchivo;
+  }
   // Eliminar TODAS las propiedades internas que empiezan por "_" (no son columnas reales de la BD)
   // y db_id (es la id pero la usamos para el WHERE, no para el SET).
   // v91b: bucle automático en vez de lista manual — así cualquier futuro flag interno (_dup,
@@ -2121,6 +2131,11 @@ async function addFiles(files, type) {
   // con "suma y sigue", hay que verlo completo).
   const _esFactura = (type === 'gasfac');
   for (const f of files) {
+    // v107CC: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
+    // sube de 1 en 1 y es global a la sesión. Todas las páginas de ESTE
+    // archivo comparten este número de tanda; el nº de página dentro del
+    // archivo lo da el bucle de división del PDF (variable p).
+    const _tandaActual = window._tandaSubida++;
     const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
 
     if (isPdf && (type === 'alb' || type === 'gas') && typeof pdfjsLib !== 'undefined') {
@@ -2170,7 +2185,7 @@ async function addFiles(files, type) {
             continue;
           }
           if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
-            pending.push({ id: Date.now() + Math.random(), file: f, b64, status: 'pending', isPdf: true, name: f.name, mediaType: 'application/pdf', _esFactura: _esFactura });
+            pending.push({ id: Date.now() + Math.random(), file: f, b64, status: 'pending', isPdf: true, name: f.name, mediaType: 'application/pdf', _tandaSubida: _tandaActual, _pagArchivo: 1, _esFactura: _esFactura });
           }
         } else {
           toast(`📄 Dividiendo ${f.name} en ${numPages} páginas...`);
@@ -2240,6 +2255,10 @@ async function addFiles(files, type) {
                     mediaType: 'image/jpeg',
                     sharedPdfUrl: sharedPdfUrl,
                     pageNum: p,
+                    // v107CC: sellos de orden — tanda del archivo + nº de página.
+                    // Se asignan AQUÍ (al encolar), no cuando la IA termina.
+                    _tandaSubida: _tandaActual,
+                    _pagArchivo: p,
                     hasJpgFile: !!pageFile
                   });
                   return true;
@@ -2278,7 +2297,7 @@ async function addFiles(files, type) {
           r.readAsDataURL(f);
         });
         if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
-          pending.push({ id: Date.now() + Math.random(), file: f, b64, status: 'pending', isPdf: true, name: f.name, mediaType: 'application/pdf' });
+          pending.push({ id: Date.now() + Math.random(), file: f, b64, status: 'pending', isPdf: true, name: f.name, mediaType: 'application/pdf', _tandaSubida: _tandaActual, _pagArchivo: 1 });
         }
       }
     } else {
@@ -2315,7 +2334,7 @@ async function addFiles(files, type) {
         continue;
       }
       if (!pending.some(x => x.name === f.name && x.status === 'pending')) {
-        pending.push({ id, file: imgFile, b64, status: 'pending', isPdf, name: f.name, mediaType: isPdf ? 'application/pdf' : (imgFile.type || 'image/jpeg'), _esFactura: _esFactura });
+        pending.push({ id, file: imgFile, b64, status: 'pending', isPdf, name: f.name, mediaType: isPdf ? 'application/pdf' : (imgFile.type || 'image/jpeg'), _tandaSubida: _tandaActual, _pagArchivo: 1, _esFactura: _esFactura });
       }
     }
   }
@@ -3409,17 +3428,10 @@ async function _processOne(it, type, key, timeoutMs) {
         data._id = Date.now() + Math.random();
         data.db_id = dbId || it._fromPending?.id;
         data._ts = new Date().toISOString();
-        // v107BZ: guardar el ORDEN de la página dentro del archivo subido.
-        // Cuando Juan Carlos sube un archivo de 10 albaranes, todos tienen
-        // el mismo created_at (mismos segundos) y antes se mezclaban al
-        // ordenar (el desempate los reordenaba por matrícula/fecha). Ahora
-        // guardamos el nº de página del archivo (it.pageNum: 1,2,3...) para
-        // usarlo como desempate y que en el listado salgan EN EL ORDEN DEL
-        // ARCHIVO (página 1 = primera, página 2 = segunda...), todos juntos.
-        // No es columna de BD (empieza por _), solo vive en memoria para la
-        // sesión, que es justo cuando Juan Carlos repasa con sus capturas.
-        data._seqArchivo = (typeof it.pageNum === 'number' && it.pageNum > 0)
-          ? it.pageNum : 0;
+        // v107CC: trasladar los sellos de orden del item de la cola al registro
+        // en memoria, para que el listado los respete sin esperar a recargar.
+        if (typeof it._tandaSubida === 'number') data._tandaSubida = it._tandaSubida;
+        if (typeof it._pagArchivo === 'number') data._pagArchivo = it._pagArchivo;
         records.unshift(data);
       } else {
         // v98: mismo fix para gasoil
@@ -3754,55 +3766,24 @@ SOLO JSON válido, sin markdown.`;
   // casos no se activaba el fallback Sonnet (las matrículas se borraban después por v89
   // pero Sonnet ya no se llamaba). Ahora cualquier matrícula no válida → reintentar.
   const indicesVacios = results.map((r, i) => !esMatriculaValida(r.tractora) ? i : -1).filter(i => i >= 0);
-
-  // v107BX: SODIRA — verificación REFORZADA de matrícula. Los albaranes de
-  // Sodira vienen escaneados TORCIDOS y de baja calidad, y Haiku a veces
-  // devuelve una matrícula que PARECE válida (formato 4D+3L correcto) pero
-  // está MAL: o coge el REMOLQUE (R1880BDR → "1880BDR") o confunde una
-  // letra (N↔B, "3628NMW" → "3628BMW"). Como esas matrículas pasan
-  // esMatriculaValida, el fallback normal NO se activaba. Por eso, SOLO en
-  // Sodira, forzamos la doble lectura con Sonnet (modelo potente, lee mejor
-  // lo borroso) en TODOS los albaranes, y si Sonnet da una matrícula válida
-  // distinta a la de Haiku, gana la de Sonnet. Cuesta algo más por albarán,
-  // pero la matrícula es el dato más crítico. Solo aplica a Sodira (el
-  // resto de proveedores siguen igual, sin encarecer).
-  const esSodiraDoc = results.some(r => r && r.proveedor && /sodira/i.test(String(r.proveedor)));
-  let indicesAVerificar = indicesVacios;
-  if (esSodiraDoc) {
-    // En Sodira verificamos TODAS las posiciones (no solo las vacías).
-    indicesAVerificar = results.map((r, i) => i);
-    console.log(`[v107BX] Documento Sodira: verificación reforzada de matrícula con Sonnet en ${results.length} albarán(es).`);
-  }
-
-  if (indicesAVerificar.length > 0) {
-    if (!esSodiraDoc) {
-      console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
-    }
+  if (indicesVacios.length > 0) {
+    console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
     try {
       const matriculasSonnet = await reintentaMatriculaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
       if (matriculasSonnet && matriculasSonnet.length === results.length) {
         let recuperadas = 0;
-        for (const i of indicesAVerificar) {
+        for (const i of indicesVacios) {
           const m = matriculasSonnet[i];
+          // v93c: solo aceptar la matrícula que devuelva Sonnet si pasa esMatriculaValida.
+          // Si Sonnet también devuelve "—", "-", o algo no formato 4D+3L, lo descartamos
+          // y el albarán se queda con la matrícula vacía que ya tenía Haiku (después la
+          // red v89 la limpia). Mejor matrícula vacía que matrícula falsa.
           if (m && esMatriculaValida(m)) {
-            const mLimpia = String(m).trim().toUpperCase();
-            if (esSodiraDoc) {
-              // En Sodira, Sonnet MANDA: si lo que dio Sonnet es válido y
-              // distinto de lo de Haiku, nos quedamos con lo de Sonnet
-              // (Haiku falla más en estos escaneos torcidos).
-              if (results[i].tractora !== mLimpia) {
-                console.log(`[v107BX] Sodira: matrícula corregida por Sonnet: "${results[i].tractora || '(vacío)'}" → "${mLimpia}"`);
-                results[i].tractora = mLimpia;
-                recuperadas++;
-              }
-            } else {
-              // Resto de proveedores: solo rellenar las que Haiku dejó mal.
-              results[i].tractora = mLimpia;
-              recuperadas++;
-            }
+            results[i].tractora = String(m).trim().toUpperCase();
+            recuperadas++;
           }
         }
-        console.log(`[${esSodiraDoc ? 'v107BX' : 'v93c'}] Sonnet ajustó ${recuperadas} matrícula(s)`);
+        console.log(`[v93c] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
       } else {
         console.warn(`[v93] Sonnet devolvió ${matriculasSonnet?.length || 0} matrículas pero esperábamos ${results.length}, descartando reintento`);
       }
@@ -4529,28 +4510,37 @@ function applyFilters() {
       else if (sortCol === 'tm') { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
       // v84: created_at viene como timestamp ISO de Supabase. Parseamos a número (ms desde 1970)
       // para ordenar correctamente. Los más recientes tienen número mayor.
-      // v107CA: cuando el orden es por "Subido", NO comparamos el created_at
-      // al milisegundo (al subir 10 albaranes en paralelo cada uno acaba en
-      // un milisegundo distinto y se mezclaban). Lo redondeamos al MINUTO:
-      // así todos los albaranes del mismo archivo (subidos en el mismo
-      // minuto) cuentan como "misma tanda", y dentro de esa tanda mandan el
-      // número de página del archivo (1, 2, 3...). Resultado: el bloque que
-      // acabas de subir sale arriba, y DENTRO en el orden del archivo.
-      else if (sortCol === 'created_at') {
-        const _min = (v) => v ? Math.floor(new Date(v).getTime() / 60000) : 0;
-        av = _min(av); bv = _min(bv);
-      }
+      else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
-      if (av !== bv) return av < bv ? -sortDir : sortDir;
-      // v107CA: misma tanda de subida (mismo minuto) → ordenar por el ORDEN
-      // DEL ARCHIVO (página 1 arriba, luego 2, 3...), SIEMPRE ascendente,
-      // para repasar con la captura de arriba a abajo sin saltos. Esto se
-      // aplica solo cuando el orden activo es "Subido".
-      if (sortCol === 'created_at') {
-        const sa = (typeof a._seqArchivo === 'number') ? a._seqArchivo : 0;
-        const sb2 = (typeof b._seqArchivo === 'number') ? b._seqArchivo : 0;
-        if (sa !== sb2) return sa - sb2; // siempre ascendente: pág 1 arriba
+      // ============================================================
+      // v107CC: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
+      // ============================================================
+      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CC o
+      // posterior), el orden lo mandan los sellos, NO el created_at (que sale
+      // revuelto porque se procesan 5 en paralelo: gana quien la IA termina
+      // antes). Lógica:
+      //   1) TANDA distinta  → la tanda MÁS ALTA (archivo más reciente) va
+      //      arriba si el orden es descendente (sortDir=-1, lo normal).
+      //   2) MISMA tanda     → PÁGINA ascendente SIEMPRE (pág 1 arriba del
+      //      bloque, pág 2 debajo...), sin importar sortDir, para que el
+      //      repaso se haga de arriba hacia abajo en orden de lectura.
+      //   3) Misma tanda y página (raro) → desempate clásico.
+      // Si algún albarán NO tiene tanda (histórico viejo, ~2940 albaranes),
+      // se cae al comportamiento de siempre por created_at → nada se rompe.
+      if (sortCol === 'created_at'
+          && typeof a._tandaSubida === 'number'
+          && typeof b._tandaSubida === 'number') {
+        if (a._tandaSubida !== b._tandaSubida) {
+          // Tanda mayor = más reciente. Con sortDir=-1 (desc) va arriba.
+          return a._tandaSubida < b._tandaSubida ? -sortDir : sortDir;
+        }
+        // Misma tanda (mismo archivo): página 1 SIEMPRE arriba del bloque.
+        const pa = typeof a._pagArchivo === 'number' ? a._pagArchivo : 0;
+        const pb = typeof b._pagArchivo === 'number' ? b._pagArchivo : 0;
+        if (pa !== pb) return pa < pb ? -1 : 1;
+        return compareRecords(a, b);
       }
+      if (av !== bv) return av < bv ? -sortDir : sortDir;
     }
     // Ordenación secundaria/por defecto: fecha → matrícula → nº albarán (siempre ascendente)
     return compareRecords(a, b);
