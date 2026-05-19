@@ -3722,24 +3722,55 @@ SOLO JSON válido, sin markdown.`;
   // casos no se activaba el fallback Sonnet (las matrículas se borraban después por v89
   // pero Sonnet ya no se llamaba). Ahora cualquier matrícula no válida → reintentar.
   const indicesVacios = results.map((r, i) => !esMatriculaValida(r.tractora) ? i : -1).filter(i => i >= 0);
-  if (indicesVacios.length > 0) {
-    console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
+
+  // v107BX: SODIRA — verificación REFORZADA de matrícula. Los albaranes de
+  // Sodira vienen escaneados TORCIDOS y de baja calidad, y Haiku a veces
+  // devuelve una matrícula que PARECE válida (formato 4D+3L correcto) pero
+  // está MAL: o coge el REMOLQUE (R1880BDR → "1880BDR") o confunde una
+  // letra (N↔B, "3628NMW" → "3628BMW"). Como esas matrículas pasan
+  // esMatriculaValida, el fallback normal NO se activaba. Por eso, SOLO en
+  // Sodira, forzamos la doble lectura con Sonnet (modelo potente, lee mejor
+  // lo borroso) en TODOS los albaranes, y si Sonnet da una matrícula válida
+  // distinta a la de Haiku, gana la de Sonnet. Cuesta algo más por albarán,
+  // pero la matrícula es el dato más crítico. Solo aplica a Sodira (el
+  // resto de proveedores siguen igual, sin encarecer).
+  const esSodiraDoc = results.some(r => r && r.proveedor && /sodira/i.test(String(r.proveedor)));
+  let indicesAVerificar = indicesVacios;
+  if (esSodiraDoc) {
+    // En Sodira verificamos TODAS las posiciones (no solo las vacías).
+    indicesAVerificar = results.map((r, i) => i);
+    console.log(`[v107BX] Documento Sodira: verificación reforzada de matrícula con Sonnet en ${results.length} albarán(es).`);
+  }
+
+  if (indicesAVerificar.length > 0) {
+    if (!esSodiraDoc) {
+      console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
+    }
     try {
       const matriculasSonnet = await reintentaMatriculaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
       if (matriculasSonnet && matriculasSonnet.length === results.length) {
         let recuperadas = 0;
-        for (const i of indicesVacios) {
+        for (const i of indicesAVerificar) {
           const m = matriculasSonnet[i];
-          // v93c: solo aceptar la matrícula que devuelva Sonnet si pasa esMatriculaValida.
-          // Si Sonnet también devuelve "—", "-", o algo no formato 4D+3L, lo descartamos
-          // y el albarán se queda con la matrícula vacía que ya tenía Haiku (después la
-          // red v89 la limpia). Mejor matrícula vacía que matrícula falsa.
           if (m && esMatriculaValida(m)) {
-            results[i].tractora = String(m).trim().toUpperCase();
-            recuperadas++;
+            const mLimpia = String(m).trim().toUpperCase();
+            if (esSodiraDoc) {
+              // En Sodira, Sonnet MANDA: si lo que dio Sonnet es válido y
+              // distinto de lo de Haiku, nos quedamos con lo de Sonnet
+              // (Haiku falla más en estos escaneos torcidos).
+              if (results[i].tractora !== mLimpia) {
+                console.log(`[v107BX] Sodira: matrícula corregida por Sonnet: "${results[i].tractora || '(vacío)'}" → "${mLimpia}"`);
+                results[i].tractora = mLimpia;
+                recuperadas++;
+              }
+            } else {
+              // Resto de proveedores: solo rellenar las que Haiku dejó mal.
+              results[i].tractora = mLimpia;
+              recuperadas++;
+            }
           }
         }
-        console.log(`[v93c] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
+        console.log(`[${esSodiraDoc ? 'v107BX' : 'v93c'}] Sonnet ajustó ${recuperadas} matrícula(s)`);
       } else {
         console.warn(`[v93] Sonnet devolvió ${matriculasSonnet?.length || 0} matrículas pero esperábamos ${results.length}, descartando reintento`);
       }
