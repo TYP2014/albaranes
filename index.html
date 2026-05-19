@@ -551,9 +551,18 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn bp" onclick="document.getElementById('gasKmUploadInline').click()">📊 Subir km (tacógrafo)</button>
             <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel detalle</button>
+            <!-- FASE 4b (v107BK): pantalla de RESUMEN DE CONSUMO. Cruza los
+                 litros de gasoil (facturas, tabla gasoil) con los km
+                 recorridos (tabla km_periodos) → L/100km por camion y
+                 periodo. El periodo lo manda el Excel de km que se suba
+                 (mensual, trimestral o anual). Respeta la empresa de la
+                 subpestaña activa (misma privacidad que el resto). -->
+            <button class="btn bp" id="gasBtnConsumo" onclick="gasToggleConsumo()">📈 Consumo</button>
           </div>
         </div>
         <div class="card-bd">
+          <!-- Vista REGISTRO (tabla normal de repostajes) -->
+          <div id="gasVistaRegistro">
           <div class="tbl-wrap">
             <table>
               <thead><tr>
@@ -570,6 +579,28 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               <tbody id="tbodyGas"></tbody>
             </table>
             <div id="emptyGas" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tickets de gasoil.</div>
+          </div>
+          </div>
+          <!-- Vista CONSUMO (resumen L/100km por camion/periodo) -->
+          <div id="gasVistaConsumo" style="display:none">
+            <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.5">
+              Litros de gasoil (de las facturas) ÷ km recorridos (del tacógrafo) × 100 = consumo cada 100 km.
+              Una fila por camión y periodo. El periodo es el del Excel de km que subiste (mensual, trimestral o anual).
+              ⚠️ = falta el dato (no se ha subido factura o km de ese periodo).
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Matrícula</th>
+                  <th>Periodo</th>
+                  <th>Litros gasoil</th>
+                  <th>Km recorridos</th>
+                  <th>L / 100 km</th>
+                </tr></thead>
+                <tbody id="tbodyGasConsumo"></tbody>
+              </table>
+              <div id="emptyGasConsumo" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay datos de consumo todavía. Sube facturas de gasoil y el Excel de km del tacógrafo.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -4357,6 +4388,11 @@ function switchGasEmpresa(emp) {
     tit.textContent = labels[emp] || emp;
   }
   applyGasFilters();
+  // v107BK: si estamos en la vista de CONSUMO, recalcular para la nueva empresa
+  const vCon = document.getElementById('gasVistaConsumo');
+  if (vCon && vCon.style.display !== 'none') {
+    gasRenderConsumo();
+  }
 }
 
 function resetFilters() { 
@@ -4613,6 +4649,215 @@ function renderGasTable() {
       <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
       <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a>` : '—'}</td>
     </tr>`).join('');
+}
+
+// ============================================================
+// FASE 4b (v107BK): RESUMEN DE CONSUMO de gasoil
+// Litros de gasoil (facturas, tabla gasoil) / km recorridos
+// (tabla km_periodos) * 100 = L/100km, por camion y periodo.
+// El periodo lo manda el Excel de km (mensual/trimestral/anual).
+// Respeta la empresa de la subpestaña activa (misma privacidad
+// que applyGasFilters).
+// ============================================================
+
+// Cache de los periodos de km cargados de Supabase (se rellena
+// la primera vez que se abre la vista de consumo).
+let _kmPeriodos = null;
+
+// Empresa "duena" de una matricula segun el mapa TRANSPORTISTAS
+// (mismo criterio que applyGasFilters: la subpestana donde se
+// subio manda, pero si la matricula es de otra empresa del grupo,
+// se reasigna al dueno real). Devuelve la subpestana destino
+// ('TYP2014' | 'HISPALIS' | 'TRANSMARGAZ').
+function _gasEmpresaDeRegistro(r) {
+  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ' };
+  const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+  const transp = mat ? (TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora]) : null;
+  const tabDueño = transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null;
+  if (r.empresa_subida) {
+    if (tabDueño && tabDueño !== r.empresa_subida) return tabDueño;
+    return r.empresa_subida;
+  }
+  if (!mat) return 'TYP2014';
+  if (transp) return tabDueño || 'TYP2014';
+  return 'TYP2014';
+}
+
+// Convierte fecha "DD/MM/YYYY" o "YYYY-MM-DD" a numero comparable
+// YYYYMMDD. Devuelve 0 si no se reconoce.
+function _gasFechaNum(s) {
+  if (!s) return 0;
+  s = String(s).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);   // ISO YYYY-MM-DD
+  if (m) return parseInt(m[1]) * 10000 + parseInt(m[2]) * 100 + parseInt(m[3]);
+  m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);     // DD/MM/YYYY
+  if (m) {
+    let y = m[3]; if (y.length === 2) y = '20' + y;
+    return parseInt(y) * 10000 + parseInt(m[2]) * 100 + parseInt(m[1]);
+  }
+  return 0;
+}
+
+// Texto "bonito" del periodo: si es justo un mes natural -> "Enero 2026";
+// si es justo un anyo natural -> "Año 2025"; si no -> "01/01/2026 - 31/03/2026".
+function _gasPeriodoTexto(iniISO, finISO) {
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const a = String(iniISO || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const b = String(finISO || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!a || !b) {
+    // Sin formato ISO claro: mostrar tal cual lo que haya
+    const fmt = (s) => {
+      const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || '?');
+    };
+    return fmt(iniISO) + ' – ' + fmt(finISO);
+  }
+  const [_, y1, m1, d1] = a;
+  const [__, y2, m2, d2] = b;
+  // Ultimo dia del mes m2/y2
+  const ultDia = new Date(parseInt(y2), parseInt(m2), 0).getDate();
+  // Anyo natural completo
+  if (y1 === y2 && m1 === '01' && d1 === '01' && m2 === '12' && d2 === '31') {
+    return 'Año ' + y1;
+  }
+  // Mes natural completo
+  if (y1 === y2 && m1 === m2 && d1 === '01' && parseInt(d2) === ultDia) {
+    return MESES[parseInt(m1) - 1] + ' ' + y1;
+  }
+  // Tramo cualquiera
+  return d1 + '/' + m1 + '/' + y1 + ' – ' + d2 + '/' + m2 + '/' + y2;
+}
+
+// Alterna entre la vista REGISTRO (tabla normal) y la vista CONSUMO.
+async function gasToggleConsumo() {
+  const vReg = document.getElementById('gasVistaRegistro');
+  const vCon = document.getElementById('gasVistaConsumo');
+  const btn  = document.getElementById('gasBtnConsumo');
+  if (!vReg || !vCon) return;
+  const mostrandoConsumo = vCon.style.display !== 'none';
+  if (mostrandoConsumo) {
+    // Volver al registro normal
+    vCon.style.display = 'none';
+    vReg.style.display = '';
+    if (btn) btn.textContent = '📈 Consumo';
+  } else {
+    // Mostrar consumo
+    vReg.style.display = 'none';
+    vCon.style.display = '';
+    if (btn) btn.textContent = '📋 Ver registro';
+    await gasRenderConsumo();
+  }
+}
+
+// Calcula y pinta la tabla de consumo para la empresa de la
+// subpestana activa (gasEmpresaActiva).
+async function gasRenderConsumo() {
+  const tbody = document.getElementById('tbodyGasConsumo');
+  const empty = document.getElementById('emptyGasConsumo');
+  if (!tbody) return;
+
+  // 1) Cargar km_periodos (una sola vez por sesion, se cachea)
+  if (_kmPeriodos === null) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando km del tacógrafo…</td></tr>';
+    try {
+      const { data, error } = await sb.from('km_periodos')
+        .select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
+      if (error) throw error;
+      _kmPeriodos = data || [];
+    } catch (e) {
+      console.error('[gasRenderConsumo] error cargando km_periodos:', e);
+      _kmPeriodos = [];
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando km del tacógrafo: ' + (e.message || e) + '</td></tr>';
+      return;
+    }
+  }
+
+  const emp = gasEmpresaActiva || 'TYP2014';
+
+  // 2) Periodos de km de ESTA empresa
+  const periodosEmp = (_kmPeriodos || []).filter(p => (p.empresa || 'TYP2014') === emp);
+
+  // 3) Repostajes de GASOIL (no adblue) de ESTA empresa, indexados
+  //    por matricula -> lista de {fechaNum, litros}
+  const litrosPorMat = {};
+  gasoilRecords.forEach(r => {
+    const tp = String(r.tipo || '').toLowerCase();
+    if (tp && tp !== 'gasoil' && tp !== 'gas-oil' && tp !== 'diesel') return; // solo gasoil
+    if (_gasEmpresaDeRegistro(r) !== emp) return;                              // solo esta empresa
+    const litros = parseFloat(r.litros);
+    if (!litros || litros <= 0) return;
+    const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+    if (!mat) return;
+    (litrosPorMat[mat] = litrosPorMat[mat] || []).push({
+      f: _gasFechaNum(r.fecha), litros: litros
+    });
+  });
+
+  // 4) Construir filas: una por periodo de km de la empresa
+  const filas = periodosEmp.map(p => {
+    const mat = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+    const iniN = _gasFechaNum(p.fecha_inicio);
+    const finN = _gasFechaNum(p.fecha_fin);
+    // Litros de gasoil de esa matricula dentro de [inicio, fin]
+    let litros = 0, huboLitros = false;
+    (litrosPorMat[mat] || []).forEach(x => {
+      if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) {
+        litros += x.litros; huboLitros = true;
+      }
+    });
+    const km = parseInt(p.km_diferencia, 10) || 0;
+    let consumo = null;
+    if (huboLitros && km > 0) consumo = (litros / km) * 100;
+    return {
+      mat: p.matricula || '—',
+      periodo: _gasPeriodoTexto(p.fecha_inicio, p.fecha_fin),
+      iniN: iniN,
+      litros: huboLitros ? litros : null,
+      km: km > 0 ? km : null,
+      consumo: consumo
+    };
+  });
+
+  // 5) Ordenar: por matricula y dentro de cada una por fecha de inicio
+  filas.sort((a, b) => {
+    const ma = String(a.mat).toUpperCase(), mb = String(b.mat).toUpperCase();
+    if (ma !== mb) return ma < mb ? -1 : 1;
+    return a.iniN - b.iniN;
+  });
+
+  // 6) Pintar
+  if (!filas.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  const fmtN = (n, dec) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  tbody.innerHTML = filas.map(f => {
+    const litrosTxt = f.litros != null
+      ? fmtN(f.litros, 0) + ' L'
+      : '<span style="color:var(--wn)">⚠️ sin factura</span>';
+    const kmTxt = f.km != null
+      ? fmtN(f.km, 0) + ' km'
+      : '<span style="color:var(--wn)">⚠️ sin km</span>';
+    let consumoTxt;
+    if (f.consumo != null) {
+      // Color orientativo: verde < 35, normal 35-45, rojo > 45 L/100km
+      let col = 'var(--ok)';
+      if (f.consumo > 45) col = 'var(--er)';
+      else if (f.consumo > 35) col = 'var(--wn)';
+      consumoTxt = '<strong style="color:' + col + '">' + fmtN(f.consumo, 1) + '</strong>';
+    } else {
+      consumoTxt = '<span style="color:var(--wn)">⚠️</span>';
+    }
+    return '<tr>'
+      + '<td class="tag-mat">' + f.mat + '</td>'
+      + '<td>' + f.periodo + '</td>'
+      + '<td class="tag-tm">' + litrosTxt + '</td>'
+      + '<td>' + kmTxt + '</td>'
+      + '<td>' + consumoTxt + '</td>'
+      + '</tr>';
+  }).join('');
 }
 
 function updateStats() {
@@ -10284,6 +10529,15 @@ async function gasImportarKmExcel(file) {
     if (sinDatos) msg += ' · ' + sinDatos + ' sin km (ignorados)';
     console.log('[gasImportarKmExcel] ' + msg);
     toast(msg, guardados ? 'ok' : 'warn');
+    // v107BK: invalidar la cache de km para que la vista de Consumo
+    // recargue los datos nuevos la proxima vez que se abra.
+    if (guardados) {
+      _kmPeriodos = null;
+      const vCon = document.getElementById('gasVistaConsumo');
+      if (vCon && vCon.style.display !== 'none' && typeof gasRenderConsumo === 'function') {
+        gasRenderConsumo();
+      }
+    }
     if (dupOmitidos && !guardados) {
       setTimeout(() => { try { alert('⚠️ ESTE EXCEL DE KM YA ESTABA SUBIDO\n\nLos ' + dupOmitidos + ' camiones de este periodo ya estaban.\nNo se ha duplicado nada.'); } catch (e) {} }, 300);
     }
