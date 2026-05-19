@@ -2922,6 +2922,26 @@ async function _processOne(it, type, key, timeoutMs) {
       // Si es un pendiente del conductor, usar SU user_id (no el del admin que procesa)
       data.user_id = it._fromPending?.user_id || currentUser.id;
       if (type === 'alb') {
+        // v107BW: DESCARTAR PÁGINAS QUE NO SON ALBARÁN (hojas de "condiciones
+        // generales", protección de datos, reverso legal...). Cuando se sube
+        // un PDF de un albarán que trae 2 páginas (1 = albarán, 2 = letra
+        // pequeña legal), antes el sistema creaba un registro "ilegible"
+        // basura por la página 2. Ahora, si la página NO tiene NINGÚN dato
+        // útil de albarán (ni matrícula, ni nº albarán, ni fecha, ni
+        // material/producto, ni TN), se considera hoja de condiciones y se
+        // DESCARTA: no se crea registro, no aparece como "Ileg". Solo
+        // descartamos si está TODO vacío — si tiene aunque sea un dato, se
+        // procesa normal (mejor un Ileg revisable que perder un albarán).
+        const _vac = (x) => x === undefined || x === null || String(x).trim() === '';
+        const _sinNadaUtil = _vac(data.tractora) && _vac(data.albaran)
+          && _vac(data.fecha) && _vac(data.producto) && _vac(data.tm)
+          && _vac(data.obra) && _vac(data.planta) && _vac(data.cliente);
+        if (_sinNadaUtil) {
+          // Señal extra: estas paginas suelen mencionar condiciones
+          // generales o proteccion de datos; mas seguro aun que es basura.
+          console.warn('[v107BW] Página sin datos de albarán (probable hoja de condiciones legales) — DESCARTADA, no se crea registro.');
+          continue;
+        }
         // v89: validar formato matrícula. Si la IA devolvió algo que NO es 4D+3L (ej: leyó
         // un DNI, peso, número suelto), lo DESCARTAMOS y dejamos vacío para revisar manualmente.
         // Mejor vacío y revisar 1 albarán que matrícula falsa que rompe cruces y filtros.
