@@ -8225,7 +8225,14 @@ function fixMatricula(mat) {
   const m = String(mat).toUpperCase().trim();
   if (m.includes('/')) return m;
   if (TRANSPORTISTAS[m]) return m;
-  const swaps = { 'I':'L', 'L':'I', 'O':'0', '0':'O', '1':'I', '8':'B', 'B':'8', 'S':'5', '5':'S', 'Z':'2', '2':'Z' };
+  // v107BO: ampliada la lista de caracteres que el OCR confunde. Caso real
+  // detectado: Molins albarán "9295JJZ" leído como "9295IJZ" (I por J), que
+  // antes NO se corregía porque I↔J no estaba aquí. Añadidos: I↔J, J↔1, U↔V
+  // (todos confusiones OCR típicas en matrículas escaneadas). SEGURO: esta
+  // función SOLO devuelve la variante si EXISTE en la flota (TRANSPORTISTAS);
+  // si ninguna variante coincide con un camión real, devuelve la original
+  // sin tocar — nunca inventa una matrícula.
+  const swaps = { 'I':'L', 'L':'I', 'O':'0', '0':'O', '1':'I', '8':'B', 'B':'8', 'S':'5', '5':'S', 'Z':'2', '2':'Z', 'J':'I', 'U':'V', 'V':'U' };
   const tried = new Set([m]);
   const queue = [m];
   while (queue.length) {
@@ -8234,8 +8241,9 @@ function fixMatricula(mat) {
       const ch = cur[i];
       const candidates = [];
       if (swaps[ch]) candidates.push(swaps[ch]);
-      if (ch === 'I') candidates.push('1');
-      if (ch === '1') candidates.push('I');
+      if (ch === 'I') candidates.push('1', 'J');   // I → 1, J
+      if (ch === '1') candidates.push('I', 'J');   // 1 → I, J
+      if (ch === 'J') candidates.push('1');        // J → 1 (además del J→I del mapa swaps)
       for (const c of candidates) {
         const variant = cur.substring(0, i) + c + cur.substring(i + 1);
         if (tried.has(variant)) continue;
