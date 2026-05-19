@@ -7735,18 +7735,6 @@ const ORIGENES_CANONICOS = [
     'Planta Hormig\u00f3n Celra', 'Planta Hormig\u00f3n Celr\u00e0',
     '17460 Celra', '17460 Celr\u00e0'
   ] },
-  // v107BP: destino Riudellots de la Selva (zona Girona). Destino habitual
-  // de albaranes Holcim cisterna cemento (cliente Ciments de Catalunya,
-  // codigo de obra CES17, "Obra: 0100533598 ... 17457 RIUDELLOTS DE LA
-  // SELVA"). La IA lo lee bien del campo Obra pero antes salia "no oficial"
-  // por no estar en esta lista. Ahora aparece en el desplegable de Destino
-  // (filtro y edicion manual) y deja de marcarse en amarillo.
-  { canon: 'Riudellots de la Selva', alias: [
-    'RIUDELLOTS DE LA SELVA', 'Riudellots', 'RIUDELLOTS',
-    'Riudellots de la selva', 'riudellots de la selva',
-    '17457 RIUDELLOTS DE LA SELVA', '17457 Riudellots de la Selva',
-    'RIUDELLOTS DE LA SELVA 1', 'Riudellots de la Selva 1'
-  ] },
   { canon: 'La Roca', alias: [
     'La Roca del Vall\u00e8s', 'La Roca del Valles', 'LA ROCA DEL VALL\u00c8S', 'LA ROCA DEL VALLES',
     'LA ROCA', 'la roca', 'Font Parera', 'P I Font Parera',
@@ -8178,6 +8166,17 @@ const DESTINOS_CANONICOS = [
     'Planta de Celra', 'Planta de Celrà',
     'Planta Hormigón Celra', 'Planta Hormigón Celrà', 'Planta de Hormigón Celrà',
     '17460 Celra', '17460 Celrà'
+  ] },
+  // v107BP: destino Riudellots de la Selva (zona Girona). Destino habitual
+  // de albaranes Holcim cisterna cemento (cliente Ciments de Catalunya,
+  // codigo de obra CES17, "Obra: 0100533598 ... 17457 RIUDELLOTS DE LA
+  // SELVA"). La IA lo lee bien del campo Obra pero antes salia "no oficial"
+  // por no estar en esta lista. AHORA EN LA LISTA CORRECTA (DESTINOS_CANONICOS).
+  { canon: 'Riudellots de la Selva', alias: [
+    'RIUDELLOTS DE LA SELVA', 'Riudellots', 'RIUDELLOTS',
+    'Riudellots de la selva', 'riudellots de la selva',
+    '17457 RIUDELLOTS DE LA SELVA', '17457 Riudellots de la Selva',
+    'RIUDELLOTS DE LA SELVA 1', 'Riudellots de la Selva 1'
   ] },
   // v102: Puerto de Barcelona — destino de albaranes de Sodira Iberia (obras portuarias).
   // El albarán de Sodira pone "PUERTO DE BARCELONA" en el campo Obra/Cliente.
