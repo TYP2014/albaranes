@@ -5305,7 +5305,14 @@ function openModal(id) {
                   :                       CLIENTES_CANONICOS;
       // Solo los nombres canónicos (sin alias) ordenados alfabéticamente en español
       const oficiales = lista.map(x => x.canon).sort((a, b) => a.localeCompare(b, 'es'));
-      const valActual = r[f.k] || '';
+      const valGuardado = r[f.k] || '';
+      // v107BP: el valor guardado puede ser un ALIAS de un destino/origen/etc
+      // oficial (ej. "RIUDELLOTS DE LA SELVA" en vez del canónico "Riudellots
+      // de la Selva"), o venir con código postal delante. matchExacto lo
+      // canoniza: si encuentra el oficial, lo usamos para que el desplegable
+      // muestre el oficial SELECCIONADO y NO el aviso amarillo "no oficial".
+      const valCanon = valGuardado ? matchExacto(valGuardado, lista) : '';
+      const valActual = (valCanon && oficiales.includes(valCanon)) ? valCanon : valGuardado;
       const enLista = oficiales.includes(valActual);
       let opts = `<option value=""${!valActual ? ' selected' : ''}>— Sin asignar —</option>`;
       if (valActual && !enLista) {
@@ -7727,6 +7734,18 @@ const ORIGENES_CANONICOS = [
     'Planta de Celra', 'Planta de Celr\u00e0',
     'Planta Hormig\u00f3n Celra', 'Planta Hormig\u00f3n Celr\u00e0',
     '17460 Celra', '17460 Celr\u00e0'
+  ] },
+  // v107BP: destino Riudellots de la Selva (zona Girona). Destino habitual
+  // de albaranes Holcim cisterna cemento (cliente Ciments de Catalunya,
+  // codigo de obra CES17, "Obra: 0100533598 ... 17457 RIUDELLOTS DE LA
+  // SELVA"). La IA lo lee bien del campo Obra pero antes salia "no oficial"
+  // por no estar en esta lista. Ahora aparece en el desplegable de Destino
+  // (filtro y edicion manual) y deja de marcarse en amarillo.
+  { canon: 'Riudellots de la Selva', alias: [
+    'RIUDELLOTS DE LA SELVA', 'Riudellots', 'RIUDELLOTS',
+    'Riudellots de la selva', 'riudellots de la selva',
+    '17457 RIUDELLOTS DE LA SELVA', '17457 Riudellots de la Selva',
+    'RIUDELLOTS DE LA SELVA 1', 'Riudellots de la Selva 1'
   ] },
   { canon: 'La Roca', alias: [
     'La Roca del Vall\u00e8s', 'La Roca del Valles', 'LA ROCA DEL VALL\u00c8S', 'LA ROCA DEL VALLES',
