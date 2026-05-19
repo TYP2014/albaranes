@@ -7699,6 +7699,19 @@ const DESTINOS_CANONICOS = [
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles'] },
   { canon: 'Vallirana', alias: [] },
   { canon: 'Sant Feliu de Llobregat', alias: ['Sant Feliu'] },
+  // v107BK: obra del FERROCARRIL de Sant Feliu (cliente Acciona). Es una obra
+  // CONCRETA, distinta de la poblacion generica "Sant Feliu de Llobregat".
+  // Los albaranes Canro de esta obra traen el destino con codigos
+  // ("INTEGRA. FERROCARRIL (ST. FELIU)-B9043 A409601-0"); todas esas
+  // variantes apuntan aqui. Asi sale en el desplegable de Destino (filtro
+  // y edicion manual) para poder elegirlo sin escribir libre.
+  { canon: 'St. Feliu-Acciona', alias: [
+    'ST. FELIU-ACCIONA', 'St Feliu-Acciona', 'St. Feliu Acciona',
+    'ST FELIU ACCIONA', 'SANT FELIU ACCIONA', 'Sant Feliu-Acciona',
+    'INTEGRA. FERROCARRIL (ST. FELIU)', 'FERROCARRIL ST FELIU',
+    'FERROCARRIL SANT FELIU', 'INTEGRA FERROCARRIL ST FELIU',
+    'B9043', 'A409601'
+  ] },
   // v94: Sant Just Desvern (Hormigón Sant Just, destino habitual de Cemex). Alias incluye
   // variantes OCR observadas: "DEVERN" (sin S, OCR pierde la S), "St. Just" (abreviado).
   { canon: 'Sant Just Desvern', alias: ['Sant Just', 'St. Just Desvern', 'St Just Desvern', 'Sant Just Devern', 'SANT JUST DEVERN', 'Hormigón Sant Just', 'Hormigon Sant Just'] },
