@@ -221,7 +221,7 @@ tbody tr{transition:background .1s;cursor:pointer}
 tbody tr:hover{background:var(--s2)}
 tbody tr.row-dup{background:rgba(232,64,64,.05);opacity:.7}
 tbody tr.row-warn{background:rgba(245,166,35,.04)}
-.tag-n{background:rgba(0,232,122,.1);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px;border:1px solid rgba(0,232,122,.2)}
+.tag-n{background:rgba(0,232,122,.1);color:#fff;padding:3px 9px;border-radius:4px;font-size:15px;font-weight:600;border:1px solid rgba(0,232,122,.2)}
 .tag-tm{color:var(--wn);font-weight:600;font-size:12px}
 .tag-mat{color:var(--pu)}
 .tag-prov{color:var(--in)}
@@ -1317,7 +1317,7 @@ let pendingGas = [];
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
 // es clickable para invertir orden o cambiar por otra.
 let sortCol = 'created_at', sortDir = -1;
-// v107CD: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
+// v107CE: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
 // limpia y definitiva el problema de albaranes revueltos al subir un archivo
 // de varias páginas (causa: se procesan 5 en paralelo, CONCURRENCY=5, y el que
 // la IA termina antes se guarda antes → created_at revuelto).
@@ -1329,7 +1329,7 @@ let sortCol = 'created_at', sortDir = -1;
 //                     una tanda se ordena ascendente → pág 1 arriba del bloque.
 //
 // Ambos se guardan en columnas REALES de la BD (tanda_subida, pag_archivo)
-// para que el orden aguante refrescos (el fallo de v107CD era que el sello
+// para que el orden aguante refrescos (el fallo de v107CE era que el sello
 // vivía solo en memoria y loadData lo borraba al recargar).
 //
 // Base alta para no chocar con histórico viejo (tanda NULL → va al final,
@@ -1773,7 +1773,7 @@ async function loadData() {
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
     _manual: r.manual_edit === true,
-    // v107CD: recuperar los sellos de orden desde columnas reales de BD.
+    // v107CE: recuperar los sellos de orden desde columnas reales de BD.
     // Albaranes viejos (sin columna) → undefined → se ordenan como antes
     // (no se rompe nada del histórico de ~2940 albaranes).
     _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
@@ -1850,7 +1850,7 @@ async function saveRecord(data) {
   // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
   // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
   if (data._manual === true) rec.manual_edit = true;
-  // v107CD: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
+  // v107CE: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
   // columnas REALES (tanda_subida, pag_archivo) ANTES del borrado automático
   // de propiedades "_". Se hace SIEMPRE que el dato traiga sello (no solo en
   // INSERT): cuando un conductor subió el albarán antes, al procesarlo se
@@ -2131,7 +2131,7 @@ async function addFiles(files, type) {
   // con "suma y sigue", hay que verlo completo).
   const _esFactura = (type === 'gasfac');
   for (const f of files) {
-    // v107CD: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
+    // v107CE: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
     // sube de 1 en 1 y es global a la sesión. Todas las páginas de ESTE
     // archivo comparten este número de tanda; el nº de página dentro del
     // archivo lo da el bucle de división del PDF (variable p).
@@ -2255,7 +2255,7 @@ async function addFiles(files, type) {
                     mediaType: 'image/jpeg',
                     sharedPdfUrl: sharedPdfUrl,
                     pageNum: p,
-                    // v107CD: sellos de orden — tanda del archivo + nº de página.
+                    // v107CE: sellos de orden — tanda del archivo + nº de página.
                     // Se asignan AQUÍ (al encolar), no cuando la IA termina.
                     _tandaSubida: _tandaActual,
                     _pagArchivo: p,
@@ -3424,9 +3424,9 @@ async function _processOne(it, type, key, timeoutMs) {
           data.db_id = it._fromPending.id;  // fuerza UPDATE en saveRecord
           data.procesado = true;             // sale del banner pendiente
         }
-        // v107CD: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
+        // v107CE: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
         // de llamar a saveRecord, porque saveRecord es quien los escribe en
-        // las columnas BD (tanda_subida, pag_archivo). En v107CD se asignaban
+        // las columnas BD (tanda_subida, pag_archivo). En v107CE se asignaban
         // DESPUÉS de saveRecord → llegaban undefined → se guardaba NULL en BD
         // → el orden seguía revuelto. Ahora se asignan aquí, justo antes.
         if (typeof it._tandaSubida === 'number') data._tandaSubida = it._tandaSubida;
@@ -4516,9 +4516,9 @@ function applyFilters() {
       else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       // ============================================================
-      // v107CD: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
+      // v107CE: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
       // ============================================================
-      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CD o
+      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CE o
       // posterior), el orden lo mandan los sellos, NO el created_at (que sale
       // revuelto porque se procesan 5 en paralelo: gana quien la IA termina
       // antes). Lógica:
