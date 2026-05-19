@@ -10,6 +10,17 @@
 <script>
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  // v107BM: PRECARGAR el worker de pdf.js EN SEGUNDO PLANO nada mas abrir
+  // la pagina. Antes el worker NO se descargaba hasta subir el primer PDF,
+  // y si subias rapido se quedaba esperando a que bajara → cuelgue del
+  // arranque. Aqui forzamos su descarga ya, mientras el usuario mira los
+  // albaranes, asi cuando suba el primero el worker YA esta listo. Es
+  // silencioso: si falla la precarga no pasa nada (el blindaje de addFiles
+  // lo cubre igualmente).
+  try {
+    var _wrk = new Worker(pdfjsLib.GlobalWorkerOptions.workerSrc);
+    setTimeout(function () { try { _wrk.terminate(); } catch (e) {} }, 8000);
+  } catch (e) { /* sin worker precargado: el timeout de addFiles lo cubre */ }
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -585,14 +596,21 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div id="gasVistaConsumo" style="display:none">
             <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.5">
               Litros de gasoil (de las facturas) ÷ km recorridos (del tacógrafo) × 100 = consumo cada 100 km.
-              Una fila por camión y periodo. El periodo es el del Excel de km que subiste (mensual, trimestral o anual).
-              ⚠️ = falta el dato (no se ha subido factura o km de ese periodo).
+              Elige el periodo con las casillas Fecha desde / Fecha hasta (un mes, un trimestre, un año… lo que quieras).
+              ⚠️ = falta el dato (no hay factura o km en ese periodo). El asterisco * avisa si los km del tacógrafo
+              no encajan exactamente con las fechas que pediste.
+            </div>
+            <!-- v107BL: filtro de periodo a medida (igual que en Albaranes) -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+              <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="gasConDesde" oninput="gasRenderConsumo()"></div>
+              <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="gasConHasta" oninput="gasRenderConsumo()"></div>
+              <button class="btn bs" onclick="gasConsumoLimpiar()" style="font-size:11px">✕ Limpiar fechas</button>
             </div>
             <div class="tbl-wrap">
               <table>
                 <thead><tr>
                   <th>Matrícula</th>
-                  <th>Periodo</th>
+                  <th>Periodo (km del tacógrafo)</th>
                   <th>Litros gasoil</th>
                   <th>Km recorridos</th>
                   <th>L / 100 km</th>
@@ -2022,7 +2040,30 @@ async function addFiles(files, type) {
     if (isPdf && (type === 'alb' || type === 'gas') && typeof pdfjsLib !== 'undefined') {
       try {
         const arrayBuffer = await f.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        // v107BM: BLINDAJE DEL CUELGUE DEL ARRANQUE.
+        // Causa real (confirmada con F12): si subes un PDF nada más abrir la
+        // pagina, el WORKER de pdf.js todavia se esta descargando de internet.
+        // pdfjsLib.getDocument(...).promise se queda esperando al worker PARA
+        // SIEMPRE, sin timeout y sin error → la cola nunca recibe el albaran
+        // (sintoma: "no procesa, refresco y entonces si"). Aqui le ponemos un
+        // timeout con 1 reintento (dando margen a que el worker acabe de
+        // cargar). Si aun asi no responde, lanzamos error y cae al catch de
+        // mas abajo, que ya manda el PDF ENTERO como fallback → SIEMPRE avanza.
+        const _cargarPdf = (ab) => {
+          const work = pdfjsLib.getDocument({ data: ab }).promise;
+          const to = new Promise((_, rej) =>
+            setTimeout(() => rej(new Error('pdf.js no respondió (worker no listo)')), 20000));
+          return Promise.race([work, to]);
+        };
+        let pdf;
+        try {
+          pdf = await _cargarPdf(arrayBuffer.slice(0));
+        } catch (ePdf1) {
+          console.warn('[v107BM] getDocument tardó demasiado (1º intento), reintentando…', ePdf1);
+          toast('Preparando lector de PDF…', 'warn');
+          await sleep(2500); // dar tiempo a que el worker termine de descargar
+          pdf = await _cargarPdf(arrayBuffer.slice(0)); // si vuelve a fallar, salta al catch de abajo (PDF entero)
+        }
         const numPages = pdf.numPages;
 
         if (numPages === 1) {
@@ -4793,46 +4834,118 @@ async function gasRenderConsumo() {
     });
   });
 
-  // 4) Construir filas: una por periodo de km de la empresa
-  const filas = periodosEmp.map(p => {
-    const mat = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
-    const iniN = _gasFechaNum(p.fecha_inicio);
-    const finN = _gasFechaNum(p.fecha_fin);
-    // Litros de gasoil de esa matricula dentro de [inicio, fin]
-    let litros = 0, huboLitros = false;
-    (litrosPorMat[mat] || []).forEach(x => {
-      if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) {
-        litros += x.litros; huboLitros = true;
-      }
-    });
-    const km = parseInt(p.km_diferencia, 10) || 0;
-    let consumo = null;
-    if (huboLitros && km > 0) consumo = (litros / km) * 100;
-    return {
-      mat: p.matricula || '—',
-      periodo: _gasPeriodoTexto(p.fecha_inicio, p.fecha_fin),
-      iniN: iniN,
-      litros: huboLitros ? litros : null,
-      km: km > 0 ? km : null,
-      consumo: consumo
-    };
-  });
+  // 4) Leer el filtro de fechas que ha puesto el usuario.
+  //    Sin fechas → una fila por bloque de km (modo original).
+  //    Con fechas → una fila por camion: suma de los bloques de km
+  //    que caen dentro del periodo + litros de gasoil de ese periodo.
+  const elD = document.getElementById('gasConDesde');
+  const elH = document.getElementById('gasConHasta');
+  const desdeStr = elD ? elD.value : '';   // formato YYYY-MM-DD del input date
+  const hastaStr = elH ? elH.value : '';
+  const desdeN = desdeStr ? _gasFechaNum(desdeStr) : 0;
+  const hastaN = hastaStr ? _gasFechaNum(hastaStr) : 0;
+  const hayFiltro = desdeN > 0 || hastaN > 0;
 
-  // 5) Ordenar: por matricula y dentro de cada una por fecha de inicio
-  filas.sort((a, b) => {
-    const ma = String(a.mat).toUpperCase(), mb = String(b.mat).toUpperCase();
-    if (ma !== mb) return ma < mb ? -1 : 1;
-    return a.iniN - b.iniN;
-  });
+  const fmtN = (n, dec) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  let filas = [];
+
+  if (!hayFiltro) {
+    // ---- MODO SIN FILTRO: una fila por bloque de km (como antes) ----
+    filas = periodosEmp.map(p => {
+      const mat = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+      const iniN = _gasFechaNum(p.fecha_inicio);
+      const finN = _gasFechaNum(p.fecha_fin);
+      let litros = 0, huboLitros = false;
+      (litrosPorMat[mat] || []).forEach(x => {
+        if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) { litros += x.litros; huboLitros = true; }
+      });
+      const km = parseInt(p.km_diferencia, 10) || 0;
+      let consumo = null;
+      if (huboLitros && km > 0) consumo = (litros / km) * 100;
+      return {
+        mat: p.matricula || '—',
+        periodo: _gasPeriodoTexto(p.fecha_inicio, p.fecha_fin),
+        orden: mat + '|' + String(iniN).padStart(8, '0'),
+        litros: huboLitros ? litros : null,
+        km: km > 0 ? km : null,
+        consumo: consumo,
+        aviso: ''
+      };
+    });
+  } else {
+    // ---- MODO CON FILTRO: agrupar por camion en el periodo pedido ----
+    // Rango efectivo: si falta una de las dos fechas, se abre por ese lado.
+    const rIni = desdeN > 0 ? desdeN : 1;            // desde el principio
+    const rFin = hastaN > 0 ? hastaN : 99999999;     // hasta el final
+
+    // Conjunto de matriculas implicadas (las que tienen km o litros)
+    const mats = new Set();
+    periodosEmp.forEach(p => mats.add(String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '')));
+    Object.keys(litrosPorMat).forEach(m => mats.add(m));
+
+    mats.forEach(mat => {
+      if (!mat) return;
+      // Bloques de km de esta matricula que SOLAPAN con el rango pedido
+      const bloques = periodosEmp.filter(p => {
+        if (String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '') !== mat) return false;
+        const bi = _gasFechaNum(p.fecha_inicio);
+        const bf = _gasFechaNum(p.fecha_fin);
+        if (!bi || !bf) return false;
+        return bf >= rIni && bi <= rFin;   // solapan
+      });
+      let km = 0, encajeExacto = true;
+      bloques.forEach(p => {
+        km += parseInt(p.km_diferencia, 10) || 0;
+        const bi = _gasFechaNum(p.fecha_inicio);
+        const bf = _gasFechaNum(p.fecha_fin);
+        // Si el bloque se sale del rango pedido, los km no son 100% del periodo
+        if (bi < rIni || bf > rFin) encajeExacto = false;
+      });
+      // Litros de gasoil de esa matricula DENTRO del rango pedido (exacto)
+      let litros = 0, huboLitros = false;
+      (litrosPorMat[mat] || []).forEach(x => {
+        if (x.f && x.f >= rIni && x.f <= rFin) { litros += x.litros; huboLitros = true; }
+      });
+      // Si no hay NI km NI litros en el periodo para esta matricula, no la mostramos
+      if (!bloques.length && !huboLitros) return;
+      let consumo = null;
+      if (huboLitros && km > 0) consumo = (litros / km) * 100;
+      // Texto del periodo: lo que pidio el usuario
+      const fmtFecha = (s) => { const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : s; };
+      let periodoTxt;
+      if (desdeStr && hastaStr) periodoTxt = fmtFecha(desdeStr) + ' – ' + fmtFecha(hastaStr);
+      else if (desdeStr) periodoTxt = 'Desde ' + fmtFecha(desdeStr);
+      else periodoTxt = 'Hasta ' + fmtFecha(hastaStr);
+      if (!encajeExacto && bloques.length) periodoTxt += ' *';
+      filas.push({
+        mat: mat,
+        periodo: periodoTxt,
+        orden: mat,
+        litros: huboLitros ? litros : null,
+        km: km > 0 ? km : null,
+        consumo: consumo,
+        aviso: (!encajeExacto && bloques.length)
+          ? 'Los km del tacógrafo de este camión vienen en bloques que no encajan exactamente con las fechas pedidas; el consumo es aproximado.'
+          : ''
+      });
+    });
+  }
+
+  // 5) Ordenar por matricula (y dentro, por fecha de inicio)
+  filas.sort((a, b) => (a.orden < b.orden ? -1 : a.orden > b.orden ? 1 : 0));
 
   // 6) Pintar
   if (!filas.length) {
     tbody.innerHTML = '';
-    if (empty) empty.style.display = 'block';
+    if (empty) {
+      empty.style.display = 'block';
+      empty.textContent = hayFiltro
+        ? 'No hay datos de consumo para el periodo seleccionado en esta empresa.'
+        : 'No hay datos de consumo todavía. Sube facturas de gasoil y el Excel de km del tacógrafo.';
+    }
     return;
   }
   if (empty) empty.style.display = 'none';
-  const fmtN = (n, dec) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   tbody.innerHTML = filas.map(f => {
     const litrosTxt = f.litros != null
       ? fmtN(f.litros, 0) + ' L'
@@ -4842,7 +4955,6 @@ async function gasRenderConsumo() {
       : '<span style="color:var(--wn)">⚠️ sin km</span>';
     let consumoTxt;
     if (f.consumo != null) {
-      // Color orientativo: verde < 35, normal 35-45, rojo > 45 L/100km
       let col = 'var(--ok)';
       if (f.consumo > 45) col = 'var(--er)';
       else if (f.consumo > 35) col = 'var(--wn)';
@@ -4850,15 +4962,29 @@ async function gasRenderConsumo() {
     } else {
       consumoTxt = '<span style="color:var(--wn)">⚠️</span>';
     }
+    const periodoCell = f.aviso
+      ? '<td title="' + f.aviso.replace(/"/g, '') + '">' + f.periodo + '</td>'
+      : '<td>' + f.periodo + '</td>';
     return '<tr>'
       + '<td class="tag-mat">' + f.mat + '</td>'
-      + '<td>' + f.periodo + '</td>'
+      + periodoCell
       + '<td class="tag-tm">' + litrosTxt + '</td>'
       + '<td>' + kmTxt + '</td>'
       + '<td>' + consumoTxt + '</td>'
       + '</tr>';
   }).join('');
 }
+
+// v107BL: limpiar las casillas de fecha del consumo y recalcular
+function gasConsumoLimpiar() {
+  const d = document.getElementById('gasConDesde');
+  const h = document.getElementById('gasConHasta');
+  if (d) d.value = '';
+  if (h) h.value = '';
+  gasRenderConsumo();
+}
+
+
 
 function updateStats() {
   try {
