@@ -7138,6 +7138,68 @@ async function reanalizarTodo() {
       update.planta = 'Cantera de Garraf';
       cambio = true;
     }
+    // v107E5: Corrección retroactiva ESCOMBRO Holcim → Fábrica Montcada.
+    // Albaranes de recepción Holcim cuyo material es "Hormigón [planta]"
+    // (Zona Franca, La Roca, Papiol, Montcada, Celra...) son escombros
+    // que entran a Fábrica Montcada. Se cobran POR VIAJE (TM=1) y el
+    // ORIGEN se lee de la propia descripción del producto.
+    // Mismo blindaje triple que el caso 4 de _processOne (v107E4):
+    //   (a) proveedor Holcim
+    //   (b) destino Fábrica Montcada
+    //   (c) producto "Hormigón [planta conocida]"
+    {
+      const _prov3 = String(r.proveedor || '').toLowerCase();
+      const _dest3 = String(r.obra || '').toLowerCase();
+      const _prod3 = String(r.producto || '').toLowerCase();
+      const _esHolcim3 = _prov3.indexOf('holcim') !== -1;
+      const _esFabMontcada3 = /f[áa]brica\s+montcada/.test(_dest3);
+      const _matchHormigon3 = _prod3.match(/^hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/);
+      if (_esHolcim3 && _esFabMontcada3 && _matchHormigon3) {
+        const _mapaOri3 = {
+          'zona franca':  'Zona Franca',
+          'zonafranca':   'Zona Franca',
+          'la roca':      'La Roca',
+          'laroca':       'La Roca',
+          'papiol':       'Papiol',
+          'montcada':     'Montcada',
+          'celra':        'Celra',
+          'sant just':    'Sant Just',
+          'santjust':     'Sant Just',
+          'riudellots':   'Riudellots de la Selva',
+          'riudarenes':   'Riudarenes',
+          'alcover':      'Alcover',
+          'tarragona':    'Tarragona',
+          'manlleu':      'Manlleu',
+          'alaior':       'Alaior',
+          'ciutadella':   'Ciutadella de Menorca'
+        };
+        const _keyOri3 = _matchHormigon3[1].trim().toLowerCase().replace(/\s+/g, ' ');
+        const _origenLimpio3 = _mapaOri3[_keyOri3] || _mapaOri3[_keyOri3.replace(/\s+/g, '')] || _matchHormigon3[1].trim();
+        // (1) Corregir ORIGEN: leer de la descripción
+        if (r.planta !== _origenLimpio3) {
+          console.log(`[v107E5 escombro] Origen: "${r.planta || '(vacío)'}" → "${_origenLimpio3}" (alb ${r.albaran}, prod "${r.producto}")`);
+          r.planta = _origenLimpio3;
+          update.planta = _origenLimpio3;
+          cambio = true;
+        }
+        // (2) Corregir TM a 1 si no lo está (cobro por viaje, guardar TN real en obs)
+        const _tnActual = parseFloat(r.tm);
+        if (!isNaN(_tnActual) && _tnActual !== 1) {
+          // Solo añadir nota si todavía no tiene la nota de "Cobro por viaje"
+          const _obsActuales = String(r.observaciones || '');
+          if (_obsActuales.indexOf('Cobro por viaje') === -1) {
+            const _obsNueva = (_obsActuales ? _obsActuales + ' · ' : '')
+              + 'Cobro por viaje (TN real ' + _tnActual + ')';
+            r.observaciones = _obsNueva;
+            update.observaciones = _obsNueva;
+          }
+          console.log(`[v107E5 escombro] TM: ${_tnActual} → 1 (alb ${r.albaran})`);
+          r.tm = 1;
+          update.tm = 1;
+          cambio = true;
+        }
+      }
+    }
     // Inferencia adicional por MATERIAL/PROVEEDOR (origen)
     const inferidoOri = inferOrigen(r);
     if (inferidoOri && inferidoOri !== r.planta) {
