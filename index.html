@@ -4804,23 +4804,31 @@ function applyFilters() {
       // a las 07:22 pero quedaron enterrados bajo subidas del admin con
       // tanda más alta del día anterior).
       //
+      // v107CR (20/05/2026): SUPRIMIDO el requisito de "menos de 60 seg
+      // de diferencia". Si dos albaranes comparten _tandaSubida son del
+      // MISMO archivo subido (la tanda se asigna al pulsar Subir, no al
+      // terminar). Por tanto da igual cuánto tarde cada página en
+      // procesarse — mientras compartan tanda van juntas, ordenadas por
+      // página ascendente. Antes, si una página tardaba >60 seg más que
+      // sus hermanas (IA lenta, reintento storage) se salía del bloque.
+      // Caso real: CCF_003610.pdf con 8 páginas → la página 6 (alb 663)
+      // se procesó suelta y aparecía en la posición 2 fuera de su sitio.
+      //
       // Nueva lógica al ordenar por SUBIDO descendente (sortDir=-1):
       //   1) Comparar created_at: el MÁS RECIENTE arriba.
-      //   2) Si fueron subidos EN EL MISMO INSTANTE (mismo archivo
-      //      multi-página, distancia < 60 seg) Y comparten TANDA → PÁGINA
+      //   2) Si comparten TANDA (mismo archivo subido) → PÁGINA
       //      ascendente (pág 1 arriba del bloque). Así un PDF de 12 págs
-      //      mantiene sus páginas en orden 1, 2, 3... dentro del bloque.
+      //      mantiene sus páginas en orden 1, 2, 3... dentro del bloque
+      //      AUNQUE alguna haya tardado más.
       //   3) Empate total → desempate clásico (fecha/matrícula/nº).
       //
       // Si algún albarán NO tiene created_at (raro) → comportamiento
       // clásico → nada se rompe.
       if (sortCol === 'created_at') {
-        // Diferencia de tiempo entre los dos albaranes (en segundos).
-        const diffSeg = Math.abs((av - bv) / 1000);
-        // Si fueron subidos en el MISMO minuto Y tienen la misma tanda,
-        // ordenar por página dentro del archivo (la 1 arriba del bloque).
-        if (diffSeg < 60
-            && typeof a._tandaSubida === 'number'
+        // v107CR: misma tanda manda. Las páginas de un mismo archivo
+        // subido se mantienen juntas y en orden de página, sin mirar
+        // cuánto tardó cada una en terminar.
+        if (typeof a._tandaSubida === 'number'
             && typeof b._tandaSubida === 'number'
             && a._tandaSubida === b._tandaSubida) {
           const pa = typeof a._pagArchivo === 'number' ? a._pagArchivo : 0;
