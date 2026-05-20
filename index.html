@@ -1321,7 +1321,7 @@ let pendingGas = [];
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
 // es clickable para invertir orden o cambiar por otra.
 let sortCol = 'created_at', sortDir = -1;
-// v107CK: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
+// v107CL: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
 // limpia y definitiva el problema de albaranes revueltos al subir un archivo
 // de varias páginas (causa: se procesan 5 en paralelo, CONCURRENCY=5, y el que
 // la IA termina antes se guarda antes → created_at revuelto).
@@ -1333,7 +1333,7 @@ let sortCol = 'created_at', sortDir = -1;
 //                     una tanda se ordena ascendente → pág 1 arriba del bloque.
 //
 // Ambos se guardan en columnas REALES de la BD (tanda_subida, pag_archivo)
-// para que el orden aguante refrescos (el fallo de v107CK era que el sello
+// para que el orden aguante refrescos (el fallo de v107CL era que el sello
 // vivía solo en memoria y loadData lo borraba al recargar).
 //
 // Base alta para no chocar con histórico viejo (tanda NULL → va al final,
@@ -1548,7 +1548,7 @@ async function loadUserMap() {
         // Taller solo se ocultan si NO tiene su permiso correspondiente. Así
         // el usuario Taller recupera ITV y Taller, y un conductor normal
         // (sin esos permisos) sigue viendo solo Albaranes y Subir.
-        // v107CK: restaurado tras pisarse sin querer en el trabajo del orden.
+        // v107CL: restaurado tras pisarse sin querer en el trabajo del orden.
         const _permITV    = !!userMap[currentUser.id]?.puede_ver_itv;
         const _permTaller = !!userMap[currentUser.id]?.puede_ver_taller;
         const _ocultarFinal = ['tabPreli', 'tabGas', 'tabNeum', 'tabVac',
@@ -1799,14 +1799,14 @@ async function loadData() {
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
     _manual: r.manual_edit === true,
-    // v107CK: recuperar los sellos de orden desde columnas reales de BD.
+    // v107CL: recuperar los sellos de orden desde columnas reales de BD.
     // Albaranes viejos (sin columna) → undefined → se ordenan como antes
     // (no se rompe nada del histórico de ~2940 albaranes).
     _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
     _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
   }));
 
-  // v107CK: BUG FIX del contador de TANDA. Hasta ahora window._tandaSubida
+  // v107CL: BUG FIX del contador de TANDA. Hasta ahora window._tandaSubida
   // empezaba SIEMPRE en 1 al cargar la app, así que cada vez que se refrescaba
   // la página (cambiar de ?v107X a ?v107Y, etc.) el contador se reiniciaba y
   // TODAS las subidas distintas acababan con tanda_subida=1 → se mezclaban
@@ -1824,9 +1824,9 @@ async function loadData() {
     // El próximo archivo que se suba usará maxTanda + 1 (o el contador actual
     // si por lo que sea ya iba más alto en esta misma sesión).
     window._tandaSubida = Math.max(window._tandaSubida || 1, maxTanda + 1);
-    console.log('[v107CK] Contador de tanda continúa desde:', window._tandaSubida, '(máx en BD:', maxTanda + ')');
+    console.log('[v107CL] Contador de tanda continúa desde:', window._tandaSubida, '(máx en BD:', maxTanda + ')');
   } catch (eT) {
-    console.warn('[v107CK] No se pudo calcular tanda máxima:', eT);
+    console.warn('[v107CL] No se pudo calcular tanda máxima:', eT);
   }
 
   // v82: idem para gasoil
@@ -1879,8 +1879,8 @@ async function loadData() {
   analyzeRecords();
   applyFilters();
   applyGasFilters();
-  // v107CK: mostrar el botón de borrado múltiple si es admin.
-  try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CK]', e); }
+  // v107CL: mostrar el botón de borrado múltiple si es admin.
+  try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CL]', e); }
   // v100b: cada función envuelta en su propio try/catch. Si una falla (error silencioso de
   // antes que dejaba la pantalla con los recuadros vacíos), las demás siguen funcionando
   // y vemos el error claro en consola.
@@ -1897,7 +1897,7 @@ async function loadData() {
 let _lastLoadDataTs = 0;
 
 async function saveRecord(data) {
-  // v107CK: ya NO ponemos user_id = currentUser.id de forma ciega. Eso pisaba
+  // v107CL: ya NO ponemos user_id = currentUser.id de forma ciega. Eso pisaba
   // al dueño original cuando un admin/gestor editaba el albarán de un
   // conductor → el conductor lo perdía de su vista y lo volvía a subir
   // (duplicados). Ahora:
@@ -1918,7 +1918,7 @@ async function saveRecord(data) {
   // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
   // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
   if (data._manual === true) rec.manual_edit = true;
-  // v107CK: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
+  // v107CL: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
   // columnas REALES (tanda_subida, pag_archivo) ANTES del borrado automático
   // de propiedades "_". Se hace SIEMPRE que el dato traiga sello (no solo en
   // INSERT): cuando un conductor subió el albarán antes, al procesarlo se
@@ -2019,7 +2019,7 @@ async function deleteRecordDB(dbId) {
 }
 
 // ============================================================
-// v107CK — BORRADO MÚLTIPLE de albaranes (solo admin)
+// v107CL — BORRADO MÚLTIPLE de albaranes (solo admin)
 // ============================================================
 // Permite marcar varios albaranes con casillas y borrarlos de
 // golpe, en vez de uno a uno. Diseño CONSERVADOR y SEGURO:
@@ -2041,7 +2041,7 @@ function _initBorradoMultiple() {
       const b = document.getElementById('btnModoSel');
       if (b) b.style.display = 'flex';
     }
-  } catch (e) { console.warn('[v107CK] init:', e); }
+  } catch (e) { console.warn('[v107CL] init:', e); }
 }
 
 // Activar / desactivar el modo selección (muestra u oculta casillas).
@@ -2108,7 +2108,7 @@ async function _borrarSeleccionados() {
     if (rec && rec.db_id) {
       idsBorrar.push(rec.db_id);
     } else {
-      console.warn('[v107CK] no se pudo resolver db_id para', id, rec);
+      console.warn('[v107CL] no se pudo resolver db_id para', id, rec);
       errN++;
     }
   }
@@ -2117,7 +2117,7 @@ async function _borrarSeleccionados() {
     return;
   }
   toast('Borrando ' + idsBorrar.length + ' albaranes...', 'info');
-  console.log('[v107CK] db_ids a borrar:', idsBorrar);
+  console.log('[v107CL] db_ids a borrar:', idsBorrar);
   // Borrar uno a uno en la BD (mismo deleteRecordDB que la función
   // individual probada).
   for (const dbId of idsBorrar) {
@@ -2125,7 +2125,7 @@ async function _borrarSeleccionados() {
       await deleteRecordDB(dbId);
       okN++;
     } catch (e) {
-      console.error('[v107CK] error borrando db_id', dbId, e);
+      console.error('[v107CL] error borrando db_id', dbId, e);
       errN++;
     }
   }
@@ -2135,7 +2135,7 @@ async function _borrarSeleccionados() {
   try {
     await loadData();
   } catch (e) {
-    console.error('[v107CK] loadData tras borrar:', e);
+    console.error('[v107CL] loadData tras borrar:', e);
   }
   // Verificar de verdad cuántos se borraron (tolerante a errores RLS de
   // Supabase: a veces marca error pero el borrado SÍ se hizo).
@@ -2337,7 +2337,7 @@ async function addFiles(files, type) {
   // con "suma y sigue", hay que verlo completo).
   const _esFactura = (type === 'gasfac');
   for (const f of files) {
-    // v107CK: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
+    // v107CL: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
     // sube de 1 en 1 y es global a la sesión. Todas las páginas de ESTE
     // archivo comparten este número de tanda; el nº de página dentro del
     // archivo lo da el bucle de división del PDF (variable p).
@@ -2461,7 +2461,7 @@ async function addFiles(files, type) {
                     mediaType: 'image/jpeg',
                     sharedPdfUrl: sharedPdfUrl,
                     pageNum: p,
-                    // v107CK: sellos de orden — tanda del archivo + nº de página.
+                    // v107CL: sellos de orden — tanda del archivo + nº de página.
                     // Se asignan AQUÍ (al encolar), no cuando la IA termina.
                     _tandaSubida: _tandaActual,
                     _pagArchivo: p,
@@ -3630,9 +3630,9 @@ async function _processOne(it, type, key, timeoutMs) {
           data.db_id = it._fromPending.id;  // fuerza UPDATE en saveRecord
           data.procesado = true;             // sale del banner pendiente
         }
-        // v107CK: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
+        // v107CL: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
         // de llamar a saveRecord, porque saveRecord es quien los escribe en
-        // las columnas BD (tanda_subida, pag_archivo). En v107CK se asignaban
+        // las columnas BD (tanda_subida, pag_archivo). En v107CL se asignaban
         // DESPUÉS de saveRecord → llegaban undefined → se guardaba NULL en BD
         // → el orden seguía revuelto. Ahora se asignan aquí, justo antes.
         if (typeof it._tandaSubida === 'number') data._tandaSubida = it._tandaSubida;
@@ -4231,10 +4231,16 @@ function analyzeRecords() {
     const provNorm = normStr(r.proveedor);
     const fechaNorm = normFecha(r.fecha);
     const tmRound = Math.round((parseFloat(r.tm) || 0) * 100) / 100;
+    // v107CL Fase A: línea dentro del albarán (1, 2, 3...) para multimaterial.
+    // Si es NULL/vacío (caso normal de UN material) → sufijo vacío, el detector
+    // funciona EXACTAMENTE igual que antes para todos los albaranes existentes.
+    // Si tiene valor (multimaterial cuando llegue la Fase B) → cada línea es
+    // distinta y NO se marca como duplicado entre sí.
+    const lin = (r.linea_albaran != null && r.linea_albaran !== '') ? ('|L' + r.linea_albaran) : '';
 
-    const keyA = `${albNorm}|${provNorm}|${fechaNorm}`;
-    const keyB = `${albNorm}|${fechaNorm}|${tmRound}`;
-    const keyC = `${albNorm}|${tmRound}`;
+    const keyA = `${albNorm}|${provNorm}|${fechaNorm}${lin}`;
+    const keyB = `${albNorm}|${fechaNorm}|${tmRound}${lin}`;
+    const keyC = `${albNorm}|${tmRound}${lin}`;
 
     // Identificador único: usa db_id, _id o índice del array como último recurso
     const uniqueId = r.db_id || r._id || ('idx_' + idx);
@@ -4722,9 +4728,9 @@ function applyFilters() {
       else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       // ============================================================
-      // v107CK: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
+      // v107CL: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
       // ============================================================
-      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CK o
+      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CL o
       // posterior), el orden lo mandan los sellos, NO el created_at (que sale
       // revuelto porque se procesan 5 en paralelo: gana quien la IA termina
       // antes). Lógica:
@@ -5103,7 +5109,7 @@ function renderTable() {
       <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
       <td><button class="btn bs" style="padding:3px 7px;font-size:10px" onclick="event.stopPropagation();openModal('${r.db_id || r._id}')">✏</button></td>
     </tr>`).join('');
-  // v107CK: si el modo selección está activo, al repintar la tabla las
+  // v107CL: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
   // mostrar para que no se "pierdan" al filtrar o reordenar.
   if (window._modoSel) {
@@ -5536,7 +5542,7 @@ function openModal(id) {
   if (subPor && subPor !== '—') {
     alertHtml += `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);padding:4px 0 12px">📤 Subido por: <strong style="color:var(--in)">${subPor}</strong>${r.created_at ? ` · ${fmtTS(r.created_at)}` : ''}</div>`;
   }
-  // v107CK: si el albarán fue editado, mostrar quién lo editó. Así, aunque sea
+  // v107CL: si el albarán fue editado, mostrar quién lo editó. Así, aunque sea
   // un conductor abriendo SU albarán que tú (admin) editaste, ve quién lo
   // corrigió y no lo vuelve a subir.
   if (r.editado_por) {
@@ -6200,7 +6206,7 @@ function buildExcel(data) {
   const filaSuma = ['', 'TOTAL', { f: `SUM(C2:C${filaUltimaDato})` }, '', { f: `SUM(E2:E${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  // v107CK: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
+  // v107CL: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
   ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
   // Alineación centrada en TODAS las celdas + formato moneda en Precio (D) y Total (E).
   const range = XLSX.utils.decode_range(ws['!ref']);
