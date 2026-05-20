@@ -4041,9 +4041,30 @@ SOLO JSON válido, sin markdown.`;
   // Antes de v93c, el detector solo pillaba el caso vacío estricto, así que para esos
   // casos no se activaba el fallback Sonnet (las matrículas se borraban después por v89
   // pero Sonnet ya no se llamaba). Ahora cualquier matrícula no válida → reintentar.
-  const indicesVacios = results.map((r, i) => !esMatriculaValida(r.tractora) ? i : -1).filter(i => i >= 0);
+  //
+  // v107D0 (20/05/2026): REFORZADO el detector para cazar también el caso
+  // "remolque cogido como tractora". Antes el detector solo veía vacías/mal formato;
+  // pero el caso real de hoy (Sodira, Maria del Mar) era que Haiku devolvía
+  // "5347BDR" — un valor con formato perfecto 4D+3L pero que coincide casi letra
+  // por letra con el remolque "R3347BDR" del mismo albarán. Eso pasaba el test antiguo.
+  // Ahora se considera SOSPECHOSA si:
+  //  (a) Coincide con el remolque del mismo albarán (sin la R inicial).
+  //  (b) Termina en "BDR", "BDS", "BDT", "BDV", "BDW", "BDX", "BDY", "BDZ", "BDP", "BDQ"
+  //      o similares (patrón típico de remolque, NO de tractora — pendiente refinar
+  //      con la lista real cuando Juan Carlos pase listado de remolques).
+  function _v107D0_matSospechosa(rec) {
+    if (!esMatriculaValida(rec.tractora)) return true; // caso clásico v93c
+    const trac = String(rec.tractora).trim().toUpperCase();
+    const remo = String(rec.remolque || '').trim().toUpperCase().replace(/^R/, '');
+    // (a) Tractora ≡ Remolque sin R → casi seguro confusión
+    if (remo && trac === remo) return true;
+    // (b) Tractora acaba en patrón típico de remolque BD<letra>
+    if (/^\d{4}BD[A-Z]$/.test(trac)) return true;
+    return false;
+  }
+  const indicesVacios = results.map((r, i) => _v107D0_matSospechosa(r) ? i : -1).filter(i => i >= 0);
   if (indicesVacios.length > 0) {
-    console.log(`[v93c] Haiku dejó ${indicesVacios.length}/${results.length} matrículas vacías o inválidas. Reintentando con Sonnet 4.6...`);
+    console.log(`[v107D0] Haiku dejó ${indicesVacios.length}/${results.length} matrículas sospechosas (vacías, inválidas o posible remolque). Reintentando con Sonnet 4.6...`);
     try {
       const matriculasSonnet = await reintentaMatriculaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
       if (matriculasSonnet && matriculasSonnet.length === results.length) {
@@ -4054,12 +4075,18 @@ SOLO JSON válido, sin markdown.`;
           // Si Sonnet también devuelve "—", "-", o algo no formato 4D+3L, lo descartamos
           // y el albarán se queda con la matrícula vacía que ya tenía Haiku (después la
           // red v89 la limpia). Mejor matrícula vacía que matrícula falsa.
-          if (m && esMatriculaValida(m)) {
+          // v107D0: además, NO aceptamos la matrícula de Sonnet si vuelve a ser sospechosa
+          // (acaba en BD<letra> o coincide con remolque) — significa que ni Sonnet la ve.
+          if (m && esMatriculaValida(m) && !/^\d{4}BD[A-Z]$/i.test(String(m).trim())) {
+            const tracAntes = results[i].tractora;
             results[i].tractora = String(m).trim().toUpperCase();
+            if (tracAntes && tracAntes !== results[i].tractora) {
+              console.log(`[v107D0] Tractora corregida albarán ${i + 1}: ${tracAntes} → ${results[i].tractora}`);
+            }
             recuperadas++;
           }
         }
-        console.log(`[v93c] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
+        console.log(`[v107D0] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
       } else {
         console.warn(`[v93] Sonnet devolvió ${matriculasSonnet?.length || 0} matrículas pero esperábamos ${results.length}, descartando reintento`);
       }
@@ -4068,10 +4095,137 @@ SOLO JSON válido, sin markdown.`;
     }
   }
 
+  // ===== v107D0 — RED DE SEGURIDAD MATEMÁTICA PARA TN =====
+  // Verificación cruzada: el TN que devuelve la IA tiene que cuadrar con
+  // (bruto - tara) / 1000 dentro de un margen de ±0.05 TN (50 kg de tolerancia).
+  // Si no cuadra Y/O el TN está fuera del rango razonable (5-36 TN), reintentamos
+  // específicamente las TN con Sonnet 4.6 (modelo más preciso). Esto caza casos
+  // como el de Maria del Mar 20/05 donde Haiku leyó TN borrosos mal en escaneos
+  // de baja calidad y nadie lo detectaba hasta que Juan Carlos lo veía a ojo.
+  //
+  // Criterios para considerar una TN como SOSPECHOSA:
+  //  (a) tm está fuera del rango 5-36 (camiones reales nunca cargan menos ni más).
+  //  (b) tm difiere de (bruto-tara)/1000 en más de 0.05 TN (50 kg) cuando ambos
+  //      bruto y tara fueron leídos por la IA.
+  //  (c) tm está vacío/null y SÍ hay bruto + tara — calculamos solos.
+  //
+  // El reintento es FOCALIZADO (Sonnet solo lee TN, prompt muy corto), así que
+  // el coste extra es solo cuando hay duda real. La inmensa mayoría de albaranes
+  // pasarán por aquí sin disparar reintento ninguno.
+  const indicesTnSospechosos = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const tm = parseFloat(r.tm);
+    const tara = parseFloat(r.tara_kg);
+    const bruto = parseFloat(r.bruto_kg);
+    // (a) TN fuera de rango razonable
+    const tnFueraRango = isNaN(tm) || tm < 5 || tm > 36;
+    // (b) Hay bruto y tara legibles → comprobar resta
+    let tnDescuadra = false;
+    if (!isNaN(tara) && !isNaN(bruto) && bruto > tara && bruto > 100 && tara > 100) {
+      const tnCalc = (bruto - tara) / 1000;
+      if (!isNaN(tm) && Math.abs(tnCalc - tm) > 0.05) {
+        tnDescuadra = true;
+      }
+      // (c) Si tm está vacío pero podemos calcularlo, lo arreglamos directamente sin Sonnet
+      if (tnFueraRango && tnCalc >= 5 && tnCalc <= 36) {
+        console.log(`[v107D0] tm vacío/raro pero (bruto-tara)/1000 = ${tnCalc.toFixed(3)}t es válido → uso ese valor sin Sonnet`);
+        r.tm = +tnCalc.toFixed(3);
+        continue;
+      }
+    }
+    if (tnFueraRango || tnDescuadra) {
+      indicesTnSospechosos.push(i);
+      console.warn(`[v107D0] TN sospechosa en albarán ${i + 1}/${results.length}: tm=${r.tm}, bruto=${bruto}, tara=${tara}, fueraRango=${tnFueraRango}, descuadra=${tnDescuadra}`);
+    }
+  }
+  if (indicesTnSospechosos.length > 0) {
+    console.log(`[v107D0] ${indicesTnSospechosos.length}/${results.length} TN sospechosas. Reintentando con Sonnet 4.6...`);
+    try {
+      const tnSonnet = await reintentaTnConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+      if (tnSonnet && tnSonnet.length === results.length) {
+        let recuperadas = 0;
+        for (const i of indicesTnSospechosos) {
+          const obj = tnSonnet[i];
+          // Aceptamos solo si Sonnet devuelve un tm dentro del rango razonable.
+          if (obj && typeof obj.tm === 'number' && obj.tm >= 5 && obj.tm <= 36) {
+            const tmAntes = results[i].tm;
+            results[i].tm = +Number(obj.tm).toFixed(3);
+            if (typeof obj.tara_kg === 'number' && obj.tara_kg > 100) results[i].tara_kg = obj.tara_kg;
+            if (typeof obj.bruto_kg === 'number' && obj.bruto_kg > 100) results[i].bruto_kg = obj.bruto_kg;
+            console.log(`[v107D0] TN corregida albarán ${i + 1}: ${tmAntes} → ${results[i].tm}`);
+            recuperadas++;
+          }
+        }
+        console.log(`[v107D0] Sonnet recuperó ${recuperadas}/${indicesTnSospechosos.length} TN sospechosas`);
+      } else {
+        console.warn(`[v107D0] Sonnet devolvió ${tnSonnet?.length || 0} TN pero esperábamos ${results.length}, descartando reintento`);
+      }
+    } catch (e) {
+      console.warn('[v107D0] Error en reintento Sonnet TN (no crítico, seguimos con Haiku):', e.message);
+    }
+  }
+
   return results;
 }
 
-// v93: llamada focalizada a Sonnet 4.6 SOLO para extraer matrículas. Se invoca como red de
+// v107D0 — llamada focalizada a Sonnet 4.6 SOLO para extraer TN (neto + bruto + tara).
+// Red de seguridad cuando Haiku 4.5 devuelve un TN sospechoso (fuera de rango o que
+// no cuadra con bruto-tara). Devuelve un array de objetos {tm, bruto_kg, tara_kg} con
+// tantas posiciones como albaranes haya. Si no se puede parsear alguno, esa posición
+// queda null. Devuelve null si el parseo global falla (no rompe el flujo).
+async function reintentaTnConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) de transporte de áridos/cemento en España. Para cada uno, lee SOLO los tres valores de peso:
+- tara_kg: peso del camión VACÍO en kg (el menor de los dos pesos, también llamado "Peso Entrada" en albaranes de SALIDA, o "Peso Salida" en albaranes de RECEPCIÓN — siempre es el camión sin material).
+- bruto_kg: peso del camión CARGADO en kg (el mayor de los dos pesos).
+- tm: peso NETO del material en TONELADAS (bruto - tara dividido entre 1000). SIEMPRE entre 5.000 y 36.000 toneladas.
+
+Cómo se lee en cada formato:
+- Holcim ALBARÁN DE RECEPCIÓN: "PESO ENTRADA" = bruto, "PESO SALIDA" = tara, el NETO aparece bajo MATERIAL DESCRIPCION ya en toneladas.
+- Holcim albarán de SALIDA (nº 31...): "Peso de entrada" = tara (camión vacío entrando), "Peso de salida" = bruto (camión cargado saliendo), el NETO está en "Cantidad" en TNE/t.
+- Cemex: "Peso bruto" y "Tara" en bloque "Datos Expedición". Neto = bruto-tara.
+- Élite Cementos: "PESO BRUTO" y "TARA", neto en "PESO NETO" en Kgs (divide entre 1000 para pasarlo a toneladas).
+- Sodira, Promsa, Áridos: el neto suele aparecer ya en toneladas en una columna "Cantidad" o "t".
+
+VERIFICA SIEMPRE que (bruto_kg - tara_kg) / 1000 ≈ tm. Si no cuadra, has leído mal alguno de los tres — vuelve a mirar.
+
+Lee cada dígito con MÁXIMO CUIDADO. Los errores típicos son confundir 1↔7, 3↔8, 0↔6, 4↔9. Si el escaneo está borroso, mira el contexto (los pesos típicos están entre 13.000-15.000 kg de tara y 38.000-44.000 kg de bruto) para confirmar.
+
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el orden de los albaranes en el PDF. Cada objeto: {"tm": NN.NNN, "bruto_kg": NNNNN, "tara_kg": NNNNN}. Si no puedes leer alguno, pon null en su posición.
+Ejemplo correcto para 2 albaranes: [{"tm":27.845,"bruto_kg":41485,"tara_kg":13640},{"tm":29.870,"bruto_kg":43235,"tara_kg":13365}]
+SOLO el array JSON, sin texto adicional, sin markdown, sin explicación.`
+    : `Lee SOLO los pesos en este albarán de transporte español:
+- tara_kg: camión vacío en kg.
+- bruto_kg: camión cargado en kg.
+- tm: peso neto en TONELADAS (entre 5 y 36).
+Verifica que (bruto-tara)/1000 ≈ tm.
+Devuelve UN objeto JSON: {"tm":NN.NNN,"bruto_kg":NNNNN,"tara_kg":NNNNN}. Sin texto adicional.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  try {
+    const res = await fetchAnthropicConReintento(
+      { model: 'claude-sonnet-4-6', max_tokens: 2000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] },
+      key, signal, 'reintentaTnConSonnet'
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    if (isPdf) {
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } else {
+      return [parsed];
+    }
+  } catch (e) {
+    console.warn('[v107D0] reintentaTnConSonnet fallo:', e.message);
+    return null;
+  }
+}
+
 // seguridad cuando Haiku 4.5 deja alguna matrícula vacía. Devuelve un array con tantas
 // posiciones como albaranes haya en el documento (en el mismo orden). Si no ve alguna,
 // esa posición es cadena vacía. Devuelve null en caso de error de parseo.
