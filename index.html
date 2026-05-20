@@ -524,7 +524,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                 <th>Subido por</th>
                 <th>Editado por</th>
                 <th id="th-created_at" onclick="sortBy('created_at')">Subido</th>
-                <th></th>
+                <!-- v107CQ: quitado el <th></th> vacío del botón ✏. La fila entera ya abre el modal al pulsarla. -->
               </tr></thead>
               <tbody id="tbody"></tbody>
             </table>
@@ -5183,7 +5183,6 @@ function renderTable() {
       <td style="color:var(--in);font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:#fbbf24;font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
       <td style="color:var(--mu);font-size:11px;white-space:nowrap">${fmtTS(r.created_at || r._ts)}</td>
-      <td><button class="btn bs" style="padding:3px 7px;font-size:10px" onclick="event.stopPropagation();openModal('${r.db_id || r._id}')">✏</button></td>
     </tr>`).join('');
   // v107CP: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
