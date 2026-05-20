@@ -4141,7 +4141,56 @@ Hay TRES SUBTIPOS según el MATERIAL transportado, pero TODOS COMPARTEN las MISM
 
 REGLAS COMUNES A LOS 3 SUBTIPOS (mismas siempre, sin excepción):
   · planta (ORIGEN) ← el TEXTO del campo "Punto expedición:", limpio. Si pone "Puesto exp. Cantera de Garraf" el origen es "Cantera de Garraf" (sin el prefijo "Puesto exp."). Si pone "Fábrica Montcada" → "Fábrica Montcada". Si pone "Montcada Mortero" → "Montcada Mortero". Si pone "Molienda Tarragona" → "Molienda Tarragona". NUNCA uses el campo "Planta:" (ese siempre dice "Fábrica Montcada" porque es la planta administrativa de facturación, NO el origen real del camión).
-  · obra (DESTINO) ← el NOMBRE de la línea inmediatamente debajo del código numérico/alfanumérico de "Obra:". Ejemplos reales: "Obra: 0101648830 / COLAS SANT FOST / Crta. Barcelona, 168 / 08105 Sant Fost de Campsentelles" → "COLAS SANT FOST"; "Obra: CE44K / Montcada (Hormig) / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada (Hormig)"; "Obra: 0101314448 / SANS MONTBLANC / ... / 43400 Montblanc" → "SANS MONTBLANC"; "Obra: 0100526178 / MANLLEU / CL MANLLEU 0 / 08560 MANLLEU" → "MANLLEU"; "Obra: 0100526249 / RUBI / CTRA. RUBI TERRASSA, 125 / 08191 RUBI" → "RUBI". NUNCA devuelvas el pueblo del CP (NUNCA "Sant Fost de Campsentelles", NUNCA "Montblanc", NUNCA "Arenys de Munt") — ese es el municipio administrativo del CP, NO el destino real. Tampoco devuelvas el código (CE44K, 0101648830, etc.). Si justo bajo "Obra:" SOLO hay un código corto sin nombre (ej. "CE44K" suelto), busca el nombre en las 2-3 líneas inferiores (ej. "Montcada (Hormig)"). El mapeo CE44x (CE44D=Planta Hormigones Zona Franca / CE44K=Montcada / CE44E=La Roca / CE44I=Celra / CES17=Riudellots de la Selva) es SOLO una AYUDA por si la línea está ilegible — si lees la línea bajo Obra:, MANDA SIEMPRE esa línea. **🔴 v107E0 — REGLA ABSOLUTA: el DESTINO se lee ÚNICAMENTE del campo "Obra:". NUNCA se lee del campo "Facturar a:" (NUNCA, sin excepciones). El campo "Facturar a:" tiene la DIRECCIÓN FISCAL del cliente (donde le mandan la factura), que casi siempre es UNA CIUDAD DISTINTA de donde se descarga la mercancía. Si las direcciones de "Obra:" y "Facturar a:" están en pueblos distintos (caso típico), GANA SIEMPRE el de "Obra:". CASO REAL para no repetir: albarán 31041061188, ALANTA S.A. tiene sede fiscal en "Santa Coloma de Gramanet" (campo Facturar a:), pero la mercancía se descarga en "RUBI" (campo Obra: 0100526249). El destino correcto es "RUBI", NUNCA "Santa Coloma de Gramanet". Si lees "Santa Coloma de Gramanet" como destino, has cogido el "Facturar a:" por error — vuelve a buscar el campo "Obra:" del mismo albarán.**
+  · obra (DESTINO) ← ⚠️ LEE ESTA SECCIÓN ENTERA ANTES DE DECIDIR EL DESTINO. ⚠️
+
+🔴 v107E1 — REGLA DE ORO ABSOLUTA SOBRE EL DESTINO 🔴
+
+El destino se lee EXCLUSIVAMENTE del campo "Obra:" del albarán. NO HAY MÁS REGLAS. NO HAY EXCEPCIONES.
+
+Cómo encontrar el campo "Obra:" correcto:
+  1. Busca la palabra EXACTA "Obra:" en el albarán (con dos puntos, normalmente en la zona central-izquierda, debajo de la cabecera del albarán y matrícula).
+  2. A su derecha hay un código alfanumérico (ej. "0101785097", "CE44K", "0101924319").
+  3. INMEDIATAMENTE DEBAJO de ese código, en la línea siguiente, está el NOMBRE del destino. ESE es el destino. Cópialo TAL CUAL.
+
+⛔ NUNCA, JAMÁS, leas el destino de NINGUNO de estos campos (LISTA NEGRA):
+  ❌ "Facturar a:" — eso es la dirección fiscal del CLIENTE (donde le mandan la factura). NUNCA es el destino del transporte.
+  ❌ "Cliente:" — otro campo del cliente. NUNCA es el destino.
+  ❌ "Operador logístico:" — es el transportista (PORTES 2014 IMPORT S.L., SEVILLA). NUNCA es el destino.
+  ❌ "Transp. efectivo:" — también transportista. NUNCA es el destino.
+  ❌ "Cargador:" — es Holcim España, S.A.U. NUNCA es el destino.
+  ❌ El pueblo del CP (ej. "Sant Fost de Campsentelles", "Tarragona", "Monzón", "Tortosa", "Capital Municipal", "Castelldefels"). NUNCA es el destino — esos son municipios administrativos del código postal.
+  ❌ La palabra literal "Albarán" del título del documento. NUNCA es el destino — es una palabra de la cabecera, no un sitio.
+  ❌ Cualquier número, código alfanumérico (CE44K, 0101785097), CIF (B22254940), o nombre genérico como "Capital Municipal".
+
+🎯 EJEMPLOS REALES — aplica EXACTAMENTE este razonamiento:
+
+  Ejemplo A (Molienda Tarragona): albarán 31041061104. Bajo "Obra:" pone "CE10T / Molienda Tarragona / Pol.Ind. Entrevies-Camí vell / 43006 Tarragona". El DESTINO es "Molienda Tarragona" — NUNCA "Tarragona" (eso es la ciudad del CP), NUNCA "CE10T" (es el código).
+
+  Ejemplo B (VIC): albarán 31041060954. Bajo "Obra:" pone "0101785097 / VIC / Carrer dela Laura, 59 / 08500 Vic". El DESTINO es "VIC" — NUNCA "Monzón" (eso es donde está BIGMAT OCHOA, sale del "Facturar a:"), NUNCA "Vic" (escríbelo tal cual aparece, en MAYÚSCULAS).
+
+  Ejemplo C (GAMMA SALLENT): albarán 35692002221. Bajo "Obra:" pone "0101837193 / HORMIGÓN SECO - DDP GAMMA SALLENT / Carrer Ramon Esteve 16 - 18 / 08650 Sallent". El DESTINO es "HORMIGÓN SECO - DDP GAMMA SALLENT" — copia la línea ENTERA con el guión y todo. NUNCA "Albarán" (es la palabra del título del PDF), NUNCA "Sallent" (es el pueblo del CP), NUNCA "Capital Municipal" (es del Facturar a:).
+
+  Ejemplo D (CEM SALLENT): albarán 31041060958. Bajo "Obra:" pone "0101774071 / CEM - DDP GAMMA SALLENT / Carrer Ramon Esteve 16 - 18 / 08650 Sallent". El DESTINO es "CEM - DDP GAMMA SALLENT". NUNCA "Capital Municipal" (es del Facturar a: → FERRETERÍA TÍAS), NUNCA "Sallent".
+
+  Ejemplo E (CASTELLDEFELS): albarán 35692002224. Bajo "Obra:" pone "0101924319 / OBRA CASTELLDEFELS / BOSC 82 / 08860 Castelldefels". El DESTINO es "OBRA CASTELLDEFELS" — NUNCA "Montcada" (Montcada es el origen, NO el destino), NUNCA "Castelldefels" suelto (escribe la línea bajo Obra: tal cual, "OBRA CASTELLDEFELS").
+
+  Ejemplo F (HOSPITAL TORTOSA): albarán 31041060969. Bajo "Obra:" pone "0101859998 / OBRA HOSPITAL DE TORTOSA / CARRER JOAN D'ALDANA S/N / 43500 Tortosa". El DESTINO es "OBRA HOSPITAL DE TORTOSA" — NUNCA "Tortosa" suelto (es el pueblo del CP, escribe la línea entera).
+
+  Ejemplo G (SANT SALVADOR): albarán 31041060993. Bajo "Obra:" pone "0100526174 / SANT SALVADOR DE GUARDIOLA / CR SANT SALVADOR DE GUARDIOLA 14 / 08253 SANT SALVADOR DE GUARDIOL". El DESTINO es "SANT SALVADOR DE GUARDIOLA".
+
+  Ejemplo H (RUBI vs Santa Coloma): albarán 31041061188. Bajo "Obra:" pone "0100526249 / RUBI / CTRA. RUBI TERRASSA, 125 / 08191 RUBI". A su lado "Facturar a:" pone "ALANTA, S.A. / CR DE LA ROCA KM. 5,6 / 08924 Santa Coloma de Gramanet". El DESTINO es "RUBI" (de Obra:), NUNCA "Santa Coloma de Gramanet" (eso es el "Facturar a:").
+
+  Ejemplo I (DDP TORA): albarán 31041061002. Bajo "Obra:" pone "0101020690 / DDP TORA / Carretera d'Andorra 14 / 25751 Torá". El DESTINO es "DDP TORA" — escribe la línea bajo Obra: con el "DDP" delante.
+
+  Ejemplo J (Holcim recepción): cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL". En estos NO se aplica esta regla; el destino es SIEMPRE "Fábrica Montcada" porque son materias primas que entran a fábrica.
+
+⚙️ TEST que la IA debe hacer mentalmente antes de devolver el destino:
+  · ¿Mi destino aparece TEXTUALMENTE en la línea bajo "Obra:"? Si NO → está MAL, vuelve a buscar.
+  · ¿Mi destino podría ser un PUEBLO del CP (ej. "Tortosa", "Vic", "Sallent")? Si SÍ, debería ir acompañado del prefijo de obra ("OBRA HOSPITAL DE TORTOSA", "CEM - DDP GAMMA SALLENT") — revisa si la línea entera empieza por "OBRA", "CEM", "DDP", "PLANTA", "HORMIGÓN", etc.
+  · ¿Mi destino es exactamente "Albarán", "Capital Municipal", "Sant Fost de Campsentelles" o algún pueblo genérico de CP? Si SÍ → está MAL, has cogido la dirección administrativa, busca la línea EN MAYÚSCULAS bajo "Obra:".
+  · ¿Mi destino coincide con el del cliente del Facturar a:? Si la dirección de Obra: y Facturar a: están en pueblos distintos, GANA SIEMPRE Obra:.
+
+📋 CASOS LEGACY (mantener para retrocompatibilidad — no contradicen la regla anterior):
   · cliente ← el NOMBRE de la línea debajo del código numérico de "Facturar a:". Ejemplos: "Facturar a: 0000153552 / FORJADO CERAMICO Y MAT. CONS., S.L." → "FORJADO CERAMICO Y MAT. CONS., S.L."; "Facturar a: 0000370642 HORMIRAPIT SA" → "HORMIRAPIT SA"; "Facturar a: CE44K / Montcada (Hormig)" → "Montcada (Hormig)". El número largo (0000153552, 0000370642...) es un código interno, IGNÓRALO. NUNCA uses el campo "Cliente:" (puede traer otro nombre distinto). NUNCA uses "Operador logístico:" ni "Transp. efectivo:" (eso es el TRANSPORTISTA, PORTES 2014 IMPORT S.L. / TRANSPORTES Y PORTES 2014, S.L., NO el cliente). NUNCA dejes cliente null si el albarán tiene "Facturar a:" — siempre hay un nombre.
 
 EXCEPCIÓN ÚNICA — albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): NO se aplica nada de lo anterior. En esos: destino = SIEMPRE "Fábrica Montcada", origen = el PROVEEDOR del material entrante. Se rigen por las reglas de más abajo en el prompt.
