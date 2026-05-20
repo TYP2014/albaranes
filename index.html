@@ -8855,6 +8855,13 @@ const DESTINOS_CANONICOS = [
   { canon: 'Barcelona', alias: [] },
   { canon: 'El Prat', alias: ['El Prat de Llobregat'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
+  // v107D2 (20/05/2026): COLAS SANT FOST es una OBRA concreta (almacén/tienda
+  // de un cliente) en Sant Fost de Campsentelles. Antes el matcher por
+  // contención convertía "COLAS SANT FOST" → "Sant Fost de Campsentelles"
+  // porque el alias "Sant Fost" (9 chars, supera el umbral de 6) está
+  // literalmente contenido. Al añadirla como canon propio, el match exacto
+  // gana sobre el match por contención y se respeta el nombre real de la obra.
+  { canon: 'COLAS SANT FOST', alias: ['Colas Sant Fost', 'COLAS SANT FOST CAMPSENTELLES'] },
   { canon: 'La Roca', alias: ['La Roca del Vallès', 'Font Parera', 'P I Font Parera'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles'] },
   { canon: 'Vallirana', alias: [] },
