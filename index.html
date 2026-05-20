@@ -522,6 +522,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
                 <th id="th-producto" onclick="sortBy('producto')">Material</th>
                 <th id="th-cliente" onclick="sortBy('cliente')">Cliente</th>
                 <th>Subido por</th>
+                <th>Editado por</th>
                 <th id="th-created_at" onclick="sortBy('created_at')">Subido</th>
                 <th></th>
               </tr></thead>
@@ -1320,7 +1321,7 @@ let pendingGas = [];
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
 // es clickable para invertir orden o cambiar por otra.
 let sortCol = 'created_at', sortDir = -1;
-// v107CJ: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
+// v107CK: ORDEN DE SUBIDA con DOS sellos (tanda + página). Resuelve de forma
 // limpia y definitiva el problema de albaranes revueltos al subir un archivo
 // de varias páginas (causa: se procesan 5 en paralelo, CONCURRENCY=5, y el que
 // la IA termina antes se guarda antes → created_at revuelto).
@@ -1332,7 +1333,7 @@ let sortCol = 'created_at', sortDir = -1;
 //                     una tanda se ordena ascendente → pág 1 arriba del bloque.
 //
 // Ambos se guardan en columnas REALES de la BD (tanda_subida, pag_archivo)
-// para que el orden aguante refrescos (el fallo de v107CJ era que el sello
+// para que el orden aguante refrescos (el fallo de v107CK era que el sello
 // vivía solo en memoria y loadData lo borraba al recargar).
 //
 // Base alta para no chocar con histórico viejo (tanda NULL → va al final,
@@ -1547,7 +1548,7 @@ async function loadUserMap() {
         // Taller solo se ocultan si NO tiene su permiso correspondiente. Así
         // el usuario Taller recupera ITV y Taller, y un conductor normal
         // (sin esos permisos) sigue viendo solo Albaranes y Subir.
-        // v107CJ: restaurado tras pisarse sin querer en el trabajo del orden.
+        // v107CK: restaurado tras pisarse sin querer en el trabajo del orden.
         const _permITV    = !!userMap[currentUser.id]?.puede_ver_itv;
         const _permTaller = !!userMap[currentUser.id]?.puede_ver_taller;
         const _ocultarFinal = ['tabPreli', 'tabGas', 'tabNeum', 'tabVac',
@@ -1798,14 +1799,14 @@ async function loadData() {
     db_id: r.id,
     _id: r.id || (Date.now() + Math.random()),
     _manual: r.manual_edit === true,
-    // v107CJ: recuperar los sellos de orden desde columnas reales de BD.
+    // v107CK: recuperar los sellos de orden desde columnas reales de BD.
     // Albaranes viejos (sin columna) → undefined → se ordenan como antes
     // (no se rompe nada del histórico de ~2940 albaranes).
     _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
     _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
   }));
 
-  // v107CJ: BUG FIX del contador de TANDA. Hasta ahora window._tandaSubida
+  // v107CK: BUG FIX del contador de TANDA. Hasta ahora window._tandaSubida
   // empezaba SIEMPRE en 1 al cargar la app, así que cada vez que se refrescaba
   // la página (cambiar de ?v107X a ?v107Y, etc.) el contador se reiniciaba y
   // TODAS las subidas distintas acababan con tanda_subida=1 → se mezclaban
@@ -1823,9 +1824,9 @@ async function loadData() {
     // El próximo archivo que se suba usará maxTanda + 1 (o el contador actual
     // si por lo que sea ya iba más alto en esta misma sesión).
     window._tandaSubida = Math.max(window._tandaSubida || 1, maxTanda + 1);
-    console.log('[v107CJ] Contador de tanda continúa desde:', window._tandaSubida, '(máx en BD:', maxTanda + ')');
+    console.log('[v107CK] Contador de tanda continúa desde:', window._tandaSubida, '(máx en BD:', maxTanda + ')');
   } catch (eT) {
-    console.warn('[v107CJ] No se pudo calcular tanda máxima:', eT);
+    console.warn('[v107CK] No se pudo calcular tanda máxima:', eT);
   }
 
   // v82: idem para gasoil
@@ -1878,8 +1879,8 @@ async function loadData() {
   analyzeRecords();
   applyFilters();
   applyGasFilters();
-  // v107CJ: mostrar el botón de borrado múltiple si es admin.
-  try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CJ]', e); }
+  // v107CK: mostrar el botón de borrado múltiple si es admin.
+  try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CK]', e); }
   // v100b: cada función envuelta en su propio try/catch. Si una falla (error silencioso de
   // antes que dejaba la pantalla con los recuadros vacíos), las demás siguen funcionando
   // y vemos el error claro en consola.
@@ -1896,11 +1897,28 @@ async function loadData() {
 let _lastLoadDataTs = 0;
 
 async function saveRecord(data) {
-  const rec = { ...data, user_id: currentUser.id };
+  // v107CK: ya NO ponemos user_id = currentUser.id de forma ciega. Eso pisaba
+  // al dueño original cuando un admin/gestor editaba el albarán de un
+  // conductor → el conductor lo perdía de su vista y lo volvía a subir
+  // (duplicados). Ahora:
+  //   · INSERT (albarán nuevo): user_id = quien lo sube (currentUser).
+  //   · UPDATE (albarán existente): NO se toca user_id (se mantiene el
+  //     dueño original). Solo se actualiza editado_por con quien edita.
+  // Así el conductor sigue viendo SU albarán y ve en la columna nueva
+  // "Editado por" quién lo corrigió (admin, oficina, o él mismo).
+  const rec = { ...data };
+  if (!data.db_id) {
+    // Es nuevo: el dueño es quien lo sube.
+    rec.user_id = currentUser.id;
+  } else {
+    // Es edición: NO tocar user_id. Solo marcar quién edita.
+    delete rec.user_id;
+    rec.editado_por = currentUser.id;
+  }
   // v76: si el registro está marcado como editado manualmente en memoria (_manual=true),
   // persistirlo en la columna BD manual_edit para que NO se pise al recargar ni al reanalizar.
   if (data._manual === true) rec.manual_edit = true;
-  // v107CJ: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
+  // v107CK: los sellos de orden (_tandaSubida, _pagArchivo) se copian a las
   // columnas REALES (tanda_subida, pag_archivo) ANTES del borrado automático
   // de propiedades "_". Se hace SIEMPRE que el dato traiga sello (no solo en
   // INSERT): cuando un conductor subió el albarán antes, al procesarlo se
@@ -2001,7 +2019,7 @@ async function deleteRecordDB(dbId) {
 }
 
 // ============================================================
-// v107CJ — BORRADO MÚLTIPLE de albaranes (solo admin)
+// v107CK — BORRADO MÚLTIPLE de albaranes (solo admin)
 // ============================================================
 // Permite marcar varios albaranes con casillas y borrarlos de
 // golpe, en vez de uno a uno. Diseño CONSERVADOR y SEGURO:
@@ -2023,7 +2041,7 @@ function _initBorradoMultiple() {
       const b = document.getElementById('btnModoSel');
       if (b) b.style.display = 'flex';
     }
-  } catch (e) { console.warn('[v107CJ] init:', e); }
+  } catch (e) { console.warn('[v107CK] init:', e); }
 }
 
 // Activar / desactivar el modo selección (muestra u oculta casillas).
@@ -2090,7 +2108,7 @@ async function _borrarSeleccionados() {
     if (rec && rec.db_id) {
       idsBorrar.push(rec.db_id);
     } else {
-      console.warn('[v107CJ] no se pudo resolver db_id para', id, rec);
+      console.warn('[v107CK] no se pudo resolver db_id para', id, rec);
       errN++;
     }
   }
@@ -2099,7 +2117,7 @@ async function _borrarSeleccionados() {
     return;
   }
   toast('Borrando ' + idsBorrar.length + ' albaranes...', 'info');
-  console.log('[v107CJ] db_ids a borrar:', idsBorrar);
+  console.log('[v107CK] db_ids a borrar:', idsBorrar);
   // Borrar uno a uno en la BD (mismo deleteRecordDB que la función
   // individual probada).
   for (const dbId of idsBorrar) {
@@ -2107,7 +2125,7 @@ async function _borrarSeleccionados() {
       await deleteRecordDB(dbId);
       okN++;
     } catch (e) {
-      console.error('[v107CJ] error borrando db_id', dbId, e);
+      console.error('[v107CK] error borrando db_id', dbId, e);
       errN++;
     }
   }
@@ -2117,7 +2135,7 @@ async function _borrarSeleccionados() {
   try {
     await loadData();
   } catch (e) {
-    console.error('[v107CJ] loadData tras borrar:', e);
+    console.error('[v107CK] loadData tras borrar:', e);
   }
   // Verificar de verdad cuántos se borraron (tolerante a errores RLS de
   // Supabase: a veces marca error pero el borrado SÍ se hizo).
@@ -2319,7 +2337,7 @@ async function addFiles(files, type) {
   // con "suma y sigue", hay que verlo completo).
   const _esFactura = (type === 'gasfac');
   for (const f of files) {
-    // v107CJ: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
+    // v107CK: cada archivo (o imagen suelta) abre una TANDA nueva. La tanda
     // sube de 1 en 1 y es global a la sesión. Todas las páginas de ESTE
     // archivo comparten este número de tanda; el nº de página dentro del
     // archivo lo da el bucle de división del PDF (variable p).
@@ -2443,7 +2461,7 @@ async function addFiles(files, type) {
                     mediaType: 'image/jpeg',
                     sharedPdfUrl: sharedPdfUrl,
                     pageNum: p,
-                    // v107CJ: sellos de orden — tanda del archivo + nº de página.
+                    // v107CK: sellos de orden — tanda del archivo + nº de página.
                     // Se asignan AQUÍ (al encolar), no cuando la IA termina.
                     _tandaSubida: _tandaActual,
                     _pagArchivo: p,
@@ -3612,9 +3630,9 @@ async function _processOne(it, type, key, timeoutMs) {
           data.db_id = it._fromPending.id;  // fuerza UPDATE en saveRecord
           data.procesado = true;             // sale del banner pendiente
         }
-        // v107CJ: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
+        // v107CK: BUG FIX. Los sellos de orden se deben poner en `data` ANTES
         // de llamar a saveRecord, porque saveRecord es quien los escribe en
-        // las columnas BD (tanda_subida, pag_archivo). En v107CJ se asignaban
+        // las columnas BD (tanda_subida, pag_archivo). En v107CK se asignaban
         // DESPUÉS de saveRecord → llegaban undefined → se guardaba NULL en BD
         // → el orden seguía revuelto. Ahora se asignan aquí, justo antes.
         if (typeof it._tandaSubida === 'number') data._tandaSubida = it._tandaSubida;
@@ -4704,9 +4722,9 @@ function applyFilters() {
       else if (sortCol === 'created_at') { av = av ? new Date(av).getTime() : 0; bv = bv ? new Date(bv).getTime() : 0; }
       else { av = String(av).toUpperCase(); bv = String(bv).toUpperCase(); }
       // ============================================================
-      // v107CJ: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
+      // v107CK: ORDEN DEFINITIVO al ordenar por SUBIDO (created_at)
       // ============================================================
-      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CJ o
+      // Cuando AMBOS albaranes tienen sello de tanda (subidos con v107CK o
       // posterior), el orden lo mandan los sellos, NO el created_at (que sale
       // revuelto porque se procesan 5 en paralelo: gana quien la IA termina
       // antes). Lógica:
@@ -5081,10 +5099,11 @@ function renderTable() {
       <td class="tag-mat" style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="opacity:.7;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--in);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
+      <td style="color:#fbbf24;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
       <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
       <td><button class="btn bs" style="padding:3px 7px;font-size:10px" onclick="event.stopPropagation();openModal('${r.db_id || r._id}')">✏</button></td>
     </tr>`).join('');
-  // v107CJ: si el modo selección está activo, al repintar la tabla las
+  // v107CK: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
   // mostrar para que no se "pierdan" al filtrar o reordenar.
   if (window._modoSel) {
@@ -5516,6 +5535,12 @@ function openModal(id) {
   const subPor = userName(r.user_id);
   if (subPor && subPor !== '—') {
     alertHtml += `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);padding:4px 0 12px">📤 Subido por: <strong style="color:var(--in)">${subPor}</strong>${r.created_at ? ` · ${fmtTS(r.created_at)}` : ''}</div>`;
+  }
+  // v107CK: si el albarán fue editado, mostrar quién lo editó. Así, aunque sea
+  // un conductor abriendo SU albarán que tú (admin) editaste, ve quién lo
+  // corrigió y no lo vuelve a subir.
+  if (r.editado_por) {
+    alertHtml += `<div style="font-family:var(--mn);font-size:10px;color:#fbbf24;padding:0 0 12px">✏️ Editado por: <strong>${userName(r.editado_por)}</strong></div>`;
   }
   document.getElementById('mAlert').innerHTML = alertHtml;
   // Preview
@@ -6107,7 +6132,7 @@ async function deleteGasRecord() {
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
 // v95b: Total movido al lado de Precio (columna E). Antes estaba al final como col S.
 // Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | Nº ALBARAN | ...
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','ESTADO'];
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
 
 function buildExcel(data) {
   // v84: ordenar SIEMPRE por:
@@ -6166,16 +6191,17 @@ function buildExcel(data) {
       r.hora_salida != null ? r.hora_salida : '',
       r.observaciones != null ? r.observaciones : '',
       userName(r.user_id),
+      r.editado_por ? userName(r.editado_por) : '',
       r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'
     ];
   })];
   // Fila TOTAL al final con SUMA de TN y de Total. TN en C, Total en E.
   const filaUltimaDato = rows.length;
-  const filaSuma = ['', 'TOTAL', { f: `SUM(C2:C${filaUltimaDato})` }, '', { f: `SUM(E2:E${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+  const filaSuma = ['', 'TOTAL', { f: `SUM(C2:C${filaUltimaDato})` }, '', { f: `SUM(E2:E${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  // v95b: anchos ajustados al nuevo orden de columnas (Total ahora es la 5ª).
-  ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,12].map(w => ({wch: w}));
+  // v107CK: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
+  ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
   // Alineación centrada en TODAS las celdas + formato moneda en Precio (D) y Total (E).
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; R++) {
