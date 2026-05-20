@@ -5203,7 +5203,7 @@ function renderTable() {
       <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:#fbbf24;font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:95px">${fmtTS(r.created_at || r._ts)}</td>
+      <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:110px">${fmtTS(r.created_at || r._ts)}</td>
     </tr>`).join('');
   // v107CP: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
