@@ -5176,6 +5176,7 @@ function renderTable() {
   if (!filtered.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
   tbody.innerHTML = filtered.map(r => `
+    <!-- v107CS: anchos reducidos en Material (100), Cliente (110), Subido por (70), Editado por (70) para que la columna Subido quepa al final sin scroll. -->
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
       <td>${rowBadge(r)}</td>
@@ -5186,10 +5187,10 @@ function renderTable() {
       <td style="color:#fff;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--ac);font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:#fff;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
-      <td class="tag-mat" style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
-      <td style="opacity:.7;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
-      <td style="color:var(--in);font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
-      <td style="color:#fbbf24;font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
+      <td class="tag-mat" style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
+      <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
+      <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
+      <td style="color:#fbbf24;font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
       <td style="color:var(--mu);font-size:11px;white-space:nowrap">${fmtTS(r.created_at || r._ts)}</td>
     </tr>`).join('');
   // v107CP: si el modo selección está activo, al repintar la tabla las
