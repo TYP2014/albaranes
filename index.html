@@ -3644,12 +3644,16 @@ async function _processOne(it, type, key, timeoutMs) {
         // Si NO hay `materiales` (caso normal), se guarda UNA sola fila como siempre.
         if (Array.isArray(data.materiales) && data.materiales.length > 1) {
           console.log(`[v107CP multimaterial] Albarán ${data.albaran} con ${data.materiales.length} materiales — expandiendo en filas.`);
+          // v107D4: log de DETALLE para ver qué trae cada material
+          console.log('[v107D4] materiales recibidos de la IA:', JSON.stringify(data.materiales, null, 2));
           const materialesValidos = data.materiales.filter(m =>
             m && m.producto && parseFloat(m.tm) > 0
           );
+          console.log(`[v107D4] materiales válidos tras filtro (producto + tm>0): ${materialesValidos.length}`);
           if (!materialesValidos.length) {
             // Si por algún motivo `materiales` venía vacío o sin datos válidos,
             // tirar del producto/tm clásico que ya pueda traer data.
+            console.warn(`[v107D4] NINGÚN material válido — recurriendo a producto/tm clásicos`);
             delete data.materiales;
           } else {
             // Crear UNA fila por cada material. La PRIMERA reutiliza el objeto
@@ -3665,12 +3669,19 @@ async function _processOne(it, type, key, timeoutMs) {
               delete filaMat.materiales;
               if (typeof it._tandaSubida === 'number') filaMat._tandaSubida = it._tandaSubida;
               if (typeof it._pagArchivo === 'number') filaMat._pagArchivo = it._pagArchivo;
-              const dbIdMat = await saveRecord(filaMat);
-              filaMat._id = Date.now() + Math.random();
-              filaMat.db_id = dbIdMat;
-              filaMat._ts = new Date().toISOString();
-              records.unshift(filaMat);
+              try {
+                const dbIdMat = await saveRecord(filaMat);
+                filaMat._id = Date.now() + Math.random();
+                filaMat.db_id = dbIdMat;
+                filaMat._ts = new Date().toISOString();
+                records.unshift(filaMat);
+                console.log(`[v107D4] Línea ${lineaIdx} guardada OK: producto="${mat.producto}", tm=${mat.tm}, db_id=${dbIdMat}, total en memoria=${records.length}`);
+              } catch (errSave) {
+                console.error(`[v107D4] ERROR guardando línea ${lineaIdx} del multimaterial:`, errSave);
+                // Continuamos con las siguientes líneas para que al menos se guarden las que vayan bien.
+              }
             }
+            console.log(`[v107D4] Multimaterial procesado completo: ${lineaIdx} líneas creadas para albarán ${data.albaran}`);
             // Saltar el saveRecord clásico de abajo (ya guardamos todas las líneas).
             continue;
           }
