@@ -3555,10 +3555,37 @@ async function _processOne(it, type, key, timeoutMs) {
           const _esPuigfel = _todo.indexOf('puigfel') !== -1
                            || _todo.indexOf('cova solera') !== -1;
 
+          // Caso 4 (v107E4): Escombro Holcim ENTRANTE a Fábrica Montcada.
+          // Son albaranes de RECEPCIÓN de Holcim (cabecera "ALBARÁN DE
+          // RECEPCIÓN DE MATERIAL") donde el material es "Hormigón [planta]"
+          // (ej. "Hormigón Zona Franca", "Hormigón La Roca", "Hormigón
+          // Papiol", "Hormigón Celra"...). Es escombro de hormigón que SALE
+          // de una planta Holcim y ENTRA a Fábrica Montcada para su gestión.
+          // Se cobra POR VIAJE, no por TN. El destino siempre es "Fábrica
+          // Montcada" (ya lo pone el albarán como PLANTA receptora). El
+          // origen lo dice la propia DESCRIPCIÓN del producto (Zona Franca,
+          // La Roca, Papiol, etc.).
+          //
+          // BLINDAJE TRIPLE para no romper otros materiales legítimos:
+          //   (a) proveedor es Holcim (factura Holcim España)
+          //   (b) destino es Fábrica Montcada (es recepción, no salida)
+          //   (c) producto empieza por "hormigón " seguido de un nombre
+          //       (Zona Franca, La Roca, Papiol, Montcada, Celra). Es el
+          //       patrón EXACTO de descripción que usa Holcim para este
+          //       escombro. NUNCA pillará "yeso", "caliza X", "árido
+          //       siderúrgico", etc. que entran como materia prima real.
+          const _esHolcimProv = _todo.indexOf('holcim') !== -1;
+          const _esFabMontcadaDest = /f[áa]brica\s+montcada/.test(_dest);
+          // Patrón: "hormigón " + nombre de planta (no número, no vacío).
+          // Cubrimos variantes OCR ("hormigon" sin tilde) y nombres conocidos.
+          const _esHormigonPlanta = /^hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/.test(_prod);
+          const _esEscombroFabMontcada = _esHolcimProv && _esFabMontcadaDest && _esHormigonPlanta;
+
           const _porViaje =
                 (_esTecno && _esAridoRec)
              || _esGironaRunes
-             || (_esPuigfel && _esEscombro170101);
+             || (_esPuigfel && _esEscombro170101)
+             || _esEscombroFabMontcada;
 
           if (_porViaje) {
             const _tnReal = parseFloat(data.tm);
@@ -3568,10 +3595,56 @@ async function _processOne(it, type, key, timeoutMs) {
             }
             const _cual = (_esTecno && _esAridoRec) ? 'Tecnocatalana+Árido reciclado'
                         : _esGironaRunes ? 'Girona Runes+escombro 170101'
+                        : _esEscombroFabMontcada ? 'Escombro Holcim → Fábrica Montcada'
                         : 'Puigfel/Cova Solera+escombro 170101';
             console.log('[v107AT por viaje] ' + _cual + ': tm '
               + (isNaN(_tnReal) ? '?' : _tnReal) + ' → 1 (TN real en observaciones)');
             data.tm = 1;
+          }
+        }
+        // v107E4: ORIGEN del escombro Holcim → Fábrica Montcada se LEE de
+        // la DESCRIPCIÓN del producto. Si el producto es "Hormigón Zona
+        // Franca" el origen es "Zona Franca"; si es "Hormigón La Roca" es
+        // "La Roca"; si es "Hormigón Papiol" es "Papiol"; etc. Esto se
+        // aplica SOLO si el caso 4 anterior detectó el escombro (mismo
+        // blindaje triple: Holcim + recepción Fábrica Montcada + producto
+        // "Hormigón [planta]"). NO toca otros albaranes legítimos.
+        {
+          const _prov2 = String(data.proveedor || '').toLowerCase();
+          const _dest2 = String(data.obra || '').toLowerCase();
+          const _prod2 = String(data.producto || '').toLowerCase();
+          const _esHolcim2 = _prov2.indexOf('holcim') !== -1;
+          const _esFabMontcada2 = /f[áa]brica\s+montcada/.test(_dest2);
+          const _matchHormigon = _prod2.match(/^hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/);
+          if (_esHolcim2 && _esFabMontcada2 && _matchHormigon) {
+            // Normalizar el origen con mayúsculas iniciales y nombre limpio.
+            const _origenRaw = _matchHormigon[1].trim().toLowerCase();
+            const _mapaOrigen = {
+              'zona franca':  'Zona Franca',
+              'zonafranca':   'Zona Franca',
+              'la roca':      'La Roca',
+              'laroca':       'La Roca',
+              'papiol':       'Papiol',
+              'montcada':     'Montcada',
+              'celra':        'Celra',
+              'sant just':    'Sant Just',
+              'santjust':     'Sant Just',
+              'riudellots':   'Riudellots de la Selva',
+              'riudarenes':   'Riudarenes',
+              'alcover':      'Alcover',
+              'tarragona':    'Tarragona',
+              'manlleu':      'Manlleu',
+              'alaior':       'Alaior',
+              'ciutadella':   'Ciutadella de Menorca'
+            };
+            // Quitar espacios dobles para hacer el lookup (zona  franca → zona franca)
+            const _key = _origenRaw.replace(/\s+/g, ' ');
+            const _origenLimpio = _mapaOrigen[_key] || _mapaOrigen[_key.replace(/\s+/g, '')] || _matchHormigon[1].trim();
+            if (data.planta !== _origenLimpio) {
+              console.log('[v107E4 origen escombro] producto "' + data.producto
+                + '" → origen "' + (data.planta || 'vacío') + '" → "' + _origenLimpio + '"');
+              data.planta = _origenLimpio;
+            }
           }
         }
         // v107b: red de seguridad específica para Sodira. El nº albarán SIEMPRE tiene formato
