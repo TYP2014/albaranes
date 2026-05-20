@@ -3659,10 +3659,25 @@ async function _processOne(it, type, key, timeoutMs) {
             // Crear UNA fila por cada material. La PRIMERA reutiliza el objeto
             // data original (mantiene file_url, _tandaSubida, etc.). Las siguientes
             // se clonan con los campos cambiados.
+            //
+            // v107D5 (20/05/2026): BUG FIX CRÍTICO. Antes, la línea 1 reutilizaba
+            // el objeto `data` directamente. Tras saveRecord se le asignaba
+            // `filaMat.db_id = dbIdMat`. Como `filaMat === data` en la 1ª
+            // iteración, `data` quedaba CONTAMINADO con db_id. Luego en la
+            // iteración 2 hacíamos `{...data}` — y el clon HEREDABA ese db_id.
+            // Resultado: saveRecord interpretaba "ya tiene db_id" como UPDATE
+            // de la fila 1 → pisaba la línea 1 con datos de la 2, y devolvía
+            // undefined. Igual con la línea 3. Solo se mantenía 1 fila en BD
+            // (la última subida que pisaba a la primera).
+            // ARREGLO: SIEMPRE clonamos data, y forzamos delete db_id en cada
+            // clon antes de guardar. Así cada línea hace INSERT limpio.
             let lineaIdx = 0;
             for (const mat of materialesValidos) {
               lineaIdx++;
-              const filaMat = (lineaIdx === 1) ? data : { ...data };
+              // v107D5: clonar SIEMPRE (no reutilizar data en línea 1) y borrar
+              // cualquier db_id heredado para forzar INSERT.
+              const filaMat = { ...data };
+              delete filaMat.db_id;
               filaMat.producto = mat.producto;
               filaMat.tm = parseFloat(mat.tm);
               filaMat.linea_albaran = lineaIdx;
@@ -3675,13 +3690,13 @@ async function _processOne(it, type, key, timeoutMs) {
                 filaMat.db_id = dbIdMat;
                 filaMat._ts = new Date().toISOString();
                 records.unshift(filaMat);
-                console.log(`[v107D4] Línea ${lineaIdx} guardada OK: producto="${mat.producto}", tm=${mat.tm}, db_id=${dbIdMat}, total en memoria=${records.length}`);
+                console.log(`[v107D5] Línea ${lineaIdx} guardada OK: producto="${mat.producto}", tm=${mat.tm}, db_id=${dbIdMat}, total en memoria=${records.length}`);
               } catch (errSave) {
-                console.error(`[v107D4] ERROR guardando línea ${lineaIdx} del multimaterial:`, errSave);
+                console.error(`[v107D5] ERROR guardando línea ${lineaIdx} del multimaterial:`, errSave);
                 // Continuamos con las siguientes líneas para que al menos se guarden las que vayan bien.
               }
             }
-            console.log(`[v107D4] Multimaterial procesado completo: ${lineaIdx} líneas creadas para albarán ${data.albaran}`);
+            console.log(`[v107D5] Multimaterial procesado completo: ${lineaIdx} líneas creadas para albarán ${data.albaran}`);
             // Saltar el saveRecord clásico de abajo (ya guardamos todas las líneas).
             continue;
           }
