@@ -4991,7 +4991,19 @@ function filterByStatus(st) {
 }
 
 function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
-function fmtTS(ts) { if (!ts) return '—'; const d = new Date(ts); return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+// v107CU (20/05/2026): formato fijo DD/MM/AA HH:MM sin depender de
+// toLocaleDateString. Algunos navegadores devolvían '5' en vez de '05'
+// pese a pedir 2-digit, recortando la columna Subido en la tabla.
+function fmtTS(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const aa = String(d.getFullYear()).slice(-2);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${aa} ${hh}:${mi}`;
+}
 // v69: detecta file_url válidos. Filtra null, undefined, cadenas vacías y los strings literales
 // "null"/"undefined" (con o sin #page=N) que pudieron quedar grabados en BD por un bug previo
 // cuando la subida a Supabase Storage fallaba en mitad de un PDF multipágina.
@@ -5191,7 +5203,7 @@ function renderTable() {
       <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:#fbbf24;font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:75px">${fmtTS(r.created_at || r._ts)}</td>
+      <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:95px">${fmtTS(r.created_at || r._ts)}</td>
     </tr>`).join('');
   // v107CP: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
