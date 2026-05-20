@@ -3965,6 +3965,16 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
     throw new Error('Imagen vacía o corrupta — vuelve a subir el archivo (b64 inválido)');
   }
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
+
+🔴 PRIORIDAD ABSOLUTA — HOLCIM SACOS PALETIZADOS (v107D1, leer ANTES que ninguna otra regla):
+Si ves un albarán con cabecera "HOLCIM" + "Albarán" + número 35692XXXXXXX y un bloque "Material/Descripción/cantidad/Unidad/Sacos" con VARIAS LÍNEAS de materiales (códigos 14004996, 14006875, 17008787, 17008786, 17008782, etc.) Y una línea de "PALET MORTERO"/"PALET CEMENTO" (códigos 70001411 o 70001348), entonces ES UN ALBARÁN MULTIMATERIAL de sacos paletizados. SIEMPRE devuelve:
+  · materiales: [ {producto:"<nombre material 1>", tm:<toneladas 1>}, {producto:"<nombre material 2>", tm:<toneladas 2>}, ... ]  con UN OBJETO POR CADA LÍNEA DE MATERIAL REAL (NO incluyas las líneas de PALET).
+  · planta (ORIGEN): el VALOR del campo "Punto expedición:" del albarán, TAL CUAL (ej. "Montcada Mortero", "Molienda Tarragona", "Fábrica Montcada"). NUNCA lo cambies por otra cosa.
+  · obra (DESTINO): el NOMBRE en MAYÚSCULAS que está justo DEBAJO del código numérico largo de "Obra:" (ej. "COLAS SANT FOST", "SANS MONTBLANC", "SU ALMACEN", "RUBI", "DDP TORA"). NUNCA devuelvas el pueblo del código postal (ej. NUNCA "Sant Fost de Campsentelles" como destino, NUNCA "Montblanc", NUNCA "Arenys de Munt") — esos son pueblos administrativos del CP, NO son el destino. El destino es el NOMBRE EN MAYÚSCULAS de la línea inmediatamente debajo del código de obra, antes de la dirección postal.
+  · cliente: el nombre en MAYÚSCULAS del campo "Facturar a:" (NO de "Cliente:").
+EJEMPLO REAL (albarán 35692002259): bloque Material tiene "17008787 BIGMAT FLEX S1 GRIS 5,400 t / 17008786 BIGMAT FLEX S1 BLANCO 4,050 t / 17008782 BIGMAT PORCELANICO FLEX BLANCO 1,350 t / 70001348 PALET MORTERO 8,000". Devuelve materiales=[{producto:"BIGMAT FLEX S1 GRIS",tm:5.400},{producto:"BIGMAT FLEX S1 BLANCO",tm:4.050},{producto:"BIGMAT PORCELANICO FLEX BLANCO",tm:1.350}] (3 elementos, palet ignorado). planta="Montcada Mortero". obra="COLAS SANT FOST" (NUNCA "Sant Fost de Campsentelles"). cliente="FORJADO CERAMICO Y MAT. CONS., S.L.".
+SI EL ALBARÁN TIENE UN SOLO MATERIAL REAL (más palet), NO uses materiales — usa producto+tm clásicos.
+
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
 ${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
@@ -8447,6 +8457,11 @@ const ORIGENES_CANONICOS = [
   // Holcim — plantas de cemento (NO confundir con Cantera de Garraf, que es de áridos)
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada'] },
   { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'Holcim Tarragona', 'Molleda Tarragona', 'Molleda de Tarragona', 'Mollenda Tarragona', 'Mollenda de Tarragona', 'Molienda Tarragoma', 'Mollienda Tarragona'] },
+  // v107D1: Montcada Mortero — planta de Holcim donde se cargan SACOS PALETIZADOS
+  // de mortero (BIGMAT FLEX, NHL-3.5, etc.). Es DISTINTA de "Fábrica Montcada"
+  // (donde cargan cemento a granel) y de "Planta de Montcada" (planta de hormigón
+  // / áridos). Añadida para que NO salga como "no oficial" en el modal.
+  { canon: 'Montcada Mortero', alias: ['Montcada mortero', 'MONTCADA MORTERO', 'Holcim Montcada Mortero', 'Fábrica Montcada Mortero', 'Fabrica Montcada Mortero'] },
   { canon: 'Sant Fost de Campsentelles', alias: ['Sant Fost'] },
   { canon: 'Olèrdola', alias: ['Olerdola', 'Gleierdola'] },
   { canon: 'Llinars del Vallès', alias: ['Llinars del Valles', 'Llinars'] },
