@@ -3693,10 +3693,40 @@ async function _processOne(it, type, key, timeoutMs) {
           const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
           return /palet/.test(norm);
         };
+        // v107D9: si la IA CONCATENÓ material real + PALET (caso ECOPlanet pág 3
+        // CCF_003604.pdf: la IA devolvió "ECOPlanet CEM II/B-L 32,5 R SAC + PALET CEMENTO"),
+        // mejor LIMPIAR la parte del PALET y dejar el material real, en vez de
+        // borrarlo todo. El admin solo tiene que confirmar el material, no
+        // empezar de cero. Detectamos material real por palabras clave.
+        const _contieneMaterialReal = (txt) => {
+          const t = String(txt || '').toLowerCase();
+          return /\b(ecoplanet|bigmat|cem\s+|nhl|bl\s+ii|porcelanico|supercal|tempo gel|caliza|arena|arcilla|yeso|arido|ag-|af-)/i.test(t);
+        };
         if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
-          console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real). Se borra producto y tm para que el admin lo corrija.`);
-          data.producto = null;
-          data.tm = null;
+          if (_contieneMaterialReal(data.producto)) {
+            // Limpiar solo la parte del PALET y dejar el material real.
+            const antes = data.producto;
+            // Quitar variantes "PALET CEMENTO", "PALET MORTERO", "PALE T", etc.
+            let limpio = data.producto
+              .replace(/\s*[\+\,;\/\|]\s*pa\s*l\s*e\s*t\s+(cemento|mortero|vacio|vacios)?\s*$/gi, '')
+              .replace(/\s+pa\s*l\s*e\s*t\s+(cemento|mortero|vacio|vacios)?\s*$/gi, '')
+              .trim();
+            if (limpio && limpio !== data.producto) {
+              console.warn(`[v107D9] Producto IA con PALET concatenado a material real. Limpio: "${antes}" → "${limpio}"`);
+              data.producto = limpio;
+              // tm: dejar lo que vino. Si trae bruto-tara como tm, el admin
+              // verá la TN y la corregirá si hace falta (mejor info parcial
+              // que campo vacío que cuesta más de rellenar).
+            } else {
+              console.warn(`[v107D9] Producto "${antes}" parece tener PALET pero no se pudo limpiar — borro para revisar.`);
+              data.producto = null;
+              data.tm = null;
+            }
+          } else {
+            console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real). Se borra producto y tm para que el admin lo corrija.`);
+            data.producto = null;
+            data.tm = null;
+          }
         }
         if (Array.isArray(data.materiales) && data.materiales.length >= 1) {
           console.log(`[v107CP multimaterial] Albarán ${data.albaran} con ${data.materiales.length} materiales (antes del filtro anti-palet) — analizando.`);
@@ -4103,7 +4133,9 @@ Hay TRES SUBTIPOS según el MATERIAL transportado, pero TODOS COMPARTEN las MISM
   SUBTIPO B — SACOS PALETIZADOS: material es BIGMAT FLEX/SUPERCAL/PORCELANICO, NHL-3,5, "SACO BIGMAT 25 KG", "PAL PLAS 25 KG", "BL II/A-L ENSACADO" — material en sacos de 25 kg sobre palets. El bloque "Material/Descripción/cantidad/Unidad/Sacos" puede tener VARIAS LÍNEAS con códigos 14004996/14006875/17008787/17008786/17008782/17008787 (cada uno con su propia cantidad en t), Y al final una línea "PALET MORTERO" o "PALET CEMENTO" (códigos 70001411 o 70001348) que NO se cuenta (es solo el palet físico). REGLAS:
     · Si hay UNA SOLA fila de material real (más el palet) → modo clásico: producto = el material; tm = sus toneladas; IGNORAR el palet.
     · Si hay VARIAS filas de material real → devuelve materiales: [ {producto:"<nombre 1>", tm:<tm 1>}, {producto:"<nombre 2>", tm:<tm 2>}, ... ] con UN OBJETO POR CADA LÍNEA DE MATERIAL REAL (PALET NO incluido).
-    EJEMPLO (albarán 35692002259): "17008787 BIGMAT FLEX S1 GRIS 5,400 t / 17008786 BIGMAT FLEX S1 BLANCO 4,050 t / 17008782 BIGMAT PORCELANICO FLEX BLANCO 1,350 t / 70001348 PALET MORTERO 8,000" → materiales=[{producto:"BIGMAT FLEX S1 GRIS",tm:5.400},{producto:"BIGMAT FLEX S1 BLANCO",tm:4.050},{producto:"BIGMAT PORCELANICO FLEX BLANCO",tm:1.350}]. Palet ignorado.
+    · **🔴 v107D9 — REGLA ANTI-FUSIÓN CRÍTICA:** CADA CÓDIGO de material DISTINTO (14006875 vs 14006877, 17008787 vs 17008786, etc.) es UN MATERIAL DISTINTO y va en SU PROPIO objeto del array. AUNQUE las descripciones se PAREZCAN MUCHO (ej. "ECOPlanet CEM II/B-L 32,5 R SAC 25 KG" vs "ECOPlanet CEM II/B-L 32,5 R SAC 35 KG" — la diferencia 25 KG vs 35 KG es CRÍTICA: son sacos de pesos distintos, son productos distintos). NUNCA FUSIONES dos líneas en una sola entrada con producto concatenado tipo "ECOPlanet ... SAC + PALET CEMENTO" o "ECOPlanet 25 KG + 35 KG" — eso está MAL. NUNCA SUMES las TN de dos líneas en una sola entrada. CADA LÍNEA DEL BLOQUE Material → UN OBJETO en el array materiales. Si ves 2 líneas con código distinto, devuelve 2 objetos. Si ves 3, devuelve 3. Lee el código (la primera columna) para distinguirlas — si los códigos son distintos, son materiales distintos sin excepción.
+    EJEMPLO 1 — albarán 35692002259 (BIGMAT diferentes): "17008787 BIGMAT FLEX S1 GRIS 5,400 t / 17008786 BIGMAT FLEX S1 BLANCO 4,050 t / 17008782 BIGMAT PORCELANICO FLEX BLANCO 1,350 t / 70001348 PALET MORTERO 8,000" → materiales=[{producto:"BIGMAT FLEX S1 GRIS",tm:5.400},{producto:"BIGMAT FLEX S1 BLANCO",tm:4.050},{producto:"BIGMAT PORCELANICO FLEX BLANCO",tm:1.350}]. Palet ignorado.
+    EJEMPLO 2 — albarán 31041061188 (ECOPlanet con dos formatos de saco DISTINTOS): "14006875 ECOPlanet CEM II/B-L 32,5 R SAC 25 KG 9,800 t / 14006877 ECOPlanet CEM II/B-L 32,5 R SAC 35 KG 1,470 t / 70001411 PALET CEMENTO 8,000" → materiales=[{producto:"ECOPlanet CEM II/B-L 32,5 R SAC 25 KG",tm:9.800},{producto:"ECOPlanet CEM II/B-L 32,5 R SAC 35 KG",tm:1.470}]. SON 2 MATERIALES DISTINTOS aunque la descripción sea casi igual (códigos 14006875 vs 14006877 lo confirman). Palet ignorado.
 
   SUBTIPO C — ÁRIDOS: material es "AG-X/Y-T-C", "AF-X/Y-T-C" (ej. AG-4/11-T-C, AF-0/4-T-C), "ECOPlanet CEM" + áridos, "CALIZA GARRAF ZAHORRA", "Caliza Cemex/Foj/Promsa", "Árido reciclado", "Árido siderúrgico". Una sola fila clásica: producto = texto del material; tm = cantidad NETA en toneladas.
 
