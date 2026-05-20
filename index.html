@@ -3687,7 +3687,13 @@ async function _processOne(it, type, key, timeoutMs) {
         // lectura. Mejor avisar en consola y dejar producto en null que
         // guardar una fila falsa. El admin lo corrige a mano sabiendo qué
         // pasó. NUNCA debe llegar a BD un producto "PALET XXX" con 8 TN.
-        if (data && typeof data.producto === 'string' && /palet/i.test(data.producto)) {
+        // v107D8: misma normalización que en el bloque multimaterial — caza
+        // variantes con espacios del OCR (PALE T, PA LET, etc).
+        const _esPaletMono = (txt) => {
+          const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
+          return /palet/.test(norm);
+        };
+        if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
           console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real). Se borra producto y tm para que el admin lo corrija.`);
           data.producto = null;
           data.tm = null;
@@ -3706,9 +3712,24 @@ async function _processOne(it, type, key, timeoutMs) {
           // con la palabra "PALET" o código de material que empiece por
           // 70001 (códigos confirmados 70001411=palet cemento, 70001348=
           // palet mortero) se descarta antes de guardar.
+          //
+          // v107D8 (20/05/2026): refuerzo CONTRA VARIANTES OCR.
+          // Caso real prueba de fuego pág 8 (CCF_003604.pdf, 31041061002):
+          // la IA leyó "PALE T CEMENTO" (con un espacio en PALE T) en vez
+          // de "PALET CEMENTO". Mi regex /palet/i NO lo cazaba porque
+          // exige las letras contiguas. Ahora normalizo el producto
+          // quitando todo lo que no sea letra y busco "palet" en el
+          // resultado. Así "PALE T CEMENTO" → "paletcemento" → match.
+          // Funciona también con: "PA LET", "PAL ET", "P A L E T", etc.
+          // Y NO da falsos positivos con materiales legítimos que
+          // contienen "PAL" (PAL PLAS, IMPALA) o "LET" (no hay).
+          const _esPalet = (txt) => {
+            const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
+            return /palet/.test(norm);
+          };
           const materialesValidos = data.materiales.filter(m =>
             m && m.producto && parseFloat(m.tm) > 0
-            && !/palet/i.test(String(m.producto))
+            && !_esPalet(m.producto)
             && !/^70001/.test(String(m.codigo || m.cod || ''))
           );
           // Log adicional v107D6: cuántos materiales descartó por palet.
