@@ -3642,19 +3642,60 @@ async function _processOne(it, type, key, timeoutMs) {
         // (linea_albaran = 1, 2, 3...) que sirve al detector de duplicados
         // para distinguirlas (cambio v107CP Fase A).
         // Si NO hay `materiales` (caso normal), se guarda UNA sola fila como siempre.
-        if (Array.isArray(data.materiales) && data.materiales.length > 1) {
-          console.log(`[v107CP multimaterial] Albarán ${data.albaran} con ${data.materiales.length} materiales — expandiendo en filas.`);
+        //
+        // v107D6 (20/05/2026): RED DE SEGURIDAD anti-palet MONOMATERIAL.
+        // Si la IA puso "PALET CEMENTO"/"PALET MORTERO" en el campo producto
+        // (en vez de en el array materiales o ignorado), es un fallo de
+        // lectura. Mejor avisar en consola y dejar producto en null que
+        // guardar una fila falsa. El admin lo corrige a mano sabiendo qué
+        // pasó. NUNCA debe llegar a BD un producto "PALET XXX" con 8 TN.
+        if (data && typeof data.producto === 'string' && /palet/i.test(data.producto)) {
+          console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real). Se borra producto y tm para que el admin lo corrija.`);
+          data.producto = null;
+          data.tm = null;
+        }
+        if (Array.isArray(data.materiales) && data.materiales.length >= 1) {
+          console.log(`[v107CP multimaterial] Albarán ${data.albaran} con ${data.materiales.length} materiales (antes del filtro anti-palet) — analizando.`);
           // v107D4: log de DETALLE para ver qué trae cada material
           console.log('[v107D4] materiales recibidos de la IA:', JSON.stringify(data.materiales, null, 2));
+          // v107D6 (20/05/2026): filtro DEFENSIVO anti-palet. Aunque el prompt
+          // diga que ignore PALET MORTERO/PALET CEMENTO, la IA a veces los
+          // incluye en el array materiales. Caso real prueba de fuego
+          // CCF_003604.pdf página 1: la IA devolvió [{producto:"CEM I...",
+          // tm:11.2}, {producto:"PALET CEMENTO", tm:8}] → se guardaba una
+          // fila falsa "PALET CEMENTO 8 TN" como si fuera material real.
+          // SOLUCIÓN: filtro en código (no en prompt) — cualquier producto
+          // con la palabra "PALET" o código de material que empiece por
+          // 70001 (códigos confirmados 70001411=palet cemento, 70001348=
+          // palet mortero) se descarta antes de guardar.
           const materialesValidos = data.materiales.filter(m =>
             m && m.producto && parseFloat(m.tm) > 0
+            && !/palet/i.test(String(m.producto))
+            && !/^70001/.test(String(m.codigo || m.cod || ''))
           );
-          console.log(`[v107D4] materiales válidos tras filtro (producto + tm>0): ${materialesValidos.length}`);
+          // Log adicional v107D6: cuántos materiales descartó por palet.
+          const _descartadosPalet = data.materiales.length - materialesValidos.length;
+          if (_descartadosPalet > 0) {
+            console.log(`[v107D6] Filtro anti-palet: descartados ${_descartadosPalet} ítem(s) (PALET CEMENTO/PALET MORTERO no se cuentan como material).`);
+          }
+          console.log(`[v107D4] materiales válidos tras filtro (producto + tm>0 + no PALET): ${materialesValidos.length}`);
           if (!materialesValidos.length) {
             // Si por algún motivo `materiales` venía vacío o sin datos válidos,
             // tirar del producto/tm clásico que ya pueda traer data.
             console.warn(`[v107D4] NINGÚN material válido — recurriendo a producto/tm clásicos`);
             delete data.materiales;
+          } else if (materialesValidos.length === 1) {
+            // v107D6: si tras filtrar palets solo queda UN material real,
+            // guardamos como fila normal (un solo INSERT con producto+tm
+            // clásicos, sin linea_albaran). Más limpio que pasarlo por el
+            // bucle multimaterial.
+            const m = materialesValidos[0];
+            data.producto = m.producto;
+            data.tm = parseFloat(m.tm);
+            delete data.materiales;
+            delete data.linea_albaran;
+            console.log(`[v107D6] Tras filtro anti-palet queda 1 material — guardando como fila normal: producto="${m.producto}", tm=${m.tm}`);
+            // Cae al saveRecord clásico de abajo.
           } else {
             // Crear UNA fila por cada material. La PRIMERA reutiliza el objeto
             // data original (mantiene file_url, _tandaSubida, etc.). Las siguientes
