@@ -4352,6 +4352,13 @@ SOLO JSON válido, sin markdown.`;
     const tnFueraRango = isNaN(tm) || tm < 5 || tm > 36;
     // (b) Hay bruto y tara legibles → comprobar resta
     let tnDescuadra = false;
+    // v107E2: (d) tm coincide casi exactamente con bruto_kg/1000 → la IA confundió
+    // el bruto (peso de salida del camión cargado) con el neto. Caso real
+    // CCF_003625.pdf pág 7 SANT SALVADOR DE GUARDIOLA (31041060993): la IA puso
+    // tm=25.3 que es exactamente el peso de salida 25.300 kg dividido entre 1000.
+    // El neto real era 11.2 TN (cantidad del material en t). Detectamos cuando
+    // tm*1000 ≈ bruto_kg con margen de 100 kg.
+    let tnEsBruto = false;
     if (!isNaN(tara) && !isNaN(bruto) && bruto > tara && bruto > 100 && tara > 100) {
       const tnCalc = (bruto - tara) / 1000;
       if (!isNaN(tm) && Math.abs(tnCalc - tm) > 0.05) {
@@ -4363,10 +4370,14 @@ SOLO JSON válido, sin markdown.`;
         r.tm = +tnCalc.toFixed(3);
         continue;
       }
+      // v107E2 (d): tm*1000 ≈ bruto → la IA tomó bruto como neto
+      if (!isNaN(tm) && Math.abs(tm * 1000 - bruto) < 100) {
+        tnEsBruto = true;
+      }
     }
-    if (tnFueraRango || tnDescuadra) {
+    if (tnFueraRango || tnDescuadra || tnEsBruto) {
       indicesTnSospechosos.push(i);
-      console.warn(`[v107D0] TN sospechosa en albarán ${i + 1}/${results.length}: tm=${r.tm}, bruto=${bruto}, tara=${tara}, fueraRango=${tnFueraRango}, descuadra=${tnDescuadra}`);
+      console.warn(`[v107D0/E2] TN sospechosa en albarán ${i + 1}/${results.length}: tm=${r.tm}, bruto=${bruto}, tara=${tara}, fueraRango=${tnFueraRango}, descuadra=${tnDescuadra}, esBruto=${tnEsBruto}`);
     }
   }
   if (indicesTnSospechosos.length > 0) {
@@ -4393,6 +4404,25 @@ SOLO JSON válido, sin markdown.`;
       }
     } catch (e) {
       console.warn('[v107D0] Error en reintento Sonnet TN (no crítico, seguimos con Haiku):', e.message);
+    }
+    // v107E2: FALLBACK MATEMÁTICO. Tras el intento Sonnet, revisa si alguna TN
+    // sigue sospechosa Y tenemos bruto+tara legibles. Si es así, recalculamos
+    // tm = (bruto-tara)/1000 directamente. Es preferible un dato matemático
+    // correcto al dato malo que devolvió Haiku.
+    for (const i of indicesTnSospechosos) {
+      const r = results[i];
+      const tm = parseFloat(r.tm);
+      const tara = parseFloat(r.tara_kg);
+      const bruto = parseFloat(r.bruto_kg);
+      if (isNaN(tara) || isNaN(bruto) || bruto <= tara || bruto < 100 || tara < 100) continue;
+      const tnCalc = (bruto - tara) / 1000;
+      if (tnCalc < 5 || tnCalc > 36) continue;
+      // Si tm ya cuadra con tnCalc tras Sonnet, lo dejamos.
+      if (!isNaN(tm) && Math.abs(tnCalc - tm) <= 0.05) continue;
+      // Si tm sigue siendo bruto/1000 o muy distinto del cálculo → forzar fallback
+      const tmAntes = r.tm;
+      r.tm = +tnCalc.toFixed(3);
+      console.log(`[v107E2] Fallback matemático TN albarán ${i + 1}: ${tmAntes} → ${r.tm} (=bruto-tara/1000)`);
     }
   }
 
