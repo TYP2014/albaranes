@@ -2426,29 +2426,67 @@ async function addFiles(files, type) {
               // el PDF nunca llegaba a la cola — síntoma: toast "Dividiendo..." pero
               // cola vacía y sin error visible. Ahora si una página tarda más de 30s,
               // lanza excepción y caemos al fallback "PDF entero" al final del catch.
-              const pageWork = (async () => {
+              //
+              // v107D7 (20/05/2026): RETRY automático con escala decreciente.
+              // Caso real: Holcim PDFs de 8 páginas, la página 1 falla con b64
+              // vacío usando escala 2.5 (el navegador no procesa bien el canvas
+              // grande). Ahora si una página genera un b64 vacío o muy corto
+              // (<100 chars), reintentamos con escala 1.6, luego 1.2. Mejor
+              // menos resolución que perder el albarán entero.
+              const _intentarRenderPagina = async (escalaIntento) => {
                 const page = await pdf.getPage(p);
-                const viewport = page.getViewport({ scale });
+                const viewport = page.getViewport({ scale: escalaIntento });
                 const canvas = document.createElement('canvas');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
                 const ctx = canvas.getContext('2d');
                 await page.render({ canvasContext: ctx, viewport }).promise;
                 const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                const imgB64 = dataUrl.split(',')[1];
+                const imgB64 = dataUrl.split(',')[1] || '';
+                let pageBlob = null;
+                try {
+                  pageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+                } catch (_) { /* sigue, ya tenemos imgB64 */ }
+                canvas.width = 0; canvas.height = 0;
+                return { imgB64, pageBlob };
+              };
+              const pageWork = (async () => {
+                // Escala principal (la que ya teníamos): scale (2.5 / 1.6 / 1.4 según numPages)
+                // Escalas de respaldo: bajan progresivamente hasta 1.2 (mínimo legible).
+                const escalas = [scale];
+                if (scale > 1.6) escalas.push(1.6);
+                if (scale > 1.2) escalas.push(1.2);
+                let result = null;
+                let escalaUsada = null;
+                for (const escalaIntento of escalas) {
+                  try {
+                    const r = await _intentarRenderPagina(escalaIntento);
+                    if (r.imgB64 && r.imgB64.length >= 100) {
+                      result = r;
+                      escalaUsada = escalaIntento;
+                      if (escalaIntento !== scale) {
+                        console.log(`[v107D7] Página ${p} de "${f.name}" se renderizó con escala ${escalaIntento} (la inicial ${scale} falló).`);
+                      }
+                      break;
+                    } else {
+                      console.warn(`[v107D7] Página ${p} de "${f.name}" devolvió b64 vacío con escala ${escalaIntento} (longitud=${r.imgB64?.length || 0}). Reintentando con escala menor…`);
+                    }
+                  } catch (eRender) {
+                    console.warn(`[v107D7] Página ${p} de "${f.name}" falló render con escala ${escalaIntento}:`, eRender?.message || eRender);
+                  }
+                }
+                if (!result || !result.imgB64) {
+                  // Todas las escalas fallaron — lanzar para que caiga al catch
+                  // de fuera que ya maneja el reintento con PDF entero como fallback.
+                  throw new Error(`Render PDF→JPG vacío en página ${p} tras probar ${escalas.length} escalas (${escalas.join(', ')})`);
+                }
+                const { imgB64, pageBlob } = result;
                 const baseName = f.name.replace(/\.pdf$/i, '');
                 const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
-
                 let pageFile = null;
-                try {
-                  const pageBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-                  if (pageBlob) {
-                    pageFile = new File([pageBlob], pageName, { type: 'image/jpeg' });
-                  }
-                } catch (eBlob) {
-                  console.warn('[v71] toBlob falló para', pageName, eBlob);
+                if (pageBlob) {
+                  pageFile = new File([pageBlob], pageName, { type: 'image/jpeg' });
                 }
-                canvas.width = 0; canvas.height = 0;
 
                 if (!pending.some(x => x.name === pageName && x.status === 'pending')) {
                   pending.push({
