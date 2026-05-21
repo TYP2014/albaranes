@@ -3265,11 +3265,37 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         }
         // Red de seguridad: corregir destinos genéricos / códigos
+        // v107E7: EXCEPCIÓN Holcim cisterna cemento (origen Fábrica Montcada).
+        // Juan Carlos: "lo importante es que indique lo que pone debajo de Obra:
+        // tal cual lo ponga el cliente". Para estos albaranes, NO se canoniza
+        // el destino — se guarda LITERAL como lo escribió Holcim en el campo
+        // "Obra:". Así MALGRAT queda como "MALGRAT" (no "Malgrat de Mar"),
+        // VIC queda como "VIC", CAMPLLONG queda como "CAMPLLONG", etc. La
+        // detección "es Holcim cisterna cemento" requiere las 3 cosas:
+        //   (a) proveedor Holcim
+        //   (b) producto es cemento (CEM I/II/III/IV/V o ECOPlanet)
+        //   (c) NO es albarán de RECEPCIÓN (destino libre, no Fábrica Montcada)
+        // Resto de proveedores (Cemex, Portland, Élite, Sodira, Aridcal, etc.)
+        // siguen canonizándose normalmente — NO se toca lo que ya funciona.
         if (data.obra) {
-          const fixedDest = fixDestino(data.obra);
-          if (fixedDest !== data.obra) {
-            console.log(`Destino corregido: "${data.obra}" → "${fixedDest}"`);
-            data.obra = fixedDest;
+          const _esHolcimCem = /Holcim/i.test(data.proveedor || '')
+            && /\bECOPlanet\b|(?:^|\s)C[EF][MN]\s+[IVX/]+|Cemento\s+(?:Portland|Puzol)|CEM\s+[IVX]+\/[A-Z]/i.test(data.producto || '')
+            && !/F[áa]brica\s+Montcada/i.test(String(data.obra).trim());
+          if (_esHolcimCem) {
+            // SOLO limpiar espacios y dejar tal cual — sin canonizar.
+            const _destLimpio = String(data.obra).trim().replace(/\s+/g, ' ');
+            if (_destLimpio !== data.obra) {
+              console.log(`[v107E7 Holcim cisterna] Destino sin canonizar: "${data.obra}" → "${_destLimpio}" (literal de Obra:)`);
+              data.obra = _destLimpio;
+            } else {
+              console.log(`[v107E7 Holcim cisterna] Destino literal preservado: "${data.obra}"`);
+            }
+          } else {
+            const fixedDest = fixDestino(data.obra);
+            if (fixedDest !== data.obra) {
+              console.log(`Destino corregido: "${data.obra}" → "${fixedDest}"`);
+              data.obra = fixedDest;
+            }
           }
         }
         // Red de seguridad: normalizar grafía del origen (planta)
