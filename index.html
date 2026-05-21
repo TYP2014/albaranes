@@ -3341,10 +3341,23 @@ async function _processOne(it, type, key, timeoutMs) {
         }
         // Inferencia de destino por proveedor (Àrids Garcia → La Roca, Canro+Subbalasto → El Prat,
         // CE44D → Planta Hormigones Zona Franca, etc.)
-        const inferidoDest = inferDestino(data);
-        if (inferidoDest && inferidoDest !== data.obra) {
-          console.log(`Destino inferido: → "${inferidoDest}"`);
-          data.obra = inferidoDest;
+        // v107EA (21/05/2026): EXCEPCIÓN — en Holcim cisterna cemento NO inferimos destino.
+        // Mismo razonamiento que v107E7: Juan Carlos quiere el destino LITERAL de la línea 1
+        // bajo "Obra:" del PDF. Si dejamos que inferDestino actúe, sobrescribiría el destino
+        // bueno (ej. "Castellbisbal" → "Molienda Tarragona" porque ahí está el origen; o
+        // "ESPECIAL 52,5 MONTMELO" → "Montornès del Vallès"). Bloqueamos la inferencia para
+        // estos albaranes y respetamos lo que vino del PDF.
+        const _esHolcimCem3 = /Holcim/i.test(data.proveedor || '')
+          && /\bECOPlanet\b|(?:^|\s)C[EF][MN]\s+[IVX/]+|Cemento\s+(?:Portland|Puzol)|CEM\s+[IVX]+\/[A-Z]/i.test(data.producto || '')
+          && !/F[áa]brica\s+Montcada/i.test(String(data.obra || '').trim());
+        if (!_esHolcimCem3) {
+          const inferidoDest = inferDestino(data);
+          if (inferidoDest && inferidoDest !== data.obra) {
+            console.log(`Destino inferido: → "${inferidoDest}"`);
+            data.obra = inferidoDest;
+          }
+        } else {
+          console.log(`[v107EA Holcim cisterna] inferDestino bloqueado, destino literal "${data.obra}" preservado`);
         }
         // v107AU: regla específica GIRONA RUNES (escombro de hormigón que sale de
         // la planta Holcim de Celra → vertedero/gestor Girona Runes). El nombre
@@ -7258,12 +7271,20 @@ async function reanalizarTodo() {
       }
     }
     // Inferencia de destino por proveedor / combinación material / código de obra
-    const inferidoDest = inferDestino(r);
-    if (inferidoDest && inferidoDest !== r.obra) {
-      console.log(`Destino inferido: → "${inferidoDest}" (alb ${r.albaran})`);
-      r.obra = inferidoDest;
-      update.obra = inferidoDest;
-      cambio = true;
+    // v107EA: misma excepción que _processOne — Holcim cisterna cemento NO se inferencia
+    const _esHolcimCem4 = /Holcim/i.test(r.proveedor || '')
+      && /\bECOPlanet\b|(?:^|\s)C[EF][MN]\s+[IVX/]+|Cemento\s+(?:Portland|Puzol)|CEM\s+[IVX]+\/[A-Z]/i.test(r.producto || '')
+      && !/F[áa]brica\s+Montcada/i.test(String(r.obra || '').trim());
+    if (!_esHolcimCem4) {
+      const inferidoDest = inferDestino(r);
+      if (inferidoDest && inferidoDest !== r.obra) {
+        console.log(`Destino inferido: → "${inferidoDest}" (alb ${r.albaran})`);
+        r.obra = inferidoDest;
+        update.obra = inferidoDest;
+        cambio = true;
+      }
+    } else {
+      console.log(`[v107EA reanaliza] inferDestino bloqueado para Holcim cisterna cemento, destino "${r.obra}" preservado (alb ${r.albaran})`);
     }
     // Corregir proveedor
     if (r.proveedor) {
