@@ -3869,15 +3869,54 @@ async function _processOne(it, type, key, timeoutMs) {
             const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
             return /palet/.test(norm);
           };
+          // v107EG (21/05/2026): filtro DEFENSIVO anti-SUPLEMENTO Molins/Promsa.
+          // Albaranes Molins pueden tener varias líneas en "DESCRIPCIÓ DEL
+          // PRODUCTE": 1 material real + 1 ó 2 suplementos de coste (no son
+          // cargas físicas, son recargos de facturación). Caso real prueba
+          // de fuego N-21777 (21/05/2026): tres líneas → "AG-11/22-T-C
+          // (gravilla 12/25) 30,48 TN" + "DESPLAZAMIENTO RD117G 30,48 TN" +
+          // "EXTRA TEMPORAL IMPACTOS GUERRA IRAN 30,48 TN". El camión solo
+          // llevó 30,48 TN de grava — las otras 2 líneas son CARGOS DE
+          // FACTURACIÓN que comparten la misma cantidad (truco de Molins
+          // para facturar por TN el recargo). Decisión Juan Carlos: guardar
+          // SOLO la línea del material real, ignorar suplementos.
+          // SOLUCIÓN: filtro por palabras clave en producto + códigos típicos
+          // de suplemento (RD117G = desplazamiento, EA-TE-IRAN = extra
+          // temporal impactos Irán).
+          const _esSuplementoMolins = (m) => {
+            const prod = String(m.producto || '').toUpperCase();
+            const cod = String(m.codigo || m.cod || '').toUpperCase();
+            // Códigos confirmados de suplementos Molins:
+            //   RD117G = DESPLAZAMIENTO
+            //   EA-TE-IRAN = EXTRA TEMPORAL IMPACTOS GUERRA IRAN
+            //   RD117x (otros desplazamientos)
+            if (/^RD\d+/.test(cod)) return true;
+            if (/^EA-TE/.test(cod)) return true;
+            // Palabras clave en el nombre del producto que indican suplemento
+            // de coste (NO carga física real):
+            if (/^DESPLAZAMIENTO/.test(prod)) return true;
+            if (/^EXTRA\s+TEMPORAL/.test(prod)) return true;
+            if (/IMPACTOS\s+GUERRA/.test(prod)) return true;
+            if (/^RECARGO/.test(prod)) return true;
+            if (/^SUPLEMENTO/.test(prod)) return true;
+            // Si no coincide ninguna regla, NO es suplemento (es material real)
+            return false;
+          };
           const materialesValidos = data.materiales.filter(m =>
             m && m.producto && parseFloat(m.tm) > 0
             && !_esPalet(m.producto)
             && !/^70001/.test(String(m.codigo || m.cod || ''))
+            && !_esSuplementoMolins(m)
           );
           // Log adicional v107D6: cuántos materiales descartó por palet.
           const _descartadosPalet = data.materiales.length - materialesValidos.length;
           if (_descartadosPalet > 0) {
-            console.log(`[v107D6] Filtro anti-palet: descartados ${_descartadosPalet} ítem(s) (PALET CEMENTO/PALET MORTERO no se cuentan como material).`);
+            console.log(`[v107D6/v107EG] Filtro anti-palet/anti-suplemento: descartados ${_descartadosPalet} ítem(s) (PALET o DESPLAZAMIENTO/EXTRA TEMPORAL/RECARGO/SUPLEMENTO no se cuentan como material).`);
+            // Detalle de cuáles eran suplementos Molins
+            const _suplementos = data.materiales.filter(m => _esSuplementoMolins(m));
+            if (_suplementos.length) {
+              console.log(`[v107EG] Suplementos Molins descartados:`, _suplementos.map(s => `"${s.producto}" (cod ${s.codigo || s.cod || '?'})`).join(', '));
+            }
           }
           console.log(`[v107D4] materiales válidos tras filtro (producto + tm>0 + no PALET): ${materialesValidos.length}`);
           if (!materialesValidos.length) {
