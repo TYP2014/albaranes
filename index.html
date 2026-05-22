@@ -7446,6 +7446,63 @@ async function recorregirProveedores() {
   else toast('No había nada que normalizar');
 }
 
+// v107EJ (22/05/2026): función PUNTUAL para unificar grafías de origen en
+// albaranes EDITADOS A MANO (que reanalizarTodo normalmente respeta y no
+// toca). Aplica SOLO 2 canonizaciones específicas que pidió Juan Carlos:
+//   - "Sabadell" (capitalizado) → "SABADELL" (mayúsculas)
+//   - "Tecnocatalana" (corto) → "Tecnocatalana de Runes, S.L." (razón social)
+// No toca ningún otro campo del albarán manual. Después de ejecutar una
+// vez, los manuales quedan unificados y vuelven a estar protegidos como
+// siempre. Se invoca desde la consola F12 escribiendo: unificarManuales()
+window.unificarManuales = async function() {
+  if (!records.length) { toast('No hay albaranes', 'err'); return; }
+  // Filtrar SOLO albaranes manuales con origen "Sabadell" o "Tecnocatalana" (corto)
+  const candidatos = records.filter(r =>
+    r._manual && r.db_id && r.planta && (
+      String(r.planta).trim() === 'Sabadell' ||
+      String(r.planta).trim() === 'Tecnocatalana'
+    )
+  );
+  if (!candidatos.length) {
+    toast('No hay manuales con "Sabadell" o "Tecnocatalana" — todo está ya unificado');
+    return;
+  }
+  if (!confirm(`Se encontraron ${candidatos.length} albaranes manuales con grafías a unificar:\n\n- Sabadell → SABADELL\n- Tecnocatalana → Tecnocatalana de Runes, S.L.\n\nEs un cambio que SOLO toca el campo "origen" (planta), nada más.\n\n¿Continuar?`)) return;
+  let cambios = 0, errores = 0;
+  toast(`🔧 Unificando ${candidatos.length} manuales...`);
+  for (const r of candidatos) {
+    const original = String(r.planta).trim();
+    let nuevo = null;
+    if (original === 'Sabadell') nuevo = 'SABADELL';
+    else if (original === 'Tecnocatalana') nuevo = 'Tecnocatalana de Runes, S.L.';
+    if (!nuevo) continue;
+    console.log(`[v107EJ unificar manual] Origen: "${original}" → "${nuevo}" (alb ${r.albaran})`);
+    const valorAnterior = r.planta;
+    r.planta = nuevo;
+    try {
+      const { error } = await sb.from('albaranes').update({ planta: nuevo }).eq('id', r.db_id);
+      if (error) {
+        errores++;
+        r.planta = valorAnterior;
+        console.error('Error guardando manual unificado', r.albaran, error);
+      } else {
+        cambios++;
+      }
+    } catch (e) {
+      errores++;
+      r.planta = valorAnterior;
+      console.error(e);
+    }
+  }
+  analyzeRecords();
+  applyFilters();
+  updateStats();
+  renderAlerts();
+  const msg = `✓ ${cambios} manuales unificados${errores > 0 ? ' · ' + errores + ' errores' : ''}`;
+  console.log(`[v107EJ] ${msg}`);
+  toast(msg);
+};
+
 function exportGasoilExcel() {
   if (!gasoilRecords.length) { toast('No hay tickets', 'err'); return; }
   const rows = [['FECHA','MATRÍCULA','PROVEEDOR','TIPO','LITROS','IMPORTE','€/LITRO','Nº TICKET','OBSERVACIONES'],
