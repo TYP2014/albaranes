@@ -7561,6 +7561,64 @@ window.unificarManuales = async function() {
   toast(msg);
 };
 
+// v107EL (22/05/2026): función PUNTUAL para unificar "MONTCADA" (mayúsculas)
+// a "Montcada" (capitalizado). Decisión Juan Carlos 22/05/2026: pensando en
+// el largo plazo (cuando haya años de albaranes en BD), tener "MONTCADA" y
+// "Montcada" como destinos distintos será un problema de filtros. Mejor
+// unificar ahora cuando son pocos.
+//
+// Esta función actúa sobre TODOS los albaranes (manuales Y no manuales) que
+// tengan destino EXACTAMENTE "MONTCADA" (mayúsculas, 8 caracteres). NO toca:
+//   - "Montcada" (ya bien)
+//   - "Montcada (Hormig)" (destino específico, no es lo mismo)
+//   - "Fábrica Montcada" (es ORIGEN, no destino, y además es otro campo)
+//   - "NUEVO ALMACEN MONTMELO" (contiene MONT pero no es MONTCADA)
+//   - Cualquier otra grafía que contenga "Montcada" como parte de algo más
+// Match EXACTO letra a letra para máxima seguridad.
+// Uso: desde consola F12 → escribir unificarMontcada() → confirmar
+window.unificarMontcada = async function() {
+  if (!records.length) { toast('No hay albaranes', 'err'); return; }
+  // Filtrar TODOS los albaranes (manuales y no manuales) con destino EXACTO "MONTCADA"
+  const candidatos = records.filter(r =>
+    r.db_id && r.obra && String(r.obra).trim() === 'MONTCADA'
+  );
+  if (!candidatos.length) {
+    toast('No hay albaranes con destino "MONTCADA" (mayúsculas) — todo está ya unificado');
+    return;
+  }
+  const cuantosManual = candidatos.filter(r => r._manual).length;
+  const cuantosAuto = candidatos.length - cuantosManual;
+  if (!confirm(`Se encontraron ${candidatos.length} albaranes con destino "MONTCADA" (${cuantosAuto} automáticos + ${cuantosManual} manuales).\n\nSe cambiarán TODOS a "Montcada" (capitalizado).\n\nNO se tocan los que ya tienen "Montcada", "Fábrica Montcada", "Montcada (Hormig)", etc. — solo "MONTCADA" exacto.\n\n¿Continuar?`)) return;
+  let cambios = 0, errores = 0;
+  toast(`🔧 Unificando ${candidatos.length} albaranes con destino MONTCADA...`);
+  for (const r of candidatos) {
+    const valorAnterior = r.obra;
+    console.log(`[v107EL unificar Montcada] Destino: "MONTCADA" → "Montcada" (alb ${r.albaran}${r._manual ? ', manual' : ''})`);
+    r.obra = 'Montcada';
+    try {
+      const { error } = await sb.from('albaranes').update({ obra: 'Montcada' }).eq('id', r.db_id);
+      if (error) {
+        errores++;
+        r.obra = valorAnterior;
+        console.error('Error guardando', r.albaran, error);
+      } else {
+        cambios++;
+      }
+    } catch (e) {
+      errores++;
+      r.obra = valorAnterior;
+      console.error(e);
+    }
+  }
+  analyzeRecords();
+  applyFilters();
+  updateStats();
+  renderAlerts();
+  const msg = `✓ ${cambios} albaranes con destino "Montcada" unificados${errores > 0 ? ' · ' + errores + ' errores' : ''}`;
+  console.log(`[v107EL] ${msg}`);
+  toast(msg);
+};
+
 function exportGasoilExcel() {
   if (!gasoilRecords.length) { toast('No hay tickets', 'err'); return; }
   const rows = [['FECHA','MATRÍCULA','PROVEEDOR','TIPO','LITROS','IMPORTE','€/LITRO','Nº TICKET','OBSERVACIONES'],
