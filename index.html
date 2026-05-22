@@ -8649,6 +8649,15 @@ const CLIENTES_CANONICOS = [
     'PLANTA HORMIGONES MONTCADA', 'Planta Hormigon Montcada',
     'Planta Hormigón Montcada', 'PH Montcada', 'Montcada (Hormig)',
     'Montcada Hormig'
+  ] },
+  // v107EH (21/05/2026): PROMURS — cliente canónico para albaranes manuales
+  // de transportes de REBAJE entre Sant Antoni de Vilamajor y La Roca del
+  // Vallès. Empresa cargadora + destinataria del CMR. Decisión Juan Carlos:
+  // se guarda en MAYÚSCULAS "PROMURS". Alias incluye grafías OCR posibles.
+  { canon: 'PROMURS', alias: [
+    'Promurs', 'promurs', 'PROMURs', 'pROMURS',
+    'PROMURS, S.L.', 'PROMURS SL', 'Promurs, S.L.', 'Promurs SL',
+    'PROMURS S.L.', 'Promurs S.L.', 'PROMUR', 'Promur'
   ] }
 ];
 
@@ -8785,6 +8794,16 @@ const PROVEEDORES_CANONICOS = [
     'Sodira Iberia SL', 'Sodira Iberia',
     'SODIRA', 'Sodira', 'SÔDIRA', 'SÓDIRA', 'SÒDIRA',
     'SODIRA ROCAS INDUSTRIALES', 'Sodira Rocas Industriales'
+  ] },
+  // v107EH (21/05/2026): PROMURS — proveedor canónico. Mismo nombre que el
+  // cliente porque PROMURS aparece como cargador contractual en sus CMR
+  // manuales de transportes de REBAJE Sant Antoni de Vilamajor → La Roca
+  // del Vallès. Se guarda en MAYÚSCULAS "PROMURS" igual que en el campo
+  // cliente. Alias para variantes de capitalización y formas societarias.
+  { canon: 'PROMURS', alias: [
+    'Promurs', 'promurs', 'PROMURs', 'pROMURS',
+    'PROMURS, S.L.', 'PROMURS SL', 'Promurs, S.L.', 'Promurs SL',
+    'PROMURS S.L.', 'Promurs S.L.', 'PROMUR', 'Promur'
   ] }
 ];
 
@@ -9088,19 +9107,52 @@ const ORIGENES_CANONICOS = [
     'Bàscara', 'Bascara', 'Esponellà', 'Esponella'
   ] },
   { canon: 'Aridcal', alias: ['Aridcal SAU', 'Aridcal, SAU', 'Pont Major', 'Aridcal Pont Major'] },
-  // v99b → v107O: origen "Tecnocatalana" (corto) para albaranes Holcim de RECEPCIÓN de árido reciclado.
-  // Decisión Juan Carlos: en ORIGEN va el nombre corto "Tecnocatalana", en PROVEEDOR va el largo
-  // "Tecnocatalana de Runes, S.L." (la razón social completa). Los albaranes históricos con el
-  // nombre largo se renombran via SQL masivo en BD.
-  { canon: 'Tecnocatalana', alias: [
-    'Tecnocatalana de Runes, S.L.', 'Tecnocatalana de Runes, S.L',
-    'TECNOCATALANA DE RUNES, S.L.', 'TECNOCATALANA DE RUNES, S.L',
-    'Tecnocatalana de Runes S.L.', 'Tecnocatalana de Runes S.L',
-    'TECNOCATALANA DE RUNES SL', 'TECNOCATALANA DE RUNES S.L.',
-    'Tecnocatalana de Runes SL', 'Tecnocatalana de Runes',
-    'TECNOCATALANA DE RUNES, SL', 'Tecnocatalana de Runes, SL',
-    'TECNOCATALANA', 'tecnocatalana',
-    'Tecnocatalana SL', 'Tecnocatalana S.L.', 'TECNOCATALANA SL'
+  // v99b → v107O → v107EI (22/05/2026): origen "Tecnocatalana de Runes, S.L."
+  // (largo, igual que el proveedor). Decisión Juan Carlos 22/05/2026: ANTES
+  // se guardaba como "Tecnocatalana" (corto), pero coexistía con la grafía
+  // larga en BD y aparecían 2 entradas distintas en los filtros. Ahora se
+  // unifica TODO bajo el canon "Tecnocatalana de Runes, S.L." (la razón
+  // social completa, misma que el proveedor). Los albaranes históricos con
+  // "Tecnocatalana" corto se renombran via RE-CORREGIR TODO.
+  { canon: 'Tecnocatalana de Runes, S.L.', alias: [
+    'Tecnocatalana de Runes, S.L', 'TECNOCATALANA DE RUNES, S.L.',
+    'TECNOCATALANA DE RUNES, S.L', 'Tecnocatalana de Runes S.L.',
+    'Tecnocatalana de Runes S.L', 'TECNOCATALANA DE RUNES SL',
+    'TECNOCATALANA DE RUNES S.L.', 'Tecnocatalana de Runes SL',
+    'Tecnocatalana de Runes', 'TECNOCATALANA DE RUNES, SL',
+    'Tecnocatalana de Runes, SL', 'TECNOCATALANA DE RUNES',
+    'Tecnocatalana', 'TECNOCATALANA', 'tecnocatalana',
+    'Tecnocatalana SL', 'Tecnocatalana S.L.', 'TECNOCATALANA SL',
+    'Tecnocatalana, S.L.', 'Tecnocatalana, S.L', 'TECNOCATALANA, S.L.'
+  ] },
+  // v107EH (21/05/2026): Sant Antoni de Vilamajor — pueblo del Vallès
+  // Oriental. Origen habitual en albaranes manuales PROMURS de transportes
+  // de REBAJE hacia La Roca del Vallès. Decisión Juan Carlos: grafía
+  // catalana oficial "Sant Antoni de Vilamajor" (con J catalana, NO con Y
+  // castellana). Alias para todas las variantes OCR posibles (mayúsculas,
+  // sin tilde de la i, con Y castellana, con/sin "de").
+  { canon: 'Sant Antoni de Vilamajor', alias: [
+    'SANT ANTONI DE VILAMAJOR', 'sant antoni de vilamajor',
+    'Sant Antoni Vilamajor', 'SANT ANTONI VILAMAJOR',
+    'Sant Antoni de Vilamayor', 'SANT ANTONI DE VILAMAYOR',
+    'Sant Antoni Vilamayor', 'SANT ANTONI VILAMAYOR',
+    'St. Antoni de Vilamajor', 'St Antoni de Vilamajor',
+    'ST. ANTONI DE VILAMAJOR', 'ST ANTONI DE VILAMAJOR',
+    'San Antonio de Vilamajor', 'SAN ANTONIO DE VILAMAJOR',
+    'San Antonio Vilamajor', 'Vilamajor', 'VILAMAJOR'
+  ] },
+  // v107EI (22/05/2026): SABADELL — origen canónico (mayúsculas como pidió
+  // Juan Carlos). Antes coexistían 2 entradas distintas en BD: "Sabadell"
+  // (capitalizado) y "SABADELL" (mayúsculas), causando duplicación en los
+  // filtros. Ahora todo se unifica bajo "SABADELL" via canon + alias. Los
+  // albaranes históricos con "Sabadell" se renombran via RE-CORREGIR TODO.
+  { canon: 'SABADELL', alias: [
+    'Sabadell', 'sabadell', 'SAbadell', 'SAbADELL', 'sABADELL',
+    'SABADEL', 'Sabadel', 'sabadel',
+    '08200 Sabadell', '08201 Sabadell', '08202 Sabadell',
+    '08203 Sabadell', '08204 Sabadell', '08205 Sabadell',
+    '08206 Sabadell', '08207 Sabadell', '08208 Sabadell',
+    'Sabadell (Barcelona)', 'SABADELL (BARCELONA)'
   ] }
 ];
 const _matchOrigen = makeCanonMatcher(ORIGENES_CANONICOS);
