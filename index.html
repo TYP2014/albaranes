@@ -7451,46 +7451,104 @@ async function recorregirProveedores() {
 // toca). Aplica SOLO 2 canonizaciones específicas que pidió Juan Carlos:
 //   - "Sabadell" (capitalizado) → "SABADELL" (mayúsculas)
 //   - "Tecnocatalana" (corto) → "Tecnocatalana de Runes, S.L." (razón social)
+// v107EK (22/05/2026): AMPLIACIÓN — también unifica grafías de DESTINO:
+//   - "LA GARRIGA" (mayúsculas) y variantes "LA GARRIGA (N)" → "La Garriga"
+//   - "MONTCADA" (mayúsculas) → "Montcada" (capitalizado)
+//   - "SANT ADRIÀ DEL BESOS" + "Sant Adrià de Besos" + variantes → "Sant Adria de Besos"
+//   - "Sant Boi" (corto) → "Sant Boi de Llobregat" (oficial)
 // No toca ningún otro campo del albarán manual. Después de ejecutar una
 // vez, los manuales quedan unificados y vuelven a estar protegidos como
 // siempre. Se invoca desde la consola F12 escribiendo: unificarManuales()
 window.unificarManuales = async function() {
   if (!records.length) { toast('No hay albaranes', 'err'); return; }
-  // Filtrar SOLO albaranes manuales con origen "Sabadell" o "Tecnocatalana" (corto)
-  const candidatos = records.filter(r =>
-    r._manual && r.db_id && r.planta && (
-      String(r.planta).trim() === 'Sabadell' ||
-      String(r.planta).trim() === 'Tecnocatalana'
-    )
-  );
+  // Reglas de unificación: { campo, mapeo: { valor_original: valor_nuevo } }
+  const reglasOrigen = {
+    'Sabadell': 'SABADELL',
+    'Tecnocatalana': 'Tecnocatalana de Runes, S.L.'
+  };
+  // v107EK destinos — incluye variantes específicas que la IA puede haber
+  // guardado mayúsculas/sin tildes. Mapeo exacto (no regex) para máxima
+  // seguridad — solo cambia lo que coincide LETRA A LETRA.
+  const reglasDestino = {
+    // La Garriga
+    'LA GARRIGA': 'La Garriga',
+    'la garriga': 'La Garriga',
+    'LA GARRIGA (5)': 'La Garriga', 'LA GARRIGA (6)': 'La Garriga',
+    'LA GARRIGA (4)': 'La Garriga', 'LA GARRIGA (3)': 'La Garriga',
+    'LA GARRIGA (2)': 'La Garriga', 'LA GARRIGA (1)': 'La Garriga',
+    'LA GARRIGA (7)': 'La Garriga', 'LA GARRIGA (8)': 'La Garriga',
+    'LA GARRIGA (9)': 'La Garriga', 'LA GARRIGA (10)': 'La Garriga',
+    // Montcada (capitalizado, NO toca "Fábrica Montcada" ni "Planta de Montcada")
+    'MONTCADA': 'Montcada',
+    'montcada': 'Montcada',
+    // Sant Adria de Besos (3+ variantes a una sola sin tildes)
+    'SANT ADRIA DE BESOS': 'Sant Adria de Besos',
+    'sant adria de besos': 'Sant Adria de Besos',
+    'Sant Adrià de Besos': 'Sant Adria de Besos',
+    'SANT ADRIÀ DE BESOS': 'Sant Adria de Besos',
+    'sant adrià de besos': 'Sant Adria de Besos',
+    'Sant Adrià de Besòs': 'Sant Adria de Besos',
+    'SANT ADRIÀ DE BESÒS': 'Sant Adria de Besos',
+    'Sant Adria de Besòs': 'Sant Adria de Besos',
+    'SANT ADRIA DE BESÒS': 'Sant Adria de Besos',
+    'Sant Adrià del Besos': 'Sant Adria de Besos',
+    'SANT ADRIÀ DEL BESOS': 'Sant Adria de Besos',
+    'Sant Adria del Besos': 'Sant Adria de Besos',
+    'SANT ADRIA DEL BESOS': 'Sant Adria de Besos',
+    // Sant Boi de Llobregat
+    'Sant Boi': 'Sant Boi de Llobregat',
+    'SANT BOI': 'Sant Boi de Llobregat',
+    'sant boi': 'Sant Boi de Llobregat',
+    'SANT BOI DE LLOBREGAT': 'Sant Boi de Llobregat',
+    'sant boi de llobregat': 'Sant Boi de Llobregat'
+  };
+  // Filtrar manuales que necesitan ALGÚN cambio (origen O destino)
+  const candidatos = records.filter(r => {
+    if (!r._manual || !r.db_id) return false;
+    const planta = r.planta ? String(r.planta).trim() : '';
+    const obra = r.obra ? String(r.obra).trim() : '';
+    return reglasOrigen[planta] !== undefined || reglasDestino[obra] !== undefined;
+  });
   if (!candidatos.length) {
-    toast('No hay manuales con "Sabadell" o "Tecnocatalana" — todo está ya unificado');
+    toast('No hay manuales con grafías a unificar — todo está ya bien');
     return;
   }
-  if (!confirm(`Se encontraron ${candidatos.length} albaranes manuales con grafías a unificar:\n\n- Sabadell → SABADELL\n- Tecnocatalana → Tecnocatalana de Runes, S.L.\n\nEs un cambio que SOLO toca el campo "origen" (planta), nada más.\n\n¿Continuar?`)) return;
+  if (!confirm(`Se encontraron ${candidatos.length} albaranes manuales con grafías a unificar.\n\nORIGEN (planta):\n- Sabadell → SABADELL\n- Tecnocatalana → Tecnocatalana de Runes, S.L.\n\nDESTINO (obra):\n- LA GARRIGA → La Garriga\n- MONTCADA → Montcada\n- Sant Adrià de Besos (variantes) → Sant Adria de Besos\n- Sant Boi → Sant Boi de Llobregat\n\nSolo toca los campos planta y/o obra del albarán manual.\n\n¿Continuar?`)) return;
   let cambios = 0, errores = 0;
   toast(`🔧 Unificando ${candidatos.length} manuales...`);
   for (const r of candidatos) {
-    const original = String(r.planta).trim();
-    let nuevo = null;
-    if (original === 'Sabadell') nuevo = 'SABADELL';
-    else if (original === 'Tecnocatalana') nuevo = 'Tecnocatalana de Runes, S.L.';
-    if (!nuevo) continue;
-    console.log(`[v107EJ unificar manual] Origen: "${original}" → "${nuevo}" (alb ${r.albaran})`);
-    const valorAnterior = r.planta;
-    r.planta = nuevo;
+    const update = {};
+    const planta = r.planta ? String(r.planta).trim() : '';
+    const obra = r.obra ? String(r.obra).trim() : '';
+    const valorAnteriorPlanta = r.planta;
+    const valorAnteriorObra = r.obra;
+    if (reglasOrigen[planta] !== undefined) {
+      const nuevo = reglasOrigen[planta];
+      console.log(`[v107EK unificar manual] Origen: "${planta}" → "${nuevo}" (alb ${r.albaran})`);
+      r.planta = nuevo;
+      update.planta = nuevo;
+    }
+    if (reglasDestino[obra] !== undefined) {
+      const nuevo = reglasDestino[obra];
+      console.log(`[v107EK unificar manual] Destino: "${obra}" → "${nuevo}" (alb ${r.albaran})`);
+      r.obra = nuevo;
+      update.obra = nuevo;
+    }
+    if (Object.keys(update).length === 0) continue;
     try {
-      const { error } = await sb.from('albaranes').update({ planta: nuevo }).eq('id', r.db_id);
+      const { error } = await sb.from('albaranes').update(update).eq('id', r.db_id);
       if (error) {
         errores++;
-        r.planta = valorAnterior;
+        r.planta = valorAnteriorPlanta;
+        r.obra = valorAnteriorObra;
         console.error('Error guardando manual unificado', r.albaran, error);
       } else {
         cambios++;
       }
     } catch (e) {
       errores++;
-      r.planta = valorAnterior;
+      r.planta = valorAnteriorPlanta;
+      r.obra = valorAnteriorObra;
       console.error(e);
     }
   }
@@ -7499,7 +7557,7 @@ window.unificarManuales = async function() {
   updateStats();
   renderAlerts();
   const msg = `✓ ${cambios} manuales unificados${errores > 0 ? ' · ' + errores + ' errores' : ''}`;
-  console.log(`[v107EJ] ${msg}`);
+  console.log(`[v107EK] ${msg}`);
   toast(msg);
 };
 
@@ -9653,6 +9711,48 @@ const DESTINOS_CANONICOS = [
   { canon: 'Cubelles', alias: [
     'CUBELLES', '08880 Cubelles', '08880 CUBELLES',
     'Cubelles (Barcelona)', 'CUBELLES (BARCELONA)'
+  ] },
+  // v107EK (22/05/2026): La Garriga — destino unificado (capitalizado).
+  // Antes coexistían "La Garriga" y "LA GARRIGA (5)" como 2 entradas
+  // distintas en filtros. Ahora todo se canoniza a "La Garriga".
+  { canon: 'La Garriga', alias: [
+    'LA GARRIGA', 'la garriga', 'LA GARRIGA (5)', 'LA GARRIGA (6)',
+    'LA GARRIGA (4)', 'LA GARRIGA (3)', 'LA GARRIGA (2)', 'LA GARRIGA (1)',
+    'LA GARRIGA (7)', 'LA GARRIGA (8)', 'LA GARRIGA (9)', 'LA GARRIGA (10)',
+    'La Garriga (5)', 'La Garriga (6)', 'La Garriga (4)', 'La Garriga (3)',
+    '08530 La Garriga', '08530 LA GARRIGA',
+    'La Garriga (Barcelona)', 'LA GARRIGA (BARCELONA)'
+  ] },
+  // v107EK (22/05/2026): Sant Adria de Besos — destino unificado (sin tildes,
+  // capitalizado). Decisión Juan Carlos: 3 variantes existían en BD —
+  // "SANT ADRIÀ DEL BESOS" (mayúsculas con DEL), "Sant Adrià de Besos"
+  // (tilde solo en à), y "Sant Adria de Besos" (sin tildes). Todas se
+  // unifican a "Sant Adria de Besos" sin tildes para evitar problemas
+  // de filtros y comparaciones.
+  { canon: 'Sant Adria de Besos', alias: [
+    'SANT ADRIA DE BESOS', 'sant adria de besos',
+    'Sant Adrià de Besos', 'SANT ADRIÀ DE BESOS', 'sant adrià de besos',
+    'Sant Adrià de Besòs', 'SANT ADRIÀ DE BESÒS', 'sant adrià de besòs',
+    'Sant Adria de Besòs', 'SANT ADRIA DE BESÒS',
+    'Sant Adrià del Besos', 'SANT ADRIÀ DEL BESOS',
+    'Sant Adria del Besos', 'SANT ADRIA DEL BESOS',
+    'San Adrián de Besós', 'SAN ADRIAN DE BESOS', 'San Adrian de Besos',
+    'San Adrián del Besós', 'San Adrian del Besos',
+    'St. Adrià de Besòs', 'St Adrià de Besòs', 'St. Adria de Besos',
+    '08930 Sant Adrià de Besòs', '08930 SANT ADRIÀ DE BESÒS',
+    '08930 Sant Adria de Besos', '08930 SANT ADRIA DE BESOS'
+  ] },
+  // v107EK (22/05/2026): Sant Boi de Llobregat — destino unificado (nombre
+  // oficial completo). Antes coexistían "Sant Boi" (corto) y "Sant Boi de
+  // Llobregat" (oficial) como entradas distintas. Decisión Juan Carlos:
+  // canon = "Sant Boi de Llobregat".
+  { canon: 'Sant Boi de Llobregat', alias: [
+    'Sant Boi', 'SANT BOI', 'sant boi',
+    'SANT BOI DE LLOBREGAT', 'sant boi de llobregat',
+    'St. Boi de Llobregat', 'St Boi de Llobregat', 'St. Boi', 'St Boi',
+    'San Baudilio de Llobregat', 'SAN BAUDILIO DE LLOBREGAT',
+    '08830 Sant Boi de Llobregat', '08830 SANT BOI DE LLOBREGAT',
+    '08830 Sant Boi', 'Sant Boi (Barcelona)', 'SANT BOI (BARCELONA)'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
