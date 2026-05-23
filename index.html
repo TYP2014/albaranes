@@ -1420,6 +1420,35 @@ async function loadUserMap() {
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
+      // v107BC (23/05/2026): RED DE SEGURIDAD #1 — cargas iniciales con timeout y log.
+      // ANTES: las 4 cargas (ITV, Neumáticos, Vacaciones, Taller) se lanzaban en paralelo
+      //   con .catch silencioso. Si una se quedaba colgada (Storage Supabase, red mala...),
+      //   no había timeout: la promesa quedaba viva para siempre y consumía recursos del
+      //   navegador, contribuyendo al "tengo que hacer Ctrl+F5 para que la app arranque".
+      // AHORA: cada carga se envuelve en una promesa con timeout de 15s. Si tarda más, se
+      //   considera fallida (sin romper nada — la pestaña queda vacía hasta que el usuario
+      //   entre a ella, donde se reintentará la carga normalmente). Además, log claro en
+      //   consola del tiempo que tardó cada una, para que el día que vuelva el problema
+      //   sepamos en F12 cuál es la lenta.
+      const _CARGA_TIMEOUT_MS = 15000;
+      const _cargaConTimeout = (nombre, fnPromesa) => {
+        const tStart = Date.now();
+        console.log(`[v107BC arranque] cargando ${nombre}...`);
+        const timer = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout ${_CARGA_TIMEOUT_MS}ms`)), _CARGA_TIMEOUT_MS)
+        );
+        return Promise.race([fnPromesa(), timer])
+          .then(r => {
+            const dur = ((Date.now() - tStart) / 1000).toFixed(1);
+            console.log(`[v107BC arranque] ${nombre} OK en ${dur}s`);
+            return r;
+          })
+          .catch(e => {
+            const dur = ((Date.now() - tStart) / 1000).toFixed(1);
+            console.warn(`[v107BC arranque] ${nombre} FALLÓ tras ${dur}s:`, e.message || e);
+          });
+      };
+
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
       const tabItv = document.getElementById('tabItv');
       if (tabItv) tabItv.style.display = tienePermisoITV ? '' : 'none';
@@ -1428,7 +1457,7 @@ async function loadUserMap() {
       // para que el banner global de avisos aparezca en cualquier pestaña, no solo al
       // entrar en la pestaña ITV. Así, desde el momento en que se loguea, ve los avisos.
       if (tienePermisoITV) {
-        loadItvData().catch(e => console.warn('[loadUserMap] Error cargando ITVs al inicio:', e));
+        _cargaConTimeout('ITV', () => loadItvData());
       }
       // v107j: lo mismo para Neumáticos
       const tienePermisoNeum = !!userMap[currentUser.id]?.puede_ver_neumaticos;
@@ -1437,7 +1466,7 @@ async function loadUserMap() {
       window._tieneNeum = tienePermisoNeum;
       window._empresaNeum = userMap[currentUser.id]?.empresa_neumaticos || null;
       if (tienePermisoNeum) {
-        loadNeumData().catch(e => console.warn('[loadUserMap] Error cargando Neumáticos al inicio:', e));
+        _cargaConTimeout('Neumáticos', () => loadNeumData());
       }
       // v107M: lo mismo para Vacaciones
       const tienePermisoVac = !!userMap[currentUser.id]?.puede_ver_vacaciones;
@@ -1447,7 +1476,7 @@ async function loadUserMap() {
       // v107N: empresa_vacaciones limita qué subpestañas ve (lista separada por comas)
       window._empresaVac = userMap[currentUser.id]?.empresa_vacaciones || null;
       if (tienePermisoVac) {
-        loadVacData().catch(e => console.warn('[loadUserMap] Error cargando Vacaciones al inicio:', e));
+        _cargaConTimeout('Vacaciones', () => loadVacData());
       }
       // v107AE: lo mismo para Taller (mantenimientos de flota)
       const tienePermisoTaller = !!userMap[currentUser.id]?.puede_ver_taller;
@@ -1457,7 +1486,7 @@ async function loadUserMap() {
       // empresa_taller limita qué subpestañas ve (igual lógica que vacaciones: admin NO ve Transmargaz)
       window._empresaTaller = userMap[currentUser.id]?.empresa_taller || null;
       if (tienePermisoTaller) {
-        loadTallerData().catch(e => console.warn('[loadUserMap] Error cargando Taller al inicio:', e));
+        _cargaConTimeout('Taller', () => loadTallerData());
       }
       // v107AF: ITV en SOLO LECTURA para usuarios con Taller que NO son admin.
       // El usuario TALLER ve la pestaña ITV y el banner de avisos (para saber
@@ -1745,14 +1774,48 @@ async function onLogin(user) {
   }
 }
 
-// Auto-refresh de la cola cada 30s — siempre que haya algo (procesando, en curso o huérfanos).
+// Auto-refresh de la cola cada 15s — siempre que haya algo (procesando, en curso o huérfanos).
 // Esto actualiza el contador de minutos transcurridos y muestra el aviso de bloqueo si pasa de 2 min,
 // y detecta archivos atascados en 'processing' tras un cuelgue.
+// v107BC (23/05/2026): RED DE SEGURIDAD #2 — auto-rescate de filas zombi.
+// Si hay archivos en 'processing' huérfanos (sin _processingAlb activo) durante más de 3 minutos,
+// los marcamos automáticamente como 'error' para que el usuario los pueda reintentar sin refrescar
+// la página. ANTES Juan Carlos tenía que pulsar Ctrl+F5 y volver a subir; AHORA la app sola se
+// desbloquea y deja la fila lista para reintento con un click.
+let _huerfanosDesde = { alb: 0, gas: 0 }; // timestamp desde que se detectaron huérfanos
 setInterval(() => {
-  const tieneHuerfanos = pendingAlb.some(x => x.status === 'processing') || pendingGas.some(x => x.status === 'processing');
-  if (_processingAlb || _processingGas || tieneHuerfanos) {
+  const tieneHuerfanosAlb = pendingAlb.some(x => x.status === 'processing');
+  const tieneHuerfanosGas = pendingGas.some(x => x.status === 'processing');
+  if (_processingAlb || _processingGas || tieneHuerfanosAlb || tieneHuerfanosGas) {
     checkProcessingStuck('alb');
     checkProcessingStuck('gas');
+    // v107BC auto-rescate: si quedan huérfanos sin procesamiento activo, contar tiempo
+    const now = Date.now();
+    const ZOMBI_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos
+    if (tieneHuerfanosAlb && !_processingAlb) {
+      if (_huerfanosDesde.alb === 0) _huerfanosDesde.alb = now;
+      else if (now - _huerfanosDesde.alb > ZOMBI_TIMEOUT_MS) {
+        const zombis = pendingAlb.filter(x => x.status === 'processing');
+        zombis.forEach(it => { it.status = 'error'; });
+        console.warn(`[v107BC watchdog] ${zombis.length} fila(s) zombi de albaranes marcadas como error tras 3min sin procesar.`);
+        try { toast(`🛟 ${zombis.length} archivo(s) atascado(s) marcado(s) como error. Pulsa "Reintentar errores".`, 'warn'); } catch(e) {}
+        _huerfanosDesde.alb = 0;
+      }
+    } else {
+      _huerfanosDesde.alb = 0;
+    }
+    if (tieneHuerfanosGas && !_processingGas) {
+      if (_huerfanosDesde.gas === 0) _huerfanosDesde.gas = now;
+      else if (now - _huerfanosDesde.gas > ZOMBI_TIMEOUT_MS) {
+        const zombis = pendingGas.filter(x => x.status === 'processing');
+        zombis.forEach(it => { it.status = 'error'; });
+        console.warn(`[v107BC watchdog] ${zombis.length} fila(s) zombi de gasoil marcadas como error tras 3min sin procesar.`);
+        try { toast(`🛟 ${zombis.length} ticket(s) atascado(s) marcado(s) como error.`, 'warn'); } catch(e) {}
+        _huerfanosDesde.gas = 0;
+      }
+    } else {
+      _huerfanosDesde.gas = 0;
+    }
     renderQueues();
   }
 }, 15000); // cada 15s para que el aviso de huérfanos se muestre rápido
@@ -3095,6 +3158,10 @@ async function processQueue(type) {
 async function _processOne(it, type, key, timeoutMs) {
   it.status = 'processing';
   renderQueues();
+  // v107BC: log claro del progreso del archivo en la cola, para diagnóstico F12.
+  const _logPrefix = `[v107BC cola ${type}] ${it.name}:`;
+  const _tInicio = Date.now();
+  console.log(`${_logPrefix} inicio`);
 
   try {
     // v71: lógica de subida con fallback inteligente:
@@ -3105,6 +3172,8 @@ async function _processOne(it, type, key, timeoutMs) {
     let usedSharedFallback = false;
 
     if (!it.skipUpload) {
+      // v107BC: log antes de subir a Storage (paso típicamente lento)
+      console.log(`${_logPrefix} subiendo a Storage...`);
       // v107e: timeout 60s → 180s (3 min) + 2 reintentos automáticos.
       // Causa raíz del problema: Storage de Supabase a veces tarda más de 60s con PDFs
       // grandes o cuando la red va lenta. Antes el upload fallaba y caía al fallback,
@@ -3148,6 +3217,9 @@ async function _processOne(it, type, key, timeoutMs) {
     let results;
     let attempts = 0;
     const MAX_ATTEMPTS = 4; // hasta 4 intentos: 2 normales + 2 tras rate limit
+
+    // v107BC: log antes de llamar a la IA
+    console.log(`${_logPrefix} llamando a IA Claude...`);
 
     while (attempts < MAX_ATTEMPTS) {
       const ctrl = new AbortController();
@@ -4110,9 +4182,15 @@ async function _processOne(it, type, key, timeoutMs) {
     else { applyGasFilters(); }
     document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length;
     document.getElementById('tabGasCount').textContent = gasoilRecords.length;
+    // v107BC: log de éxito con tiempo total
+    const _durTotal = ((Date.now() - _tInicio) / 1000).toFixed(1);
+    console.log(`${_logPrefix} ✓ guardado en ${_durTotal}s`);
     return true;
   } catch (e) {
     it.status = 'error';
+    // v107BC: log de error con tiempo total
+    const _durErr = ((Date.now() - _tInicio) / 1000).toFixed(1);
+    console.warn(`${_logPrefix} ✗ FALLÓ tras ${_durErr}s:`, e.message || e);
     // v93b: NO borramos it.b64 aquí. Si lo borramos y processQueue reintenta este archivo
     // (al haber quedado en 'error'), el reintento mandaría data:null a la API y obtendría
     // un 400 "Input should be a valid string". Mantener b64 para que los reintentos puedan
