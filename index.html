@@ -4591,6 +4591,44 @@ SOLO JSON válido, sin markdown.`;
     }
   }
 
+  // ===== v107EN3 — RED DE SEGURIDAD CLIENTE CANTERAS CANRO =====
+  // Canteras Canro tiene un patrón muy consistente: caja CLIENTE con código/CIF
+  // arriba y NOMBRE en mayúsculas abajo. La IA Haiku a veces deja vacío el
+  // cliente aunque el PDF SÍ lo tenga (inconsistencia ~30-50% en lotes grandes).
+  // Cuando detectamos un albarán Canro con cliente vacío, reintentamos con
+  // Sonnet 4.6 que es más fiable leyendo este campo concreto.
+  // Mismo patrón que reintentaMatriculaConSonnet: focalizado, solo cuando hace
+  // falta, no toca otros campos.
+  const indicesCanroSinCliente = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const esCanro = /CANTERAS?\s+CANRO|\bCANRO\b/i.test(r.proveedor || '');
+    const clienteVacio = !r.cliente || !String(r.cliente).trim();
+    if (esCanro && clienteVacio) indicesCanroSinCliente.push(i);
+  }
+  if (indicesCanroSinCliente.length > 0) {
+    console.log(`[v107EN3] Haiku dejó ${indicesCanroSinCliente.length}/${results.length} clientes Canro vacíos. Reintentando con Sonnet 4.6...`);
+    try {
+      const clientesSonnet = await reintentaClienteCanroConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+      if (clientesSonnet && clientesSonnet.length === results.length) {
+        let recuperados = 0;
+        for (const i of indicesCanroSinCliente) {
+          const c = clientesSonnet[i];
+          if (c && String(c).trim() && String(c).trim() !== '-' && String(c).trim() !== '—') {
+            results[i].cliente = String(c).trim();
+            console.log(`[v107EN3] Cliente Canro recuperado albarán ${i + 1}: "${results[i].cliente}"`);
+            recuperados++;
+          }
+        }
+        console.log(`[v107EN3] Sonnet recuperó ${recuperados}/${indicesCanroSinCliente.length} clientes Canro`);
+      } else {
+        console.warn(`[v107EN3] Sonnet devolvió ${clientesSonnet?.length || 0} clientes pero esperábamos ${results.length}, descartando reintento`);
+      }
+    } catch (e) {
+      console.warn('[v107EN3] Error en reintento Sonnet cliente Canro (no crítico):', e.message);
+    }
+  }
+
   // ===== v107D0 — RED DE SEGURIDAD MATEMÁTICA PARA TN =====
   // Verificación cruzada: el TN que devuelve la IA tiene que cuadrar con
   // (bruto - tara) / 1000 dentro de un margen de ±0.05 TN (50 kg de tolerancia).
@@ -4795,6 +4833,58 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v93] Sonnet no devolvió JSON válido:', text.substring(0, 200));
+    return null;
+  }
+}
+
+// v107EN3 — Reintento focalizado del CLIENTE para albaranes Canteras Canro
+// Solo se llama cuando Haiku ha dejado vacío el cliente en uno o más Canro.
+// Sonnet 4.6 lee el albarán y devuelve un array con TODOS los clientes
+// (mismo formato que reintentaMatriculaConSonnet).
+async function reintentaClienteCanroConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) de transporte de Canteras Canro, S.A.
+Para cada albarán, lee SOLO el campo CLIENTE.
+
+La caja "CLIENTE" está en la zona central del albarán, etiquetada "CLIENTE" en mayúsculas, JUSTO A LA IZQUIERDA de la caja "DESTINO".
+Dentro de esa caja hay DOS líneas:
+- Línea ARRIBA: un código numérico (3 dígitos) seguido de un CIF (ej. "369   ESU21728217", "371   ESU56819279", "171   ESB60309853"). IGNORA esta línea.
+- Línea ABAJO: el NOMBRE del cliente en MAYÚSCULAS (ej. "UTE. MOTA DE RECINTOS (FASE 1)", "UTE. SEDE CENTRAL FRIO BOGAT", "CONTROL DEMETER,SL", "ACCIONA CONSTRUCCION, SA.").
+
+Devuelve EXACTAMENTE el texto de la línea ABAJO, letra a letra, con paréntesis/comas/puntos tal cual aparece. Solo en mayúsculas si así está en el PDF.
+Si la caja CLIENTE está COMPLETAMENTE vacía (no hay código ni nombre), devuelve "" (cadena vacía) para ese albarán.
+
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} elementos, en el ORDEN en que aparecen los albaranes en el PDF.
+Ejemplo de respuesta correcta para 3 albaranes: ["UTE. MOTA DE RECINTOS (FASE 1)","UTE. SEDE CENTRAL FRIO BOGAT",""]
+SOLO el array JSON, sin texto adicional, sin markdown, sin explicación.`
+    : `Este es un albarán de Canteras Canro, S.A. Lee SOLO el CLIENTE.
+La caja "CLIENTE" tiene 2 líneas: arriba un código+CIF (IGNORAR), abajo el NOMBRE en mayúsculas.
+Devuelve EXACTAMENTE el texto del nombre, letra a letra (ej. "UTE. MOTA DE RECINTOS (FASE 1)").
+Si la caja está vacía, devuelve "".
+Devuelve un ARRAY JSON con UN elemento: ["UTE. MOTA DE RECINTOS (FASE 1)"]. Si no lo ves, [""].
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107EN3] Sonnet no devolvió JSON válido:', text.substring(0, 200));
     return null;
   }
 }
