@@ -723,6 +723,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="st"><div class="dot" style="--c:var(--wn)"></div>PRÓXIMAS CITAS ITV</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn bp" onclick="openCitaModalNew()">➕ Nueva cita</button>
+              <!-- v107EN5: leer foto SMS/email del centro ITV con IA -->
+              <button class="btn bs" onclick="document.getElementById('citaFileInput').click()">📷 Subir cita</button>
+              <input type="file" id="citaFileInput" accept="image/*" style="display:none" onchange="handleCitaFiles(this.files); this.value='';">
             </div>
           </div>
           <div class="card-bd">
@@ -8081,6 +8084,102 @@ async function deleteCitaRecord() {
   } catch (e) {
     console.error('[deleteCitaRecord] Error:', e);
     toast('Error eliminando cita: ' + (e.message || e), 'err');
+  }
+}
+
+// v107EN5 — Subir foto del SMS/email del centro ITV y que la IA rellene la cita.
+// Solo IMAGEN (no PDF) porque las citas suelen llegar como captura de móvil del SMS/email.
+// Tras leer la imagen, abre el modal con los datos pre-rellenos para que el usuario
+// revise y pulse Guardar (igual que reanalizarItv: NO guarda automáticamente).
+async function handleCitaFiles(files) {
+  if (!files || !files.length) return;
+  const key = getKey();
+  if (!key) { toast('Falta clave de IA — ve a "Cambiar" arriba', 'err'); return; }
+  const f = files[0]; // solo procesamos la primera (las citas son 1 archivo a la vez)
+  if (!/^image\//i.test(f.type)) { toast('Solo imágenes (foto del SMS/email)', 'err'); return; }
+  toast('🔍 Leyendo cita con IA...');
+  try {
+    // Convertir imagen a base64
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(f);
+    });
+    // Llamar a la IA
+    const datos = await callClaudeCita(b64, f.type || 'image/jpeg', key);
+    // Abrir modal "Nueva cita" con los campos pre-rellenos
+    editCitaId = null;
+    _renderCitaModalFields({
+      matricula: datos.matricula || '',
+      fecha_cita: datos.fecha_cita || '',
+      hora_cita: datos.hora_cita || '',
+      centro: datos.centro || 'Vilafranca del Penedès',
+      direccion: '',
+      observaciones: ''
+    }, true);
+    document.getElementById('citaBtnDel').style.display = 'none';
+    document.getElementById('citaOv').classList.add('open');
+    toast('✓ Cita leída. Revisa los datos y pulsa Guardar.');
+  } catch (e) {
+    console.error('[handleCitaFiles] Error:', e);
+    toast('Error leyendo cita: ' + (e.message || e), 'err');
+  }
+}
+
+// v107EN5 — Llamar a Claude Haiku para extraer datos de una cita ITV desde foto.
+// Devuelve {matricula, fecha_cita (YYYY-MM-DD), hora_cita (HH:MM), centro}.
+async function callClaudeCita(b64, mediaType, key) {
+  const prompt = `Esta imagen es una captura de un SMS o email de un centro de ITV (Inspección Técnica de Vehículos) en España, confirmando una CITA programada para un vehículo. Extrae los siguientes 4 datos:
+
+1. MATRÍCULA del vehículo: formato español típico — 4 dígitos + 3 letras (ej. "1234BCD", "5360JZR") o formatos antiguos. Devuélvela en MAYÚSCULAS sin espacios.
+
+2. FECHA de la cita: en formato ISO YYYY-MM-DD (ej. "2026-06-15"). El SMS/email puede tener formatos como "15/06/2026", "15-06-2026", "15 de junio de 2026", "15 jun 2026". Conviértelo SIEMPRE a YYYY-MM-DD.
+
+3. HORA de la cita: en formato HH:MM 24h (ej. "14:30", "08:15"). Si pone "8:15h" → "08:15". Si solo aparece "8:15" sin contexto AM/PM, asume horario laboral (08:00-18:00).
+
+4. CENTRO de la ITV: nombre del centro (ej. "Vilafranca del Penedès", "Granollers", "Mataró", "Sabadell", "Sant Joan Despí"). Si pone una dirección y un nombre de población, devuelve el nombre de la población. Si no se identifica claramente el centro, devuelve "Vilafranca del Penedès" (es el centro habitual por defecto).
+
+Devuelve EXCLUSIVAMENTE un JSON con esta estructura, sin texto adicional, sin markdown:
+{"matricula":"...","fecha_cita":"YYYY-MM-DD","hora_cita":"HH:MM","centro":"..."}
+
+Si algún campo NO se ve claramente en la imagen, devuelve "" (string vacío) para ese campo, NUNCA lo inventes.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  console.log('[v107EN5 callClaudeCita] Respuesta IA:', text);
+  try {
+    const obj = JSON.parse(text);
+    // Sanitizar matrícula
+    if (obj.matricula) obj.matricula = String(obj.matricula).toUpperCase().replace(/\s+/g, '');
+    return obj;
+  } catch (e) {
+    console.warn('[v107EN5 callClaudeCita] JSON inválido:', text.substring(0, 200));
+    throw new Error('La IA no devolvió un JSON válido');
   }
 }
 
