@@ -1319,6 +1319,20 @@ let filteredGas = [];
 let gasEmpresaActiva = 'TYP2014';
 let pendingAlb = [];
 let pendingGas = [];
+// v107CS (26/05/2026): BANDERA "APP LISTA". Resuelve el problema histórico
+// de Juan Carlos: "subo un albaran nada más entrar, no procesa, no da error,
+// refresco y entonces sí". Causa: el usuario pulsa el botón Subir antes de
+// que loadData() / loadUserMap() / loadMatriculasAprendidas() terminen, y
+// addFiles se queda esperando estado que aún no existe. Con esta bandera:
+// - mientras es false: addFiles encola el archivo pero AVISA al usuario
+//   con un mensaje claro (no se cuelga, no se pierde nada).
+// - cuando pasa a true: se procesan automáticamente los pendientes.
+// Se activa al final de onLogin() y los conductores no la usan (ellos suben
+// con uploadAsConductor que no depende de loadData).
+window._appLista = false;
+// v107CS: cola de archivos que llegaron ANTES de que la app estuviera lista.
+// Se procesan en cuanto _appLista pase a true (en onLogin al terminar).
+window._colaPreArranque = [];
 // v84: orden por defecto = 'created_at' descendente (lo más recién subido arriba).
 // Antes era null (fecha del albarán → matrícula → nº). Ahora si subes un albarán nuevo,
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
@@ -1392,6 +1406,33 @@ async function doLogin() {
   if (!email || !pass) { err.textContent = 'Introduce email y contraseña'; err.style.display = 'block'; return; }
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) { err.textContent = error.message; err.style.display = 'block'; }
+}
+
+// v107CS (26/05/2026): INDICADOR VISUAL "Cargando..." en la cabecera.
+// Se muestra cuando el usuario intenta usar la app antes de que esté lista,
+// y desaparece cuando _appLista pasa a true. Es la pieza visible del fix
+// del bug histórico "subo y no procesa". El usuario ahora ve claramente
+// si la app está aún cargando, en lugar de pensar que está rota.
+function _mostrarIndicadorCargando() {
+  if (document.getElementById('appLoadingBadge')) return; // ya existe
+  const hdrR = document.querySelector('.hdr-r');
+  if (!hdrR) return;
+  const tag = document.createElement('span');
+  tag.id = 'appLoadingBadge';
+  tag.style.cssText = 'background:rgba(245,166,35,.18);color:var(--wn);border:1px solid var(--wn);padding:4px 10px;border-radius:6px;font-family:var(--mn);font-size:10px;font-weight:600;letter-spacing:.4px;animation:appLoadingBlink 1.2s ease-in-out infinite;margin-right:6px';
+  tag.textContent = '⏳ Cargando…';
+  hdrR.insertBefore(tag, hdrR.firstChild);
+  // Inyectar keyframes una sola vez
+  if (!document.getElementById('appLoadingBlinkCss')) {
+    const st = document.createElement('style');
+    st.id = 'appLoadingBlinkCss';
+    st.textContent = '@keyframes appLoadingBlink{0%,100%{opacity:1}50%{opacity:.5}}';
+    document.head.appendChild(st);
+  }
+}
+function _ocultarIndicadorCargando() {
+  const t = document.getElementById('appLoadingBadge');
+  if (t) t.remove();
 }
 
 async function doLogout() {
@@ -1741,12 +1782,24 @@ function userName(uid) {
 
 async function onLogin(user) {
   currentUser = user;
+  // v107CS: bandera reset por si hay re-login en la misma sesión
+  window._appLista = false;
+  window._colaPreArranque = [];
   // Get role from profiles table
   const { data: profile } = await sb.from('profiles').select('role, name').eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
+  // v107CS: indicador visible desde el segundo 1 del login. Los conductores no
+  // lo necesitan (su flujo es uploadAsConductor, no depende de loadData) — solo
+  // admin/gestor que sí cargan datos pesados (2200+ albaranes, neumáticos…).
+  if (currentRole !== 'conductor') {
+    try { _mostrarIndicadorCargando(); } catch (e) {}
+  } else {
+    // Para conductor, marcamos directamente como lista (su ruta no la usa)
+    window._appLista = true;
+  }
   const roleLabels = { admin: '👑 Admin', gestor: '📋 Gestor', conductor: '🚛 Conductor' };
   const roleClasses = { admin: 'role-admin', gestor: 'role-gestor', conductor: 'role-conductor' };
   const roleEl = document.getElementById('hdrRole');
@@ -1774,6 +1827,23 @@ async function onLogin(user) {
     await loadMatriculasAprendidas();
     await loadTarjetasRepsol();
     await loadData();
+    // v107CS (26/05/2026): la app ya tiene cargado lo MÍNIMO IMPRESCINDIBLE
+    // para procesar subidas (userMap, matrículas, datos en memoria). A partir
+    // de aquí addFiles puede trabajar sin colgarse. Marcamos la bandera y, si
+    // hubo archivos que el usuario intentó subir ANTES de tiempo, los
+    // procesamos ahora automáticamente (en lugar de quedarse colgados).
+    window._appLista = true;
+    try {
+      _ocultarIndicadorCargando();
+    } catch (e) {}
+    if (window._colaPreArranque && window._colaPreArranque.length) {
+      const _pendientesPre = window._colaPreArranque.splice(0);
+      console.log(`[v107CS] App lista. Procesando ${_pendientesPre.length} archivo(s) que llegaron antes de tiempo...`);
+      try { toast(`✓ App lista. Procesando ${_pendientesPre.length} archivo(s) que tenías pendientes…`); } catch(e) {}
+      for (const it of _pendientesPre) {
+        try { await addFiles(it.files, it.type); } catch (e) { console.warn('[v107CS] error en archivo pre-arranque:', e); }
+      }
+    }
   }
 }
 
@@ -2388,6 +2458,31 @@ async function comprimirImagen(file, maxBytes) {
 }
 
 async function addFiles(files, type) {
+  // v107CS (26/05/2026): BANDERA "APP LISTA". Si el usuario intenta subir
+  // archivos ANTES de que loadData() haya terminado, los guardamos en una
+  // cola temporal y avisamos. Cuando la app termine de cargar, los
+  // procesará automáticamente (lo hace onLogin al activar _appLista=true).
+  // Esto resuelve el síntoma histórico: "subo un albaran nada más entrar,
+  // no procesa, no da error, refresco y entonces sí". Causa: addFiles
+  // dependía de userMap/matrículas/records que aún se estaban cargando.
+  // EXCEPCIÓN: conductores no pasan por este filtro (usan otra ruta más
+  // simple, uploadAsConductor, que no depende de loadData).
+  if (currentRole !== 'conductor' && !window._appLista) {
+    // Convertimos FileList a Array porque el FileList del input se vacía al
+    // resetearlo, perderíamos las referencias si lo guardáramos directo.
+    const filesArr = Array.from(files || []);
+    if (!filesArr.length) return;
+    window._colaPreArranque = window._colaPreArranque || [];
+    window._colaPreArranque.push({ files: filesArr, type });
+    const n = filesArr.length;
+    try {
+      toast(`⏳ La app aún está cargando. ${n} archivo(s) guardado(s) en espera, se procesarán solos en unos segundos.`, 'warn');
+    } catch (e) {}
+    console.log(`[v107CS] App no lista todavía. Guardados ${n} archivo(s) para procesar tras el arranque.`);
+    try { _mostrarIndicadorCargando(); } catch (e) {}
+    return;
+  }
+
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
   // sin procesar con IA. La oficina (admin/gestor) los procesará después en lote.
   if (currentRole === 'conductor') {
