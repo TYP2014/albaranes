@@ -8089,14 +8089,21 @@ async function deleteCitaRecord() {
 
 // v107EN5 — Subir foto del SMS/email del centro ITV y que la IA rellene la cita.
 // Solo IMAGEN (no PDF) porque las citas suelen llegar como captura de móvil del SMS/email.
-// Tras leer la imagen, abre el modal con los datos pre-rellenos para que el usuario
-// revise y pulse Guardar (igual que reanalizarItv: NO guarda automáticamente).
+// v107EN5c (25/05/2026): GUARDA AUTOMÁTICAMENTE tras leer (sin modal previo).
+// Si la cita está mal, el usuario hace click en la fila después para editarla.
+// Mismo flujo que "Subir ITV" del registro: leer + guardar + listo.
 async function handleCitaFiles(files) {
   if (!files || !files.length) return;
   const key = getKey();
   if (!key) { toast('Falta clave de IA — ve a "Cambiar" arriba', 'err'); return; }
   const f = files[0]; // solo procesamos la primera (las citas son 1 archivo a la vez)
   if (!/^image\//i.test(f.type)) { toast('Solo imágenes (foto del SMS/email)', 'err'); return; }
+  // v107EN5b: protección contra archivos vacíos (WhatsApp/iCloud a veces no termina de descargar)
+  if (!f.size || f.size < 100) {
+    toast('⚠️ La imagen está vacía o no se descargó bien. Guárdala en tu PC/móvil primero y vuelve a subirla.', 'err');
+    console.warn('[v107EN5 handleCitaFiles] Archivo vacío:', f.name, 'size:', f.size);
+    return;
+  }
   toast('🔍 Leyendo cita con IA...');
   try {
     // Convertir imagen a base64
@@ -8108,22 +8115,38 @@ async function handleCitaFiles(files) {
     });
     // Llamar a la IA
     const datos = await callClaudeCita(b64, f.type || 'image/jpeg', key);
-    // Abrir modal "Nueva cita" con los campos pre-rellenos
-    editCitaId = null;
-    _renderCitaModalFields({
-      matricula: datos.matricula || '',
-      fecha_cita: datos.fecha_cita || '',
-      hora_cita: datos.hora_cita || '',
-      centro: datos.centro || 'Vilafranca del Penedès',
-      direccion: '',
-      observaciones: ''
-    }, true);
-    document.getElementById('citaBtnDel').style.display = 'none';
-    document.getElementById('citaOv').classList.add('open');
-    toast('✓ Cita leída. Revisa los datos y pulsa Guardar.');
+
+    // v107EN5c: validación mínima antes de guardar — necesitamos al menos matrícula y fecha
+    const matricula = (datos.matricula || '').trim().toUpperCase().replace(/\s+/g, '');
+    const fecha_cita = (datos.fecha_cita || '').trim() || null;
+    const hora_cita = (datos.hora_cita || '').trim() || null;
+    const centro = (datos.centro || '').trim() || 'Vilafranca del Penedès';
+    if (!matricula) {
+      toast('⚠️ La IA no pudo leer la matrícula. Usa "+ Nueva cita" para introducirla a mano.', 'err');
+      return;
+    }
+    if (!fecha_cita) {
+      toast('⚠️ La IA no pudo leer la fecha. Usa "+ Nueva cita" para introducirla a mano.', 'err');
+      return;
+    }
+    // v107EN5c: guardar directamente en BD (sin abrir modal)
+    const payload = {
+      matricula,
+      fecha_cita,
+      hora_cita,
+      centro,
+      direccion: null,
+      observaciones: null,
+      user_id: currentUser.id,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('itv_citas').insert(payload);
+    if (error) throw error;
+    await loadItvCitas();
+    toast(`✓ Cita guardada: ${matricula} → ${fecha_cita} ${hora_cita || ''}`);
   } catch (e) {
     console.error('[handleCitaFiles] Error:', e);
-    toast('Error leyendo cita: ' + (e.message || e), 'err');
+    toast('Error leyendo/guardando cita: ' + (e.message || e), 'err');
   }
 }
 
