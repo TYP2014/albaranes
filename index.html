@@ -9316,8 +9316,15 @@ function inferOrigenFromProducto(producto) {
 // v102: si el proveedor es Sodira Iberia → origen siempre Cantera de Garraf
 // (es la única cantera de Sodira que usamos). Si en el futuro Sodira tuviera otra
 // cantera, Juan Carlos avisará para añadir más reglas.
+// v107EM (25/05/2026): Canteras Canro → origen siempre "Sant Fost de Campsentelles"
+// (es la única cantera de Canro, ubicada en Ctra. de La Roca km 10, 08105 Sant Fost
+// de Campsentelles). El prompt ya pedía a la IA inferirlo pero a veces se lo saltaba
+// (frase enterrada en un párrafo enorme de reglas). Esta red de seguridad por código
+// garantiza que NUNCA falla — idéntica lógica a Sodira→Garraf, probada desde v102.
+// Solo aplica si la IA dejó el origen vacío (si lo escribió, se respeta).
 const PROVEEDOR_A_ORIGEN = [
-  { match: /SODIRA|S[ÔÓÒ]DIRA/i, origen: 'Cantera de Garraf' }
+  { match: /SODIRA|S[ÔÓÒ]DIRA/i, origen: 'Cantera de Garraf' },
+  { match: /CANTERAS?\s+CANRO|\bCANRO\b/i, origen: 'Sant Fost de Campsentelles' }
 ];
 
 // Función consolidada: prueba primero material, luego proveedor.
