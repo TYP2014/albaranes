@@ -3583,6 +3583,13 @@ async function _processOne(it, type, key, timeoutMs) {
           // (eso indica que la IA confundió origen y destino del clínker).
           const _destinoTarragona = /^TARRAGONA$/i.test(String(data.obra || '').trim()) ||
                                     /MOLIENDA\s+TARRAGONA/i.test(String(data.obra || ''));
+          // v107EO (26/05/2026): log diagnóstico para entender por qué la regla
+          // no se activa con el caso real de Juan Carlos. Lo dejamos siempre que
+          // haya algún indicio (CLINKER en material O Tarragona en cualquier
+          // campo) — para no llenar la consola con todos los albaranes.
+          if (_esClinker || _origenTarragona || _destinoTarragona) {
+            console.log('[v107EÑ DIAG] producto="' + (data.producto || '') + '" / planta="' + (data.planta || '') + '" / obra="' + (data.obra || '') + '" / _esClinker=' + _esClinker + ' / _origenTarragona=' + _origenTarragona + ' / _destinoTarragona=' + _destinoTarragona);
+          }
           if (_esClinker && (_origenTarragona || _destinoTarragona)) {
             // Si el destino no es Fábrica Montcada (o variantes), forzarlo
             const _destActual = String(data.obra || '').toUpperCase();
@@ -3615,11 +3622,27 @@ async function _processOne(it, type, key, timeoutMs) {
         //
         // Juan Carlos 26/05/2026: caso real albarán 93775 "65 - CONSTANTI" leído
         // mal como "Sant Vicenç dels Horts".
+        //
+        // v107EO (26/05/2026, mismo día tarde): ampliamos la detección. Mi regla
+        // antigua solo pillaba "Promotora Mediterránea" en el campo proveedor,
+        // pero la canonización a "Promotora Mediterránea-2, S.A.U." ocurre DESPUÉS
+        // de esta función. Como la IA puede haber leído "Molins", "PROMSA",
+        // "Molins (Promotora...)", etc., NINGUNO de esos pasaba la regex.
+        // SOLUCIÓN: detectar TAMBIÉN por origen (Cantera de Garraf / Olesa /
+        // Llinars son los orígenes típicos de Promsa) o por cualquier palabra
+        // del proveedor que indique Molins/Promsa.
         {
-          const _esMolins = /Promotora\s+Mediterr[aá]nea/i.test(String(data.proveedor || ''));
+          const _provTxt = String(data.proveedor || '');
+          const _esMolins = /Promotora\s+Mediterr[aá]nea/i.test(_provTxt)
+                         || /\bMolins\b/i.test(_provTxt)
+                         || /\bPromsa\b/i.test(_provTxt);
           const _destSantVicenc = /SANT\s+VICEN[CÇ]\s+DELS\s+HORTS/i.test(String(data.obra || ''));
+          // v107EO log diag: ver siempre que haya un proveedor con Molins/Promsa O destino Sant Vicenç
+          if (_esMolins || _destSantVicenc) {
+            console.log('[v107EÑ2 DIAG] proveedor="' + _provTxt + '" / obra="' + (data.obra || '') + '" / _esMolins=' + _esMolins + ' / _destSantVicenc=' + _destSantVicenc);
+          }
           if (_esMolins && _destSantVicenc) {
-            console.warn('[v107EÑ2 Molins/Promsa] destino "Sant Vicenç dels Horts" detectado como sospechoso (es la dirección fiscal, no el destino real). Dejando destino vacío para edición manual. Era: "' + data.obra + '"');
+            console.warn('[v107EÑ2 Molins/Promsa] destino "Sant Vicenç dels Horts" detectado como sospechoso (es la dirección fiscal, no el destino real). Dejando destino vacío para edición manual. Era: "' + data.obra + '" / proveedor leído: "' + _provTxt + '"');
             data.obra = null;
           }
         }
