@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EO4 (26/05/2026): redeploy forzado tras fallo de infraestructura GitHub Pages en commit ae9ff95 (codeload internal server error). Sin cambios funcionales respecto a v107EO3. -->
+<!-- v107EP (26/05/2026): auto-recuperación al volver al primer plano. Cuando la app vuelve tras >60s oculta (móvil bloqueado, WhatsApp, otra pestaña), renueva sesión Supabase si toca y recarga datos automáticamente. Toast "🔄 Reconectado". No interrumpe procesamiento activo. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1823,6 +1823,65 @@ setInterval(() => {
     renderQueues();
   }
 }, 15000); // cada 15s para que el aviso de huérfanos se muestre rápido
+
+// ============================================================
+// v107EP (26/05/2026) — AUTO-RECUPERACIÓN AL VOLVER AL PRIMER PLANO
+// ============================================================
+// Problema observado por Juan Carlos: a veces entra a la app después de un
+// rato (WhatsApp, móvil bloqueado, otra pestaña), pulsa "Subir albarán" o
+// "Eliminar" y no pasa nada — la consola F12 está VACÍA. Hay que refrescar
+// para que vuelva a funcionar. Esto es típico de móviles: el navegador
+// suspende la pestaña en segundo plano para ahorrar batería, las conexiones
+// con Supabase quedan en estado "dormido" y los siguientes clicks no salen.
+//
+// Solución: cuando la app vuelve a estar visible TRAS más de 60 segundos
+// oculta, recargamos datos silenciosamente y avisamos con un toast pequeño.
+// No tocamos el flujo de subida en curso. No molestamos si solo fue un vistazo
+// rápido (< 60s).
+let _v107EP_ocultaDesde = 0;
+const _V107EP_UMBRAL_MS = 60 * 1000; // 60 segundos
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) {
+    // La pestaña se acaba de ocultar. Anotamos cuándo.
+    _v107EP_ocultaDesde = Date.now();
+    return;
+  }
+  // La pestaña ha vuelto a ser visible.
+  if (_v107EP_ocultaDesde === 0) return; // primera vez, todavía no había salido
+  const tiempoOculta = Date.now() - _v107EP_ocultaDesde;
+  _v107EP_ocultaDesde = 0;
+  if (tiempoOculta < _V107EP_UMBRAL_MS) return; // estaba oculta poco tiempo, no hace falta
+  // Si está procesando algo activamente, NO interrumpir.
+  if (_processingAlb || _processingGas) {
+    console.log('[v107EP] vuelta tras ' + Math.round(tiempoOculta/1000) + 's, pero hay procesamiento activo — sin tocar nada.');
+    return;
+  }
+  // Solo si hay sesión activa (no estamos en pantalla de login)
+  if (!currentUser) return;
+  console.log('[v107EP] vuelta al primer plano tras ' + Math.round(tiempoOculta/1000) + 's oculta. Recargando datos…');
+  try {
+    // Refrescar la sesión Supabase si está a punto de caducar
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session && session.expires_at) {
+        const ahoraSeg = Math.floor(Date.now() / 1000);
+        const segHastaCaducar = session.expires_at - ahoraSeg;
+        if (segHastaCaducar < 300) { // menos de 5 minutos
+          console.log('[v107EP] sesión cerca de caducar (' + segHastaCaducar + 's). Renovando…');
+          await sb.auth.refreshSession();
+        }
+      }
+    } catch (eSes) {
+      console.warn('[v107EP] no pude comprobar/renovar sesión:', eSes);
+    }
+    // Recargar los datos principales (es una sola consulta, rápido)
+    await loadData();
+    try { toast('🔄 Reconectado', 'ok'); } catch(e) {}
+  } catch (e) {
+    console.error('[v107EP] error al recargar tras volver al primer plano:', e);
+    try { toast('⚠️ Recarga los datos manualmente (F5)', 'warn'); } catch(eT) {}
+  }
+});
 
 function showLogin() {
   currentUser = null; currentRole = null;
