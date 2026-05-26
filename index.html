@@ -1319,20 +1319,6 @@ let filteredGas = [];
 let gasEmpresaActiva = 'TYP2014';
 let pendingAlb = [];
 let pendingGas = [];
-// v107CS (26/05/2026): BANDERA "APP LISTA". Resuelve el problema histórico
-// de Juan Carlos: "subo un albaran nada más entrar, no procesa, no da error,
-// refresco y entonces sí". Causa: el usuario pulsa el botón Subir antes de
-// que loadData() / loadUserMap() / loadMatriculasAprendidas() terminen, y
-// addFiles se queda esperando estado que aún no existe. Con esta bandera:
-// - mientras es false: addFiles encola el archivo pero AVISA al usuario
-//   con un mensaje claro (no se cuelga, no se pierde nada).
-// - cuando pasa a true: se procesan automáticamente los pendientes.
-// Se activa al final de onLogin() y los conductores no la usan (ellos suben
-// con uploadAsConductor que no depende de loadData).
-window._appLista = false;
-// v107CS: cola de archivos que llegaron ANTES de que la app estuviera lista.
-// Se procesan en cuanto _appLista pase a true (en onLogin al terminar).
-window._colaPreArranque = [];
 // v84: orden por defecto = 'created_at' descendente (lo más recién subido arriba).
 // Antes era null (fecha del albarán → matrícula → nº). Ahora si subes un albarán nuevo,
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
@@ -1406,33 +1392,6 @@ async function doLogin() {
   if (!email || !pass) { err.textContent = 'Introduce email y contraseña'; err.style.display = 'block'; return; }
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) { err.textContent = error.message; err.style.display = 'block'; }
-}
-
-// v107CS (26/05/2026): INDICADOR VISUAL "Cargando..." en la cabecera.
-// Se muestra cuando el usuario intenta usar la app antes de que esté lista,
-// y desaparece cuando _appLista pasa a true. Es la pieza visible del fix
-// del bug histórico "subo y no procesa". El usuario ahora ve claramente
-// si la app está aún cargando, en lugar de pensar que está rota.
-function _mostrarIndicadorCargando() {
-  if (document.getElementById('appLoadingBadge')) return; // ya existe
-  const hdrR = document.querySelector('.hdr-r');
-  if (!hdrR) return;
-  const tag = document.createElement('span');
-  tag.id = 'appLoadingBadge';
-  tag.style.cssText = 'background:rgba(245,166,35,.18);color:var(--wn);border:1px solid var(--wn);padding:4px 10px;border-radius:6px;font-family:var(--mn);font-size:10px;font-weight:600;letter-spacing:.4px;animation:appLoadingBlink 1.2s ease-in-out infinite;margin-right:6px';
-  tag.textContent = '⏳ Cargando…';
-  hdrR.insertBefore(tag, hdrR.firstChild);
-  // Inyectar keyframes una sola vez
-  if (!document.getElementById('appLoadingBlinkCss')) {
-    const st = document.createElement('style');
-    st.id = 'appLoadingBlinkCss';
-    st.textContent = '@keyframes appLoadingBlink{0%,100%{opacity:1}50%{opacity:.5}}';
-    document.head.appendChild(st);
-  }
-}
-function _ocultarIndicadorCargando() {
-  const t = document.getElementById('appLoadingBadge');
-  if (t) t.remove();
 }
 
 async function doLogout() {
@@ -1782,24 +1741,12 @@ function userName(uid) {
 
 async function onLogin(user) {
   currentUser = user;
-  // v107CS: bandera reset por si hay re-login en la misma sesión
-  window._appLista = false;
-  window._colaPreArranque = [];
   // Get role from profiles table
   const { data: profile } = await sb.from('profiles').select('role, name').eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
-  // v107CS: indicador visible desde el segundo 1 del login. Los conductores no
-  // lo necesitan (su flujo es uploadAsConductor, no depende de loadData) — solo
-  // admin/gestor que sí cargan datos pesados (2200+ albaranes, neumáticos…).
-  if (currentRole !== 'conductor') {
-    try { _mostrarIndicadorCargando(); } catch (e) {}
-  } else {
-    // Para conductor, marcamos directamente como lista (su ruta no la usa)
-    window._appLista = true;
-  }
   const roleLabels = { admin: '👑 Admin', gestor: '📋 Gestor', conductor: '🚛 Conductor' };
   const roleClasses = { admin: 'role-admin', gestor: 'role-gestor', conductor: 'role-conductor' };
   const roleEl = document.getElementById('hdrRole');
@@ -1827,23 +1774,6 @@ async function onLogin(user) {
     await loadMatriculasAprendidas();
     await loadTarjetasRepsol();
     await loadData();
-    // v107CS (26/05/2026): la app ya tiene cargado lo MÍNIMO IMPRESCINDIBLE
-    // para procesar subidas (userMap, matrículas, datos en memoria). A partir
-    // de aquí addFiles puede trabajar sin colgarse. Marcamos la bandera y, si
-    // hubo archivos que el usuario intentó subir ANTES de tiempo, los
-    // procesamos ahora automáticamente (en lugar de quedarse colgados).
-    window._appLista = true;
-    try {
-      _ocultarIndicadorCargando();
-    } catch (e) {}
-    if (window._colaPreArranque && window._colaPreArranque.length) {
-      const _pendientesPre = window._colaPreArranque.splice(0);
-      console.log(`[v107CS] App lista. Procesando ${_pendientesPre.length} archivo(s) que llegaron antes de tiempo...`);
-      try { toast(`✓ App lista. Procesando ${_pendientesPre.length} archivo(s) que tenías pendientes…`); } catch(e) {}
-      for (const it of _pendientesPre) {
-        try { await addFiles(it.files, it.type); } catch (e) { console.warn('[v107CS] error en archivo pre-arranque:', e); }
-      }
-    }
   }
 }
 
@@ -2458,31 +2388,6 @@ async function comprimirImagen(file, maxBytes) {
 }
 
 async function addFiles(files, type) {
-  // v107CS (26/05/2026): BANDERA "APP LISTA". Si el usuario intenta subir
-  // archivos ANTES de que loadData() haya terminado, los guardamos en una
-  // cola temporal y avisamos. Cuando la app termine de cargar, los
-  // procesará automáticamente (lo hace onLogin al activar _appLista=true).
-  // Esto resuelve el síntoma histórico: "subo un albaran nada más entrar,
-  // no procesa, no da error, refresco y entonces sí". Causa: addFiles
-  // dependía de userMap/matrículas/records que aún se estaban cargando.
-  // EXCEPCIÓN: conductores no pasan por este filtro (usan otra ruta más
-  // simple, uploadAsConductor, que no depende de loadData).
-  if (currentRole !== 'conductor' && !window._appLista) {
-    // Convertimos FileList a Array porque el FileList del input se vacía al
-    // resetearlo, perderíamos las referencias si lo guardáramos directo.
-    const filesArr = Array.from(files || []);
-    if (!filesArr.length) return;
-    window._colaPreArranque = window._colaPreArranque || [];
-    window._colaPreArranque.push({ files: filesArr, type });
-    const n = filesArr.length;
-    try {
-      toast(`⏳ La app aún está cargando. ${n} archivo(s) guardado(s) en espera, se procesarán solos en unos segundos.`, 'warn');
-    } catch (e) {}
-    console.log(`[v107CS] App no lista todavía. Guardados ${n} archivo(s) para procesar tras el arranque.`);
-    try { _mostrarIndicadorCargando(); } catch (e) {}
-    return;
-  }
-
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
   // sin procesar con IA. La oficina (admin/gestor) los procesará después en lote.
   if (currentRole === 'conductor') {
@@ -6711,6 +6616,43 @@ function openModal(id) {
     }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
+
+  // v107EN6 — Sección de ANEXOS: archivos auxiliares (hoja Generalitat, copia firmada,
+  // cualquier documento legal que el albarán deba conservar). NO los procesa la IA,
+  // sólo los guarda en Storage y los enseña con descarga/eliminación desde el modal.
+  // Datos: r.anexos = JSON array de {url, nombre, fecha}. Si no existe, vacío.
+  const anexos = Array.isArray(r.anexos) ? r.anexos : [];
+  const anexosHTML = anexos.length === 0
+    ? `<div style="color:var(--mu);font-size:12px;padding:6px 0">(Sin anexos)</div>`
+    : anexos.map((a, i) => {
+        const nombre = esc(a.nombre || `anexo-${i+1}`);
+        const fecha = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '';
+        const isAdminOGestor = (currentRole === 'admin' || currentRole === 'gestor');
+        const btnDel = isAdminOGestor
+          ? `<button type="button" class="bm" onclick="eliminarAnexo(${i})" title="Eliminar este anexo" style="background:#3a1f1f;color:#ff7c7c;border:1px solid #4a2f2f;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;margin-left:6px">✕</button>`
+          : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--s2);border-radius:6px;margin-bottom:4px">
+          <span style="flex:1;color:var(--fg);font-size:13px">📎 ${nombre} ${fecha ? `<span style="color:var(--mu);font-size:11px">(${fecha})</span>` : ''}</span>
+          <a href="${esc(a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
+          ${btnDel}
+        </div>`;
+      }).join('');
+
+  // Botón "+ Añadir anexo" solo para admin y gestor (no conductor)
+  const btnAnexo = (currentRole === 'admin' || currentRole === 'gestor')
+    ? `<div style="margin-top:8px">
+        <button type="button" class="btn bs" onclick="document.getElementById('anexoFileInput').click()" style="font-size:12px;padding:6px 12px">📎 Añadir anexo</button>
+        <input type="file" id="anexoFileInput" accept="application/pdf,image/*" style="display:none" onchange="subirAnexo(this.files); this.value='';">
+        <span style="color:var(--mu);font-size:11px;margin-left:8px">PDF o imagen (hoja Generalitat, copia firmada, etc.)</span>
+      </div>`
+    : '';
+
+  // v107EN6: inyectar sección anexos AL FINAL del contenido principal (antes del footer)
+  document.getElementById('mFields').innerHTML += `<div class="fg full" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--s3)">
+    <label class="fl" style="font-size:13px;font-weight:600;color:var(--fg)">📎 ANEXOS <span style="color:var(--mu);font-weight:400">(${anexos.length})</span></label>
+    <div id="anexosList">${anexosHTML}</div>
+    ${btnAnexo}
+  </div>`;
   let footer = `<button class="btn br" id="btnDel" onclick="deleteRecord()">Eliminar</button>`;
   if (r._dup) footer += `<button class="btn bw" onclick="markAsValid()">✓ Marcar válido</button>`;
   footer += `<button class="btn bs" onclick="closeModal()">Cancelar</button><button class="btn bp" onclick="saveModal()">Guardar</button>`;
@@ -6752,6 +6694,129 @@ function _modoEscribir(campoId, fk) {
     const btn = cont.querySelector('.bm');
     if (btn) btn.style.display = 'none';
   } catch (e) {}
+}
+
+// v107EN6 — Anexos: archivos auxiliares (PDFs, imágenes) que se adjuntan al
+// albarán para conservar documentación legal (hoja Generalitat, copia firmada,
+// etc.). NO se procesan con IA: solo se suben a Storage y se guarda la URL
+// en el array JSONB `albaranes.anexos`. Visible en el modal con botones
+// "Ver" (abre en pestaña nueva) y "✕" (eliminar, solo admin/gestor).
+async function subirAnexo(files) {
+  if (!files || !files.length) return;
+  if (!editId) { toast('Primero abre el albarán', 'err'); return; }
+  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r || !r.db_id) { toast('Guarda el albarán antes de añadir anexos', 'err'); return; }
+  const f = files[0];
+  if (!f) return;
+  // Protección contra archivos vacíos
+  if (!f.size || f.size < 100) {
+    toast('⚠️ El archivo está vacío o no se descargó bien.', 'err');
+    return;
+  }
+  // Tamaño máximo razonable: 10 MB (PDFs grandes pueden romper la API)
+  if (f.size > 10 * 1024 * 1024) {
+    toast('⚠️ Archivo demasiado grande (máx 10 MB).', 'err');
+    return;
+  }
+  toast('📎 Subiendo anexo...');
+  try {
+    // Generar nombre único: anexos/{db_id}/{timestamp}-{nombre_original}
+    const ts = Date.now();
+    const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 80);
+    const path = `anexos/${r.db_id}/${ts}-${safeName}`;
+    const { error: upErr } = await sb.storage.from('documentos').upload(path, f, {
+      contentType: f.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (upErr) throw upErr;
+    // URL pública
+    const { data: urlData } = sb.storage.from('documentos').getPublicUrl(path);
+    const url = urlData.publicUrl;
+    // Añadir al array anexos del albarán
+    const anexosActuales = Array.isArray(r.anexos) ? r.anexos.slice() : [];
+    anexosActuales.push({
+      url,
+      nombre: f.name,
+      fecha: new Date().toISOString(),
+      path  // guardamos también el path por si hay que borrar de Storage
+    });
+    // Guardar en BD
+    const { error: dbErr } = await sb.from('albaranes')
+      .update({ anexos: anexosActuales })
+      .eq('id', r.db_id);
+    if (dbErr) throw dbErr;
+    // Actualizar en memoria y re-renderizar la sección de anexos
+    r.anexos = anexosActuales;
+    _renderAnexosEnModal(r);
+    toast(`✓ Anexo añadido: ${f.name}`);
+    console.log('[v107EN6 subirAnexo] OK:', f.name, '→', path);
+  } catch (e) {
+    console.error('[v107EN6 subirAnexo] Error:', e);
+    toast('Error subiendo anexo: ' + (e.message || e), 'err');
+  }
+}
+
+async function eliminarAnexo(idx) {
+  if (!editId) return;
+  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r || !r.db_id) return;
+  const anexos = Array.isArray(r.anexos) ? r.anexos : [];
+  if (idx < 0 || idx >= anexos.length) return;
+  const anexo = anexos[idx];
+  if (!confirm(`¿Eliminar el anexo "${anexo.nombre || 'anexo'}"?\n\nSe borrará del Storage y del albarán. No se puede deshacer.`)) return;
+  toast('Eliminando anexo...');
+  try {
+    // 1) Borrar de Storage (si tiene path)
+    if (anexo.path) {
+      const { error: rmErr } = await sb.storage.from('documentos').remove([anexo.path]);
+      if (rmErr) console.warn('[v107EN6 eliminarAnexo] No se pudo borrar de Storage:', rmErr.message);
+      // No abortar: si el archivo ya no existe en Storage, seguimos quitándolo de BD
+    }
+    // 2) Quitar del array en BD
+    const nuevosAnexos = anexos.filter((_, i) => i !== idx);
+    const { error: dbErr } = await sb.from('albaranes')
+      .update({ anexos: nuevosAnexos })
+      .eq('id', r.db_id);
+    if (dbErr) throw dbErr;
+    // 3) Actualizar memoria y re-renderizar
+    r.anexos = nuevosAnexos;
+    _renderAnexosEnModal(r);
+    toast('✓ Anexo eliminado');
+  } catch (e) {
+    console.error('[v107EN6 eliminarAnexo] Error:', e);
+    toast('Error eliminando anexo: ' + (e.message || e), 'err');
+  }
+}
+
+// v107EN6 — Re-render de la sección de anexos dentro del modal abierto.
+// Lo aislamos en función propia para reusarlo desde subirAnexo y eliminarAnexo
+// sin tener que cerrar/abrir el modal entero (preserva los demás campos editados).
+function _renderAnexosEnModal(r) {
+  const cont = document.getElementById('anexosList');
+  if (!cont) return;
+  const anexos = Array.isArray(r.anexos) ? r.anexos : [];
+  // Actualizar el contador del label
+  try {
+    const lbl = cont.parentNode.querySelector('.fl span');
+    if (lbl) lbl.textContent = `(${anexos.length})`;
+  } catch (e) {}
+  if (anexos.length === 0) {
+    cont.innerHTML = `<div style="color:var(--mu);font-size:12px;padding:6px 0">(Sin anexos)</div>`;
+    return;
+  }
+  const isAdminOGestor = (currentRole === 'admin' || currentRole === 'gestor');
+  cont.innerHTML = anexos.map((a, i) => {
+    const nombre = esc(a.nombre || `anexo-${i+1}`);
+    const fecha = a.fecha ? new Date(a.fecha).toLocaleDateString('es-ES') : '';
+    const btnDel = isAdminOGestor
+      ? `<button type="button" class="bm" onclick="eliminarAnexo(${i})" title="Eliminar este anexo" style="background:#3a1f1f;color:#ff7c7c;border:1px solid #4a2f2f;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;margin-left:6px">✕</button>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--s2);border-radius:6px;margin-bottom:4px">
+      <span style="flex:1;color:var(--fg);font-size:13px">📎 ${nombre} ${fecha ? `<span style="color:var(--mu);font-size:11px">(${fecha})</span>` : ''}</span>
+      <a href="${esc(a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
+      ${btnDel}
+    </div>`;
+  }).join('');
 }
 
 async function saveModal() {
