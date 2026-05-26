@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- v107EO4 (26/05/2026): redeploy forzado tras fallo de infraestructura GitHub Pages en commit ae9ff95 (codeload internal server error). Sin cambios funcionales respecto a v107EO3. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -3269,6 +3270,12 @@ async function _processOne(it, type, key, timeoutMs) {
     let _facturaTotal = 0;
 
     for (const data of results) {
+      // v107EO2 (26/05/2026): log de entrada al for para confirmar que el procesamiento
+      // se ejecuta para cada albarán/registro. Si NO ves "[v107EO2 FOR]" en consola,
+      // significa que el flujo nunca llega aquí (problema con la IA o results vacío).
+      if (type === 'alb') {
+        console.log('[v107EO2 FOR] procesando data: producto="' + (data.producto || '') + '" / planta="' + (data.planta || '') + '" / obra="' + (data.obra || '') + '" / proveedor="' + (data.proveedor || '') + '"');
+      }
       // v71: si usamos fallback (PDF compartido) añadir #page=N. Si subimos JPG individual,
       // fileUrl ya apunta a la imagen directa y NO se añade hash. Si todo falló, null.
       if (fileUrl) {
@@ -3577,20 +3584,30 @@ async function _processOne(it, type, key, timeoutMs) {
         // Montcada, es el flujo lógico del clínker."
         {
           const _matProducto = String(data.producto || '').toUpperCase();
-          const _esClinker = /CLINKER/.test(_matProducto);
+          const _matCodigo = String(data.material_codigo || data.codigo || '').toUpperCase();
+          // v107EO3: ampliamos detección de CLINKER. Antes solo /CLINKER/ en producto,
+          // ahora también: código material 14000230 (CLINKER en Holcim), CLINKER con
+          // o sin acento o variantes de OCR, y "clínker" minúsculas.
+          const _esClinker = /CLINKER|CL[IÍ]NKER|CLINQUER/.test(_matProducto)
+                          || /14000230/.test(_matCodigo)
+                          || /14000230/.test(_matProducto); // por si el código está pegado en el texto
           const _origenTarragona = /MOLIENDA\s+TARRAGONA/i.test(String(data.planta || ''));
           // También se activa si el destino quedó como "Tarragona" tras fixDestino
           // (eso indica que la IA confundió origen y destino del clínker).
           const _destinoTarragona = /^TARRAGONA$/i.test(String(data.obra || '').trim()) ||
                                     /MOLIENDA\s+TARRAGONA/i.test(String(data.obra || ''));
-          // v107EO (26/05/2026): log diagnóstico para entender por qué la regla
-          // no se activa con el caso real de Juan Carlos. Lo dejamos siempre que
-          // haya algún indicio (CLINKER en material O Tarragona en cualquier
-          // campo) — para no llenar la consola con todos los albaranes.
+          // v107EO log diag siempre que haya un atisbo de algo relacionado con Tarragona/CLINKER
           if (_esClinker || _origenTarragona || _destinoTarragona) {
             console.log('[v107EÑ DIAG] producto="' + (data.producto || '') + '" / planta="' + (data.planta || '') + '" / obra="' + (data.obra || '') + '" / _esClinker=' + _esClinker + ' / _origenTarragona=' + _origenTarragona + ' / _destinoTarragona=' + _destinoTarragona);
           }
-          if (_esClinker && (_origenTarragona || _destinoTarragona)) {
+          // v107EO3: la condición ahora se activa si CUALQUIERA de las 2 cosas es cierta:
+          // (a) CLINKER + (origen Tarragona O destino Tarragona) — caso clásico
+          // (b) origen Tarragona + destino que NO es Montcada — implica que es clínker
+          //     aunque la IA no lo haya leído como tal (es el único flujo de Tarragona)
+          if (
+            (_esClinker && (_origenTarragona || _destinoTarragona))
+            || (_origenTarragona && !/MONTCADA/i.test(String(data.obra || '')))
+          ) {
             // Si el destino no es Fábrica Montcada (o variantes), forzarlo
             const _destActual = String(data.obra || '').toUpperCase();
             if (!_destActual.includes('MONTCADA') && !_destActual.includes('FÁBRICA MONTCADA')) {
@@ -3633,13 +3650,25 @@ async function _processOne(it, type, key, timeoutMs) {
         // del proveedor que indique Molins/Promsa.
         {
           const _provTxt = String(data.proveedor || '');
+          const _plantaTxt = String(data.planta || '');
+          const _prodTxt = String(data.producto || '');
+          // v107EO3 (26/05/2026): detección reforzada. La IA puede leer el proveedor
+          // de muchas formas (Molins, Promsa, Promotora, MOLINS, PROMSA GARRAF, etc.)
+          // y a veces dejarlo casi vacío. SOLUCIÓN: también detectar por origen +
+          // material típico Molins (códigos AF-T-, AG-, RD- son áridos calcáreos
+          // de Promsa/Molins).
           const _esMolins = /Promotora\s+Mediterr[aá]nea/i.test(_provTxt)
                          || /\bMolins\b/i.test(_provTxt)
-                         || /\bPromsa\b/i.test(_provTxt);
+                         || /\bPromsa\b/i.test(_provTxt)
+                         || /\bPROMSA\b/i.test(_provTxt)
+                         // Caso fallback: origen "Cantera de Garraf" o "Olesa" o "Llinars"
+                         // + material típico Molins (AF-T-, AG-, AF-X/Y-T-C)
+                         || (/Cantera\s+de\s+Garraf|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plantaTxt)
+                             && /\bAF-T?-?\d|AG-\d|RD\s*\d|AF-\d/i.test(_prodTxt));
           const _destSantVicenc = /SANT\s+VICEN[CÇ]\s+DELS\s+HORTS/i.test(String(data.obra || ''));
           // v107EO log diag: ver siempre que haya un proveedor con Molins/Promsa O destino Sant Vicenç
           if (_esMolins || _destSantVicenc) {
-            console.log('[v107EÑ2 DIAG] proveedor="' + _provTxt + '" / obra="' + (data.obra || '') + '" / _esMolins=' + _esMolins + ' / _destSantVicenc=' + _destSantVicenc);
+            console.log('[v107EÑ2 DIAG] proveedor="' + _provTxt + '" / planta="' + _plantaTxt + '" / producto="' + _prodTxt + '" / obra="' + (data.obra || '') + '" / _esMolins=' + _esMolins + ' / _destSantVicenc=' + _destSantVicenc);
           }
           if (_esMolins && _destSantVicenc) {
             console.warn('[v107EÑ2 Molins/Promsa] destino "Sant Vicenç dels Horts" detectado como sospechoso (es la dirección fiscal, no el destino real). Dejando destino vacío para edición manual. Era: "' + data.obra + '" / proveedor leído: "' + _provTxt + '"');
