@@ -3560,6 +3560,70 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         }
 
+        // v107EÑ (26/05/2026) — REGLA HOLCIM TRASLADO CLÍNKER:
+        // Albaranes "Albarán de traslado" Holcim donde el material es CLINKER
+        // y el origen es Molienda Tarragona. Es un flujo único e invariable: el
+        // clínker se muele en Tarragona y se manda SIEMPRE a Fábrica Montcada
+        // (para fabricar cemento). La IA tiende a leer mal el destino (lo deja
+        // vacío, o lo confunde con el origen) porque el albarán tiene 2 campos
+        // muy parecidos ("Planta:" y "Punto expedición:" arriba; "Obra:" y
+        // "Facturar a:" al lado). La regla v107E5 ya hace "MOLIENDA TARRAGONA →
+        // Tarragona" en fixDestino, pero eso convierte el destino real (Montcada)
+        // en "Tarragona" si la IA confundió los campos. Esta red de seguridad lo
+        // corrige: cuando material=CLINKER + origen=Molienda Tarragona →
+        // destino = "Fábrica Montcada", siempre.
+        //
+        // Juan Carlos 26/05/2026: "SIEMPRE va de Molienda Tarragona a Fábrica
+        // Montcada, es el flujo lógico del clínker."
+        {
+          const _matProducto = String(data.producto || '').toUpperCase();
+          const _esClinker = /CLINKER/.test(_matProducto);
+          const _origenTarragona = /MOLIENDA\s+TARRAGONA/i.test(String(data.planta || ''));
+          // También se activa si el destino quedó como "Tarragona" tras fixDestino
+          // (eso indica que la IA confundió origen y destino del clínker).
+          const _destinoTarragona = /^TARRAGONA$/i.test(String(data.obra || '').trim()) ||
+                                    /MOLIENDA\s+TARRAGONA/i.test(String(data.obra || ''));
+          if (_esClinker && (_origenTarragona || _destinoTarragona)) {
+            // Si el destino no es Fábrica Montcada (o variantes), forzarlo
+            const _destActual = String(data.obra || '').toUpperCase();
+            if (!_destActual.includes('MONTCADA') && !_destActual.includes('FÁBRICA MONTCADA')) {
+              console.log('[v107EÑ Holcim traslado clínker] forzando DESTINO → "Fábrica Montcada" (era "' + (data.obra || '') + '", origen Tarragona)');
+              data.obra = 'Fábrica Montcada';
+            }
+            // También aseguramos que el origen quede como "Molienda Tarragona"
+            // si la IA lo confundió y puso otra cosa
+            if (_destinoTarragona && !_origenTarragona) {
+              console.log('[v107EÑ Holcim traslado clínker] forzando ORIGEN → "Molienda Tarragona" (era "' + (data.planta || '') + '")');
+              data.planta = 'Molienda Tarragona';
+            }
+          }
+        }
+
+        // v107EÑ2 (26/05/2026) — RED DE SEGURIDAD MOLINS/PROMSA DESTINO:
+        // En albaranes Molins/Promotora Mediterránea-2, la IA a veces lee mal el
+        // destino y coge "Sant Vicenç dels Horts" de la cabecera fiscal del PDF
+        // ("Promotora Mediterránea-2 S.A. Ctra. N-340 Km 1242,3 08620 Sant Vicenç
+        // dels Horts"), cuando en realidad el destino correcto está en el campo
+        // OBRA del PDF (formato "[código] - [NOMBRE]", ej. "65 - CONSTANTI").
+        //
+        // Esta red detecta el patrón: si el proveedor es Promotora Mediterránea-2
+        // (canónico ya unificado) Y el destino es "Sant Vicenç dels Horts" (o
+        // variantes), avisamos en consola y dejamos el destino vacío para que el
+        // usuario lo edite a mano. NO ponemos un destino "adivinado" porque cada
+        // albarán Molins puede ir a un sitio distinto (Cubelles, Zona Franca II,
+        // La Roca, Constanti, etc.) — depende del campo OBRA del PDF.
+        //
+        // Juan Carlos 26/05/2026: caso real albarán 93775 "65 - CONSTANTI" leído
+        // mal como "Sant Vicenç dels Horts".
+        {
+          const _esMolins = /Promotora\s+Mediterr[aá]nea/i.test(String(data.proveedor || ''));
+          const _destSantVicenc = /SANT\s+VICEN[CÇ]\s+DELS\s+HORTS/i.test(String(data.obra || ''));
+          if (_esMolins && _destSantVicenc) {
+            console.warn('[v107EÑ2 Molins/Promsa] destino "Sant Vicenç dels Horts" detectado como sospechoso (es la dirección fiscal, no el destino real). Dejando destino vacío para edición manual. Era: "' + data.obra + '"');
+            data.obra = null;
+          }
+        }
+
         // v107AV: regla específica PUIGFEL / COVA SOLERA (escombro de hormigón
         // que sale de una planta/obra Holcim → vertedero Puigfel/Cova Solera en
         // Rubí). A diferencia de Girona Runes (origen fijo Celra), aquí el
@@ -9310,7 +9374,23 @@ const PROVEEDORES_CANONICOS = [
   { canon: 'Promotora Mediterránea-2, S.A.U.', alias: [
     'Promotora Mediterránea 2 S.A.', 'Promotora Mediterránea 2 S A',
     'Promotora Mediterránea 2 S.A', 'Promotora Mediterranea-2 SAU',
-    'Promotora Mediterránea-2 S.A.', 'Promed-2', 'Promed 2'
+    'Promotora Mediterránea-2 S.A.', 'Promed-2', 'Promed 2',
+    // v107EÑ2 (26/05/2026): añadir aliases para que se canonice el proveedor
+    // cuando la IA lo lee con el nombre comercial "Molins" o "PROMSA" (que son
+    // marcas de Promotora Mediterránea-2). Caso real: albarán 93775 leído como
+    // "Molins (Promotora...)". También cubre PROMSA GARRAF/OLESA/LLINARS si por
+    // error quedan en el campo proveedor (deberían ir al campo origen).
+    'Molins', 'MOLINS', 'Molins Concrete', 'MOLINS CONCRETE',
+    'Molins Concrete & Aggregates', 'MOLINS CONCRETE & AGGREGATES',
+    'Molins (Promotora Mediterránea-2)', 'Molins (Promotora)',
+    'Molins (Promotora Mediterranea-2)', 'Molins (Promotora Mediterránea-2, S.A.U.)',
+    'Promotora Mediterránea', 'PROMOTORA MEDITERRÁNEA',
+    'Promotora Mediterranea', 'PROMOTORA MEDITERRANEA',
+    'Promotora Mediterránea-2', 'PROMOTORA MEDITERRÁNEA-2',
+    'Promotora Mediterranea-2', 'PROMOTORA MEDITERRANEA-2',
+    'Promotora Mediterránea-2 S.A', 'Promotora Mediterránea, S.A.',
+    'Promsa', 'PROMSA', 'Promsa Garraf', 'PROMSA GARRAF',
+    'Promsa Olesa', 'PROMSA OLESA', 'Promsa Llinars', 'PROMSA LLINARS'
   ] },
   { canon: 'Canteras Canro, S.A.', alias: [] },
   // v107k: Albesa Àrids — cantera de Lleida (25135 Albesa, Lleida). Pocas veces al mes
