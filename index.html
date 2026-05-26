@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ3 (26/05/2026): FIX raíz. El error PGRST204 "matricula column not found" salía porque al añadir ejemplos JSON v107EQ usé "matricula:..." pero la columna BD se llama "tractora". La IA estaba siguiendo mis ejemplos y devolviendo el campo mal nombrado, incluso en albaranes normales (NO solo en Notas de recibo). Fix: (1) corregido el prompt para usar tractora en el ejemplo; (2) red de seguridad en saveRecord que mapea matricula→tractora automáticamente si vuelve a ocurrir. Mantiene v107EQ2 (limpieza devolucion_palets/unidad_palet), v107EQ (lectura Notas devolución palets) y v107EP (auto-recuperación). -->
+<!-- v107EQ4 (26/05/2026): mejora visual. Los albaranes de DEVOLUCIÓN DE PALETS (producto "PALET CEMENTO"/"PALET MORTERO") ya no se marcan como "Rev" amarillo por tener TN fuera del rango 20-36. En estos albaranes el campo tm contiene PIEZAS de palet (6-10 típicamente), no toneladas — la regla de TN no aplica. Excepción aislada al check de calidad: si producto es PALET CEMENTO o PALET MORTERO, no marcar warn por tm. Resto de checks (campos rellenos, duplicados, ilegible) siguen igual. Mantiene v107EQ3 (matricula→tractora), v107EQ2 (limpieza campos auxiliares), v107EQ (lectura devolución palets) y v107EP (auto-recuperación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -5476,8 +5476,20 @@ function analyzeRecords() {
     // Red de seguridad: si tm está fuera del rango físicamente posible (20-36 TN para un
     // camión típico), forzar marca "warn" aunque el resto de campos estén bien. Esto pilla
     // los casos donde Haiku confundió "Peso de salida" (bruto en kg) con neto.
+    //
+    // v107EQ4 (26/05/2026): EXCEPCIÓN — albaranes de DEVOLUCIÓN DE PALETS (producto
+    // "PALET CEMENTO" o "PALET MORTERO"). Aquí el campo tm contiene PIEZAS (palets
+    // vacíos), no toneladas. Los valores típicos son 6-10 piezas y caen fuera del
+    // rango 20-36 — pero ESO ES CORRECTO, no es un error de lectura. No marcamos
+    // "warn" por TN para estos casos; siguen el flujo normal (verde ✓ si los demás
+    // campos están bien).
+    const _esPaletDevolucion = (txt) => {
+      const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
+      return /^palet(cemento|mortero)$/.test(norm);
+    };
     const tmCheck = parseFloat(r.tm);
-    if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok') {
+    if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok'
+        && !_esPaletDevolucion(r.producto)) {
       r._quality = 'warn';
     }
     // v91: detectar matrículas desconocidas (rellenas pero no en TRANSPORTISTAS oficiales
