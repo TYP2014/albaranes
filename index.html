@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ (26/05/2026): añade soporte para Holcim "Nota de recibo" de DEVOLUCIÓN DE PALETS VACÍOS. La IA marca devolucion_palets=true al detectarlas (cantidad negativa, material PALET CEMENTO/PALET MORTERO único, título "Nota de recibo"). El filtro anti-palet ahora respeta estos palets (los guarda como producto legítimo con cantidad positiva). Origen=destinatario (VIC, SU ALMACEN…), destino=Fábrica Montcada. Mantiene el comportamiento anterior para albaranes normales con palets como secundarios (se siguen ignorando). Incluye también v107EP (auto-recuperación visibilitychange). -->
+<!-- v107EQ2 (26/05/2026): FIX crítico. Los campos auxiliares devolucion_palets y unidad_palet que añadí al prompt v107EQ los devolvía la IA en el JSON y se mandaban a Supabase. Como NO son columnas reales de albaranes, el INSERT fallaba con error PGRST204 "Could not find the matricula column" (mensaje engañoso de Supabase). Ahora saveRecord los borra antes de INSERT/UPDATE, igual que saveGasRecord hace con empresa_ticket/num_tarjeta. La lógica funcional v107EQ sigue intacta: devolucion_palets se evalúa ANTES del save y deja la marca en observaciones. Incluye también v107EP (auto-recuperación) y v107EQ (lectura Nota de recibo palets vacíos). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2058,6 +2058,19 @@ async function saveRecord(data) {
   // _quality, _manual, _matDesconocida, etc.) se borra solo y no rompe la inserción/update.
   Object.keys(rec).forEach(k => { if (k.startsWith('_')) delete rec[k]; });
   delete rec.db_id;
+  // v107EQ2 (26/05/2026): campos auxiliares que la IA puede devolver pero NO son
+  // columnas reales de la tabla albaranes. Hay que borrarlos antes del INSERT/UPDATE
+  // o Supabase devuelve error PGRST204 "Could not find the X column" (mensaje
+  // engañoso: en realidad apunta a otra columna pero el INSERT falla por completo).
+  //   · devolucion_palets: bandera que pone la IA cuando lee una Nota de recibo de
+  //     devolución (v107EQ). Solo se usa dentro del JS para decidir si mantenemos el
+  //     palet como producto. La marca real ya queda en `observaciones` ("DEVOLUCIÓN
+  //     PALETS VACÍOS").
+  //   · unidad_palet: la IA puede mandar "piezas" para indicar que la cantidad no
+  //     son toneladas. Información útil pero no tenemos columna; la marca queda
+  //     implícita por el producto ("PALET CEMENTO"/"PALET MORTERO").
+  delete rec.devolucion_palets;
+  delete rec.unidad_palet;
   if (data.db_id) {
     const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
     if (error) throw error;
