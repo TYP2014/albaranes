@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ2 (26/05/2026): FIX crítico. Los campos auxiliares devolucion_palets y unidad_palet que añadí al prompt v107EQ los devolvía la IA en el JSON y se mandaban a Supabase. Como NO son columnas reales de albaranes, el INSERT fallaba con error PGRST204 "Could not find the matricula column" (mensaje engañoso de Supabase). Ahora saveRecord los borra antes de INSERT/UPDATE, igual que saveGasRecord hace con empresa_ticket/num_tarjeta. La lógica funcional v107EQ sigue intacta: devolucion_palets se evalúa ANTES del save y deja la marca en observaciones. Incluye también v107EP (auto-recuperación) y v107EQ (lectura Nota de recibo palets vacíos). -->
+<!-- v107EQ3 (26/05/2026): FIX raíz. El error PGRST204 "matricula column not found" salía porque al añadir ejemplos JSON v107EQ usé "matricula:..." pero la columna BD se llama "tractora". La IA estaba siguiendo mis ejemplos y devolviendo el campo mal nombrado, incluso en albaranes normales (NO solo en Notas de recibo). Fix: (1) corregido el prompt para usar tractora en el ejemplo; (2) red de seguridad en saveRecord que mapea matricula→tractora automáticamente si vuelve a ocurrir. Mantiene v107EQ2 (limpieza devolucion_palets/unidad_palet), v107EQ (lectura Notas devolución palets) y v107EP (auto-recuperación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2071,6 +2071,18 @@ async function saveRecord(data) {
   //     implícita por el producto ("PALET CEMENTO"/"PALET MORTERO").
   delete rec.devolucion_palets;
   delete rec.unidad_palet;
+  // v107EQ3 (26/05/2026): RED DE SEGURIDAD adicional. La columna BD se llama
+  // `tractora`, NO `matricula`. Si por error la IA devuelve `matricula` (caso real
+  // que pasó al añadir ejemplos del prompt v107EQ con "matricula:..."), lo
+  // mapeamos a `tractora` y borramos el campo huérfano. Así un error de
+  // nomenclatura en el prompt no rompe el INSERT entero.
+  if (rec.matricula !== undefined) {
+    if (!rec.tractora) {
+      rec.tractora = rec.matricula;
+      console.log(`[v107EQ3] mapeé matricula→tractora ("${rec.matricula}") — la columna BD se llama tractora.`);
+    }
+    delete rec.matricula;
+  }
   if (data.db_id) {
     const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
     if (error) throw error;
@@ -4852,10 +4864,10 @@ Reglas de extracción para Nota de recibo de devolución:
   · **\`cliente\`**: del campo "Facturar a:" (ej. "BIGMAT OCHOA, S.L.", "MATERIALES CONSAN, S.A.").
   · **\`albaran\`**: el número de 8 dígitos arriba del documento (ej. "56304024", "56373920", "56373296"). NO empieza por 31... como los albaranes de salida.
   · **\`fecha\`**: del campo "Hora de carga:" (ej. "04.05.26 12:50" → 04/05/2026).
-  · **\`matricula\`**: del campo "Matrícula camión:" (ej. "1270LST").
+  · **\`tractora\`**: matrícula del camión, del campo "Matrícula camión:" del documento (ej. "1270LST"). IMPORTANTE: el campo se llama \`tractora\` (NO \`matricula\`).
 
 EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos el 26/05/2026:
-  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"VIC", obra:"Fábrica Montcada", matricula:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
+  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"VIC", obra:"Fábrica Montcada", tractora:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
 
   EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SU ALMACEN", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
 
