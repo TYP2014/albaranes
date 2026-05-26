@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EP (26/05/2026): auto-recuperación al volver al primer plano. Cuando la app vuelve tras >60s oculta (móvil bloqueado, WhatsApp, otra pestaña), renueva sesión Supabase si toca y recarga datos automáticamente. Toast "🔄 Reconectado". No interrumpe procesamiento activo. -->
+<!-- v107EQ (26/05/2026): añade soporte para Holcim "Nota de recibo" de DEVOLUCIÓN DE PALETS VACÍOS. La IA marca devolucion_palets=true al detectarlas (cantidad negativa, material PALET CEMENTO/PALET MORTERO único, título "Nota de recibo"). El filtro anti-palet ahora respeta estos palets (los guarda como producto legítimo con cantidad positiva). Origen=destinatario (VIC, SU ALMACEN…), destino=Fábrica Montcada. Mantiene el comportamiento anterior para albaranes normales con palets como secundarios (se siguen ignorando). Incluye también v107EP (auto-recuperación visibilitychange). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -4150,6 +4150,16 @@ async function _processOne(it, type, key, timeoutMs) {
         // pasó. NUNCA debe llegar a BD un producto "PALET XXX" con 8 TN.
         // v107D8: misma normalización que en el bloque multimaterial — caza
         // variantes con espacios del OCR (PALE T, PA LET, etc).
+        //
+        // v107EQ (26/05/2026): EXCEPCIÓN — DEVOLUCIONES de palets vacíos.
+        // Holcim emite "Nota de recibo" cuando el camión LLEVA palets vacíos
+        // DE VUELTA a Fábrica Montcada (los abonan = los pagan). En esos
+        // documentos el material ES legítimamente "PALET CEMENTO" o "PALET
+        // MORTERO" y la cantidad viene en negativo (-7, -10, -6 Piez).
+        // Juan Carlos quiere registrarlos como albaranes normales (cantidad
+        // positiva). Distinguimos del caso "palet basura" por el flag
+        // `devolucion_palets:true` que pone la IA cuando lee una Nota de
+        // recibo de devolución.
         const _esPaletMono = (txt) => {
           const norm = String(txt || '').toLowerCase().replace(/[^a-z]/g, '');
           return /palet/.test(norm);
@@ -4164,7 +4174,28 @@ async function _processOne(it, type, key, timeoutMs) {
           return /\b(ecoplanet|bigmat|cem\s+|nhl|bl\s+ii|porcelanico|supercal|tempo gel|caliza|arena|arcilla|yeso|arido|ag-|af-)/i.test(t);
         };
         if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
-          if (_contieneMaterialReal(data.producto)) {
+          // v107EQ: si la IA marcó devolucion_palets=true, RESPETAR el palet
+          // como producto legítimo. La cantidad puede venir negativa: la
+          // convertimos a positiva (Juan Carlos prefiere positivo + marca).
+          if (data.devolucion_palets === true && !_contieneMaterialReal(data.producto)) {
+            const tmAntes = data.tm;
+            const tmAbs = Math.abs(parseFloat(data.tm) || 0);
+            if (tmAbs > 0) {
+              data.tm = tmAbs;
+              console.log(`[v107EQ devolución palets] Reconocida Nota de recibo Holcim devolución palets vacíos. Producto="${data.producto}", piezas=${tmAbs} (era ${tmAntes}). Mantengo el palet.`);
+              // Añadir marca en observaciones si no la trae ya
+              const obsActual = String(data.observaciones || '').trim();
+              if (!/devoluc/i.test(obsActual)) {
+                data.observaciones = obsActual
+                  ? obsActual + ' · DEVOLUCIÓN PALETS VACÍOS'
+                  : 'DEVOLUCIÓN PALETS VACÍOS';
+              }
+            } else {
+              console.warn(`[v107EQ devolución palets] devolucion_palets=true pero tm=${tmAntes} (no positivo ni convertible). Caigo a comportamiento clásico (borrar).`);
+              data.producto = null;
+              data.tm = null;
+            }
+          } else if (_contieneMaterialReal(data.producto)) {
             // Limpiar solo la parte del PALET y dejar el material real.
             const antes = data.producto;
             // Quitar variantes "PALET CEMENTO", "PALET MORTERO", "PALE T", etc.
@@ -4184,7 +4215,7 @@ async function _processOne(it, type, key, timeoutMs) {
               data.tm = null;
             }
           } else {
-            console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real). Se borra producto y tm para que el admin lo corrija.`);
+            console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real, NO es devolución legítima). Se borra producto y tm para que el admin lo corrija.`);
             data.producto = null;
             data.tm = null;
           }
@@ -4783,6 +4814,41 @@ Campos a extraer:
   · NUNCA confundas el destino con el cliente de "Facturar a:". Son DOS campos distintos del albarán y tienen valores distintos.
 
 **(6) OBSERVACIONES manuales:** estos albaranes A VECES llevan anotaciones a mano en el campo "Observaciones:" tipo "ABONO 10 PALETS", "-41 PALET ABONO" o "ABONO 20 PALETS". Cópialas en \`observaciones\` tal cual, sin interpretar.
+
+🔁 v107EQ — HOLCIM **NOTA DE RECIBO** DE DEVOLUCIÓN DE PALETS VACÍOS (caso ESPECIAL, leer con atención):
+
+Existe un tipo de documento Holcim DISTINTO al "Albarán de traslado" habitual: se titula **"Nota de recibo"** (en español, no en catalán) y se emite cuando el camión LLEVA DE VUELTA palets vacíos a Fábrica Montcada. A Juan Carlos se los ABONAN (le pagan por el transporte de devolución), así que SÍ se deben guardar en la app.
+
+Cómo reconocer una Nota de recibo de devolución de palets:
+  · Título del documento: literal "Nota de recibo" (NO "Albarán" ni "Albarán de traslado").
+  · Material: ÚNICAMENTE "PALET CEMENTO" (código 70001411) o "PALET MORTERO" (código 70001348). NO hay otro material real acompañando.
+  · Cantidades en NEGATIVO: "Cant.Ped.: -7.00 Piez", "Cant.Entr.: -7.00 Piez", "Neto: -7.00 Piez". Unidad "Piez" (piezas), NO toneladas.
+  · "Razón de Transporte: Venta" (igual que un albarán normal).
+  · "Planta de Entrega: Fábrica Montcada" o "Montcada Mortero".
+  · "Punto de Expedición: Puesto exp. Fábrica Montcada" o "Montcada Mortero".
+  · "Destinatario" arriba (el sitio DE DONDE salen los palets vacíos: VIC, SU ALMACEN, COLAS SANTPEDOR, etc).
+
+Reglas de extracción para Nota de recibo de devolución:
+  · **\`devolucion_palets\`: true** ← FLAG OBLIGATORIO. Pon SIEMPRE este campo a true cuando reconozcas una Nota de recibo de devolución de palets. Sin este flag, el sistema descartará el albarán.
+  · **\`producto\`**: "PALET CEMENTO" o "PALET MORTERO" tal cual aparece en el campo Material.
+  · **\`tm\`**: el VALOR ABSOLUTO de la cantidad neta (si pone -7 Piez, tm = 7; si pone -10 Piez, tm = 10). NÚMERO POSITIVO. NO uses el negativo.
+  · **\`unidad_palet\`**: "piezas" (para distinguir que NO son toneladas).
+  · **\`planta\`** (origen): el nombre del Destinatario arriba (de DONDE vuelven los palets). Ejemplos: "VIC", "SU ALMACEN", "COLAS SANTPEDOR". NUNCA "Fábrica Montcada" (eso es el destino).
+  · **\`obra\`** (destino): SIEMPRE "Fábrica Montcada" (o "Montcada Mortero" si el documento es de mortero). La fábrica es a donde VUELVEN los palets.
+  · **\`proveedor\`**: "Holcim España, S.A.U." (igual que un albarán Holcim normal).
+  · **\`cliente\`**: del campo "Facturar a:" (ej. "BIGMAT OCHOA, S.L.", "MATERIALES CONSAN, S.A.").
+  · **\`albaran\`**: el número de 8 dígitos arriba del documento (ej. "56304024", "56373920", "56373296"). NO empieza por 31... como los albaranes de salida.
+  · **\`fecha\`**: del campo "Hora de carga:" (ej. "04.05.26 12:50" → 04/05/2026).
+  · **\`matricula\`**: del campo "Matrícula camión:" (ej. "1270LST").
+
+EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos el 26/05/2026:
+  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"VIC", obra:"Fábrica Montcada", matricula:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
+
+  EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SU ALMACEN", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
+
+  EJEMPLO 3 — Nº 56373296 del 08/05/2026: Destinatario "COLAS SANTPEDOR / Ronda sant pere / 08251 Santpedor". Material "PALET MORTERO" 70001348. Cant. -6.00 Piez. Planta de Entrega "Montcada Mortero". → JSON: {albaran:"56373296", fecha:"08/05/2026", producto:"PALET MORTERO", tm:6, planta:"COLAS SANTPEDOR", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
+
+⚠️ CRÍTICO: este flag \`devolucion_palets:true\` SOLO se usa para Notas de recibo de palets vacíos. NUNCA lo pongas en albaranes normales de Holcim (los que llevan cemento o áridos como material real). En esos albaranes normales, los palets siguen siendo IGNORADOS (no se guardan), tal como dicen las reglas anteriores.
 
 SOLO JSON válido, sin markdown.`;
 
