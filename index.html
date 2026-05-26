@@ -3485,6 +3485,81 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+
+        // v107EN7 — REGLA RECICLATGE VEGETAL VIÑALS (RVV)
+        // Albaranes de venta de RVV: cabecera "RECICLATGE VEGETAL VIÑALS, S.L.U"
+        // + título "ALBARAN DE VENTA". El camión SALE de la planta del cliente
+        // (caja CLIENTE del PDF, típicamente "B.I.A. MEDIAMBIENTAL S.L. - PLANTA
+        // DE MONTCADA I REIXAC") y VA al vertedero/gestor RVV en Arenys de Munt.
+        //
+        // Mapeo de campos:
+        //   - Proveedor (quien factura el transporte): Corporación CLD, SUTR, S.L.
+        //     (Juan Carlos 26/05/2026: es FIJO ahora mismo. Si en el futuro cambia,
+        //     se amplía esta regla.)
+        //   - Cliente (a quien va el servicio): B.I.A. Mediambiental, S.L.
+        //   - Origen (de dónde sale el camión cargado): Planta de Montcada i Reixac
+        //   - Destino (a dónde descarga): Reciclatge Vegetal Viñals
+        //   - Matrícula: parte después del "/" en "TRANS./MATRÍCULA" (ej.
+        //     "T-4190000180/8992-NLF" → "8992NLF" sin guión).
+        //
+        // Detección: si el PROVEEDOR o el DESTINO o el ORIGEN leídos por la IA
+        // contienen "RECICLATGE VEGETAL VIÑALS" o "RECICLATGE VEGETAL" o "VIÑALS"
+        // → es un albarán RVV.
+        {
+          const _rvv = (String(data.proveedor || '') + ' '
+                     + String(data.obra || '') + ' '
+                     + String(data.planta || '') + ' '
+                     + String(data.cliente || '')).toUpperCase();
+          const _esRVV = /RECICLATGE\s+VEGETAL/i.test(_rvv) || /\bVI\u00d1ALS\b/i.test(_rvv);
+          if (_esRVV) {
+            // Proveedor → Corporación CLD (fijo, ahora mismo)
+            const provDeseado = 'Corporación CLD, SUTR, S.L.';
+            if (data.proveedor !== provDeseado) {
+              console.log('[v107EN7 RVV] forzando PROVEEDOR → "' + provDeseado + '" (era "' + (data.proveedor || '') + '")');
+              data.proveedor = provDeseado;
+            }
+            // Destino → Reciclatge Vegetal Viñals
+            if (data.obra !== 'Reciclatge Vegetal Viñals') {
+              console.log('[v107EN7 RVV] forzando DESTINO → "Reciclatge Vegetal Viñals" (era "' + (data.obra || '') + '")');
+              data.obra = 'Reciclatge Vegetal Viñals';
+            }
+            // Origen → Planta de Montcada i Reixac (si la IA no lo leyó bien)
+            // Aceptamos cualquier variante que contenga "MONTCADA"; si la IA leyó
+            // algo distinto o nada, ponemos el canónico.
+            const _planta = String(data.planta || '').toUpperCase();
+            if (!_planta || !/MONTCADA/.test(_planta)) {
+              console.log('[v107EN7 RVV] forzando ORIGEN → "Planta de Montcada i Reixac" (era "' + (data.planta || '') + '")');
+              data.planta = 'Planta de Montcada i Reixac';
+            }
+            // Cliente → B.I.A. Mediambiental, S.L. (canónico)
+            const _cli = String(data.cliente || '').toUpperCase();
+            if (!_cli || !/B\.?I\.?A\.?\s*MEDIAMBIENTAL/i.test(_cli)) {
+              console.log('[v107EN7 RVV] forzando CLIENTE → "B.I.A. Mediambiental, S.L." (era "' + (data.cliente || '') + '")');
+              data.cliente = 'B.I.A. Mediambiental, S.L.';
+            }
+            // Matrícula RVV: si viene con guión y código transportista delante
+            // (ej. "T-4190000180/8992-NLF"), extraer solo la parte después del "/"
+            // y quitar el guión interno. Si ya viene limpia (8 caracteres alfa-num
+            // sin "/"), no la tocamos.
+            const _mat = String(data.matricula || '');
+            if (_mat.indexOf('/') !== -1) {
+              const partes = _mat.split('/');
+              const ultima = (partes[partes.length - 1] || '').replace(/-/g, '').replace(/\s+/g, '').toUpperCase();
+              if (ultima && ultima.length >= 6 && ultima.length <= 8) {
+                console.log('[v107EN7 RVV] matrícula limpiada: "' + _mat + '" → "' + ultima + '"');
+                data.matricula = ultima;
+              }
+            } else if (_mat && /-/.test(_mat) && _mat.length <= 10) {
+              // Caso "8992-NLF" sin "/" delante — quitar guión
+              const limpia = _mat.replace(/-/g, '').toUpperCase();
+              if (limpia.length >= 6 && limpia.length <= 8) {
+                console.log('[v107EN7 RVV] matrícula sin guión: "' + _mat + '" → "' + limpia + '"');
+                data.matricula = limpia;
+              }
+            }
+          }
+        }
+
         // v107AV: regla específica PUIGFEL / COVA SOLERA (escombro de hormigón
         // que sale de una planta/obra Holcim → vertedero Puigfel/Cova Solera en
         // Rubí). A diferencia de Girona Runes (origen fijo Celra), aquí el
@@ -9167,6 +9242,18 @@ const CLIENTES_CANONICOS = [
     'Promurs', 'promurs', 'PROMURs', 'pROMURS',
     'PROMURS, S.L.', 'PROMURS SL', 'Promurs, S.L.', 'Promurs SL',
     'PROMURS S.L.', 'Promurs S.L.', 'PROMUR', 'Promur'
+  ] },
+  // v107EN7 (26/05/2026): B.I.A. Mediambiental — cliente final del transporte
+  // de residuos en albaranes RVV. Es Aigües de Barcelona quien gestiona las
+  // plantas EDAR (Estaciones Depuradoras) y se le hace el servicio físico
+  // (transporte de escombro al vertedero). En el PDF aparece en la caja CLIENTE
+  // como "B.I.A. MEDIAMBIENTAL S.L. / PLANTA DE MONTCADA I REIXAC".
+  { canon: 'B.I.A. Mediambiental, S.L.', alias: [
+    'B.I.A. MEDIAMBIENTAL, S.L.', 'B.I.A. Mediambiental S.L.',
+    'B.I.A. MEDIAMBIENTAL S.L.', 'BIA Mediambiental', 'BIA MEDIAMBIENTAL',
+    'B.I.A. Mediambiental', 'B.I.A. MEDIAMBIENTAL',
+    'BIA Mediambiental SL', 'BIA MEDIAMBIENTAL SL',
+    'B I A Mediambiental', 'B I A MEDIAMBIENTAL'
   ] }
 ];
 
@@ -9313,6 +9400,16 @@ const PROVEEDORES_CANONICOS = [
     'Promurs', 'promurs', 'PROMURs', 'pROMURS',
     'PROMURS, S.L.', 'PROMURS SL', 'Promurs, S.L.', 'Promurs SL',
     'PROMURS S.L.', 'Promurs S.L.', 'PROMUR', 'Promur'
+  ] },
+  // v107EN7 (26/05/2026): Corporación CLD, SUTR, S.L. — proveedor que nos
+  // contrata los viajes de residuos desde plantas EDAR (B.I.A. Mediambiental)
+  // hacia vertedero RVV (Reciclatge Vegetal Viñals) en Arenys de Munt.
+  // Juan Carlos: "ahora mismo siempre es Corporación CLD; si cambia, ampliamos."
+  { canon: 'Corporación CLD, SUTR, S.L.', alias: [
+    'Corporacion CLD, SUTR, S.L.', 'CORPORACION CLD, SUTR, S.L.',
+    'Corporación CLD SUTR SL', 'Corporacion CLD SUTR SL',
+    'CORPORACION CLD SUTR SL', 'Corporación CLD', 'Corporacion CLD',
+    'CORPORACION CLD', 'CORPORACIÓN CLD', 'CLD SUTR', 'CLD-SUTR'
   ] }
 ];
 
@@ -9662,6 +9759,20 @@ const ORIGENES_CANONICOS = [
     '08203 Sabadell', '08204 Sabadell', '08205 Sabadell',
     '08206 Sabadell', '08207 Sabadell', '08208 Sabadell',
     'Sabadell (Barcelona)', 'SABADELL (BARCELONA)'
+  ] },
+  // v107EN7 (26/05/2026): origen para albaranes RVV. Es la planta EDAR
+  // (Estación Depuradora de Aguas Residuales) de Aigües de Barcelona en
+  // Montcada i Reixac, desde donde sale el camión cargado con escombro/lodo
+  // que va al vertedero RVV. En el PDF figura como "PLANTA DE MONTCADA I
+  // REIXAC" dentro de la caja CLIENTE (B.I.A. Mediambiental). Se canoniza
+  // a "Planta de Montcada i Reixac" para distinguirlo del Montcada Holcim.
+  { canon: 'Planta de Montcada i Reixac', alias: [
+    'Planta de Montcada I Reixac', 'PLANTA DE MONTCADA I REIXAC',
+    'Planta Montcada i Reixac', 'PLANTA MONTCADA I REIXAC',
+    'Planta de Montcada', 'PLANTA DE MONTCADA',
+    'EDAR Montcada', 'EDAR MONTCADA', 'EDAR Montcada i Reixac',
+    'EDAR MONTCADA I REIXAC', 'BIA Montcada', 'B.I.A. Montcada',
+    'B.I.A. MEDIAMBIENTAL', 'BIA MEDIAMBIENTAL'
   ] }
 ];
 const _matchOrigen = makeCanonMatcher(ORIGENES_CANONICOS);
@@ -10105,6 +10216,17 @@ const DESTINOS_CANONICOS = [
   { canon: 'Cubelles', alias: [
     'CUBELLES', '08880 Cubelles', '08880 CUBELLES',
     'Cubelles (Barcelona)', 'CUBELLES (BARCELONA)'
+  ] },
+  // v107EN7 (26/05/2026): destino para albaranes RVV (vertedero/gestor de
+  // residuos en Arenys de Munt). El camión descarga aquí el escombro/residuo
+  // que sale de las plantas EDAR.
+  { canon: 'Reciclatge Vegetal Viñals', alias: [
+    'Reciclatge Vegetal Vinals', 'RECICLATGE VEGETAL VIÑALS',
+    'RECICLATGE VEGETAL VINALS', 'Reciclatge Vegetal Viñals, S.L.U',
+    'RECICLATGE VEGETAL VIÑALS, S.L.U', 'Reciclatge Vegetal Vinals SLU',
+    'RECICLATGE VEGETAL VINALS SLU', 'Reciclatge Vegetal',
+    'RECICLATGE VEGETAL', 'Reciclatge Vinals', 'RECICLATGE VINALS',
+    'RVV Arenys', 'Arenys de Munt RVV', 'Arenys De Munt Reciclatge'
   ] }
 ];
 const _matchDestino = makeCanonMatcher(DESTINOS_CANONICOS);
