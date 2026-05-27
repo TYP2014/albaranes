@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ12 (27/05/2026): red de seguridad para CRUCE origen↔destino en Notas de recibo Holcim. Error reportado por Juan Carlos: la IA puso planta="Puesto exp. Fábrica Montcada" (destino) y obra="SU ALMACEN" (origen) — cruzados. Resultado: auto-detección v107EQ9 no se activaba (destino no era F.Montcada) y el filtro borraba todo el albarán. Fix: detectar este patrón (Holcim + PALET + destino="SU ALMACEN"/"MI OBRA" genéricos O origen="Fábrica Montcada"/"Puesto exp. Montcada") e INVERTIR los campos antes de aplicar las reglas siguientes. La obra final queda como "Fábrica Montcada" o "Montcada Mortero" según producto. Si el origen recuperado era genérico, se deja vacío para que el admin revise. Marca flag devolucion_palets=true para que pase al bloque que procesa la devolución correctamente. Mantiene v107EQ11 (regla pueblo del CP), v107EQ9 (auto-detección), v107EQ8 (Marta), v107EQ7 SQL. -->
+<!-- v107EQ13 (27/05/2026): triple mejora para el bug "Leyendo con IA..." eterno reportado por Tony desde su móvil. (1) AUTO-DESBLOQUEO AGRESIVO: si pasan 90 segundos sin que termine NI UN archivo (no solo timeout total de 3min), la app se desbloquea sola y muestra banner. Detecta cuelgues silenciosos de la llamada a Anthropic API. (2) BANNER ROJO PERSISTENTE arriba centrado cuando se detecta bloqueo: "🔴 La IA no responde — No avanza desde hace 90 segundos" + botón gordo "🔄 Reintentar" + ✕ para cerrar. A diferencia del toast (3s y desaparece), este se mantiene hasta que el usuario interactúa. (3) INDICADOR VISUAL PERMANENTE arriba a la derecha "⚙️ Albaranes: X de Y (Z en curso)" que se actualiza con cada archivo terminado. Si Tony ve el indicador parado, sabe que algo va mal antes de esperar 90s. Mantiene v107EQ12 (cruce origen↔destino), v107EQ11 (pueblo CP), v107EQ9 (auto-detección palets), v107EQ8 (Marta), v107EQ7 SQL. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -3201,31 +3201,137 @@ let _processingAlb = false;
 let _processingGas = false;
 let _processingAlbStartTs = 0; // timestamp del inicio para detectar bloqueos
 let _processingGasStartTs = 0;
+// v107EQ13 (27/05/2026): seguimiento de PROGRESO (no solo tiempo total).
+// Cuenta archivos terminados en la tanda actual. Si pasa demasiado tiempo
+// sin que avance este contador, asumimos cuelgue real (no que tarde mucho).
+let _processingAlbLastProgressTs = 0;
+let _processingAlbLastProgressCount = 0;
+let _processingGasLastProgressTs = 0;
+let _processingGasLastProgressCount = 0;
 // v107: bajado de 10 → 3 minutos. Un lote de 5 paralelos × 12s = 60s típico, así que 3min
 // es margen amplio para detectar cuelgues reales sin bloquear al usuario al subir más
 // albaranes pasado un ratito. Antes el timeout de 10 minutos hacía que tras un cuelgue
 // silencioso, el usuario tuviera que esperar 10 min o refrescar la página.
-const _PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos máx → si supera, asumir bloqueo
+// v107EQ13: bajado a 90s SIN progreso. Si en 90 segundos no termina ningún archivo,
+// asumimos que la llamada a IA está colgada y desbloqueamos automáticamente.
+const _PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos total (último recurso)
+const _PROCESSING_STALL_MS = 90 * 1000; // 90 segundos sin progresar = cuelgue
 
 // Auto-desbloqueo: si el flag lleva activo más del timeout, lo reseteamos. Esto pilla los casos
 // raros donde una llamada a la API se queda esperando para siempre y nunca llama al finally.
 // v107: ahora también avisa al usuario con un toast cuando detecta el cuelgue (antes silencioso).
+// v107EQ13: además del timeout absoluto, detecta CUELGUE POR FALTA DE PROGRESO: si en 90
+// segundos no termina ningún archivo, asume bloqueo y desbloquea + muestra banner ROJO
+// visible y persistente (no un toast que se desvanece).
 function checkProcessingStuck(type) {
   const now = Date.now();
+  // Caso 1: timeout absoluto (3 min)
   if (type === 'alb' && _processingAlb && _processingAlbStartTs > 0 && (now - _processingAlbStartTs) > _PROCESSING_TIMEOUT_MS) {
-    console.warn('[processQueue] Bloqueo detectado tras timeout — desbloqueando automáticamente');
+    console.warn('[processQueue] Bloqueo detectado por timeout absoluto (3min) — desbloqueando automáticamente');
     _processingAlb = false;
     _processingAlbStartTs = 0;
-    try { toast('🔓 Procesamiento anterior desbloqueado. Puedes continuar.', 'warn'); } catch(e) {}
+    _processingAlbLastProgressTs = 0;
+    _processingAlbLastProgressCount = 0;
+    _v107EQ13MostrarBannerBloqueo('alb', 'timeout');
+    try { toast('🔓 Procesamiento anterior desbloqueado (3 min sin terminar).', 'warn'); } catch(e) {}
     return true;
   }
   if (type === 'gas' && _processingGas && _processingGasStartTs > 0 && (now - _processingGasStartTs) > _PROCESSING_TIMEOUT_MS) {
     _processingGas = false;
     _processingGasStartTs = 0;
-    try { toast('🔓 Procesamiento gasoil anterior desbloqueado. Puedes continuar.', 'warn'); } catch(e) {}
+    _processingGasLastProgressTs = 0;
+    _processingGasLastProgressCount = 0;
+    _v107EQ13MostrarBannerBloqueo('gas', 'timeout');
+    try { toast('🔓 Procesamiento gasoil anterior desbloqueado.', 'warn'); } catch(e) {}
+    return true;
+  }
+  // Caso 2 (v107EQ13): cuelgue por falta de progreso — más agresivo y útil
+  if (type === 'alb' && _processingAlb && _processingAlbLastProgressTs > 0
+      && (now - _processingAlbLastProgressTs) > _PROCESSING_STALL_MS) {
+    console.warn('[v107EQ13] Cuelgue detectado: 90s sin progresar. Desbloqueando automáticamente.');
+    _processingAlb = false;
+    _processingAlbStartTs = 0;
+    _processingAlbLastProgressTs = 0;
+    _processingAlbLastProgressCount = 0;
+    _v107EQ13MostrarBannerBloqueo('alb', 'stall');
+    return true;
+  }
+  if (type === 'gas' && _processingGas && _processingGasLastProgressTs > 0
+      && (now - _processingGasLastProgressTs) > _PROCESSING_STALL_MS) {
+    console.warn('[v107EQ13] Cuelgue detectado en gasoil: 90s sin progresar. Desbloqueando.');
+    _processingGas = false;
+    _processingGasStartTs = 0;
+    _processingGasLastProgressTs = 0;
+    _processingGasLastProgressCount = 0;
+    _v107EQ13MostrarBannerBloqueo('gas', 'stall');
     return true;
   }
   return false;
+}
+
+// v107EQ13 (27/05/2026): banner ROJO persistente cuando se detecta bloqueo.
+// A diferencia del toast (que se desvanece a los 3s), este es visible hasta
+// que el usuario lo cierra o vuelve a procesar.
+function _v107EQ13MostrarBannerBloqueo(type, motivo) {
+  try {
+    const idBan = 'v107EQ13Banner_' + type;
+    let banner = document.getElementById(idBan);
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = idBan;
+      banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99998;background:#dc2626;color:#fff;padding:14px 18px;border-radius:8px;font-weight:600;font-size:14px;box-shadow:0 6px 20px rgba(220,38,38,0.4);max-width:90vw;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+      document.body.appendChild(banner);
+    }
+    const txt = (motivo === 'stall') ? 'No avanza desde hace 90 segundos' : 'Se quedó procesando más de 3 minutos';
+    banner.innerHTML = `
+      <span>🔴 La IA no responde — ${txt}.</span>
+      <button onclick="processQueue('${type}')" style="background:#fff;color:#dc2626;border:none;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;">🔄 Reintentar</button>
+      <button onclick="document.getElementById('${idBan}').remove()" style="background:transparent;color:#fff;border:1px solid #fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;">✕</button>
+    `;
+  } catch(e) { console.warn('[v107EQ13] no pude mostrar banner:', e); }
+}
+
+// v107EQ13: registra progreso (llamado tras cada archivo terminado).
+// Actualiza el timestamp del último progreso para que checkProcessingStuck
+// sepa que la cola SÍ está avanzando aunque tarde mucho en total.
+function _v107EQ13RegistrarProgreso(type) {
+  const now = Date.now();
+  if (type === 'alb') {
+    _processingAlbLastProgressTs = now;
+    _processingAlbLastProgressCount++;
+  } else {
+    _processingGasLastProgressTs = now;
+    _processingGasLastProgressCount++;
+  }
+  // Actualizar indicador visual (parte 3 de v107EQ13)
+  _v107EQ13ActualizarIndicador(type);
+}
+
+// v107EQ13: indicador visual permanente arriba a la derecha "⚙️ Procesando X de Y".
+// Aparece al iniciar processQueue, se actualiza con cada archivo terminado,
+// se quita cuando termina toda la cola.
+function _v107EQ13ActualizarIndicador(type) {
+  try {
+    const idInd = 'v107EQ13Indicador_' + type;
+    let ind = document.getElementById(idInd);
+    const pending = type === 'alb' ? pendingAlb : pendingGas;
+    const total = pending.length;
+    const procesados = pending.filter(x => x.status === 'done' || x.status === 'error').length;
+    const enCurso = pending.filter(x => x.status === 'processing').length;
+    const enCola = pending.filter(x => x.status === 'pending').length;
+    if (total === 0 || procesados >= total) {
+      if (ind) ind.remove();
+      return;
+    }
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.id = idInd;
+      ind.style.cssText = 'position:fixed;top:12px;right:12px;z-index:99997;background:#2563eb;color:#fff;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;box-shadow:0 4px 12px rgba(37,99,235,0.4);';
+      document.body.appendChild(ind);
+    }
+    const tipoTxt = type === 'alb' ? 'Albaranes' : 'Gasoil';
+    ind.innerHTML = `⚙️ ${tipoTxt}: ${procesados} de ${total}${enCurso > 0 ? ` (${enCurso} en curso)` : ''}`;
+  } catch(e) { console.warn('[v107EQ13] no pude actualizar indicador:', e); }
 }
 
 // Reset manual: si el usuario sospecha que está colgado, puede llamar a esta función
@@ -3272,8 +3378,24 @@ async function processQueue(type) {
     return;
   }
   if (type === 'gas' && _processingGas) return;
-  if (type === 'alb') { _processingAlb = true; _processingAlbStartTs = Date.now(); }
-  else { _processingGas = true; _processingGasStartTs = Date.now(); }
+  if (type === 'alb') {
+    _processingAlb = true;
+    _processingAlbStartTs = Date.now();
+    // v107EQ13: arrancar contador de progreso
+    _processingAlbLastProgressTs = Date.now();
+    _processingAlbLastProgressCount = 0;
+  } else {
+    _processingGas = true;
+    _processingGasStartTs = Date.now();
+    _processingGasLastProgressTs = Date.now();
+    _processingGasLastProgressCount = 0;
+  }
+  // v107EQ13: mostrar indicador "⚙️ Procesando X de Y" y limpiar cualquier banner rojo previo
+  try {
+    const banPrev = document.getElementById('v107EQ13Banner_' + type);
+    if (banPrev) banPrev.remove();
+    _v107EQ13ActualizarIndicador(type);
+  } catch(e) {}
 
   const key = getKey();
   if (!key) {
@@ -4682,6 +4804,8 @@ async function _processOne(it, type, key, timeoutMs) {
       try { if (typeof toast === 'function') toast('Factura repetida: ' + _facturaDupOmitidos + ' repostajes omitidos (no duplicado)', 'warn'); } catch (e) {}
     }
     it.status = 'done';
+    // v107EQ13 (27/05/2026): registrar progreso para detección de cuelgues.
+    try { _v107EQ13RegistrarProgreso(type); } catch(e) {}
     // v98: ya no necesitamos borrar/actualizar el pendiente aquí porque saveRecord lo hizo
     // como un UPDATE (la fila ya tiene procesado=true). Solo tenemos que limpiar la lista
     // en memoria del registro pendiente original (sin los datos IA), si existía un duplicado.
@@ -4718,6 +4842,8 @@ async function _processOne(it, type, key, timeoutMs) {
     return true;
   } catch (e) {
     it.status = 'error';
+    // v107EQ13 (27/05/2026): registrar progreso (también para errores — el archivo SÍ avanzó de estado).
+    try { _v107EQ13RegistrarProgreso(type); } catch(e2) {}
     // v107BC: log de error con tiempo total
     const _durErr = ((Date.now() - _tInicio) / 1000).toFixed(1);
     console.warn(`${_logPrefix} ✗ FALLÓ tras ${_durErr}s:`, e.message || e);
