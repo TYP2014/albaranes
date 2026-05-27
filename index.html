@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ11 (27/05/2026): regla del ORIGEN (planta) en Notas de recibo INVERTIDA respecto a v107EQ10. Aclaración de Juan Carlos: NO quería línea 1 literal, quería el PUEBLO real donde están físicamente los palets. Nueva regla: planta = nombre del pueblo de la LÍNEA 3 (la que tiene el CP "ES 08251 SANTPEDOR" → "Santpedor"), quitando el "ES" y los 5 dígitos. Antes la línea 1 podía ser "SU ALMACEN", "MI OBRA" u otros nombres genéricos que no identifican el sitio físico. 9 ejemplos reales actualizados + regla mental "localiza ES+5dígitos y coge lo que va detrás". Mantiene v107EQ9 (auto-detección flag devolucion_palets), v107EQ8 (Marta), v107EQ7 SQL, v107EQ6 (red seguridad), v107EQ5 (cola pre-arranque). -->
+<!-- v107EQ12 (27/05/2026): red de seguridad para CRUCE origen↔destino en Notas de recibo Holcim. Error reportado por Juan Carlos: la IA puso planta="Puesto exp. Fábrica Montcada" (destino) y obra="SU ALMACEN" (origen) — cruzados. Resultado: auto-detección v107EQ9 no se activaba (destino no era F.Montcada) y el filtro borraba todo el albarán. Fix: detectar este patrón (Holcim + PALET + destino="SU ALMACEN"/"MI OBRA" genéricos O origen="Fábrica Montcada"/"Puesto exp. Montcada") e INVERTIR los campos antes de aplicar las reglas siguientes. La obra final queda como "Fábrica Montcada" o "Montcada Mortero" según producto. Si el origen recuperado era genérico, se deja vacío para que el admin revise. Marca flag devolucion_palets=true para que pase al bloque que procesa la devolución correctamente. Mantiene v107EQ11 (regla pueblo del CP), v107EQ9 (auto-detección), v107EQ8 (Marta), v107EQ7 SQL. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -4342,6 +4342,46 @@ async function _processOne(it, type, key, timeoutMs) {
           // Una devolución típica son 2-20 palets (no decenas de TN)
           const _tmPequenoPalet = !isNaN(_tmRaw) && _tmAbs >= 1 && _tmAbs <= 25;
           const _tmNegativo = !isNaN(_tmRaw) && _tmRaw < 0;
+
+          // v107EQ12 (27/05/2026): RED DE SEGURIDAD para CRUCE origen↔destino.
+          // Error real reportado por Juan Carlos en albarán Nota de recibo Holcim:
+          // la IA cruzó los campos — puso planta="Puesto exp. Fábrica Montcada"
+          // (que es el destino) y obra="SU ALMACEN" (que es el origen). Como
+          // consecuencia: (1) la auto-detección v107EQ9 NO se activaba (destino
+          // no era Fábrica Montcada), (2) el filtro anti-palet borraba el
+          // albarán entero. Aquí detectamos esa inversión y la corregimos antes
+          // de aplicar las reglas siguientes.
+          const _esGenericoAlmacen = (txt) => {
+            // Nombres comerciales genéricos que aparecen en línea 1 del Destinatario
+            // y NUNCA son destinos reales — son etiquetas del documento Holcim.
+            const t = String(txt || '').toLowerCase().trim();
+            return /^(su\s*alm[aá]cen|mi\s*alm[aá]cen|mi\s*obra|nuestro\s*alm[aá]cen|alm[aá]cen\s*central)$/.test(t);
+          };
+          const _plantaContieneMontcada = /(fábrica\s*montcada|fabrica\s*montcada|montcada\s+mortero|puesto\s*exp.*montcada)/i.test(String(data.planta || ''));
+          // SI: producto es PALET puro + Holcim + (destino es genérico tipo SU ALMACEN
+          //     O el origen es Fábrica Montcada/Puesto exp. Montcada) → la IA cruzó
+          //     los campos. Invertimos.
+          if (_esHolcim
+              && !_contieneMaterialReal(data.producto)
+              && (_esGenericoAlmacen(data.obra) || _plantaContieneMontcada)) {
+            const plantaOrig = data.planta;
+            const obraOrig = data.obra;
+            // El destino correcto siempre es Fábrica Montcada (allí vuelven los palets)
+            data.obra = /mortero/i.test(plantaOrig || '') ? 'Montcada Mortero' : 'Fábrica Montcada';
+            // El origen correcto es lo que la IA puso en obra (si era genérico,
+            // lo dejamos como "" para que v107EQ9 luego lo trate como obra vacía;
+            // si no, copiamos el valor).
+            if (_esGenericoAlmacen(obraOrig)) {
+              data.planta = '';  // se dejará vacío para señalar al admin
+              console.log(`[v107EQ12 cruce detectado] Albarán Holcim con destino="${obraOrig}" (nombre genérico) + origen="${plantaOrig}" → INVERTIDO. Nueva obra="${data.obra}", planta="" (vacío para revisar).`);
+            } else {
+              data.planta = obraOrig;
+              console.log(`[v107EQ12 cruce detectado] Albarán Holcim con origen="${plantaOrig}" (era F.Montcada) + destino="${obraOrig}" → INVERTIDO. Nueva obra="${data.obra}", planta="${data.planta}".`);
+            }
+            // Marcamos el flag para que el siguiente bloque procese como devolución
+            data.devolucion_palets = true;
+          }
+
           // Auto-detección: PALET puro + Holcim + (destino Montcada o obra vacía) + cantidad creíble de palets
           if (data.devolucion_palets !== true
               && !_contieneMaterialReal(data.producto)
