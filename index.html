@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ES1 (27/05/2026): Neumáticos Fase 2 — Lector de albaranes Soledad PDF/imagen. Nuevo botón "📤 Subir albarán Soledad" en pestaña Neumáticos. callClaudeNeumAlb(b64,mediaType,key,isPdf,signal) llama a Haiku con prompt específico: extrae cantidad, medida (315/80X22,5 / 385/65X22,5 / 315/70X22,5 / 19.5 si detectada), marca (normaliza CONT./CONTI/CONTINEN → CONTINENTAL), modelo (normaliza CONT.HYBHD5 156L → HD5), propiedad (SU_PROPIEDAD si dice "S/PROP" o "DE SU PROPIEDAD", COMPRA_VENTA si no), num_albaran, fecha, matricula, cif_cliente. Ignora líneas mano de obra (MONTAJE+FIJACION, MANTENIMIENTO), turismo (17 pulgadas, MICH.PS5), tasas NFU, diagnosis y equilibrado. _neumProcesarAlbaranSoledad orquesta: 1) base64 + IA, 2) sube PDF a Storage documentos/neumaticos/albaranes/, 3) identifica empresa por CIF (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ), 4) por línea: si SU_PROPIEDAD → 1 movimiento "montaje" (-N); si COMPRA_VENTA → 2 movimientos "compra" (+N) y "montaje" (-N); si medida 19,5 → NO procesa pero crea aviso en banner amarillo persistente con botón ✕. Avisos guardados en localStorage _neumAvisos19_5. Posición (uso) se ignora completamente — el stock se agrupa solo por medida+marca+modelo. Mantiene v107ER3 (Preliquidaciones oculta), v107ER2 (Facturación), v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs). -->
+<!-- v107ES2 (27/05/2026): Modo Prueba para lector albaranes Soledad. Junto al botón "📤 Subir albarán Soledad" hay un switch "🧪 Modo prueba (no guarda)" en amarillo. Si está activo: la IA lee el PDF, identifica empresa por CIF, detecta líneas y propiedad, PERO NO guarda en BD, NO sube a Storage, NO crea avisos persistentes. En su lugar muestra un cuadro resumen con tabla por archivo (empresa, nº alb, matrícula, medida, marca, modelo, cantidad, acción detectada) para que JC vea qué habría hecho. Stock real NO se toca. Si el switch está apagado funciona como v107ES1 (guarda en BD normal). Cuadro se cierra con ✕ Cerrar. Mantiene v107ES1 (lector), v107ER3, v107ER2 (Facturación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -967,10 +967,15 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--pu)"></div>ACCIONES</div>
         </div>
-        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <!-- v107ES1: subir albarán Soledad (lo más importante: día a día) -->
           <button class="btn bp" onclick="neumAlbSubirClick()" style="font-size:11px;font-weight:700">📤 Subir albarán Soledad</button>
           <input type="file" id="neumAlbFileInput" accept="application/pdf,image/*" multiple style="display:none" onchange="neumAlbFilesSeleccionados(this.files)">
+          <!-- v107ES2: switch Modo Prueba — si está activo, lee el PDF pero NO guarda en BD -->
+          <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mn);font-size:11px;cursor:pointer;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);padding:4px 10px;border-radius:6px">
+            <input type="checkbox" id="neumModoPrueba" style="cursor:pointer">
+            <span style="color:#eab308;font-weight:600">🧪 Modo prueba (no guarda)</span>
+          </label>
           <span style="display:inline-block;width:1px;background:var(--bd);margin:0 4px"></span>
           <button class="btn bw" onclick="openNeumMovimientoModal('inventario_inicial')" style="font-size:11px">📥 Inventario inicial</button>
           <button class="btn bs" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Compra manual</button>
@@ -12315,13 +12320,23 @@ async function neumAlbFilesSeleccionados(files) {
   if (!files || !files.length) return;
   const key = getKey();
   if (!key) { toast('Configura la API Key primero', 'err'); return; }
-  toast(`📤 Procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} Soledad...`);
+  // v107ES2: detectar si está activo el Modo Prueba
+  const modoPrueba = !!(document.getElementById('neumModoPrueba')?.checked);
+  if (modoPrueba) {
+    toast(`🧪 MODO PRUEBA: procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} (NO guardar\u00e1 en BD)`, 'warn');
+  } else {
+    toast(`📤 Procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} Soledad...`);
+  }
   let total_ok = 0, total_avisos = 0, total_err = 0;
+  const resultadosPrueba = [];
   for (const file of files) {
     try {
-      const r = await _neumProcesarAlbaranSoledad(file, key);
+      const r = await _neumProcesarAlbaranSoledad(file, key, modoPrueba);
       if (r.ok) total_ok++;
       if (r.aviso19_5) total_avisos++;
+      if (modoPrueba && r.lineas_detectadas) {
+        resultadosPrueba.push({ archivo: file.name, lineas: r.lineas_detectadas });
+      }
     } catch (e) {
       console.error('[neumAlbFiles] error en', file.name, e);
       total_err++;
@@ -12331,7 +12346,13 @@ async function neumAlbFilesSeleccionados(files) {
   // Limpiar input
   const inp = document.getElementById('neumAlbFileInput');
   if (inp) inp.value = '';
-  // Refrescar stock y avisos
+  // v107ES2: si era modo prueba, mostrar resumen visual y NO refrescar stock
+  if (modoPrueba) {
+    _neumMostrarResumenPrueba(resultadosPrueba);
+    toast(`🧪 Prueba completada — ${total_ok} albaranes le\u00eddos · ${total_err} errores`, 'warn');
+    return;
+  }
+  // Refrescar stock y avisos (modo real)
   await loadNeumData();
   if (total_avisos > 0) {
     _neumRenderBannerAvisos();
@@ -12339,8 +12360,68 @@ async function neumAlbFilesSeleccionados(files) {
   toast(`✓ ${total_ok} procesados${total_err > 0 ? ` · ${total_err} errores` : ''}${total_avisos > 0 ? ` · ${total_avisos} avisos 19.5` : ''}`);
 }
 
+// v107ES2: muestra modal con resumen de lo que la IA habr\u00eda procesado (sin tocar BD)
+function _neumMostrarResumenPrueba(resultados) {
+  if (!resultados || !resultados.length) return;
+  let html = '<div style="background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.4);padding:14px;border-radius:8px;margin-bottom:14px">';
+  html += '<div style="font-weight:700;color:#eab308;margin-bottom:6px">🧪 MODO PRUEBA — Resultado de lectura (NADA se ha guardado)</div>';
+  html += '<div style="font-size:11px;color:var(--mu)">Esto es lo que la app habría hecho con los albaranes. Stock NO modificado.</div></div>';
+  for (const res of resultados) {
+    html += `<div style="margin-bottom:14px;border:1px solid var(--bd);border-radius:8px;padding:12px">`;
+    html += `<div style="font-weight:700;margin-bottom:8px;font-family:var(--mn);font-size:13px">📄 ${_esc(res.archivo)}</div>`;
+    if (!res.lineas || !res.lineas.length) {
+      html += '<div style="color:var(--mu);font-size:11px">La IA no detectó ninguna línea de neumático</div>';
+    } else {
+      html += '<table style="width:100%;font-family:var(--mn);font-size:11px"><thead><tr style="border-bottom:1px solid var(--bd)">';
+      html += '<th style="text-align:left;padding:4px">Empresa</th>';
+      html += '<th style="text-align:left;padding:4px">Albarán</th>';
+      html += '<th style="text-align:left;padding:4px">Matrícula</th>';
+      html += '<th style="text-align:left;padding:4px">Medida</th>';
+      html += '<th style="text-align:left;padding:4px">Marca</th>';
+      html += '<th style="text-align:left;padding:4px">Modelo</th>';
+      html += '<th style="text-align:right;padding:4px">Cant.</th>';
+      html += '<th style="text-align:left;padding:4px">Acción</th></tr></thead><tbody>';
+      for (const l of res.lineas) {
+        const icono = l.accion === 'IGNORAR_19_5' ? '⚠️ 19,5 (aviso)' : (l.accion === 'MONTAJE_PROP' ? '✅ -' + l.cantidad + ' (S/PROP)' : '✅ +' + l.cantidad + ' / -' + l.cantidad);
+        html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.05)">`;
+        html += `<td style="padding:4px">${_esc(l.empresa || '?')}</td>`;
+        html += `<td style="padding:4px">${_esc(l.num_albaran || '?')}</td>`;
+        html += `<td style="padding:4px">${_esc(l.matricula || '?')}</td>`;
+        html += `<td style="padding:4px">${_esc(l.medida || '?')}</td>`;
+        html += `<td style="padding:4px">${_esc(l.marca || '?')}</td>`;
+        html += `<td style="padding:4px">${_esc(l.modelo || '?')}</td>`;
+        html += `<td style="padding:4px;text-align:right;font-weight:600">${l.cantidad || 0}</td>`;
+        html += `<td style="padding:4px;color:${l.accion === 'IGNORAR_19_5' ? '#eab308' : '#22c55e'};font-weight:600">${icono}</td>`;
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+  }
+  html += '<div style="text-align:center;margin-top:10px"><button class="btn br" onclick="_neumCerrarResumenPrueba()" style="font-size:11px;padding:6px 14px">✕ Cerrar</button></div>';
+  // Insertar arriba del banner 19,5
+  let cont = document.getElementById('neumResumenPrueba');
+  if (!cont) {
+    cont = document.createElement('div');
+    cont.id = 'neumResumenPrueba';
+    const banner = document.getElementById('neumBanner19_5');
+    if (banner) banner.parentNode.insertBefore(cont, banner);
+    else document.getElementById('tabContentNeum')?.appendChild(cont);
+  }
+  cont.style.cssText = 'margin-top:14px';
+  cont.innerHTML = html;
+  // Scroll suave hasta el resumen
+  setTimeout(() => cont.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function _neumCerrarResumenPrueba() {
+  const cont = document.getElementById('neumResumenPrueba');
+  if (cont) cont.remove();
+}
+
 // Procesa UN albarán: lo sube a Storage, llama a la IA, crea los movimientos
-async function _neumProcesarAlbaranSoledad(file, key) {
+// v107ES2: si modoPrueba=true, NO guarda nada en BD; solo lee y devuelve lo que habría hecho.
+async function _neumProcesarAlbaranSoledad(file, key, modoPrueba = false) {
   // 1) Convertir a base64 para mandar a IA
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   const isPdf = ext === 'pdf' || file.type === 'application/pdf';
@@ -12357,30 +12438,32 @@ async function _neumProcesarAlbaranSoledad(file, key) {
   });
 
   // 2) Llamar a la IA
-  console.log(`[v107ES1] Procesando albarán ${file.name}...`);
+  console.log(`[v107ES1${modoPrueba ? ' MODO PRUEBA' : ''}] Procesando albarán ${file.name}...`);
   const lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, undefined);
   console.log(`[v107ES1] IA devolvió ${lineas.length} líneas:`, lineas);
 
   if (!lineas || !lineas.length) {
     toast(`⚠️ ${file.name}: la IA no detectó neumáticos`, 'warn');
-    return { ok: false };
+    return { ok: false, lineas_detectadas: [] };
   }
 
-  // 3) Subir archivo a Storage (para tener evidencia)
+  // 3) Subir archivo a Storage SOLO si NO es modo prueba
   let fileUrl = null;
-  try {
-    const ts = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filename = `neumaticos/albaranes/${ts}_${safeName}`;
-    const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, {
-      upsert: false, contentType: mediaType
-    });
-    if (!upErr) {
-      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
-      if (urlData && urlData.publicUrl) fileUrl = urlData.publicUrl;
+  if (!modoPrueba) {
+    try {
+      const ts = Date.now();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filename = `neumaticos/albaranes/${ts}_${safeName}`;
+      const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, {
+        upsert: false, contentType: mediaType
+      });
+      if (!upErr) {
+        const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
+        if (urlData && urlData.publicUrl) fileUrl = urlData.publicUrl;
+      }
+    } catch(e) {
+      console.warn('[v107ES1] No se pudo subir archivo:', e);
     }
-  } catch(e) {
-    console.warn('[v107ES1] No se pudo subir archivo:', e);
   }
 
   // 4) Identificar empresa por CIF (todas las líneas comparten cif_cliente)
@@ -12388,12 +12471,13 @@ async function _neumProcesarAlbaranSoledad(file, key) {
   const empresa = _NEUM_CIF_EMPRESA[cifPrimero];
   if (!empresa) {
     toast(`⚠️ ${file.name}: CIF "${cifPrimero}" no reconocido. Movimientos descartados.`, 'err');
-    return { ok: false };
+    return { ok: false, lineas_detectadas: [] };
   }
 
   // 5) Procesar cada línea
   let lineasOk = 0;
   let aviso19_5_creado = false;
+  const lineasDetectadas = []; // v107ES2: para reporte modo prueba
   for (const linea of lineas) {
     // Validaciones básicas
     if (!linea.cantidad || !linea.medida || !linea.modelo) {
@@ -12402,20 +12486,32 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     }
     // ¿Es medida 19,5? Aviso, no procesar
     if (linea.medida_ignorada === true || /19[,.]5/.test(linea.medida || '')) {
-      _neumAvisos19_5.push({
-        id: 'av_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-        fecha: new Date().toISOString().slice(0,10),
-        archivo: file.name,
+      lineasDetectadas.push({
+        empresa,
         num_albaran: linea.num_albaran || '?',
         matricula: linea.matricula || '?',
-        empresa,
-        cantidad: linea.cantidad,
         medida: linea.medida,
         marca: linea.marca || '',
-        modelo: linea.modelo || ''
+        modelo: linea.modelo || '',
+        cantidad: linea.cantidad,
+        accion: 'IGNORAR_19_5'
       });
-      _neumSaveAvisos();
-      aviso19_5_creado = true;
+      if (!modoPrueba) {
+        _neumAvisos19_5.push({
+          id: 'av_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+          fecha: new Date().toISOString().slice(0,10),
+          archivo: file.name,
+          num_albaran: linea.num_albaran || '?',
+          matricula: linea.matricula || '?',
+          empresa,
+          cantidad: linea.cantidad,
+          medida: linea.medida,
+          marca: linea.marca || '',
+          modelo: linea.modelo || ''
+        });
+        _neumSaveAvisos();
+        aviso19_5_creado = true;
+      }
       continue;
     }
     // Crear los movimientos
@@ -12438,6 +12534,22 @@ async function _neumProcesarAlbaranSoledad(file, key) {
       file_url: fileUrl,
       user_id: currentUser?.id || null
     };
+    // v107ES2: anotar línea para el reporte de prueba
+    lineasDetectadas.push({
+      empresa,
+      num_albaran: linea.num_albaran || '?',
+      matricula: mat || '?',
+      medida: linea.medida,
+      marca: linea.marca || '',
+      modelo: linea.modelo || '',
+      cantidad: linea.cantidad,
+      accion: esPropio ? 'MONTAJE_PROP' : 'COMPRA_VENTA'
+    });
+    // Si es modo prueba, NO guardar en BD
+    if (modoPrueba) {
+      lineasOk++;
+      continue;
+    }
     try {
       if (esPropio) {
         // CASO A — Solo descontar
@@ -12471,7 +12583,7 @@ async function _neumProcesarAlbaranSoledad(file, key) {
       toast(`✗ Error guardando línea: ${e.message || e}`, 'err');
     }
   }
-  return { ok: lineasOk > 0, lineas_ok: lineasOk, aviso19_5: aviso19_5_creado };
+  return { ok: lineasOk > 0, lineas_ok: lineasOk, aviso19_5: aviso19_5_creado, lineas_detectadas: lineasDetectadas };
 }
 
 // Convierte "25/05/2026" → "2026-05-25"
