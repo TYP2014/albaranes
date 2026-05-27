@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ER3 (27/05/2026): fix de v107ER2 — la pestaña Preliquidaciones seguía visible para María del Mar/Marta/Logística porque una línea de loadUserMap (v107BS) la forzaba a visible. Quitada esa línea. Ahora Preliquidaciones está oculta para TODOS sin excepción. Mantiene v107ER2 (pestaña FACTURACIÓN), v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs). -->
+<!-- v107ES1 (27/05/2026): Neumáticos Fase 2 — Lector de albaranes Soledad PDF/imagen. Nuevo botón "📤 Subir albarán Soledad" en pestaña Neumáticos. callClaudeNeumAlb(b64,mediaType,key,isPdf,signal) llama a Haiku con prompt específico: extrae cantidad, medida (315/80X22,5 / 385/65X22,5 / 315/70X22,5 / 19.5 si detectada), marca (normaliza CONT./CONTI/CONTINEN → CONTINENTAL), modelo (normaliza CONT.HYBHD5 156L → HD5), propiedad (SU_PROPIEDAD si dice "S/PROP" o "DE SU PROPIEDAD", COMPRA_VENTA si no), num_albaran, fecha, matricula, cif_cliente. Ignora líneas mano de obra (MONTAJE+FIJACION, MANTENIMIENTO), turismo (17 pulgadas, MICH.PS5), tasas NFU, diagnosis y equilibrado. _neumProcesarAlbaranSoledad orquesta: 1) base64 + IA, 2) sube PDF a Storage documentos/neumaticos/albaranes/, 3) identifica empresa por CIF (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ), 4) por línea: si SU_PROPIEDAD → 1 movimiento "montaje" (-N); si COMPRA_VENTA → 2 movimientos "compra" (+N) y "montaje" (-N); si medida 19,5 → NO procesa pero crea aviso en banner amarillo persistente con botón ✕. Avisos guardados en localStorage _neumAvisos19_5. Posición (uso) se ignora completamente — el stock se agrupa solo por medida+marca+modelo. Mantiene v107ER3 (Preliquidaciones oculta), v107ER2 (Facturación), v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -968,13 +968,20 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div class="st"><div class="dot" style="--c:var(--pu)"></div>ACCIONES</div>
         </div>
         <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap">
+          <!-- v107ES1: subir albarán Soledad (lo más importante: día a día) -->
+          <button class="btn bp" onclick="neumAlbSubirClick()" style="font-size:11px;font-weight:700">📤 Subir albarán Soledad</button>
+          <input type="file" id="neumAlbFileInput" accept="application/pdf,image/*" multiple style="display:none" onchange="neumAlbFilesSeleccionados(this.files)">
+          <span style="display:inline-block;width:1px;background:var(--bd);margin:0 4px"></span>
           <button class="btn bw" onclick="openNeumMovimientoModal('inventario_inicial')" style="font-size:11px">📥 Inventario inicial</button>
-          <button class="btn bp" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Nueva compra</button>
-          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Registrar montaje</button>
-          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura/desecho)</button>
+          <button class="btn bs" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Compra manual</button>
+          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Montaje manual</button>
+          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura)</button>
           <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;margin-left:auto">🔄 Refrescar</button>
         </div>
       </div>
+
+      <!-- v107ES1: banner para avisos de medidas 19,5 detectadas -->
+      <div id="neumBanner19_5" style="display:none;margin-top:14px"></div>
 
       <!-- Histórico de movimientos -->
       <div class="card" style="margin-top:14px">
@@ -5843,6 +5850,103 @@ async function callClaudeFacturaGasoil(b64, mediaType, key, isPdf, signal) {
   // origen_dato='factura_soledad' y poder compulsar con tickets en Fase 5).
   arr.forEach(r => { if (r && typeof r === 'object') r._origenFactura = true; });
   return arr;
+}
+
+// ============================================================
+// v107ES1 (27/05/2026): LECTOR DE ALBARANES NEUMÁTICOS SOLEDAD
+// ============================================================
+// Lee un albarán PDF/imagen de Soledad (Zona Franca Barcelona, etc) y
+// devuelve un array de líneas de neumáticos con:
+//   - cantidad, medida (315/80X22,5 o 385/65X22,5), marca, modelo
+//   - propiedad: 'SU_PROPIEDAD' (S/PROP — descontar stock)
+//                'COMPRA_VENTA' (sin S/PROP — Soledad vende+monta, +N y -N)
+//   - matricula, fecha, num_albaran, cif_cliente
+// IGNORA: mano de obra (MONTAJE+FIJACION, MANTENIMIENTO), turismo (17 pulg.).
+// AVISA si detecta 19,5 (medida que ahora no llevamos pero podríamos).
+async function callClaudeNeumAlb(b64, mediaType, key, isPdf, signal) {
+  const prompt = `Eres un OCR experto en albaranes de NEUMÁTICOS SOLEDAD (Grupo Soledad, Zona Franca Barcelona y otros centros) emitidos a empresas de transporte en España.
+
+Devuelve SIEMPRE un ARRAY JSON. Un objeto por cada LÍNEA REAL de neumático que aparezca en el albarán (no por cada línea visible, solo las que son neumáticos).
+
+CABECERA del albarán (extraer una sola vez por documento):
+- num_albaran: el número que va tras "Albarán:" (formato "DXXXXXXXXX", ej "D810005472", "D700003565").
+- fecha: en formato DD/MM/YYYY (ej "25/05/2026").
+- matricula: la matrícula del campo "Vehículo" (4 dígitos + 3 letras, ej "6521NHV", "9918MXC"; remolques empiezan por R, ej "R0951BDN"). Limpia espacios y guiones.
+- cif_cliente: el CIF que aparece tras "N.I.F." en el bloque Cliente (ej "B90172735", "B90286337", "B67316752"). Imprescindible para saber a qué empresa pertenece.
+
+LÍNEAS A EXTRAER — solo las que sean neumáticos de CAMIÓN (medida 22,5 o 19,5). El albarán típico tiene varias líneas:
+  · "MANTENIMIENTO CAMIÓN" 1,00 0,00 € — IGNORAR (cabecera técnica, no es producto)
+  · "MONTAJE+FIJACION" 4,00 17,84 € — IGNORAR (mano de obra)
+  · "MONTAJE CAMION MAYOR 19.5" 2,00 18,54 € — IGNORAR (mano de obra)
+  · "MONTAJE FIJACIÓN(QUIT.PONER)CM" 2,00 17,14 € — IGNORAR (mano de obra)
+  · "EQUILIBRADO CAMION CON ARENA" — IGNORAR (servicio)
+  · "DIAGNOSIS BOSCH KTS" — IGNORAR (servicio)
+  · "MONTAJE TURISMO" — IGNORAR (turismo, no llevamos stock)
+  · "Equilibrado Turismo" — IGNORAR
+  · "S.I.Gestión de NFU" — IGNORAR (tasa ecológica)
+  · "225/45X17" o "245/40X17" — IGNORAR (medidas de TURISMO 17 pulgadas, no de camión)
+
+Las líneas REALES de neumático de camión aparecen como TEXTO DESCRIPTIVO con cantidad y medida 22,5 o 19,5. Ejemplos:
+  · "SE MONTAN 4 315/80X22.5 CONT.HD5" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5"
+  · "SE MONTAN 4 315/80X22.5 CONT.HYBHD5 156L" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5" (HYB e índice "156L" son variantes técnicas, ignorarlas y devolver solo el modelo base)
+  · "MONTA 2NEUMS.S/PROP" + "385/65X225 CONTI HT3 SR" → cantidad 2, medida "385/65X22,5", marca CONTINENTAL, modelo "HT3 SR"
+  · "MONTA 4NEUMS. S/PROP" + "315/80X225 CONTI HD5" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5"
+  · "MONTA 4) 315/80X22.5 CONTIENEN" + "Y 2) 385/65X22.5 CONTI HT3+ DE" → DOS líneas: una de 4 ud HD5 y otra de 2 ud HT3+ (la palabra "CONTIENEN" es OCR malo de "CONTINENTAL")
+  · "SE MONTAN 2 385/65X22.5 CONT.H" + "Y 2 385/65X22.5 CONT.HT3 SR" → DOS líneas
+
+Para cada línea de neumático real, devuelve un objeto con:
+- cantidad: número entero (la cantidad montada/vendida, ej 4, 2).
+- medida: medida normalizada con coma decimal "315/80X22,5" o "385/65X22,5" o "315/70X22,5". SIEMPRE con coma (no punto). Si en el texto pone "315/80X225" significa "315/80X22,5" (la coma se perdió, ponla).
+- marca: normalizada en MAYÚSCULAS. Variantes a normalizar:
+    "CONT." / "CONTI" / "CONTINEN" / "CONTIENEN" → "CONTINENTAL"
+    "BARUM" → "BARUM"
+    "MICH." / "MICHELIN" → "MICHELIN" (pero turismo, IGNORAR)
+- modelo: el modelo base sin sufijos técnicos ni índices. Limpia así:
+    "CONT.HD5" → "HD5"
+    "CONT.HYBHD5 156L" → "HD5" (quitar HYB inicial y "156L")
+    "CONT.HD3" → "HD3"
+    "CONT.HS3+" / "CONTI HS3+" → "HS3+"
+    "CONT.HS5" → "HS5"
+    "CONT.HT3 SR" → "HT3 SR"
+    "CONTI HT3+" → "HT3+"
+    "CONT.CHS3+" → "CHS3+"
+    "BARUM BF200R" → "BF200R"
+    "BARUM BT200R" → "BT200R"
+- propiedad: "SU_PROPIEDAD" si en el texto descriptivo aparece "S/PROP", "S.PROP", "SU PROPIEDAD", "DE SU PROPIEDAD" o cualquier variante (típicamente "MONTA NNEUMS.S/PROP" o "DE SU PROPIEDAD (STOCKT49)"). En cualquier otro caso (texto solo dice "SE MONTAN N..." sin S/PROP), devuelve "COMPRA_VENTA" (es compra inmediata).
+- medida_ignorada: true si la medida detectada es 19,5 pulgadas (ej "295/80X19,5"). false si es 22,5. Esto sirve para que la app muestre un aviso en vez de procesar.
+
+CABECERA (estos campos van en CADA objeto del array, repetidos):
+- num_albaran, fecha, matricula, cif_cliente: como se ha extraído arriba.
+
+REGLAS CRÍTICAS:
+- Si el texto descriptivo del montaje está en VARIAS LÍNEAS (típico Soledad: "MONTA 4NEUMS.S/PROP" / "315/80 CONTI HD5" / "EN TRACCION"), UNE las líneas mentalmente y extrae 1 sola línea de neumático.
+- Si en un mismo albarán hay 2 grupos distintos (ej. "MONTA 4)... HD5" + "Y 2)... HT3+"), devuelve 2 OBJETOS distintos.
+- NO devuelvas líneas de mano de obra (MONTAJE+FIJACION, MANTENIMIENTO).
+- NO devuelvas neumáticos de turismo (medidas que empiezan por 225/45, 245/40, etc, o medidas que terminen en X17 o X16).
+- Si en un albarán solo hay servicios (sin neumático real), devuelve un ARRAY VACÍO [].
+- Si NO logras leer un dato (cantidad, medida, modelo), pon null en ese campo pero NO inventes.
+- Si la matrícula tiene formato extraño o no se ve, pon null. El admin la rellenará.
+
+SOLO JSON válido (array), sin markdown ni explicaciones.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetchAnthropicConReintento(
+    { model: 'claude-haiku-4-5', max_tokens: 2500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] },
+    key, signal, 'callClaudeNeumAlb'
+  );
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  let text = data.content?.[0]?.text || '';
+  text = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  if (!text) return [];
+  const parsed = JSON.parse(text);
+  return Array.isArray(parsed) ? parsed : [parsed];
 }
 
 // ============================================================
@@ -11781,6 +11885,8 @@ async function loadNeumData() {
     if (badge) badge.textContent = avisos;
     // Pintar
     renderNeum();
+    // v107ES1: refrescar banner de avisos 19,5 (si los hay)
+    try { _neumRenderBannerAvisos(); } catch(e) {}
   } catch (e) {
     console.error('[loadNeumData] Error:', e);
     toast('Error cargando neumáticos: ' + (e.message || e), 'err');
@@ -12173,6 +12279,245 @@ async function deleteNeumMov() {
     console.error('[deleteNeumMov] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
   }
+}
+
+// ============================================================
+// v107ES1 (27/05/2026): SUBIR ALBARÁN SOLEDAD DE NEUMÁTICOS
+// ============================================================
+// Procesa un albarán de Soledad. Por cada línea de neumático:
+//   - Si propiedad="SU_PROPIEDAD": crea 1 movimiento "montaje" (-N)
+//   - Si propiedad="COMPRA_VENTA": crea 2 movimientos: "compra" (+N) y "montaje" (-N)
+//   - Si medida_ignorada=true (19,5): NO crea movimiento, muestra aviso amarillo
+// El CIF cliente identifica la empresa (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ)
+
+// Mapeo CIF → empresa
+const _NEUM_CIF_EMPRESA = {
+  'B90172735': 'TYP2014',
+  'B90286337': 'HISPALIS',
+  'B67316752': 'TRANSMARGAZ'
+};
+
+// Avisos pendientes de mostrar (medidas 19,5 detectadas)
+let _neumAvisos19_5 = JSON.parse(localStorage.getItem('_neumAvisos19_5') || '[]');
+
+function _neumSaveAvisos() {
+  try { localStorage.setItem('_neumAvisos19_5', JSON.stringify(_neumAvisos19_5)); } catch(e) {}
+}
+
+// Trigger del input file (botón "Subir albarán Soledad")
+async function neumAlbSubirClick() {
+  const inp = document.getElementById('neumAlbFileInput');
+  if (inp) inp.click();
+}
+
+// Handler cuando el usuario selecciona archivos
+async function neumAlbFilesSeleccionados(files) {
+  if (!files || !files.length) return;
+  const key = getKey();
+  if (!key) { toast('Configura la API Key primero', 'err'); return; }
+  toast(`📤 Procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} Soledad...`);
+  let total_ok = 0, total_avisos = 0, total_err = 0;
+  for (const file of files) {
+    try {
+      const r = await _neumProcesarAlbaranSoledad(file, key);
+      if (r.ok) total_ok++;
+      if (r.aviso19_5) total_avisos++;
+    } catch (e) {
+      console.error('[neumAlbFiles] error en', file.name, e);
+      total_err++;
+      toast(`✗ Error en ${file.name}: ${e.message || e}`, 'err');
+    }
+  }
+  // Limpiar input
+  const inp = document.getElementById('neumAlbFileInput');
+  if (inp) inp.value = '';
+  // Refrescar stock y avisos
+  await loadNeumData();
+  if (total_avisos > 0) {
+    _neumRenderBannerAvisos();
+  }
+  toast(`✓ ${total_ok} procesados${total_err > 0 ? ` · ${total_err} errores` : ''}${total_avisos > 0 ? ` · ${total_avisos} avisos 19.5` : ''}`);
+}
+
+// Procesa UN albarán: lo sube a Storage, llama a la IA, crea los movimientos
+async function _neumProcesarAlbaranSoledad(file, key) {
+  // 1) Convertir a base64 para mandar a IA
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isPdf = ext === 'pdf' || file.type === 'application/pdf';
+  const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  const b64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.substring(comma + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // 2) Llamar a la IA
+  console.log(`[v107ES1] Procesando albarán ${file.name}...`);
+  const lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, undefined);
+  console.log(`[v107ES1] IA devolvió ${lineas.length} líneas:`, lineas);
+
+  if (!lineas || !lineas.length) {
+    toast(`⚠️ ${file.name}: la IA no detectó neumáticos`, 'warn');
+    return { ok: false };
+  }
+
+  // 3) Subir archivo a Storage (para tener evidencia)
+  let fileUrl = null;
+  try {
+    const ts = Date.now();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `neumaticos/albaranes/${ts}_${safeName}`;
+    const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, {
+      upsert: false, contentType: mediaType
+    });
+    if (!upErr) {
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
+      if (urlData && urlData.publicUrl) fileUrl = urlData.publicUrl;
+    }
+  } catch(e) {
+    console.warn('[v107ES1] No se pudo subir archivo:', e);
+  }
+
+  // 4) Identificar empresa por CIF (todas las líneas comparten cif_cliente)
+  const cifPrimero = (lineas[0]?.cif_cliente || '').trim().toUpperCase();
+  const empresa = _NEUM_CIF_EMPRESA[cifPrimero];
+  if (!empresa) {
+    toast(`⚠️ ${file.name}: CIF "${cifPrimero}" no reconocido. Movimientos descartados.`, 'err');
+    return { ok: false };
+  }
+
+  // 5) Procesar cada línea
+  let lineasOk = 0;
+  let aviso19_5_creado = false;
+  for (const linea of lineas) {
+    // Validaciones básicas
+    if (!linea.cantidad || !linea.medida || !linea.modelo) {
+      console.warn('[v107ES1] línea incompleta, salto:', linea);
+      continue;
+    }
+    // ¿Es medida 19,5? Aviso, no procesar
+    if (linea.medida_ignorada === true || /19[,.]5/.test(linea.medida || '')) {
+      _neumAvisos19_5.push({
+        id: 'av_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+        fecha: new Date().toISOString().slice(0,10),
+        archivo: file.name,
+        num_albaran: linea.num_albaran || '?',
+        matricula: linea.matricula || '?',
+        empresa,
+        cantidad: linea.cantidad,
+        medida: linea.medida,
+        marca: linea.marca || '',
+        modelo: linea.modelo || ''
+      });
+      _neumSaveAvisos();
+      aviso19_5_creado = true;
+      continue;
+    }
+    // Crear los movimientos
+    const fechaIso = _neumFechaIso(linea.fecha) || new Date().toISOString().slice(0,10);
+    const obsBase = `Albarán Soledad ${linea.num_albaran || ''}${linea.matricula ? ' / ' + linea.matricula : ''}`.trim();
+    const propiedad = (linea.propiedad || '').toUpperCase();
+    const esPropio = (propiedad === 'SU_PROPIEDAD' || propiedad === 'SUPROPIEDAD' || propiedad === 'SU PROPIEDAD');
+    // Tractora/remolque: si la matrícula empieza por R es el remolque
+    const mat = (linea.matricula || '').toUpperCase().replace(/\s+/g, '');
+    const esRemolque = /^R\d{4}[A-Z]{3}$/.test(mat);
+    const movBase = {
+      empresa,
+      fecha: fechaIso,
+      marca: linea.marca || null,
+      modelo: linea.modelo || null,
+      medida: linea.medida,
+      uso: null,  // v107ES1: ignoramos posición a petición de JC
+      tractora: esRemolque ? null : (mat || null),
+      remolque: esRemolque ? mat : null,
+      file_url: fileUrl,
+      user_id: currentUser?.id || null
+    };
+    try {
+      if (esPropio) {
+        // CASO A — Solo descontar
+        const { error } = await sb.from('neumaticos_movimientos').insert({
+          ...movBase,
+          tipo: 'montaje',
+          cantidad: -Math.abs(linea.cantidad),
+          observaciones: obsBase + ' · S/PROP (descuenta stock)'
+        });
+        if (error) throw error;
+      } else {
+        // CASO B — Compra + montaje al mismo tiempo
+        const { error: e1 } = await sb.from('neumaticos_movimientos').insert({
+          ...movBase,
+          tipo: 'compra',
+          cantidad: Math.abs(linea.cantidad),
+          observaciones: obsBase + ' · Compra (pendiente conciliar con factura)'
+        });
+        if (e1) throw e1;
+        const { error: e2 } = await sb.from('neumaticos_movimientos').insert({
+          ...movBase,
+          tipo: 'montaje',
+          cantidad: -Math.abs(linea.cantidad),
+          observaciones: obsBase + ' · Montaje inmediato (compra+venta)'
+        });
+        if (e2) throw e2;
+      }
+      lineasOk++;
+    } catch (e) {
+      console.error('[v107ES1] Error guardando movimiento:', e);
+      toast(`✗ Error guardando línea: ${e.message || e}`, 'err');
+    }
+  }
+  return { ok: lineasOk > 0, lineas_ok: lineasOk, aviso19_5: aviso19_5_creado };
+}
+
+// Convierte "25/05/2026" → "2026-05-25"
+function _neumFechaIso(s) {
+  if (!s) return null;
+  const m = String(s).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (!m) return null;
+  let y = m[3]; if (y.length === 2) y = '20' + y;
+  return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+
+// Banner de avisos 19,5 — se muestra en lo alto de la pestaña Neumáticos
+function _neumRenderBannerAvisos() {
+  const cont = document.getElementById('neumBanner19_5');
+  if (!cont) return;
+  if (!_neumAvisos19_5 || !_neumAvisos19_5.length) {
+    cont.style.display = 'none';
+    cont.innerHTML = '';
+    return;
+  }
+  // Si el usuario tiene empresa fija, filtrar avisos
+  let avisos = _neumAvisos19_5;
+  if (window._empresaNeum) {
+    avisos = avisos.filter(a => a.empresa === window._empresaNeum);
+  }
+  if (!avisos.length) {
+    cont.style.display = 'none';
+    return;
+  }
+  cont.style.display = 'block';
+  cont.innerHTML = avisos.map(a => `
+    <div style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);padding:10px 14px;border-radius:8px;margin-bottom:8px;font-family:var(--mn);font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:18px">⚠️</span>
+      <span style="flex:1;min-width:240px">
+        <strong>Detectado neumático ${_esc(a.medida)}</strong> en albarán ${_esc(a.num_albaran)} (${_esc(a.matricula)}, ${_esc(a.empresa)}, ${a.cantidad} ud ${_esc(a.marca)} ${_esc(a.modelo)}).
+        No se ha registrado en stock (medida que no controlamos).
+      </span>
+      <button class="btn br" onclick="_neumCerrarAviso('${a.id}')" style="font-size:11px;padding:4px 10px">✕</button>
+    </div>
+  `).join('');
+}
+
+function _neumCerrarAviso(id) {
+  _neumAvisos19_5 = _neumAvisos19_5.filter(a => a.id !== id);
+  _neumSaveAvisos();
+  _neumRenderBannerAvisos();
 }
 
 // ============================================================
