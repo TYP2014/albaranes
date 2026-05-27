@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ15 (27/05/2026): nuevo proveedor "Frutos Secos Ráfales, S.L." (Nonaspe, Zaragoza). Albaranes MANUSCRITOS a bolígrafo (cabecera impresa + resto a mano) que la IA descartaba como hoja en blanco. Reglas obligatorias: proveedor="Frutos Secos Ráfales, S.L.", cliente="Holcim España, S.A.U." siempre (aunque a mano ponga "Biomas" — la cáscara entra como materia prima de Holcim), planta (origen)="Nonaspe (Zaragoza)", obra (destino)="Fábrica Montcada" siempre, producto="Cáscara Almendra" siempre. Mín. 5 campos fijos devueltos siempre para evitar que el filtro v107BW lo descarte como hoja en blanco. Los manuscritos (fecha, tm, tractora, albaran) se leen lo mejor que se pueda y se completan a mano. Mantiene v107EQ14 (Cales de Pachs), v107EQ13 (banner+auto-desbloqueo), v107EQ12 (cruce origen↔destino), v107EQ11 (pueblo CP), v107EQ9 (auto-detección palets), v107EQ8 (Marta), v107EQ7 SQL. -->
+<!-- v107ER2 (27/05/2026): Plan B Facturación — Pasos 2+3 juntos. PASO 2: pestaña Preliquidaciones OCULTA (style display:none, código intacto por seguridad). PASO 3: nueva pestaña FACTURACIÓN💶 visible solo para admin JC + María del Mar + Marta. 3 subpestañas (Pendientes/Facturados/No facturables) + filtros (mes, cliente, proveedor) + marcado individual + marcado por lote (checkboxes + acciones bulk) + modal con ref/fecha/tipo factura + Excel CSV. Conecta con campos nuevos BD añadidos en facturacion_fase1_LIMPIO.sql (Paso 1 ya aplicado: 4253 pendientes + 17 no_facturable). 17 funciones JS añadidas (loadFactData, factSwitchSub, factApplyFilters, factRender, factToggleAll/One, factBulkClear/Marcar, factMarcarUno, factModal*, factExportExcel, factUpdateResumen, factResetFilters, _factPopulateFiltros, _factMesLabel, _esc). CSS .factSubTab/.factSubTabActive. switchTab actualizado con 'fact'. Mantiene v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs), v107EQ13 (banner+auto-desbloqueo), v107EQ12 (cruce origen↔destino), v107EQ7 SQL. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -76,6 +76,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .tab:hover{color:var(--tx)}
 .tab.active{color:var(--ac);border-bottom-color:var(--ac)}
 .tab-badge{background:var(--ac);color:#000;border-radius:10px;padding:1px 6px;font-size:9px}
+.factSubTab{transition:all 0.2s}
+.factSubTabActive{background:rgba(34,197,94,0.2)!important;border-color:#22c55e!important;color:#22c55e!important;font-weight:700}
 
 /* WRAP */
 .wrap{max-width:1600px;margin:0 auto;padding:20px 24px}
@@ -433,7 +435,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
       <!-- v107V: Subir movida junto a Albaranes — más cómodo el flujo subir → ver albaranes -->
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
-      <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
+      <!-- v107ER1 (27/05/2026): pestaña Preliquidaciones OCULTA. Plan B Facturación
+           — la sustituye la nueva pestaña FACTURACIÓN (v107ER2). El código de
+           Preliquidaciones se mantiene en el archivo por seguridad hasta que la
+           nueva pestaña esté probada 1-2 meses; luego se borrará. NO ELIMINAR. -->
+      <div class="tab" id="tabPreli" onclick="switchTab('preli')" style="display:none">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
+      <!-- v107ER2 (27/05/2026): nueva pestaña FACTURACIÓN. Sustituye a Preliquidaciones.
+           Visible solo para admin JC + María del Mar + Marta. -->
+      <div class="tab" id="tabFact" onclick="switchTab('fact')" style="display:none">💶 Facturación <span class="tab-badge" id="tabFactCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
@@ -684,6 +693,133 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               <tbody id="tbodyPreli"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- v107ER2 (27/05/2026): TAB FACTURACIÓN — nueva pestaña que sustituye Preliquidaciones.
+         Visible solo para admin JC + María del Mar + Marta. 3 subpestañas: Pendientes /
+         Facturados / No facturables. Marcado manual individual + lote. Filtros por mes,
+         cliente, estado. Próxima fase 2: lector autofactura Holcim. -->
+    <div id="tabContentFact" class="wrap" style="display:none">
+      <!-- Resumen arriba: cuántos en cada estado -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>FACTURACIÓN — CONTROL DE COBROS</div>
+        </div>
+        <div class="card-bd">
+          <div id="factResumen" style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
+              <div style="color:#ef4444;font-weight:700;font-size:18px" id="factPendCount">—</div>
+              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">🔴 Pendientes (sin facturar)</div>
+            </div>
+            <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
+              <div style="color:#22c55e;font-weight:700;font-size:18px" id="factFactCount">—</div>
+              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">✅ Facturados</div>
+            </div>
+            <div style="background:rgba(156,163,175,0.1);border:1px solid rgba(156,163,175,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
+              <div style="color:#9ca3af;font-weight:700;font-size:18px" id="factNoFactCount">—</div>
+              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">⚪ No facturables</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subpestañas Pendientes / Facturados / No facturables -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-hd">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn br factSubTab factSubTabActive" id="factSubPend" onclick="factSwitchSub('pendiente')">🔴 Pendientes</button>
+            <button class="btn br factSubTab" id="factSubFact" onclick="factSwitchSub('facturado')">✅ Facturados</button>
+            <button class="btn br factSubTab" id="factSubNoFact" onclick="factSwitchSub('no_facturable')">⚪ No facturables</button>
+          </div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="factExportExcel()">📊 Excel</button>
+          </div>
+        </div>
+        <div class="card-bd">
+          <!-- Filtros -->
+          <div class="filters" id="filtersFact" style="margin-bottom:12px">
+            <div class="fil-group">
+              <label class="fil-label">Mes</label>
+              <select class="fil-sel" id="fFactMes" onchange="factApplyFilters()">
+                <option value="">Todos los meses</option>
+              </select>
+            </div>
+            <div class="fil-group">
+              <label class="fil-label">Cliente</label>
+              <select class="fil-sel" id="fFactCliente" onchange="factApplyFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fil-group">
+              <label class="fil-label">Proveedor</label>
+              <select class="fil-sel" id="fFactProveedor" onchange="factApplyFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="filter-actions">
+              <button class="btn bs" onclick="factResetFilters()">✕ Limpiar</button>
+            </div>
+          </div>
+
+          <!-- Acciones de lote (visibles solo cuando hay seleccionados) -->
+          <div id="factBulkBar" style="display:none;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-family:var(--mn);font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span id="factBulkCount" style="color:#22c55e;font-weight:600">0 seleccionados</span>
+            <button class="btn bp" onclick="factBulkMarcar('facturado')">✅ Marcar facturados</button>
+            <button class="btn bw" onclick="factBulkMarcar('no_facturable')">⚪ Marcar no facturables</button>
+            <button class="btn br" onclick="factBulkMarcar('pendiente')">↩️ Volver a pendiente</button>
+            <button class="btn br" onclick="factBulkClear()">✕ Deseleccionar</button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="tbl-wrap">
+            <table id="factTable">
+              <thead><tr>
+                <th style="width:36px"><input type="checkbox" id="factSelAll" onclick="factToggleAll(this.checked)"></th>
+                <th>Fecha</th>
+                <th>Matrícula</th>
+                <th>Nº Albarán</th>
+                <th>Proveedor</th>
+                <th>Cliente</th>
+                <th>TN</th>
+                <th>Factura ref</th>
+                <th>Fecha fact</th>
+                <th>Acciones</th>
+              </tr></thead>
+              <tbody id="factTableBody"></tbody>
+            </table>
+          </div>
+          <div id="emptyFact" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay albaranes en este estado.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: marcar como facturado (pide nº factura + fecha + tipo) -->
+    <div id="factModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
+      <div style="background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:24px;max-width:480px;width:90%;font-family:var(--mn)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:14px" id="factModalTitle">Marcar como facturado</div>
+        <div style="font-size:12px;color:var(--mu);margin-bottom:14px" id="factModalSubtitle"></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Nº factura / Referencia</label>
+            <input type="text" id="factModalRef" placeholder="ej. F-2026-058 o Autofactura mayo 2026 Holcim" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Fecha factura</label>
+            <input type="date" id="factModalFecha" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Tipo</label>
+            <select id="factModalTipo" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
+              <option value="emitida">Emitida (yo facturo al cliente)</option>
+              <option value="autofactura">Autofactura (el cliente me factura a mí)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+          <button class="btn br" onclick="factModalClose()">Cancelar</button>
+          <button class="btn bp" onclick="factModalConfirm()">✅ Confirmar</button>
         </div>
       </div>
     </div>
@@ -1529,6 +1665,15 @@ async function loadUserMap() {
         if (tabPreli) tabPreli.style.display = 'none';
         if (tabGas) tabGas.style.display = 'none';
       }
+      // v107ER2 (27/05/2026): pestaña FACTURACIÓN visible SOLO para admin JC +
+      // María del Mar + Marta. El resto (logística Transmargaz, taller, conductores,
+      // subcontratados) NO la ven. Es información económica sensible.
+      const _esAdminOMariaOMarta = (rolActual === 'admin'
+                                  || _emailAG === 'mariadelmar@typ2014.local'
+                                  || _emailAG === 'marta@typ2014.local');
+      const tabFactEl = document.getElementById('tabFact');
+      if (tabFactEl) tabFactEl.style.display = _esAdminOMariaOMarta ? '' : 'none';
+      window._tieneFact = _esAdminOMariaOMarta;
       // v107BI: ocultar ALBARANES y SUBIR SOLO al usuario Taller PURO
       // (taller@typ2014.local). El error de v107BB era usar la condición
       // amplia "tienePermisoTaller && no admin", que sin querer también
@@ -9411,8 +9556,8 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
-  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','subir','admin'].forEach(t => {
+  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido. v107ER2: 'fact' añadido.
+  ['alb','preli','fact','gas','itv','neum','vac','taller','produccion','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -9430,6 +9575,8 @@ function switchTab(tab) {
   }
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
+  // v107ER2: cargar Facturación al entrar en su pestaña
+  if (tab === 'fact') { loadFactData(); }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -14029,6 +14176,338 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
   document.getElementById('ovRecambiosInf').classList.add('open');
 }
 function closeRecambiosInf() { document.getElementById('ovRecambiosInf').classList.remove('open'); }
+
+// ============================================================
+// v107ER2 (27/05/2026): PESTAÑA FACTURACIÓN
+// ============================================================
+// Plan B: sustituye a Preliquidaciones (que se mantiene oculta).
+// Controla qué albaranes están facturados/pendientes/no_facturable.
+// Acceso: admin JC + María del Mar + Marta (resto NO ve la pestaña).
+// Datos en BD: campos estado_facturacion, factura_ref, factura_fecha, factura_tipo.
+
+let _factSubEstado = 'pendiente'; // subpestaña activa
+let _factFiltrados = []; // últimos albaranes filtrados
+let _factSeleccionados = new Set(); // db_ids seleccionados para acción de lote
+let _factModalIds = []; // ids que el modal va a marcar al confirmar
+
+async function loadFactData() {
+  // Releer albaranes con campos de facturación (records ya los trae si están en BD)
+  if (!Array.isArray(records) || records.length === 0) {
+    try { await loadData(); } catch(e) { console.warn('[loadFactData] loadData falló:', e); }
+  }
+  _factPopulateFiltros();
+  factUpdateResumen();
+  factApplyFilters();
+}
+
+function _factPopulateFiltros() {
+  // Meses únicos
+  const meses = new Set();
+  const clientes = new Set();
+  const proveedores = new Set();
+  (records || []).forEach(r => {
+    if (r._dup) return;
+    if (r.fecha) {
+      const m = String(r.fecha).match(/^(\d{4}-\d{2})/);
+      if (m) meses.add(m[1]);
+    }
+    if (r.cliente && String(r.cliente).trim()) clientes.add(String(r.cliente).trim());
+    if (r.proveedor && String(r.proveedor).trim()) proveedores.add(String(r.proveedor).trim());
+  });
+  const selMes = document.getElementById('fFactMes');
+  const selCli = document.getElementById('fFactCliente');
+  const selProv = document.getElementById('fFactProveedor');
+  if (selMes) {
+    const cur = selMes.value;
+    selMes.innerHTML = '<option value="">Todos los meses</option>'
+      + Array.from(meses).sort().reverse().map(m => `<option value="${m}">${_factMesLabel(m)}</option>`).join('');
+    if (cur) selMes.value = cur;
+  }
+  if (selCli) {
+    const cur = selCli.value;
+    selCli.innerHTML = '<option value="">Todos</option>'
+      + Array.from(clientes).sort().map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('');
+    if (cur) selCli.value = cur;
+  }
+  if (selProv) {
+    const cur = selProv.value;
+    selProv.innerHTML = '<option value="">Todos</option>'
+      + Array.from(proveedores).sort().map(p => `<option value="${_esc(p)}">${_esc(p)}</option>`).join('');
+    if (cur) selProv.value = cur;
+  }
+}
+
+function _factMesLabel(yyyymm) {
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const [y, m] = yyyymm.split('-');
+  return `${meses[parseInt(m,10)-1]} ${y}`;
+}
+
+function _esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function factUpdateResumen() {
+  let pend = 0, fact = 0, nofact = 0;
+  (records || []).forEach(r => {
+    if (r._dup) return;
+    const est = r.estado_facturacion || 'pendiente';
+    if (est === 'facturado') fact++;
+    else if (est === 'no_facturable') nofact++;
+    else pend++;
+  });
+  const ep = document.getElementById('factPendCount');
+  const ef = document.getElementById('factFactCount');
+  const en = document.getElementById('factNoFactCount');
+  if (ep) ep.textContent = pend;
+  if (ef) ef.textContent = fact;
+  if (en) en.textContent = nofact;
+  const tc = document.getElementById('tabFactCount');
+  if (tc) tc.textContent = pend; // el badge muestra los pendientes (lo crítico)
+}
+
+function factSwitchSub(estado) {
+  _factSubEstado = estado;
+  document.querySelectorAll('.factSubTab').forEach(b => b.classList.remove('factSubTabActive'));
+  const map = { pendiente: 'factSubPend', facturado: 'factSubFact', no_facturable: 'factSubNoFact' };
+  const btn = document.getElementById(map[estado]);
+  if (btn) btn.classList.add('factSubTabActive');
+  _factSeleccionados.clear();
+  factApplyFilters();
+}
+
+function factApplyFilters() {
+  const mes = (document.getElementById('fFactMes')||{}).value || '';
+  const cli = (document.getElementById('fFactCliente')||{}).value || '';
+  const prov = (document.getElementById('fFactProveedor')||{}).value || '';
+  _factFiltrados = (records || []).filter(r => {
+    if (r._dup) return false;
+    const est = r.estado_facturacion || 'pendiente';
+    if (est !== _factSubEstado) return false;
+    if (mes && !(String(r.fecha||'').startsWith(mes))) return false;
+    if (cli && String(r.cliente||'').trim() !== cli) return false;
+    if (prov && String(r.proveedor||'').trim() !== prov) return false;
+    return true;
+  });
+  _factRender();
+}
+
+function factResetFilters() {
+  ['fFactMes','fFactCliente','fFactProveedor'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  factApplyFilters();
+}
+
+function _factRender() {
+  const tbody = document.getElementById('factTableBody');
+  const empty = document.getElementById('emptyFact');
+  if (!tbody) return;
+  if (!_factFiltrados.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = '';
+    factUpdateBulkBar();
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  // Limitar a 500 filas en pantalla por performance
+  const lim = _factFiltrados.slice(0, 500);
+  tbody.innerHTML = lim.map(r => {
+    const id = r.db_id || '';
+    const sel = _factSeleccionados.has(id) ? 'checked' : '';
+    const tnTxt = (r.tm != null && !isNaN(r.tm)) ? Number(r.tm).toFixed(2) : '—';
+    const fechaTxt = r.fecha ? String(r.fecha).slice(0,10).split('-').reverse().join('/') : '—';
+    const factRef = r.factura_ref ? _esc(r.factura_ref) : '—';
+    const factFecha = r.factura_fecha ? String(r.factura_fecha).slice(0,10).split('-').reverse().join('/') : '—';
+    let accionesBtn = '';
+    if (_factSubEstado === 'pendiente') {
+      accionesBtn = `<button class="btn bp" onclick="factMarcarUno('${id}','facturado')" style="font-size:10px;padding:4px 8px">✅ Facturar</button>
+                     <button class="btn bw" onclick="factMarcarUno('${id}','no_facturable')" style="font-size:10px;padding:4px 8px;margin-left:4px">⚪ No fact.</button>`;
+    } else {
+      accionesBtn = `<button class="btn br" onclick="factMarcarUno('${id}','pendiente')" style="font-size:10px;padding:4px 8px">↩️ Pendiente</button>`;
+    }
+    return `<tr>
+      <td><input type="checkbox" ${sel} onclick="factToggleOne('${id}',this.checked)"></td>
+      <td style="font-family:var(--mn);font-size:11px">${fechaTxt}</td>
+      <td style="font-family:var(--mn);font-size:11px;font-weight:600">${_esc(r.tractora||'—')}</td>
+      <td style="font-family:var(--mn);font-size:11px">${_esc(r.albaran||'—')}</td>
+      <td style="font-size:11px">${_esc((r.proveedor||'—').slice(0,30))}</td>
+      <td style="font-size:11px">${_esc((r.cliente||'—').slice(0,30))}</td>
+      <td style="font-family:var(--mn);font-size:11px;text-align:right">${tnTxt}</td>
+      <td style="font-size:11px">${factRef}</td>
+      <td style="font-family:var(--mn);font-size:11px">${factFecha}</td>
+      <td>${accionesBtn}</td>
+    </tr>`;
+  }).join('');
+  if (_factFiltrados.length > 500) {
+    tbody.innerHTML += `<tr><td colspan="10" style="text-align:center;padding:10px;color:var(--mu);font-size:11px">⚠️ Mostrando primeros 500 de ${_factFiltrados.length}. Usa filtros para reducir.</td></tr>`;
+  }
+  factUpdateBulkBar();
+}
+
+function factToggleAll(checked) {
+  if (checked) {
+    _factFiltrados.slice(0, 500).forEach(r => { if (r.db_id) _factSeleccionados.add(r.db_id); });
+  } else {
+    _factSeleccionados.clear();
+  }
+  _factRender();
+}
+
+function factToggleOne(id, checked) {
+  if (checked) _factSeleccionados.add(id);
+  else _factSeleccionados.delete(id);
+  factUpdateBulkBar();
+}
+
+function factUpdateBulkBar() {
+  const bar = document.getElementById('factBulkBar');
+  const cnt = document.getElementById('factBulkCount');
+  if (!bar || !cnt) return;
+  if (_factSeleccionados.size === 0) {
+    bar.style.display = 'none';
+  } else {
+    bar.style.display = 'flex';
+    cnt.textContent = `${_factSeleccionados.size} seleccionados`;
+  }
+}
+
+function factBulkClear() {
+  _factSeleccionados.clear();
+  const sa = document.getElementById('factSelAll');
+  if (sa) sa.checked = false;
+  _factRender();
+}
+
+// Marcar UN albarán
+function factMarcarUno(id, nuevoEstado) {
+  if (nuevoEstado === 'facturado') {
+    _factModalAbrir([id], 'facturado');
+  } else {
+    // pendiente o no_facturable: directo sin modal
+    _factGuardarEstado([id], nuevoEstado, null, null, null);
+  }
+}
+
+// Marcar varios
+function factBulkMarcar(nuevoEstado) {
+  if (_factSeleccionados.size === 0) {
+    toast('Selecciona albaranes primero', 'warn');
+    return;
+  }
+  const ids = Array.from(_factSeleccionados);
+  if (nuevoEstado === 'facturado') {
+    _factModalAbrir(ids, 'facturado');
+  } else {
+    _factGuardarEstado(ids, nuevoEstado, null, null, null);
+  }
+}
+
+// Modal para pedir nº factura + fecha + tipo
+function _factModalAbrir(ids, nuevoEstado) {
+  _factModalIds = ids;
+  const titulo = document.getElementById('factModalTitle');
+  const subt = document.getElementById('factModalSubtitle');
+  if (titulo) titulo.textContent = nuevoEstado === 'facturado' ? '✅ Marcar como facturados' : 'Cambiar estado';
+  if (subt) subt.textContent = `${ids.length} albarán${ids.length > 1 ? 'es' : ''} se marcará${ids.length > 1 ? 'n' : ''} como facturado${ids.length > 1 ? 's' : ''}.`;
+  // Fecha hoy por defecto
+  const hoy = new Date().toISOString().slice(0,10);
+  const fEl = document.getElementById('factModalFecha');
+  if (fEl) fEl.value = hoy;
+  // Limpiar ref
+  const refEl = document.getElementById('factModalRef');
+  if (refEl) refEl.value = '';
+  document.getElementById('factModal').style.display = 'flex';
+}
+
+function factModalClose() {
+  document.getElementById('factModal').style.display = 'none';
+  _factModalIds = [];
+}
+
+function factModalConfirm() {
+  const ref = (document.getElementById('factModalRef')||{}).value || '';
+  const fecha = (document.getElementById('factModalFecha')||{}).value || '';
+  const tipo = (document.getElementById('factModalTipo')||{}).value || 'emitida';
+  if (!ref.trim()) {
+    toast('Pon una referencia de factura', 'warn');
+    return;
+  }
+  _factGuardarEstado(_factModalIds, 'facturado', ref.trim(), fecha || null, tipo);
+  factModalClose();
+}
+
+async function _factGuardarEstado(ids, nuevoEstado, ref, fecha, tipo) {
+  if (!ids || !ids.length) return;
+  const update = { estado_facturacion: nuevoEstado };
+  if (nuevoEstado === 'facturado') {
+    update.factura_ref = ref;
+    update.factura_fecha = fecha;
+    update.factura_tipo = tipo;
+  } else {
+    // Si vuelve a pendiente o no_facturable, limpiar info de factura
+    update.factura_ref = null;
+    update.factura_fecha = null;
+    update.factura_tipo = null;
+  }
+  try {
+    const { error } = await sb.from('albaranes').update(update).in('id', ids);
+    if (error) throw error;
+    // Actualizar en memoria
+    (records || []).forEach(r => {
+      if (ids.includes(r.db_id)) {
+        Object.assign(r, update);
+      }
+    });
+    toast(`✓ ${ids.length} albarán${ids.length > 1 ? 'es' : ''} actualizado${ids.length > 1 ? 's' : ''}`);
+    _factSeleccionados.clear();
+    factUpdateResumen();
+    factApplyFilters();
+  } catch(e) {
+    console.error('[factGuardarEstado] error:', e);
+    toast(`✗ Error: ${e.message || e}`, 'err');
+  }
+}
+
+// Export Excel sencillo del listado actual filtrado
+function factExportExcel() {
+  if (!_factFiltrados.length) {
+    toast('No hay nada que exportar', 'warn');
+    return;
+  }
+  const headers = ['Fecha','Matrícula','Nº Albarán','Proveedor','Cliente','Material','Origen','Destino','TN','Estado','Factura Ref','Fecha Factura','Tipo'];
+  const rows = _factFiltrados.map(r => [
+    r.fecha || '',
+    r.tractora || '',
+    r.albaran || '',
+    r.proveedor || '',
+    r.cliente || '',
+    r.producto || '',
+    r.planta || '',
+    r.obra || '',
+    r.tm != null ? Number(r.tm).toFixed(3) : '',
+    r.estado_facturacion || 'pendiente',
+    r.factura_ref || '',
+    r.factura_fecha || '',
+    r.factura_tipo || ''
+  ]);
+  const csv = [headers, ...rows].map(row =>
+    row.map(c => {
+      const s = String(c).replace(/"/g, '""');
+      return /[,;"\n]/.test(s) ? `"${s}"` : s;
+    }).join(';')
+  ).join('\n');
+  const bom = '\uFEFF'; // para que Excel lea bien acentos
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `facturacion_${_factSubEstado}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`✓ Excel descargado: ${_factFiltrados.length} albaranes`);
+}
 
 // Init
 initApp();
