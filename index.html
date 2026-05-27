@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
+<!-- v107EQ9 (27/05/2026): refuerzo detección AUTOMÁTICA de Notas de recibo Holcim de devolución de palets. La IA (Haiku) marcaba el flag devolucion_palets:true de forma inconsistente (algunos albaranes sí, otros no, aunque fuera el mismo formato). Reportado por Juan Carlos con PDF CCF_003685 de 9 albaranes idénticos: unos pasaban OK y otros se marcaban "PALET en monomaterial NO devolución" y se borraban. Fix: añade detección por señales antes del filtro — si producto es PALET puro + proveedor Holcim + (destino Fábrica Montcada/Montcada Mortero o obra vacía) + cantidad de palets creíble (1-25 o negativa), forzamos devolucion_palets=true automáticamente. Si la obra estaba vacía, la fijamos a "Fábrica Montcada". Mantiene v107EQ8 (Marta), v107EQ7 SQL, v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -4321,6 +4321,41 @@ async function _processOne(it, type, key, timeoutMs) {
           return /\b(ecoplanet|bigmat|cem\s+|nhl|bl\s+ii|porcelanico|supercal|tempo gel|caliza|arena|arcilla|yeso|arido|ag-|af-)/i.test(t);
         };
         if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
+          // v107EQ9 (27/05/2026): DETECCIÓN AUTOMÁTICA refuerzo.
+          // La IA (Haiku) marca el flag `devolucion_palets:true` de forma
+          // INCONSISTENTE — a veces sí, a veces no, aunque el documento sea
+          // claramente una Nota de recibo de palets vacíos. Síntoma real
+          // reportado por Juan Carlos: PDF con 9 albaranes idénticos en
+          // formato, unos los reconoce y otros los marca como "PALET en
+          // monomaterial NO devolución" y se borran.
+          //
+          // Solución: si el flag falta pero hay SEÑALES CLARAS de devolución
+          // (Holcim + producto PALET puro + sin material real + alguna de:
+          // tm negativo en origen / tm muy pequeño / destino Fábrica Montcada
+          // o Montcada Mortero / obra vacía o Fábrica Montcada), forzamos el
+          // flag y lo tratamos como devolución legítima.
+          const _esHolcim = /holcim/i.test(String(data.proveedor || ''));
+          const _destinoMontcada = /(fábrica\s*montcada|fabrica\s*montcada|montcada\s+mortero|^montcada$)/i.test(String(data.obra || ''));
+          const _obraVacia = !data.obra || String(data.obra).trim() === '';
+          const _tmRaw = parseFloat(data.tm);
+          const _tmAbs = !isNaN(_tmRaw) ? Math.abs(_tmRaw) : 0;
+          // Una devolución típica son 2-20 palets (no decenas de TN)
+          const _tmPequenoPalet = !isNaN(_tmRaw) && _tmAbs >= 1 && _tmAbs <= 25;
+          const _tmNegativo = !isNaN(_tmRaw) && _tmRaw < 0;
+          // Auto-detección: PALET puro + Holcim + (destino Montcada o obra vacía) + cantidad creíble de palets
+          if (data.devolucion_palets !== true
+              && !_contieneMaterialReal(data.producto)
+              && _esHolcim
+              && (_destinoMontcada || _obraVacia)
+              && (_tmNegativo || _tmPequenoPalet)) {
+            console.log(`[v107EQ9 auto-detección] Nota de recibo Holcim devolución palets DETECTADA por señales (sin flag IA). Producto="${data.producto}", tm=${data.tm}, obra="${data.obra || '(vacía)'}", proveedor="${data.proveedor}". Forzando devolucion_palets=true.`);
+            data.devolucion_palets = true;
+            // Si la obra está vacía, ponerla a Fábrica Montcada (es el destino real de palets de vuelta)
+            if (_obraVacia) {
+              data.obra = 'Fábrica Montcada';
+              console.log(`[v107EQ9 auto-detección] Obra vacía → forzada a "Fábrica Montcada" (destino estándar de devolución palets).`);
+            }
+          }
           // v107EQ: si la IA marcó devolucion_palets=true, RESPETAR el palet
           // como producto legítimo. La cantidad puede venir negativa: la
           // convertimos a positiva (Juan Carlos prefiere positivo + marca).
