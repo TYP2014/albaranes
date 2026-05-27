@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ER2 (27/05/2026): Plan B Facturación — Pasos 2+3 juntos. PASO 2: pestaña Preliquidaciones OCULTA (style display:none, código intacto por seguridad). PASO 3: nueva pestaña FACTURACIÓN💶 visible solo para admin JC + María del Mar + Marta. 3 subpestañas (Pendientes/Facturados/No facturables) + filtros (mes, cliente, proveedor) + marcado individual + marcado por lote (checkboxes + acciones bulk) + modal con ref/fecha/tipo factura + Excel CSV. Conecta con campos nuevos BD añadidos en facturacion_fase1_LIMPIO.sql (Paso 1 ya aplicado: 4253 pendientes + 17 no_facturable). 17 funciones JS añadidas (loadFactData, factSwitchSub, factApplyFilters, factRender, factToggleAll/One, factBulkClear/Marcar, factMarcarUno, factModal*, factExportExcel, factUpdateResumen, factResetFilters, _factPopulateFiltros, _factMesLabel, _esc). CSS .factSubTab/.factSubTabActive. switchTab actualizado con 'fact'. Mantiene v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs), v107EQ13 (banner+auto-desbloqueo), v107EQ12 (cruce origen↔destino), v107EQ7 SQL. -->
+<!-- v107ER3 (27/05/2026): fix de v107ER2 — la pestaña Preliquidaciones seguía visible para María del Mar/Marta/Logística porque una línea de loadUserMap (v107BS) la forzaba a visible. Quitada esa línea. Ahora Preliquidaciones está oculta para TODOS sin excepción. Mantiene v107ER2 (pestaña FACTURACIÓN), v107EQ15 (Frutos Secos Ráfales), v107EQ14 (Cales de Pachs). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1783,9 +1783,11 @@ async function loadUserMap() {
         // fuerzan aquí: siguen dependiendo de sus permisos por empresa de
         // siempre (puede_ver_itv, empresa_taller, etc.), para NO romper la
         // privacidad (ej. logística no debe ver Producción ni Usuarios).
-        const tabPreliShow = document.getElementById('tabPreli');
+        // v107ER3 (27/05/2026): tabPreli YA NO se fuerza a visible nunca.
+        // Sustituida por FACTURACIÓN (v107ER2). Si Marta/MdM/Logística
+        // estaban entrando aquí esperando ver Preliquidaciones, ahora
+        // verán Facturación en su lugar.
         const tabGasShow = document.getElementById('tabGas');
-        if (tabPreliShow) tabPreliShow.style.display = '';
         if (tabGasShow) tabGasShow.style.display = '';
       }
       // ============================================================
