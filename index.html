@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ6 (27/05/2026): FIX al error PGRST204 "Could not find the 'materiales' column of albaranes" reportado tras probar v107EQ5. Causa: en algunos albaranes (Holcim cisterna con un solo material) la IA devuelve el array `materiales` Y a la vez los campos planos producto/tm. Si el bloque multimaterial no se activa (porque solo hay 1 elemento, o por otra ruta), `data.materiales` se cuela al INSERT y como NO es columna BD, Supabase rechaza el INSERT entero. Fix: red de seguridad final en saveRecord que borra TODOS los campos auxiliares conocidos (materiales, matricula, devolucion_palets, unidad_palet, num_tarjeta, empresa_ticket, _esFactura, _quality, _dup, _dupOf, _matDesconocida, _manual, _fromPending, _id) antes del INSERT/UPDATE. Mantiene v107EQ5 (cola pre-arranque), v107ER (cuarentena 30s), v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
+<!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1517,8 +1517,11 @@ async function loadUserMap() {
       // Gasoil y Preliquidaciones aunque tengan permiso Taller (logística
       // gestiona el Taller de Transmargaz Y necesita Gasoil para subir
       // facturas y ver consumos). Por eso esta regla NO se les aplica a ellas.
+      // v107EQ8 (27/05/2026): Marta también queda en la excepción (igual que
+      // María del Mar). Empieza el lunes en el mismo rol.
       const _emailAG = (currentUser?.email || '').toLowerCase().trim();
       const _esMariaOLogisticaAG = (_emailAG === 'mariadelmar@typ2014.local'
+                                  || _emailAG === 'marta@typ2014.local'
                                   || _emailAG === 'logistica@ttesyportes.2014');
       if (tienePermisoTaller && rolActual !== 'admin' && !_esMariaOLogisticaAG) {
         const tabPreli = document.getElementById('tabPreli');
@@ -1575,8 +1578,13 @@ async function loadUserMap() {
       const _rolFinal = (userMap[currentUser.id]?.role || '').toLowerCase();
       const _esAdminFinal = (_rolFinal === 'admin') || (currentRole === 'admin');
       const _esMariaDelMar = (_emailFinal === 'mariadelmar@typ2014.local');
+      // v107EQ8 (27/05/2026): Marta entra al equipo igual que María del Mar.
+      // Ve las mismas pestañas (Preliquidaciones, Gasoil, ITV, Neumáticos,
+      // Vacaciones, Taller) limitadas a TYP2014+HISPALIS por sus permisos
+      // empresa_* en BD. NO ve Producción ni Usuarios (no es admin).
+      const _esMarta       = (_emailFinal === 'marta@typ2014.local');
       const _esLogistica   = (_emailFinal === 'logistica@ttesyportes.2014');
-      const _veTodo = _esAdminFinal || _esMariaDelMar || _esLogistica;
+      const _veTodo = _esAdminFinal || _esMariaDelMar || _esMarta || _esLogistica;
 
       if (!_veTodo) {
         // No es ninguno de los 3 → ocultar las pestañas extra, dejar solo
