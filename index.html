@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ES3 (27/05/2026): fix Modo Prueba — el cuadro amarillo de resultado NO se mostraba porque se intentaba insertar en un lugar oculto del DOM (dentro de un card específico de empresa). Ahora se muestra como MODAL flotante en pantalla completa (overlay z-index 99999) — imposible de no ver. Más grande, más legible, con borde amarillo y botón ✕ Cerrar. Mantiene v107ES2 (switch modo prueba) y v107ES1 (lector). -->
+<!-- v107ES4 (27/05/2026): Drag & Drop universal — Neumáticos + Gasoil. (1) Zona drag&drop verde "📥 Arrastra aquí albaranes Soledad PDF" en pestaña Neumáticos (debajo de Acciones); arrastra o pulsa para abrir selector; reusa neumAlbFilesSeleccionados. (2) Pestaña Gasoil: dos zonas en grid 2 cols — verde "📤 Tickets sueltos" (addFiles tipo 'gas') y azul "📄 Facturas mensuales" (addFiles tipo 'gasfac'). (3) Modo Prueba Neumáticos OCULTO por defecto, reactivable con ?modoprueba=1 en URL — initApp lee el parámetro y muestra el switch. Funciones nuevas: neumDropZoneDrop, gasDropZoneTicket, gasDropZoneFactura. Mantiene v107ES3 (modal flotante), v107ES2 (switch prueba), v107ES1 (lector). Facturación (autofactura Holcim) pendiente para próxima sesión. -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -555,6 +555,27 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
       </div>
 
+      <!-- v107ES4 (27/05/2026): zona drag & drop para gasoil. 2 botones porque hay 2 tipos:
+           tickets sueltos (de surtidor) vs facturas mensuales (que agrupan muchos tickets). -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div id="gasDropZoneTicket" style="border:2px dashed rgba(74,222,128,0.3);border-radius:12px;padding:14px;text-align:center;background:rgba(74,222,128,0.04);transition:all 0.2s;cursor:pointer"
+             ondragover="event.preventDefault();this.style.background='rgba(74,222,128,0.15)';this.style.borderColor='#4ade80'"
+             ondragleave="this.style.background='rgba(74,222,128,0.04)';this.style.borderColor='rgba(74,222,128,0.3)'"
+             ondrop="gasDropZoneTicket(event)"
+             onclick="document.getElementById('gasUploadInline').click()">
+          <div style="font-family:var(--mn);font-size:12px;color:#4ade80;font-weight:600;margin-bottom:2px">📤 Tickets sueltos</div>
+          <div style="font-family:var(--mn);font-size:10px;color:var(--mu)">arrastra o pulsa · PDF/imagen</div>
+        </div>
+        <div id="gasDropZoneFactura" style="border:2px dashed rgba(96,165,250,0.3);border-radius:12px;padding:14px;text-align:center;background:rgba(96,165,250,0.04);transition:all 0.2s;cursor:pointer"
+             ondragover="event.preventDefault();this.style.background='rgba(96,165,250,0.15)';this.style.borderColor='#60a5fa'"
+             ondragleave="this.style.background='rgba(96,165,250,0.04)';this.style.borderColor='rgba(96,165,250,0.3)'"
+             ondrop="gasDropZoneFactura(event)"
+             onclick="document.getElementById('gasFacUploadInline').click()">
+          <div style="font-family:var(--mn);font-size:12px;color:#60a5fa;font-weight:600;margin-bottom:2px">📄 Facturas mensuales</div>
+          <div style="font-family:var(--mn);font-size:10px;color:var(--mu)">arrastra o pulsa · PDF</div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
@@ -971,8 +992,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <!-- v107ES1: subir albarán Soledad (lo más importante: día a día) -->
           <button class="btn bp" onclick="neumAlbSubirClick()" style="font-size:11px;font-weight:700">📤 Subir albarán Soledad</button>
           <input type="file" id="neumAlbFileInput" accept="application/pdf,image/*" multiple style="display:none" onchange="neumAlbFilesSeleccionados(this.files)">
-          <!-- v107ES2: switch Modo Prueba — si está activo, lee el PDF pero NO guarda en BD -->
-          <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mn);font-size:11px;cursor:pointer;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);padding:4px 10px;border-radius:6px">
+          <!-- v107ES2: switch Modo Prueba — si está activo, lee el PDF pero NO guarda en BD.
+               v107ES4 (27/05/2026): OCULTO por defecto. Para reactivar, añade ?modoprueba=1 a la URL.
+               Esto se hace en el bloque JS al cargar la app (window._modoPruebaVisible). -->
+          <label id="neumModoPruebaLabel" style="display:none;align-items:center;gap:6px;font-family:var(--mn);font-size:11px;cursor:pointer;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);padding:4px 10px;border-radius:6px">
             <input type="checkbox" id="neumModoPrueba" style="cursor:pointer">
             <span style="color:#eab308;font-weight:600">🧪 Modo prueba (no guarda)</span>
           </label>
@@ -983,6 +1006,16 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura)</button>
           <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;margin-left:auto">🔄 Refrescar</button>
         </div>
+      </div>
+
+      <!-- v107ES4 (27/05/2026): zona de arrastrar y soltar PDFs Soledad -->
+      <div id="neumDropZone" style="margin-top:14px;border:2px dashed rgba(74,222,128,0.3);border-radius:12px;padding:18px;text-align:center;background:rgba(74,222,128,0.04);transition:all 0.2s;cursor:pointer"
+           ondragover="event.preventDefault();this.style.background='rgba(74,222,128,0.15)';this.style.borderColor='#4ade80'"
+           ondragleave="this.style.background='rgba(74,222,128,0.04)';this.style.borderColor='rgba(74,222,128,0.3)'"
+           ondrop="neumDropZoneDrop(event)"
+           onclick="neumAlbSubirClick()">
+        <div style="font-family:var(--mn);font-size:13px;color:#4ade80;font-weight:600;margin-bottom:4px">📥 Arrastra aquí albaranes Soledad PDF</div>
+        <div style="font-family:var(--mn);font-size:11px;color:var(--mu)">o pulsa para seleccionar archivos · varios a la vez</div>
       </div>
 
       <!-- v107ES1: banner para avisos de medidas 19,5 detectadas -->
@@ -1531,6 +1564,19 @@ const _msSets = {
 // AUTH
 // ============================================================
 async function initApp() {
+  // v107ES4 (27/05/2026): si la URL incluye ?modoprueba=1, mostrar el switch Modo Prueba en Neumáticos
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('modoprueba') === '1') {
+      window._modoPruebaVisible = true;
+      // Lo mostraremos cuando se cargue la pestaña Neumáticos
+      setTimeout(() => {
+        const lbl = document.getElementById('neumModoPruebaLabel');
+        if (lbl) lbl.style.display = 'inline-flex';
+        console.log('[v107ES4] Modo Prueba habilitado por URL (?modoprueba=1)');
+      }, 1000);
+    }
+  } catch(e) {}
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     await onLogin(session.user);
@@ -12313,6 +12359,84 @@ function _neumSaveAvisos() {
 async function neumAlbSubirClick() {
   const inp = document.getElementById('neumAlbFileInput');
   if (inp) inp.click();
+}
+
+// v107ES4 (27/05/2026): handler del drop event en la zona de arrastrar de Neumáticos
+function neumDropZoneDrop(event) {
+  event.preventDefault();
+  const zone = document.getElementById('neumDropZone');
+  if (zone) {
+    zone.style.background = 'rgba(74,222,128,0.04)';
+    zone.style.borderColor = 'rgba(74,222,128,0.3)';
+  }
+  const files = event.dataTransfer?.files;
+  if (!files || !files.length) return;
+  // Filtrar solo PDFs e imágenes
+  const validos = [];
+  for (const f of files) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
+      validos.push(f);
+    }
+  }
+  if (!validos.length) {
+    toast('⚠️ Solo se admiten PDF e imágenes', 'warn');
+    return;
+  }
+  // Reusar el handler de file input
+  neumAlbFilesSeleccionados(validos);
+}
+
+// v107ES4 (27/05/2026): handler del drop event en Gasoil — TICKETS sueltos
+function gasDropZoneTicket(event) {
+  event.preventDefault();
+  const zone = document.getElementById('gasDropZoneTicket');
+  if (zone) {
+    zone.style.background = 'rgba(74,222,128,0.04)';
+    zone.style.borderColor = 'rgba(74,222,128,0.3)';
+  }
+  const files = event.dataTransfer?.files;
+  if (!files || !files.length) return;
+  const validos = [];
+  for (const f of files) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
+      validos.push(f);
+    }
+  }
+  if (!validos.length) { toast('⚠️ Solo se admiten PDF e imágenes', 'warn'); return; }
+  // Reusar el flujo normal de addFiles (subir + IA)
+  if (typeof addFiles === 'function') {
+    addFiles(validos, 'gas');
+  } else {
+    toast('Error: addFiles no disponible', 'err');
+  }
+}
+
+// v107ES4 (27/05/2026): handler del drop event en Gasoil — FACTURAS mensuales
+function gasDropZoneFactura(event) {
+  event.preventDefault();
+  const zone = document.getElementById('gasDropZoneFactura');
+  if (zone) {
+    zone.style.background = 'rgba(96,165,250,0.04)';
+    zone.style.borderColor = 'rgba(96,165,250,0.3)';
+  }
+  const files = event.dataTransfer?.files;
+  if (!files || !files.length) return;
+  // Para facturas, recomendable PDF (no imagen)
+  const validos = [];
+  for (const f of files) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
+      validos.push(f);
+    }
+  }
+  if (!validos.length) { toast('⚠️ Solo se admiten PDF e imágenes', 'warn'); return; }
+  if (typeof addFiles === 'function') {
+    addFiles(validos, 'gasfac');
+  } else {
+    toast('Error: addFiles no disponible', 'err');
+  }
 }
 
 // Handler cuando el usuario selecciona archivos
