@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ10 (27/05/2026): refuerzo prompt para corregir lectura del ORIGEN (planta) en Notas de recibo Holcim de devolución palets. Error real reportado por Juan Carlos en PDF CCF_003685 de Mª del Mar: la IA leía la LÍNEA 3 del bloque Destinatario (el pueblo del CP, ej "Sant Cugat del Vallés", "Esplugues de Llobregat", "Sabadell" en formato pueblo) en lugar de la LÍNEA 1 LITERAL (ej "SANT CUGAT", "ESPLUGUES DE LLOBREGAT", "SABADELL" en mayúsculas). Fix: nueva regla explícita "v107EQ10 REGLA ABSOLUTA PARA EL ORIGEN" con 7 ejemplos reales del PDF + regla mental anti-error ("si está en minúsculas o empieza por ES 08..., estás en línea 3"). Mantiene v107EQ9 (auto-detección flag devolucion_palets), v107EQ8 (Marta), v107EQ7 SQL, v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque). -->
+<!-- v107EQ11 (27/05/2026): regla del ORIGEN (planta) en Notas de recibo INVERTIDA respecto a v107EQ10. Aclaración de Juan Carlos: NO quería línea 1 literal, quería el PUEBLO real donde están físicamente los palets. Nueva regla: planta = nombre del pueblo de la LÍNEA 3 (la que tiene el CP "ES 08251 SANTPEDOR" → "Santpedor"), quitando el "ES" y los 5 dígitos. Antes la línea 1 podía ser "SU ALMACEN", "MI OBRA" u otros nombres genéricos que no identifican el sitio físico. 9 ejemplos reales actualizados + regla mental "localiza ES+5dígitos y coge lo que va detrás". Mantiene v107EQ9 (auto-detección flag devolucion_palets), v107EQ8 (Marta), v107EQ7 SQL, v107EQ6 (red seguridad), v107EQ5 (cola pre-arranque). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -5015,30 +5015,30 @@ Reglas de extracción para Nota de recibo de devolución:
   · **\`producto\`**: "PALET CEMENTO" o "PALET MORTERO" tal cual aparece en el campo Material.
   · **\`tm\`**: el VALOR ABSOLUTO de la cantidad neta (si pone -7 Piez, tm = 7; si pone -10 Piez, tm = 10). NÚMERO POSITIVO. NO uses el negativo.
   · **\`unidad_palet\`**: "piezas" (para distinguir que NO son toneladas).
-  · **\`planta\`** (origen): el nombre del Destinatario arriba (de DONDE vuelven los palets). Ejemplos: "VIC", "SU ALMACEN", "COLAS SANTPEDOR". NUNCA "Fábrica Montcada" (eso es el destino).
+  · **\`planta\`** (origen): el PUEBLO del Destinatario donde están físicamente los palets. NUNCA "Fábrica Montcada" (eso es el destino).
 
-🔴 v107EQ10 — REGLA ABSOLUTA PARA EL ORIGEN (PLANTA) DE NOTAS DE RECIBO (leer con MUCHA atención):
+🔴 v107EQ11 (27/05/2026) — REGLA ABSOLUTA PARA EL ORIGEN (PLANTA) DE NOTAS DE RECIBO (leer con MUCHA atención, REEMPLAZA cualquier regla anterior):
 
-El campo \`planta\` se lee SIEMPRE de la **PRIMERA LÍNEA** debajo del literal "Destinatario:". COPIA esa línea TAL CUAL, en MAYÚSCULAS, letra a letra, SIN BAJAR a la línea 2 ni a la 3.
+El campo \`planta\` se lee SIEMPRE del **PUEBLO** que aparece en la **LÍNEA 3** del bloque Destinatario (la que tiene el código postal). Quita el "ES" y los 5 dígitos del CP — devuelve SOLO el nombre del pueblo.
 
 Estructura típica del bloque Destinatario (3 líneas):
-  Destinatario:                100526174
-  SANT SALVADOR DE GUARDIOLA      ← **LÍNEA 1** = ESTO es la planta (origen)
-  CR SANT SALVADOR DE GUARDIOLA   ← LÍNEA 2 = dirección, NO USAR
-  ES 08253 SANT SALVADOR DE GUARD ← LÍNEA 3 = CP + pueblo, NO USAR JAMÁS
+  Destinatario:                100526520
+  SU ALMACEN                    ← LÍNEA 1 = NO USAR (puede ser nombre genérico tipo "SU ALMACEN")
+  RDA. SANT PERE, 319-321       ← LÍNEA 2 = dirección, NO USAR
+  ES 08251 SANTPEDOR            ← **LÍNEA 3** ← coge "SANTPEDOR" (sin "ES 08251")
 
-🆘 ERROR REAL detectado (27/05/2026): la IA estaba leyendo la línea 3 del bloque (el pueblo del CP, "Sant Salvador de Guardiola" en minúsculas/título) en lugar de la línea 1 ("SANT SALVADOR DE GUARDIOLA" en mayúsculas). RESULTADO MAL = el pueblo del CP. RESULTADO BIEN = la línea 1 LITERAL.
+EJEMPLOS REALES (PDF de María del Mar, 27/05/2026):
+  - Destinatario "SU ALMACEN / RDA. SANT PERE, 319-321 / ES 08251 SANTPEDOR" → planta = "SANTPEDOR".
+  - Destinatario "SU ALMACEN / POL. IND. TORRENT D'EN PUIG, 23 / ES 08358 ARENYS DE MUNT" → planta = "Arenys de Munt".
+  - Destinatario "COLAS SANTPEDOR / Ronda sant pere . / ES 08251 Santpedor" → planta = "Santpedor".
+  - Destinatario "SANT SALVADOR DE GUARDIOLA / CR SANT SALVADOR DE GUARDIOLA / ES 08253 SANT SALVADOR DE GUARD" → planta = "Sant Salvador de Guardiola".
+  - Destinatario "ESPLUGUES DE LLOBREGAT / ESPLUGUES / ES 08950 Esplugues de Llobregat" → planta = "Esplugues de Llobregat".
+  - Destinatario "SANT CUGAT / . . / ES 08174 Sant Cugat del Vallés" → planta = "Sant Cugat del Vallés".
+  - Destinatario "SABADELL / SABADELL S/N / ES 08200 Sabadell" → planta = "Sabadell".
+  - Destinatario "RUBI / CTRA. RUBI TERRASSA, 125 / ES 08191 RUBI" → planta = "Rubi".
+  - Destinatario "VIC / Carrer dela Laura, 59 / ES 08500 Vic" → planta = "Vic".
 
-Más ejemplos REALES del PDF de Mª del Mar (27/05/2026):
-  - Destinatario "ESPLUGUES DE LLOBREGAT / ESPLUGUES / ES 08950 Esplugues de Llobregat" → planta = "ESPLUGUES DE LLOBREGAT" (línea 1, NO "Esplugues de Llobregat" de la línea 3).
-  - Destinatario "SANT CUGAT / . . / ES 08174 Sant Cugat del Vallés" → planta = "SANT CUGAT" (línea 1, NO "Sant Cugat del Vallés" de la línea 3).
-  - Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / ES 08251 SANTPEDOR" → planta = "SU ALMACEN" (línea 1, NO "Santpedor" de la línea 3).
-  - Destinatario "RUBI / CTRA. RUBI TERRASSA, 125 / ES 08191 RUBI" → planta = "RUBI" (línea 1).
-  - Destinatario "SABADELL / SABADELL S/N / ES 08200 Sabadell" → planta = "SABADELL" (línea 1).
-  - Destinatario "COLAS SANTPEDOR / Ronda sant pere . / ES 08251 Santpedor" → planta = "COLAS SANTPEDOR" (línea 1).
-  - Destinatario "SANT SALVADOR DE GUARDIOLA / CR SANT SALVADOR DE GUARDIOLA / ES 08253 SANT SALVADOR DE GUARD" → planta = "SANT SALVADOR DE GUARDIOLA" (línea 1, mismas palabras que el CP por casualidad pero SIEMPRE coge la LÍNEA 1).
-
-REGLA MENTAL: si el texto que ibas a poner está EN MINÚSCULAS o tiene formato de pueblo "del Vallés"/"de Llobregat" o empieza por "ES 08...", estás leyendo la línea 3 → SUBE a la línea 1 y cópiala. La línea 1 SIEMPRE está EN MAYÚSCULAS y NO lleva CP.
+REGLA MENTAL: localiza visualmente el "ES " seguido de 5 dígitos en el bloque Destinatario. Lo que va DETRÁS de ese código postal ES el pueblo. Cópialo letra a letra, manteniendo acentos y mayúsculas/minúsculas como aparecen. NO uses la línea 1 (puede ser nombre genérico "SU ALMACEN", "MI OBRA", etc., que no identifica el sitio físico).
   · **\`obra\`** (destino): SIEMPRE "Fábrica Montcada" (o "Montcada Mortero" si el documento es de mortero). La fábrica es a donde VUELVEN los palets.
   · **\`proveedor\`**: "Holcim España, S.A.U." (igual que un albarán Holcim normal).
   · **\`cliente\`**: del campo "Facturar a:" (ej. "BIGMAT OCHOA, S.L.", "MATERIALES CONSAN, S.A.").
@@ -5046,12 +5046,12 @@ REGLA MENTAL: si el texto que ibas a poner está EN MINÚSCULAS o tiene formato 
   · **\`fecha\`**: del campo "Hora de carga:" (ej. "04.05.26 12:50" → 04/05/2026).
   · **\`tractora\`**: matrícula del camión, del campo "Matrícula camión:" del documento (ej. "1270LST"). IMPORTANTE: el campo se llama \`tractora\` (NO \`matricula\`).
 
-EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos el 26/05/2026:
-  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"VIC", obra:"Fábrica Montcada", tractora:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
+EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos:
+  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"Vic", obra:"Fábrica Montcada", tractora:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
 
-  EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SU ALMACEN", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
+  EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SANTPEDOR", obra:"Fábrica Montcada", devolucion_palets:true, ...}. (NOTA: planta = "SANTPEDOR" del CP, NO "SU ALMACEN" de la línea 1).
 
-  EJEMPLO 3 — Nº 56373296 del 08/05/2026: Destinatario "COLAS SANTPEDOR / Ronda sant pere / 08251 Santpedor". Material "PALET MORTERO" 70001348. Cant. -6.00 Piez. Planta de Entrega "Montcada Mortero". → JSON: {albaran:"56373296", fecha:"08/05/2026", producto:"PALET MORTERO", tm:6, planta:"COLAS SANTPEDOR", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
+  EJEMPLO 3 — Nº 56373296 del 08/05/2026: Destinatario "COLAS SANTPEDOR / Ronda sant pere / 08251 Santpedor". Material "PALET MORTERO" 70001348. Cant. -6.00 Piez. Planta de Entrega "Montcada Mortero". → JSON: {albaran:"56373296", fecha:"08/05/2026", producto:"PALET MORTERO", tm:6, planta:"Santpedor", obra:"Fábrica Montcada", devolucion_palets:true, ...}. (NOTA: planta = "Santpedor" del CP, NO "COLAS SANTPEDOR" de la línea 1).
 
 ⚠️ CRÍTICO: este flag \`devolucion_palets:true\` SOLO se usa para Notas de recibo de palets vacíos. NUNCA lo pongas en albaranes normales de Holcim (los que llevan cemento o áridos como material real). En esos albaranes normales, los palets siguen siendo IGNORADOS (no se guardan), tal como dicen las reglas anteriores.
 
