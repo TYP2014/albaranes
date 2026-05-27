@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ER (27/05/2026): FIX CRÍTICO al bug histórico "falla siempre la 1ª vez que entra y hay que refrescar". Diagnosticado con captura F12 de Juan Carlos: el v107EP (auto-recuperación) se disparaba en los primeros segundos tras cargar la página porque Chrome reporta tiempos oculta>60s aunque la pestaña acabe de crearse, lanzando un loadData() paralelo al inicial → los siguientes clics para subir albaranes se quedaban colgados ("Leyendo con IA..." eterno). Fix: añadida cuarentena de 30s tras arranque. Antes de cumplir 30s desde load, ignora cualquier visibilitychange. Después funciona normal (cubre el caso original: volver tras WhatsApp). Mantiene v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
+<!-- v107EQ5 (27/05/2026): FIX DEFINITIVO al bug "falla siempre la 1ª vez que entra, hay que refrescar" (reportado por Juan Carlos con Tony, ARIDFLOT, SATIG en móvil). Tres capas combinadas: (1) bandera window._appLista=false al cargar, true sólo cuando loadUserMap+loadMatriculasAprendidas+loadTarjetasRepsol+loadData han terminado. (2) Si el usuario pulsa Subir antes, addFiles encola en window._colaPreArranque y muestra indicador naranja "⏳ Cargando — espera…" arriba dcha. (3) Al terminar el arranque, se procesa la cola automáticamente con toast "🚀 Procesando X archivos en espera…". Mantiene v107ER (cuarentena 30s visibilitychange arranque), v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1320,6 +1320,14 @@ let filteredGas = [];
 let gasEmpresaActiva = 'TYP2014';
 let pendingAlb = [];
 let pendingGas = [];
+// v107EQ5 (27/05/2026): control de "app lista para procesar".
+// Hasta que loadData/loadUserMap/loadTarjetasRepsol/loadMatriculasAprendidas
+// no hayan terminado, addFiles encola en _colaPreArranque en vez de procesar.
+// Así, si un usuario en 4G/5G pulsa "Subir" antes de que la app cargue del
+// todo, su archivo NO se pierde NI se queda colgado: se procesa en cuanto
+// la app esté lista (toast "🚀 Procesando X archivos en espera…").
+window._appLista = false;
+window._colaPreArranque = window._colaPreArranque || [];
 // v84: orden por defecto = 'created_at' descendente (lo más recién subido arriba).
 // Antes era null (fecha del albarán → matrícula → nº). Ahora si subes un albarán nuevo,
 // aparece arriba inmediatamente aunque su fecha de albarán sea antigua. La columna SUBIDO
@@ -1775,6 +1783,29 @@ async function onLogin(user) {
     await loadMatriculasAprendidas();
     await loadTarjetasRepsol();
     await loadData();
+    // v107EQ5 (27/05/2026): marcar la app como LISTA para aceptar subidas.
+    // Causa raíz del bug histórico "falla siempre la 1ª vez que entra":
+    // un usuario abre la app en móvil con 4G/5G, ve el botón "Subir" antes
+    // de que loadUserMap/loadMatriculasAprendidas/loadTarjetasRepsol/loadData
+    // hayan terminado (en su móvil tardan 3-6s; en PC con fibra ~0.8s). Si
+    // pulsa Subir antes, addFiles llama a IA con piezas que faltan
+    // (_userMap vacío, MATRICULAS_APRENDIDAS vacío…) y se queda colgado.
+    // Esta bandera la usaremos en addFiles para encolar el archivo y
+    // procesarlo cuando la app esté lista, en vez de fallar en silencio.
+    window._appLista = true;
+    // Si había archivos en la cola pre-arranque, los procesamos ahora.
+    if (window._colaPreArranque && window._colaPreArranque.length > 0) {
+      console.log('[v107EQ5] App lista. Procesando ' + window._colaPreArranque.length + ' archivos en cola pre-arranque…');
+      const cola = window._colaPreArranque.slice();
+      window._colaPreArranque = [];
+      try { toast('🚀 Procesando ' + cola.length + ' archivo' + (cola.length===1?'':'s') + ' en espera…', 'ok'); } catch(e) {}
+      for (const item of cola) {
+        try { await addFiles(item.files, item.type); } catch (e) { console.error('[v107EQ5] error procesando cola pre-arranque:', e); }
+      }
+    }
+    // Quitar el indicador "⏳ Cargando" si está visible.
+    const indicador = document.getElementById('v107EQ5Cargando');
+    if (indicador) indicador.remove();
   }
 }
 
@@ -2499,6 +2530,31 @@ async function comprimirImagen(file, maxBytes) {
 }
 
 async function addFiles(files, type) {
+  // v107EQ5 (27/05/2026): RED DE SEGURIDAD pre-arranque.
+  // Si la app aún no ha terminado de cargar (loadUserMap, loadData, etc.),
+  // NO procesamos: encolamos. El listener al final del arranque procesará
+  // la cola automáticamente. Antes esto causaba el bug histórico "subo
+  // nada más entrar, no procesa, no error, refresco y sí" — porque addFiles
+  // se ejecutaba con _userMap vacío / MATRICULAS sin cargar / etc. y se
+  // quedaba colgado "Leyendo con IA..." para siempre.
+  if (!window._appLista && currentUser && currentRole !== 'conductor') {
+    window._colaPreArranque = window._colaPreArranque || [];
+    window._colaPreArranque.push({ files: Array.from(files), type });
+    console.log('[v107EQ5] App aún cargando. Encolados ' + files.length + ' archivo(s). Se procesarán en cuanto la app termine de iniciar.');
+    try {
+      toast('⏳ Cargando datos… tus archivos se procesarán en unos segundos.', 'warn');
+    } catch(e) {}
+    // Mostrar indicador visual arriba a la derecha mientras se espera
+    if (!document.getElementById('v107EQ5Cargando')) {
+      const ind = document.createElement('div');
+      ind.id = 'v107EQ5Cargando';
+      ind.style.cssText = 'position:fixed;top:12px;right:12px;z-index:99999;background:#f59e0b;color:#111;padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      ind.textContent = '⏳ Cargando — espera…';
+      document.body.appendChild(ind);
+    }
+    return;
+  }
+
   // VISTA CONDUCTOR: solo sube los archivos a Storage y los registra como pendientes,
   // sin procesar con IA. La oficina (admin/gestor) los procesará después en lote.
   if (currentRole === 'conductor') {
