@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ4 (26/05/2026): mejora visual. Los albaranes de DEVOLUCIÓN DE PALETS (producto "PALET CEMENTO"/"PALET MORTERO") ya no se marcan como "Rev" amarillo por tener TN fuera del rango 20-36. En estos albaranes el campo tm contiene PIEZAS de palet (6-10 típicamente), no toneladas — la regla de TN no aplica. Excepción aislada al check de calidad: si producto es PALET CEMENTO o PALET MORTERO, no marcar warn por tm. Resto de checks (campos rellenos, duplicados, ilegible) siguen igual. Mantiene v107EQ3 (matricula→tractora), v107EQ2 (limpieza campos auxiliares), v107EQ (lectura devolución palets) y v107EP (auto-recuperación). -->
+<!-- v107ER (27/05/2026): FIX CRÍTICO al bug histórico "falla siempre la 1ª vez que entra y hay que refrescar". Diagnosticado con captura F12 de Juan Carlos: el v107EP (auto-recuperación) se disparaba en los primeros segundos tras cargar la página porque Chrome reporta tiempos oculta>60s aunque la pestaña acabe de crearse, lanzando un loadData() paralelo al inicial → los siguientes clics para subir albaranes se quedaban colgados ("Leyendo con IA..." eterno). Fix: añadida cuarentena de 30s tras arranque. Antes de cumplir 30s desde load, ignora cualquier visibilitychange. Después funciona normal (cubre el caso original: volver tras WhatsApp). Mantiene v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1838,6 +1838,23 @@ setInterval(() => {
 // oculta, recargamos datos silenciosamente y avisamos con un toast pequeño.
 // No tocamos el flujo de subida en curso. No molestamos si solo fue un vistazo
 // rápido (< 60s).
+//
+// v107ER (27/05/2026) — CUARENTENA DE ARRANQUE.
+// Observado por Juan Carlos con Tony (Antonio Martín): la primera vez que un
+// conductor abre la app en un móvil/PC, el navegador puede mantener la pestaña
+// "hidden" varios segundos mientras carga JS, fuentes y CSS. Después de ese
+// primer "hidden→visible" muchos navegadores reportan que la pestaña estuvo
+// oculta >60s (porque el tiempo se mide desde que Chrome creó el "tab object",
+// no desde que terminó de cargar). Resultado: v107EP se disparaba durante el
+// arranque, lanzaba un loadData() PARALELO al inicial, y los clicks posteriores
+// para "Subir albarán" se quedaban colgados ("Leyendo con IA..." eterno) porque
+// las dos cargas se pisaban entre sí. Cuando refrescaban, la pestaña ya estaba
+// "caliente" y v107EP no entraba. De ahí el síntoma "falla siempre la 1ª vez".
+// Fix: anotamos el instante de arranque y no aceptamos disparos en los primeros
+// 30 segundos. v107EP sigue funcionando para su caso útil (volver de WhatsApp
+// tras llevar un rato trabajando), pero no se entromete en el arranque.
+const _v107EP_arranquePagina = Date.now();
+const _V107EP_CUARENTENA_MS = 30 * 1000; // 30 segundos sin disparar tras arrancar
 let _v107EP_ocultaDesde = 0;
 const _V107EP_UMBRAL_MS = 60 * 1000; // 60 segundos
 document.addEventListener('visibilitychange', async () => {
@@ -1851,6 +1868,15 @@ document.addEventListener('visibilitychange', async () => {
   const tiempoOculta = Date.now() - _v107EP_ocultaDesde;
   _v107EP_ocultaDesde = 0;
   if (tiempoOculta < _V107EP_UMBRAL_MS) return; // estaba oculta poco tiempo, no hace falta
+  // v107ER: cuarentena de arranque. Durante los primeros 30s tras cargar la
+  // página, IGNORAR cualquier visibilitychange — son falsos positivos por la
+  // carga inicial del navegador, no un usuario que vuelve de otra app.
+  const tiempoDesdeArranque = Date.now() - _v107EP_arranquePagina;
+  if (tiempoDesdeArranque < _V107EP_CUARENTENA_MS) {
+    console.log('[v107ER] visibilitychange detectado durante arranque (' +
+      Math.round(tiempoDesdeArranque/1000) + 's tras cargar) — ignorado, evita pisarse con loadData inicial.');
+    return;
+  }
   // Si está procesando algo activamente, NO interrumpir.
   if (_processingAlb || _processingGas) {
     console.log('[v107EP] vuelta tras ' + Math.round(tiempoOculta/1000) + 's, pero hay procesamiento activo — sin tocar nada.');
