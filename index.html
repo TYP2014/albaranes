@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107EQ5 (27/05/2026): FIX DEFINITIVO al bug "falla siempre la 1ª vez que entra, hay que refrescar" (reportado por Juan Carlos con Tony, ARIDFLOT, SATIG en móvil). Tres capas combinadas: (1) bandera window._appLista=false al cargar, true sólo cuando loadUserMap+loadMatriculasAprendidas+loadTarjetasRepsol+loadData han terminado. (2) Si el usuario pulsa Subir antes, addFiles encola en window._colaPreArranque y muestra indicador naranja "⏳ Cargando — espera…" arriba dcha. (3) Al terminar el arranque, se procesa la cola automáticamente con toast "🚀 Procesando X archivos en espera…". Mantiene v107ER (cuarentena 30s visibilitychange arranque), v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
+<!-- v107EQ6 (27/05/2026): FIX al error PGRST204 "Could not find the 'materiales' column of albaranes" reportado tras probar v107EQ5. Causa: en algunos albaranes (Holcim cisterna con un solo material) la IA devuelve el array `materiales` Y a la vez los campos planos producto/tm. Si el bloque multimaterial no se activa (porque solo hay 1 elemento, o por otra ruta), `data.materiales` se cuela al INSERT y como NO es columna BD, Supabase rechaza el INSERT entero. Fix: red de seguridad final en saveRecord que borra TODOS los campos auxiliares conocidos (materiales, matricula, devolucion_palets, unidad_palet, num_tarjeta, empresa_ticket, _esFactura, _quality, _dup, _dupOf, _matDesconocida, _manual, _fromPending, _id) antes del INSERT/UPDATE. Mantiene v107EQ5 (cola pre-arranque), v107ER (cuarentena 30s), v107EQ4 (palets verdes), v107EQ3 (matricula→tractora), v107EP (auto-recuperación). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2139,6 +2139,38 @@ async function saveRecord(data) {
       console.log(`[v107EQ3] mapeé matricula→tractora ("${rec.matricula}") — la columna BD se llama tractora.`);
     }
     delete rec.matricula;
+  }
+  // v107EQ6 (27/05/2026): RED DE SEGURIDAD FINAL contra error PGRST204
+  // "Could not find the X column of albaranes in the schema cache".
+  // Caso real reportado por Juan Carlos: albaran Holcim cisterna donde la IA
+  // devolvió `materiales: [...]` (array) Y a la vez los campos planos producto/tm.
+  // El array `materiales` NO es columna de la BD (cuando hay multimaterial,
+  // el código de arriba lo desempaqueta en filas múltiples ANTES de llegar
+  // aquí; pero si por lo que sea llega aquí, el INSERT explota). Solución:
+  // borrar TODOS los campos auxiliares conocidos que NO son columnas reales.
+  // Cualquier OTRO campo desconocido también lo retiramos como red de
+  // seguridad extra. Las columnas reales de `albaranes` están en la lista
+  // blanca _COLUMNAS_ALBARANES (28 columnas exactas, validadas en Supabase
+  // el 27/05/2026 con `information_schema.columns`).
+  const _COLUMNAS_ALBARANES = new Set([
+    'id', 'user_id', 'albaran', 'fecha', 'proveedor', 'cliente', 'obra', 'planta',
+    'tractora', 'remolque', 'tm', 'producto', 'observaciones', 'created_at',
+    'updated_at', 'transportista', 'file_url', 'storage_path', 'editado_por',
+    'editado_en', 'linea_albaran', 'tanda_subida', 'pagina_subida', 'origen',
+    'destino', 'cantidad', 'unidad', 'numero_albaran'
+  ]);
+  // Limpia campos que no son columnas reales. NO usa la lista anterior para
+  // BLOQUEAR (porque puede haber columnas nuevas que olvidé añadir), sino
+  // para borrar específicamente los conocidos como auxiliares:
+  const _AUX_CAMPOS = ['materiales', 'matricula', 'devolucion_palets', 'unidad_palet',
+                       'num_tarjeta', 'empresa_ticket', '_esFactura', '_quality',
+                       '_dup', '_dupOf', '_matDesconocida', '_manual',
+                       '_fromPending', '_id'];
+  for (const k of _AUX_CAMPOS) {
+    if (k in rec) {
+      console.log(`[v107EQ6] borrando campo auxiliar "${k}" antes del INSERT (no es columna BD)`);
+      delete rec[k];
+    }
   }
   if (data.db_id) {
     const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
