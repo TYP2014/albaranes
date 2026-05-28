@@ -6,6 +6,7 @@
 <!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
 <!-- v107FA (28/05/2026): NUEVO módulo FICHAJE (registro de jornada, RDL 8/2019). Pestaña 🕐 Fichaje visible para admin (ve todo, corrige, exporta Excel) y para quien tenga puede_fichar=TRUE (su propio fichaje con botón grande entrada→comida→salida). Tabla 'fichajes' inmutable (sin UPDATE/DELETE en BD; correcciones = filas nuevas). Requiere fichaje_setup.sql. -->
 <!-- v107FB (28/05/2026): FICHAJE + AUSENCIAS. Botón "📅 Marcar día sin trabajo" (trabajadora marca la suya, admin la de cualquiera). Motivos: vacaciones/baja/festivo/falta. Soporta rango de días (una fila por día). Si hoy hay ausencia, la botonera no ofrece fichar. Tabla y Excel muestran ausencias como "día completo". Requiere fichaje_ausencias.sql (amplía el CHECK de tipos). -->
+<!-- v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual), RECONSTRUIDA tras perderse el código de v107FC. Las columnas YA existen en Supabase (estado_facturacion / factura_fecha / factura_ref / factura_tipo). Cambios: (1) icono en columna "Est" de la tabla principal (🟢 facturado / 📌 pendiente / 🚫 no_facturable) junto al badge existente; (2) recuadro azul "🧾 Facturación" en el modal con 3 botones; guarda en Supabase y sella factura_fecha al facturar. Permisos: admin + María del Mar + Marta + Logística (conductores NO lo ven). Funciones nuevas: _puedeVerFacturacion(), factIcon(r), marcarFacturacion(id,val), _facturacionModalHtml(r). NO requiere SQL nuevo. -->
 
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1148,6 +1149,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     </div>
     <div class="modal-bd">
       <div id="mAlert"></div>
+      <!-- v107FD: recuadro de Facturación (Fase 1). Se rellena en openModal
+           solo si el usuario tiene permiso. Vacío para conductores. -->
+      <div id="mFacturacion" style="display:none;background:rgba(124,196,255,.08);border:1px solid rgba(124,196,255,.30);border-radius:9px;padding:11px 13px;margin-bottom:12px"></div>
       <div class="modal-grid">
         <div class="mfields" id="mFields"></div>
         <div id="mPreview"></div>
@@ -6346,6 +6350,108 @@ function filterByStatus(st) {
 }
 
 function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
+
+// ============================================================
+// v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual).
+// Reconstruida tras perderse el código de v107FC (los DATOS seguían
+// en Supabase: columnas estado_facturacion / factura_fecha /
+// factura_ref / factura_tipo). Tres ayudantes pequeños y aislados:
+//   · _puedeVerFacturacion(): quién ve los iconos y el recuadro.
+//   · factIcon(r): el icono según el estado del albarán.
+//   · marcarFacturacion(id,val): guarda el estado en Supabase.
+// Reglas de negocio (confirmadas por Juan Carlos):
+//   · TODO es facturable en principio. 'pendiente' es el estado normal.
+//   · 'no_facturable' es un comodín que casi nunca se usa.
+//   · Las devoluciones de palets vacíos SÍ se pagan → facturables.
+// ============================================================
+
+// ¿Quién puede ver y usar la Facturación?
+// Admin + María del Mar + Marta + Logística (mismo grupo interno que ya
+// usamos en otros sitios del código, v107EQ8).
+function _puedeVerFacturacion() {
+  if (currentRole === 'admin') return true;
+  const e = (currentUser?.email || '').toLowerCase().trim();
+  return e === 'mariadelmar@typ2014.local'
+      || e === 'marta@typ2014.local'
+      || e === 'logistica@ttesyportes.2014';
+}
+
+// Icono del estado de facturación para la columna "Est" de la tabla.
+// Si el usuario no tiene permiso, devuelve cadena vacía (no ve nada).
+// 🟢 facturado · 📌 pendiente · 🚫 no_facturable.
+// Albaranes sin estado en BD se tratan como pendientes (📌).
+function factIcon(r) {
+  if (!_puedeVerFacturacion()) return '';
+  const est = r.estado_facturacion || 'pendiente';
+  if (est === 'facturado')      return `<span title="Facturado" style="font-size:13px">🟢</span>`;
+  if (est === 'no_facturable')  return `<span title="No facturable" style="font-size:13px">🚫</span>`;
+  return `<span title="Pendiente de facturar" style="font-size:13px">📌</span>`;
+}
+
+// Marca el estado de facturación de UN albarán y lo guarda en Supabase.
+// val = 'facturado' | 'pendiente' | 'no_facturable'.
+// Al pasar a 'facturado' sella la fecha (factura_fecha). Al sacarlo de
+// facturado, limpia esa fecha. Actualiza la fila en memoria y repinta.
+async function marcarFacturacion(id, val) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  if (!r.db_id) { toast('Este albarán aún no está guardado en la base de datos', 'err'); return; }
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturar', 'err'); return; }
+
+  // Preparamos lo que se guarda. Sello de fecha solo al facturar.
+  const upd = { estado_facturacion: val };
+  if (val === 'facturado') {
+    upd.factura_fecha = new Date().toISOString();
+  } else {
+    upd.factura_fecha = null; // si lo desmarcamos, quitamos la fecha
+  }
+
+  try {
+    const { error } = await sb.from('albaranes').update(upd).eq('id', r.db_id);
+    if (error) throw error;
+    // Actualizar en memoria para que la tabla y el modal se vean al instante.
+    r.estado_facturacion = val;
+    r.factura_fecha = upd.factura_fecha;
+    const nombre = val === 'facturado' ? 'Facturado 🟢'
+                 : val === 'no_facturable' ? 'No facturable 🚫'
+                 : 'Pendiente 📌';
+    toast('Marcado como ' + nombre, 'ok');
+    // Repintar la tabla principal (el icono de la columna Est) y, si el
+    // modal de este albarán está abierto, refrescar su recuadro.
+    if (typeof renderTable === 'function') renderTable();
+    if (editId && (String(editId) === String(id))) {
+      const cont = document.getElementById('mFacturacion');
+      if (cont) cont.innerHTML = _facturacionModalHtml(r);
+    }
+  } catch (e) {
+    toast('Error al guardar facturación: ' + (e.message || e), 'err');
+  }
+}
+
+// Construye el recuadro azul "🧾 Facturación" del modal para un albarán.
+// Muestra el estado actual y 3 botones para cambiarlo. El botón del
+// estado actual sale resaltado.
+function _facturacionModalHtml(r) {
+  const est = r.estado_facturacion || 'pendiente';
+  const id = r.db_id || r._id;
+  const fechaTxt = (est === 'facturado' && r.factura_fecha)
+    ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">Facturado el ${fmtTS(r.factura_fecha)}</div>`
+    : '';
+  const btn = (val, etiqueta, activo) => `
+    <button onclick="event.stopPropagation();marcarFacturacion('${id}','${val}')"
+      style="flex:1;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;
+             border:1px solid ${activo ? 'var(--ac)' : 'var(--bd)'};
+             background:${activo ? 'rgba(0,232,122,.15)' : 'var(--bg2)'};
+             color:${activo ? 'var(--ac)' : 'var(--tx)'}">${etiqueta}</button>`;
+  return `
+    <div style="font-weight:600;color:#7cc4ff;margin-bottom:8px;font-size:13px">🧾 Facturación</div>
+    <div style="display:flex;gap:6px">
+      ${btn('pendiente',     '📌 Pendiente',     est === 'pendiente')}
+      ${btn('facturado',     '🟢 Facturado',     est === 'facturado')}
+      ${btn('no_facturable', '🚫 No facturable', est === 'no_facturable')}
+    </div>
+    ${fechaTxt}`;
+}
 // v107CU (20/05/2026): formato fijo DD/MM/AA HH:MM sin depender de
 // toLocaleDateString. Algunos navegadores devolvían '5' en vez de '05'
 // pese a pedir 2-digit, recortando la columna Subido en la tabla.
@@ -6546,7 +6652,7 @@ function renderTable() {
     <!-- v107CS: anchos reducidos en Material (100), Cliente (110), Subido por (70), Editado por (70) para que la columna Subido quepa al final sin scroll. -->
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
-      <td>${rowBadge(r)}</td>
+      <td style="white-space:nowrap">${rowBadge(r)} ${factIcon(r)}</td>
       <td style="color:#fff;font-weight:600">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:600">${r.tractora || '—'}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? Number(r.tm).toFixed(3) : '—'}</td>
@@ -7000,6 +7106,19 @@ function openModal(id) {
     alertHtml += `<div style="font-family:var(--mn);font-size:10px;color:#fbbf24;padding:0 0 12px">✏️ Editado por: <strong>${userName(r.editado_por)}</strong></div>`;
   }
   document.getElementById('mAlert').innerHTML = alertHtml;
+  // v107FD: recuadro de Facturación (Fase 1). Solo si el usuario tiene
+  // permiso (admin / María del Mar / Marta / Logística) y el albarán ya
+  // está guardado en BD (tiene db_id). Para conductores queda oculto.
+  const _facBox = document.getElementById('mFacturacion');
+  if (_facBox) {
+    if (_puedeVerFacturacion() && r.db_id) {
+      _facBox.innerHTML = _facturacionModalHtml(r);
+      _facBox.style.display = 'block';
+    } else {
+      _facBox.innerHTML = '';
+      _facBox.style.display = 'none';
+    }
+  }
   // Preview
   let previewHtml = '';
   if (hasValidUrl(r.file_url)) {
