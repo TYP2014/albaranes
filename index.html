@@ -7,6 +7,7 @@
 <!-- v107FA (28/05/2026): NUEVO módulo FICHAJE (registro de jornada, RDL 8/2019). Pestaña 🕐 Fichaje visible para admin (ve todo, corrige, exporta Excel) y para quien tenga puede_fichar=TRUE (su propio fichaje con botón grande entrada→comida→salida). Tabla 'fichajes' inmutable (sin UPDATE/DELETE en BD; correcciones = filas nuevas). Requiere fichaje_setup.sql. -->
 <!-- v107FB (28/05/2026): FICHAJE + AUSENCIAS. Botón "📅 Marcar día sin trabajo" (trabajadora marca la suya, admin la de cualquiera). Motivos: vacaciones/baja/festivo/falta. Soporta rango de días (una fila por día). Si hoy hay ausencia, la botonera no ofrece fichar. Tabla y Excel muestran ausencias como "día completo". Requiere fichaje_ausencias.sql (amplía el CHECK de tipos). -->
 <!-- v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual), RECONSTRUIDA tras perderse el código de v107FC. Las columnas YA existen en Supabase (estado_facturacion / factura_fecha / factura_ref / factura_tipo). Cambios: (1) icono en columna "Est" de la tabla principal (🟢 facturado / 📌 pendiente / 🚫 no_facturable) junto al badge existente; (2) recuadro azul "🧾 Facturación" en el modal con 3 botones; guarda en Supabase y sella factura_fecha al facturar. Permisos: admin + María del Mar + Marta + Logística (conductores NO lo ven). Funciones nuevas: _puedeVerFacturacion(), factIcon(r), marcarFacturacion(id,val), _facturacionModalHtml(r). NO requiere SQL nuevo. -->
+<!-- v107FE (28/05/2026): FACTURACIÓN velocidad. Al pulsar el botón de marcar (📌→🟢) ya NO se repinta la tabla entera (~2.200 filas, lo que iba lento). Ahora el cambio es instantáneo: se actualiza solo el iconito de ESA fila y el guardado en Supabase va en segundo plano (patrón "guardado instantáneo" v107d). La celda Est lleva data-fact con el id del albarán para localizarla. Si el guardado en BD fallara, toast rojo avisando de reintentar. -->
 
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -6406,25 +6407,35 @@ async function marcarFacturacion(id, val) {
     upd.factura_fecha = null; // si lo desmarcamos, quitamos la fecha
   }
 
+  // v107FE: VELOCIDAD. Antes (v107FD) esperábamos a Supabase y luego
+  // repintábamos la tabla ENTERA (~2.200 filas) → lento al pulsar.
+  // Ahora: (1) actualizamos memoria y pintamos YA el icono de ESA fila
+  // (instantáneo, sin tocar las demás), (2) guardamos en Supabase en
+  // segundo plano. Mismo patrón "guardado instantáneo" del modal (v107d).
+  r.estado_facturacion = val;
+  r.factura_fecha = upd.factura_fecha;
+
+  // Retocar SOLO el iconito de la fila de este albarán (no toda la tabla).
+  const _celda = document.querySelector(`td[data-fact="${id}"]`);
+  if (_celda) _celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+  // Refrescar el recuadro del modal si está abierto este albarán.
+  if (editId && (String(editId) === String(id))) {
+    const cont = document.getElementById('mFacturacion');
+    if (cont) cont.innerHTML = _facturacionModalHtml(r);
+  }
+  const nombre = val === 'facturado' ? 'Facturado 🟢'
+               : val === 'no_facturable' ? 'No facturable 🚫'
+               : 'Pendiente 📌';
+  toast('Marcado como ' + nombre, 'ok');
+
+  // Guardar en Supabase en segundo plano. Si falla, avisamos y dejamos
+  // que el usuario reintente (no revertimos el icono para no liarle;
+  // un fallo de guardado es muy raro y el toast rojo lo deja claro).
   try {
     const { error } = await sb.from('albaranes').update(upd).eq('id', r.db_id);
     if (error) throw error;
-    // Actualizar en memoria para que la tabla y el modal se vean al instante.
-    r.estado_facturacion = val;
-    r.factura_fecha = upd.factura_fecha;
-    const nombre = val === 'facturado' ? 'Facturado 🟢'
-                 : val === 'no_facturable' ? 'No facturable 🚫'
-                 : 'Pendiente 📌';
-    toast('Marcado como ' + nombre, 'ok');
-    // Repintar la tabla principal (el icono de la columna Est) y, si el
-    // modal de este albarán está abierto, refrescar su recuadro.
-    if (typeof renderTable === 'function') renderTable();
-    if (editId && (String(editId) === String(id))) {
-      const cont = document.getElementById('mFacturacion');
-      if (cont) cont.innerHTML = _facturacionModalHtml(r);
-    }
   } catch (e) {
-    toast('Error al guardar facturación: ' + (e.message || e), 'err');
+    toast('⚠️ No se pudo guardar en la base de datos: ' + (e.message || e) + '. Vuelve a marcarlo.', 'err');
   }
 }
 
@@ -6652,7 +6663,7 @@ function renderTable() {
     <!-- v107CS: anchos reducidos en Material (100), Cliente (110), Subido por (70), Editado por (70) para que la columna Subido quepa al final sin scroll. -->
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
-      <td style="white-space:nowrap">${rowBadge(r)} ${factIcon(r)}</td>
+      <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${rowBadge(r)} ${factIcon(r)}</td>
       <td style="color:#fff;font-weight:600">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:600">${r.tractora || '—'}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? Number(r.tm).toFixed(3) : '—'}</td>
