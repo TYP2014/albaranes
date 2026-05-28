@@ -732,6 +732,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
 
+    <!-- v107FI: TAB ITV. Este bloque estaba SUELTO (sin su div contenedor), por eso
+         se veía en todas las pestañas. Ahora va envuelto en tabContentItv con
+         display:none, igual que el resto de pestañas. -->
+    <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
       <!-- v107h: Grid de 2 columnas para ITVs + Citas. En móvil se apila. -->
