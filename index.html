@@ -9,6 +9,8 @@
 <!-- v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual), RECONSTRUIDA tras perderse el código de v107FC. Las columnas YA existen en Supabase (estado_facturacion / factura_fecha / factura_ref / factura_tipo). Cambios: (1) icono en columna "Est" de la tabla principal (🟢 facturado / 📌 pendiente / 🚫 no_facturable) junto al badge existente; (2) recuadro azul "🧾 Facturación" en el modal con 3 botones; guarda en Supabase y sella factura_fecha al facturar. Permisos: admin + María del Mar + Marta + Logística (conductores NO lo ven). Funciones nuevas: _puedeVerFacturacion(), factIcon(r), marcarFacturacion(id,val), _facturacionModalHtml(r). NO requiere SQL nuevo. -->
 <!-- v107FE (28/05/2026): FACTURACIÓN velocidad. Al pulsar el botón de marcar (📌→🟢) ya NO se repinta la tabla entera (~2.200 filas, lo que iba lento). Ahora el cambio es instantáneo: se actualiza solo el iconito de ESA fila y el guardado en Supabase va en segundo plano (patrón "guardado instantáneo" v107d). La celda Est lleva data-fact con el id del albarán para localizarla. Si el guardado en BD fallara, toast rojo avisando de reintentar. -->
 <!-- v107FF (28/05/2026): FICHADOR PURO. Arregla que los empleados de taller que SOLO fichan (Carlos, César, Oscar, oscarv: role=conductor + puede_fichar=true + sin otros permisos) veían la pantalla de Subir Documentos y NO veían la pestaña Fichaje. Ahora se les detecta como "fichador puro" (puede_fichar=true, no admin/gestor, sin ITV/taller/neumáticos/vacaciones) y entran a la vista con pestañas mostrando SOLO 🕐 Fichaje, abierta directamente. No afecta a María del Mar ni Marta (son gestor). NO requiere SQL. Cambios en onLogin (select ampliado + rama nueva) y loadUserMap (salida temprana). -->
+<!-- v107FG (28/05/2026): EXCEL FICHAJE — hoja "Registro Legal". El Excel de Fichaje ahora tiene 2 hojas: "Fichajes" (lista cronológica, como antes, intacta) y NUEVA "Registro Legal" con el formato oficial Art. 10 RD-ley 8/2019 (modelo del gestor): una sección por Trabajador+Mes con cabecera (Empresa/CIF/Trabajador/DNI/Nº horas contrato/Mes/Centro Trabajo=Sant Vicenç dels Horts), tabla días 1..fin de mes (Entrada/Salida comer/Vuelta comer/Salida/Horas día/Observaciones), ausencias como texto, fila TOTAL y líneas de firma. Funciones nuevas: _fichajeAoaLegal(filas), _fichajeHHMM(ts), const _FICHAJE_CENTRO_TRABAJO. NO requiere SQL. -->
+<!-- v107FH (28/05/2026): NUEVA pestaña 🧾 Facturación (sustituye a Preliquidaciones, que queda oculta — su tabla en Supabase NO se borra). La ven los mismos que pueden facturar (admin + María del Mar + Marta + Logística, helper _puedeVerFacturacion v107FD). Por ahora la pestaña explica el marcado manual (🟢📌🚫 ya operativo desde v107FD); en la próxima versión se le añadirá subir autofactura CEMEX + cruce + Excel. Cambios: botón pestaña, contenido tabContentFacturacion, switchTab amplía lista, visibilidad en loadUserMap, y Preli ya no se re-muestra. -->
 
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -439,7 +441,12 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
       <!-- v107V: Subir movida junto a Albaranes — más cómodo el flujo subir → ver albaranes -->
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
-      <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
+      <!-- v107FH (28/05/2026): pestaña Preliquidaciones OCULTA (se sustituye por
+           Facturación). El código y la tabla siguen, solo se esconde el botón. -->
+      <div class="tab" id="tabPreli" onclick="switchTab('preli')" style="display:none">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
+      <!-- v107FH: NUEVA pestaña Facturación. Junta marcado manual + (futuro) autofacturas.
+           Oculta por defecto; se muestra a quien tenga permiso de facturación. -->
+      <div class="tab" id="tabFacturacion" onclick="switchTab('facturacion')" style="display:none">🧾 Facturación</div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
@@ -698,10 +705,33 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       </div>
     </div>
 
-    <!-- v101: TAB ITV — solo visible para usuarios con puede_ver_itv=TRUE.
-         v107h: layout en 2 columnas — izquierda ITVs registradas, derecha citas próximas.
-         En móvil se apila automáticamente (responsive con grid). -->
-    <div id="tabContentItv" class="wrap" style="display:none">
+    <!-- v107FH (28/05/2026): TAB FACTURACIÓN. Por ahora explica el marcado manual
+         (los iconos 🟢📌🚫 de la columna Est y el recuadro del modal, ya operativos
+         desde v107FD). En la próxima versión (v107FI) se añadirá aquí el botón de
+         subir autofactura CEMEX + cruce + Excel resumen. -->
+    <div id="tabContentFacturacion" class="wrap" style="display:none">
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>FACTURACIÓN</div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:16px">
+            Desde aquí se controla qué albaranes están facturados. Cada albarán tiene un estado que ves en la columna <strong style="color:var(--tx)">Est</strong> de la pestaña Albaranes:
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--tx);margin-bottom:18px">
+            <div>🟢 &nbsp;<strong>Facturado</strong> — ya está cobrado / autofacturado.</div>
+            <div>📌 &nbsp;<strong>Pendiente</strong> — aún no facturado (estado normal de partida).</div>
+            <div>🚫 &nbsp;<strong>No facturable</strong> — comodín, casi nunca se usa.</div>
+          </div>
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;background:rgba(124,196,255,.06);border:1px solid rgba(124,196,255,.25);border-radius:9px;padding:12px 14px">
+            Para marcar un albarán a mano: abre la pestaña <strong style="color:var(--tx)">📄 Albaranes</strong>, pulsa sobre el albarán y usa el recuadro azul <strong style="color:#7cc4ff">🧾 Facturación</strong> del modal.
+            <br><br>
+            🔜 <strong style="color:var(--tx)">Próximamente aquí:</strong> subir la autofactura de CEMEX (y Holcim) para que la app marque sola los albaranes pagados y genere un Excel resumen (abonados / no abonados / abonados sin albarán).
+          </div>
+        </div>
+      </div>
+    </div>
+
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
       <!-- v107h: Grid de 2 columnas para ITVs + Citas. En móvil se apila. -->
@@ -1723,9 +1753,10 @@ async function loadUserMap() {
         // fuerzan aquí: siguen dependiendo de sus permisos por empresa de
         // siempre (puede_ver_itv, empresa_taller, etc.), para NO romper la
         // privacidad (ej. logística no debe ver Producción ni Usuarios).
-        const tabPreliShow = document.getElementById('tabPreli');
+        // v107FH: Preliquidaciones queda JUBILADA (sustituida por Facturación),
+        // así que ya NO la re-mostramos aquí aunque el usuario sea de los 3.
+        // Solo re-mostramos Gasoil.
         const tabGasShow = document.getElementById('tabGas');
-        if (tabPreliShow) tabPreliShow.style.display = '';
         if (tabGasShow) tabGasShow.style.display = '';
       }
       // ============================================================
@@ -1745,6 +1776,14 @@ async function loadUserMap() {
           _tabFichaje.style.display = (_puedeFichar || _esAdminFichaje) ? 'flex' : 'none';
         }
       } catch (e) { console.warn('[v107FA] visibilidad Fichaje:', e); }
+
+      // v107FH (28/05/2026): visibilidad de la pestaña Facturación. La ven los
+      // mismos que pueden facturar (admin + María del Mar + Marta + Logística),
+      // reutilizando el helper _puedeVerFacturacion() ya existente (v107FD).
+      try {
+        const _tabFact = document.getElementById('tabFacturacion');
+        if (_tabFact) _tabFact.style.display = _puedeVerFacturacion() ? 'flex' : 'none';
+      } catch (e) { console.warn('[v107FH] visibilidad Facturación:', e); }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
@@ -9451,7 +9490,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','fichaje','subir','admin'].forEach(t => {
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','fichaje','subir','admin','facturacion'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -10149,6 +10188,112 @@ function _fichajeEsc(s) {
 
 // ---------- EXPORTAR A EXCEL (admin) ----------
 
+// ============================================================
+// v107FG (28/05/2026): HOJA "Registro Legal" del Excel de Fichaje.
+// Formato oficial Art. 10 RD-ley 8/2019 (modelo del gestor).
+// Construye un array de filas (aoa) con una sección por cada
+// Trabajador + Mes presente en las filas de fichaje recibidas.
+// Centro de trabajo fijo para todos: Sant Vicenç dels Horts.
+// ============================================================
+const _FICHAJE_CENTRO_TRABAJO = 'Sant Vicenç dels Horts';
+
+// Devuelve la hora HH:MM (sin segundos) de un timestamp, o '' si no hay.
+function _fichajeHHMM(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function _fichajeAoaLegal(filas) {
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                 'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  // 1) Agrupar las filas por TRABAJADOR + AÑO-MES. Para cada día guardamos
+  //    los 4 momentos (entrada/salida_comida/vuelta_comida/salida) y, si hay
+  //    ausencia, su etiqueta. Las correcciones ya vienen resueltas en `filas`
+  //    (usamos ts_corregido/tipo_corregido cuando es corrección no anulada).
+  const grupos = {}; // clave "trabajador||YYYY-MM" -> { info, dias:{1..31} }
+  filas.forEach(f => {
+    if (f.tipo === 'correccion' && f.anulado) return; // anulaciones no pintan
+    const esCorr = f.tipo === 'correccion';
+    const refTs  = esCorr ? (f.ts_corregido || f.ts) : f.ts;
+    const tipo   = esCorr ? (f.tipo_corregido || '') : f.tipo;
+    if (!tipo) return;
+    const fISO = _fichajeFechaLocal(refTs);       // YYYY-MM-DD
+    const [yy, mm, dd] = fISO.split('-');
+    const claveMes = `${f.trabajador || ''}||${yy}-${mm}`;
+    if (!grupos[claveMes]) {
+      grupos[claveMes] = {
+        trabajador: f.trabajador || '',
+        dni: f.dni || '',
+        empresa: f.empresa || '',
+        cif: f.cif || '',
+        anio: yy,
+        mesNum: parseInt(mm, 10),
+        dias: {}
+      };
+    }
+    const g = grupos[claveMes];
+    const diaN = parseInt(dd, 10);
+    if (!g.dias[diaN]) g.dias[diaN] = { entrada:'', salida_comida:'', vuelta_comida:'', salida:'', ausencia:'' };
+    const D = g.dias[diaN];
+    if (_fichajeEsAusencia(tipo)) {
+      D.ausencia = (_FICHAJE_LABELS[tipo] || tipo).replace(/^[^\sA-Za-zÁÉÍÓÚáéíóúÑñ]+\s*/, '');
+    } else if (tipo === 'entrada' || tipo === 'salida_comida' || tipo === 'vuelta_comida' || tipo === 'salida') {
+      D[tipo] = _fichajeHHMM(refTs);
+    }
+  });
+
+  // 2) Construir las filas (aoa) del Excel, sección por sección.
+  const aoa = [];
+  const claves = Object.keys(grupos).sort(); // orden por trabajador y mes
+  if (!claves.length) {
+    aoa.push(['No hay fichajes en el rango seleccionado.']);
+    return aoa;
+  }
+
+  claves.forEach((clave, idx) => {
+    const g = grupos[clave];
+    if (idx > 0) { aoa.push([]); aoa.push([]); } // separación entre secciones
+
+    aoa.push(['REGISTRO DIARIO JORNADA DE TRABAJO']);
+    aoa.push(['Registro elaborado de acuerdo a lo establecido en el Art. 10 del Real Decreto-ley 8/2019, de 8 de marzo']);
+    aoa.push(['Empresa:', g.empresa, '', 'CIF:', g.cif]);
+    aoa.push(['Trabajador:', g.trabajador, '', 'DNI/NIE:', g.dni]);
+    aoa.push(['Nº horas según contrato:', '', 'Mes:', `${MESES[g.mesNum-1]} ${g.anio}`, 'Centro Trabajo:', _FICHAJE_CENTRO_TRABAJO]);
+    aoa.push([]);
+    aoa.push(['Día', 'Entrada', 'Salida comer', 'Vuelta comer', 'Salida', 'Horas día', 'Observaciones']);
+
+    // Días del mes (1..número de días reales del mes)
+    const numDias = new Date(parseInt(g.anio,10), g.mesNum, 0).getDate();
+    let totalMin = 0;
+    for (let d = 1; d <= numDias; d++) {
+      const D = g.dias[d];
+      if (!D) { aoa.push([d, '', '', '', '', '', '']); continue; }
+      if (D.ausencia) { aoa.push([d, '', '', '', '', '', D.ausencia]); continue; }
+      // Calcular horas del día: (salida_comida - entrada) + (salida - vuelta_comida).
+      // Si faltan tramos, sumamos lo que haya de forma sensata.
+      const min = (hhmm) => { if(!hhmm) return null; const [h,m]=hhmm.split(':').map(Number); return h*60+m; };
+      const e=min(D.entrada), sc=min(D.salida_comida), vc=min(D.vuelta_comida), s=min(D.salida);
+      let dm = 0;
+      if (e!=null && sc!=null) dm += Math.max(0, sc-e);
+      if (vc!=null && s!=null)  dm += Math.max(0, s-vc);
+      // Si solo hay entrada y salida (sin pausa de comida), contar entrada→salida.
+      if (dm===0 && e!=null && s!=null && sc==null && vc==null) dm = Math.max(0, s-e);
+      totalMin += dm;
+      const horasTxt = dm>0 ? `${Math.floor(dm/60)}:${String(dm%60).padStart(2,'0')}` : '';
+      aoa.push([d, D.entrada, D.salida_comida, D.vuelta_comida, D.salida, horasTxt, '']);
+    }
+    const tH = Math.floor(totalMin/60), tM = totalMin%60;
+    aoa.push(['TOTAL', '', '', '', '', `${tH}:${String(tM).padStart(2,'0')}`, '']);
+    aoa.push(['Firma trabajador:', '', '', '', 'Firma empresa:', '', '']);
+  });
+
+  return aoa;
+}
+
 function exportFichajesExcel() {
   try {
     if (!_fichajes.length) { toast('No hay fichajes para exportar', 'warn'); return; }
@@ -10190,6 +10335,26 @@ function exportFichajesExcel() {
     const ws = XLSX.utils.json_to_sheet(datos);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Fichajes');
+
+    // v107FG (28/05/2026): SEGUNDA HOJA "Registro Legal" con el formato
+    // oficial del Art. 10 RD-ley 8/2019 (modelo del gestor). Una sección
+    // por cada Trabajador + Mes presente en los datos filtrados:
+    //   · Cabecera: Empresa, CIF, Trabajador, DNI, Nº horas según contrato,
+    //     Mes, Centro de Trabajo (Sant Vicenç dels Horts).
+    //   · Tabla días 1..31: Entrada · Salida a comer · Vuelta de comer ·
+    //     Salida · Horas del día. Si fue ausencia (vacaciones/baja/festivo/
+    //     falta) → texto en la fila, sin horas.
+    //   · Fila de totales (suma de horas del mes).
+    // La hoja "Fichajes" (lista cronológica) se mantiene intacta arriba.
+    try {
+      const aoaLegal = _fichajeAoaLegal(filas);
+      const wsL = XLSX.utils.aoa_to_sheet(aoaLegal);
+      wsL['!cols'] = [{wch:6},{wch:11},{wch:13},{wch:13},{wch:13},{wch:11},{wch:11}];
+      XLSX.utils.book_append_sheet(wb, wsL, 'Registro Legal');
+    } catch (eL) {
+      console.warn('[v107FG] no pude construir la hoja Registro Legal:', eL);
+    }
+
     const hoy = _fichajeFechaLocal(new Date());
     XLSX.writeFile(wb, `fichajes_${hoy}.xlsx`);
     toast('✅ Excel descargado');
