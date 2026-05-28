@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
+<!-- v107FA (28/05/2026): NUEVO módulo FICHAJE (registro de jornada, RDL 8/2019). Pestaña 🕐 Fichaje visible para admin (ve todo, corrige, exporta Excel) y para quien tenga puede_fichar=TRUE (su propio fichaje con botón grande entrada→comida→salida). Tabla 'fichajes' inmutable (sin UPDATE/DELETE en BD; correcciones = filas nuevas). Requiere fichaje_setup.sql. -->
+<!-- v107FB (28/05/2026): FICHAJE + AUSENCIAS. Botón "📅 Marcar día sin trabajo" (trabajadora marca la suya, admin la de cualquiera). Motivos: vacaciones/baja/festivo/falta. Soporta rango de días (una fila por día). Si hoy hay ausencia, la botonera no ofrece fichar. Tabla y Excel muestran ausencias como "día completo". Requiere fichaje_ausencias.sql (amplía el CHECK de tipos). -->
+
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1089,8 +1092,9 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             onclick="ficharBotonGrande()">Cargando...</button>
           <div id="fichajeRelojVivo" style="font-family:var(--dp);font-size:40px;letter-spacing:3px;color:var(--ac)"></div>
           <!-- Opción ficha a mano (por si se olvidó al llegar) -->
-          <div style="margin-top:18px">
+          <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">✍️ Apuntar una hora a mano</button>
+            <button class="btn bw" style="font-size:11px" onclick="abrirFichajeAusencia()">📅 Marcar día sin trabajo</button>
           </div>
         </div>
       </div>
@@ -1103,6 +1107,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <input type="date" class="fi" id="fichajeFiltroDesde" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Desde">
             <input type="date" class="fi" id="fichajeFiltroHasta" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Hasta">
             <button class="btn bs" onclick="loadFichajes()" style="font-size:11px">🔄 Refrescar</button>
+            <button class="btn bw" id="fichajeBtnAusenciaAdmin" onclick="abrirFichajeAusencia()" style="font-size:11px;display:none">📅 Marcar ausencia</button>
             <button class="btn bw" id="fichajeBtnExcel" onclick="exportFichajesExcel()" style="font-size:11px;display:none">📊 Excel</button>
           </div>
         </div>
@@ -9331,8 +9336,16 @@ const _FICHAJE_LABELS = {
   salida_comida:  '🍽️ Salida a comer',
   vuelta_comida:  '↩️ Vuelta de comer',
   salida:         '🔴 Salida',
-  correccion:     '✏️ Corrección'
+  correccion:     '✏️ Corrección',
+  vacaciones:     '🏖️ Vacaciones',
+  baja:           '🩺 Baja médica',
+  festivo:        '🎉 Festivo',
+  falta:          '⛔ Falta'
 };
+
+// Tipos que son AUSENCIA (día sin trabajo), no horas
+const _FICHAJE_AUSENCIAS = ['vacaciones', 'baja', 'festivo', 'falta'];
+function _fichajeEsAusencia(tipo) { return _FICHAJE_AUSENCIAS.includes(tipo); }
 
 // Orden lógico de la jornada y qué botón ofrecer en cada punto
 function _fichajeSiguienteEvento(eventosHoy) {
@@ -9449,11 +9462,15 @@ function renderFichaje() {
     if (botonera) botonera.style.display = 'none';
     if (titulo) titulo.textContent = 'TODOS LOS FICHAJES';
     if (btnExcel) btnExcel.style.display = '';
+    const btnAusAdm = document.getElementById('fichajeBtnAusenciaAdmin');
+    if (btnAusAdm) btnAusAdm.style.display = '';
   } else {
     // TRABAJADORA: botonera grande + su histórico
     if (botonera) botonera.style.display = '';
     if (titulo) titulo.textContent = 'MIS FICHAJES';
     if (btnExcel) btnExcel.style.display = 'none';
+    const btnAusAdm = document.getElementById('fichajeBtnAusenciaAdmin');
+    if (btnAusAdm) btnAusAdm.style.display = 'none';
     _fichajeRenderBotonera();
   }
   renderFichajes();
@@ -9466,17 +9483,34 @@ function _fichajeRenderBotonera() {
   if (fechaEl) fechaEl.textContent = _fichajeFechaBonita(hoyISO);
 
   const eventosHoy = _fichajeEventosValidosDia(currentUser.id, hoyISO);
-  const siguiente = _fichajeSiguienteEvento(eventosHoy);
+  // ¿Hoy hay una ausencia marcada (vacaciones/baja/festivo/falta)?
+  const ausenciaHoy = eventosHoy.find(t => _fichajeEsAusencia(t));
+  // Para el botón de horas, solo cuentan los eventos de jornada (no ausencias)
+  const eventosJornada = eventosHoy.filter(t => !_fichajeEsAusencia(t));
+  const siguiente = _fichajeSiguienteEvento(eventosJornada);
 
   const estadoTxt = document.getElementById('fichajeEstadoTxt');
   const btn = document.getElementById('fichajeBtnGrande');
 
+  // Si hoy está marcado como ausencia, mostrarlo y NO ofrecer fichar
+  if (ausenciaHoy) {
+    if (estadoTxt) estadoTxt.textContent = 'Hoy está marcado como: ' + (_FICHAJE_LABELS[ausenciaHoy] || ausenciaHoy);
+    if (btn) {
+      btn.textContent = (_FICHAJE_LABELS[ausenciaHoy] || ausenciaHoy).toUpperCase();
+      btn.disabled = true;
+      btn.style.opacity = '.55';
+      btn.style.cursor = 'default';
+    }
+    _fichajeArrancarReloj();
+    return;
+  }
+
   // Texto de estado
   if (estadoTxt) {
-    if (eventosHoy.length === 0) {
+    if (eventosJornada.length === 0) {
       estadoTxt.textContent = 'Aún no has fichado hoy.';
     } else {
-      const ultimo = eventosHoy[eventosHoy.length - 1];
+      const ultimo = eventosJornada[eventosJornada.length - 1];
       estadoTxt.textContent = 'Último fichaje de hoy: ' + (_FICHAJE_LABELS[ultimo] || ultimo);
     }
   }
@@ -9659,8 +9693,10 @@ function cerrarFichajeModal() {
   document.getElementById('ovFichaje').classList.remove('open');
 }
 
-// Guardar desde el modal (manual o corrección)
+// Guardar desde el modal (manual, corrección o ausencia)
 async function guardarFichajeManual() {
+  // Si el modal está en modo ausencia, derivar a su propia función
+  if (_fichajeModalModo === 'ausencia') { return guardarFichajeAusencia(); }
   try {
     const tipo = document.getElementById('fmTipo')?.value;
     const fecha = document.getElementById('fmFecha')?.value;
@@ -9702,6 +9738,142 @@ async function guardarFichajeManual() {
   } catch (e) {
     console.error('[guardarFichajeManual]', e);
     toast('Error al guardar: ' + (e.message || e), 'err');
+  }
+}
+
+// ---------- AUSENCIAS (vacaciones / baja / festivo / falta) ----------
+
+// Lista de personas que pueden fichar (para que el admin elija de quién es
+// la ausencia). Devuelve [{id, nombre, dni, empresa, cif}]
+function _fichajeListaTrabajadores() {
+  const lista = [];
+  Object.keys(userMap || {}).forEach(id => {
+    const p = userMap[id];
+    if (p && p.puede_fichar) {
+      lista.push({
+        id: id,
+        nombre: p.name || id,
+        dni: p.fichaje_dni || null,
+        empresa: p.fichaje_empresa || null,
+        cif: p.fichaje_cif || null
+      });
+    }
+  });
+  lista.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  return lista;
+}
+
+// Abrir modal para marcar día(s) sin trabajo
+function abrirFichajeAusencia() {
+  _fichajeModalModo = 'ausencia';
+  _fichajeCorrigeId = null;
+  const titulo = document.getElementById('fichajeModalTitulo');
+  if (titulo) titulo.textContent = 'MARCAR DÍA SIN TRABAJO';
+  const hoy = _fichajeFechaLocal(new Date());
+  const esAdmin = _fichajeEsAdmin();
+
+  // Si es admin, selector de trabajadora; si no, ella misma (oculto)
+  let selectorTrabajadora = '';
+  if (esAdmin) {
+    const lista = _fichajeListaTrabajadores();
+    const opciones = lista.map(t =>
+      `<option value="${t.id}">${_fichajeEsc(t.nombre)}${t.empresa ? ' · ' + _fichajeEsc(t.empresa) : ''}</option>`
+    ).join('');
+    selectorTrabajadora = `
+      <div class="login-field">
+        <label class="login-label">Trabajador/a</label>
+        <select class="login-input" id="faTrabajador">${opciones}</select>
+      </div>`;
+  }
+
+  const fields = document.getElementById('fichajeModalFields');
+  if (fields) {
+    fields.innerHTML = `
+      ${selectorTrabajadora}
+      <div class="login-field">
+        <label class="login-label">Motivo</label>
+        <select class="login-input" id="faMotivo">
+          <option value="vacaciones">🏖️ Vacaciones</option>
+          <option value="baja">🩺 Baja médica</option>
+          <option value="festivo">🎉 Festivo</option>
+          <option value="falta">⛔ Falta</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Desde el día</label>
+          <input type="date" class="login-input" id="faDesde" value="${hoy}">
+        </div>
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Hasta el día</label>
+          <input type="date" class="login-input" id="faHasta" value="${hoy}">
+        </div>
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:2px">
+        Si es un solo día, deja la misma fecha en los dos. Para varios días seguidos
+        (ej. una semana de vacaciones), pon el primero y el último.
+      </div>
+      <div class="login-field" style="margin-top:10px">
+        <label class="login-label">Observación (opcional)</label>
+        <input type="text" class="login-input" id="faNota" placeholder="Ej: vacaciones de verano">
+      </div>`;
+  }
+  document.getElementById('ovFichaje').classList.add('open');
+}
+
+// Guardar la(s) ausencia(s): una fila por cada día del rango
+async function guardarFichajeAusencia() {
+  try {
+    const motivo = document.getElementById('faMotivo')?.value;
+    const desde = document.getElementById('faDesde')?.value;
+    const hasta = document.getElementById('faHasta')?.value;
+    const nota = document.getElementById('faNota')?.value || null;
+    if (!motivo || !desde || !hasta) { toast('Rellena motivo y fechas', 'warn'); return; }
+    if (hasta < desde) { toast('La fecha "hasta" no puede ser anterior a "desde"', 'err'); return; }
+
+    // ¿De quién es la ausencia?
+    let destino;
+    if (_fichajeEsAdmin()) {
+      const idSel = document.getElementById('faTrabajador')?.value;
+      const lista = _fichajeListaTrabajadores();
+      const t = lista.find(x => x.id === idSel);
+      if (!t) { toast('Selecciona un trabajador', 'warn'); return; }
+      destino = { user_id: t.id, trabajador: t.nombre, dni: t.dni, empresa: t.empresa, cif: t.cif };
+    } else {
+      destino = _fichajeMisDatos();
+    }
+
+    // Generar una fila por cada día del rango (mediodía, para evitar líos de zona horaria)
+    const filas = [];
+    let d = new Date(desde + 'T12:00:00');
+    const fin = new Date(hasta + 'T12:00:00');
+    let guardia = 0;
+    while (d <= fin && guardia < 370) {
+      filas.push({
+        user_id: destino.user_id,
+        trabajador: destino.trabajador,
+        dni: destino.dni,
+        empresa: destino.empresa,
+        cif: destino.cif,
+        tipo: motivo,
+        ts: new Date(d).toISOString(),
+        metodo: 'manual',
+        nota: nota,
+        registrado_por: currentUser.id
+      });
+      d.setDate(d.getDate() + 1);
+      guardia++;
+    }
+    if (!filas.length) { toast('No hay días que marcar', 'warn'); return; }
+
+    const { error } = await sb.from('fichajes').insert(filas);
+    if (error) throw error;
+    toast(`✅ ${filas.length} día(s) marcado(s) como ${(_FICHAJE_LABELS[motivo] || motivo)}`);
+    cerrarFichajeModal();
+    await loadFichajes();
+  } catch (e) {
+    console.error('[guardarFichajeAusencia]', e);
+    toast('Error al marcar: ' + (e.message || e), 'err');
   }
 }
 
@@ -9755,6 +9927,7 @@ function renderFichajes() {
     const esCorr = f.tipo === 'correccion';
     const refTs = esCorr ? (f.ts_corregido || f.ts) : f.ts;
     const tipoMostrar = esCorr ? (f.tipo_corregido || '') : f.tipo;
+    const esAus = _fichajeEsAusencia(tipoMostrar);
     let etiqueta = _FICHAJE_LABELS[tipoMostrar] || tipoMostrar;
     if (esCorr) {
       etiqueta = f.anulado
@@ -9762,12 +9935,16 @@ function renderFichajes() {
         : '✏️ Corrige a ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar);
     }
     const comoTxt = f.metodo === 'manual' ? '✍️ A mano' : '👆 Botón';
-    const rowStyle = esCorr ? ' style="background:rgba(245,166,35,.06)"' : '';
+    // Fondo: corrección ámbar suave, ausencia azulado suave, normal sin fondo
+    let rowStyle = '';
+    if (esCorr) rowStyle = ' style="background:rgba(245,166,35,.06)"';
+    else if (esAus) rowStyle = ' style="background:rgba(123,143,240,.06)"';
 
     html += `<tr${rowStyle}>`;
     if (esAdmin) html += td(f.trabajador || '—');
     html += td(_fichajeFechaBonita(_fichajeFechaLocal(refTs)));
-    html += td('<b>' + _fichajeHoraLocal(refTs) + '</b>');
+    // Las ausencias no tienen hora concreta: mostramos "—"
+    html += td(esAus ? '<span style="color:var(--mu)">— día completo</span>' : ('<b>' + _fichajeHoraLocal(refTs) + '</b>'));
     html += td(etiqueta);
     html += td(comoTxt);
     html += td(f.nota ? ('<span style="color:var(--mu)">' + _fichajeEsc(f.nota) + '</span>') : '—');
@@ -9813,6 +9990,7 @@ function exportFichajesExcel() {
       const esCorr = f.tipo === 'correccion';
       const refTs = esCorr ? (f.ts_corregido || f.ts) : f.ts;
       const tipoMostrar = esCorr ? (f.tipo_corregido || '') : f.tipo;
+      const esAus = _fichajeEsAusencia(tipoMostrar);
       let tipoTxt = (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar).replace(/^[^\sA-Za-zÁÉÍÓÚáéíóúÑñ]+\s*/, '');
       if (esCorr) tipoTxt = (f.anulado ? 'ANULA ' : 'CORRIGE ') + tipoTxt;
       return {
@@ -9821,7 +9999,7 @@ function exportFichajesExcel() {
         'Empresa': f.empresa || '',
         'CIF': f.cif || '',
         'Fecha': _fichajeFechaBonita(_fichajeFechaLocal(refTs)),
-        'Hora': _fichajeHoraLocal(refTs),
+        'Hora': esAus ? 'Día completo' : _fichajeHoraLocal(refTs),
         'Tipo': tipoTxt,
         'Método': f.metodo === 'manual' ? 'A mano' : 'Botón',
         'Nota': f.nota || '',
