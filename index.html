@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- v107ES4 (27/05/2026): Drag & Drop universal — Neumáticos + Gasoil. (1) Zona drag&drop verde "📥 Arrastra aquí albaranes Soledad PDF" en pestaña Neumáticos (debajo de Acciones); arrastra o pulsa para abrir selector; reusa neumAlbFilesSeleccionados. (2) Pestaña Gasoil: dos zonas en grid 2 cols — verde "📤 Tickets sueltos" (addFiles tipo 'gas') y azul "📄 Facturas mensuales" (addFiles tipo 'gasfac'). (3) Modo Prueba Neumáticos OCULTO por defecto, reactivable con ?modoprueba=1 en URL — initApp lee el parámetro y muestra el switch. Funciones nuevas: neumDropZoneDrop, gasDropZoneTicket, gasDropZoneFactura. Mantiene v107ES3 (modal flotante), v107ES2 (switch prueba), v107ES1 (lector). Facturación (autofactura Holcim) pendiente para próxima sesión. -->
+<!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -76,8 +76,6 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .tab:hover{color:var(--tx)}
 .tab.active{color:var(--ac);border-bottom-color:var(--ac)}
 .tab-badge{background:var(--ac);color:#000;border-radius:10px;padding:1px 6px;font-size:9px}
-.factSubTab{transition:all 0.2s}
-.factSubTabActive{background:rgba(34,197,94,0.2)!important;border-color:#22c55e!important;color:#22c55e!important;font-weight:700}
 
 /* WRAP */
 .wrap{max-width:1600px;margin:0 auto;padding:20px 24px}
@@ -435,14 +433,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')">📄 Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
       <!-- v107V: Subir movida junto a Albaranes — más cómodo el flujo subir → ver albaranes -->
       <div class="tab" id="tabSubir" onclick="switchTab('subir')">➕ Subir</div>
-      <!-- v107ER1 (27/05/2026): pestaña Preliquidaciones OCULTA. Plan B Facturación
-           — la sustituye la nueva pestaña FACTURACIÓN (v107ER2). El código de
-           Preliquidaciones se mantiene en el archivo por seguridad hasta que la
-           nueva pestaña esté probada 1-2 meses; luego se borrará. NO ELIMINAR. -->
-      <div class="tab" id="tabPreli" onclick="switchTab('preli')" style="display:none">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
-      <!-- v107ER2 (27/05/2026): nueva pestaña FACTURACIÓN. Sustituye a Preliquidaciones.
-           Visible solo para admin JC + María del Mar + Marta. -->
-      <div class="tab" id="tabFact" onclick="switchTab('fact')" style="display:none">💶 Facturación <span class="tab-badge" id="tabFactCount">0</span></div>
+      <div class="tab" id="tabPreli" onclick="switchTab('preli')">📋 Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')">⛽ Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none">🛡️ ITV <span class="tab-badge" id="tabItvCount">0</span></div>
@@ -458,6 +449,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
       <div class="tab" id="tabProduccion" onclick="switchTab('produccion')" style="display:none">📊 Producción</div>
+      <!-- v107FA: pestaña Fichaje (registro de jornada). Oculta por defecto.
+           Solo la ven: el admin (vista completa de todas las trabajadoras) y
+           quien tenga puede_fichar=TRUE en profiles (su propio fichaje). -->
+      <div class="tab" id="tabFichaje" onclick="switchTab('fichaje')" style="display:none">🕐 Fichaje</div>
       <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">⚙️ Usuarios</div>
     </div>
 
@@ -553,27 +548,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <button class="btn bp" id="gasSubTYP2014" onclick="switchGasEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
         <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:11px">🚚 T. HISPALIS 2016</button>
         <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
-      </div>
-
-      <!-- v107ES4 (27/05/2026): zona drag & drop para gasoil. 2 botones porque hay 2 tipos:
-           tickets sueltos (de surtidor) vs facturas mensuales (que agrupan muchos tickets). -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-        <div id="gasDropZoneTicket" style="border:2px dashed rgba(74,222,128,0.3);border-radius:12px;padding:14px;text-align:center;background:rgba(74,222,128,0.04);transition:all 0.2s;cursor:pointer"
-             ondragover="event.preventDefault();this.style.background='rgba(74,222,128,0.15)';this.style.borderColor='#4ade80'"
-             ondragleave="this.style.background='rgba(74,222,128,0.04)';this.style.borderColor='rgba(74,222,128,0.3)'"
-             ondrop="gasDropZoneTicket(event)"
-             onclick="document.getElementById('gasUploadInline').click()">
-          <div style="font-family:var(--mn);font-size:12px;color:#4ade80;font-weight:600;margin-bottom:2px">📤 Tickets sueltos</div>
-          <div style="font-family:var(--mn);font-size:10px;color:var(--mu)">arrastra o pulsa · PDF/imagen</div>
-        </div>
-        <div id="gasDropZoneFactura" style="border:2px dashed rgba(96,165,250,0.3);border-radius:12px;padding:14px;text-align:center;background:rgba(96,165,250,0.04);transition:all 0.2s;cursor:pointer"
-             ondragover="event.preventDefault();this.style.background='rgba(96,165,250,0.15)';this.style.borderColor='#60a5fa'"
-             ondragleave="this.style.background='rgba(96,165,250,0.04)';this.style.borderColor='rgba(96,165,250,0.3)'"
-             ondrop="gasDropZoneFactura(event)"
-             onclick="document.getElementById('gasFacUploadInline').click()">
-          <div style="font-family:var(--mn);font-size:12px;color:#60a5fa;font-weight:600;margin-bottom:2px">📄 Facturas mensuales</div>
-          <div style="font-family:var(--mn);font-size:10px;color:var(--mu)">arrastra o pulsa · PDF</div>
-        </div>
       </div>
 
       <div class="card">
@@ -714,133 +688,6 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
               <tbody id="tbodyPreli"></tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- v107ER2 (27/05/2026): TAB FACTURACIÓN — nueva pestaña que sustituye Preliquidaciones.
-         Visible solo para admin JC + María del Mar + Marta. 3 subpestañas: Pendientes /
-         Facturados / No facturables. Marcado manual individual + lote. Filtros por mes,
-         cliente, estado. Próxima fase 2: lector autofactura Holcim. -->
-    <div id="tabContentFact" class="wrap" style="display:none">
-      <!-- Resumen arriba: cuántos en cada estado -->
-      <div class="card">
-        <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ok)"></div>FACTURACIÓN — CONTROL DE COBROS</div>
-        </div>
-        <div class="card-bd">
-          <div id="factResumen" style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
-            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
-              <div style="color:#ef4444;font-weight:700;font-size:18px" id="factPendCount">—</div>
-              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">🔴 Pendientes (sin facturar)</div>
-            </div>
-            <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
-              <div style="color:#22c55e;font-weight:700;font-size:18px" id="factFactCount">—</div>
-              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">✅ Facturados</div>
-            </div>
-            <div style="background:rgba(156,163,175,0.1);border:1px solid rgba(156,163,175,0.3);padding:10px 14px;border-radius:8px;min-width:180px">
-              <div style="color:#9ca3af;font-weight:700;font-size:18px" id="factNoFactCount">—</div>
-              <div style="color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">⚪ No facturables</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Subpestañas Pendientes / Facturados / No facturables -->
-      <div class="card" style="margin-top:14px">
-        <div class="card-hd">
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn br factSubTab factSubTabActive" id="factSubPend" onclick="factSwitchSub('pendiente')">🔴 Pendientes</button>
-            <button class="btn br factSubTab" id="factSubFact" onclick="factSwitchSub('facturado')">✅ Facturados</button>
-            <button class="btn br factSubTab" id="factSubNoFact" onclick="factSwitchSub('no_facturable')">⚪ No facturables</button>
-          </div>
-          <div class="tbl-acts">
-            <button class="btn bs" onclick="factExportExcel()">📊 Excel</button>
-          </div>
-        </div>
-        <div class="card-bd">
-          <!-- Filtros -->
-          <div class="filters" id="filtersFact" style="margin-bottom:12px">
-            <div class="fil-group">
-              <label class="fil-label">Mes</label>
-              <select class="fil-sel" id="fFactMes" onchange="factApplyFilters()">
-                <option value="">Todos los meses</option>
-              </select>
-            </div>
-            <div class="fil-group">
-              <label class="fil-label">Cliente</label>
-              <select class="fil-sel" id="fFactCliente" onchange="factApplyFilters()">
-                <option value="">Todos</option>
-              </select>
-            </div>
-            <div class="fil-group">
-              <label class="fil-label">Proveedor</label>
-              <select class="fil-sel" id="fFactProveedor" onchange="factApplyFilters()">
-                <option value="">Todos</option>
-              </select>
-            </div>
-            <div class="filter-actions">
-              <button class="btn bs" onclick="factResetFilters()">✕ Limpiar</button>
-            </div>
-          </div>
-
-          <!-- Acciones de lote (visibles solo cuando hay seleccionados) -->
-          <div id="factBulkBar" style="display:none;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-family:var(--mn);font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <span id="factBulkCount" style="color:#22c55e;font-weight:600">0 seleccionados</span>
-            <button class="btn bp" onclick="factBulkMarcar('facturado')">✅ Marcar facturados</button>
-            <button class="btn bw" onclick="factBulkMarcar('no_facturable')">⚪ Marcar no facturables</button>
-            <button class="btn br" onclick="factBulkMarcar('pendiente')">↩️ Volver a pendiente</button>
-            <button class="btn br" onclick="factBulkClear()">✕ Deseleccionar</button>
-          </div>
-
-          <!-- Tabla -->
-          <div class="tbl-wrap">
-            <table id="factTable">
-              <thead><tr>
-                <th style="width:36px"><input type="checkbox" id="factSelAll" onclick="factToggleAll(this.checked)"></th>
-                <th>Fecha</th>
-                <th>Matrícula</th>
-                <th>Nº Albarán</th>
-                <th>Proveedor</th>
-                <th>Cliente</th>
-                <th>TN</th>
-                <th>Factura ref</th>
-                <th>Fecha fact</th>
-                <th>Acciones</th>
-              </tr></thead>
-              <tbody id="factTableBody"></tbody>
-            </table>
-          </div>
-          <div id="emptyFact" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay albaranes en este estado.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal: marcar como facturado (pide nº factura + fecha + tipo) -->
-    <div id="factModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
-      <div style="background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:24px;max-width:480px;width:90%;font-family:var(--mn)">
-        <div style="font-size:16px;font-weight:700;margin-bottom:14px" id="factModalTitle">Marcar como facturado</div>
-        <div style="font-size:12px;color:var(--mu);margin-bottom:14px" id="factModalSubtitle"></div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <div>
-            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Nº factura / Referencia</label>
-            <input type="text" id="factModalRef" placeholder="ej. F-2026-058 o Autofactura mayo 2026 Holcim" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Fecha factura</label>
-            <input type="date" id="factModalFecha" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px">Tipo</label>
-            <select id="factModalTipo" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;color:var(--fg);font-family:var(--mn)">
-              <option value="emitida">Emitida (yo facturo al cliente)</option>
-              <option value="autofactura">Autofactura (el cliente me factura a mí)</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
-          <button class="btn br" onclick="factModalClose()">Cancelar</button>
-          <button class="btn bp" onclick="factModalConfirm()">✅ Confirmar</button>
         </div>
       </div>
     </div>
@@ -988,38 +835,14 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--pu)"></div>ACCIONES</div>
         </div>
-        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <!-- v107ES1: subir albarán Soledad (lo más importante: día a día) -->
-          <button class="btn bp" onclick="neumAlbSubirClick()" style="font-size:11px;font-weight:700">📤 Subir albarán Soledad</button>
-          <input type="file" id="neumAlbFileInput" accept="application/pdf,image/*" multiple style="display:none" onchange="neumAlbFilesSeleccionados(this.files)">
-          <!-- v107ES2: switch Modo Prueba — si está activo, lee el PDF pero NO guarda en BD.
-               v107ES4 (27/05/2026): OCULTO por defecto. Para reactivar, añade ?modoprueba=1 a la URL.
-               Esto se hace en el bloque JS al cargar la app (window._modoPruebaVisible). -->
-          <label id="neumModoPruebaLabel" style="display:none;align-items:center;gap:6px;font-family:var(--mn);font-size:11px;cursor:pointer;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);padding:4px 10px;border-radius:6px">
-            <input type="checkbox" id="neumModoPrueba" style="cursor:pointer">
-            <span style="color:#eab308;font-weight:600">🧪 Modo prueba (no guarda)</span>
-          </label>
-          <span style="display:inline-block;width:1px;background:var(--bd);margin:0 4px"></span>
+        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn bw" onclick="openNeumMovimientoModal('inventario_inicial')" style="font-size:11px">📥 Inventario inicial</button>
-          <button class="btn bs" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Compra manual</button>
-          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Montaje manual</button>
-          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura)</button>
+          <button class="btn bp" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Nueva compra</button>
+          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Registrar montaje</button>
+          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura/desecho)</button>
           <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;margin-left:auto">🔄 Refrescar</button>
         </div>
       </div>
-
-      <!-- v107ES4 (27/05/2026): zona de arrastrar y soltar PDFs Soledad -->
-      <div id="neumDropZone" style="margin-top:14px;border:2px dashed rgba(74,222,128,0.3);border-radius:12px;padding:18px;text-align:center;background:rgba(74,222,128,0.04);transition:all 0.2s;cursor:pointer"
-           ondragover="event.preventDefault();this.style.background='rgba(74,222,128,0.15)';this.style.borderColor='#4ade80'"
-           ondragleave="this.style.background='rgba(74,222,128,0.04)';this.style.borderColor='rgba(74,222,128,0.3)'"
-           ondrop="neumDropZoneDrop(event)"
-           onclick="neumAlbSubirClick()">
-        <div style="font-family:var(--mn);font-size:13px;color:#4ade80;font-weight:600;margin-bottom:4px">📥 Arrastra aquí albaranes Soledad PDF</div>
-        <div style="font-family:var(--mn);font-size:11px;color:var(--mu)">o pulsa para seleccionar archivos · varios a la vez</div>
-      </div>
-
-      <!-- v107ES1: banner para avisos de medidas 19,5 detectadas -->
-      <div id="neumBanner19_5" style="display:none;margin-top:14px"></div>
 
       <!-- Histórico de movimientos -->
       <div class="card" style="margin-top:14px">
@@ -1250,6 +1073,60 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
         </div>
         <div class="card-bd" id="usersListBox">Cargando usuarios...</div>
       </div>
+    </div>
+
+    <!-- v107FA: TAB FICHAJE (registro de jornada) -->
+    <div id="tabContentFichaje" class="wrap" style="display:none">
+
+      <!-- ZONA TRABAJADORA: botón grande para fichar (entrada/comida/salida) -->
+      <div class="card" id="fichajeBotonera" style="display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>MI JORNADA · <span id="fichajeHoy"></span></div>
+        </div>
+        <div class="card-bd" style="text-align:center;padding:24px 16px">
+          <div id="fichajeEstadoTxt" style="font-family:var(--mn);font-size:12px;color:var(--mu);margin-bottom:18px"></div>
+          <button id="fichajeBtnGrande" class="login-btn" style="max-width:340px;margin:0 auto 16px;font-size:15px;padding:18px"
+            onclick="ficharBotonGrande()">Cargando...</button>
+          <div id="fichajeRelojVivo" style="font-family:var(--dp);font-size:40px;letter-spacing:3px;color:var(--ac)"></div>
+          <!-- Opción ficha a mano (por si se olvidó al llegar) -->
+          <div style="margin-top:18px">
+            <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">✍️ Apuntar una hora a mano</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mi histórico de hoy (trabajadora) / Selector empresa (admin) -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--in)"></div><span id="fichajeTablaTitulo">FICHAJES</span></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="date" class="fi" id="fichajeFiltroDesde" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Desde">
+            <input type="date" class="fi" id="fichajeFiltroHasta" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Hasta">
+            <button class="btn bs" onclick="loadFichajes()" style="font-size:11px">🔄 Refrescar</button>
+            <button class="btn bw" id="fichajeBtnExcel" onclick="exportFichajesExcel()" style="font-size:11px;display:none">📊 Excel</button>
+          </div>
+        </div>
+        <div class="card-bd" id="fichajeTablaBox" style="overflow-x:auto">
+          <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando fichajes...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- v107FA: MODAL FICHAJE MANUAL (apuntar una hora a mano / corrección admin) -->
+<div class="ov" id="ovFichaje">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hd">
+      <div class="modal-title" id="fichajeModalTitulo">APUNTAR HORA A MANO</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="cerrarFichajeModal()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="fichajeModalFields"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bs" onclick="cerrarFichajeModal()">Cancelar</button>
+      <button class="btn bp" onclick="guardarFichajeManual()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1564,19 +1441,6 @@ const _msSets = {
 // AUTH
 // ============================================================
 async function initApp() {
-  // v107ES4 (27/05/2026): si la URL incluye ?modoprueba=1, mostrar el switch Modo Prueba en Neumáticos
-  try {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get('modoprueba') === '1') {
-      window._modoPruebaVisible = true;
-      // Lo mostraremos cuando se cargue la pestaña Neumáticos
-      setTimeout(() => {
-        const lbl = document.getElementById('neumModoPruebaLabel');
-        if (lbl) lbl.style.display = 'inline-flex';
-        console.log('[v107ES4] Modo Prueba habilitado por URL (?modoprueba=1)');
-      }, 1000);
-    }
-  } catch(e) {}
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     await onLogin(session.user);
@@ -1610,7 +1474,7 @@ async function loadUserMap() {
     // v107M: añadir puede_ver_vacaciones para la pestaña Vacaciones.
     // v107N: añadir empresa_vacaciones para filtrar subpestañas (igual que neumáticos pero admin NO ve Transmargaz).
     // v107AE: añadir puede_ver_taller + empresa_taller para la pestaña Taller (mismo patrón que vacaciones).
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller');
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
     (data || []).forEach(p => { userMap[p.id] = {
@@ -1622,7 +1486,11 @@ async function loadUserMap() {
       puede_ver_vacaciones: !!p.puede_ver_vacaciones,
       empresa_vacaciones: p.empresa_vacaciones || null,
       puede_ver_taller: !!p.puede_ver_taller,
-      empresa_taller: p.empresa_taller || null
+      empresa_taller: p.empresa_taller || null,
+      puede_fichar: !!p.puede_fichar,
+      fichaje_dni: p.fichaje_dni || null,
+      fichaje_empresa: p.fichaje_empresa || null,
+      fichaje_cif: p.fichaje_cif || null
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
@@ -1723,15 +1591,6 @@ async function loadUserMap() {
         if (tabPreli) tabPreli.style.display = 'none';
         if (tabGas) tabGas.style.display = 'none';
       }
-      // v107ER2 (27/05/2026): pestaña FACTURACIÓN visible SOLO para admin JC +
-      // María del Mar + Marta. El resto (logística Transmargaz, taller, conductores,
-      // subcontratados) NO la ven. Es información económica sensible.
-      const _esAdminOMariaOMarta = (rolActual === 'admin'
-                                  || _emailAG === 'mariadelmar@typ2014.local'
-                                  || _emailAG === 'marta@typ2014.local');
-      const tabFactEl = document.getElementById('tabFact');
-      if (tabFactEl) tabFactEl.style.display = _esAdminOMariaOMarta ? '' : 'none';
-      window._tieneFact = _esAdminOMariaOMarta;
       // v107BI: ocultar ALBARANES y SUBIR SOLO al usuario Taller PURO
       // (taller@typ2014.local). El error de v107BB era usar la condición
       // amplia "tienePermisoTaller && no admin", que sin querer también
@@ -1841,14 +1700,28 @@ async function loadUserMap() {
         // fuerzan aquí: siguen dependiendo de sus permisos por empresa de
         // siempre (puede_ver_itv, empresa_taller, etc.), para NO romper la
         // privacidad (ej. logística no debe ver Producción ni Usuarios).
-        // v107ER3 (27/05/2026): tabPreli YA NO se fuerza a visible nunca.
-        // Sustituida por FACTURACIÓN (v107ER2). Si Marta/MdM/Logística
-        // estaban entrando aquí esperando ver Preliquidaciones, ahora
-        // verán Facturación en su lugar.
+        const tabPreliShow = document.getElementById('tabPreli');
         const tabGasShow = document.getElementById('tabGas');
+        if (tabPreliShow) tabPreliShow.style.display = '';
         if (tabGasShow) tabGasShow.style.display = '';
       }
       // ============================================================
+
+      // v107FA: CAPA INDEPENDIENTE PARA LA PESTAÑA FICHAJE.
+      // Se ejecuta SIEMPRE, al margen de toda la lógica anterior, porque el
+      // fichaje no sigue el patrón "empresa del grupo": lo ve QUIEN ficha
+      // (puede_fichar=TRUE en BD) y el admin (vista completa de todas).
+      // - puede_fichar o admin  -> pestaña visible
+      // - cualquier otro        -> oculta
+      try {
+        const _miPerfil = userMap[currentUser.id] || {};
+        const _puedeFichar = !!_miPerfil.puede_fichar;
+        const _esAdminFichaje = (currentRole === 'admin');
+        const _tabFichaje = document.getElementById('tabFichaje');
+        if (_tabFichaje) {
+          _tabFichaje.style.display = (_puedeFichar || _esAdminFichaje) ? 'flex' : 'none';
+        }
+      } catch (e) { console.warn('[v107FA] visibilidad Fichaje:', e); }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
@@ -3406,137 +3279,31 @@ let _processingAlb = false;
 let _processingGas = false;
 let _processingAlbStartTs = 0; // timestamp del inicio para detectar bloqueos
 let _processingGasStartTs = 0;
-// v107EQ13 (27/05/2026): seguimiento de PROGRESO (no solo tiempo total).
-// Cuenta archivos terminados en la tanda actual. Si pasa demasiado tiempo
-// sin que avance este contador, asumimos cuelgue real (no que tarde mucho).
-let _processingAlbLastProgressTs = 0;
-let _processingAlbLastProgressCount = 0;
-let _processingGasLastProgressTs = 0;
-let _processingGasLastProgressCount = 0;
 // v107: bajado de 10 → 3 minutos. Un lote de 5 paralelos × 12s = 60s típico, así que 3min
 // es margen amplio para detectar cuelgues reales sin bloquear al usuario al subir más
 // albaranes pasado un ratito. Antes el timeout de 10 minutos hacía que tras un cuelgue
 // silencioso, el usuario tuviera que esperar 10 min o refrescar la página.
-// v107EQ13: bajado a 90s SIN progreso. Si en 90 segundos no termina ningún archivo,
-// asumimos que la llamada a IA está colgada y desbloqueamos automáticamente.
-const _PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos total (último recurso)
-const _PROCESSING_STALL_MS = 90 * 1000; // 90 segundos sin progresar = cuelgue
+const _PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos máx → si supera, asumir bloqueo
 
 // Auto-desbloqueo: si el flag lleva activo más del timeout, lo reseteamos. Esto pilla los casos
 // raros donde una llamada a la API se queda esperando para siempre y nunca llama al finally.
 // v107: ahora también avisa al usuario con un toast cuando detecta el cuelgue (antes silencioso).
-// v107EQ13: además del timeout absoluto, detecta CUELGUE POR FALTA DE PROGRESO: si en 90
-// segundos no termina ningún archivo, asume bloqueo y desbloquea + muestra banner ROJO
-// visible y persistente (no un toast que se desvanece).
 function checkProcessingStuck(type) {
   const now = Date.now();
-  // Caso 1: timeout absoluto (3 min)
   if (type === 'alb' && _processingAlb && _processingAlbStartTs > 0 && (now - _processingAlbStartTs) > _PROCESSING_TIMEOUT_MS) {
-    console.warn('[processQueue] Bloqueo detectado por timeout absoluto (3min) — desbloqueando automáticamente');
+    console.warn('[processQueue] Bloqueo detectado tras timeout — desbloqueando automáticamente');
     _processingAlb = false;
     _processingAlbStartTs = 0;
-    _processingAlbLastProgressTs = 0;
-    _processingAlbLastProgressCount = 0;
-    _v107EQ13MostrarBannerBloqueo('alb', 'timeout');
-    try { toast('🔓 Procesamiento anterior desbloqueado (3 min sin terminar).', 'warn'); } catch(e) {}
+    try { toast('🔓 Procesamiento anterior desbloqueado. Puedes continuar.', 'warn'); } catch(e) {}
     return true;
   }
   if (type === 'gas' && _processingGas && _processingGasStartTs > 0 && (now - _processingGasStartTs) > _PROCESSING_TIMEOUT_MS) {
     _processingGas = false;
     _processingGasStartTs = 0;
-    _processingGasLastProgressTs = 0;
-    _processingGasLastProgressCount = 0;
-    _v107EQ13MostrarBannerBloqueo('gas', 'timeout');
-    try { toast('🔓 Procesamiento gasoil anterior desbloqueado.', 'warn'); } catch(e) {}
-    return true;
-  }
-  // Caso 2 (v107EQ13): cuelgue por falta de progreso — más agresivo y útil
-  if (type === 'alb' && _processingAlb && _processingAlbLastProgressTs > 0
-      && (now - _processingAlbLastProgressTs) > _PROCESSING_STALL_MS) {
-    console.warn('[v107EQ13] Cuelgue detectado: 90s sin progresar. Desbloqueando automáticamente.');
-    _processingAlb = false;
-    _processingAlbStartTs = 0;
-    _processingAlbLastProgressTs = 0;
-    _processingAlbLastProgressCount = 0;
-    _v107EQ13MostrarBannerBloqueo('alb', 'stall');
-    return true;
-  }
-  if (type === 'gas' && _processingGas && _processingGasLastProgressTs > 0
-      && (now - _processingGasLastProgressTs) > _PROCESSING_STALL_MS) {
-    console.warn('[v107EQ13] Cuelgue detectado en gasoil: 90s sin progresar. Desbloqueando.');
-    _processingGas = false;
-    _processingGasStartTs = 0;
-    _processingGasLastProgressTs = 0;
-    _processingGasLastProgressCount = 0;
-    _v107EQ13MostrarBannerBloqueo('gas', 'stall');
+    try { toast('🔓 Procesamiento gasoil anterior desbloqueado. Puedes continuar.', 'warn'); } catch(e) {}
     return true;
   }
   return false;
-}
-
-// v107EQ13 (27/05/2026): banner ROJO persistente cuando se detecta bloqueo.
-// A diferencia del toast (que se desvanece a los 3s), este es visible hasta
-// que el usuario lo cierra o vuelve a procesar.
-function _v107EQ13MostrarBannerBloqueo(type, motivo) {
-  try {
-    const idBan = 'v107EQ13Banner_' + type;
-    let banner = document.getElementById(idBan);
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = idBan;
-      banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99998;background:#dc2626;color:#fff;padding:14px 18px;border-radius:8px;font-weight:600;font-size:14px;box-shadow:0 6px 20px rgba(220,38,38,0.4);max-width:90vw;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
-      document.body.appendChild(banner);
-    }
-    const txt = (motivo === 'stall') ? 'No avanza desde hace 90 segundos' : 'Se quedó procesando más de 3 minutos';
-    banner.innerHTML = `
-      <span>🔴 La IA no responde — ${txt}.</span>
-      <button onclick="processQueue('${type}')" style="background:#fff;color:#dc2626;border:none;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;">🔄 Reintentar</button>
-      <button onclick="document.getElementById('${idBan}').remove()" style="background:transparent;color:#fff;border:1px solid #fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;">✕</button>
-    `;
-  } catch(e) { console.warn('[v107EQ13] no pude mostrar banner:', e); }
-}
-
-// v107EQ13: registra progreso (llamado tras cada archivo terminado).
-// Actualiza el timestamp del último progreso para que checkProcessingStuck
-// sepa que la cola SÍ está avanzando aunque tarde mucho en total.
-function _v107EQ13RegistrarProgreso(type) {
-  const now = Date.now();
-  if (type === 'alb') {
-    _processingAlbLastProgressTs = now;
-    _processingAlbLastProgressCount++;
-  } else {
-    _processingGasLastProgressTs = now;
-    _processingGasLastProgressCount++;
-  }
-  // Actualizar indicador visual (parte 3 de v107EQ13)
-  _v107EQ13ActualizarIndicador(type);
-}
-
-// v107EQ13: indicador visual permanente arriba a la derecha "⚙️ Procesando X de Y".
-// Aparece al iniciar processQueue, se actualiza con cada archivo terminado,
-// se quita cuando termina toda la cola.
-function _v107EQ13ActualizarIndicador(type) {
-  try {
-    const idInd = 'v107EQ13Indicador_' + type;
-    let ind = document.getElementById(idInd);
-    const pending = type === 'alb' ? pendingAlb : pendingGas;
-    const total = pending.length;
-    const procesados = pending.filter(x => x.status === 'done' || x.status === 'error').length;
-    const enCurso = pending.filter(x => x.status === 'processing').length;
-    const enCola = pending.filter(x => x.status === 'pending').length;
-    if (total === 0 || procesados >= total) {
-      if (ind) ind.remove();
-      return;
-    }
-    if (!ind) {
-      ind = document.createElement('div');
-      ind.id = idInd;
-      ind.style.cssText = 'position:fixed;top:12px;right:12px;z-index:99997;background:#2563eb;color:#fff;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;box-shadow:0 4px 12px rgba(37,99,235,0.4);';
-      document.body.appendChild(ind);
-    }
-    const tipoTxt = type === 'alb' ? 'Albaranes' : 'Gasoil';
-    ind.innerHTML = `⚙️ ${tipoTxt}: ${procesados} de ${total}${enCurso > 0 ? ` (${enCurso} en curso)` : ''}`;
-  } catch(e) { console.warn('[v107EQ13] no pude actualizar indicador:', e); }
 }
 
 // Reset manual: si el usuario sospecha que está colgado, puede llamar a esta función
@@ -3583,24 +3350,8 @@ async function processQueue(type) {
     return;
   }
   if (type === 'gas' && _processingGas) return;
-  if (type === 'alb') {
-    _processingAlb = true;
-    _processingAlbStartTs = Date.now();
-    // v107EQ13: arrancar contador de progreso
-    _processingAlbLastProgressTs = Date.now();
-    _processingAlbLastProgressCount = 0;
-  } else {
-    _processingGas = true;
-    _processingGasStartTs = Date.now();
-    _processingGasLastProgressTs = Date.now();
-    _processingGasLastProgressCount = 0;
-  }
-  // v107EQ13: mostrar indicador "⚙️ Procesando X de Y" y limpiar cualquier banner rojo previo
-  try {
-    const banPrev = document.getElementById('v107EQ13Banner_' + type);
-    if (banPrev) banPrev.remove();
-    _v107EQ13ActualizarIndicador(type);
-  } catch(e) {}
+  if (type === 'alb') { _processingAlb = true; _processingAlbStartTs = Date.now(); }
+  else { _processingGas = true; _processingGasStartTs = Date.now(); }
 
   const key = getKey();
   if (!key) {
@@ -4648,81 +4399,6 @@ async function _processOne(it, type, key, timeoutMs) {
           return /\b(ecoplanet|bigmat|cem\s+|nhl|bl\s+ii|porcelanico|supercal|tempo gel|caliza|arena|arcilla|yeso|arido|ag-|af-)/i.test(t);
         };
         if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
-          // v107EQ9 (27/05/2026): DETECCIÓN AUTOMÁTICA refuerzo.
-          // La IA (Haiku) marca el flag `devolucion_palets:true` de forma
-          // INCONSISTENTE — a veces sí, a veces no, aunque el documento sea
-          // claramente una Nota de recibo de palets vacíos. Síntoma real
-          // reportado por Juan Carlos: PDF con 9 albaranes idénticos en
-          // formato, unos los reconoce y otros los marca como "PALET en
-          // monomaterial NO devolución" y se borran.
-          //
-          // Solución: si el flag falta pero hay SEÑALES CLARAS de devolución
-          // (Holcim + producto PALET puro + sin material real + alguna de:
-          // tm negativo en origen / tm muy pequeño / destino Fábrica Montcada
-          // o Montcada Mortero / obra vacía o Fábrica Montcada), forzamos el
-          // flag y lo tratamos como devolución legítima.
-          const _esHolcim = /holcim/i.test(String(data.proveedor || ''));
-          const _destinoMontcada = /(fábrica\s*montcada|fabrica\s*montcada|montcada\s+mortero|^montcada$)/i.test(String(data.obra || ''));
-          const _obraVacia = !data.obra || String(data.obra).trim() === '';
-          const _tmRaw = parseFloat(data.tm);
-          const _tmAbs = !isNaN(_tmRaw) ? Math.abs(_tmRaw) : 0;
-          // Una devolución típica son 2-20 palets (no decenas de TN)
-          const _tmPequenoPalet = !isNaN(_tmRaw) && _tmAbs >= 1 && _tmAbs <= 25;
-          const _tmNegativo = !isNaN(_tmRaw) && _tmRaw < 0;
-
-          // v107EQ12 (27/05/2026): RED DE SEGURIDAD para CRUCE origen↔destino.
-          // Error real reportado por Juan Carlos en albarán Nota de recibo Holcim:
-          // la IA cruzó los campos — puso planta="Puesto exp. Fábrica Montcada"
-          // (que es el destino) y obra="SU ALMACEN" (que es el origen). Como
-          // consecuencia: (1) la auto-detección v107EQ9 NO se activaba (destino
-          // no era Fábrica Montcada), (2) el filtro anti-palet borraba el
-          // albarán entero. Aquí detectamos esa inversión y la corregimos antes
-          // de aplicar las reglas siguientes.
-          const _esGenericoAlmacen = (txt) => {
-            // Nombres comerciales genéricos que aparecen en línea 1 del Destinatario
-            // y NUNCA son destinos reales — son etiquetas del documento Holcim.
-            const t = String(txt || '').toLowerCase().trim();
-            return /^(su\s*alm[aá]cen|mi\s*alm[aá]cen|mi\s*obra|nuestro\s*alm[aá]cen|alm[aá]cen\s*central)$/.test(t);
-          };
-          const _plantaContieneMontcada = /(fábrica\s*montcada|fabrica\s*montcada|montcada\s+mortero|puesto\s*exp.*montcada)/i.test(String(data.planta || ''));
-          // SI: producto es PALET puro + Holcim + (destino es genérico tipo SU ALMACEN
-          //     O el origen es Fábrica Montcada/Puesto exp. Montcada) → la IA cruzó
-          //     los campos. Invertimos.
-          if (_esHolcim
-              && !_contieneMaterialReal(data.producto)
-              && (_esGenericoAlmacen(data.obra) || _plantaContieneMontcada)) {
-            const plantaOrig = data.planta;
-            const obraOrig = data.obra;
-            // El destino correcto siempre es Fábrica Montcada (allí vuelven los palets)
-            data.obra = /mortero/i.test(plantaOrig || '') ? 'Montcada Mortero' : 'Fábrica Montcada';
-            // El origen correcto es lo que la IA puso en obra (si era genérico,
-            // lo dejamos como "" para que v107EQ9 luego lo trate como obra vacía;
-            // si no, copiamos el valor).
-            if (_esGenericoAlmacen(obraOrig)) {
-              data.planta = '';  // se dejará vacío para señalar al admin
-              console.log(`[v107EQ12 cruce detectado] Albarán Holcim con destino="${obraOrig}" (nombre genérico) + origen="${plantaOrig}" → INVERTIDO. Nueva obra="${data.obra}", planta="" (vacío para revisar).`);
-            } else {
-              data.planta = obraOrig;
-              console.log(`[v107EQ12 cruce detectado] Albarán Holcim con origen="${plantaOrig}" (era F.Montcada) + destino="${obraOrig}" → INVERTIDO. Nueva obra="${data.obra}", planta="${data.planta}".`);
-            }
-            // Marcamos el flag para que el siguiente bloque procese como devolución
-            data.devolucion_palets = true;
-          }
-
-          // Auto-detección: PALET puro + Holcim + (destino Montcada o obra vacía) + cantidad creíble de palets
-          if (data.devolucion_palets !== true
-              && !_contieneMaterialReal(data.producto)
-              && _esHolcim
-              && (_destinoMontcada || _obraVacia)
-              && (_tmNegativo || _tmPequenoPalet)) {
-            console.log(`[v107EQ9 auto-detección] Nota de recibo Holcim devolución palets DETECTADA por señales (sin flag IA). Producto="${data.producto}", tm=${data.tm}, obra="${data.obra || '(vacía)'}", proveedor="${data.proveedor}". Forzando devolucion_palets=true.`);
-            data.devolucion_palets = true;
-            // Si la obra está vacía, ponerla a Fábrica Montcada (es el destino real de palets de vuelta)
-            if (_obraVacia) {
-              data.obra = 'Fábrica Montcada';
-              console.log(`[v107EQ9 auto-detección] Obra vacía → forzada a "Fábrica Montcada" (destino estándar de devolución palets).`);
-            }
-          }
           // v107EQ: si la IA marcó devolucion_palets=true, RESPETAR el palet
           // como producto legítimo. La cantidad puede venir negativa: la
           // convertimos a positiva (Juan Carlos prefiere positivo + marca).
@@ -5009,8 +4685,6 @@ async function _processOne(it, type, key, timeoutMs) {
       try { if (typeof toast === 'function') toast('Factura repetida: ' + _facturaDupOmitidos + ' repostajes omitidos (no duplicado)', 'warn'); } catch (e) {}
     }
     it.status = 'done';
-    // v107EQ13 (27/05/2026): registrar progreso para detección de cuelgues.
-    try { _v107EQ13RegistrarProgreso(type); } catch(e) {}
     // v98: ya no necesitamos borrar/actualizar el pendiente aquí porque saveRecord lo hizo
     // como un UPDATE (la fila ya tiene procesado=true). Solo tenemos que limpiar la lista
     // en memoria del registro pendiente original (sin los datos IA), si existía un duplicado.
@@ -5047,8 +4721,6 @@ async function _processOne(it, type, key, timeoutMs) {
     return true;
   } catch (e) {
     it.status = 'error';
-    // v107EQ13 (27/05/2026): registrar progreso (también para errores — el archivo SÍ avanzó de estado).
-    try { _v107EQ13RegistrarProgreso(type); } catch(e2) {}
     // v107BC: log de error con tiempo total
     const _durErr = ((Date.now() - _tInicio) / 1000).toFixed(1);
     console.warn(`${_logPrefix} ✗ FALLÓ tras ${_durErr}s:`, e.message || e);
@@ -5294,7 +4966,7 @@ Campos a extraer:
 - fecha: DD/MM/YYYY
 - proveedor: empresa que emite el albarán
 - cliente: empresa compradora o destinataria. **CRÍTICO Holcim**: el cliente está en el campo "Cliente:" (suele aparecer junto al CÓDIGO de obra tipo CE44D, CE44E, CE44I y un nombre de planta como "Planta Hormigones Zona Franca", "Planta Hormigones Montcada", "La Roca", "Celra"). **NUNCA pongas como cliente lo que aparece en "Operador logístico:" ni en "Transp. efectivo:" — eso es el TRANSPORTISTA (PORTES 2014 IMPORT S.L. / TRANSPORTES Y PORTES 2014, S.L., CIF B90172735), NO un cliente. Si no encuentras el campo "Cliente:" o está vacío, devuelve null, NUNCA pongas Transportes y Portes 2014.**
-- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. 🟢 **REGLA UNIVERSAL HOLCIM CISTERNA (v107E6 — APLICA SIEMPRE, sin importar el cliente): si el albarán es Holcim de SALIDA cisterna (cabecera "Albarán" o "Albarán de traslado", número 31041... o 31042..., Cargador "Holcim España, S.A.U.", "Punto expedición: Fábrica Montcada" o "Planta: Fábrica Montcada") → el DESTINO se lee SIEMPRE de la línea inmediatamente debajo de "Obra:". 🔴🔴🔴 **v107E9 — INSTRUCCIÓN CRÍTICA (Juan Carlos 21/05/2026, error real detectado en albarán 31042168699): el destino es EXACTAMENTE la PRIMERA LÍNEA que ves debajo del literal "Obra:" en el albarán. Esa línea 1 puede ser un PUEBLO (ej. "VIC", "MALGRAT", "MONTCADA", "ALAIOR"), una EMPRESA (ej. "CIMENTS DE CATALUNYA, S.A.", "NUEVO ALMACEN MONTMELO", "MORTERO BEN SEC SL") o un NOMBRE DE OBRA (ej. "HS25 HORMIGON ENSACADO", "ESPECIAL 52,5 MONTMELO"). DA IGUAL LO QUE SEA — ese texto LITERAL de la línea 1 ES el destino. NUNCA, JAMÁS, BAJES a la línea 2 o 3 buscando el pueblo del CP. NUNCA cambies "CIMENTS DE CATALUNYA, S.A." por "Riudellots de la Selva" (ese es el CP de la dirección, NO el destino). NUNCA cambies "NUEVO ALMACEN MONTMELO" por "Montornès del Vallès". NUNCA cambies "HS25 HORMIGON ENSACADO" por "Montornès del Vallès". La línea 1 LITERAL siempre gana. Solo cuando el código de obra es CE44x Y la línea 1 es únicamente ese código corto (sin nombre detrás), entonces sí busca el nombre en la línea 2. EJEMPLO CRÍTICO ANTI-ERROR REAL: el albarán 31042168699 tiene "Obra: 0100533598 / CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → destino = "CIMENTS DE CATALUNYA, S.A." (LÍNEA 1 LITERAL). NO "Riudellots de la Selva" (eso es la línea 3, es el CP, NO se usa). 🆕 v107EB EJEMPLOS REALES NUEVOS detectados 21/05/2026 al final del día — NO COMETAS ESTOS ERRORES: (A) Albarán 31005003531 (ECOPlanet, Punto expedición: MOLIENDA TARRAGONA): bajo "Obra: 0101029655" la línea 1 pone "Castellbisbal" → destino = "Castellbisbal", NUNCA "Molienda Tarragona" (eso es el ORIGEN del camión, NO el destino). REGLA: si lo que ibas a poner como destino COINCIDE con el "Punto expedición:" o con el campo "Planta:" de la cabecera, has cogido el ORIGEN por error. Vuelve a buscar la línea 1 bajo "Obra:" y cópiala letra a letra. (B) Albarán 31042168703 (CEM II/A-L 52,5 R GRANEL, Facturar a: MORTERO BEN SEC SL): bajo "Obra: 0101087432" la línea 1 pone "ESPECIAL 52,5 MONTMELO" → destino = "ESPECIAL 52,5 MONTMELO", NUNCA "MORTERO BEN SEC SL" (eso es el CLIENTE, el "Facturar a:" — NO es destino). REGLA: si lo que ibas a poner como destino COINCIDE con "Facturar a:" o "Cliente:", has cogido el cliente por error. Vuelve a la línea 1 bajo "Obra:" y cópiala letra a letra. EN RESUMEN — DESTINO ≠ ORIGEN, DESTINO ≠ CLIENTE, DESTINO ≠ PUNTO EXPEDICIÓN, DESTINO ≠ PLANTA, DESTINO ≠ FACTURAR A, DESTINO ≠ OPERADOR LOGÍSTICO. DESTINO = LÍNEA 1 LITERAL BAJO "Obra:". Repite mentalmente: línea 1 LITERAL, sin importar qué hay debajo.** NUNCA del "Facturar a:", NUNCA del "Cliente:", NUNCA del "Operador logístico:", NUNCA del CP de la dirección. Esto es UNIVERSAL: aplica a TODOS los clientes (FORMIGONS ALSINA, JULIAN ARUMI, HORMIRAPIT, CIMENTS DE CATALUNYA, MORTERO BEN SEC, SAINT-GOBAIN, VALERIANO ALLES, y cualquier otro). El cliente puede tener su sede fiscal en un sitio (CAMPLLONG, VIC, MAÓ...) y el destino del transporte en OTRO sitio MUY distinto (MALGRAT, RIUDELLOTS, MONTCADA, CIUTADELLA...). El MISMO cliente puede tener destinos DIFERENTES en distintos albaranes — léelo cada vez, NUNCA copies el destino de un albarán al siguiente solo porque coincida el cliente. Si el PDF tiene varios albaranes seguidos del mismo cliente, cada uno lleva SU PROPIA línea bajo "Obra:" y ahí está el destino REAL.** **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): **REGLA DE ORO HOLCIM SALIDA (v107BV - PRIORITARIA, por encima de todo lo demas de Holcim): el DESTINO es EXACTAMENTE el texto de la PRIMERA LINEA debajo de la etiqueta \"Obra:\". Copialo TAL CUAL, letra a letra, sin interpretarlo, sin cambiarlo por un pueblo parecido, sin buscar el pueblo del codigo postal, sin usar el codigo de obra. Ejemplos: si debajo de \"Obra:\" pone \"Montcada (Hormig)\" el destino es \"Montcada (Hormig)\"; si pone \"RIUDARENES\" el destino es \"RIUDARENES\" (NUNCA \"Riudellots\" ni \"Riudallots\", son pueblos distintos, NO corrijas); si pone \"LA CARTUJA\" el destino es \"LA CARTUJA\" (NUNCA \"Orcoyen\" ni la direccion de \"Facturar a:\"); si pone \"MALGRAT\" el destino es \"MALGRAT\" (NUNCA \"CAMPLLONG\" aunque sea la sede del Facturar a: FORMIGONS ALSINA); si pone \"VIC\" el destino es \"VIC\" (NUNCA el cliente JULIAN ARUMI ni su dirección CR RIBAS). Si justo debajo de \"Obra:\" hay solo un codigo (ej. \"CE44K\") y el nombre esta en la linea siguiente, coge esa linea con el nombre. Lo de \"Facturar a:\" NUNCA es el destino. El mapeo CE44x de mas abajo es solo una AYUDA por si la linea esta ilegible; si la linea bajo \"Obra:\" se lee, MANDA SIEMPRE lo que pone esa linea, NO el mapeo.** **REGLA PREFERENTE PARA HOLCIM SALIDA**: en estos albaranes hay un bloque "Obra:" que contiene un CÓDIGO (ej. CE44D, CE44E, CE44K) Y JUSTO DEBAJO el NOMBRE DEL DESTINO en una línea propia. Lee SIEMPRE esa línea bajo el código como destino, NO el pueblo del CP. Mapeo confirmado: **CE44D → "Planta Hormigones Zona Franca"** (Calle C, sector B, 08040 Barcelona); **CE44K → "Montcada"** (Carretera Rivas Km 2, 08110 Montcada — SIEMPRE "Montcada", NUNCA "Planta de Montcada" que es de aridos, NUNCA el cliente); **CE44E → "La Roca"** (Polígono Industrial Font de la Pare, 08430 La Roca); **CE44I → "Celra"** (C/TER Nº 70 POLG IND DE CELRA, 17460 Celra); **CES17 → "Riudellots de la Selva"**. Si el código no está en este mapeo, devuelve la línea de NOMBRE bajo el código tal cual aparece. El campo "Obra:" suele tener formato "[código numérico largo] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "CIMENTS DE CATALUNYA, S.A." (literal línea 1 bajo Obra:, NO el pueblo del CP); "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "NUEVO ALMACEN MONTMELO" (literal línea 1, NO el pueblo); "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI. **CRÍTICO Eco Àrids 2025 (v99)**: en albaranes de "ECO ÀRIDS 2025, SL" (cabecera con logo de montañas, formato "Nº TICKET: XXXXXX"), el campo "OBRA/DESTI:" contiene el destino directamente (ej. "OBRA/DESTI: CELRA 5500116110" → destino = "Celra"; el número largo es código interno, ignorar). El cliente en estos albaranes es "HOLCIM ESPAÑA S.A.U.". El proveedor SIEMPRE es "Eco Àrids 2025, SL" (NUNCA "IDS 2025" — eso es OCR mal leído del logo de montañas). El origen es SIEMPRE "Bàscara a Esponellà" (es la planta de Eco Àrids, ver dirección "Ctra. de Bàscara a Esponellà"). **Aridcal (v99)**: en albaranes con cabecera "Document comercial Albarà d'entrega i carta de port" donde el campo "Origen:" o "Carregador:" pone "Aridcal, SAU" (Pont Major, Girona), el proveedor canónico es "Aridcal, SAU" Y el origen es "Aridcal" (NO "Pont Major"). El cliente es "HOLCIM ESPAÑA S.A.U." y el destino se lee del campo "Obra:" (ej. "PLANTA CELRÀ" → "Celra"). Estos albaranes Aridcal son siempre destino Celra (planta de hormigón Holcim). 🔴🔴🔴 **GIRONA RUNES vs ARIDCAL — v107EN4 (CRÍTICO 25/05/2026, error real albarán 0074009 30/04/2026): hay DOS albaranes que se PARECEN MUCHO porque usan el MISMO FORMATO "Document comercial Albarà d'entrega i carta de port" y AMBOS están relacionados con Holcim Celra, pero son OPUESTOS en flujo. ANTES DE PROCESAR este formato de albarán, MIRA EL MATERIAL/DESCRIPCIÓN del producto: (CASO A) Si el producto es ÁRIDO LIMPIO (ej. "AF-0/2-T-C", "AG-X/X-T-C", "ÁRIDO RECICLADO", "GRAVA", "ARENA") → es ARIDCAL. Camión SALE de Girona (Aridcal) y ENTRA a Holcim Celra. Proveedor = "Aridcal, SAU". Origen = "Aridcal". Destino = "Celra". TN normal (NO 1). (CASO B) Si el producto es "RESTES FORMIGÓ", "RESTES FORMIGO", "ESCOMBRO HORMIGÓN", contiene el código "CER 170101" o "LER 170101" o "170101" → es GIRONA RUNES (vertedero gestor de residuos). Camión SALE de Holcim Celra y VA a Girona Runes (vertedero). FLUJO INVERTIDO respecto a Aridcal. Reglas obligatorias: Proveedor = "Holcim España, S.A.U." (Holcim es quien encarga el viaje). Origen = "Celra" (DE DONDE SALE el camión cargado de escombro, es Holcim Celra). Destino = "Girona Runes" (DONDE SE DESCARGA el escombro, el vertedero). Cliente = "HOLCIM ESPAÑA S.A.U.". El campo "Origen:/Carregador:" del PDF pondrá "Girona Runes, S.L.U." (Pont Major, Girona) — esto es el GESTOR de residuos en el papel, NO confundir con el origen físico del transporte. El campo "Obra:/Destí:" del PDF pondrá "PLANTA CELRÀ" (17460 CELRÀ) — esto es la PLANTA emisora del residuo en el papel, NO el destino físico. EJEMPLO REAL albarán 0074009 (30/04/2026): "Origen: Girona Runes, S.L.U." + "Obra: PLANTA CELRÀ" + "Descripció: RESTES FORMIGÓ (CER 170101)" → proveedor="Holcim España, S.A.U.", origen="Celra", destino="Girona Runes", producto="RESTES FORMIGÓ (CER 170101)". NUNCA confundas Girona Runes con Aridcal por la cabecera idéntica — el MATERIAL los distingue 100%. ARIDCAL = áridos limpios (entrada a Celra). GIRONA RUNES = escombro/restes formigó/170101 (salida de Celra). Si dudas mira el código 170101: si está → GIRONA RUNES; si no → ARIDCAL.** **PUIGFEL / COVA SOLERA (v107AW — leer con MUCHA atención, se confunde con Aridcal):** son albaranes de retirada de ESCOMBRO de hormigón (residuo LER 170101) que SALEN de una obra/planta de Holcim y se llevan al vertedero/gestor Puigfel (Cova Solera, Rubí). Se reconocen porque arriba pone "PUIGFEL S.A.U." y hay un bloque "Destí càrrega Gestor: ... COVA SOLERA - RUBI". Reglas OBLIGATORIAS para estos albaranes: (1) El ORIGEN (campo planta) se lee SIEMPRE del bloque "Origen càrrega Obra:" — NUNCA pongas "Cova Solera" como origen, eso es el DESTINO. Ese bloque tiene un código (ej. "16545B"), debajo una ciudad y debajo el nombre real. Si en ese bloque aparece "ZONA FRANCA" en cualquier línea, el origen es exactamente "Zona Franca". Si aparece "LA ROCA", el origen es exactamente "La Roca". Ejemplos reales: "Origen càrrega Obra: 16545B BARCELONA ZONA FRANCA - BARCELONA" entonces origen = "Zona Franca"; "Origen càrrega Obra: 16545A LA ROCA DEL VALLES" entonces origen = "La Roca". Si NO logras leerlo con claridad, deja el origen vacío (null) — NUNCA inventes ni pongas "Cova Solera". (2) El DESTINO (campo obra) es SIEMPRE exactamente "Puigfel". (3) El CLIENTE es SIEMPRE exactamente "Holcim España, S.A.U." (Holcim es el dueño de la planta de origen). (4) El proveedor es "Puigfel/Rubi". El producto suele ser "TN GESTIÓ FORMIGÓ LER 170101".; **Cales de Pachs (v107EQ14 — proveedor nuevo 27/05/2026, pocos albaranes pero hay que leerlo bien):** albaranes con cabecera "CALES DE PACHS, S. A." (logo verde "pachs"), Muntanya de Sant Jaume s/n, 08796 Pacs del Penedès, NIF A08213936. Número de albarán formato "1/XXXXXX" (ej. "1/210817" — ATENCIÓN: NO es Sodira aunque empiece por "1/"; Sodira es "1/01718/XXXXXX" con tres bloques, Cales de Pachs solo dos: "1/" + 6 dígitos). En la columna Descripción está el material real (ej. "LINK EVR GRANEL"). IGNORA la línea "Valor Emisiones Co2 Repercutido" (cargo administrativo de CO2, NO es un material distinto). Cantidad (TN) en la columna "Cantidad" del material real (ej. 24,34). Reglas obligatorias para Cales de Pachs: (1) proveedor = "Cales de Pachs, S.A." (siempre así). (2) cliente = "Holcim España, S.A.U." siempre, aunque el albarán nombre a otro destinatario (RINOL ROCLAND u otros). Cales de Pachs vende a Holcim aunque entreguemos en una planta tercera. (3) planta (origen) = "Pacs del Penedès" siempre. (4) obra (destino) = null (vacío). El destino se rellena a mano después por el admin: el albarán no lo indica claramente (suele estar en un sello "HOLCIM Planta de Hormigón..." que la palabra "COPIA" tapa). NUNCA inventes destino para Cales de Pachs. (5) producto = el de la columna Descripción del material real (ej. "LINK EVR GRANEL"), SIN el "®" y SIN "Valor Emisiones Co2 Repercutido". (6) tractora: del bloque "Transportista" del albarán; en el ejemplo real aparece "7532-LPP R-8205-BDG" → tractora="7532LPP", remolque="R8205BDG" (la que empieza por R es el remolque, NO la tractora). **Frutos Secos Ráfales (v107EQ15 — proveedor nuevo 27/05/2026, MANUSCRITO, leer con MUCHA atención porque está escrito a mano):** son albaranes muy distintos de los demás. Cabecera impresa "FRUTOS SECOS RÁFALES, S.L." (CIF B-50.101.286, Ctra. Fabara s/n, 50794 NONASPE Zaragoza, Tel. 976 636 025). El RESTO está MANUSCRITO a bolígrafo: cliente, domicilio, fecha, cantidad, concepto, matrícula, remolque/caja. Suele aparecer un sello azul "HOLCIM Fábrica de Montcada" (es nuestro destino). Reglas obligatorias para Frutos Secos Ráfales: (1) **proveedor = "Frutos Secos Ráfales, S.L."** (siempre así, sin importar lo que esté escrito a mano). (2) **cliente = "Holcim España, S.A.U."** (siempre, aunque a mano ponga "Biomas" u otro nombre — Holcim es el cliente real porque la cáscara entra como materia prima a Fábrica Montcada). (3) **planta (origen) = "Nonaspe (Zaragoza)"** (siempre, así con la provincia entre paréntesis, es donde está la fábrica de Ráfales). (4) **obra (destino) = "Fábrica Montcada"** (siempre, donde se descarga la cáscara para Holcim). (5) **producto = "Cáscara Almendra"** (siempre, aunque a mano ponga "Cáscara Almendra Molino", "casca molino", "casca", etc.). (6) **tm**: la cantidad manuscrita en Kg dividida por 1000 (ej. "13120 Kg" o "Neto 13120 Kgs" → tm = 13.12). El neto puede estar en dos sitios del documento: arriba en la línea "Fecha/Cantidad/Concepto" o abajo en el ticket pequeño con "Bruto / Tara / Neto". Coge SIEMPRE el NETO (no el bruto ni la tara). (7) **albaran**: campo "N.°" arriba a la derecha — puede estar vacío o tener un número manuscrito. Si no se ve, déjalo null. (8) **fecha**: manuscrita arriba (ej. "8 de 5 de 2026" o "8-5-26") → 08/05/2026. (9) **tractora**: el número de matrícula manuscrita junto a "Matrícula" (ej. "9499LHT"). El campo "Caja" o "R XXXX BDG" es el remolque (empieza por R), NO la tractora. **IMPORTANTÍSIMO**: aunque sea manuscrito y cueste leer, INTENTA EXTRAER LO QUE PUEDAS. Es preferible devolver un albarán con 4-5 campos rellenos (proveedor, cliente, planta, obra, fecha) y otros vacíos, que devolver TODO null — si todo viene null la app lo descartará pensando que es una hoja en blanco. Como mínimo, devuelve siempre los 5 campos fijos (proveedor, cliente, planta, obra, producto) tal cual los he indicado arriba; los manuscritos (fecha, tm, tractora, albaran) léelos lo mejor que puedas y deja en null solo los que de verdad no veas. **Sodira Iberia (v102)**: en albaranes con cabecera "SÔDIRA ROCAS INDUSTRIALES" (o "SODIRA" sin acento por OCR), el proveedor canónico es "Sodira Iberia, S.L." (campo "Cargador:"). El origen es "Cantera de Garraf" (campo "Punto de Expedición: CANTERA GARRAF" — siempre así por ahora, todos los albaranes de Sodira que recibimos cargan en Cantera de Garraf). El destino es "Puerto de Barcelona" cuando la obra menciona "PUERTO DE BARCELONA", "GARRAF-UTE", "SATO Y CNES.RUBAU UTE" o similares. El cliente típico es "SATO Y CNES.RUBAU UTE 4ª FASE AMPLIACIÓN ADOSADO". El material está en el campo "Descripción" (ej. "AG-40/300-T-C") — usar ese texto literal. **🚛 Sodira (v107 — REGLAS CRÍTICAS para Nº ALBARÁN y MATRÍCULA, leer con atención):** **(A) NÚMERO DE ALBARÁN Sodira**: el formato es SIEMPRE "1/01718/XXXXXX" donde XXXXXX son 6 dígitos (ej. "1/01718/123141", "1/01718/122994"). Lo encuentras en la CABECERA del albarán, debajo del logo SODIRA, en una línea propia con el texto "Albarán 1/01718/XXXXXX". **EXTRAE SOLO la parte "1/01718/XXXXXX" — SIN la palabra "Albarán" delante, SIN espacios, SIN otros caracteres**. NO uses estos otros números que aparecen en el albarán: el código "21240000" (es el código de Cliente, NO el nº de albarán); el código "21240002" (es el código de Obra); el código "U22610554" (es el código fiscal del cliente); el código "15018284" (es código de material); el código "ENV/2023/000017669" (es código interno del productor de producto); el código "B87730180" (es el CIF de Sodira); el código "B90172735" (es el CIF del operador logístico). Si lees algo distinto a "1/01718/XXXXXX" para el nº albarán, lo estás haciendo mal — vuelve a buscar la línea con la palabra "Albarán" en la cabecera. **(B) MATRÍCULA TRACTORA Sodira**: en la zona derecha de la cabecera hay un bloque con varias líneas, y una de ellas pone "Matricula: XXXXMMM Remolque: RXXXXMMM" (ejemplo real: "Matricula: 4380MPL Remolque: R1880BDR"). La matrícula que necesitas es la de "Matricula:" (formato 4 dígitos + 3 letras, ej. "4380MPL"). La que aparece después de "Remolque:" empieza por "R" mayúscula (ej. "R1880BDR") y NO la cojas — es el remolque, NO la tractora. Devuelve la tractora EXACTA, sin la R, sin guiones, sin espacios. Si solo lees una matrícula y empieza por R, has cogido el remolque por error — busca la otra que está a su izquierda (sin R). **⚠️ v107AD — ERRORES REALES detectados en producción que DEBES evitar (mismo camión 5099LNP leído de 3 formas distintas y TODAS mal): (1) NO devuelvas el remolque como matrícula: si lees algo como "0893BDW" o cualquier valor que coincida con lo que hay tras "Remolque:", está MAL — la tractora es el OTRO valor, el que está tras "Matricula:". (2) LEE LOS DÍGITOS CON MÁXIMO CUIDADO: el error típico es cambiar un 9 por un 3 o un 1 (ej. real "5099LNP" mal leído como "5093LNP" o "5091NLP"). Mira dígito a dígito, especialmente los 9 (no confundir con 3, 8 ni 1). (3) NO INTERCAMBIES LETRAS: el orden de las 3 letras finales importa — "LNP" NO es lo mismo que "NLP". Lee las letras en el orden EXACTO en que aparecen, de izquierda a derecha. (4) Si la imagen está borrosa o tienes cualquier duda sobre un carácter de la matrícula, es preferible devolver la matrícula tal como la veas pero NUNCA inventes ni "corrijas" hacia una matrícula parecida. La matrícula correcta tiene formato 4 dígitos + 3 letras (ej. 5099LNP). Tómate el tiempo necesario para leer este campo: es el dato más crítico del albarán.**; **Àrids Garcia (v107BB — REGLA REFORZADA 23/05/2026, error real detectado: la IA leía "Llinars del Vallès" como destino cuando en realidad es el ORIGEN). Estos albaranes tienen un formato MUY SIMPLE y SIEMPRE IGUAL:**
+- obra: destino final = **PUEBLO o CIUDAD donde se descarga la mercancía**, NO un código ni un nombre de instalación interna. 🟢 **REGLA UNIVERSAL HOLCIM CISTERNA (v107E6 — APLICA SIEMPRE, sin importar el cliente): si el albarán es Holcim de SALIDA cisterna (cabecera "Albarán" o "Albarán de traslado", número 31041... o 31042..., Cargador "Holcim España, S.A.U.", "Punto expedición: Fábrica Montcada" o "Planta: Fábrica Montcada") → el DESTINO se lee SIEMPRE de la línea inmediatamente debajo de "Obra:". 🔴🔴🔴 **v107E9 — INSTRUCCIÓN CRÍTICA (Juan Carlos 21/05/2026, error real detectado en albarán 31042168699): el destino es EXACTAMENTE la PRIMERA LÍNEA que ves debajo del literal "Obra:" en el albarán. Esa línea 1 puede ser un PUEBLO (ej. "VIC", "MALGRAT", "MONTCADA", "ALAIOR"), una EMPRESA (ej. "CIMENTS DE CATALUNYA, S.A.", "NUEVO ALMACEN MONTMELO", "MORTERO BEN SEC SL") o un NOMBRE DE OBRA (ej. "HS25 HORMIGON ENSACADO", "ESPECIAL 52,5 MONTMELO"). DA IGUAL LO QUE SEA — ese texto LITERAL de la línea 1 ES el destino. NUNCA, JAMÁS, BAJES a la línea 2 o 3 buscando el pueblo del CP. NUNCA cambies "CIMENTS DE CATALUNYA, S.A." por "Riudellots de la Selva" (ese es el CP de la dirección, NO el destino). NUNCA cambies "NUEVO ALMACEN MONTMELO" por "Montornès del Vallès". NUNCA cambies "HS25 HORMIGON ENSACADO" por "Montornès del Vallès". La línea 1 LITERAL siempre gana. Solo cuando el código de obra es CE44x Y la línea 1 es únicamente ese código corto (sin nombre detrás), entonces sí busca el nombre en la línea 2. EJEMPLO CRÍTICO ANTI-ERROR REAL: el albarán 31042168699 tiene "Obra: 0100533598 / CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → destino = "CIMENTS DE CATALUNYA, S.A." (LÍNEA 1 LITERAL). NO "Riudellots de la Selva" (eso es la línea 3, es el CP, NO se usa). 🆕 v107EB EJEMPLOS REALES NUEVOS detectados 21/05/2026 al final del día — NO COMETAS ESTOS ERRORES: (A) Albarán 31005003531 (ECOPlanet, Punto expedición: MOLIENDA TARRAGONA): bajo "Obra: 0101029655" la línea 1 pone "Castellbisbal" → destino = "Castellbisbal", NUNCA "Molienda Tarragona" (eso es el ORIGEN del camión, NO el destino). REGLA: si lo que ibas a poner como destino COINCIDE con el "Punto expedición:" o con el campo "Planta:" de la cabecera, has cogido el ORIGEN por error. Vuelve a buscar la línea 1 bajo "Obra:" y cópiala letra a letra. (B) Albarán 31042168703 (CEM II/A-L 52,5 R GRANEL, Facturar a: MORTERO BEN SEC SL): bajo "Obra: 0101087432" la línea 1 pone "ESPECIAL 52,5 MONTMELO" → destino = "ESPECIAL 52,5 MONTMELO", NUNCA "MORTERO BEN SEC SL" (eso es el CLIENTE, el "Facturar a:" — NO es destino). REGLA: si lo que ibas a poner como destino COINCIDE con "Facturar a:" o "Cliente:", has cogido el cliente por error. Vuelve a la línea 1 bajo "Obra:" y cópiala letra a letra. EN RESUMEN — DESTINO ≠ ORIGEN, DESTINO ≠ CLIENTE, DESTINO ≠ PUNTO EXPEDICIÓN, DESTINO ≠ PLANTA, DESTINO ≠ FACTURAR A, DESTINO ≠ OPERADOR LOGÍSTICO. DESTINO = LÍNEA 1 LITERAL BAJO "Obra:". Repite mentalmente: línea 1 LITERAL, sin importar qué hay debajo.** NUNCA del "Facturar a:", NUNCA del "Cliente:", NUNCA del "Operador logístico:", NUNCA del CP de la dirección. Esto es UNIVERSAL: aplica a TODOS los clientes (FORMIGONS ALSINA, JULIAN ARUMI, HORMIRAPIT, CIMENTS DE CATALUNYA, MORTERO BEN SEC, SAINT-GOBAIN, VALERIANO ALLES, y cualquier otro). El cliente puede tener su sede fiscal en un sitio (CAMPLLONG, VIC, MAÓ...) y el destino del transporte en OTRO sitio MUY distinto (MALGRAT, RIUDELLOTS, MONTCADA, CIUTADELLA...). El MISMO cliente puede tener destinos DIFERENTES en distintos albaranes — léelo cada vez, NUNCA copies el destino de un albarán al siguiente solo porque coincida el cliente. Si el PDF tiene varios albaranes seguidos del mismo cliente, cada uno lleva SU PROPIA línea bajo "Obra:" y ahí está el destino REAL.** **Holcim albarán de SALIDA** (cabecera "Albarán" sin "DE RECEPCIÓN", número 11 dígitos que empieza por 31..., la mercancía SALE de Fábrica Montcada hacia obra externa): **REGLA DE ORO HOLCIM SALIDA (v107BV - PRIORITARIA, por encima de todo lo demas de Holcim): el DESTINO es EXACTAMENTE el texto de la PRIMERA LINEA debajo de la etiqueta \"Obra:\". Copialo TAL CUAL, letra a letra, sin interpretarlo, sin cambiarlo por un pueblo parecido, sin buscar el pueblo del codigo postal, sin usar el codigo de obra. Ejemplos: si debajo de \"Obra:\" pone \"Montcada (Hormig)\" el destino es \"Montcada (Hormig)\"; si pone \"RIUDARENES\" el destino es \"RIUDARENES\" (NUNCA \"Riudellots\" ni \"Riudallots\", son pueblos distintos, NO corrijas); si pone \"LA CARTUJA\" el destino es \"LA CARTUJA\" (NUNCA \"Orcoyen\" ni la direccion de \"Facturar a:\"); si pone \"MALGRAT\" el destino es \"MALGRAT\" (NUNCA \"CAMPLLONG\" aunque sea la sede del Facturar a: FORMIGONS ALSINA); si pone \"VIC\" el destino es \"VIC\" (NUNCA el cliente JULIAN ARUMI ni su dirección CR RIBAS). Si justo debajo de \"Obra:\" hay solo un codigo (ej. \"CE44K\") y el nombre esta en la linea siguiente, coge esa linea con el nombre. Lo de \"Facturar a:\" NUNCA es el destino. El mapeo CE44x de mas abajo es solo una AYUDA por si la linea esta ilegible; si la linea bajo \"Obra:\" se lee, MANDA SIEMPRE lo que pone esa linea, NO el mapeo.** **REGLA PREFERENTE PARA HOLCIM SALIDA**: en estos albaranes hay un bloque "Obra:" que contiene un CÓDIGO (ej. CE44D, CE44E, CE44K) Y JUSTO DEBAJO el NOMBRE DEL DESTINO en una línea propia. Lee SIEMPRE esa línea bajo el código como destino, NO el pueblo del CP. Mapeo confirmado: **CE44D → "Planta Hormigones Zona Franca"** (Calle C, sector B, 08040 Barcelona); **CE44K → "Montcada"** (Carretera Rivas Km 2, 08110 Montcada — SIEMPRE "Montcada", NUNCA "Planta de Montcada" que es de aridos, NUNCA el cliente); **CE44E → "La Roca"** (Polígono Industrial Font de la Pare, 08430 La Roca); **CE44I → "Celra"** (C/TER Nº 70 POLG IND DE CELRA, 17460 Celra); **CES17 → "Riudellots de la Selva"**. Si el código no está en este mapeo, devuelve la línea de NOMBRE bajo el código tal cual aparece. El campo "Obra:" suele tener formato "[código numérico largo] [NOMBRE]" seguido en líneas inferiores de "[dirección]" y "[CP] [PUEBLO]". El destino correcto es el PUEBLO de la última línea (ej: "0100533598 CIMENTS DE CATALUNYA, S.A. / RIUDELLOTS DE LA SELVA 1 / 17457 RIUDELLOTS DE LA SELVA" → "CIMENTS DE CATALUNYA, S.A." (literal línea 1 bajo Obra:, NO el pueblo del CP); "0101318106 GURREA DE GÁLLEGO / CRTA A-1209 KM 2,1 / 22280 Gurrea de Gállego" → "Gurrea de Gállego"; "0100526415 PLANTA FERRAN-RIERA / PLANTA FERRAN-RIERA / 43008 Tarragona" → "Tarragona"; "0101365454 NUEVO ALMACEN MONTMELO / POL IND CONGOST SECTOR J S/N / 08170 Montornés del Vallés" → "NUEVO ALMACEN MONTMELO" (literal línea 1, NO el pueblo); "0100526244 FABRICA ALCOVER / FABRICA ALCOVER / 43460 ALCOVER" → "Alcover"). **Si el campo "Obra:" contiene SOLO un código corto** como "CE44I", "CE44D", "CE44K" (sin nombre de pueblo), busca el PUEBLO en las 3 líneas inferiores del bloque (ej: "Obra: CE44I / C/TER Nº 70 POLG IND DE CELRA / 17460 Celra- (Girona)" → "Celra"; "CE44D / Calle C, sector B / 08040 Barcelona" → "Barcelona"; "CE44K / Carretera Rivas Km 2 / 08110 Montcada" → "Montcada"). **CRÍTICO**: NUNCA pongas como destino un código alfanumérico corto (CE44I, CE44D...), un nombre genérico ("NUEVO ALMACEN MONTMELO", "FABRICA X"), ni la dirección fiscal del cliente "Facturar a:", **ni la dirección del campo "Operador logístico:" — en estos albaranes el operador logístico es PORTES 2014 IMPORT S.L. (CALLE JARCHA NÚM. 11, 41100 SEVILLA, B02657435); esa es la sede del transportista, NUNCA es el destino del transporte. Si ves "Sevilla" como posible destino, casi seguro estás leyendo el campo del operador logístico — busca el destino real en el campo "Obra:" del mismo albarán**. El destino SIEMPRE debe ser un nombre de PUEBLO real. **Holcim albarán de RECEPCIÓN DE MATERIAL** (cabecera "ALBARÁN DE RECEPCIÓN DE MATERIAL"): destino es SIEMPRE "Fábrica Montcada" (el campo "PLANTA:" del albarán). **MATERIALES QUE SIEMPRE VAN A "Fábrica Montcada" como destino, sin excepción** (son materias primas que entran en Holcim Fábrica Montcada para fabricar cemento): YESO, ÁRIDO SIDERÚRGICO BLANCO, ARCILLA SILÍCIA PAPIOL, ARENA EXTRAÍDA CANTERA MARTORELL, CALIZA CEMEX, CALIZA FOJ, CALIZA PROMSA, ÁRIDO RECICLADO, CALIZA GARRAF ZAHORRA. Si el material del albarán contiene cualquiera de estos términos, el destino es "Fábrica Montcada" — NO el pueblo del proveedor, NO la dirección de la cantera. En Cemex busca "Datos Obra" (pueblo). En Élite Cementos coge el pueblo de "DIRECCIÓN ENVÍO" (ej: "Cambrils"). EXCEPCIONES POR CONTENIDO: si la obra contiene "HS25" o "HORMIGON ENSACADO" → "Montornès del Vallès"; "MONTMELO"/"MONTMELÓ" → "Montornès del Vallès"; Portland ACCESOS FERROVIARIOS → "UTE Accesos F. - El Prat"; Eco Àrids → pueblo del campo OBRA/DESTI. **CRÍTICO Eco Àrids 2025 (v99)**: en albaranes de "ECO ÀRIDS 2025, SL" (cabecera con logo de montañas, formato "Nº TICKET: XXXXXX"), el campo "OBRA/DESTI:" contiene el destino directamente (ej. "OBRA/DESTI: CELRA 5500116110" → destino = "Celra"; el número largo es código interno, ignorar). El cliente en estos albaranes es "HOLCIM ESPAÑA S.A.U.". El proveedor SIEMPRE es "Eco Àrids 2025, SL" (NUNCA "IDS 2025" — eso es OCR mal leído del logo de montañas). El origen es SIEMPRE "Bàscara a Esponellà" (es la planta de Eco Àrids, ver dirección "Ctra. de Bàscara a Esponellà"). **Aridcal (v99)**: en albaranes con cabecera "Document comercial Albarà d'entrega i carta de port" donde el campo "Origen:" o "Carregador:" pone "Aridcal, SAU" (Pont Major, Girona), el proveedor canónico es "Aridcal, SAU" Y el origen es "Aridcal" (NO "Pont Major"). El cliente es "HOLCIM ESPAÑA S.A.U." y el destino se lee del campo "Obra:" (ej. "PLANTA CELRÀ" → "Celra"). Estos albaranes Aridcal son siempre destino Celra (planta de hormigón Holcim). 🔴🔴🔴 **GIRONA RUNES vs ARIDCAL — v107EN4 (CRÍTICO 25/05/2026, error real albarán 0074009 30/04/2026): hay DOS albaranes que se PARECEN MUCHO porque usan el MISMO FORMATO "Document comercial Albarà d'entrega i carta de port" y AMBOS están relacionados con Holcim Celra, pero son OPUESTOS en flujo. ANTES DE PROCESAR este formato de albarán, MIRA EL MATERIAL/DESCRIPCIÓN del producto: (CASO A) Si el producto es ÁRIDO LIMPIO (ej. "AF-0/2-T-C", "AG-X/X-T-C", "ÁRIDO RECICLADO", "GRAVA", "ARENA") → es ARIDCAL. Camión SALE de Girona (Aridcal) y ENTRA a Holcim Celra. Proveedor = "Aridcal, SAU". Origen = "Aridcal". Destino = "Celra". TN normal (NO 1). (CASO B) Si el producto es "RESTES FORMIGÓ", "RESTES FORMIGO", "ESCOMBRO HORMIGÓN", contiene el código "CER 170101" o "LER 170101" o "170101" → es GIRONA RUNES (vertedero gestor de residuos). Camión SALE de Holcim Celra y VA a Girona Runes (vertedero). FLUJO INVERTIDO respecto a Aridcal. Reglas obligatorias: Proveedor = "Holcim España, S.A.U." (Holcim es quien encarga el viaje). Origen = "Celra" (DE DONDE SALE el camión cargado de escombro, es Holcim Celra). Destino = "Girona Runes" (DONDE SE DESCARGA el escombro, el vertedero). Cliente = "HOLCIM ESPAÑA S.A.U.". El campo "Origen:/Carregador:" del PDF pondrá "Girona Runes, S.L.U." (Pont Major, Girona) — esto es el GESTOR de residuos en el papel, NO confundir con el origen físico del transporte. El campo "Obra:/Destí:" del PDF pondrá "PLANTA CELRÀ" (17460 CELRÀ) — esto es la PLANTA emisora del residuo en el papel, NO el destino físico. EJEMPLO REAL albarán 0074009 (30/04/2026): "Origen: Girona Runes, S.L.U." + "Obra: PLANTA CELRÀ" + "Descripció: RESTES FORMIGÓ (CER 170101)" → proveedor="Holcim España, S.A.U.", origen="Celra", destino="Girona Runes", producto="RESTES FORMIGÓ (CER 170101)". NUNCA confundas Girona Runes con Aridcal por la cabecera idéntica — el MATERIAL los distingue 100%. ARIDCAL = áridos limpios (entrada a Celra). GIRONA RUNES = escombro/restes formigó/170101 (salida de Celra). Si dudas mira el código 170101: si está → GIRONA RUNES; si no → ARIDCAL.** **PUIGFEL / COVA SOLERA (v107AW — leer con MUCHA atención, se confunde con Aridcal):** son albaranes de retirada de ESCOMBRO de hormigón (residuo LER 170101) que SALEN de una obra/planta de Holcim y se llevan al vertedero/gestor Puigfel (Cova Solera, Rubí). Se reconocen porque arriba pone "PUIGFEL S.A.U." y hay un bloque "Destí càrrega Gestor: ... COVA SOLERA - RUBI". Reglas OBLIGATORIAS para estos albaranes: (1) El ORIGEN (campo planta) se lee SIEMPRE del bloque "Origen càrrega Obra:" — NUNCA pongas "Cova Solera" como origen, eso es el DESTINO. Ese bloque tiene un código (ej. "16545B"), debajo una ciudad y debajo el nombre real. Si en ese bloque aparece "ZONA FRANCA" en cualquier línea, el origen es exactamente "Zona Franca". Si aparece "LA ROCA", el origen es exactamente "La Roca". Ejemplos reales: "Origen càrrega Obra: 16545B BARCELONA ZONA FRANCA - BARCELONA" entonces origen = "Zona Franca"; "Origen càrrega Obra: 16545A LA ROCA DEL VALLES" entonces origen = "La Roca". Si NO logras leerlo con claridad, deja el origen vacío (null) — NUNCA inventes ni pongas "Cova Solera". (2) El DESTINO (campo obra) es SIEMPRE exactamente "Puigfel". (3) El CLIENTE es SIEMPRE exactamente "Holcim España, S.A.U." (Holcim es el dueño de la planta de origen). (4) El proveedor es "Puigfel/Rubi". El producto suele ser "TN GESTIÓ FORMIGÓ LER 170101".; **Sodira Iberia (v102)**: en albaranes con cabecera "SÔDIRA ROCAS INDUSTRIALES" (o "SODIRA" sin acento por OCR), el proveedor canónico es "Sodira Iberia, S.L." (campo "Cargador:"). El origen es "Cantera de Garraf" (campo "Punto de Expedición: CANTERA GARRAF" — siempre así por ahora, todos los albaranes de Sodira que recibimos cargan en Cantera de Garraf). El destino es "Puerto de Barcelona" cuando la obra menciona "PUERTO DE BARCELONA", "GARRAF-UTE", "SATO Y CNES.RUBAU UTE" o similares. El cliente típico es "SATO Y CNES.RUBAU UTE 4ª FASE AMPLIACIÓN ADOSADO". El material está en el campo "Descripción" (ej. "AG-40/300-T-C") — usar ese texto literal. **🚛 Sodira (v107 — REGLAS CRÍTICAS para Nº ALBARÁN y MATRÍCULA, leer con atención):** **(A) NÚMERO DE ALBARÁN Sodira**: el formato es SIEMPRE "1/01718/XXXXXX" donde XXXXXX son 6 dígitos (ej. "1/01718/123141", "1/01718/122994"). Lo encuentras en la CABECERA del albarán, debajo del logo SODIRA, en una línea propia con el texto "Albarán 1/01718/XXXXXX". **EXTRAE SOLO la parte "1/01718/XXXXXX" — SIN la palabra "Albarán" delante, SIN espacios, SIN otros caracteres**. NO uses estos otros números que aparecen en el albarán: el código "21240000" (es el código de Cliente, NO el nº de albarán); el código "21240002" (es el código de Obra); el código "U22610554" (es el código fiscal del cliente); el código "15018284" (es código de material); el código "ENV/2023/000017669" (es código interno del productor de producto); el código "B87730180" (es el CIF de Sodira); el código "B90172735" (es el CIF del operador logístico). Si lees algo distinto a "1/01718/XXXXXX" para el nº albarán, lo estás haciendo mal — vuelve a buscar la línea con la palabra "Albarán" en la cabecera. **(B) MATRÍCULA TRACTORA Sodira**: en la zona derecha de la cabecera hay un bloque con varias líneas, y una de ellas pone "Matricula: XXXXMMM Remolque: RXXXXMMM" (ejemplo real: "Matricula: 4380MPL Remolque: R1880BDR"). La matrícula que necesitas es la de "Matricula:" (formato 4 dígitos + 3 letras, ej. "4380MPL"). La que aparece después de "Remolque:" empieza por "R" mayúscula (ej. "R1880BDR") y NO la cojas — es el remolque, NO la tractora. Devuelve la tractora EXACTA, sin la R, sin guiones, sin espacios. Si solo lees una matrícula y empieza por R, has cogido el remolque por error — busca la otra que está a su izquierda (sin R). **⚠️ v107AD — ERRORES REALES detectados en producción que DEBES evitar (mismo camión 5099LNP leído de 3 formas distintas y TODAS mal): (1) NO devuelvas el remolque como matrícula: si lees algo como "0893BDW" o cualquier valor que coincida con lo que hay tras "Remolque:", está MAL — la tractora es el OTRO valor, el que está tras "Matricula:". (2) LEE LOS DÍGITOS CON MÁXIMO CUIDADO: el error típico es cambiar un 9 por un 3 o un 1 (ej. real "5099LNP" mal leído como "5093LNP" o "5091NLP"). Mira dígito a dígito, especialmente los 9 (no confundir con 3, 8 ni 1). (3) NO INTERCAMBIES LETRAS: el orden de las 3 letras finales importa — "LNP" NO es lo mismo que "NLP". Lee las letras en el orden EXACTO en que aparecen, de izquierda a derecha. (4) Si la imagen está borrosa o tienes cualquier duda sobre un carácter de la matrícula, es preferible devolver la matrícula tal como la veas pero NUNCA inventes ni "corrijas" hacia una matrícula parecida. La matrícula correcta tiene formato 4 dígitos + 3 letras (ej. 5099LNP). Tómate el tiempo necesario para leer este campo: es el dato más crítico del albarán.**; **Àrids Garcia (v107BB — REGLA REFORZADA 23/05/2026, error real detectado: la IA leía "Llinars del Vallès" como destino cuando en realidad es el ORIGEN). Estos albaranes tienen un formato MUY SIMPLE y SIEMPRE IGUAL:**
 
   📋 ESTRUCTURA del albarán Àrids Garcia (de arriba a abajo):
   1. **Logo "ÀRIDSGARCIA"** (todo junto, con eslogan "hallmark of quality") + cabecera "ARIDS GARCIA PEDRERA GAR 1, S.L.U / C. Josep Umbert 48, 08402 Granollers" / NIF B67351163. Esto es la EMPRESA proveedora, NO un origen ni destino.
@@ -5386,30 +5058,7 @@ Reglas de extracción para Nota de recibo de devolución:
   · **\`producto\`**: "PALET CEMENTO" o "PALET MORTERO" tal cual aparece en el campo Material.
   · **\`tm\`**: el VALOR ABSOLUTO de la cantidad neta (si pone -7 Piez, tm = 7; si pone -10 Piez, tm = 10). NÚMERO POSITIVO. NO uses el negativo.
   · **\`unidad_palet\`**: "piezas" (para distinguir que NO son toneladas).
-  · **\`planta\`** (origen): el PUEBLO del Destinatario donde están físicamente los palets. NUNCA "Fábrica Montcada" (eso es el destino).
-
-🔴 v107EQ11 (27/05/2026) — REGLA ABSOLUTA PARA EL ORIGEN (PLANTA) DE NOTAS DE RECIBO (leer con MUCHA atención, REEMPLAZA cualquier regla anterior):
-
-El campo \`planta\` se lee SIEMPRE del **PUEBLO** que aparece en la **LÍNEA 3** del bloque Destinatario (la que tiene el código postal). Quita el "ES" y los 5 dígitos del CP — devuelve SOLO el nombre del pueblo.
-
-Estructura típica del bloque Destinatario (3 líneas):
-  Destinatario:                100526520
-  SU ALMACEN                    ← LÍNEA 1 = NO USAR (puede ser nombre genérico tipo "SU ALMACEN")
-  RDA. SANT PERE, 319-321       ← LÍNEA 2 = dirección, NO USAR
-  ES 08251 SANTPEDOR            ← **LÍNEA 3** ← coge "SANTPEDOR" (sin "ES 08251")
-
-EJEMPLOS REALES (PDF de María del Mar, 27/05/2026):
-  - Destinatario "SU ALMACEN / RDA. SANT PERE, 319-321 / ES 08251 SANTPEDOR" → planta = "SANTPEDOR".
-  - Destinatario "SU ALMACEN / POL. IND. TORRENT D'EN PUIG, 23 / ES 08358 ARENYS DE MUNT" → planta = "Arenys de Munt".
-  - Destinatario "COLAS SANTPEDOR / Ronda sant pere . / ES 08251 Santpedor" → planta = "Santpedor".
-  - Destinatario "SANT SALVADOR DE GUARDIOLA / CR SANT SALVADOR DE GUARDIOLA / ES 08253 SANT SALVADOR DE GUARD" → planta = "Sant Salvador de Guardiola".
-  - Destinatario "ESPLUGUES DE LLOBREGAT / ESPLUGUES / ES 08950 Esplugues de Llobregat" → planta = "Esplugues de Llobregat".
-  - Destinatario "SANT CUGAT / . . / ES 08174 Sant Cugat del Vallés" → planta = "Sant Cugat del Vallés".
-  - Destinatario "SABADELL / SABADELL S/N / ES 08200 Sabadell" → planta = "Sabadell".
-  - Destinatario "RUBI / CTRA. RUBI TERRASSA, 125 / ES 08191 RUBI" → planta = "Rubi".
-  - Destinatario "VIC / Carrer dela Laura, 59 / ES 08500 Vic" → planta = "Vic".
-
-REGLA MENTAL: localiza visualmente el "ES " seguido de 5 dígitos en el bloque Destinatario. Lo que va DETRÁS de ese código postal ES el pueblo. Cópialo letra a letra, manteniendo acentos y mayúsculas/minúsculas como aparecen. NO uses la línea 1 (puede ser nombre genérico "SU ALMACEN", "MI OBRA", etc., que no identifica el sitio físico).
+  · **\`planta\`** (origen): el nombre del Destinatario arriba (de DONDE vuelven los palets). Ejemplos: "VIC", "SU ALMACEN", "COLAS SANTPEDOR". NUNCA "Fábrica Montcada" (eso es el destino).
   · **\`obra\`** (destino): SIEMPRE "Fábrica Montcada" (o "Montcada Mortero" si el documento es de mortero). La fábrica es a donde VUELVEN los palets.
   · **\`proveedor\`**: "Holcim España, S.A.U." (igual que un albarán Holcim normal).
   · **\`cliente\`**: del campo "Facturar a:" (ej. "BIGMAT OCHOA, S.L.", "MATERIALES CONSAN, S.A.").
@@ -5417,12 +5066,12 @@ REGLA MENTAL: localiza visualmente el "ES " seguido de 5 dígitos en el bloque D
   · **\`fecha\`**: del campo "Hora de carga:" (ej. "04.05.26 12:50" → 04/05/2026).
   · **\`tractora\`**: matrícula del camión, del campo "Matrícula camión:" del documento (ej. "1270LST"). IMPORTANTE: el campo se llama \`tractora\` (NO \`matricula\`).
 
-EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos:
-  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"Vic", obra:"Fábrica Montcada", tractora:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
+EJEMPLOS REALES de Notas de recibo (devolución palets) procesados por Juan Carlos el 26/05/2026:
+  EJEMPLO 1 — Nº 56304024 del 04/05/2026: Destinatario "VIC / Carrer dela Laura, 59 / 08500 Vic". Facturar a "BIGMAT OCHOA, S.L." (153700). Material "PALET CEMENTO" 70001411. Cant.Ped./Cant.Entr./Neto = -7.00 Piez. Matrícula 1270LST. → JSON: {albaran:"56304024", fecha:"04/05/2026", proveedor:"Holcim España, S.A.U.", cliente:"BIGMAT OCHOA, S.L.", producto:"PALET CEMENTO", tm:7, unidad_palet:"piezas", planta:"VIC", obra:"Fábrica Montcada", tractora:"1270LST", devolucion_palets:true, observaciones:"DEVOLUCIÓN PALETS VACÍOS"}.
 
-  EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SANTPEDOR", obra:"Fábrica Montcada", devolucion_palets:true, ...}. (NOTA: planta = "SANTPEDOR" del CP, NO "SU ALMACEN" de la línea 1).
+  EJEMPLO 2 — Nº 56373920 del 08/05/2026: Destinatario "SU ALMACEN / RDA. SANT PERE, 319 - 321 / 08251 SANTPEDOR". Facturar a "MATERIALES CONSAN, S.A.". Material "PALET CEMENTO" 70001411. Cant. -10.00 Piez. → JSON: {albaran:"56373920", fecha:"08/05/2026", producto:"PALET CEMENTO", tm:10, planta:"SU ALMACEN", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
 
-  EJEMPLO 3 — Nº 56373296 del 08/05/2026: Destinatario "COLAS SANTPEDOR / Ronda sant pere / 08251 Santpedor". Material "PALET MORTERO" 70001348. Cant. -6.00 Piez. Planta de Entrega "Montcada Mortero". → JSON: {albaran:"56373296", fecha:"08/05/2026", producto:"PALET MORTERO", tm:6, planta:"Santpedor", obra:"Fábrica Montcada", devolucion_palets:true, ...}. (NOTA: planta = "Santpedor" del CP, NO "COLAS SANTPEDOR" de la línea 1).
+  EJEMPLO 3 — Nº 56373296 del 08/05/2026: Destinatario "COLAS SANTPEDOR / Ronda sant pere / 08251 Santpedor". Material "PALET MORTERO" 70001348. Cant. -6.00 Piez. Planta de Entrega "Montcada Mortero". → JSON: {albaran:"56373296", fecha:"08/05/2026", producto:"PALET MORTERO", tm:6, planta:"COLAS SANTPEDOR", obra:"Fábrica Montcada", devolucion_palets:true, ...}.
 
 ⚠️ CRÍTICO: este flag \`devolucion_palets:true\` SOLO se usa para Notas de recibo de palets vacíos. NUNCA lo pongas en albaranes normales de Holcim (los que llevan cemento o áridos como material real). En esos albaranes normales, los palets siguen siendo IGNORADOS (no se guardan), tal como dicen las reglas anteriores.
 
@@ -5901,103 +5550,6 @@ async function callClaudeFacturaGasoil(b64, mediaType, key, isPdf, signal) {
   // origen_dato='factura_soledad' y poder compulsar con tickets en Fase 5).
   arr.forEach(r => { if (r && typeof r === 'object') r._origenFactura = true; });
   return arr;
-}
-
-// ============================================================
-// v107ES1 (27/05/2026): LECTOR DE ALBARANES NEUMÁTICOS SOLEDAD
-// ============================================================
-// Lee un albarán PDF/imagen de Soledad (Zona Franca Barcelona, etc) y
-// devuelve un array de líneas de neumáticos con:
-//   - cantidad, medida (315/80X22,5 o 385/65X22,5), marca, modelo
-//   - propiedad: 'SU_PROPIEDAD' (S/PROP — descontar stock)
-//                'COMPRA_VENTA' (sin S/PROP — Soledad vende+monta, +N y -N)
-//   - matricula, fecha, num_albaran, cif_cliente
-// IGNORA: mano de obra (MONTAJE+FIJACION, MANTENIMIENTO), turismo (17 pulg.).
-// AVISA si detecta 19,5 (medida que ahora no llevamos pero podríamos).
-async function callClaudeNeumAlb(b64, mediaType, key, isPdf, signal) {
-  const prompt = `Eres un OCR experto en albaranes de NEUMÁTICOS SOLEDAD (Grupo Soledad, Zona Franca Barcelona y otros centros) emitidos a empresas de transporte en España.
-
-Devuelve SIEMPRE un ARRAY JSON. Un objeto por cada LÍNEA REAL de neumático que aparezca en el albarán (no por cada línea visible, solo las que son neumáticos).
-
-CABECERA del albarán (extraer una sola vez por documento):
-- num_albaran: el número que va tras "Albarán:" (formato "DXXXXXXXXX", ej "D810005472", "D700003565").
-- fecha: en formato DD/MM/YYYY (ej "25/05/2026").
-- matricula: la matrícula del campo "Vehículo" (4 dígitos + 3 letras, ej "6521NHV", "9918MXC"; remolques empiezan por R, ej "R0951BDN"). Limpia espacios y guiones.
-- cif_cliente: el CIF que aparece tras "N.I.F." en el bloque Cliente (ej "B90172735", "B90286337", "B67316752"). Imprescindible para saber a qué empresa pertenece.
-
-LÍNEAS A EXTRAER — solo las que sean neumáticos de CAMIÓN (medida 22,5 o 19,5). El albarán típico tiene varias líneas:
-  · "MANTENIMIENTO CAMIÓN" 1,00 0,00 € — IGNORAR (cabecera técnica, no es producto)
-  · "MONTAJE+FIJACION" 4,00 17,84 € — IGNORAR (mano de obra)
-  · "MONTAJE CAMION MAYOR 19.5" 2,00 18,54 € — IGNORAR (mano de obra)
-  · "MONTAJE FIJACIÓN(QUIT.PONER)CM" 2,00 17,14 € — IGNORAR (mano de obra)
-  · "EQUILIBRADO CAMION CON ARENA" — IGNORAR (servicio)
-  · "DIAGNOSIS BOSCH KTS" — IGNORAR (servicio)
-  · "MONTAJE TURISMO" — IGNORAR (turismo, no llevamos stock)
-  · "Equilibrado Turismo" — IGNORAR
-  · "S.I.Gestión de NFU" — IGNORAR (tasa ecológica)
-  · "225/45X17" o "245/40X17" — IGNORAR (medidas de TURISMO 17 pulgadas, no de camión)
-
-Las líneas REALES de neumático de camión aparecen como TEXTO DESCRIPTIVO con cantidad y medida 22,5 o 19,5. Ejemplos:
-  · "SE MONTAN 4 315/80X22.5 CONT.HD5" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5"
-  · "SE MONTAN 4 315/80X22.5 CONT.HYBHD5 156L" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5" (HYB e índice "156L" son variantes técnicas, ignorarlas y devolver solo el modelo base)
-  · "MONTA 2NEUMS.S/PROP" + "385/65X225 CONTI HT3 SR" → cantidad 2, medida "385/65X22,5", marca CONTINENTAL, modelo "HT3 SR"
-  · "MONTA 4NEUMS. S/PROP" + "315/80X225 CONTI HD5" → cantidad 4, medida "315/80X22,5", marca CONTINENTAL, modelo "HD5"
-  · "MONTA 4) 315/80X22.5 CONTIENEN" + "Y 2) 385/65X22.5 CONTI HT3+ DE" → DOS líneas: una de 4 ud HD5 y otra de 2 ud HT3+ (la palabra "CONTIENEN" es OCR malo de "CONTINENTAL")
-  · "SE MONTAN 2 385/65X22.5 CONT.H" + "Y 2 385/65X22.5 CONT.HT3 SR" → DOS líneas
-
-Para cada línea de neumático real, devuelve un objeto con:
-- cantidad: número entero (la cantidad montada/vendida, ej 4, 2).
-- medida: medida normalizada con coma decimal "315/80X22,5" o "385/65X22,5" o "315/70X22,5". SIEMPRE con coma (no punto). Si en el texto pone "315/80X225" significa "315/80X22,5" (la coma se perdió, ponla).
-- marca: normalizada en MAYÚSCULAS. Variantes a normalizar:
-    "CONT." / "CONTI" / "CONTINEN" / "CONTIENEN" → "CONTINENTAL"
-    "BARUM" → "BARUM"
-    "MICH." / "MICHELIN" → "MICHELIN" (pero turismo, IGNORAR)
-- modelo: el modelo base sin sufijos técnicos ni índices. Limpia así:
-    "CONT.HD5" → "HD5"
-    "CONT.HYBHD5 156L" → "HD5" (quitar HYB inicial y "156L")
-    "CONT.HD3" → "HD3"
-    "CONT.HS3+" / "CONTI HS3+" → "HS3+"
-    "CONT.HS5" → "HS5"
-    "CONT.HT3 SR" → "HT3 SR"
-    "CONTI HT3+" → "HT3+"
-    "CONT.CHS3+" → "CHS3+"
-    "BARUM BF200R" → "BF200R"
-    "BARUM BT200R" → "BT200R"
-- propiedad: "SU_PROPIEDAD" si en el texto descriptivo aparece "S/PROP", "S.PROP", "SU PROPIEDAD", "DE SU PROPIEDAD" o cualquier variante (típicamente "MONTA NNEUMS.S/PROP" o "DE SU PROPIEDAD (STOCKT49)"). En cualquier otro caso (texto solo dice "SE MONTAN N..." sin S/PROP), devuelve "COMPRA_VENTA" (es compra inmediata).
-- medida_ignorada: true si la medida detectada es 19,5 pulgadas (ej "295/80X19,5"). false si es 22,5. Esto sirve para que la app muestre un aviso en vez de procesar.
-
-CABECERA (estos campos van en CADA objeto del array, repetidos):
-- num_albaran, fecha, matricula, cif_cliente: como se ha extraído arriba.
-
-REGLAS CRÍTICAS:
-- Si el texto descriptivo del montaje está en VARIAS LÍNEAS (típico Soledad: "MONTA 4NEUMS.S/PROP" / "315/80 CONTI HD5" / "EN TRACCION"), UNE las líneas mentalmente y extrae 1 sola línea de neumático.
-- Si en un mismo albarán hay 2 grupos distintos (ej. "MONTA 4)... HD5" + "Y 2)... HT3+"), devuelve 2 OBJETOS distintos.
-- NO devuelvas líneas de mano de obra (MONTAJE+FIJACION, MANTENIMIENTO).
-- NO devuelvas neumáticos de turismo (medidas que empiezan por 225/45, 245/40, etc, o medidas que terminen en X17 o X16).
-- Si en un albarán solo hay servicios (sin neumático real), devuelve un ARRAY VACÍO [].
-- Si NO logras leer un dato (cantidad, medida, modelo), pon null en ese campo pero NO inventes.
-- Si la matrícula tiene formato extraño o no se ve, pon null. El admin la rellenará.
-
-SOLO JSON válido (array), sin markdown ni explicaciones.`;
-
-  const contentBlock = isPdf
-    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
-    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
-
-  const res = await fetchAnthropicConReintento(
-    { model: 'claude-haiku-4-5', max_tokens: 2500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] },
-    key, signal, 'callClaudeNeumAlb'
-  );
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  let text = data.content?.[0]?.text || '';
-  text = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-  if (!text) return [];
-  const parsed = JSON.parse(text);
-  return Array.isArray(parsed) ? parsed : [parsed];
 }
 
 // ============================================================
@@ -9713,8 +9265,8 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
-  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido. v107ER2: 'fact' añadido.
-  ['alb','preli','fact','gas','itv','neum','vac','taller','produccion','subir','admin'].forEach(t => {
+  // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','fichaje','subir','admin'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -9732,8 +9284,6 @@ function switchTab(tab) {
   }
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
-  // v107ER2: cargar Facturación al entrar en su pestaña
-  if (tab === 'fact') { loadFactData(); }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -9744,6 +9294,8 @@ function switchTab(tab) {
   if (tab === 'vac') { loadVacData(); }
   // v107AE: cargar Taller al entrar en su pestaña
   if (tab === 'taller') { loadTallerData(); }
+  // v107FA: cargar Fichaje al entrar en su pestaña
+  if (tab === 'fichaje') { loadFichajes(); }
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
@@ -9753,6 +9305,539 @@ function switchTab(tab) {
     // Sin await: deja que la UI muestre la pestaña enseguida, y la tabla se actualiza
     // cuando llegan los datos. loadData() ya se encarga de re-renderizar todo.
     loadData().catch(e => console.error('[switchTab→alb] refresh falló:', e));
+  }
+}
+
+// ============================================================
+// v107FA: FICHAJE / REGISTRO DE JORNADA
+// ------------------------------------------------------------
+// Cumple RDL 8/2019: registro fiable, inmutable y exportable.
+// La tabla 'fichajes' es de SOLO-AÑADIR (ni UPDATE ni DELETE en BD).
+// Las correcciones son filas nuevas tipo 'correccion' que anulan a la
+// original. Cada fichaje guarda hora EXACTA del servidor, trabajador,
+// DNI, empresa y CIF.
+//
+// Tipos de evento en un día normal:
+//   entrada -> salida_comida -> vuelta_comida -> salida
+// El botón grande muestra solo el evento que toca según el estado.
+// ============================================================
+
+let _fichajes = [];          // todas las filas cargadas (según permisos RLS)
+let _fichajeRelojTimer = null;
+
+// Etiquetas legibles de cada tipo
+const _FICHAJE_LABELS = {
+  entrada:        '🟢 Entrada',
+  salida_comida:  '🍽️ Salida a comer',
+  vuelta_comida:  '↩️ Vuelta de comer',
+  salida:         '🔴 Salida',
+  correccion:     '✏️ Corrección'
+};
+
+// Orden lógico de la jornada y qué botón ofrecer en cada punto
+function _fichajeSiguienteEvento(eventosHoy) {
+  // eventosHoy = lista de tipos ya fichados hoy (sin correcciones anuladas),
+  // en orden cronológico.
+  const tiene = (t) => eventosHoy.includes(t);
+  if (!tiene('entrada'))        return 'entrada';
+  if (!tiene('salida_comida'))  return 'salida_comida';
+  if (!tiene('vuelta_comida'))  return 'vuelta_comida';
+  if (!tiene('salida'))         return 'salida';
+  return null; // jornada completa
+}
+
+// ¿Soy admin? (vista completa). Si no, soy trabajadora (mi propio fichaje).
+function _fichajeEsAdmin() { return currentRole === 'admin'; }
+
+// Datos del trabajador actual (para grabar DNI/empresa/CIF correctos)
+function _fichajeMisDatos() {
+  const p = userMap[currentUser?.id] || {};
+  return {
+    user_id: currentUser?.id,
+    trabajador: p.name || currentUser?.email || 'Trabajador',
+    dni: p.fichaje_dni || null,
+    empresa: p.fichaje_empresa || null,
+    cif: p.fichaje_cif || null
+  };
+}
+
+// Carga los fichajes desde Supabase (RLS filtra: trabajadora ve lo suyo,
+// admin ve todo).
+async function loadFichajes() {
+  try {
+    const box = document.getElementById('fichajeTablaBox');
+    let q = sb.from('fichajes').select('*').order('ts', { ascending: false });
+    const { data, error } = await q;
+    if (error) {
+      if (/does not exist|relation/i.test(error.message || '')) {
+        if (box) box.innerHTML = '<div style="color:var(--wn);font-family:var(--mn);font-size:12px">⚠️ Falta crear la tabla. Ejecuta el SQL <b>fichaje_setup.sql</b> en Supabase.</div>';
+        return;
+      }
+      throw error;
+    }
+    _fichajes = data || [];
+    renderFichaje();
+  } catch (e) {
+    console.error('[loadFichajes]', e);
+    const box = document.getElementById('fichajeTablaBox');
+    if (box) box.innerHTML = '<div style="color:var(--er);font-family:var(--mn);font-size:12px">Error cargando fichajes: ' + (e.message || e) + '</div>';
+  }
+}
+
+// Devuelve los eventos VÁLIDOS (aplicando correcciones) de un user en un día.
+// Cada correccion con tipo_corregido reemplaza el evento de ese tipo; si
+// anulado=TRUE, ese evento queda sin efecto.
+function _fichajeEventosValidosDia(userId, fechaISO) {
+  // Filas de ese usuario y día (por ts local)
+  const delDia = _fichajes.filter(f => {
+    if (f.user_id !== userId) return false;
+    const refTs = f.tipo === 'correccion' ? (f.ts_corregido || f.ts) : f.ts;
+    return _fichajeFechaLocal(refTs) === fechaISO;
+  });
+  // Construimos el estado: un mapa tipo -> {ts, anulado}
+  const estado = {};
+  // Primero los eventos directos
+  delDia.filter(f => f.tipo !== 'correccion').forEach(f => {
+    estado[f.tipo] = { ts: f.ts, anulado: false, id: f.id };
+  });
+  // Luego aplicamos correcciones en orden de creación
+  delDia.filter(f => f.tipo === 'correccion')
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .forEach(f => {
+    const t = f.tipo_corregido;
+    if (!t) return;
+    if (f.anulado) { delete estado[t]; }
+    else { estado[t] = { ts: f.ts_corregido || f.ts, anulado: false, id: f.id }; }
+  });
+  // Devolver tipos presentes ordenados por hora
+  return Object.keys(estado)
+    .map(t => ({ tipo: t, ts: estado[t].ts }))
+    .sort((a, b) => new Date(a.ts) - new Date(b.ts))
+    .map(e => e.tipo);
+}
+
+// Fecha local YYYY-MM-DD de un timestamp
+function _fichajeFechaLocal(ts) {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+// Hora local HH:MM:SS
+function _fichajeHoraLocal(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// Fecha local DD/MM/YYYY
+function _fichajeFechaBonita(fechaISO) {
+  const [y, m, d] = fechaISO.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// Renderiza la pestaña entera (botonera + tabla) según rol
+function renderFichaje() {
+  const botonera = document.getElementById('fichajeBotonera');
+  const titulo = document.getElementById('fichajeTablaTitulo');
+  const btnExcel = document.getElementById('fichajeBtnExcel');
+  const hoyISO = _fichajeFechaLocal(new Date());
+
+  if (_fichajeEsAdmin()) {
+    // ADMIN: sin botonera (el jefe no ficha), tabla con TODAS, botón Excel
+    if (botonera) botonera.style.display = 'none';
+    if (titulo) titulo.textContent = 'TODOS LOS FICHAJES';
+    if (btnExcel) btnExcel.style.display = '';
+  } else {
+    // TRABAJADORA: botonera grande + su histórico
+    if (botonera) botonera.style.display = '';
+    if (titulo) titulo.textContent = 'MIS FICHAJES';
+    if (btnExcel) btnExcel.style.display = 'none';
+    _fichajeRenderBotonera();
+  }
+  renderFichajes();
+}
+
+// Botonera grande de la trabajadora (estado + botón del evento que toca)
+function _fichajeRenderBotonera() {
+  const hoyISO = _fichajeFechaLocal(new Date());
+  const fechaEl = document.getElementById('fichajeHoy');
+  if (fechaEl) fechaEl.textContent = _fichajeFechaBonita(hoyISO);
+
+  const eventosHoy = _fichajeEventosValidosDia(currentUser.id, hoyISO);
+  const siguiente = _fichajeSiguienteEvento(eventosHoy);
+
+  const estadoTxt = document.getElementById('fichajeEstadoTxt');
+  const btn = document.getElementById('fichajeBtnGrande');
+
+  // Texto de estado
+  if (estadoTxt) {
+    if (eventosHoy.length === 0) {
+      estadoTxt.textContent = 'Aún no has fichado hoy.';
+    } else {
+      const ultimo = eventosHoy[eventosHoy.length - 1];
+      estadoTxt.textContent = 'Último fichaje de hoy: ' + (_FICHAJE_LABELS[ultimo] || ultimo);
+    }
+  }
+
+  // Botón del evento que toca
+  if (btn) {
+    if (siguiente === null) {
+      btn.textContent = '✅ Jornada completa';
+      btn.disabled = true;
+      btn.style.opacity = '.55';
+      btn.style.cursor = 'default';
+    } else {
+      const txtBtn = {
+        entrada:       '🟢 FICHAR ENTRADA',
+        salida_comida: '🍽️ SALIR A COMER',
+        vuelta_comida: '↩️ VOLVER DE COMER',
+        salida:        '🔴 FICHAR SALIDA'
+      };
+      btn.textContent = txtBtn[siguiente] || 'FICHAR';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.dataset.evento = siguiente;
+    }
+  }
+
+  // Reloj en vivo
+  _fichajeArrancarReloj();
+}
+
+function _fichajeArrancarReloj() {
+  const relojEl = document.getElementById('fichajeRelojVivo');
+  if (!relojEl) return;
+  const tick = () => {
+    const ahora = new Date();
+    relojEl.textContent = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  tick();
+  if (_fichajeRelojTimer) clearInterval(_fichajeRelojTimer);
+  _fichajeRelojTimer = setInterval(tick, 1000);
+}
+
+// Pulsar el botón grande -> graba el evento que toca con la hora del servidor
+async function ficharBotonGrande() {
+  const btn = document.getElementById('fichajeBtnGrande');
+  const evento = btn?.dataset?.evento;
+  if (!evento) return;
+  await _fichajeInsertar({ tipo: evento, metodo: 'boton' });
+}
+
+// Inserta un fichaje (evento directo). La hora la pone el servidor (now()).
+async function _fichajeInsertar({ tipo, metodo, ts, nota }) {
+  try {
+    const datos = _fichajeMisDatos();
+    const fila = {
+      user_id: datos.user_id,
+      trabajador: datos.trabajador,
+      dni: datos.dni,
+      empresa: datos.empresa,
+      cif: datos.cif,
+      tipo: tipo,
+      metodo: metodo || 'boton',
+      registrado_por: currentUser.id
+    };
+    // Si es manual con hora concreta, la mandamos; si es botón, la pone el server
+    if (ts) fila.ts = ts;
+    const { error } = await sb.from('fichajes').insert(fila);
+    if (error) throw error;
+    toast('✅ Fichaje registrado: ' + (_FICHAJE_LABELS[tipo] || tipo));
+    await loadFichajes();
+  } catch (e) {
+    console.error('[_fichajeInsertar]', e);
+    toast('Error al fichar: ' + (e.message || e), 'err');
+  }
+}
+
+// ---------- FICHAJE MANUAL (trabajadora) / CORRECCIÓN (admin) ----------
+
+let _fichajeModalModo = 'manual'; // 'manual' | 'correccion'
+let _fichajeCorrigeId = null;
+
+// Trabajadora: apuntar una hora a mano (por si se olvidó al llegar)
+function abrirFichajeManual() {
+  _fichajeModalModo = 'manual';
+  _fichajeCorrigeId = null;
+  const titulo = document.getElementById('fichajeModalTitulo');
+  if (titulo) titulo.textContent = 'APUNTAR HORA A MANO';
+  const ahora = new Date();
+  const fechaDef = _fichajeFechaLocal(ahora);
+  const horaDef = ahora.toTimeString().slice(0, 5);
+  const fields = document.getElementById('fichajeModalFields');
+  if (fields) {
+    fields.innerHTML = `
+      <div class="login-field">
+        <label class="login-label">Tipo de fichaje</label>
+        <select class="login-input" id="fmTipo">
+          <option value="entrada">🟢 Entrada</option>
+          <option value="salida_comida">🍽️ Salida a comer</option>
+          <option value="vuelta_comida">↩️ Vuelta de comer</option>
+          <option value="salida">🔴 Salida</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Fecha</label>
+          <input type="date" class="login-input" id="fmFecha" value="${fechaDef}">
+        </div>
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Hora</label>
+          <input type="time" class="login-input" id="fmHora" value="${horaDef}">
+        </div>
+      </div>
+      <div class="login-field">
+        <label class="login-label">Motivo (opcional)</label>
+        <input type="text" class="login-input" id="fmNota" placeholder="Ej: olvidé fichar al llegar">
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
+        Queda registrado como fichaje "a mano". No borra ningún fichaje anterior.
+      </div>`;
+  }
+  document.getElementById('ovFichaje').classList.add('open');
+}
+
+// Admin: corregir un fichaje concreto (crea una fila 'correccion')
+function abrirFichajeCorreccion(id) {
+  const orig = _fichajes.find(f => String(f.id) === String(id));
+  if (!orig) return;
+  _fichajeModalModo = 'correccion';
+  _fichajeCorrigeId = orig.id;
+  const titulo = document.getElementById('fichajeModalTitulo');
+  if (titulo) titulo.textContent = 'CORREGIR FICHAJE';
+  const refTs = orig.tipo === 'correccion' ? (orig.ts_corregido || orig.ts) : orig.ts;
+  const tipoRef = orig.tipo === 'correccion' ? (orig.tipo_corregido || 'entrada') : orig.tipo;
+  const fechaDef = _fichajeFechaLocal(refTs);
+  const horaDef = new Date(refTs).toTimeString().slice(0, 5);
+  const opt = (v, lbl) => `<option value="${v}"${v === tipoRef ? ' selected' : ''}>${lbl}</option>`;
+  const fields = document.getElementById('fichajeModalFields');
+  if (fields) {
+    fields.innerHTML = `
+      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:10px">
+        Trabajadora: <b style="color:var(--tx)">${orig.trabajador || '—'}</b><br>
+        Original: ${_FICHAJE_LABELS[tipoRef] || tipoRef} · ${_fichajeFechaBonita(fechaDef)} ${horaDef}
+      </div>
+      <div class="login-field">
+        <label class="login-label">Tipo correcto</label>
+        <select class="login-input" id="fmTipo">
+          ${opt('entrada','🟢 Entrada')}
+          ${opt('salida_comida','🍽️ Salida a comer')}
+          ${opt('vuelta_comida','↩️ Vuelta de comer')}
+          ${opt('salida','🔴 Salida')}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Fecha correcta</label>
+          <input type="date" class="login-input" id="fmFecha" value="${fechaDef}">
+        </div>
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Hora correcta</label>
+          <input type="time" class="login-input" id="fmHora" value="${horaDef}">
+        </div>
+      </div>
+      <div class="login-field">
+        <label class="login-label">Motivo de la corrección</label>
+        <input type="text" class="login-input" id="fmNota" placeholder="Ej: el reloj iba adelantado">
+      </div>
+      <div style="margin-top:6px">
+        <label style="font-family:var(--mn);font-size:11px;color:var(--tx);display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="fmAnular"> Anular este fichaje (era un error, no debe contar)
+        </label>
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px">
+        La corrección NO borra el original: queda el rastro completo, como exige la Inspección.
+      </div>`;
+  }
+  document.getElementById('ovFichaje').classList.add('open');
+}
+
+function cerrarFichajeModal() {
+  document.getElementById('ovFichaje').classList.remove('open');
+}
+
+// Guardar desde el modal (manual o corrección)
+async function guardarFichajeManual() {
+  try {
+    const tipo = document.getElementById('fmTipo')?.value;
+    const fecha = document.getElementById('fmFecha')?.value;
+    const hora = document.getElementById('fmHora')?.value;
+    const nota = document.getElementById('fmNota')?.value || null;
+    if (!tipo || !fecha || !hora) { toast('Rellena tipo, fecha y hora', 'warn'); return; }
+    // Construir timestamp local -> ISO
+    const tsLocal = new Date(`${fecha}T${hora}:00`);
+    if (isNaN(tsLocal.getTime())) { toast('Fecha u hora no válidas', 'err'); return; }
+
+    if (_fichajeModalModo === 'correccion') {
+      // El admin crea una fila 'correccion' que apunta al original
+      const anular = document.getElementById('fmAnular')?.checked;
+      const orig = _fichajes.find(f => String(f.id) === String(_fichajeCorrigeId));
+      const fila = {
+        user_id: orig?.user_id || currentUser.id, // el fichaje sigue siendo de la trabajadora
+        trabajador: orig?.trabajador || null,
+        dni: orig?.dni || null,
+        empresa: orig?.empresa || null,
+        cif: orig?.cif || null,
+        tipo: 'correccion',
+        corrige_a: _fichajeCorrigeId,
+        tipo_corregido: tipo,
+        ts_corregido: tsLocal.toISOString(),
+        anulado: !!anular,
+        nota: nota,
+        metodo: 'manual',
+        registrado_por: currentUser.id
+      };
+      const { error } = await sb.from('fichajes').insert(fila);
+      if (error) throw error;
+      toast('✅ Corrección guardada (el original se conserva)');
+    } else {
+      // Trabajadora apunta a mano: evento directo con metodo='manual'
+      await _fichajeInsertar({ tipo, metodo: 'manual', ts: tsLocal.toISOString(), nota });
+    }
+    cerrarFichajeModal();
+    await loadFichajes();
+  } catch (e) {
+    console.error('[guardarFichajeManual]', e);
+    toast('Error al guardar: ' + (e.message || e), 'err');
+  }
+}
+
+// ---------- TABLA DE FICHAJES ----------
+
+function renderFichajes() {
+  const box = document.getElementById('fichajeTablaBox');
+  if (!box) return;
+  const esAdmin = _fichajeEsAdmin();
+
+  // Filtros de fecha
+  const desde = document.getElementById('fichajeFiltroDesde')?.value || null;
+  const hasta = document.getElementById('fichajeFiltroHasta')?.value || null;
+
+  // Para la tabla mostramos TODAS las filas (incluidas correcciones), porque
+  // a efectos legales debe verse el rastro completo. Las correcciones salen
+  // marcadas.
+  let filas = _fichajes.slice();
+
+  // Filtro por fecha (usando la fecha de referencia)
+  filas = filas.filter(f => {
+    const refTs = f.tipo === 'correccion' ? (f.ts_corregido || f.ts) : f.ts;
+    const fISO = _fichajeFechaLocal(refTs);
+    if (desde && fISO < desde) return false;
+    if (hasta && fISO > hasta) return false;
+    return true;
+  });
+
+  if (filas.length === 0) {
+    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay fichajes en este periodo.</div>';
+    return;
+  }
+
+  // Ordenar por fecha/hora descendente
+  filas.sort((a, b) => {
+    const ta = a.tipo === 'correccion' ? (a.ts_corregido || a.ts) : a.ts;
+    const tb = b.tipo === 'correccion' ? (b.ts_corregido || b.ts) : b.ts;
+    return new Date(tb) - new Date(ta);
+  });
+
+  const th = (t) => `<th style="text-align:left;padding:8px 10px;font-family:var(--mn);font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--bd);white-space:nowrap">${t}</th>`;
+  const td = (t) => `<td style="padding:8px 10px;font-family:var(--mn);font-size:12px;color:var(--tx);border-bottom:1px solid var(--s2)">${t}</td>`;
+
+  let html = '<table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr>';
+  if (esAdmin) html += th('Trabajadora');
+  html += th('Fecha') + th('Hora') + th('Tipo') + th('Cómo') + th('Nota');
+  if (esAdmin) html += th('Acción');
+  html += '</tr></thead><tbody>';
+
+  filas.forEach(f => {
+    const esCorr = f.tipo === 'correccion';
+    const refTs = esCorr ? (f.ts_corregido || f.ts) : f.ts;
+    const tipoMostrar = esCorr ? (f.tipo_corregido || '') : f.tipo;
+    let etiqueta = _FICHAJE_LABELS[tipoMostrar] || tipoMostrar;
+    if (esCorr) {
+      etiqueta = f.anulado
+        ? '🚫 Anula ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar)
+        : '✏️ Corrige a ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar);
+    }
+    const comoTxt = f.metodo === 'manual' ? '✍️ A mano' : '👆 Botón';
+    const rowStyle = esCorr ? ' style="background:rgba(245,166,35,.06)"' : '';
+
+    html += `<tr${rowStyle}>`;
+    if (esAdmin) html += td(f.trabajador || '—');
+    html += td(_fichajeFechaBonita(_fichajeFechaLocal(refTs)));
+    html += td('<b>' + _fichajeHoraLocal(refTs) + '</b>');
+    html += td(etiqueta);
+    html += td(comoTxt);
+    html += td(f.nota ? ('<span style="color:var(--mu)">' + _fichajeEsc(f.nota) + '</span>') : '—');
+    if (esAdmin) {
+      // El admin solo puede corregir eventos directos (no corregir una corrección)
+      if (!esCorr) {
+        html += td(`<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="abrirFichajeCorreccion('${f.id}')">✏️ Corregir</button>`);
+      } else {
+        html += td('—');
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  box.innerHTML = html;
+}
+
+// Escapar texto para HTML (evitar romper la tabla con comillas/símbolos)
+function _fichajeEsc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ---------- EXPORTAR A EXCEL (admin) ----------
+
+function exportFichajesExcel() {
+  try {
+    if (!_fichajes.length) { toast('No hay fichajes para exportar', 'warn'); return; }
+    const desde = document.getElementById('fichajeFiltroDesde')?.value || null;
+    const hasta = document.getElementById('fichajeFiltroHasta')?.value || null;
+    let filas = _fichajes.filter(f => {
+      const refTs = f.tipo === 'correccion' ? (f.ts_corregido || f.ts) : f.ts;
+      const fISO = _fichajeFechaLocal(refTs);
+      if (desde && fISO < desde) return false;
+      if (hasta && fISO > hasta) return false;
+      return true;
+    });
+    filas.sort((a, b) => {
+      const ta = a.tipo === 'correccion' ? (a.ts_corregido || a.ts) : a.ts;
+      const tb = b.tipo === 'correccion' ? (b.ts_corregido || b.ts) : b.ts;
+      return new Date(ta) - new Date(tb);
+    });
+    const datos = filas.map(f => {
+      const esCorr = f.tipo === 'correccion';
+      const refTs = esCorr ? (f.ts_corregido || f.ts) : f.ts;
+      const tipoMostrar = esCorr ? (f.tipo_corregido || '') : f.tipo;
+      let tipoTxt = (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar).replace(/^[^\sA-Za-zÁÉÍÓÚáéíóúÑñ]+\s*/, '');
+      if (esCorr) tipoTxt = (f.anulado ? 'ANULA ' : 'CORRIGE ') + tipoTxt;
+      return {
+        'Trabajadora': f.trabajador || '',
+        'DNI': f.dni || '',
+        'Empresa': f.empresa || '',
+        'CIF': f.cif || '',
+        'Fecha': _fichajeFechaBonita(_fichajeFechaLocal(refTs)),
+        'Hora': _fichajeHoraLocal(refTs),
+        'Tipo': tipoTxt,
+        'Método': f.metodo === 'manual' ? 'A mano' : 'Botón',
+        'Nota': f.nota || '',
+        'ID': f.id,
+        'Corrige al ID': f.corrige_a || ''
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(datos);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Fichajes');
+    const hoy = _fichajeFechaLocal(new Date());
+    XLSX.writeFile(wb, `fichajes_${hoy}.xlsx`);
+    toast('✅ Excel descargado');
+  } catch (e) {
+    console.error('[exportFichajesExcel]', e);
+    toast('Error al exportar: ' + (e.message || e), 'err');
   }
 }
 
@@ -11936,8 +12021,6 @@ async function loadNeumData() {
     if (badge) badge.textContent = avisos;
     // Pintar
     renderNeum();
-    // v107ES1: refrescar banner de avisos 19,5 (si los hay)
-    try { _neumRenderBannerAvisos(); } catch(e) {}
   } catch (e) {
     console.error('[loadNeumData] Error:', e);
     toast('Error cargando neumáticos: ' + (e.message || e), 'err');
@@ -12330,434 +12413,6 @@ async function deleteNeumMov() {
     console.error('[deleteNeumMov] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
   }
-}
-
-// ============================================================
-// v107ES1 (27/05/2026): SUBIR ALBARÁN SOLEDAD DE NEUMÁTICOS
-// ============================================================
-// Procesa un albarán de Soledad. Por cada línea de neumático:
-//   - Si propiedad="SU_PROPIEDAD": crea 1 movimiento "montaje" (-N)
-//   - Si propiedad="COMPRA_VENTA": crea 2 movimientos: "compra" (+N) y "montaje" (-N)
-//   - Si medida_ignorada=true (19,5): NO crea movimiento, muestra aviso amarillo
-// El CIF cliente identifica la empresa (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ)
-
-// Mapeo CIF → empresa
-const _NEUM_CIF_EMPRESA = {
-  'B90172735': 'TYP2014',
-  'B90286337': 'HISPALIS',
-  'B67316752': 'TRANSMARGAZ'
-};
-
-// Avisos pendientes de mostrar (medidas 19,5 detectadas)
-let _neumAvisos19_5 = JSON.parse(localStorage.getItem('_neumAvisos19_5') || '[]');
-
-function _neumSaveAvisos() {
-  try { localStorage.setItem('_neumAvisos19_5', JSON.stringify(_neumAvisos19_5)); } catch(e) {}
-}
-
-// Trigger del input file (botón "Subir albarán Soledad")
-async function neumAlbSubirClick() {
-  const inp = document.getElementById('neumAlbFileInput');
-  if (inp) inp.click();
-}
-
-// v107ES4 (27/05/2026): handler del drop event en la zona de arrastrar de Neumáticos
-function neumDropZoneDrop(event) {
-  event.preventDefault();
-  const zone = document.getElementById('neumDropZone');
-  if (zone) {
-    zone.style.background = 'rgba(74,222,128,0.04)';
-    zone.style.borderColor = 'rgba(74,222,128,0.3)';
-  }
-  const files = event.dataTransfer?.files;
-  if (!files || !files.length) return;
-  // Filtrar solo PDFs e imágenes
-  const validos = [];
-  for (const f of files) {
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
-      validos.push(f);
-    }
-  }
-  if (!validos.length) {
-    toast('⚠️ Solo se admiten PDF e imágenes', 'warn');
-    return;
-  }
-  // Reusar el handler de file input
-  neumAlbFilesSeleccionados(validos);
-}
-
-// v107ES4 (27/05/2026): handler del drop event en Gasoil — TICKETS sueltos
-function gasDropZoneTicket(event) {
-  event.preventDefault();
-  const zone = document.getElementById('gasDropZoneTicket');
-  if (zone) {
-    zone.style.background = 'rgba(74,222,128,0.04)';
-    zone.style.borderColor = 'rgba(74,222,128,0.3)';
-  }
-  const files = event.dataTransfer?.files;
-  if (!files || !files.length) return;
-  const validos = [];
-  for (const f of files) {
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
-      validos.push(f);
-    }
-  }
-  if (!validos.length) { toast('⚠️ Solo se admiten PDF e imágenes', 'warn'); return; }
-  // Reusar el flujo normal de addFiles (subir + IA)
-  if (typeof addFiles === 'function') {
-    addFiles(validos, 'gas');
-  } else {
-    toast('Error: addFiles no disponible', 'err');
-  }
-}
-
-// v107ES4 (27/05/2026): handler del drop event en Gasoil — FACTURAS mensuales
-function gasDropZoneFactura(event) {
-  event.preventDefault();
-  const zone = document.getElementById('gasDropZoneFactura');
-  if (zone) {
-    zone.style.background = 'rgba(96,165,250,0.04)';
-    zone.style.borderColor = 'rgba(96,165,250,0.3)';
-  }
-  const files = event.dataTransfer?.files;
-  if (!files || !files.length) return;
-  // Para facturas, recomendable PDF (no imagen)
-  const validos = [];
-  for (const f of files) {
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (f.type === 'application/pdf' || ext === 'pdf' || /^image\//.test(f.type) || ['jpg','jpeg','png','webp'].includes(ext)) {
-      validos.push(f);
-    }
-  }
-  if (!validos.length) { toast('⚠️ Solo se admiten PDF e imágenes', 'warn'); return; }
-  if (typeof addFiles === 'function') {
-    addFiles(validos, 'gasfac');
-  } else {
-    toast('Error: addFiles no disponible', 'err');
-  }
-}
-
-// Handler cuando el usuario selecciona archivos
-async function neumAlbFilesSeleccionados(files) {
-  if (!files || !files.length) return;
-  const key = getKey();
-  if (!key) { toast('Configura la API Key primero', 'err'); return; }
-  // v107ES2: detectar si está activo el Modo Prueba
-  const modoPrueba = !!(document.getElementById('neumModoPrueba')?.checked);
-  if (modoPrueba) {
-    toast(`🧪 MODO PRUEBA: procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} (NO guardar\u00e1 en BD)`, 'warn');
-  } else {
-    toast(`📤 Procesando ${files.length} albarán${files.length > 1 ? 'es' : ''} Soledad...`);
-  }
-  let total_ok = 0, total_avisos = 0, total_err = 0;
-  const resultadosPrueba = [];
-  for (const file of files) {
-    try {
-      const r = await _neumProcesarAlbaranSoledad(file, key, modoPrueba);
-      if (r.ok) total_ok++;
-      if (r.aviso19_5) total_avisos++;
-      if (modoPrueba && r.lineas_detectadas) {
-        resultadosPrueba.push({ archivo: file.name, lineas: r.lineas_detectadas });
-      }
-    } catch (e) {
-      console.error('[neumAlbFiles] error en', file.name, e);
-      total_err++;
-      toast(`✗ Error en ${file.name}: ${e.message || e}`, 'err');
-    }
-  }
-  // Limpiar input
-  const inp = document.getElementById('neumAlbFileInput');
-  if (inp) inp.value = '';
-  // v107ES2: si era modo prueba, mostrar resumen visual y NO refrescar stock
-  if (modoPrueba) {
-    _neumMostrarResumenPrueba(resultadosPrueba);
-    toast(`🧪 Prueba completada — ${total_ok} albaranes le\u00eddos · ${total_err} errores`, 'warn');
-    return;
-  }
-  // Refrescar stock y avisos (modo real)
-  await loadNeumData();
-  if (total_avisos > 0) {
-    _neumRenderBannerAvisos();
-  }
-  toast(`✓ ${total_ok} procesados${total_err > 0 ? ` · ${total_err} errores` : ''}${total_avisos > 0 ? ` · ${total_avisos} avisos 19.5` : ''}`);
-}
-
-// v107ES2: muestra modal con resumen de lo que la IA habr\u00eda procesado (sin tocar BD)
-// v107ES3 (27/05/2026): cambiado a MODAL flotante en pantalla completa para que sea imposible no verlo
-function _neumMostrarResumenPrueba(resultados) {
-  if (!resultados || !resultados.length) return;
-  let html = '<div style="background:rgba(234,179,8,0.15);border:2px solid #eab308;padding:14px;border-radius:8px;margin-bottom:14px">';
-  html += '<div style="font-weight:700;color:#eab308;margin-bottom:6px;font-size:15px">🧪 MODO PRUEBA — Resultado de lectura</div>';
-  html += '<div style="font-size:12px;color:var(--fg)">Esto es lo que la app habr\u00eda hecho. <strong>NADA se ha guardado.</strong> Stock NO modificado.</div></div>';
-  for (const res of resultados) {
-    html += `<div style="margin-bottom:14px;border:1px solid var(--bd);border-radius:8px;padding:12px;background:var(--bg)">`;
-    html += `<div style="font-weight:700;margin-bottom:8px;font-family:var(--mn);font-size:13px;color:var(--fg)">📄 ${_esc(res.archivo)}</div>`;
-    if (!res.lineas || !res.lineas.length) {
-      html += '<div style="color:var(--mu);font-size:11px">La IA no detect\u00f3 ninguna l\u00ednea de neum\u00e1tico</div>';
-    } else {
-      html += '<div style="overflow-x:auto"><table style="width:100%;font-family:var(--mn);font-size:11px;border-collapse:collapse"><thead><tr style="background:rgba(255,255,255,0.05);border-bottom:1px solid var(--bd)">';
-      html += '<th style="text-align:left;padding:6px">Empresa</th>';
-      html += '<th style="text-align:left;padding:6px">Albar\u00e1n</th>';
-      html += '<th style="text-align:left;padding:6px">Matr\u00edcula</th>';
-      html += '<th style="text-align:left;padding:6px">Medida</th>';
-      html += '<th style="text-align:left;padding:6px">Marca</th>';
-      html += '<th style="text-align:left;padding:6px">Modelo</th>';
-      html += '<th style="text-align:right;padding:6px">Cant.</th>';
-      html += '<th style="text-align:left;padding:6px">Acci\u00f3n</th></tr></thead><tbody>';
-      for (const l of res.lineas) {
-        const icono = l.accion === 'IGNORAR_19_5'
-          ? '⚠️ 19,5 (aviso)'
-          : (l.accion === 'MONTAJE_PROP' ? '✅ -' + l.cantidad + ' (S/PROP)' : '✅ +' + l.cantidad + ' / -' + l.cantidad);
-        const color = l.accion === 'IGNORAR_19_5' ? '#eab308' : '#22c55e';
-        html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.05)">`;
-        html += `<td style="padding:6px">${_esc(l.empresa || '?')}</td>`;
-        html += `<td style="padding:6px">${_esc(l.num_albaran || '?')}</td>`;
-        html += `<td style="padding:6px">${_esc(l.matricula || '?')}</td>`;
-        html += `<td style="padding:6px">${_esc(l.medida || '?')}</td>`;
-        html += `<td style="padding:6px">${_esc(l.marca || '?')}</td>`;
-        html += `<td style="padding:6px">${_esc(l.modelo || '?')}</td>`;
-        html += `<td style="padding:6px;text-align:right;font-weight:600">${l.cantidad || 0}</td>`;
-        html += `<td style="padding:6px;color:${color};font-weight:600">${icono}</td>`;
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
-    }
-    html += '</div>';
-  }
-  html += '<div style="text-align:center;margin-top:14px;display:flex;gap:8px;justify-content:center"><button class="btn bp" onclick="_neumCerrarResumenPrueba()" style="font-size:12px;padding:8px 16px;font-weight:700">✕ Cerrar</button></div>';
-  // v107ES3: MODAL flotante (overlay pantalla completa) — imposible de no ver
-  let overlay = document.getElementById('neumPruebaOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'neumPruebaOverlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;overflow-y:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center';
-    document.body.appendChild(overlay);
-  }
-  overlay.innerHTML = `<div style="background:var(--bg);border:2px solid #eab308;border-radius:12px;padding:20px;max-width:1100px;width:100%;margin:20px auto;box-shadow:0 8px 32px rgba(234,179,8,0.3)">${html}</div>`;
-  overlay.style.display = 'flex';
-}
-
-function _neumCerrarResumenPrueba() {
-  const overlay = document.getElementById('neumPruebaOverlay');
-  if (overlay) overlay.remove();
-  // Limpiar también el div viejo si existía
-  const cont = document.getElementById('neumResumenPrueba');
-  if (cont) cont.remove();
-}
-
-// Procesa UN albarán: lo sube a Storage, llama a la IA, crea los movimientos
-// v107ES2: si modoPrueba=true, NO guarda nada en BD; solo lee y devuelve lo que habría hecho.
-async function _neumProcesarAlbaranSoledad(file, key, modoPrueba = false) {
-  // 1) Convertir a base64 para mandar a IA
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const isPdf = ext === 'pdf' || file.type === 'application/pdf';
-  const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
-  const b64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.substring(comma + 1) : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
-  // 2) Llamar a la IA
-  console.log(`[v107ES1${modoPrueba ? ' MODO PRUEBA' : ''}] Procesando albarán ${file.name}...`);
-  const lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, undefined);
-  console.log(`[v107ES1] IA devolvió ${lineas.length} líneas:`, lineas);
-
-  if (!lineas || !lineas.length) {
-    toast(`⚠️ ${file.name}: la IA no detectó neumáticos`, 'warn');
-    return { ok: false, lineas_detectadas: [] };
-  }
-
-  // 3) Subir archivo a Storage SOLO si NO es modo prueba
-  let fileUrl = null;
-  if (!modoPrueba) {
-    try {
-      const ts = Date.now();
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filename = `neumaticos/albaranes/${ts}_${safeName}`;
-      const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, {
-        upsert: false, contentType: mediaType
-      });
-      if (!upErr) {
-        const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
-        if (urlData && urlData.publicUrl) fileUrl = urlData.publicUrl;
-      }
-    } catch(e) {
-      console.warn('[v107ES1] No se pudo subir archivo:', e);
-    }
-  }
-
-  // 4) Identificar empresa por CIF (todas las líneas comparten cif_cliente)
-  const cifPrimero = (lineas[0]?.cif_cliente || '').trim().toUpperCase();
-  const empresa = _NEUM_CIF_EMPRESA[cifPrimero];
-  if (!empresa) {
-    toast(`⚠️ ${file.name}: CIF "${cifPrimero}" no reconocido. Movimientos descartados.`, 'err');
-    return { ok: false, lineas_detectadas: [] };
-  }
-
-  // 5) Procesar cada línea
-  let lineasOk = 0;
-  let aviso19_5_creado = false;
-  const lineasDetectadas = []; // v107ES2: para reporte modo prueba
-  for (const linea of lineas) {
-    // Validaciones básicas
-    if (!linea.cantidad || !linea.medida || !linea.modelo) {
-      console.warn('[v107ES1] línea incompleta, salto:', linea);
-      continue;
-    }
-    // ¿Es medida 19,5? Aviso, no procesar
-    if (linea.medida_ignorada === true || /19[,.]5/.test(linea.medida || '')) {
-      lineasDetectadas.push({
-        empresa,
-        num_albaran: linea.num_albaran || '?',
-        matricula: linea.matricula || '?',
-        medida: linea.medida,
-        marca: linea.marca || '',
-        modelo: linea.modelo || '',
-        cantidad: linea.cantidad,
-        accion: 'IGNORAR_19_5'
-      });
-      if (!modoPrueba) {
-        _neumAvisos19_5.push({
-          id: 'av_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-          fecha: new Date().toISOString().slice(0,10),
-          archivo: file.name,
-          num_albaran: linea.num_albaran || '?',
-          matricula: linea.matricula || '?',
-          empresa,
-          cantidad: linea.cantidad,
-          medida: linea.medida,
-          marca: linea.marca || '',
-          modelo: linea.modelo || ''
-        });
-        _neumSaveAvisos();
-        aviso19_5_creado = true;
-      }
-      continue;
-    }
-    // Crear los movimientos
-    const fechaIso = _neumFechaIso(linea.fecha) || new Date().toISOString().slice(0,10);
-    const obsBase = `Albarán Soledad ${linea.num_albaran || ''}${linea.matricula ? ' / ' + linea.matricula : ''}`.trim();
-    const propiedad = (linea.propiedad || '').toUpperCase();
-    const esPropio = (propiedad === 'SU_PROPIEDAD' || propiedad === 'SUPROPIEDAD' || propiedad === 'SU PROPIEDAD');
-    // Tractora/remolque: si la matrícula empieza por R es el remolque
-    const mat = (linea.matricula || '').toUpperCase().replace(/\s+/g, '');
-    const esRemolque = /^R\d{4}[A-Z]{3}$/.test(mat);
-    const movBase = {
-      empresa,
-      fecha: fechaIso,
-      marca: linea.marca || null,
-      modelo: linea.modelo || null,
-      medida: linea.medida,
-      uso: null,  // v107ES1: ignoramos posición a petición de JC
-      tractora: esRemolque ? null : (mat || null),
-      remolque: esRemolque ? mat : null,
-      file_url: fileUrl,
-      user_id: currentUser?.id || null
-    };
-    // v107ES2: anotar línea para el reporte de prueba
-    lineasDetectadas.push({
-      empresa,
-      num_albaran: linea.num_albaran || '?',
-      matricula: mat || '?',
-      medida: linea.medida,
-      marca: linea.marca || '',
-      modelo: linea.modelo || '',
-      cantidad: linea.cantidad,
-      accion: esPropio ? 'MONTAJE_PROP' : 'COMPRA_VENTA'
-    });
-    // Si es modo prueba, NO guardar en BD
-    if (modoPrueba) {
-      lineasOk++;
-      continue;
-    }
-    try {
-      if (esPropio) {
-        // CASO A — Solo descontar
-        const { error } = await sb.from('neumaticos_movimientos').insert({
-          ...movBase,
-          tipo: 'montaje',
-          cantidad: -Math.abs(linea.cantidad),
-          observaciones: obsBase + ' · S/PROP (descuenta stock)'
-        });
-        if (error) throw error;
-      } else {
-        // CASO B — Compra + montaje al mismo tiempo
-        const { error: e1 } = await sb.from('neumaticos_movimientos').insert({
-          ...movBase,
-          tipo: 'compra',
-          cantidad: Math.abs(linea.cantidad),
-          observaciones: obsBase + ' · Compra (pendiente conciliar con factura)'
-        });
-        if (e1) throw e1;
-        const { error: e2 } = await sb.from('neumaticos_movimientos').insert({
-          ...movBase,
-          tipo: 'montaje',
-          cantidad: -Math.abs(linea.cantidad),
-          observaciones: obsBase + ' · Montaje inmediato (compra+venta)'
-        });
-        if (e2) throw e2;
-      }
-      lineasOk++;
-    } catch (e) {
-      console.error('[v107ES1] Error guardando movimiento:', e);
-      toast(`✗ Error guardando línea: ${e.message || e}`, 'err');
-    }
-  }
-  return { ok: lineasOk > 0, lineas_ok: lineasOk, aviso19_5: aviso19_5_creado, lineas_detectadas: lineasDetectadas };
-}
-
-// Convierte "25/05/2026" → "2026-05-25"
-function _neumFechaIso(s) {
-  if (!s) return null;
-  const m = String(s).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if (!m) return null;
-  let y = m[3]; if (y.length === 2) y = '20' + y;
-  return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-}
-
-// Banner de avisos 19,5 — se muestra en lo alto de la pestaña Neumáticos
-function _neumRenderBannerAvisos() {
-  const cont = document.getElementById('neumBanner19_5');
-  if (!cont) return;
-  if (!_neumAvisos19_5 || !_neumAvisos19_5.length) {
-    cont.style.display = 'none';
-    cont.innerHTML = '';
-    return;
-  }
-  // Si el usuario tiene empresa fija, filtrar avisos
-  let avisos = _neumAvisos19_5;
-  if (window._empresaNeum) {
-    avisos = avisos.filter(a => a.empresa === window._empresaNeum);
-  }
-  if (!avisos.length) {
-    cont.style.display = 'none';
-    return;
-  }
-  cont.style.display = 'block';
-  cont.innerHTML = avisos.map(a => `
-    <div style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);padding:10px 14px;border-radius:8px;margin-bottom:8px;font-family:var(--mn);font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:18px">⚠️</span>
-      <span style="flex:1;min-width:240px">
-        <strong>Detectado neumático ${_esc(a.medida)}</strong> en albarán ${_esc(a.num_albaran)} (${_esc(a.matricula)}, ${_esc(a.empresa)}, ${a.cantidad} ud ${_esc(a.marca)} ${_esc(a.modelo)}).
-        No se ha registrado en stock (medida que no controlamos).
-      </span>
-      <button class="btn br" onclick="_neumCerrarAviso('${a.id}')" style="font-size:11px;padding:4px 10px">✕</button>
-    </div>
-  `).join('');
-}
-
-function _neumCerrarAviso(id) {
-  _neumAvisos19_5 = _neumAvisos19_5.filter(a => a.id !== id);
-  _neumSaveAvisos();
-  _neumRenderBannerAvisos();
 }
 
 // ============================================================
@@ -14763,338 +14418,6 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
   document.getElementById('ovRecambiosInf').classList.add('open');
 }
 function closeRecambiosInf() { document.getElementById('ovRecambiosInf').classList.remove('open'); }
-
-// ============================================================
-// v107ER2 (27/05/2026): PESTAÑA FACTURACIÓN
-// ============================================================
-// Plan B: sustituye a Preliquidaciones (que se mantiene oculta).
-// Controla qué albaranes están facturados/pendientes/no_facturable.
-// Acceso: admin JC + María del Mar + Marta (resto NO ve la pestaña).
-// Datos en BD: campos estado_facturacion, factura_ref, factura_fecha, factura_tipo.
-
-let _factSubEstado = 'pendiente'; // subpestaña activa
-let _factFiltrados = []; // últimos albaranes filtrados
-let _factSeleccionados = new Set(); // db_ids seleccionados para acción de lote
-let _factModalIds = []; // ids que el modal va a marcar al confirmar
-
-async function loadFactData() {
-  // Releer albaranes con campos de facturación (records ya los trae si están en BD)
-  if (!Array.isArray(records) || records.length === 0) {
-    try { await loadData(); } catch(e) { console.warn('[loadFactData] loadData falló:', e); }
-  }
-  _factPopulateFiltros();
-  factUpdateResumen();
-  factApplyFilters();
-}
-
-function _factPopulateFiltros() {
-  // Meses únicos
-  const meses = new Set();
-  const clientes = new Set();
-  const proveedores = new Set();
-  (records || []).forEach(r => {
-    if (r._dup) return;
-    if (r.fecha) {
-      const m = String(r.fecha).match(/^(\d{4}-\d{2})/);
-      if (m) meses.add(m[1]);
-    }
-    if (r.cliente && String(r.cliente).trim()) clientes.add(String(r.cliente).trim());
-    if (r.proveedor && String(r.proveedor).trim()) proveedores.add(String(r.proveedor).trim());
-  });
-  const selMes = document.getElementById('fFactMes');
-  const selCli = document.getElementById('fFactCliente');
-  const selProv = document.getElementById('fFactProveedor');
-  if (selMes) {
-    const cur = selMes.value;
-    selMes.innerHTML = '<option value="">Todos los meses</option>'
-      + Array.from(meses).sort().reverse().map(m => `<option value="${m}">${_factMesLabel(m)}</option>`).join('');
-    if (cur) selMes.value = cur;
-  }
-  if (selCli) {
-    const cur = selCli.value;
-    selCli.innerHTML = '<option value="">Todos</option>'
-      + Array.from(clientes).sort().map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('');
-    if (cur) selCli.value = cur;
-  }
-  if (selProv) {
-    const cur = selProv.value;
-    selProv.innerHTML = '<option value="">Todos</option>'
-      + Array.from(proveedores).sort().map(p => `<option value="${_esc(p)}">${_esc(p)}</option>`).join('');
-    if (cur) selProv.value = cur;
-  }
-}
-
-function _factMesLabel(yyyymm) {
-  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const [y, m] = yyyymm.split('-');
-  return `${meses[parseInt(m,10)-1]} ${y}`;
-}
-
-function _esc(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function factUpdateResumen() {
-  let pend = 0, fact = 0, nofact = 0;
-  (records || []).forEach(r => {
-    if (r._dup) return;
-    const est = r.estado_facturacion || 'pendiente';
-    if (est === 'facturado') fact++;
-    else if (est === 'no_facturable') nofact++;
-    else pend++;
-  });
-  const ep = document.getElementById('factPendCount');
-  const ef = document.getElementById('factFactCount');
-  const en = document.getElementById('factNoFactCount');
-  if (ep) ep.textContent = pend;
-  if (ef) ef.textContent = fact;
-  if (en) en.textContent = nofact;
-  const tc = document.getElementById('tabFactCount');
-  if (tc) tc.textContent = pend; // el badge muestra los pendientes (lo crítico)
-}
-
-function factSwitchSub(estado) {
-  _factSubEstado = estado;
-  document.querySelectorAll('.factSubTab').forEach(b => b.classList.remove('factSubTabActive'));
-  const map = { pendiente: 'factSubPend', facturado: 'factSubFact', no_facturable: 'factSubNoFact' };
-  const btn = document.getElementById(map[estado]);
-  if (btn) btn.classList.add('factSubTabActive');
-  _factSeleccionados.clear();
-  factApplyFilters();
-}
-
-function factApplyFilters() {
-  const mes = (document.getElementById('fFactMes')||{}).value || '';
-  const cli = (document.getElementById('fFactCliente')||{}).value || '';
-  const prov = (document.getElementById('fFactProveedor')||{}).value || '';
-  _factFiltrados = (records || []).filter(r => {
-    if (r._dup) return false;
-    const est = r.estado_facturacion || 'pendiente';
-    if (est !== _factSubEstado) return false;
-    if (mes && !(String(r.fecha||'').startsWith(mes))) return false;
-    if (cli && String(r.cliente||'').trim() !== cli) return false;
-    if (prov && String(r.proveedor||'').trim() !== prov) return false;
-    return true;
-  });
-  _factRender();
-}
-
-function factResetFilters() {
-  ['fFactMes','fFactCliente','fFactProveedor'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  factApplyFilters();
-}
-
-function _factRender() {
-  const tbody = document.getElementById('factTableBody');
-  const empty = document.getElementById('emptyFact');
-  if (!tbody) return;
-  if (!_factFiltrados.length) {
-    tbody.innerHTML = '';
-    if (empty) empty.style.display = '';
-    factUpdateBulkBar();
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-  // Limitar a 500 filas en pantalla por performance
-  const lim = _factFiltrados.slice(0, 500);
-  tbody.innerHTML = lim.map(r => {
-    const id = r.db_id || '';
-    const sel = _factSeleccionados.has(id) ? 'checked' : '';
-    const tnTxt = (r.tm != null && !isNaN(r.tm)) ? Number(r.tm).toFixed(2) : '—';
-    const fechaTxt = r.fecha ? String(r.fecha).slice(0,10).split('-').reverse().join('/') : '—';
-    const factRef = r.factura_ref ? _esc(r.factura_ref) : '—';
-    const factFecha = r.factura_fecha ? String(r.factura_fecha).slice(0,10).split('-').reverse().join('/') : '—';
-    let accionesBtn = '';
-    if (_factSubEstado === 'pendiente') {
-      accionesBtn = `<button class="btn bp" onclick="factMarcarUno('${id}','facturado')" style="font-size:10px;padding:4px 8px">✅ Facturar</button>
-                     <button class="btn bw" onclick="factMarcarUno('${id}','no_facturable')" style="font-size:10px;padding:4px 8px;margin-left:4px">⚪ No fact.</button>`;
-    } else {
-      accionesBtn = `<button class="btn br" onclick="factMarcarUno('${id}','pendiente')" style="font-size:10px;padding:4px 8px">↩️ Pendiente</button>`;
-    }
-    return `<tr>
-      <td><input type="checkbox" ${sel} onclick="factToggleOne('${id}',this.checked)"></td>
-      <td style="font-family:var(--mn);font-size:11px">${fechaTxt}</td>
-      <td style="font-family:var(--mn);font-size:11px;font-weight:600">${_esc(r.tractora||'—')}</td>
-      <td style="font-family:var(--mn);font-size:11px">${_esc(r.albaran||'—')}</td>
-      <td style="font-size:11px">${_esc((r.proveedor||'—').slice(0,30))}</td>
-      <td style="font-size:11px">${_esc((r.cliente||'—').slice(0,30))}</td>
-      <td style="font-family:var(--mn);font-size:11px;text-align:right">${tnTxt}</td>
-      <td style="font-size:11px">${factRef}</td>
-      <td style="font-family:var(--mn);font-size:11px">${factFecha}</td>
-      <td>${accionesBtn}</td>
-    </tr>`;
-  }).join('');
-  if (_factFiltrados.length > 500) {
-    tbody.innerHTML += `<tr><td colspan="10" style="text-align:center;padding:10px;color:var(--mu);font-size:11px">⚠️ Mostrando primeros 500 de ${_factFiltrados.length}. Usa filtros para reducir.</td></tr>`;
-  }
-  factUpdateBulkBar();
-}
-
-function factToggleAll(checked) {
-  if (checked) {
-    _factFiltrados.slice(0, 500).forEach(r => { if (r.db_id) _factSeleccionados.add(r.db_id); });
-  } else {
-    _factSeleccionados.clear();
-  }
-  _factRender();
-}
-
-function factToggleOne(id, checked) {
-  if (checked) _factSeleccionados.add(id);
-  else _factSeleccionados.delete(id);
-  factUpdateBulkBar();
-}
-
-function factUpdateBulkBar() {
-  const bar = document.getElementById('factBulkBar');
-  const cnt = document.getElementById('factBulkCount');
-  if (!bar || !cnt) return;
-  if (_factSeleccionados.size === 0) {
-    bar.style.display = 'none';
-  } else {
-    bar.style.display = 'flex';
-    cnt.textContent = `${_factSeleccionados.size} seleccionados`;
-  }
-}
-
-function factBulkClear() {
-  _factSeleccionados.clear();
-  const sa = document.getElementById('factSelAll');
-  if (sa) sa.checked = false;
-  _factRender();
-}
-
-// Marcar UN albarán
-function factMarcarUno(id, nuevoEstado) {
-  if (nuevoEstado === 'facturado') {
-    _factModalAbrir([id], 'facturado');
-  } else {
-    // pendiente o no_facturable: directo sin modal
-    _factGuardarEstado([id], nuevoEstado, null, null, null);
-  }
-}
-
-// Marcar varios
-function factBulkMarcar(nuevoEstado) {
-  if (_factSeleccionados.size === 0) {
-    toast('Selecciona albaranes primero', 'warn');
-    return;
-  }
-  const ids = Array.from(_factSeleccionados);
-  if (nuevoEstado === 'facturado') {
-    _factModalAbrir(ids, 'facturado');
-  } else {
-    _factGuardarEstado(ids, nuevoEstado, null, null, null);
-  }
-}
-
-// Modal para pedir nº factura + fecha + tipo
-function _factModalAbrir(ids, nuevoEstado) {
-  _factModalIds = ids;
-  const titulo = document.getElementById('factModalTitle');
-  const subt = document.getElementById('factModalSubtitle');
-  if (titulo) titulo.textContent = nuevoEstado === 'facturado' ? '✅ Marcar como facturados' : 'Cambiar estado';
-  if (subt) subt.textContent = `${ids.length} albarán${ids.length > 1 ? 'es' : ''} se marcará${ids.length > 1 ? 'n' : ''} como facturado${ids.length > 1 ? 's' : ''}.`;
-  // Fecha hoy por defecto
-  const hoy = new Date().toISOString().slice(0,10);
-  const fEl = document.getElementById('factModalFecha');
-  if (fEl) fEl.value = hoy;
-  // Limpiar ref
-  const refEl = document.getElementById('factModalRef');
-  if (refEl) refEl.value = '';
-  document.getElementById('factModal').style.display = 'flex';
-}
-
-function factModalClose() {
-  document.getElementById('factModal').style.display = 'none';
-  _factModalIds = [];
-}
-
-function factModalConfirm() {
-  const ref = (document.getElementById('factModalRef')||{}).value || '';
-  const fecha = (document.getElementById('factModalFecha')||{}).value || '';
-  const tipo = (document.getElementById('factModalTipo')||{}).value || 'emitida';
-  if (!ref.trim()) {
-    toast('Pon una referencia de factura', 'warn');
-    return;
-  }
-  _factGuardarEstado(_factModalIds, 'facturado', ref.trim(), fecha || null, tipo);
-  factModalClose();
-}
-
-async function _factGuardarEstado(ids, nuevoEstado, ref, fecha, tipo) {
-  if (!ids || !ids.length) return;
-  const update = { estado_facturacion: nuevoEstado };
-  if (nuevoEstado === 'facturado') {
-    update.factura_ref = ref;
-    update.factura_fecha = fecha;
-    update.factura_tipo = tipo;
-  } else {
-    // Si vuelve a pendiente o no_facturable, limpiar info de factura
-    update.factura_ref = null;
-    update.factura_fecha = null;
-    update.factura_tipo = null;
-  }
-  try {
-    const { error } = await sb.from('albaranes').update(update).in('id', ids);
-    if (error) throw error;
-    // Actualizar en memoria
-    (records || []).forEach(r => {
-      if (ids.includes(r.db_id)) {
-        Object.assign(r, update);
-      }
-    });
-    toast(`✓ ${ids.length} albarán${ids.length > 1 ? 'es' : ''} actualizado${ids.length > 1 ? 's' : ''}`);
-    _factSeleccionados.clear();
-    factUpdateResumen();
-    factApplyFilters();
-  } catch(e) {
-    console.error('[factGuardarEstado] error:', e);
-    toast(`✗ Error: ${e.message || e}`, 'err');
-  }
-}
-
-// Export Excel sencillo del listado actual filtrado
-function factExportExcel() {
-  if (!_factFiltrados.length) {
-    toast('No hay nada que exportar', 'warn');
-    return;
-  }
-  const headers = ['Fecha','Matrícula','Nº Albarán','Proveedor','Cliente','Material','Origen','Destino','TN','Estado','Factura Ref','Fecha Factura','Tipo'];
-  const rows = _factFiltrados.map(r => [
-    r.fecha || '',
-    r.tractora || '',
-    r.albaran || '',
-    r.proveedor || '',
-    r.cliente || '',
-    r.producto || '',
-    r.planta || '',
-    r.obra || '',
-    r.tm != null ? Number(r.tm).toFixed(3) : '',
-    r.estado_facturacion || 'pendiente',
-    r.factura_ref || '',
-    r.factura_fecha || '',
-    r.factura_tipo || ''
-  ]);
-  const csv = [headers, ...rows].map(row =>
-    row.map(c => {
-      const s = String(c).replace(/"/g, '""');
-      return /[,;"\n]/.test(s) ? `"${s}"` : s;
-    }).join(';')
-  ).join('\n');
-  const bom = '\uFEFF'; // para que Excel lea bien acentos
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `facturacion_${_factSubEstado}_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast(`✓ Excel descargado: ${_factFiltrados.length} albaranes`);
-}
 
 // Init
 initApp();
