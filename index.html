@@ -8,6 +8,7 @@
 <!-- v107FB (28/05/2026): FICHAJE + AUSENCIAS. Botón "📅 Marcar día sin trabajo" (trabajadora marca la suya, admin la de cualquiera). Motivos: vacaciones/baja/festivo/falta. Soporta rango de días (una fila por día). Si hoy hay ausencia, la botonera no ofrece fichar. Tabla y Excel muestran ausencias como "día completo". Requiere fichaje_ausencias.sql (amplía el CHECK de tipos). -->
 <!-- v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual), RECONSTRUIDA tras perderse el código de v107FC. Las columnas YA existen en Supabase (estado_facturacion / factura_fecha / factura_ref / factura_tipo). Cambios: (1) icono en columna "Est" de la tabla principal (🟢 facturado / 📌 pendiente / 🚫 no_facturable) junto al badge existente; (2) recuadro azul "🧾 Facturación" en el modal con 3 botones; guarda en Supabase y sella factura_fecha al facturar. Permisos: admin + María del Mar + Marta + Logística (conductores NO lo ven). Funciones nuevas: _puedeVerFacturacion(), factIcon(r), marcarFacturacion(id,val), _facturacionModalHtml(r). NO requiere SQL nuevo. -->
 <!-- v107FE (28/05/2026): FACTURACIÓN velocidad. Al pulsar el botón de marcar (📌→🟢) ya NO se repinta la tabla entera (~2.200 filas, lo que iba lento). Ahora el cambio es instantáneo: se actualiza solo el iconito de ESA fila y el guardado en Supabase va en segundo plano (patrón "guardado instantáneo" v107d). La celda Est lleva data-fact con el id del albarán para localizarla. Si el guardado en BD fallara, toast rojo avisando de reintentar. -->
+<!-- v107FF (28/05/2026): FICHADOR PURO. Arregla que los empleados de taller que SOLO fichan (Carlos, César, Oscar, oscarv: role=conductor + puede_fichar=true + sin otros permisos) veían la pantalla de Subir Documentos y NO veían la pestaña Fichaje. Ahora se les detecta como "fichador puro" (puede_fichar=true, no admin/gestor, sin ITV/taller/neumáticos/vacaciones) y entran a la vista con pestañas mostrando SOLO 🕐 Fichaje, abierta directamente. No afecta a María del Mar ni Marta (son gestor). NO requiere SQL. Cambios en onLogin (select ampliado + rama nueva) y loadUserMap (salida temprana). -->
 
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1504,6 +1505,18 @@ async function loadUserMap() {
     }; });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
+      // v107FF (28/05/2026): si es FICHADOR PURO (empleado de taller que solo
+      // ficha), NO ejecutamos toda la lógica de visibilidad de pestañas de
+      // abajo (que podría reactivar Albaranes/Subir/Preliquidaciones/Gasoil
+      // para "internos del grupo"). onLogin ya dejó visible SOLO la pestaña
+      // Fichaje. Aquí solo nos aseguramos de que siga así y salimos.
+      if (window._esFichadorPuro) {
+        const _tf = document.getElementById('tabFichaje');
+        if (_tf) _tf.style.display = 'flex';
+        ['tabAlb','tabSubir','tabPreli','tabGas','tabItv','tabNeum','tabVac','tabTaller','tabProduccion','tabAdmin']
+          .forEach(idTab => { const el = document.getElementById(idTab); if (el) el.style.display = 'none'; });
+        return;
+      }
       // v107BC (23/05/2026): RED DE SEGURIDAD #1 — cargas iniciales con timeout y log.
       // ANTES: las 4 cargas (ITV, Neumáticos, Vacaciones, Taller) se lanzaban en paralelo
       //   con .catch silencioso. Si una se quedaba colgada (Storage Supabase, red mala...),
@@ -1847,7 +1860,12 @@ function userName(uid) {
 async function onLogin(user) {
   currentUser = user;
   // Get role from profiles table
-  const { data: profile } = await sb.from('profiles').select('role, name').eq('id', user.id).single();
+  // v107FF (28/05/2026): traemos también los permisos para detectar
+  // "fichador puro" (empleado de taller que SOLO ficha). Antes solo
+  // pedíamos role,name.
+  const { data: profile } = await sb.from('profiles')
+    .select('role, name, puede_fichar, puede_ver_itv, puede_ver_taller, puede_ver_neumaticos, puede_ver_vacaciones')
+    .eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
@@ -1858,8 +1876,40 @@ async function onLogin(user) {
   roleEl.textContent = roleLabels[currentRole] || currentRole;
   roleEl.className = 'hdr-role ' + (roleClasses[currentRole] || '');
 
-  if (currentRole === 'conductor') {
+  // v107FF (28/05/2026): FICHADOR PURO (empleado de taller que SOLO ficha).
+  // Problema que arregla: estos empleados tienen role='conductor' + puede_fichar=true,
+  // así que la app les mostraba la pantalla de Subir Documentos (conductorView) y
+  // NUNCA llegaban a ver la pestaña Fichaje (que vive dentro de adminView).
+  // Un "fichador puro" es: puede_fichar=true, NO admin, NO gestor, y SIN ningún
+  // otro permiso (ITV/taller/neumáticos/vacaciones). Eso describe exactamente a
+  // Carlos, César, Oscar y oscarv; deja fuera a María del Mar y Marta (son gestor).
+  // A un fichador puro le mostramos la vista con pestañas pero OCULTAMOS TODO
+  // menos 🕐 Fichaje, y abrimos esa pestaña directamente.
+  const _esFichadorPuro = (currentRole === 'conductor')
+    && !!profile?.puede_fichar
+    && !profile?.puede_ver_itv
+    && !profile?.puede_ver_taller
+    && !profile?.puede_ver_neumaticos
+    && !profile?.puede_ver_vacaciones;
+  window._esFichadorPuro = _esFichadorPuro; // para que loadUserMap no le reactive otras pestañas
+
+  if (currentRole === 'conductor' && !_esFichadorPuro) {
     document.getElementById('conductorView').style.display = 'block';
+  } else if (_esFichadorPuro) {
+    // Vista con pestañas, pero SOLO Fichaje.
+    document.getElementById('adminView').style.display = 'block';
+    // Ocultar TODAS las pestañas excepto Fichaje.
+    ['tabAlb','tabSubir','tabPreli','tabGas','tabItv','tabNeum','tabVac','tabTaller','tabProduccion','tabAdmin']
+      .forEach(idTab => { const el = document.getElementById(idTab); if (el) el.style.display = 'none'; });
+    const _tf = document.getElementById('tabFichaje');
+    if (_tf) _tf.style.display = 'flex';
+    // Cargar el mapa de usuarios (necesario para el fichaje) y abrir Fichaje.
+    await loadUserMap();
+    try { switchTab('fichaje'); } catch (e) { console.warn('[v107FF] no pude abrir Fichaje:', e); }
+    // Quitar el indicador de carga si estuviera.
+    const _ind = document.getElementById('v107EQ5Cargando');
+    if (_ind) _ind.remove();
+    return; // NO seguimos con la carga pesada de admin/gestor (albaranes, etc.)
   } else {
     document.getElementById('adminView').style.display = 'block';
     if (currentRole === 'admin') {
