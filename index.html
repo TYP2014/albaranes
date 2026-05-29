@@ -505,6 +505,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <button class="btn bw" id="btnReanalizarTodo" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor). Solo admin.">🔄 Re-corregir TODO</button>
             <button class="btn bw" id="btnModoSel" onclick="_toggleModoSel()" style="display:none;align-items:center;gap:5px" title="Marcar varios albaranes con casillas para borrarlos de golpe (solo admin)">☑️ Selección</button>
             <button class="btn br" id="btnBorrarSel" onclick="_borrarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--er);color:#fff;font-weight:600" title="Borrar todos los albaranes marcados">🗑 Borrar seleccionados (<span id="selCount">0</span>)</button>
+            <button class="btn" id="btnFacturarSel" onclick="_facturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--ok);color:#04200f;font-weight:700" title="Marcar como facturados todos los albaranes seleccionados">🟢 Marcar facturados (<span id="selCountFact">0</span>)</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -2559,6 +2560,8 @@ function _toggleModoSel() {
   if (thSel)  thSel.style.display  = window._modoSel ? 'table-cell' : 'none';
   celdas.forEach(function (c) { c.style.display = window._modoSel ? 'table-cell' : 'none'; });
   if (btnBor) btnBor.style.display = window._modoSel ? 'flex' : 'none';
+  const btnFac = document.getElementById('btnFacturarSel');
+  if (btnFac) btnFac.style.display = window._modoSel ? 'flex' : 'none';
   if (btnSel) {
     btnSel.textContent = window._modoSel ? '✖️ Cancelar selección' : '☑️ Selección';
   }
@@ -2581,6 +2584,55 @@ function _selUno() {
   const n = document.querySelectorAll('.chk-sel:checked').length;
   const span = document.getElementById('selCount');
   if (span) span.textContent = n;
+  const spanF = document.getElementById('selCountFact');
+  if (spanF) spanF.textContent = n;
+}
+
+// v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
+// Aprovecha el mismo modo selección que el borrado. Solo lo usa quien puede facturar.
+async function _facturarSeleccionados() {
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturar', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+
+  const recs = [];
+  for (const id of ids) {
+    const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+    if (r && r.db_id) recs.push(r);
+  }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+
+  const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como FACTURADOS 🟢.\n\n¿Continuar?');
+  if (!ok) return;
+
+  const fecha = new Date().toISOString();
+  const dbIds = [];
+  // Pintar YA el icono de cada fila + memoria (instantáneo, igual que marcarFacturacion).
+  for (const r of recs) {
+    r.estado_facturacion = 'facturado';
+    r.factura_fecha = fecha;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+  }
+
+  // Guardar en Supabase en lotes de 100 (por si hay muchos seleccionados).
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try {
+      const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha }).in('id', grupo);
+      if (error) throw error;
+    } catch (e) { console.error('[v107GD] facturar lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron en la base de datos. Vuelve a intentarlo.', 'err');
+  else toast('🟢 ' + dbIds.length + ' albaranes marcados como facturados', 'ok');
+
+  // Limpiar y cerrar el modo selección.
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
 }
 
 // Borrar todos los marcados, con confirmación y número exacto.
