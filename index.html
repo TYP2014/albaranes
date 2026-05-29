@@ -3325,9 +3325,14 @@ function renderQueues() {
 
     let stuckBanner = '';
     if (isStuck) {
+      const btnManual = type === 'alb'
+        ? `<button class="btn bp" style="font-size:10px;padding:4px 10px" onclick="guardarComoManual()" title="Para albaranes a mano: guarda lo que se pueda leer y lo dejas para editar">📝 Guardar como manual</button>`
+        : '';
       stuckBanner = `<div style="background:rgba(255,165,0,0.15);border:1px solid var(--wn);padding:8px 12px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px;flex-wrap:wrap;gap:6px">
-        <span>⚠️ Procesamiento lento (${elapsedMin.toFixed(0)}min). Si parece colgado, pulsa Reiniciar.</span>
-        <button class="btn br" style="font-size:10px;padding:4px 10px" onclick="resetProcessing()">🔄 Reiniciar</button>
+        <span>⚠️ Procesamiento lento (${elapsedMin.toFixed(0)}min).${type === 'alb' ? ' Si es a mano, guárdalo como manual.' : ''} Si parece colgado, reinicia.</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap">${btnManual}
+          <button class="btn br" style="font-size:10px;padding:4px 10px" onclick="resetProcessing()">🔄 Reiniciar</button>
+        </span>
       </div>`;
     } else if (hayHuerfanos) {
       // Aviso fuerte: hay archivos colgados sin procesar. Botón para rescatarlos.
@@ -3478,6 +3483,73 @@ function resetColaAlb() {
   _processingAlbStartTs = 0;
   try { renderQueues(); } catch(e) {}
   toast('🔄 Cola limpia. Vuelve a arrastrar los PDFs si quieres reintentar.');
+}
+
+// v107FY — helpers para sacar matrícula y fecha del NOMBRE del archivo. Sirven de respaldo
+// cuando la IA no llega a leer un albarán a mano. Ej: "ALBARAN-HORAS_CISTERNAS_13052026_3768LZJ.pdf"
+function _matDeNombre(name) {
+  // partimos el nombre en trozos por separadores (_ - . espacio) y buscamos el que sea
+  // EXACTAMENTE una matrícula (4 dígitos + 3 letras). Así el "_" antes no la rompe.
+  const toks = String(name || '').toUpperCase().split(/[^A-Z0-9]+/);
+  const m = toks.find(t => /^\d{4}[A-Z]{3}$/.test(t));
+  return m || '';
+}
+function _fechaDeNombre(name) {
+  // buscamos un trozo de 8 dígitos tipo DDMMYYYY (ej 13052026 → 13/05/2026)
+  const toks = String(name || '').split(/[^0-9]+/);
+  const t = toks.find(x => /^\d{8}$/.test(x));
+  if (!t) return '';
+  const dd = t.slice(0, 2), mm = t.slice(2, 4), yy = t.slice(4, 8);
+  if (+mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31 && yy.startsWith('20')) return `${dd}/${mm}/${yy}`;
+  return '';
+}
+
+// v107FY — "Guardar como manual": cuando un albarán A MANO se atasca (aviso de los 2 min),
+// el usuario puede guardarlo igualmente. (1) Detiene el proceso colgado. (2) Hace UNA lectura
+// ligera (sin reintentos, con tope de 50s). (3) Completa con lo que diga el nombre del
+// archivo (matrícula/fecha). (4) Lo guarda marcado como MANUAL para que lo edite a mano.
+// NO toca las subidas normales: solo actúa sobre el/los archivo(s) atascado(s).
+async function guardarComoManual() {
+  const stuck = pendingAlb.filter(x => x.status === 'processing');
+  if (!stuck.length) { toast('Ahora mismo no hay ningún albarán atascado.', 'warn'); return; }
+  const key = getKey();
+  // 1) detener el proceso colgado de cada uno (sin que reintente ni guarde por su cuenta)
+  stuck.forEach(it => { it._cancelado = true; try { it._ctrl && it._ctrl.abort(); } catch (e) {} });
+  _processingAlb = false; _processingAlbStartTs = 0;
+  let guardados = 0;
+  for (const it of stuck) {
+    let results = [];
+    // 2) lectura ligera: una sola pasada, sin reintentos, con tope de tiempo
+    try {
+      if (it.b64 && key) {
+        const ctrl = new AbortController();
+        results = await withTimeout(
+          callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, true),
+          50000, 'lectura manual'
+        );
+      }
+    } catch (e) {
+      console.warn('[v107FY] La lectura ligera no concluyó; guardo con lo del nombre del archivo:', e.message || e);
+      results = [];
+    }
+    if (!Array.isArray(results) || !results.length) results = [{}];
+    // 3) completar con datos del nombre del archivo y marcar como manual
+    const mat = _matDeNombre(it.name);
+    const fch = _fechaDeNombre(it.name);
+    for (const d of results) {
+      d._manual = true;
+      if (!esMatriculaValida(d.tractora) && mat) d.tractora = mat;
+      if (!d.fecha && fch) d.fecha = fch;
+      const obs = String(d.observaciones || '').trim();
+      if (!/manual/i.test(obs)) d.observaciones = obs ? (obs + ' · ALBARÁN MANUAL — revisar/completar') : 'ALBARÁN MANUAL — revisar/completar';
+      try { await saveRecord(d); guardados++; } catch (e) { console.warn('[v107FY] saveRecord falló:', e.message || e); }
+    }
+    it.status = 'done';
+    it.b64 = null;
+  }
+  renderQueues();
+  try { await loadData(); } catch (e) {}
+  toast(`📝 Guardado como manual (${guardados}). Edítalo en Albaranes para completarlo.`);
 }
 
 async function processQueue(type) {
@@ -3650,6 +3722,7 @@ async function _processOne(it, type, key, timeoutMs) {
 
     while (attempts < MAX_ATTEMPTS) {
       const ctrl = new AbortController();
+      it._ctrl = ctrl; // v107FY: expuesto para poder abortarlo desde "Guardar como manual"
       const timer = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
         if (type === 'alb') {
@@ -3665,6 +3738,9 @@ async function _processOne(it, type, key, timeoutMs) {
         break;
       } catch (retryErr) {
         clearTimeout(timer);
+        // v107FY: si el usuario lo pasó a "Guardar como manual", salimos sin reintentar
+        // (lo guarda guardarComoManual con una lectura ligera).
+        if (it._cancelado) break;
         attempts++;
         // Manejo especial de RATE LIMIT (429): esperar mucho más tiempo
         if (retryErr.status === 429 || (retryErr.message && /rate.?limit|exceed.*token|usage limit/i.test(retryErr.message))) {
@@ -3684,6 +3760,11 @@ async function _processOne(it, type, key, timeoutMs) {
         await sleep(2000);
       }
     }
+
+    // v107FY: si el usuario lo pasó a "Guardar como manual" mientras leíamos, NO guardamos
+    // aquí (lo gestiona guardarComoManual con una lectura ligera). Salimos limpiamente y
+    // dejamos it.b64 intacto para que esa función pueda releerlo.
+    if (it._cancelado) { it.status = 'done'; return false; }
 
     it.b64 = null; // liberar memoria
 
@@ -5014,7 +5095,7 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
   throw errFinal;
 }
 
-async function callClaudeAlb(b64, mediaType, key, isPdf, signal) {
+async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false) {
   // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
   // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
   // a valid string". Esto pasa típicamente si en algún reintento se perdió el b64 (bug
@@ -5235,6 +5316,16 @@ SOLO JSON válido, sin markdown.`;
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(text);
   const results = Array.isArray(parsed) ? parsed : [parsed];
+
+  // v107FY — MODO MANUAL (lectura ligera). Cuando el usuario pulsa "Guardar como manual"
+  // en un albarán A MANO que se atasca, leemos UNA sola vez con Haiku y devolvemos lo que
+  // salga, SIN los reintentos Sonnet (matrícula/destino/TN) que son los que tardan y se
+  // pelean con la letra a mano. El usuario completará/corregirá lo que falte a mano.
+  // Solo se activa con manual=true → las subidas normales NO se ven afectadas en nada.
+  if (manual) {
+    console.log('[v107FY manual] Lectura ligera: devuelvo lo leído por Haiku, sin reintentos Sonnet.');
+    return results;
+  }
 
   // v93: fallback a Sonnet 4.6 SOLO si Haiku dejó alguna matrícula vacía. Llamada focalizada
   // (prompt cortísimo, solo matrículas) — más probable que acierte porque el modelo no se
