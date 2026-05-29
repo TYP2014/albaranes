@@ -15153,11 +15153,29 @@ async function factSubirAutofactura(files) {
   // cliente de cada albarán con seguridad, mostramos como "no abonados" los
   // que NO se han cruzado pero cuyo número TIENE pinta de CEMEX (empieza por M
   // y es largo). Así no marcamos como "no abonado" un albarán de Holcim.
+  // v107FL — limitar el aviso "NO ABONADOS" al/los MES(ES) de ESTA preliquidación.
+  // Una autofactura CEMEX es mensual, así que solo tiene sentido avisar de albaranes
+  // CEMEX tuyos del MISMO mes. Si subes la de abril, NO debe avisarte de los de mayo.
+  const _factMes = (s) => {
+    const f = normFecha(s); // DD/MM/YYYY
+    const m = f.match(/^\d{1,2}\/(\d{2}\/\d{4})$/);
+    return m ? m[1] : ''; // devuelve "MM/YYYY"
+  };
+  const mesesAuto = new Set();
+  lineas.forEach(L => { const mm = _factMes(L.fecha); if (mm) mesesAuto.add(mm); });
+
   const noAbonados = [];
   records.forEach(r => {
     if (r.db_id && idsAbonados.has(String(r.db_id))) return; // ya abonado
     const n = _factNormAlb(r.albaran);
-    if (/^M\d{6,}$/.test(n)) noAbonados.push(r);
+    if (!/^M\d{6,}$/.test(n)) return; // solo albaranes con pinta de CEMEX (empiezan por M)
+    // Si sabemos el/los mes(es) de la autofactura, solo avisamos de los albaranes de ESE mes.
+    // (Si por lo que sea no pudimos sacar el mes de un albarán, lo mostramos igual, por seguridad.)
+    if (mesesAuto.size > 0) {
+      const mr = _factMes(r.fecha);
+      if (mr && !mesesAuto.has(mr)) return; // es de otro mes → no avisar
+    }
+    noAbonados.push(r);
   });
 
   _factAutoUltimo = { abonados, noAbonados, sinAlbaran, fichero: file.name, fecha: new Date() };
