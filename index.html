@@ -5434,6 +5434,62 @@ SOLO JSON válido, sin markdown.`;
     }
   }
 
+  // ===== v107FN — RED DE SEGURIDAD DESTINO (lo de debajo de "Obra:") =====
+  // El destino se lee del bloque "Obra:". En los Holcim/Cemex de hojas escaneadas
+  // con VARIOS bloques de direcciones juntos, Haiku a veces coge el bloque equivocado
+  // y devuelve el DOMICILIO DEL TRANSPORTISTA (CORIA DEL RIO, SEVILLA = sedes de
+  // TRANSPORTES Y PORTES 2014 / PORTES 2014 IMPORT) o lo deja vacío. Esas ciudades
+  // NUNCA son un destino de entrega. Cuando lo detectamos, releemos SOLO el destino
+  // con Sonnet 4.6 (más fiable distinguiendo bloques). Si Sonnet tampoco lo recupera,
+  // dejamos el destino VACÍO — preferible vacío que una dirección falsa.
+  const _destEsBasura = (s) => {
+    const t = String(s || '').toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!t) return false;
+    if (/\bCORIA DEL RIO\b/.test(t)) return true;          // sede T. y PORTES 2014
+    if (t === 'SEVILLA') return true;                       // sede PORTES 2014 IMPORT
+    if (/TRANSPORTES Y PORTES|PORTES IMPORT|HOLCIM ESPA|TRANSP EFECTIVO|OPERADOR LOG[IÍ]STICO/.test(t)) return true;
+    return false;
+  };
+  const indicesDestSospechoso = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const prov = String(r.proveedor || '').toUpperCase();
+    const esHolcimOCemex = /HOLCIM|CEMEX/.test(prov);
+    const dest = String(r.obra || '').trim();
+    // (1) destino con pinta de transportista → siempre sospechoso (cualquier proveedor)
+    if (_destEsBasura(dest)) { indicesDestSospechoso.push(i); continue; }
+    // (2) destino vacío en un Holcim/Cemex de salida (debería tener "Obra:") → sospechoso.
+    //     No afecta a recepción: esos llevan "Fábrica Montcada", que no está vacío.
+    const esRecepcion = /F[ÁA]BRICA\s+MONTCADA/i.test(dest);
+    if (esHolcimOCemex && !dest && !esRecepcion) { indicesDestSospechoso.push(i); }
+  }
+  if (indicesDestSospechoso.length > 0) {
+    console.log(`[v107FN] ${indicesDestSospechoso.length}/${results.length} destinos sospechosos (vacío o dirección de transportista). Reintentando con Sonnet 4.6...`);
+    let destSonnet = null;
+    try {
+      destSonnet = await reintentaDestinoHolcimConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+    } catch (e) {
+      console.warn('[v107FN] Error en reintento Sonnet destino (no crítico):', e.message);
+    }
+    let recuperados = 0;
+    for (const i of indicesDestSospechoso) {
+      const d = (destSonnet && destSonnet.length === results.length) ? destSonnet[i] : null;
+      const dl = String(d || '').trim();
+      // Solo aceptamos el destino de Sonnet si NO está vacío y NO vuelve a ser basura.
+      if (dl && !_destEsBasura(dl)) {
+        const antes = results[i].obra;
+        results[i].obra = dl;
+        if (antes !== dl) console.log(`[v107FN] Destino corregido albarán ${i + 1}: "${antes || '(vacío)'}" → "${dl}"`);
+        recuperados++;
+      } else if (_destEsBasura(results[i].obra)) {
+        // Sonnet no lo recuperó y el de Haiku era una dirección de transportista → lo dejo VACÍO.
+        console.log(`[v107FN] Destino albarán ${i + 1} era dirección de transportista ("${results[i].obra}") y no se recuperó → lo dejo VACÍO`);
+        results[i].obra = '';
+      }
+    }
+    console.log(`[v107FN] Sonnet recuperó ${recuperados}/${indicesDestSospechoso.length} destinos`);
+  }
+
   return results;
 }
 
@@ -5589,6 +5645,56 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107EN3] Sonnet no devolvió JSON válido:', text.substring(0, 200));
+    return null;
+  }
+}
+
+// v107FN — Reintento focalizado del DESTINO (lo de debajo de "Obra:") con Sonnet 4.6.
+// Se llama cuando Haiku dejó el destino vacío o devolvió el domicilio del transportista
+// (CORIA DEL RIO / SEVILLA) en un Holcim/Cemex. Prompt cortísimo (SOLO destino) para que
+// el modelo no se distraiga con los 5 bloques de direcciones del albarán. Devuelve un
+// array con un destino por albarán (mismo formato que las otras reintenta*).
+async function reintentaDestinoHolcimConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const reglas = `El DESTINO es EXCLUSIVAMENTE el nombre escrito JUSTO DEBAJO del código del campo "Obra:" (en Cemex, el bloque "Datos Obra"). Léelo letra a letra y devuélvelo TAL CUAL aparece.
+⛔ NUNCA devuelvas como destino ninguna de estas cosas (son el TRANSPORTISTA o su domicilio, NO el destino de entrega):
+- "CORIA DEL RIO" ni "SEVILLA" (son las sedes de las empresas de transporte TRANSPORTES Y PORTES 2014, S.L. y PORTES 2014 IMPORT S.L.).
+- los nombres "TRANSPORTES Y PORTES 2014", "PORTES 2014 IMPORT", "HOLCIM ESPAÑA", ni las etiquetas "Transp. efectivo", "Operador logístico", "Cargador".
+- el contenido de "Facturar a:" ni de "Cliente:" (eso es el cliente, no el destino).
+- el pueblo del código postal, ni códigos numéricos.
+Ejemplo real: bajo "Obra: 0101648303" pone "FORJADO CERAMICO SEMENAT / CRTA.SENTMENAT A CALDES KM 1,5 / 08181 Sentmenat" → destino = "FORJADO CERAMICO SEMENAT".
+Si debajo de "Obra:" NO hay un nombre legible, devuelve "" (cadena vacía). NO inventes, NO adivines.`;
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) de Holcim/Cemex de transporte en España. Para cada uno, lee SOLO el DESTINO.
+${reglas}
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} elementos, en el ORDEN en que aparecen los albaranes en el PDF.
+Ejemplo de respuesta correcta para 3 albaranes: ["FORJADO CERAMICO SEMENAT","VIC",""]
+SOLO el array JSON, sin texto adicional, sin markdown, sin explicación.`
+    : `Este es un albarán de Holcim/Cemex. Lee SOLO el DESTINO.
+${reglas}
+Devuelve un ARRAY JSON con UN elemento: ["FORJADO CERAMICO SEMENAT"]. Si no lo ves, [""].
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107FN] Sonnet no devolvió JSON válido (destino):', text.substring(0, 200));
     return null;
   }
 }
