@@ -5299,6 +5299,38 @@ SOLO JSON válido, sin markdown.`;
     }
   }
 
+  // ===== v107FS — RED DE SEGURIDAD MATRÍCULA POR MAYORÍA DE LOTE =====
+  // Caso muy típico: subes un PDF con muchos albaranes del MISMO camión (una tractora
+  // hace 15 viajes en el mes y los subes juntos). Casi todas las matrículas coinciden.
+  // Si alguna salió VACÍA o no válida (p.ej. en un ELITE con layout raro donde ni Haiku
+  // ni Sonnet la pillan), la rellenamos con la matrícula DOMINANTE del lote. Es lo que
+  // haría una persona: "si 14 son 7007JML, la que falta también lo es".
+  // SEGURIDAD: solo rellena VACÍAS/inválidas, NUNCA pisa una matrícula ya leída; y solo
+  // actúa si hay mayoría fuerte (la dominante es más de la mitad de las válidas y se
+  // repite al menos 2 veces), para no equivocarse en lotes de varios camiones.
+  if (results.length >= 3) {
+    const _cuentaMat = {};
+    results.forEach(r => {
+      if (esMatriculaValida(r.tractora)) {
+        const m = String(r.tractora).trim().toUpperCase();
+        _cuentaMat[m] = (_cuentaMat[m] || 0) + 1;
+      }
+    });
+    let _matDom = null, _maxN = 0, _totalValidas = 0;
+    Object.entries(_cuentaMat).forEach(([m, n]) => { _totalValidas += n; if (n > _maxN) { _maxN = n; _matDom = m; } });
+    if (_matDom && _maxN >= 2 && _maxN > _totalValidas / 2) {
+      let _rellenadas = 0;
+      results.forEach((r, i) => {
+        if (!esMatriculaValida(r.tractora)) {
+          console.log(`[v107FS] Matrícula vacía/inválida en albarán ${i + 1} ("${r.tractora || '(vacío)'}") → relleno con la dominante del lote "${_matDom}" (${_maxN}/${_totalValidas})`);
+          r.tractora = _matDom;
+          _rellenadas++;
+        }
+      });
+      if (_rellenadas) console.log(`[v107FS] Rellenadas ${_rellenadas} matrícula(s) por mayoría de lote (${_matDom})`);
+    }
+  }
+
   // ===== v107EN3 — RED DE SEGURIDAD CLIENTE CANTERAS CANRO =====
   // Canteras Canro tiene un patrón muy consistente: caja CLIENTE con código/CIF
   // arriba y NOMBRE en mayúsculas abajo. La IA Haiku a veces deja vacío el
@@ -6263,7 +6295,7 @@ function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) 
   // SOLO enseña/esconde opciones según lo que escribes; NO crea valores nuevos, NO cambia
   // la selección de casillas ni los permisos de editar. Es solo para encontrar más rápido.
   if (values.length > 8) {
-    html += `<input type="text" class="fil-multi-search" placeholder="🔍 Buscar…" oninput="msFilter('${listId}', this.value)" onclick="event.stopPropagation()">`;
+    html += `<input type="text" class="fil-multi-search" placeholder="🔍 Buscar…" autocomplete="off">`;
   }
   if (!values.length) html += `<div class="fil-multi-empty">Sin datos</div>`;
   else html += values.map(v => {
@@ -6272,6 +6304,16 @@ function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) 
   }).join('');
   if (values.length > 8) html += `<div class="fil-multi-noresult">Sin coincidencias</div>`;
   list.innerHTML = html;
+  // v107FR — conectamos el buscador POR CÓDIGO (no por atributo inline, que fallaba al
+  // escribir). Además, frenamos que las teclas y los clics lleguen al <details> y lo
+  // cierren o se traguen lo que escribes.
+  const _msSearchInput = list.querySelector('.fil-multi-search');
+  if (_msSearchInput) {
+    _msSearchInput.addEventListener('input', () => msFilter(listId, _msSearchInput.value));
+    _msSearchInput.addEventListener('click', (e) => e.stopPropagation());
+    _msSearchInput.addEventListener('mousedown', (e) => e.stopPropagation());
+    _msSearchInput.addEventListener('keydown', (e) => e.stopPropagation());
+  }
   msUpdateSummary(sumId, selectedSet, allLabel, plural);
 }
 
