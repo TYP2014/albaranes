@@ -15223,6 +15223,36 @@ async function factSubirAutofactura(files) {
     }
   });
 
+  // v107FP — PASO 2: cruzar también los albaranes CEMEX VIEJOS guardados con el formato
+  // antiguo "77469/242043" (de antes de que la app guardara el nº "M4690000242043" de la
+  // Ref. CemexGo). El número de CEMEX y el viejo COMPARTEN la cola (la parte tras la "/"):
+  //   viejo "77469/242043"  →  prefijo "77469", cola "242043"
+  //   CEMEX "M4690000242043" = "M" + plant(469) + ceros + cola(242043)
+  // Para cruzar SIN falsos positivos exigimos 3 candados: (a) la cola coincide (5+ dígitos),
+  // (b) entre el plant y la cola del nº CEMEX solo hay ceros, (c) el prefijo viejo termina
+  // en ese mismo plant (469 = Begues áridos, 848 = cemento, etc.).
+  const viejosCemex = [];
+  records.forEach(r => {
+    const raw = String(r.albaran || '').trim();
+    const m = raw.match(/^(\d+)\/(\d+)$/); // formato viejo 77469/242043
+    if (m && m[2].length >= 5) {
+      viejosCemex.push({ rec: r, prefijo: m[1], cola: m[2] });
+    }
+  });
+  const _matchColaVieja = (numCemex) => {
+    if (!numCemex || numCemex[0] !== 'M') return null;
+    const body = numCemex.slice(1); // dígitos tras la M, ej "4690000242043"
+    for (const v of viejosCemex) {
+      if (!body.endsWith(v.cola)) continue;                  // (a) misma cola
+      const entre = body.slice(0, body.length - v.cola.length);
+      const em = entre.match(/^(\d{3})0+$/);                 // (b) plant(3) + solo ceros
+      if (!em) continue;
+      if (!v.prefijo.endsWith(em[1])) continue;              // (c) prefijo viejo acaba en plant
+      return v.rec;
+    }
+    return null;
+  };
+
   const abonados = [];      // 🟢 cruzan (con o sin notas)
   const sinAlbaran = [];    // 📋 en autofactura pero sin albarán nuestro
   const idsAbonados = new Set();
@@ -15234,6 +15264,12 @@ async function factSubirAutofactura(files) {
       const cand = porNum.get(numA);
       // Si hay varios con el mismo número, preferimos el que más datos cuadre.
       match = cand[0];
+    }
+    // v107FP — si no cuadró por número exacto, probamos por la COLA COMPARTIDA con los
+    // albaranes viejos (formato "77469/242043"). Así los de antes del arreglo del nº M
+    // también cuadran sin volver a subirlos.
+    if (!match) {
+      match = _matchColaVieja(numA);
     }
     if (match) {
       // Comprobar diferencias en los datos de apoyo (nota corta).
