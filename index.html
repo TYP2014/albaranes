@@ -6259,6 +6259,21 @@ function exportProduccionExcel() {
 }
 
 function buildDropdowns() {
+  // v107FX — OÍDO ÚNICO para los buscadores de filtro (delegación de eventos). Antes
+  // enganchábamos un listener a CADA buscador al construirlo, y por timing/reconstrucción
+  // del desplegable no saltaba de forma fiable (lo que escribías no filtraba). Con UN SOLO
+  // listener en `document` que escucha cualquier campo `.fil-multi-search`, funciona siempre,
+  // aunque el desplegable se reconstruya. Se engancha una única vez.
+  if (!window._msSearchDelegado) {
+    window._msSearchDelegado = true;
+    document.addEventListener('input', function (e) {
+      const t = e.target;
+      if (t && t.classList && t.classList.contains('fil-multi-search')) {
+        const cont = t.closest('[id$="List"]'); // el div contenedor del filtro (fProvList, fDestinoList, …)
+        if (cont && cont.id) msFilter(cont.id, t.value);
+      }
+    });
+  }
   const unique = k => [...new Set(records.filter(r => !r._dup).map(r => r[k]).filter(Boolean))].sort();
   // v100: TODOS los filtros principales son ahora multi-select. Antes Proveedor/Origen/Destino/
   // Material/Subido por eran inputs simples con datalist (1 solo valor); ahora son <details> con
@@ -6321,7 +6336,9 @@ function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) 
   // cierren o se traguen lo que escribes.
   const _msSearchInput = list.querySelector('.fil-multi-search');
   if (_msSearchInput) {
-    _msSearchInput.addEventListener('input', () => msFilter(listId, _msSearchInput.value));
+    // v107FX: el filtrado al escribir lo gestiona ahora el oído único de buildDropdowns
+    // (delegación). Aquí solo frenamos que las teclas/clics lleguen al <details> y lo
+    // cierren o se traguen lo que escribes.
     _msSearchInput.addEventListener('click', (e) => e.stopPropagation());
     _msSearchInput.addEventListener('mousedown', (e) => e.stopPropagation());
     _msSearchInput.addEventListener('keydown', (e) => e.stopPropagation());
