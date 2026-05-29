@@ -4555,38 +4555,34 @@ async function _processOne(it, type, key, timeoutMs) {
               data.tm = null;
             }
           } else {
-            // v107FV — PALET monomaterial LIMPIO = SIEMPRE Nota de recibo de DEVOLUCIÓN.
+            // v107FV/FW — PALET monomaterial LIMPIO = SIEMPRE Nota de recibo de DEVOLUCIÓN.
             // Un albarán normal nunca lleva SOLO un palet como material (lleva material
             // real + palet). Si lo ÚNICO que hay es "PALET CEMENTO"/"PALET MORTERO", es
-            // una devolución de palets vacíos a fábrica. Antes esto dependía de que la IA
-            // pusiera devolucion_palets=true, pero la IA es INCONSISTENTE y a veces NO lo
-            // marca (caso real CCF_003702) → se borraban datos buenos. Ahora lo reconocemos
-            // por CÓDIGO (fiable) y fijamos origen/destino correctos:
+            // una devolución de palets vacíos a fábrica. Lo reconocemos por CÓDIGO (la IA
+            // es INCONSISTENTE con este documento, caso real CCF_003702) y fijamos:
             //   · destino (obra)  = SIEMPRE la fábrica (Fábrica Montcada / Montcada Mortero)
-            //   · origen  (planta)= el almacén de donde VUELVEN los palets
+            //   · origen  (planta)= el almacén de donde VUELVEN los palets (si la IA lo leyó;
+            //     si no, lo dejamos EN BLANCO, mejor que un origen falso)
+            //   · piezas  (tm)    = nº de palets; v107FW: si la IA NO leyó el número, lo
+            //     dejamos EN BLANCO para que el admin lo rellene — NUNCA borramos el albarán
+            //     por esto (mejor un albarán a medias que perder el dato).
             const tmAntes = data.tm;
             const tmAbs = Math.abs(parseFloat(data.tm) || 0);
-            if (tmAbs > 0) {
-              data.tm = tmAbs;
-              data.devolucion_palets = true;
-              const _esMontcada = (s) => /MONTCADA/i.test(String(s || ''));
-              let _almacen = '';
-              if (data.planta && !_esMontcada(data.planta)) _almacen = data.planta;
-              else if (data.obra && !_esMontcada(data.obra)) _almacen = data.obra;
-              data.obra = /MORTERO/i.test(String(data.producto)) ? 'Montcada Mortero' : 'Fábrica Montcada';
-              if (_almacen) data.planta = _almacen;
-              const obsActual = String(data.observaciones || '').trim();
-              if (!/devoluc/i.test(obsActual)) {
-                data.observaciones = obsActual
-                  ? obsActual + ' · DEVOLUCIÓN PALETS VACÍOS'
-                  : 'DEVOLUCIÓN PALETS VACÍOS';
-              }
-              console.log(`[v107FV devolución palets] Nota de recibo reconocida por código. Producto="${data.producto}", piezas=${tmAbs} (era ${tmAntes}), origen="${data.planta}", destino="${data.obra}".`);
-            } else {
-              console.warn(`[v107D6] PALET monomaterial pero tm="${tmAntes}" no convertible a piezas>0 — borro producto y tm para revisar.`);
-              data.producto = null;
-              data.tm = null;
+            data.tm = tmAbs > 0 ? tmAbs : null;
+            data.devolucion_palets = true;
+            const _esMontcada = (s) => /MONTCADA/i.test(String(s || ''));
+            let _almacen = '';
+            if (data.planta && !_esMontcada(data.planta)) _almacen = data.planta;
+            else if (data.obra && !_esMontcada(data.obra)) _almacen = data.obra;
+            data.obra = /MORTERO/i.test(String(data.producto)) ? 'Montcada Mortero' : 'Fábrica Montcada';
+            data.planta = _almacen;
+            const obsActual = String(data.observaciones || '').trim();
+            if (!/devoluc/i.test(obsActual)) {
+              data.observaciones = obsActual
+                ? obsActual + ' · DEVOLUCIÓN PALETS VACÍOS'
+                : 'DEVOLUCIÓN PALETS VACÍOS';
             }
+            console.log(`[v107FV/FW devolución palets] Nota de recibo reconocida por código. Producto="${data.producto}", piezas=${data.tm === null ? '(sin leer — rellenar a mano)' : data.tm} (era ${tmAntes}), origen="${data.planta || '(en blanco)'}", destino="${data.obra}".`);
           }
         }
         if (Array.isArray(data.materiales) && data.materiales.length >= 1) {
