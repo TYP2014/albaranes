@@ -5489,6 +5489,18 @@ SOLO JSON válido, sin markdown.`;
   const indicesDestSospechoso = [];
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
+    // v107FT — DEVOLUCIÓN DE PALETS (Notas de recibo): NO leen destino del PDF; su destino
+    // es una regla fija (la fábrica a la que VUELVEN los palets). Lo fijamos por código y NO
+    // entran en la relectura de destino. (El cambio del destino de sacos los estaba dejando
+    // en blanco por error — esto lo blinda para que vuelva a ir bien como antes.)
+    if (r.devolucion_palets) {
+      const _dPal = String(r.obra || '').trim();
+      if (!/F[ÁA]BRICA\s+MONTCADA|MONTCADA\s+MORTERO/i.test(_dPal)) {
+        r.obra = /MORTERO/i.test(String(r.producto || '')) ? 'Montcada Mortero' : 'Fábrica Montcada';
+        console.log(`[v107FT] Devolución de palets albarán ${i + 1}: destino fijado por regla a "${r.obra}" (no se lee del PDF)`);
+      }
+      continue;
+    }
     const prov = String(r.proveedor || '').toUpperCase();
     const esHolcim = /HOLCIM/.test(prov);
     const esCemex = /CEMEX/.test(prov);
