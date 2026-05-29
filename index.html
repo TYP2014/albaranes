@@ -209,6 +209,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .fil-multi-opt:hover{background:rgba(0,232,122,.08)}
 .fil-multi-opt input[type=checkbox]{cursor:pointer;accent-color:var(--ac)}
 .fil-multi-empty{padding:8px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:10px}
+.fil-multi-search{width:100%;box-sizing:border-box;margin:0 0 5px;padding:5px 8px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);font-family:var(--mn);font-size:11px;outline:none}
+.fil-multi-search:focus{border-color:var(--ac)}
+.fil-multi-search::placeholder{color:var(--mu)}
+.fil-multi-noresult{padding:8px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:10px;display:none}
 .filter-actions{display:flex;align-items:flex-end}
 
 /* TABLE */
@@ -6255,11 +6259,18 @@ function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) 
     <button type="button" onclick="msSelectAll('${listId}','${sumId}','${plural}','${allLabel}',true)">Todas</button>
     <button type="button" onclick="msSelectAll('${listId}','${sumId}','${plural}','${allLabel}',false)">Limpiar</button>
   </div>`;
+  // v107FQ — buscador escribible dentro del filtro (solo listas largas, >8 opciones).
+  // SOLO enseña/esconde opciones según lo que escribes; NO crea valores nuevos, NO cambia
+  // la selección de casillas ni los permisos de editar. Es solo para encontrar más rápido.
+  if (values.length > 8) {
+    html += `<input type="text" class="fil-multi-search" placeholder="🔍 Buscar…" oninput="msFilter('${listId}', this.value)" onclick="event.stopPropagation()">`;
+  }
   if (!values.length) html += `<div class="fil-multi-empty">Sin datos</div>`;
   else html += values.map(v => {
     const checked = selectedSet.has(v) ? 'checked' : '';
     return `<label class="fil-multi-opt"><input type="checkbox" value="${esc(v)}" ${checked} onchange="msToggle('${listId}','${sumId}','${plural}','${allLabel}',this.value,this.checked)">${v}</label>`;
   }).join('');
+  if (values.length > 8) html += `<div class="fil-multi-noresult">Sin coincidencias</div>`;
   list.innerHTML = html;
   msUpdateSummary(sumId, selectedSet, allLabel, plural);
 }
@@ -6297,6 +6308,24 @@ function msSelectAll(listId, sumId, plural, allLabel, selectAll) {
   }
   msUpdateSummary(sumId, set, allLabel, plural);
   applyFilters();
+}
+
+// v107FQ — Buscador dentro del filtro: enseña/esconde opciones según el texto escrito.
+// NO toca las casillas ni la selección — solo cambia qué opciones se VEN. Búsqueda sin
+// tildes y sin distinguir mayúsculas; encuentra el texto en cualquier parte de la opción.
+function msFilter(listId, q) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const needle = norm(q);
+  let visibles = 0;
+  list.querySelectorAll('.fil-multi-opt').forEach(lbl => {
+    const ok = !needle || norm(lbl.textContent).includes(needle);
+    lbl.style.display = ok ? '' : 'none';
+    if (ok) visibles++;
+  });
+  const nores = list.querySelector('.fil-multi-noresult');
+  if (nores) nores.style.display = (needle && visibles === 0) ? 'block' : 'none';
 }
 
 function applyFilters() {
