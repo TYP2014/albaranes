@@ -5167,10 +5167,11 @@ Campos a extraer:
   · "Obra: 0100527384 / SU ALMACEN / POL. IND. TORRENT D'EN PUIG, 23 / 08358 ARENYS DE MUNT" → destino = "SU ALMACEN"
   · "Obra: 0100526249 / RUBI / CTRA. RUBI TERRASSA, 125 / 08191 RUBI" → destino = "RUBI"
   · "Obra: 0101020690 / DDP TORA / Carretera d'Andorra 14 / 25751 Torá" → destino = "DDP TORA"
+🔴🔴🔴 v107FM — REGLA MÁS IMPORTANTE DEL DESTINO (manda sobre todo lo anterior): el destino es EXCLUSIVAMENTE el texto escrito en ESTE albarán JUSTO DEBAJO de "Obra:". Léelo LETRA A LETRA y devuélvelo TAL CUAL aparece. Los nombres que salen ARRIBA como EJEMPLO (COLAS SANT FOST, SANS MONTBLANC, SU ALMACEN, RUBI, DDP TORA, VIC y cualquier otro de estas instrucciones) son SOLO para enseñarte el FORMATO — NUNCA los devuelvas como destino salvo que los veas escritos LITERALMENTE en el papel que tienes delante. Si el destino que ibas a poner coincide con uno de esos ejemplos pero NO lo ves escrito en ESTE albarán, está MAL: descártalo y vuelve a leer la línea de debajo de "Obra:". Si debajo de "Obra:" NO hay un nombre legible (está en blanco, borroso o recortado), deja el destino VACÍO (null). ⚠️ PREFERIBLE VACÍO QUE INVENTADO: es mucho mejor dejarlo en blanco que poner un nombre que no está en el albarán. NO copies de los ejemplos, NO adivines, NO deduzcas el nombre a partir del código de obra.
 **⚠️ CRÍTICO — ERRORES REALES DETECTADOS QUE DEBES EVITAR:**
   · NUNCA devuelvas la palabra "Albarán" como destino. "Albarán" es la cabecera del documento, NO un destino. Si lees "Albarán" como destino, está MAL — busca el bloque "Obra:" y lee el nombre que hay DEBAJO del código.
   · NUNCA devuelvas el código numérico como destino (ej. "0101648830" NO es un destino — es el código de obra, ignóralo).
-  · NUNCA devuelvas vacío/null si el albarán tiene bloque "Obra:" — siempre hay un nombre debajo del código, búscalo.
+  · Si debajo del código de "Obra:" hay un nombre LEGIBLE, devuélvelo (no lo dejes vacío). Pero si NO puedes leer con seguridad ese nombre, deja el destino VACÍO (null) — NUNCA inventes ni copies un ejemplo para rellenar el hueco.
   · NUNCA confundas el destino con el cliente de "Facturar a:". Son DOS campos distintos del albarán y tienen valores distintos.
 
 **(6) OBSERVACIONES manuales:** estos albaranes A VECES llevan anotaciones a mano en el campo "Observaciones:" tipo "ABONO 10 PALETS", "-41 PALET ABONO" o "ABONO 20 PALETS". Cópialas en \`observaciones\` tal cual, sin interpretar.
