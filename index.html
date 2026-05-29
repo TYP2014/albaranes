@@ -4538,31 +4538,10 @@ async function _processOne(it, type, key, timeoutMs) {
           return /\b(ecoplanet|bigmat|cem\s+|nhl|bl\s+ii|porcelanico|supercal|tempo gel|caliza|arena|arcilla|yeso|arido|ag-|af-)/i.test(t);
         };
         if (data && typeof data.producto === 'string' && _esPaletMono(data.producto)) {
-          // v107EQ: si la IA marcó devolucion_palets=true, RESPETAR el palet
-          // como producto legítimo. La cantidad puede venir negativa: la
-          // convertimos a positiva (Juan Carlos prefiere positivo + marca).
-          if (data.devolucion_palets === true && !_contieneMaterialReal(data.producto)) {
-            const tmAntes = data.tm;
-            const tmAbs = Math.abs(parseFloat(data.tm) || 0);
-            if (tmAbs > 0) {
-              data.tm = tmAbs;
-              console.log(`[v107EQ devolución palets] Reconocida Nota de recibo Holcim devolución palets vacíos. Producto="${data.producto}", piezas=${tmAbs} (era ${tmAntes}). Mantengo el palet.`);
-              // Añadir marca en observaciones si no la trae ya
-              const obsActual = String(data.observaciones || '').trim();
-              if (!/devoluc/i.test(obsActual)) {
-                data.observaciones = obsActual
-                  ? obsActual + ' · DEVOLUCIÓN PALETS VACÍOS'
-                  : 'DEVOLUCIÓN PALETS VACÍOS';
-              }
-            } else {
-              console.warn(`[v107EQ devolución palets] devolucion_palets=true pero tm=${tmAntes} (no positivo ni convertible). Caigo a comportamiento clásico (borrar).`);
-              data.producto = null;
-              data.tm = null;
-            }
-          } else if (_contieneMaterialReal(data.producto)) {
-            // Limpiar solo la parte del PALET y dejar el material real.
+          if (_contieneMaterialReal(data.producto)) {
+            // (v107D9) La IA concatenó material real + PALET → limpiar SOLO el PALET y
+            // dejar el material real. SIN CAMBIOS respecto a antes.
             const antes = data.producto;
-            // Quitar variantes "PALET CEMENTO", "PALET MORTERO", "PALE T", etc.
             let limpio = data.producto
               .replace(/\s*[\+\,;\/\|]\s*pa\s*l\s*e\s*t\s+(cemento|mortero|vacio|vacios)?\s*$/gi, '')
               .replace(/\s+pa\s*l\s*e\s*t\s+(cemento|mortero|vacio|vacios)?\s*$/gi, '')
@@ -4570,18 +4549,44 @@ async function _processOne(it, type, key, timeoutMs) {
             if (limpio && limpio !== data.producto) {
               console.warn(`[v107D9] Producto IA con PALET concatenado a material real. Limpio: "${antes}" → "${limpio}"`);
               data.producto = limpio;
-              // tm: dejar lo que vino. Si trae bruto-tara como tm, el admin
-              // verá la TN y la corregirá si hace falta (mejor info parcial
-              // que campo vacío que cuesta más de rellenar).
             } else {
               console.warn(`[v107D9] Producto "${antes}" parece tener PALET pero no se pudo limpiar — borro para revisar.`);
               data.producto = null;
               data.tm = null;
             }
           } else {
-            console.warn(`[v107D6] Producto "${data.producto}" detectado como PALET en monomaterial (NO es material real, NO es devolución legítima). Se borra producto y tm para que el admin lo corrija.`);
-            data.producto = null;
-            data.tm = null;
+            // v107FV — PALET monomaterial LIMPIO = SIEMPRE Nota de recibo de DEVOLUCIÓN.
+            // Un albarán normal nunca lleva SOLO un palet como material (lleva material
+            // real + palet). Si lo ÚNICO que hay es "PALET CEMENTO"/"PALET MORTERO", es
+            // una devolución de palets vacíos a fábrica. Antes esto dependía de que la IA
+            // pusiera devolucion_palets=true, pero la IA es INCONSISTENTE y a veces NO lo
+            // marca (caso real CCF_003702) → se borraban datos buenos. Ahora lo reconocemos
+            // por CÓDIGO (fiable) y fijamos origen/destino correctos:
+            //   · destino (obra)  = SIEMPRE la fábrica (Fábrica Montcada / Montcada Mortero)
+            //   · origen  (planta)= el almacén de donde VUELVEN los palets
+            const tmAntes = data.tm;
+            const tmAbs = Math.abs(parseFloat(data.tm) || 0);
+            if (tmAbs > 0) {
+              data.tm = tmAbs;
+              data.devolucion_palets = true;
+              const _esMontcada = (s) => /MONTCADA/i.test(String(s || ''));
+              let _almacen = '';
+              if (data.planta && !_esMontcada(data.planta)) _almacen = data.planta;
+              else if (data.obra && !_esMontcada(data.obra)) _almacen = data.obra;
+              data.obra = /MORTERO/i.test(String(data.producto)) ? 'Montcada Mortero' : 'Fábrica Montcada';
+              if (_almacen) data.planta = _almacen;
+              const obsActual = String(data.observaciones || '').trim();
+              if (!/devoluc/i.test(obsActual)) {
+                data.observaciones = obsActual
+                  ? obsActual + ' · DEVOLUCIÓN PALETS VACÍOS'
+                  : 'DEVOLUCIÓN PALETS VACÍOS';
+              }
+              console.log(`[v107FV devolución palets] Nota de recibo reconocida por código. Producto="${data.producto}", piezas=${tmAbs} (era ${tmAntes}), origen="${data.planta}", destino="${data.obra}".`);
+            } else {
+              console.warn(`[v107D6] PALET monomaterial pero tm="${tmAntes}" no convertible a piezas>0 — borro producto y tm para revisar.`);
+              data.producto = null;
+              data.tm = null;
+            }
           }
         }
         if (Array.isArray(data.materiales) && data.materiales.length >= 1) {
