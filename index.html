@@ -751,6 +751,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           <div id="factAutoEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
         </div>
       </div>
+
+      <!-- v107GA: AUTOFACTURA HOLCIM (SOLO ADMIN — oculta por defecto, loadUserMap la muestra solo si admin) -->
+      <div class="card" id="factHolcimCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>AUTOFACTURA HOLCIM&nbsp;<span style="font-size:10px;color:var(--mu);font-weight:400">· solo admin</span></div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="document.getElementById('factHolcimFileInput').click()">📤 Subir autofactura HOLCIM (PDF)</button>
+            <input type="file" id="factHolcimFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofacturaHolcim(this.files)">
+          </div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
+            Sube la liquidación/autofactura que te envía Holcim (PDF, aunque tenga muchas páginas). La app lee cada porte y lo cruza con tus albaranes: cemento, áridos, clinker y paletizado <strong style="color:var(--tx)">por nº de albarán (Num. Entrega)</strong>; las materias primas (yeso, caliza) <strong style="color:var(--tx)">por fecha + matrícula + TN</strong>. Saca: abonados 🟢, no abonados ⚠️ y abonados sin albarán 📋, con Excel resumen.
+          </div>
+          <div id="factHolcimEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
+        </div>
+      </div>
     </div>
 
     <!-- v107FJ: contenedor tabContentItv que faltaba (causaba que ITV se viera en Albaranes) -->
@@ -1407,6 +1424,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
   </div>
 </div>
 
+<!-- v107GA: modal informe AUTOFACTURA HOLCIM (solo admin) -->
+<div class="ov" id="ovFactHolcim">
+  <div class="modal" style="max-width:920px">
+    <div class="modal-hd">
+      <div class="modal-title" id="factHolcimTitulo">AUTOFACTURA HOLCIM</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById('ovFactHolcim').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="factHolcimBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bs" onclick="factHolcimExcel()">📊 Descargar Excel resumen</button>
+      <button class="btn bp" onclick="document.getElementById('ovFactHolcim').classList.remove('open')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NUEVO USUARIO -->
 <div class="ov" id="ovNewUser">
   <div class="modal" style="max-width:420px">
@@ -1740,6 +1774,11 @@ async function loadUserMap() {
       const _esMarta       = (_emailFinal === 'marta@typ2014.local');
       const _esLogistica   = (_emailFinal === 'logistica@ttesyportes.2014');
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esMarta || _esLogistica;
+
+      // v107GA: la tarjeta "Autofactura HOLCIM" SOLO la ve/usa el admin (Juan Carlos),
+      // aunque la pestaña Facturación la vean también MdM/Marta/Logística. El de CEMEX
+      // se queda visible para ellos como hasta ahora.
+      try { const _hc = document.getElementById('factHolcimCard'); if (_hc) _hc.style.display = _esAdminFinal ? '' : 'none'; } catch (e) {}
 
       if (!_veTodo) {
         // No es ninguno de los 3 → ocultar las pestañas extra, dejar solo
@@ -15642,6 +15681,291 @@ function factAutoExcel() {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Abonados sin albaran');
 
   const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, nombre);
+  toast('Excel descargado', 'ok');
+}
+// ============================================================
+// v107GA — AUTOFACTURA HOLCIM (solo admin). Mismo patrón que CEMEX.
+// Cruce doble: (1) por nº de albarán (Num. Entrega) para cemento/áridos/
+// clinker/palets; (2) por fecha+matrícula+TN para materias primas (yeso,
+// caliza) cuyo Num. Entrega no coincide con el nº guardado en la app.
+// ============================================================
+let _factHolcimUltimo = null;
+
+async function callClaudeAutofacturaHolcim(b64, key, signal) {
+  const prompt = 'Eres un OCR experto en LIQUIDACIONES / AUTOFACTURAS que HOLCIM ESPAÑA emite a sus transportistas (cabecera con logo "HOLCIM", "Holcim España, S.A.U.", "Referencia 33106943XX", "Periodo: DD.MM.YYYY-DD.MM.YYYY"). Holcim paga al transportista por cada porte. Es un PDF de varias páginas con una tabla de portes.\n\n'
+    + 'Devuelve SIEMPRE un ARRAY JSON, un objeto por CADA línea de porte que tenga un "Num. Entrega".\n\n'
+    + 'Las columnas de la tabla, en orden, son: Fecha de entrega | Num. Entrega | Matrícula | Nombre Proveedor/Cliente | Dirección | Zona | Material de servicio | Cta. | UoM | Precio neto | Mond | Extracoste | Valor neto.\n\n'
+    + 'De cada línea saca:\n'
+    + '- num_entrega: el valor de la columna "Num. Entrega" TAL CUAL, sin espacios. Es el dato MÁS importante (es el nº de albarán). Varios formatos posibles: 11 dígitos que empiezan por 31041/31042/31048 (cemento, áridos, clinker); 8 dígitos que empiezan por 55 o 56 (devolución de palets); formato semana tipo "16W2026-0000172"; o 10 dígitos que empiezan por 0 (materias primas). Cópialo entero, sin tocar.\n'
+    + '- fecha: la "Fecha de entrega" en formato DD/MM/YYYY (en el PDF viene como DD.MM.YYYY, conviértela con barras).\n'
+    + '- matricula: SOLO la matrícula TRACTORA, que es la que va ANTES de la "/" (ej. en "0755KMB / R8205BDG" la tractora es "0755KMB"). La de después empieza por "R" y es el REMOLQUE: NO la cojas. Sin espacios.\n'
+    + '- material: el texto de "Material de servicio" (ej. "CEM II/A-L 42,5 R GRANEL", "AF-0/4-T-C", "PALET CEMENTO", "YESO", "Caliza Foj", "CLINKER").\n'
+    + '- tn: el valor de la columna "Cta." (cantidad), con punto decimal (ej 30.040). En las líneas de PALET es negativo (ej -10): cópialo igual.\n'
+    + '- valor_neto: el valor de la última columna "Valor neto" en euros, con punto decimal (ej 160.78).\n'
+    + '- transportista: el nombre de la fila de cabecera "Transportista :" que manda sobre ese bloque (ej "TRANSPORTES Y PORTES 2014", "TRANSPORTES HISPALIS 2016", "TRANSMARGAZ 2018"). Repítelo en cada línea de su bloque hasta que aparezca otra cabecera "Transportista :".\n\n'
+    + 'REGLAS IMPORTANTES:\n'
+    + '- Recorre TODAS las páginas y TODAS las líneas con Num. Entrega. Puede haber cientos. No te dejes ninguna.\n'
+    + '- IGNORA por completo (NO las incluyas) las filas "Fin de semana" (no tienen Num. Entrega, su UoM es "UP", son un recargo). IGNORA también cabeceras, subtítulos, "Página X / Y", "Referencia", "Periodo", "Lafarge CEM Planta", direcciones de empresa y pies de página.\n'
+    + '- Una misma matrícula encabeza un bloque y debajo van varias líneas: cada línea es un objeto, todas con esa matrícula hasta que cambie.\n'
+    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null (pero num_entrega y matricula deben verse).\n\n'
+    + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: prompt }
+      ] }]
+    }),
+    signal: signal
+  });
+  if (!res.ok) {
+    let e = {}; try { e = await res.json(); } catch (_) {}
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    // v107GA: si el PDF es muy largo, la respuesta puede venir cortada → recuperar el
+    // array hasta el último objeto completo en vez de fallar del todo.
+    const lastObj = text.lastIndexOf('}');
+    if (lastObj > -1) {
+      let t2 = text.slice(0, lastObj + 1);
+      if (!t2.trim().startsWith('[')) t2 = '[' + t2;
+      parsed = JSON.parse(t2 + ']');
+      console.warn('[v107GA] respuesta de Holcim recuperada parcialmente (PDF largo).');
+    } else { throw e; }
+  }
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+async function factSubirAutofacturaHolcim(files) {
+  const file = files && files[0];
+  const inp = document.getElementById('factHolcimFileInput');
+  if (inp) inp.value = '';
+  if (!file) return;
+  // v107GA — candado: SOLO admin.
+  if (currentRole !== 'admin') { toast('La autofactura de Holcim es solo para admin', 'err'); return; }
+
+  const key = getKey();
+  if (!key) { toast('Falta la clave de IA (API key)', 'err'); return; }
+
+  const estado = document.getElementById('factHolcimEstado');
+  const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
+  setEstado('⏳ Leyendo la autofactura de Holcim… (puede tardar si tiene muchas páginas)');
+
+  let b64;
+  try {
+    b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1] || '');
+      r.onerror = () => rej(new Error('No se pudo leer el PDF'));
+      r.readAsDataURL(file);
+    });
+  } catch (e) { setEstado('❌ ' + (e.message || e)); return; }
+
+  let lineas;
+  try {
+    lineas = await callClaudeAutofacturaHolcim(b64, key);
+  } catch (e) {
+    setEstado('❌ No se pudo leer la autofactura: ' + (e.message || e));
+    return;
+  }
+  if (!lineas || !lineas.length) {
+    setEstado('⚠️ No he encontrado líneas de porte. ¿Seguro que es una liquidación de Holcim?');
+    return;
+  }
+
+  setEstado('⏳ Cruzando ' + lineas.length + ' líneas con tus albaranes…');
+
+  // --- CRUCE ---
+  const porNum = new Map();
+  records.forEach(r => {
+    const n = _factNormAlb(r.albaran);
+    if (n) { if (!porNum.has(n)) porNum.set(n, []); porNum.get(n).push(r); }
+  });
+
+  const abonados = [];
+  const sinAlbaran = [];
+  const idsAbonados = new Set();
+  const usados = new Set();
+
+  lineas.forEach(L => {
+    const numA = _factNormAlb(L.num_entrega);
+    const matL = _factNormMat(L.matricula);
+    if (!numA && !matL) return; // fila basura (ej. "Fin de semana")
+
+    let match = null, modo = '';
+    // 1) por nº de albarán (Num. Entrega): cemento, áridos, clinker, palets
+    if (numA && porNum.has(numA)) {
+      const cand = porNum.get(numA);
+      match = cand.find(c => !usados.has(String(c.db_id))) || cand[0];
+      modo = 'nº albarán';
+    }
+    // 2) si no cuadra por número: por fecha + matrícula + TN (materias primas)
+    if (!match) {
+      const fL = normFecha(L.fecha);
+      const tnL = Math.abs(_factNum(L.tn));
+      let best = null, bestD = 999;
+      for (const r of records) {
+        if (usados.has(String(r.db_id))) continue;
+        if (normFecha(r.fecha) !== fL) continue;
+        if (_factNormMat(r.tractora) !== matL) continue;
+        const d = Math.abs(_factNum(r.tm) - tnL);
+        if (isNaN(d)) continue;
+        if (d <= 0.06 && d < bestD) { best = r; bestD = d; }
+      }
+      if (best) { match = best; modo = 'fecha+matrícula+TN'; }
+    }
+
+    if (match) {
+      const difs = [];
+      const matR = _factNormMat(match.tractora);
+      if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / Holcim: ' + (L.matricula || '—') + ')');
+      const tnR = _factNum(match.tm), tnLn = Math.abs(_factNum(L.tn));
+      if (modo === 'nº albarán' && !isNaN(tnLn) && !isNaN(tnR) && Math.abs(tnLn - tnR) > 0.06) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
+      const fL = normFecha(L.fecha), fR = normFecha(match.fecha);
+      if (modo === 'nº albarán' && fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
+      abonados.push({ linea: L, rec: match, difs: difs, modo: modo });
+      if (match.db_id) { idsAbonados.add(String(match.db_id)); usados.add(String(match.db_id)); }
+    } else {
+      sinAlbaran.push(L);
+    }
+  });
+
+  // NO ABONADOS: albaranes nuestros con pinta de Holcim, del periodo, no abonados.
+  const _factMes = (s) => { const f = normFecha(s); const m = f.match(/^\d{1,2}\/(\d{2}\/\d{4})$/); return m ? m[1] : ''; };
+  const mesesAuto = new Set();
+  lineas.forEach(L => { const mm = _factMes(L.fecha); if (mm) mesesAuto.add(mm); });
+
+  const noAbonados = [];
+  records.forEach(r => {
+    if (r.db_id && idsAbonados.has(String(r.db_id))) return;
+    const n = _factNormAlb(r.albaran);
+    const pareceHolcim = /^3104\d{7}$/.test(n) || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase());
+    if (!pareceHolcim) return;
+    if (mesesAuto.size > 0) {
+      const mr = _factMes(r.fecha);
+      if (mr && !mesesAuto.has(mr)) return;
+    }
+    noAbonados.push(r);
+  });
+
+  _factHolcimUltimo = { abonados, noAbonados, sinAlbaran, fichero: file.name, fecha: new Date() };
+
+  // Marcar abonados como facturados (memoria + Supabase en 2º plano).
+  for (const a of abonados) {
+    const r = a.rec;
+    if (r.db_id && r.estado_facturacion !== 'facturado') {
+      r.estado_facturacion = 'facturado';
+      r.factura_fecha = new Date().toISOString();
+      const celda = document.querySelector(`td[data-fact="${r.db_id}"]`);
+      if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+      sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha }).eq('id', r.db_id)
+        .then(({ error }) => { if (error) console.warn('[v107GA] guardar facturado:', error); });
+    }
+  }
+
+  setEstado('✅ Listo. Abro el resumen.');
+  _factHolcimMostrarInforme();
+  toast('Autofactura Holcim: ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' sin albarán', 'ok');
+}
+
+function _factHolcimMostrarInforme() {
+  const u = _factHolcimUltimo;
+  if (!u) return;
+  const body = document.getElementById('factHolcimBody');
+  const tit = document.getElementById('factHolcimTitulo');
+  if (tit) tit.textContent = 'AUTOFACTURA HOLCIM — ' + (u.fichero || '');
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let h = '';
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + u.abonados.length + ')</div>';
+  if (!u.abonados.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.abonados.forEach(a => {
+      const nota = a.difs.length ? ' <span style="color:#e0a000">✅ Coincide todo menos ' + a.difs.map(esc).join(' y ') + '</span>' : '';
+      const via = ' <span style="color:var(--mu);font-size:10px">[' + esc(a.modo) + ']</span>';
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(a.linea.num_entrega) + ' · ' + esc(a.linea.matricula) + ' · ' + esc(a.linea.fecha)
+        + ' · ' + esc(a.linea.tn) + ' · ' + esc(a.linea.material || '') + ' · ' + esc(a.linea.valor_neto) + '€' + via + nota + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="font-weight:700;color:#e0a000;margin-bottom:8px">⚠️ NO ABONADOS (' + u.noAbonados.length + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Albaranes tuyos tipo Holcim que NO aparecen en esta autofactura. Revísalos: puede que falten o se paguen en otra liquidación.</div>';
+  if (!u.noAbonados.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.noAbonados.forEach(r => {
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(r.albaran) + ' · ' + esc(r.tractora) + ' · ' + esc(r.fecha)
+        + ' · ' + esc(r.tm) + ' TN · ' + esc(r.obra || r.destino || '') + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  h += '<div style="margin-bottom:6px">';
+  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS QUE NO TENEMOS (' + u.sinAlbaran.length + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Holcim paga estas líneas pero no tienes el albarán en la app. Solo para que las veas (también salen en el Excel).</div>';
+  if (!u.sinAlbaran.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.sinAlbaran.forEach(L => {
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(L.num_entrega) + ' · ' + esc(L.matricula) + ' · ' + esc(L.fecha)
+        + ' · ' + esc(L.tn) + ' · ' + esc(L.material || '') + ' · ' + esc(L.valor_neto) + '€</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  if (body) body.innerHTML = h;
+  document.getElementById('ovFactHolcim').classList.add('open');
+}
+
+function factHolcimExcel() {
+  const u = _factHolcimUltimo;
+  if (!u) { toast('No hay datos que exportar', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const aoaAb = [['Num. Entrega', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Cruce', 'Transportista', 'Observación']];
+  u.abonados.forEach(a => {
+    aoaAb.push([
+      a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '',
+      a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', a.modo || '',
+      a.linea.transportista || '',
+      a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK'
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaAb), 'Abonados');
+
+  const aoaNo = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Origen', 'Destino']];
+  u.noAbonados.forEach(r => { aoaNo.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.planta || r.origen || '', r.obra || r.destino || '']); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaNo), 'No abonados');
+
+  const aoaSin = [['Num. Entrega', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Transportista']];
+  u.sinAlbaran.forEach(L => { aoaSin.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.transportista || '']); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Abonados sin albaran');
+
+  const nombre = 'Autofactura_HOLCIM_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
   toast('Excel descargado', 'ok');
 }
