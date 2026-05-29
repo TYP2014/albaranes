@@ -5454,17 +5454,23 @@ SOLO JSON válido, sin markdown.`;
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     const prov = String(r.proveedor || '').toUpperCase();
-    const esHolcimOCemex = /HOLCIM|CEMEX/.test(prov);
+    const esHolcim = /HOLCIM/.test(prov);
+    const esCemex = /CEMEX/.test(prov);
     const dest = String(r.obra || '').trim();
-    // (1) destino con pinta de transportista → siempre sospechoso (cualquier proveedor)
-    if (_destEsBasura(dest)) { indicesDestSospechoso.push(i); continue; }
-    // (2) destino vacío en un Holcim/Cemex de salida (debería tener "Obra:") → sospechoso.
-    //     No afecta a recepción: esos llevan "Fábrica Montcada", que no está vacío.
     const esRecepcion = /F[ÁA]BRICA\s+MONTCADA/i.test(dest);
-    if (esHolcimOCemex && !dest && !esRecepcion) { indicesDestSospechoso.push(i); }
+    // (1) destino con pinta de transportista → siempre (cualquier proveedor).
+    if (_destEsBasura(dest)) { indicesDestSospechoso.push(i); continue; }
+    // (2) v107FO — HOLCIM de SALIDA: el destino sale de "Obra:", justo donde el modelo
+    //     rápido (Haiku) falla en estas hojas escaneadas (copia un ejemplo tipo "COLAS SANT
+    //     FOST" o coge el bloque de al lado). Para estos NO nos fiamos de Haiku: releemos
+    //     SIEMPRE el destino con Sonnet (más fiable). NO afecta a las RECEPCIONES (van a
+    //     "Fábrica Montcada", que se detecta arriba y no entra aquí).
+    if (esHolcim && !esRecepcion) { indicesDestSospechoso.push(i); continue; }
+    // (3) Cemex con destino vacío → también lo releemos.
+    if (esCemex && !dest) { indicesDestSospechoso.push(i); }
   }
   if (indicesDestSospechoso.length > 0) {
-    console.log(`[v107FN] ${indicesDestSospechoso.length}/${results.length} destinos sospechosos (vacío o dirección de transportista). Reintentando con Sonnet 4.6...`);
+    console.log(`[v107FN/FO] ${indicesDestSospechoso.length}/${results.length} destinos a releer con Sonnet 4.6 (Holcim de salida o destino dudoso)...`);
     let destSonnet = null;
     try {
       destSonnet = await reintentaDestinoHolcimConSonnet(b64, mediaType, key, isPdf, signal, results.length);
