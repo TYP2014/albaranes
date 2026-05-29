@@ -15678,7 +15678,7 @@ function factAutoExcel() {
   u.sinAlbaran.forEach(L => {
     aoaSin.push([L.numero_albaran || '', L.matricula || '', L.fecha || '', L.tn || '', L.importe || '', L.origen || '', L.destino || '']);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Abonados sin albaran');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Sin copia');
 
   const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
@@ -15801,48 +15801,78 @@ async function factSubirAutofacturaHolcim(files) {
   const idsMatched = new Set(); // abonados + posibles (para no marcarlos "no abonados")
   const usados = new Set();
 
+  // v107GC — clasificación de cada línea de Holcim en 3 destinos:
+  //   ABONADOS (verde solo): cuadra por nº de albarán, O materia prima con fecha+matrícula+TN EXACTAS.
+  //   A REVISAR (uno a uno) : materia prima que NO cuadra del todo pero se parece (misma matrícula y TN
+  //                           pero la fecha baila pocos días; o misma fecha pero TN distinta).
+  //   SIN COPIA             : Holcim lo paga pero no tenemos ningún albarán parecido.
+  const _diasEntre = (a, b) => {
+    const p = s => { const m = String(s).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; };
+    const da = p(a), db = p(b); if (!da || !db) return 999;
+    return Math.abs(Math.round((da - db) / 86400000));
+  };
+  const TOL_TN = 0.05;   // margen mínimo de redondeo en toneladas
+  const VENT_DIAS = 10;  // ventana de fecha para "a revisar" (Holcim arrastra portes días después)
+
   lineas.forEach(L => {
     const numA = _factNormAlb(L.num_entrega);
     const matL = _factNormMat(L.matricula);
     if (!numA && !matL) return; // fila basura (ej. "Fin de semana")
 
-    let match = null, modo = '';
-    // 1) por nº de albarán (Num. Entrega): cemento, áridos, clinker, palets
+    const fL = normFecha(L.fecha);
+    const tnL = Math.abs(_factNum(L.tn));
+
+    // 1) POR Nº DE ALBARÁN (cemento, áridos, clinker, palets) → ABONADO directo (el número manda).
     if (numA && porNum.has(numA)) {
       const cand = porNum.get(numA);
-      match = cand.find(c => !usados.has(String(c.db_id))) || cand[0];
-      modo = 'nº albarán';
-    }
-    // 2) si no cuadra por número: por fecha + matrícula + TN (materias primas)
-    if (!match) {
-      const fL = normFecha(L.fecha);
-      const tnL = Math.abs(_factNum(L.tn));
-      let best = null, bestD = 999;
-      for (const r of records) {
-        if (usados.has(String(r.db_id))) continue;
-        if (normFecha(r.fecha) !== fL) continue;
-        if (_factNormMat(r.tractora) !== matL) continue;
-        const d = Math.abs(_factNum(r.tm) - tnL);
-        if (isNaN(d)) continue;
-        if (d <= 0.06 && d < bestD) { best = r; bestD = d; }
-      }
-      if (best) { match = best; modo = 'fecha+matrícula+TN'; }
-    }
-
-    if (match) {
+      const match = cand.find(c => !usados.has(String(c.db_id))) || cand[0];
       const difs = [];
       const matR = _factNormMat(match.tractora);
       if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / Holcim: ' + (L.matricula || '—') + ')');
-      const tnR = _factNum(match.tm), tnLn = Math.abs(_factNum(L.tn));
-      if (modo === 'nº albarán' && !isNaN(tnLn) && !isNaN(tnR) && Math.abs(tnLn - tnR) > 0.06) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
-      const fL = normFecha(L.fecha), fR = normFecha(match.fecha);
-      if (modo === 'nº albarán' && fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
-      const item = { linea: L, rec: match, difs: difs, modo: modo };
-      if (modo === 'nº albarán') abonados.push(item); else posibles.push(item);
+      const tnR = _factNum(match.tm);
+      if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > TOL_TN) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
+      const fR = normFecha(match.fecha);
+      if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
+      abonados.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán' });
       if (match.db_id) { idsMatched.add(String(match.db_id)); usados.add(String(match.db_id)); }
-    } else {
-      sinAlbaran.push(L);
+      return;
     }
+
+    // 2) MATERIAS PRIMAS (el nº de Holcim NUNCA coincide con el del albarán). Anclamos en matrícula exacta.
+    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL);
+
+    // 2a) EXACTO: misma fecha + misma TN (al céntimo, con margen mínimo de redondeo) → ABONADO verde solo.
+    let exacto = null, exDiff = 999;
+    for (const r of cands) {
+      if (normFecha(r.fecha) !== fL) continue;
+      const d = Math.abs(_factNum(r.tm) - tnL);
+      if (isNaN(d) || d > TOL_TN) continue;
+      if (d < exDiff) { exacto = r; exDiff = d; }
+    }
+    if (exacto) {
+      abonados.push({ linea: L, rec: exacto, difs: [], modo: 'fecha+matrícula+TN' });
+      idsMatched.add(String(exacto.db_id)); usados.add(String(exacto.db_id));
+      return;
+    }
+
+    // 2b) PARCIAL → A REVISAR: misma matrícula y TN pero la fecha baila pocos días; o misma fecha pero TN distinta.
+    let parcial = null; const difsP = [];
+    for (const r of cands) {
+      const d = Math.abs(_factNum(r.tm) - tnL);
+      const tnOK = !isNaN(d) && d <= TOL_TN;
+      const fOK = normFecha(r.fecha) === fL;
+      const dias = _diasEntre(fL, normFecha(r.fecha));
+      if (tnOK && dias <= VENT_DIAS) { parcial = r; difsP.push('fecha (tú: ' + (r.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')'); break; }
+      if (fOK) { parcial = r; difsP.push('TN (tú: ' + (r.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')'); break; }
+    }
+    if (parcial) {
+      posibles.push({ linea: L, rec: parcial, difs: difsP, modo: 'parcial' });
+      idsMatched.add(String(parcial.db_id)); usados.add(String(parcial.db_id));
+      return;
+    }
+
+    // 3) Nada parecido → Holcim lo paga pero no tenemos copia del albarán.
+    sinAlbaran.push(L);
   });
 
   // NO ABONADOS: albaranes nuestros con pinta de Holcim, del periodo, no abonados.
@@ -15895,7 +15925,7 @@ async function factSubirAutofacturaHolcim(files) {
 
   setEstado('✅ Listo. Abro el resumen.');
   _factHolcimMostrarInforme();
-  toast('Holcim: ' + abonados.length + ' abonados · ' + posibles.length + ' posibles a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin albarán', 'ok');
+  toast('Holcim: ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia', 'ok');
 }
 
 function _factHolcimMostrarInforme() {
@@ -15925,8 +15955,8 @@ function _factHolcimMostrarInforme() {
 
   // v107GB — POSIBLES (cuadran por fecha+matrícula+TN, requieren confirmación a mano)
   h += '<div style="margin-bottom:18px">';
-  h += '<div style="font-weight:700;color:#ff9d3b;margin-bottom:8px">⚠️ POSIBLES — REVISA TÚ (' + (u.posibles ? u.posibles.length : 0) + ')</div>';
-  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Cuadran por fecha + matrícula + TN (materias primas, o fotos de cantera aún sin el papel oficial). NO se marcan facturadas hasta que pulses Confirmar en cada una. Debajo de cada línea de Holcim tienes TU albarán para comparar.</div>';
+  h += '<div style="font-weight:700;color:#ff9d3b;margin-bottom:8px">⚠️ A REVISAR — UNO A UNO (' + (u.posibles ? u.posibles.length : 0) + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Solo los que NO cuadran del todo: misma matrícula y TN pero la fecha baila unos días, o misma fecha pero TN distinta (típico de las fotos de cantera subidas antes del papel oficial). Los que coinciden enteros ya están en Abonados. Debajo de cada línea de Holcim tienes TU albarán; pulsa Confirmar en los que veas bien.</div>';
   if (!u.posibles || !u.posibles.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguna.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.5">';
@@ -15961,8 +15991,8 @@ function _factHolcimMostrarInforme() {
   h += '</div>';
 
   h += '<div style="margin-bottom:6px">';
-  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS QUE NO TENEMOS (' + u.sinAlbaran.length + ')</div>';
-  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Holcim paga estas líneas pero no tienes el albarán en la app. Solo para que las veas (también salen en el Excel).</div>';
+  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS SIN COPIA DE ALBARÁN (' + u.sinAlbaran.length + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Holcim paga estas líneas pero no tienes el albarán en la app (el conductor lo perdió, no se subió…). Como Holcim no paga sin porte, seguro que existieron. También salen en el Excel.</div>';
   if (!u.sinAlbaran.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.6">';
@@ -16026,7 +16056,7 @@ function factHolcimExcel() {
       a.confirmado ? 'SÍ' : 'no'
     ]);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaPos), 'Posibles revisar');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaPos), 'A revisar');
 
   const aoaNo = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Origen', 'Destino']];
   u.noAbonados.forEach(r => { aoaNo.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.planta || r.origen || '', r.obra || r.destino || '']); });
@@ -16034,7 +16064,7 @@ function factHolcimExcel() {
 
   const aoaSin = [['Num. Entrega', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Transportista']];
   u.sinAlbaran.forEach(L => { aoaSin.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.transportista || '']); });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Abonados sin albaran');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Sin copia');
 
   const nombre = 'Autofactura_HOLCIM_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
