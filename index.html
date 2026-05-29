@@ -10,6 +10,7 @@
 <!-- v107FE (28/05/2026): FACTURACIÓN velocidad. Al pulsar el botón de marcar (📌→🟢) ya NO se repinta la tabla entera (~2.200 filas, lo que iba lento). Ahora el cambio es instantáneo: se actualiza solo el iconito de ESA fila y el guardado en Supabase va en segundo plano (patrón "guardado instantáneo" v107d). La celda Est lleva data-fact con el id del albarán para localizarla. Si el guardado en BD fallara, toast rojo avisando de reintentar. -->
 <!-- v107FF (28/05/2026): FICHADOR PURO. Arregla que los empleados de taller que SOLO fichan (Carlos, César, Oscar, oscarv: role=conductor + puede_fichar=true + sin otros permisos) veían la pantalla de Subir Documentos y NO veían la pestaña Fichaje. Ahora se les detecta como "fichador puro" (puede_fichar=true, no admin/gestor, sin ITV/taller/neumáticos/vacaciones) y entran a la vista con pestañas mostrando SOLO 🕐 Fichaje, abierta directamente. No afecta a María del Mar ni Marta (son gestor). NO requiere SQL. Cambios en onLogin (select ampliado + rama nueva) y loadUserMap (salida temprana). -->
 <!-- v107FG (28/05/2026): EXCEL FICHAJE — hoja "Registro Legal". El Excel de Fichaje ahora tiene 2 hojas: "Fichajes" (lista cronológica, como antes, intacta) y NUEVA "Registro Legal" con el formato oficial Art. 10 RD-ley 8/2019 (modelo del gestor): una sección por Trabajador+Mes con cabecera (Empresa/CIF/Trabajador/DNI/Nº horas contrato/Mes/Centro Trabajo=Sant Vicenç dels Horts), tabla días 1..fin de mes (Entrada/Salida comer/Vuelta comer/Salida/Horas día/Observaciones), ausencias como texto, fila TOTAL y líneas de firma. Funciones nuevas: _fichajeAoaLegal(filas), _fichajeHHMM(ts), const _FICHAJE_CENTRO_TRABAJO. NO requiere SQL. -->
+<!-- v107FI (28/05/2026): LECTOR AUTOFACTURA CEMEX en la pestaña Facturación. Botón "Subir autofactura CEMEX (PDF)" → la IA (callClaudeAutofacturaCemex, Haiku) lee cada línea de porte (nº albarán M..., fecha, matrícula, origen, destino, TN, importe) → cruza con records por nº albarán (apoyo fecha/TN/matrícula/destino) → 3 grupos: 🟢 abonados (se marcan facturados, con nota "coincide todo menos X" si baila un dato), ⚠️ no abonados (albaranes M... no presentes), 📋 abonados sin albarán. Modal ovFactAuto + Excel 3 hojas (factAutoExcel). Holcim pendiente para la próxima versión. -->
 <!-- v107FH (28/05/2026): NUEVA pestaña 🧾 Facturación (sustituye a Preliquidaciones, que queda oculta — su tabla en Supabase NO se borra). La ven los mismos que pueden facturar (admin + María del Mar + Marta + Logística, helper _puedeVerFacturacion v107FD). Por ahora la pestaña explica el marcado manual (🟢📌🚫 ya operativo desde v107FD); en la próxima versión se le añadirá subir autofactura CEMEX + cruce + Excel. Cambios: botón pestaña, contenido tabContentFacturacion, switchTab amplía lista, visibilidad en loadUserMap, y Preli ya no se re-muestra. -->
 
 <title>TYP2014 — Gestión Albaranes</title>
@@ -725,17 +726,28 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
           </div>
           <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;background:rgba(124,196,255,.06);border:1px solid rgba(124,196,255,.25);border-radius:9px;padding:12px 14px">
             Para marcar un albarán a mano: abre la pestaña <strong style="color:var(--tx)">📄 Albaranes</strong>, pulsa sobre el albarán y usa el recuadro azul <strong style="color:#7cc4ff">🧾 Facturación</strong> del modal.
-            <br><br>
-            🔜 <strong style="color:var(--tx)">Próximamente aquí:</strong> subir la autofactura de CEMEX (y Holcim) para que la app marque sola los albaranes pagados y genere un Excel resumen (abonados / no abonados / abonados sin albarán).
           </div>
+        </div>
+      </div>
+
+      <!-- v107FI: AUTOFACTURA CEMEX -->
+      <div class="card" style="margin-top:18px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>AUTOFACTURA CEMEX</div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="document.getElementById('factAutoFileInput').click()">📤 Subir autofactura CEMEX (PDF)</button>
+            <input type="file" id="factAutoFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofactura(this.files)">
+          </div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
+            Sube el PDF de la preliquidación/autofactura que te envía CEMEX. La app lee cada línea y la cruza con tus albaranes por <strong style="color:var(--tx)">nº albarán + fecha + TN + origen + destino + matrícula</strong>. Después podrás descargar un Excel resumen con: abonados ✅, no abonados ⚠️ y abonados sin albarán 📋.
+          </div>
+          <div id="factAutoEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
         </div>
       </div>
     </div>
 
-    <!-- v107FI: TAB ITV. Este bloque estaba SUELTO (sin su div contenedor), por eso
-         se veía en todas las pestañas. Ahora va envuelto en tabContentItv con
-         display:none, igual que el resto de pestañas. -->
-    <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
       <!-- v107h: Grid de 2 columnas para ITVs + Citas. En móvil se apila. -->
@@ -1367,6 +1379,23 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
     </div>
     <div class="modal-ft">
       <button class="btn bp" onclick="closeRecambiosInf()">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- v107FI: MODAL INFORME AUTOFACTURA CEMEX (abonados / no abonados / sin albarán) -->
+<div class="ov" id="ovFactAuto">
+  <div class="modal" style="max-width:920px">
+    <div class="modal-hd">
+      <div class="modal-title" id="factAutoTitulo">AUTOFACTURA CEMEX</div>
+      <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById('ovFactAuto').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div id="factAutoBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn bs" id="factAutoBtnExcel" onclick="factAutoExcel()">📊 Descargar Excel resumen</button>
+      <button class="btn bp" onclick="document.getElementById('ovFactAuto').classList.remove('open')">Cerrar</button>
     </div>
   </div>
 </div>
@@ -14945,6 +14974,317 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
   document.getElementById('ovRecambiosInf').classList.add('open');
 }
 function closeRecambiosInf() { document.getElementById('ovRecambiosInf').classList.remove('open'); }
+
+// ============================================================
+// v107FI (28/05/2026): LECTOR DE AUTOFACTURAS CEMEX
+// ------------------------------------------------------------
+// Sube el PDF de la preliquidación CEMEX, la IA lee cada línea y
+// la cruza con los albaranes que el usuario ve (records → respeta
+// privacidad RLS). Resultado en 3 grupos:
+//   🟢 ABONADOS        → albarán en app Y en autofactura (se marca facturado)
+//   ⚠️ NO ABONADOS     → albarán en app pero NO en la autofactura
+//   📋 ABONADOS S/ALB. → línea pagada sin albarán nuestro (solo Excel)
+// Si cuadra el nº pero baila un dato → 🟢 + nota "coincide todo menos X".
+// CEMEX cruza por: nº albarán (principal) + fecha/TN/matrícula de apoyo.
+// ============================================================
+
+// Estado del último cruce (para el botón Excel del modal).
+let _factAutoUltimo = null;
+
+// --- Lector IA de la autofactura CEMEX (PDF multipágina) ---
+async function callClaudeAutofacturaCemex(b64, key, signal) {
+  const prompt = 'Eres un OCR experto en "Reporte de Preliquidación" de CEMEX ESPAÑA OPERACIONES para transportistas en España. Es un PDF de varias páginas. CEMEX paga al transportista por cada porte.\n\n'
+    + 'Devuelve SIEMPRE un ARRAY JSON, un objeto por CADA línea de porte con número de albarán.\n\n'
+    + 'Cada línea tiene estas columnas en este orden: Matrícula | Planta(origen) | Fecha Albarán | Número Albarán | Obra(destino) | Grupo Porte | Cantidad(TN) | Unidad | Importe Total | Moneda | Importe Base | ... | SCD.\n\n'
+    + 'De cada línea saca:\n'
+    + '- numero_albaran: el "Número Albarán", que empieza por M y tiene muchos dígitos (ej "M4690000242019" áridos, "M8480000008858" cemento). SIN espacios. Es el dato MÁS importante.\n'
+    + '- fecha: la "Fecha Albarán" en formato DD/MM/YYYY (en el PDF viene como DD.MM.YYYY, conviértela con barras).\n'
+    + '- matricula: la matrícula española (4 dígitos + 3 letras, ej "1437LDV"). Quita espacios.\n'
+    + '- origen: el texto de "Planta" (ej "CANTERA BEGUES", "ES - Silo Portcement Alcanar").\n'
+    + '- destino: el texto de "Obra" (ej "HORMIGON MONTCADA", "IN BCN ZONA FRANCA", "HORMIGON SANT JUST").\n'
+    + '- tn: la Cantidad en toneladas, con punto decimal (ej 28.340).\n'
+    + '- importe: el "Importe Total" en euros, con punto decimal (ej 212.55).\n'
+    + '- scd: el código largo de la columna SCD (ej "28260687"), solo como referencia.\n\n'
+    + 'REGLAS IMPORTANTES:\n'
+    + '- Recorre TODAS las páginas y TODAS las líneas. Puede haber decenas o cientos. No te dejes ninguna.\n'
+    + '- Una misma matrícula encabeza un bloque y debajo van varias líneas: cada línea es un objeto, todas con esa matrícula hasta que cambie.\n'
+    + '- IGNORA estas líneas (NO son portes, NO las incluyas): las que NO tienen Número Albarán (solo SCD, son ajustes/peajes), las de "Total Matrícula", "Total Cantidad", "Total Importe", "Total Ajuste", cabeceras y pies de página. También ignora líneas con Cantidad 0 (son ajustes manuales).\n'
+    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null (pero el numero_albaran y la matricula deben verse).\n\n'
+    + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: prompt }
+      ] }]
+    }),
+    signal: signal
+  });
+  if (!res.ok) {
+    let e = {}; try { e = await res.json(); } catch (_) {}
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(text);
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+// Normaliza un número de albarán para comparar (mayúsculas, sin espacios ni signos).
+function _factNormAlb(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+// Normaliza matrícula (sin espacios/guiones, mayúsculas).
+function _factNormMat(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+// Convierte TN a número (admite coma o punto decimal).
+function _factNum(s) {
+  if (s === null || s === undefined) return NaN;
+  let t = String(s).trim().replace(/\s/g, '');
+  // si tiene coma decimal española, cambiarla a punto (y quitar separador de miles)
+  if (t.indexOf(',') > -1) t = t.replace(/\./g, '').replace(',', '.');
+  return parseFloat(t);
+}
+
+// --- Subir y procesar la autofactura CEMEX ---
+async function factSubirAutofactura(files) {
+  const file = files && files[0];
+  // Limpiamos el input para poder volver a subir el mismo PDF si hace falta.
+  const inp = document.getElementById('factAutoFileInput');
+  if (inp) inp.value = '';
+  if (!file) return;
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturación', 'err'); return; }
+
+  const key = getKey();
+  if (!key) { toast('Falta la clave de IA (API key)', 'err'); return; }
+
+  const estado = document.getElementById('factAutoEstado');
+  const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
+  setEstado('⏳ Leyendo la autofactura CEMEX… (puede tardar un poco si tiene muchas páginas)');
+
+  // PDF → base64
+  let b64;
+  try {
+    b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1] || '');
+      r.onerror = () => rej(new Error('No se pudo leer el PDF'));
+      r.readAsDataURL(file);
+    });
+  } catch (e) { setEstado('❌ ' + (e.message || e)); return; }
+
+  // Leer con IA
+  let lineas;
+  try {
+    lineas = await callClaudeAutofacturaCemex(b64, key);
+  } catch (e) {
+    setEstado('❌ No se pudo leer la autofactura: ' + (e.message || e));
+    return;
+  }
+  if (!lineas || !lineas.length) {
+    setEstado('⚠️ No he encontrado líneas de porte en este PDF. ¿Seguro que es una preliquidación CEMEX?');
+    return;
+  }
+
+  setEstado('⏳ Cruzando ' + lineas.length + ' líneas con tus albaranes…');
+
+  // --- CRUCE ---
+  // Índice de albaranes del usuario por número (normalizado).
+  const porNum = new Map();
+  records.forEach(r => {
+    const n = _factNormAlb(r.albaran);
+    if (n) {
+      if (!porNum.has(n)) porNum.set(n, []);
+      porNum.get(n).push(r);
+    }
+  });
+
+  const abonados = [];      // 🟢 cruzan (con o sin notas)
+  const sinAlbaran = [];    // 📋 en autofactura pero sin albarán nuestro
+  const idsAbonados = new Set();
+
+  lineas.forEach(L => {
+    const numA = _factNormAlb(L.numero_albaran);
+    let match = null;
+    if (numA && porNum.has(numA)) {
+      const cand = porNum.get(numA);
+      // Si hay varios con el mismo número, preferimos el que más datos cuadre.
+      match = cand[0];
+    }
+    if (match) {
+      // Comprobar diferencias en los datos de apoyo (nota corta).
+      const difs = [];
+      const matL = _factNormMat(L.matricula);
+      const matR = _factNormMat(match.tractora);
+      if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / CEMEX: ' + (L.matricula || '—') + ')');
+
+      const tnL = _factNum(L.tn);
+      const tnR = _factNum(match.tm);
+      if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > 0.05) difs.push('TN (tú: ' + (match.tm || '—') + ' / CEMEX: ' + (L.tn || '—') + ')');
+
+      const fL = normFecha(L.fecha);
+      const fR = normFecha(match.fecha);
+      if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / CEMEX: ' + (L.fecha || '—') + ')');
+
+      const dL = String(L.destino || '').trim().toUpperCase();
+      const dR = String(match.obra || match.destino || '').trim().toUpperCase();
+      if (dL && dR && !dL.includes(dR) && !dR.includes(dL)) difs.push('destino (tú: ' + (match.obra || match.destino || '—') + ' / CEMEX: ' + (L.destino || '—') + ')');
+
+      abonados.push({ linea: L, rec: match, difs: difs });
+      if (match.db_id) idsAbonados.add(String(match.db_id));
+    } else {
+      sinAlbaran.push(L);
+    }
+  });
+
+  // NO ABONADOS: albaranes del usuario que NO han salido en la autofactura.
+  // Solo tiene sentido comparar con los de CEMEX. Como aquí no sabemos el
+  // cliente de cada albarán con seguridad, mostramos como "no abonados" los
+  // que NO se han cruzado pero cuyo número TIENE pinta de CEMEX (empieza por M
+  // y es largo). Así no marcamos como "no abonado" un albarán de Holcim.
+  const noAbonados = [];
+  records.forEach(r => {
+    if (r.db_id && idsAbonados.has(String(r.db_id))) return; // ya abonado
+    const n = _factNormAlb(r.albaran);
+    if (/^M\d{6,}$/.test(n)) noAbonados.push(r);
+  });
+
+  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, fichero: file.name, fecha: new Date() };
+
+  // Marcar los abonados como facturados (en memoria + Supabase en 2º plano).
+  let marcados = 0;
+  for (const a of abonados) {
+    const r = a.rec;
+    if (r.db_id && r.estado_facturacion !== 'facturado') {
+      r.estado_facturacion = 'facturado';
+      r.factura_fecha = new Date().toISOString();
+      marcados++;
+      // pintar icono si la fila está visible
+      const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+      if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+      // guardar en 2º plano
+      sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha }).eq('id', r.db_id)
+        .then(({ error }) => { if (error) console.warn('[v107FI] guardar facturado:', error); });
+    }
+  }
+
+  setEstado('✅ Listo. Abro el resumen.');
+  _factAutoMostrarInforme();
+  toast('Autofactura procesada: ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' sin albarán', 'ok');
+}
+
+// --- Render del informe en el modal ---
+function _factAutoMostrarInforme() {
+  const u = _factAutoUltimo;
+  if (!u) return;
+  const body = document.getElementById('factAutoBody');
+  const tit = document.getElementById('factAutoTitulo');
+  if (tit) tit.textContent = 'AUTOFACTURA CEMEX — ' + (u.fichero || '');
+
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Bloque ABONADOS
+  let h = '';
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + u.abonados.length + ')</div>';
+  if (!u.abonados.length) {
+    h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>';
+  } else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.abonados.forEach(a => {
+      const nota = a.difs.length ? ' <span style="color:#e0a000">✅ Coincide todo menos ' + a.difs.map(esc).join(' y ') + '</span>' : '';
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(a.linea.numero_albaran) + ' · ' + esc(a.linea.matricula) + ' · ' + esc(a.linea.fecha)
+        + ' · ' + esc(a.linea.tn) + ' TN · ' + esc(a.linea.importe) + '€' + nota + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // Bloque NO ABONADOS
+  h += '<div style="margin-bottom:18px">';
+  h += '<div style="font-weight:700;color:#e0a000;margin-bottom:8px">⚠️ NO ABONADOS (' + u.noAbonados.length + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Albaranes tuyos (tipo CEMEX) que NO aparecen en esta autofactura. Revísalos: puede que falten o se paguen otro mes.</div>';
+  if (!u.noAbonados.length) {
+    h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>';
+  } else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.noAbonados.forEach(r => {
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(r.albaran) + ' · ' + esc(r.tractora) + ' · ' + esc(r.fecha)
+        + ' · ' + esc(r.tm) + ' TN · ' + esc(r.obra || r.destino || '') + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // Bloque ABONADOS SIN ALBARÁN
+  h += '<div style="margin-bottom:6px">';
+  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS QUE NO TENEMOS (' + u.sinAlbaran.length + ')</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">CEMEX paga estas líneas pero no tienes el albarán en la app. Solo para que las veas (también salen en el Excel).</div>';
+  if (!u.sinAlbaran.length) {
+    h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>';
+  } else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    u.sinAlbaran.forEach(L => {
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(L.numero_albaran) + ' · ' + esc(L.matricula) + ' · ' + esc(L.fecha)
+        + ' · ' + esc(L.tn) + ' TN · ' + esc(L.importe) + '€</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  if (body) body.innerHTML = h;
+  document.getElementById('ovFactAuto').classList.add('open');
+}
+
+// --- Excel resumen (3 hojas) ---
+function factAutoExcel() {
+  const u = _factAutoUltimo;
+  if (!u) { toast('No hay datos que exportar', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: ABONADOS
+  const aoaAb = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino', 'Observación']];
+  u.abonados.forEach(a => {
+    aoaAb.push([
+      a.linea.numero_albaran || '', a.linea.matricula || '', a.linea.fecha || '',
+      a.linea.tn || '', a.linea.importe || '', a.linea.origen || '', a.linea.destino || '',
+      a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK'
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaAb), 'Abonados');
+
+  // Hoja 2: NO ABONADOS
+  const aoaNo = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Origen', 'Destino']];
+  u.noAbonados.forEach(r => {
+    aoaNo.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.planta || r.origen || '', r.obra || r.destino || '']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaNo), 'No abonados');
+
+  // Hoja 3: ABONADOS SIN ALBARÁN
+  const aoaSin = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino']];
+  u.sinAlbaran.forEach(L => {
+    aoaSin.push([L.numero_albaran || '', L.matricula || '', L.fecha || '', L.tn || '', L.importe || '', L.origen || '', L.destino || '']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Abonados sin albaran');
+
+  const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, nombre);
+  toast('Excel descargado', 'ok');
+}
+
 
 // Init
 initApp();
