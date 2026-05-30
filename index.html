@@ -3408,7 +3408,7 @@ function renderQueues() {
     const isProcessing = type === 'alb' ? _processingAlb : _processingGas;
     const startTs = type === 'alb' ? _processingAlbStartTs : _processingGasStartTs;
     const elapsedMin = startTs > 0 ? (Date.now() - startTs) / 60000 : 0;
-    const isStuck = isProcessing && elapsedMin > 2; // bloqueado si lleva >2 min
+    const isStuck = isProcessing && elapsedMin > 1; // v107GI: aviso a 1 min (antes 2), acorde a timeouts más cortos
     // Caso especial: hay archivos atascados en 'processing' pero el flag NO está activo.
     // Eso significa que la cola se interrumpió (cuelgue, refresco, etc.) y ahora están huérfanos.
     // Los podemos rescatar marcándolos como 'pending' otra vez.
@@ -3519,7 +3519,7 @@ let _processingGasStartTs = 0;
 // es margen amplio para detectar cuelgues reales sin bloquear al usuario al subir más
 // albaranes pasado un ratito. Antes el timeout de 10 minutos hacía que tras un cuelgue
 // silencioso, el usuario tuviera que esperar 10 min o refrescar la página.
-const _PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos máx → si supera, asumir bloqueo
+const _PROCESSING_TIMEOUT_MS = 90 * 1000; // v107GI: 90s (antes 3 min). Con el timeout de Storage en 45s, una tanda normal acaba bastante antes; si supera 90s, asumir bloqueo y auto-desbloquear.
 
 // Auto-desbloqueo: si el flag lleva activo más del timeout, lo reseteamos. Esto pilla los casos
 // raros donde una llamada a la API se queda esperando para siempre y nunca llama al finally.
@@ -3771,7 +3771,12 @@ async function _processOne(it, type, key, timeoutMs) {
       // pero Juan Carlos veía "Leyendo con IA..." colgado eternamente sin entender por qué.
       // Ahora: 3 intentos con timeout amplio. Si todos fallan, cae al fallback (sharedPdfUrl)
       // sin cuelgue. Pausa progresiva entre intentos para dar tiempo a Storage a recuperarse.
-      const STORAGE_TIMEOUT_MS = 180000; // 3 min
+      // v107GI (Juan Carlos 29/05): el timeout de 3 min era la causa de que la app
+      // "se colgara" — si un archivo se atascaba subiendo, los demás de la tanda esperaban
+      // hasta 3 minutos a que ese se rindiera. Bajado a 45s: si en 45s no sube, está
+      // atascado de verdad; se rinde rápido, se marca en rojo (con su motivo) y la cola
+      // SIGUE SOLA con los demás, sin necesidad de refrescar. 2 reintentos con pausa corta.
+      const STORAGE_TIMEOUT_MS = 45000; // 45s (antes 180s)
       const MAX_REINTENTOS = 2; // 1er intento + 2 reintentos = 3 totales
       for (let intento = 0; intento <= MAX_REINTENTOS; intento++) {
         try {
@@ -3780,9 +3785,9 @@ async function _processOne(it, type, key, timeoutMs) {
         } catch (e) {
           console.warn(`[v107e] Upload intento ${intento + 1}/${MAX_REINTENTOS + 1} falló para ${it.name}:`, e.message || e);
           if (intento < MAX_REINTENTOS) {
-            // Pausa progresiva entre reintentos: 3s, 6s
-            const pausaMs = 3000 * (intento + 1);
-            console.log(`[v107e] Esperando ${pausaMs}ms antes de reintentar...`);
+            // v107GI: pausa corta entre reintentos (2s, 4s) — antes 3s/6s.
+            const pausaMs = 2000 * (intento + 1);
+            console.log(`[v107GI] Esperando ${pausaMs}ms antes de reintentar subida...`);
             await sleep(pausaMs);
           }
         }
