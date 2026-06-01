@@ -2437,9 +2437,28 @@ async function saveRecord(data) {
       delete rec[k];
     }
   }
-  if (data.db_id) {
-    const { error } = await sb.from('albaranes').update(rec).eq('id', data.db_id);
+  // v107GN (Juan Carlos 01/06): BLINDAJE contra el error real '22P02 invalid input syntax
+  // for type uuid: "undefined"'. En algunos casos db_id llegaba como la CADENA "undefined"
+  // o "null" (texto, no valor vacío) — pasaba el if de abajo (texto no vacío = verdadero)
+  // pero la BD rechazaba el UPDATE entero por no ser un uuid válido, así que el cambio NO
+  // se guardaba y al refrescar volvía atrás. Aquí normalizamos: si db_id no es un id válido,
+  // lo tratamos como vacío (→ no intentamos UPDATE con basura).
+  let _idValido = data.db_id;
+  if (_idValido === undefined || _idValido === null) _idValido = null;
+  else {
+    const _s = String(_idValido).trim();
+    if (_s === '' || _s === 'undefined' || _s === 'null' || _s === 'NaN') _idValido = null;
+    else _idValido = _s;
+  }
+
+  if (_idValido) {
+    const { error } = await sb.from('albaranes').update(rec).eq('id', _idValido);
     if (error) throw error;
+  } else if (data.db_id) {
+    // Tenía db_id pero NO es válido: NO insertamos un duplicado a ciegas (sería peor).
+    // Avisamos con un error claro para que se vea el problema y se reintente bien.
+    console.error('[v107GN] db_id inválido al guardar (no es uuid):', JSON.stringify(data.db_id), '— albarán', data.albaran);
+    throw new Error('El albarán no tiene un identificador válido (id="' + String(data.db_id) + '"). Refresca la página y vuelve a editarlo.');
   } else {
     const { data: inserted, error } = await sb.from('albaranes').insert(rec).select().single();
     if (error) throw error;
@@ -7598,6 +7617,12 @@ const FIELDS = [
 function openModal(id) {
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
   if (!r) return;
+  // v107GN: si el albarán aún no tiene id real en la BD (recién subido, sin terminar de
+  // guardar), avisamos en vez de dejar editar y perder el cambio con error "uuid undefined".
+  const _dbidOk = r.db_id && !['undefined', 'null', 'NaN', ''].includes(String(r.db_id).trim());
+  if (!_dbidOk) {
+    console.warn('[v107GN] Abriendo albarán sin db_id válido:', r.db_id, '— albarán', r.albaran);
+  }
   editId = id;
   document.getElementById('mBadge').innerHTML = rowBadge(r);
   let alertHtml = '';
