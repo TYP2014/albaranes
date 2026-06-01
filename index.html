@@ -7160,11 +7160,12 @@ async function _guardarGiroImagen(img) {
     const { data: pub } = sb.storage.from('documentos').getPublicUrl(nuevoPath);
     const nuevaUrl = (pub && pub.publicUrl) ? pub.publicUrl : (src.split('?')[0] + '?t=' + Date.now());
     // 4) Actualizar el albarán en la BD para que apunte a la foto enderezada.
-    const { error: dbErr } = await sb.from('albaranes').update({ file_url: nuevaUrl, storage_path: nuevoPath }).eq('id', r.db_id);
+    // v107GR: la tabla albaranes NO tiene columna 'storage_path' (daba PGRST204).
+    // Solo actualizamos file_url, que es lo que apunta a la imagen mostrada.
+    const { error: dbErr } = await sb.from('albaranes').update({ file_url: nuevaUrl }).eq('id', r.db_id);
     if (dbErr) throw dbErr;
     // 5) Refrescar la vista.
     r.file_url = nuevaUrl;
-    r.storage_path = nuevoPath;
     img.src = nuevaUrl;
     img.style.transform = 'rotate(0deg)';
     img.style.margin = '0 auto';
