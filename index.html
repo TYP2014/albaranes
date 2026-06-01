@@ -7085,17 +7085,86 @@ function girarImg(elId) {
   if (!el) return;
   const ang = ((window._rotState[elId] || 0) + 90) % 360;
   window._rotState[elId] = ang;
-  // Mantiene el centrado y combina con cualquier escala que ya tenga (zoom).
   el.style.transformOrigin = 'center center';
   el.style.transform = `rotate(${ang}deg)`;
-  // Si está girado 90/270, damos un poco de margen vertical para que no se corte al rotar.
   const wrap = el.closest('.pdf-zoom-wrap');
   if (wrap) {
-    if (ang === 90 || ang === 270) {
-      el.style.margin = '60px auto';
-    } else {
-      el.style.margin = '0 auto';
+    el.style.margin = (ang === 90 || ang === 270) ? '60px auto' : '0 auto';
+  }
+  // v107GP: si es una IMAGEN (no canvas/PDF) y está girada, ofrecemos GUARDAR el giro,
+  // para que quede enderezada para siempre y todos la vean bien. El botón aparece solo
+  // cuando hay giro pendiente (ang !== 0).
+  if (el.tagName === 'IMG') {
+    _mostrarBotonGuardarGiro(el, ang);
+  }
+}
+
+// v107GP — botón flotante "Guardar giro" que aparece al girar una imagen.
+function _mostrarBotonGuardarGiro(img, ang) {
+  let btn = document.getElementById('btnGuardarGiro');
+  const wrap = img.closest('.pdf-zoom-wrap') || img.parentNode;
+  if (ang === 0) { if (btn) btn.remove(); return; }
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'btnGuardarGiro';
+    btn.className = 'btn';
+    btn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;background:var(--ok);color:#04200f;font-weight:700;font-size:12px;padding:8px 12px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    if (wrap && getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+    (wrap || document.body).appendChild(btn);
+  }
+  btn.textContent = '💾 Guardar giro';
+  btn.onclick = () => _guardarGiroImagen(img);
+}
+
+// v107GP — rota el ARCHIVO de la imagen los grados pendientes y lo sube a Storage,
+// dejando el albarán enderezado de forma permanente.
+async function _guardarGiroImagen(img) {
+  const ang = window._rotState[img.id] || 0;
+  if (!ang) { toast('No hay giro que guardar', 'warn'); return; }
+  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r || !r.db_id) { toast('No se pudo identificar el albarán', 'err'); return; }
+  const btn = document.getElementById('btnGuardarGiro');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
+  try {
+    // 1) Cargar la imagen original en un canvas y rotarla los grados pendientes.
+    const src = r.file_url;
+    const imgEl = new Image();
+    imgEl.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => { imgEl.onload = res; imgEl.onerror = () => rej(new Error('No se pudo cargar la imagen')); imgEl.src = src; });
+    const rad = ang * Math.PI / 180;
+    const canvas = document.createElement('canvas');
+    if (ang === 90 || ang === 270) { canvas.width = imgEl.naturalHeight; canvas.height = imgEl.naturalWidth; }
+    else { canvas.width = imgEl.naturalWidth; canvas.height = imgEl.naturalHeight; }
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(imgEl, -imgEl.naturalWidth / 2, -imgEl.naturalHeight / 2);
+    // 2) Convertir a JPEG.
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+    if (!blob) throw new Error('No se pudo generar la imagen girada');
+    // 3) Subir SOBRESCRIBIENDO el mismo archivo en Storage (mismo path → misma URL).
+    let path = r.storage_path;
+    if (!path) {
+      // Si no tenemos el path guardado, lo deducimos de la URL pública.
+      const m = String(src).match(/\/documentos\/(.+?)(\?|$)/);
+      path = m ? decodeURIComponent(m[1]) : null;
     }
+    if (!path) throw new Error('No se encontró la ruta del archivo');
+    const { error: upErr } = await sb.storage.from('documentos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (upErr) throw upErr;
+    // 4) Refrescar la vista (añadimos ?t= para saltar la caché del navegador).
+    const nuevaUrl = src.split('?')[0] + '?t=' + Date.now();
+    r.file_url = nuevaUrl;
+    img.src = nuevaUrl;
+    img.style.transform = 'rotate(0deg)';
+    img.style.margin = '0 auto';
+    window._rotState[img.id] = 0;
+    if (btn) btn.remove();
+    toast('✅ Giro guardado. El albarán queda enderezado para todos.', 'ok');
+  } catch (e) {
+    console.error('[v107GP] Error guardando giro:', e);
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar giro'; }
+    toast('No se pudo guardar el giro: ' + (e.message || e), 'err');
   }
 }
 
@@ -7106,6 +7175,15 @@ async function _renderPdfAtScale(wrapId, scale) {
   const pageNum = parseInt(wrap.dataset.pdfPage || '1');
   const canvasId = wrap.dataset.canvasId;
   if (!url || !canvasId || typeof pdfjsLib === 'undefined') return;
+  // v107GP: evitar "Cannot use the same canvas during multiple render() operations".
+  // Si ya hay un dibujado en curso sobre este canvas, lo CANCELAMOS antes de empezar otro.
+  // Sin esto, al pulsar la lupa varias veces seguidas los dibujados chocaban y el zoom
+  // fallaba (se quedaba en 100% sin reducir), sobre todo en los PDF.
+  window._pdfRenderTasks = window._pdfRenderTasks || {};
+  try {
+    const prev = window._pdfRenderTasks[canvasId];
+    if (prev && typeof prev.cancel === 'function') { try { prev.cancel(); } catch (e) {} }
+  } catch (e) {}
   try {
     const pdf = await pdfjsLib.getDocument(url).promise;
     let pn = pageNum > 0 ? pageNum : 1;
@@ -7119,9 +7197,17 @@ async function _renderPdfAtScale(wrapId, scale) {
     canvas.style.width = viewport.width + 'px';
     canvas.style.height = viewport.height + 'px';
     const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    const task = page.render({ canvasContext: ctx, viewport });
+    window._pdfRenderTasks[canvasId] = task;
+    await task.promise;
+    window._pdfRenderTasks[canvasId] = null;
   } catch (e) {
-    console.warn('[v97d] Error re-renderizando PDF a escala', scale, e);
+    // Si fue una cancelación (al encadenar zooms), es normal: no es un error real.
+    if (e && (e.name === 'RenderingCancelledException' || /cancel/i.test(e.message || ''))) {
+      console.log('[v107GP] Render PDF anterior cancelado (zoom encadenado), OK.');
+    } else {
+      console.warn('[v97d] Error re-renderizando PDF a escala', scale, e);
+    }
   }
 }
 
@@ -7131,7 +7217,7 @@ function zoomBtn(wrapId, dir) {
   const baseScale = parseFloat(wrap.dataset.baseScale || '1');
   let zoom = parseFloat(wrap.dataset.zoom || '1');
   // Cada pulsación cambia el zoom 25% arriba o abajo. Límites: 1x base, 4x base.
-  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(1, zoom / 1.3);
+  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(0.4, zoom / 1.3); // v107GP: permite reducir por debajo del 100%
   wrap.dataset.zoom = zoom;
   // Actualizar el indicador de %
   const info = wrap.querySelector('.pdf-zoom-info');
@@ -7160,7 +7246,7 @@ function zoomImgBtn(wrapId, dir) {
   const img = wrap.querySelector('img');
   if (!img) return;
   let zoom = parseFloat(wrap.dataset.imgZoom || '1');
-  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(0.5, zoom / 1.3);
+  zoom = dir > 0 ? Math.min(4, zoom * 1.3) : Math.max(0.4, zoom / 1.3); // v107GP
   wrap.dataset.imgZoom = zoom;
   // Aplicar el zoom cambiando max-width y width del img
   if (zoom <= 1) {
