@@ -10051,11 +10051,14 @@ function _fichajeSiguienteEvento(eventosHoy) {
   // eventosHoy = lista de tipos ya fichados hoy (sin correcciones anuladas),
   // en orden cronológico.
   const tiene = (t) => eventosHoy.includes(t);
+  // v107GM: si ya hay SALIDA, la jornada está completa — aunque no haya habido comida
+  // (jornada continua). Esto va PRIMERO para no volver a pedir "salir a comer" tras una
+  // salida directa.
+  if (tiene('salida'))          return null;
   if (!tiene('entrada'))        return 'entrada';
   if (!tiene('salida_comida'))  return 'salida_comida';
   if (!tiene('vuelta_comida'))  return 'vuelta_comida';
-  if (!tiene('salida'))         return 'salida';
-  return null; // jornada completa
+  return 'salida';
 }
 
 // ¿Soy admin? (vista completa). Si no, soy trabajadora (mi propio fichaje).
@@ -10233,6 +10236,30 @@ function _fichajeRenderBotonera() {
       btn.style.opacity = '1';
       btn.style.cursor = 'pointer';
       btn.dataset.evento = siguiente;
+    }
+  }
+
+  // v107GM (Juan Carlos 01/06): JORNADA CONTINUA. Cuando lo que tocaría es "Salir a comer"
+  // (ya fichó entrada, aún no comió), algunos hacen jornada CONTINUA (Mª del Mar: 3h seguidas,
+  // 10-13h) y no necesitan pausa de comida. Por eso, en ese momento mostramos un SEGUNDO botón
+  // "🔴 SALIR (jornada continua)" que ficha directamente la SALIDA, saltándose la comida.
+  // El usuario elige: comer (botón grande) o terminar (este). En cualquier otro momento, este
+  // botón extra no aparece.
+  let btnCont = document.getElementById('fichajeBtnContinua');
+  if (btn && btn.parentNode) {
+    if (siguiente === 'salida_comida') {
+      if (!btnCont) {
+        btnCont = document.createElement('button');
+        btnCont.id = 'fichajeBtnContinua';
+        btnCont.className = 'btn bw';
+        btnCont.style.cssText = 'max-width:340px;margin:0 auto 16px;font-size:13px;padding:13px;display:block;width:100%';
+        btnCont.onclick = function () { _fichajeInsertar({ tipo: 'salida', metodo: 'boton' }); };
+        btn.parentNode.insertBefore(btnCont, btn.nextSibling);
+      }
+      btnCont.textContent = '🔴 SALIR (jornada continua, sin comer)';
+      btnCont.style.display = 'block';
+    } else if (btnCont) {
+      btnCont.style.display = 'none';
     }
   }
 
