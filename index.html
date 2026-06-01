@@ -3217,9 +3217,11 @@ async function uploadAsConductor(files, type) {
   }
   renderQueues();
 
-  // v78: timeout más permisivo para 4G mala (90s vs 45s anteriores).
-  // Usa la función global withTimeout (declarada arriba).
-  const TIMEOUT_MS = 180000; // v107e: subido de 90s a 180s para evitar cuelgues de Storage
+  // v107GK (Juan Carlos 01/06): el timeout del conductor seguía en 3 min (el arreglo
+  // v107GI solo tocó la ruta de oficina). Por eso a los conductores se les quedaba
+  // "Enviando a oficina..." colgado 3 minutos cuando una foto se atascaba subiendo.
+  // Bajado a 45s: si en 45s no sube, se rinde, lo marca y sigue. 2 reintentos.
+  const TIMEOUT_MS = 45000; // v107GK: 45s (antes 180s)
 
   // v78: reintentos automáticos (2 intentos) si la red es errática
   async function subirConReintentos(it) {
