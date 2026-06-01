@@ -7142,19 +7142,29 @@ async function _guardarGiroImagen(img) {
     // 2) Convertir a JPEG.
     const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
     if (!blob) throw new Error('No se pudo generar la imagen girada');
-    // 3) Subir SOBRESCRIBIENDO el mismo archivo en Storage (mismo path → misma URL).
-    let path = r.storage_path;
-    if (!path) {
-      // Si no tenemos el path guardado, lo deducimos de la URL pública.
+    // 3) v107GQ: subir como archivo NUEVO (no sobrescribir). La política de seguridad de
+    // Supabase Storage permite CREAR archivos nuevos pero NO sobrescribir los existentes
+    // (por eso el upsert daba "row-level security policy"). Subimos con un nombre nuevo
+    // (…_giro<timestamp>.jpg) y luego actualizamos el albarán para que apunte a este.
+    let pathBase = r.storage_path;
+    if (!pathBase) {
       const m = String(src).match(/\/documentos\/(.+?)(\?|$)/);
-      path = m ? decodeURIComponent(m[1]) : null;
+      pathBase = m ? decodeURIComponent(m[1]) : null;
     }
-    if (!path) throw new Error('No se encontró la ruta del archivo');
-    const { error: upErr } = await sb.storage.from('documentos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (!pathBase) throw new Error('No se encontró la ruta del archivo');
+    // nombre nuevo: misma carpeta, sufijo _giroNNN.jpg
+    const sinExt = pathBase.replace(/\.[^./]+$/, '');
+    const nuevoPath = sinExt + '_giro' + Date.now() + '.jpg';
+    const { error: upErr } = await sb.storage.from('documentos').upload(nuevoPath, blob, { contentType: 'image/jpeg' });
     if (upErr) throw upErr;
-    // 4) Refrescar la vista (añadimos ?t= para saltar la caché del navegador).
-    const nuevaUrl = src.split('?')[0] + '?t=' + Date.now();
+    const { data: pub } = sb.storage.from('documentos').getPublicUrl(nuevoPath);
+    const nuevaUrl = (pub && pub.publicUrl) ? pub.publicUrl : (src.split('?')[0] + '?t=' + Date.now());
+    // 4) Actualizar el albarán en la BD para que apunte a la foto enderezada.
+    const { error: dbErr } = await sb.from('albaranes').update({ file_url: nuevaUrl, storage_path: nuevoPath }).eq('id', r.db_id);
+    if (dbErr) throw dbErr;
+    // 5) Refrescar la vista.
     r.file_url = nuevaUrl;
+    r.storage_path = nuevoPath;
     img.src = nuevaUrl;
     img.style.transform = 'rotate(0deg)';
     img.style.margin = '0 auto';
