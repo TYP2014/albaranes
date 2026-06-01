@@ -7101,19 +7101,32 @@ function girarImg(elId) {
 
 // v107GP — botón flotante "Guardar giro" que aparece al girar una imagen.
 function _mostrarBotonGuardarGiro(img, ang) {
-  let btn = document.getElementById('btnGuardarGiro');
+  // v107GS: en vez de un botón flotante (que quedaba cortado fuera del visor), lo ponemos
+  // en una barra propia JUSTO DEBAJO de los controles de zoom, centrada y bien visible.
   const wrap = img.closest('.pdf-zoom-wrap') || img.parentNode;
-  if (ang === 0) { if (btn) btn.remove(); return; }
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.id = 'btnGuardarGiro';
-    btn.className = 'btn';
-    btn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;background:var(--ok);color:#04200f;font-weight:700;font-size:12px;padding:8px 12px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-    if (wrap && getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-    (wrap || document.body).appendChild(btn);
+  let barra = document.getElementById('barraGuardarGiro');
+  if (ang === 0) { if (barra) barra.remove(); return; }
+  if (!barra) {
+    barra = document.createElement('div');
+    barra.id = 'barraGuardarGiro';
+    barra.style.cssText = 'text-align:center;padding:10px 0;background:rgba(0,0,0,.25)';
+    const b = document.createElement('button');
+    b.id = 'btnGuardarGiro';
+    b.className = 'btn';
+    b.style.cssText = 'background:var(--ok);color:#04200f;font-weight:700;font-size:13px;padding:10px 18px';
+    b.textContent = '💾 GUARDAR GIRO (dejar enderezado)';
+    b.onclick = () => _guardarGiroImagen(img);
+    barra.appendChild(b);
+    // Insertar la barra justo después de los controles de zoom (o al principio del visor).
+    const controles = wrap.querySelector('.pdf-zoom-controls');
+    if (controles && controles.parentNode) {
+      controles.parentNode.insertBefore(barra, controles.nextSibling);
+    } else {
+      wrap.insertBefore(barra, wrap.firstChild);
+    }
   }
-  btn.textContent = '💾 Guardar giro';
-  btn.onclick = () => _guardarGiroImagen(img);
+  const b = document.getElementById('btnGuardarGiro');
+  if (b) { b.disabled = false; b.textContent = '💾 GUARDAR GIRO (dejar enderezado)'; b.onclick = () => _guardarGiroImagen(img); }
 }
 
 // v107GP — rota el ARCHIVO de la imagen los grados pendientes y lo sube a Storage,
