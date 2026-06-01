@@ -8160,8 +8160,25 @@ async function saveModal() {
   // Guardar en BD EN SEGUNDO PLANO (sin await — el usuario ya puede seguir trabajando)
   (async () => {
     try {
-      // 1) Guardar en BD
-      await saveRecord(r);
+      // 1) Guardar en BD. v107GL: con REINTENTOS. El guardado fallaba de forma intermitente
+      // (a JC y a Aridflot) por tropiezos de conexión con Supabase: un solo fallo hacía que
+      // el catch revirtiera el cambio (Object.assign(r, original)) y pareciera que "no se
+      // guardaba / volvía atrás". Ahora reintenta hasta 3 veces con pausa creciente antes de
+      // rendirse, así un tropiezo puntual se supera solo y el cambio NO se pierde.
+      let _guardadoOK = false;
+      let _ultimoErr = null;
+      for (let _intento = 1; _intento <= 3; _intento++) {
+        try {
+          await saveRecord(r);
+          _guardadoOK = true;
+          break;
+        } catch (eIntento) {
+          _ultimoErr = eIntento;
+          console.warn(`[v107GL] Guardado intento ${_intento}/3 falló (alb ${r.albaran}):`, eIntento.message || eIntento);
+          if (_intento < 3) await new Promise(res => setTimeout(res, 1500 * _intento));
+        }
+      }
+      if (!_guardadoOK) throw (_ultimoErr || new Error('No se pudo guardar tras 3 intentos'));
 
       // v107U: VERIFICACIÓN POST-GUARDADO. Re-leer el albarán de BD y comparar con lo que
       // mandamos. Si difiere → bug silencioso (RLS, trigger, otro proceso pisando...).
@@ -8234,8 +8251,9 @@ async function saveModal() {
       if (histActualizados > 0) partes.push(`+${histActualizados} hist.`);
       if (partes.length > 0) toast(`✓ ${partes.join(' · ')}`);
     } catch (e) {
-      // Revertir cambios en memoria y avisar
-      console.error('[saveModal] Error completo:', e);
+      // Revertir cambios en memoria y avisar. v107GL: esto solo ocurre ya tras 3 intentos
+      // fallidos, así que es un fallo real de conexión/permisos, no un tropiezo puntual.
+      console.error('[saveModal] Error completo tras reintentos:', e);
       Object.assign(r, original);
       try {
         analyzeRecords();
@@ -8244,7 +8262,7 @@ async function saveModal() {
         renderAlerts();
       } catch (eUi) {}
       const msg = e.message || JSON.stringify(e);
-      toast(`✗ Error guardando — cambios revertidos: ${msg}`, 'err');
+      toast(`✗ NO se pudo guardar (se intentó 3 veces). Vuelve a abrirlo y reintenta. Detalle: ${msg}`, 'err');
     }
   })();
 }
