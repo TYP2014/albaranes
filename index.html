@@ -6,6 +6,8 @@
 <!-- v107GY (02/06/2026): EDICIÓN Marta + Mª del Mar. El botón "✏️ Escribir" (que cambia el desplegable de Origen/Destino/Proveedor/Cliente por texto libre para teclear a mano) estaba SOLO para admin (v107BR). Ahora aparece también para Marta (6f657be7-...) y Mª del Mar (5059731a-...) por id de usuario, para que editen igual que el admin. El resto de gestores siguen sin él. Complementa el ALTER POLICY albaranes_update (Supabase) que ya les permite GUARDAR cualquier albarán. NO requiere SQL adicional. -->
 <!-- v107GZ (02/06/2026): ARREGLO GUARDADO QUE "VOLVÍA A LO QUE LEYÓ". Confirmado por prueba directa: la BD guarda bien (UPDATE SQL directo funcionó) pero la app no persistía la edición. Causa: (1) saveRecord hacía el UPDATE sin .select(), así un update de 0 filas (tropiezo de conexión / pooler en mantenimiento) devolvía error=null y la app lo daba por guardado aunque NO cambiara nada; (2) la verificación post-guardado, al releer un valor viejo (retraso del pooler), REVERTÍA el dato en memoria → "el cambio desaparecía al recargar". Arreglo: saveRecord ahora usa .update(rec).eq().select() y lanza error claro si vuelven 0 filas (el reintento x3 lo recupera); la verificación ya NO revierte en memoria, solo avisa en consola (el .select() ya confirma que entró). Afectaba a todos (admin y gestores). NO requiere SQL. -->
 <!-- v107H1 (02/06/2026): ITV — Marta y Mª del Mar pueden SUBIR ITV y crear CITAS. El modo "solo lectura" de ITV (v107AF, pensado para el usuario TALLER/mecánicos) las pillaba también a ellas porque tienen acceso a Taller y son gestor (no admin), así que veían la ITV pero no podían subir ni crear citas. Ahora se las excluye del solo-lectura por id de usuario. El usuario TALLER sigue en solo lectura. NO requiere SQL. -->
+<!-- v107H2 (02/06/2026): TRANSMARGAZ (socio) ve TODOS los albaranes igual que Marta y MdM. La Logística de TRANSMARGAZ (logistica@ttesyportes.2014, id 92687ba2-...) pasa a tratarse como gestor de oficina: ve TYP2014 + HISPALIS + TRANSMARGAZ, sin filtro por empresa. Se mete en el mismo grupo _gestorInterno que Marta y MdM en loadData. REQUIERE SQL: añadir su id a la regla RLS albaranes_select (igual que Marta/MdM). -->
+<meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
@@ -2246,7 +2248,13 @@ async function loadData() {
     // @typ2014.local). Ahora comparamos por ID de usuario, que es único y SIEMPRE fiable.
     const _ID_MARTA = '6f657be7-1edd-4d5d-9895-cc6777ebbca1';
     const _ID_MARIADELMAR = '5059731a-3e41-4578-b61e-96f20b6d8cc8';
-    const _gestorInterno = (currentUser?.id === _ID_MARTA || currentUser?.id === _ID_MARIADELMAR);
+    const _ID_TRANSMARGAZ = '92687ba2-a91f-401b-b08b-f1231b83dca9';
+    // v107H2 (Juan Carlos 02/06/2026): la Logística de TRANSMARGAZ (socio) ve TODOS los
+    // albaranes igual que Marta y Mª del Mar — se trata como un gestor de oficina más, sin
+    // filtro por empresa. Requiere el permiso RLS de SELECT para este usuario en Supabase.
+    const _gestorInterno = (currentUser?.id === _ID_MARTA
+                         || currentUser?.id === _ID_MARIADELMAR
+                         || currentUser?.id === _ID_TRANSMARGAZ);
     if (currentRole === 'gestor' && !_gestorInterno) query = query.eq('user_id', currentUser.id);
     const { data, error } = await query;
     if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
