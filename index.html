@@ -7,6 +7,7 @@
 <!-- v107GZ (02/06/2026): ARREGLO GUARDADO QUE "VOLVÍA A LO QUE LEYÓ". Confirmado por prueba directa: la BD guarda bien (UPDATE SQL directo funcionó) pero la app no persistía la edición. Causa: (1) saveRecord hacía el UPDATE sin .select(), así un update de 0 filas (tropiezo de conexión / pooler en mantenimiento) devolvía error=null y la app lo daba por guardado aunque NO cambiara nada; (2) la verificación post-guardado, al releer un valor viejo (retraso del pooler), REVERTÍA el dato en memoria → "el cambio desaparecía al recargar". Arreglo: saveRecord ahora usa .update(rec).eq().select() y lanza error claro si vuelven 0 filas (el reintento x3 lo recupera); la verificación ya NO revierte en memoria, solo avisa en consola (el .select() ya confirma que entró). Afectaba a todos (admin y gestores). NO requiere SQL. -->
 <!-- v107H1 (02/06/2026): ITV — Marta y Mª del Mar pueden SUBIR ITV y crear CITAS. El modo "solo lectura" de ITV (v107AF, pensado para el usuario TALLER/mecánicos) las pillaba también a ellas porque tienen acceso a Taller y son gestor (no admin), así que veían la ITV pero no podían subir ni crear citas. Ahora se las excluye del solo-lectura por id de usuario. El usuario TALLER sigue en solo lectura. NO requiere SQL. -->
 <!-- v107H2 (02/06/2026): TRANSMARGAZ (socio) ve TODOS los albaranes igual que Marta y MdM. La Logística de TRANSMARGAZ (logistica@ttesyportes.2014, id 92687ba2-...) pasa a tratarse como gestor de oficina: ve TYP2014 + HISPALIS + TRANSMARGAZ, sin filtro por empresa. Se mete en el mismo grupo _gestorInterno que Marta y MdM en loadData. REQUIERE SQL: añadir su id a la regla RLS albaranes_select (igual que Marta/MdM). -->
+<!-- v107H3 (02/06/2026): ITV — recuperada la zona de ARRASTRAR/SOLTAR documentos (antes solo había botón "Subir ITV" que abría el explorador). Se añade una caja .dz#dzItv en la pestaña ITV que llama a una nueva función dropItv() (ITV usa handleItvFiles, no addFiles, por eso necesita su propio drop). El botón Subir se mantiene. dropItv respeta el solo-lectura (usuario Taller) y la zona se oculta en _aplicarItvSoloLectura. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -794,6 +795,13 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             </div>
           </div>
           <div class="card-bd">
+            <!-- v107H3: zona de arrastrar/soltar para ITV (además del botón Subir de arriba) -->
+            <div class="dz" id="dzItv" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropItv(event)" style="margin-bottom:12px">
+              <input type="file" accept="image/*,.pdf" multiple onchange="handleItvFiles(this.files)">
+              <div class="dz-ic">🛡️</div>
+              <div class="dz-t">Arrastra fotos o PDFs de ITV · o <span class="hl">haz clic para seleccionar</span></div>
+              <div class="dz-s">JPG · PNG · PDF · Varios archivos a la vez</div>
+            </div>
             <div class="filters" id="filtersItv">
               <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fItvMat" oninput="applyItvFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
               <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fItvEstado" onchange="applyItvFilters()"><option value="">Todos</option><option value="caducada">🔴 Caducada</option><option value="aviso">🟧 Aviso (15 días)</option><option value="vigente">🟢 Vigente</option></select></div>
@@ -2833,6 +2841,18 @@ function drop(e, type) {
   _dragCounters.set(target, 0);
   target.classList.remove('ov');
   addFiles(e.dataTransfer.files, type);
+}
+// v107H3 (Juan Carlos 02/06/2026): arrastrar/soltar en ITV. ITV no usa addFiles
+// (la cola de albaranes/gasoil) sino su propia función handleItvFiles, por eso
+// necesita su propio drop. Reutiliza dragEnter/ev/el (el resaltado al arrastrar)
+// que son genéricos; solo cambia qué se hace al SOLTAR el archivo.
+function dropItv(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  _dragCounters.set(target, 0);
+  target.classList.remove('ov');
+  if (window._itvSoloLectura) { toast('No tienes permiso para subir ITV', 'err'); return; }
+  handleItvFiles(e.dataTransfer.files);
 }
 
 // Comprime una imagen para que pese menos del límite. Hace 2 pasadas:
@@ -9373,6 +9393,9 @@ function _aplicarItvSoloLectura() {
     'button[onclick*="deleteCitaRecord"]'       // Eliminar cita
   ];
   document.querySelectorAll(sel.join(',')).forEach(b => { b.style.display = 'none'; });
+  // v107H3: ocultar también la zona de arrastrar/soltar de ITV en solo-lectura
+  const _dzItv = document.getElementById('dzItv');
+  if (_dzItv) _dzItv.style.display = 'none';
   // Quitar el onclick de las filas de ITV/citas para que no abran el modal de edición.
   // (En solo lectura, ver la tabla es suficiente; no se abre el modal editable.)
   document.querySelectorAll('#itvTableBody tr, #citasTableBody tr').forEach(tr => {
