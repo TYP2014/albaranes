@@ -4,6 +4,7 @@
 <!-- v107GW (02/06/2026): PROMSA/Molins — lectura de albaranes de VENTA corregida. (1) ORIGEN recuadro CENTRAL "PROMSA GARRAF"/"GARRAF" → "Garraf/Promsa" (antes la IA ponía "Cantera de Garraf", nombre reservado a Sodira/Holcim áridos). (2) DESTINO recuadro OBRA: ahora la IA entiende el formato SIN guion "[código] POBLACIÓN ([código])" (ej. "9 IGUALADA (9)" → "Igualada", "65 CONSTANTI (65)" → "Constantí") — antes solo entendía el formato con guion y dejaba el destino VACÍO. (3) PROVEEDOR: aviso explícito de que CENTRAL es el origen, nunca el proveedor (siempre "Promotora Mediterránea-2 S.A.U."), corrige el caso 94658 donde puso "PROMSA GARRAF" como proveedor. Red de seguridad Molins ampliada para reconocer también origen "Garraf/Promsa". Solo cambia el PROMPT de lectura de PROMSA; ningún otro proveedor ni la tabla de canonización se tocan. NO requiere SQL. -->
 <!-- v107GX (02/06/2026): PROMSA/Molins — DESTINO refuerzo anti-ADREÇA. Error real confirmado por consola (albarán 94907-N "65 CONSTANTI"): la IA leía el recuadro ADREÇA ("Sant Vicenç dels Horts", dirección fiscal) en vez del recuadro OBRA. La red de seguridad v107EÑ2 lo detectaba y dejaba el destino vacío (correcto, pero no resolvía la raíz). Ahora el prompt avisa CLARAMENTE: OBRA (arriba, con nº de obra) = destino; ADREÇA (debajo, "Sant Vicenç dels Horts") = dirección fiscal, NUNCA destino. Prohibido devolver "Sant Vicenç dels Horts" como destino. Solo toca el PROMPT de PROMSA. NO requiere SQL. -->
 <!-- v107GY (02/06/2026): EDICIÓN Marta + Mª del Mar. El botón "✏️ Escribir" (que cambia el desplegable de Origen/Destino/Proveedor/Cliente por texto libre para teclear a mano) estaba SOLO para admin (v107BR). Ahora aparece también para Marta (6f657be7-...) y Mª del Mar (5059731a-...) por id de usuario, para que editen igual que el admin. El resto de gestores siguen sin él. Complementa el ALTER POLICY albaranes_update (Supabase) que ya les permite GUARDAR cualquier albarán. NO requiere SQL adicional. -->
+<!-- v107GZ (02/06/2026): ARREGLO GUARDADO QUE "VOLVÍA A LO QUE LEYÓ". Confirmado por prueba directa: la BD guarda bien (UPDATE SQL directo funcionó) pero la app no persistía la edición. Causa: (1) saveRecord hacía el UPDATE sin .select(), así un update de 0 filas (tropiezo de conexión / pooler en mantenimiento) devolvía error=null y la app lo daba por guardado aunque NO cambiara nada; (2) la verificación post-guardado, al releer un valor viejo (retraso del pooler), REVERTÍA el dato en memoria → "el cambio desaparecía al recargar". Arreglo: saveRecord ahora usa .update(rec).eq().select() y lanza error claro si vuelven 0 filas (el reintento x3 lo recupera); la verificación ya NO revierte en memoria, solo avisa en consola (el .select() ya confirma que entró). Afectaba a todos (admin y gestores). NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- v107EQ8 (27/05/2026): Marta (marta@typ2014.local) entra al equipo igual que María del Mar — añadida a la lista hardcoded de "internos del grupo" en 2 puntos del código (loadUserMap v107BS y la excepción anterior de Preliquidaciones/Gasoil v107BS). Tras este cambio, Marta verá Preliquidaciones, Gasoil, ITV, Neumáticos, Vacaciones, Taller (las 4 últimas limitadas a TYP2014+HISPALIS por empresa_* en BD); NO verá Producción ni Usuarios (no es admin). Mantiene v107EQ7 SQL (permisos BD), v107EQ6 (red de seguridad campos auxiliares), v107EQ5 (cola pre-arranque), v107ER (cuarentena visibilitychange). -->
@@ -2462,8 +2463,17 @@ async function saveRecord(data) {
   }
 
   if (_idValido) {
-    const { error } = await sb.from('albaranes').update(rec).eq('id', _idValido);
+    // v107GZ (Juan Carlos 02/06/2026): pedimos a Supabase que nos DEVUELVA la fila
+    // actualizada (.select()). Sin esto, un UPDATE que no afecta a ninguna fila (por
+    // permisos, por id que no encuentra, etc.) devolvía error=null → la app creía que
+    // había guardado, pero NO había cambiado nada → al recargar "volvía a lo que leyó".
+    // Ahora, si no vuelve ninguna fila, lanzamos error claro para que NO se dé por bueno
+    // un guardado fantasma y el usuario sepa que tiene que reintentar.
+    const { data: actualizado, error } = await sb.from('albaranes').update(rec).eq('id', _idValido).select();
     if (error) throw error;
+    if (!actualizado || actualizado.length === 0) {
+      throw new Error('El guardado no modificó ninguna fila (id=' + _idValido + '). Puede ser un tropiezo de conexión o de permisos — reinténtalo.');
+    }
   } else if (data.db_id) {
     // Tenía db_id pero NO es válido: NO insertamos un duplicado a ciegas (sería peor).
     // Avisamos con un error claro para que se vea el problema y se reintente bien.
@@ -8368,12 +8378,14 @@ async function saveModal() {
               }
             });
             if (discrepancias.length > 0) {
-              console.error('[saveModal v107U] ⚠️ DISCREPANCIAS tras guardar (alb ' + r.albaran + '):', discrepancias);
-              toast(`⚠️ Algunos cambios no se guardaron correctamente. F12 para detalles.`, 'err');
-              // Actualizar el record en memoria con lo que realmente hay en BD para que
-              // la UI refleje la verdad (y el usuario sepa que tiene que reintentar)
-              camposVerif.forEach(k => { r[k] = verif[k]; });
-              try { applyFilters(); updateStats(); } catch(e){}
+              // v107GZ: NO revertimos el dato en memoria. El guardado con .select() de
+              // saveRecord YA garantiza que la fila se actualizó de verdad (si no, habría
+              // lanzado error y no llegaríamos aquí). Si la RE-LECTURA de comprobación
+              // devuelve valores viejos, casi siempre es por el pooler/replica de Supabase
+              // sirviendo un dato con retraso (no porque el guardado fallara). Antes
+              // revertíamos a esos valores viejos y por eso "el cambio desaparecía". Ahora
+              // solo lo dejamos anotado en consola y mantenemos lo que el usuario guardó.
+              console.warn('[saveModal v107GZ] La relectura de comprobación devolvió valores distintos (probable retraso del pooler de Supabase). El guardado SÍ se aplicó (.select() lo confirmó). NO se revierte. Detalle:', discrepancias);
             } else {
               console.log(`[saveModal v107U] ✓ Verificación OK — todos los campos guardados correctamente (alb ${r.albaran})`);
             }
