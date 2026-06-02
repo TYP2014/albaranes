@@ -10,6 +10,7 @@
 <!-- v107H3 (02/06/2026): ITV — recuperada la zona de ARRASTRAR/SOLTAR documentos (antes solo había botón "Subir ITV" que abría el explorador). Se añade una caja .dz#dzItv en la pestaña ITV que llama a una nueva función dropItv() (ITV usa handleItvFiles, no addFiles, por eso necesita su propio drop). El botón Subir se mantiene. dropItv respeta el solo-lectura (usuario Taller) y la zona se oculta en _aplicarItvSoloLectura. NO requiere SQL. -->
 <!-- v107H4 (02/06/2026): añadida zona de ARRASTRAR/SOLTAR también en PRÓXIMAS CITAS ITV (faltaba; en v107H3 solo se puso en Registro de ITV). Caja .dz#dzCita que llama a nueva función dropCita() → handleCitaFiles (lee la cita con IA). Citas solo acepta IMÁGENES (no PDF), igual que el botón "📷 Subir cita". Respeta solo-lectura y se oculta en _aplicarItvSoloLectura. NO requiere SQL. -->
 <!-- v107H6 (02/06/2026): ARREGLO lectura ORIGEN en albaranes PUIGFEL (escombro LER 170101). Error real albarán 4R2617098-2: la IA leyó origen="Celra" cuando el papel pone "Origen càrrega Obra: LA ROCA DEL VALLES" → debía ser "La Roca". Aclaración de JC: los Puigfel cargan CASI siempre en Zona Franca o La Roca pero A VECES en otro sitio que el albarán indica. Blindajes: (1) PROMPT: leer SIEMPRE el bloque "Origen càrrega Obra:" (lo más común Zona Franca/La Roca pero puede ser otro); NUNCA poner Celra (es de Aridcal/Girona Runes). (2) CÓDIGO: si el origen es Zona Franca/La Roca se normaliza; si es un ERROR CONOCIDO (Celra/Cova Solera/Puigfel/Rubí) se deja EN BLANCO para corrección manual; cualquier OTRO sitio leído se RESPETA (no se borra). NO requiere SQL. -->
+<!-- v107H7 (02/06/2026): ORIGEN PUIGFEL se relee con el modelo potente (Sonnet 4.6). Haiku falla leyendo el bloque "Origen càrrega Obra:" de los albaranes Puigfel (deja vacío o pone "Celra", que es de Aridcal/Girona Runes). Ahora, igual que con las matrículas y el destino Holcim: si es un albarán Puigfel y el origen está vacío o es un error conocido, se relee SOLO el origen con Sonnet (más fiable), enfocado en "Origen càrrega Obra:" (La Roca / Zona Franca / u otro sitio que indique el albarán; NUNCA Celra). Funciones nuevas: reintentaOrigenPuigfelConSonnet + enchufe en el flujo de relectura. La red de seguridad v107H6 se mantiene como respaldo. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -5868,6 +5869,46 @@ SOLO JSON válido, sin markdown.`;
     console.log(`[v107FN] Sonnet recuperó ${recuperados}/${indicesDestSospechoso.length} destinos`);
   }
 
+  // v107H7 — RELECTURA DEL ORIGEN EN ALBARANES PUIGFEL con Sonnet.
+  // Haiku falla leyendo el "Origen càrrega Obra:" de los Puigfel (deja vacío o pone
+  // "Celra"). Detectamos los Puigfel y, si su origen está vacío o es un error conocido,
+  // releemos SOLO el origen con Sonnet (más fiable). Si Sonnet lo lee bien, lo aplicamos.
+  const indicesOrigenPuigfel = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const _blob = (String(r.proveedor || '') + ' ' + String(r.obra || '') + ' '
+                 + String(r.planta || '') + ' ' + String(r.producto || '') + ' '
+                 + String(r.cliente || '')).toLowerCase();
+    const _esPuigfel = _blob.indexOf('puigfel') !== -1 || _blob.indexOf('cova solera') !== -1;
+    if (!_esPuigfel) continue;
+    const _orig = String(r.planta || '').trim().toLowerCase();
+    // Releemos si el origen está vacío o es un error conocido (Celra / destino mal puesto).
+    const _origMal = !_orig || /celra|cova\s*solera|puigfel|rub[ií]/.test(_orig);
+    if (_origMal) indicesOrigenPuigfel.push(i);
+  }
+  if (indicesOrigenPuigfel.length > 0) {
+    console.log(`[v107H7] ${indicesOrigenPuigfel.length}/${results.length} orígenes Puigfel a releer con Sonnet 4.6...`);
+    let origSonnet = null;
+    try {
+      origSonnet = await reintentaOrigenPuigfelConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+    } catch (e) {
+      console.warn('[v107H7] Error en reintento Sonnet origen Puigfel (no crítico):', e.message);
+    }
+    let recPF = 0;
+    for (const i of indicesOrigenPuigfel) {
+      const o = (origSonnet && origSonnet.length === results.length) ? origSonnet[i] : null;
+      const ol = String(o || '').trim();
+      // Aceptamos el origen de Sonnet solo si NO está vacío y NO es un error conocido.
+      if (ol && !/^celra$|cova\s*solera|puigfel|rub[ií]/i.test(ol)) {
+        const antes = results[i].planta;
+        results[i].planta = ol;
+        if (antes !== ol) console.log(`[v107H7] Origen Puigfel corregido albarán ${i + 1}: "${antes || '(vacío)'}" → "${ol}"`);
+        recPF++;
+      }
+    }
+    console.log(`[v107H7] Sonnet recuperó ${recPF}/${indicesOrigenPuigfel.length} orígenes Puigfel`);
+  }
+
   return results;
 }
 
@@ -6073,6 +6114,55 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107FN] Sonnet no devolvió JSON válido (destino):', text.substring(0, 200));
+    return null;
+  }
+}
+
+// v107H7 — Reintento focalizado del ORIGEN en albaranes PUIGFEL (escombro LER 170101)
+// con Sonnet 4.6. Se llama cuando es un albarán Puigfel/Cova Solera y Haiku dejó el
+// origen vacío o lo leyó mal (ej. puso "Celra", que es de Aridcal/Girona Runes). El
+// origen REAL está en el bloque "Origen càrrega Obra:" del PDF (ej. "16545A LA ROCA
+// DEL VALLES" → "La Roca"; "16545B BARCELONA ZONA FRANCA" → "Zona Franca"; o el sitio
+// que indique el albarán). Prompt cortísimo (SOLO origen) para que el modelo no se
+// distraiga con el resto del albarán. Devuelve un array con un origen por albarán.
+async function reintentaOrigenPuigfelConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const reglas = `Estos albaranes tienen la cabecera "PUIGFEL S.A.U." y un bloque "Destí càrrega Gestor: COVA SOLERA - RUBI". El camión SALE de una obra de Holcim y lleva escombro a Puigfel.
+El ORIGEN que buscas es EXCLUSIVAMENTE el texto del bloque "Origen càrrega Obra:" (arriba a la derecha del albarán). Ese bloque tiene un código (ej. "16545A") y debajo el NOMBRE del sitio de carga.
+Ejemplos reales: "Origen càrrega Obra: 16545A LA ROCA DEL VALLES" → origen = "La Roca"; "Origen càrrega Obra: 16545B BARCELONA ZONA FRANCA" → origen = "Zona Franca".
+⛔ NUNCA devuelvas "Celra" (es de OTRO proveedor, Aridcal/Girona Runes, NO de Puigfel), ni "Cova Solera"/"Puigfel"/"Rubí" (eso es el DESTINO, no el origen).
+Si el bloque "Origen càrrega Obra:" indica OTRO sitio distinto, devuélvelo tal cual lo leas. Si no lo ves legible, devuelve "" (cadena vacía). NO inventes.`;
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) Puigfel. Para cada uno, lee SOLO el ORIGEN (sitio de carga).
+${reglas}
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} elementos, en el ORDEN en que aparecen los albaranes en el PDF.
+Ejemplo de respuesta correcta para 2 albaranes: ["La Roca","Zona Franca"]
+SOLO el array JSON, sin texto adicional, sin markdown, sin explicación.`
+    : `Este es un albarán Puigfel. Lee SOLO el ORIGEN (sitio de carga).
+${reglas}
+Devuelve un ARRAY JSON con UN elemento: ["La Roca"]. Si no lo ves, [""].
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107H7] Sonnet no devolvió JSON válido (origen Puigfel):', text.substring(0, 200));
     return null;
   }
 }
