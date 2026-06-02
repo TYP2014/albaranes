@@ -8,6 +8,7 @@
 <!-- v107H1 (02/06/2026): ITV — Marta y Mª del Mar pueden SUBIR ITV y crear CITAS. El modo "solo lectura" de ITV (v107AF, pensado para el usuario TALLER/mecánicos) las pillaba también a ellas porque tienen acceso a Taller y son gestor (no admin), así que veían la ITV pero no podían subir ni crear citas. Ahora se las excluye del solo-lectura por id de usuario. El usuario TALLER sigue en solo lectura. NO requiere SQL. -->
 <!-- v107H2 (02/06/2026): TRANSMARGAZ (socio) ve TODOS los albaranes igual que Marta y MdM. La Logística de TRANSMARGAZ (logistica@ttesyportes.2014, id 92687ba2-...) pasa a tratarse como gestor de oficina: ve TYP2014 + HISPALIS + TRANSMARGAZ, sin filtro por empresa. Se mete en el mismo grupo _gestorInterno que Marta y MdM en loadData. REQUIERE SQL: añadir su id a la regla RLS albaranes_select (igual que Marta/MdM). -->
 <!-- v107H3 (02/06/2026): ITV — recuperada la zona de ARRASTRAR/SOLTAR documentos (antes solo había botón "Subir ITV" que abría el explorador). Se añade una caja .dz#dzItv en la pestaña ITV que llama a una nueva función dropItv() (ITV usa handleItvFiles, no addFiles, por eso necesita su propio drop). El botón Subir se mantiene. dropItv respeta el solo-lectura (usuario Taller) y la zona se oculta en _aplicarItvSoloLectura. NO requiere SQL. -->
+<!-- v107H4 (02/06/2026): añadida zona de ARRASTRAR/SOLTAR también en PRÓXIMAS CITAS ITV (faltaba; en v107H3 solo se puso en Registro de ITV). Caja .dz#dzCita que llama a nueva función dropCita() → handleCitaFiles (lee la cita con IA). Citas solo acepta IMÁGENES (no PDF), igual que el botón "📷 Subir cita". Respeta solo-lectura y se oculta en _aplicarItvSoloLectura. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -826,6 +827,13 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             </div>
           </div>
           <div class="card-bd">
+            <!-- v107H4: zona de arrastrar/soltar para CITAS ITV (además del botón). Solo imágenes. -->
+            <div class="dz" id="dzCita" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropCita(event)" style="margin-bottom:12px">
+              <input type="file" accept="image/*" onchange="handleCitaFiles(this.files); this.value='';">
+              <div class="dz-ic">📅</div>
+              <div class="dz-t">Arrastra la foto de la cita · o <span class="hl">haz clic para seleccionar</span></div>
+              <div class="dz-s">JPG · PNG (foto del SMS/email del centro ITV)</div>
+            </div>
             <div class="filters">
               <div class="fil-group"><label class="fil-label">Matrícula</label><input class="fil-sel" id="fCitaMat" oninput="applyCitasFilters()" placeholder="Todas" autocomplete="off" style="font-family:var(--mn);font-size:11px"></div>
               <div class="fil-group"><label class="fil-label">Cuándo</label><select class="fil-sel" id="fCitaCuando" onchange="applyCitasFilters()"><option value="">Todas</option><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="futuras">Futuras (todas)</option><option value="pasadas">Pasadas</option></select></div>
@@ -2853,6 +2861,17 @@ function dropItv(e) {
   target.classList.remove('ov');
   if (window._itvSoloLectura) { toast('No tienes permiso para subir ITV', 'err'); return; }
   handleItvFiles(e.dataTransfer.files);
+}
+// v107H4 (Juan Carlos 02/06/2026): arrastrar/soltar en PRÓXIMAS CITAS ITV. Usa
+// handleCitaFiles (lee la cita con IA). OJO: la subida de citas solo acepta
+// IMÁGENES (no PDF), igual que el botón "📷 Subir cita".
+function dropCita(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  _dragCounters.set(target, 0);
+  target.classList.remove('ov');
+  if (window._itvSoloLectura) { toast('No tienes permiso para subir citas', 'err'); return; }
+  handleCitaFiles(e.dataTransfer.files);
 }
 
 // Comprime una imagen para que pese menos del límite. Hace 2 pasadas:
@@ -9396,6 +9415,9 @@ function _aplicarItvSoloLectura() {
   // v107H3: ocultar también la zona de arrastrar/soltar de ITV en solo-lectura
   const _dzItv = document.getElementById('dzItv');
   if (_dzItv) _dzItv.style.display = 'none';
+  // v107H4: ocultar también la zona de arrastrar/soltar de CITAS en solo-lectura
+  const _dzCita = document.getElementById('dzCita');
+  if (_dzCita) _dzCita.style.display = 'none';
   // Quitar el onclick de las filas de ITV/citas para que no abran el modal de edición.
   // (En solo lectura, ver la tabla es suficiente; no se abre el modal editable.)
   document.querySelectorAll('#itvTableBody tr, #citasTableBody tr').forEach(tr => {
