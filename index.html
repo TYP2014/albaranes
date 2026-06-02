@@ -2229,7 +2229,12 @@ async function loadData() {
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1);
-    if (currentRole === 'gestor') query = query.eq('user_id', currentUser.id);
+    // v107GU (Juan Carlos 02/06): los gestores ven SOLO sus albaranes, EXCEPTO los gestores
+    // internos del grupo (María del Mar y Marta), que deben ver TODOS. Antes solo veían los
+    // que subían ellas mismas. El resto de gestores (subcontratados) siguen viendo solo lo suyo.
+    const _emailGestor = (currentUser?.email || '').toLowerCase().trim();
+    const _gestorInterno = (_emailGestor === 'mariadelmar@typ2014.local' || _emailGestor === 'marta@typ2014.local');
+    if (currentRole === 'gestor' && !_gestorInterno) query = query.eq('user_id', currentUser.id);
     const { data, error } = await query;
     if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
     if (!data || data.length === 0) break;
@@ -6942,8 +6947,8 @@ function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup
 function _puedeVerFacturacion() {
   if (currentRole === 'admin') return true;
   const e = (currentUser?.email || '').toLowerCase().trim();
+  // v107GU (Juan Carlos 02/06): Marta YA NO ve Facturación (quitada de esta lista).
   return e === 'mariadelmar@typ2014.local'
-      || e === 'marta@typ2014.local'
       || e === 'logistica@ttesyportes.2014';
 }
 
