@@ -2229,11 +2229,13 @@ async function loadData() {
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1);
-    // v107GU (Juan Carlos 02/06): los gestores ven SOLO sus albaranes, EXCEPTO los gestores
-    // internos del grupo (María del Mar y Marta), que deben ver TODOS. Antes solo veían los
-    // que subían ellas mismas. El resto de gestores (subcontratados) siguen viendo solo lo suyo.
-    const _emailGestor = (currentUser?.email || '').toLowerCase().trim();
-    const _gestorInterno = (_emailGestor === 'mariadelmar@typ2014.local' || _emailGestor === 'marta@typ2014.local');
+    // v107GV (Juan Carlos 02/06): Marta y Mª del Mar ven TODOS los albaranes. Antes lo
+    // comprobábamos por email (v107GU) pero no funcionaba — el email de la sesión no
+    // siempre coincide (p.ej. el admin real es administracion@ttesyportes2014.com, no un
+    // @typ2014.local). Ahora comparamos por ID de usuario, que es único y SIEMPRE fiable.
+    const _ID_MARTA = '6f657be7-1edd-4d5d-9895-cc6777ebbca1';
+    const _ID_MARIADELMAR = '5059731a-3e41-4578-b61e-96f20b6d8cc8';
+    const _gestorInterno = (currentUser?.id === _ID_MARTA || currentUser?.id === _ID_MARIADELMAR);
     if (currentRole === 'gestor' && !_gestorInterno) query = query.eq('user_id', currentUser.id);
     const { data, error } = await query;
     if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
