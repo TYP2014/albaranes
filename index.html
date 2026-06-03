@@ -14,6 +14,7 @@
 <!-- v107H8 (02/06/2026): CAUSA RAÍZ del origen mal en Puigfel ENCONTRADA por consola. La IA leía BIEN el origen ("La Roca"), pero la regla de GIRONA RUNES (v107AU) lo MACHACABA a "Celra" porque se disparaba con el material 170101 — y Puigfel también lleva escombro 170101. Resultado: La Roca → (Girona Runes lo pisa) → Celra → (Puigfel H6 lo borra) → vacío. Arreglo: la regla Girona Runes ahora EXCLUYE los albaranes Puigfel/Cova Solera (se distinguen por el nombre de cabecera; ambos comparten el 170101 pero son proveedores distintos). Así el "La Roca" que lee la IA ya NO se pisa. Las redes H6/H7 quedan como respaldo. NO requiere SQL. -->
 <!-- v107H9 (02/06/2026): DESTINO PROMSA vacío se relee con el modelo potente (Sonnet 4.6). Caso real albarán 94232-N "65 CONSTANTI": Haiku dejó el destino VACÍO, mientras el 94376-N idéntico sí lo leyó (fallo puntual de lectura de esa foto, NO de regla — el prompt Promsa ya es correcto). Igual que con origen Puigfel (v107H7): si es Promsa/Molins y el destino sale vacío, se relee SOLO el destino con Sonnet, enfocado en el recuadro OBRA (Constantí/Igualada/Cubelles...; NUNCA "Sant Vicenç dels Horts" que es la dirección fiscal). Función nueva reintentaDestinoPromsaConSonnet + enchufe en el flujo. El prompt NO se toca. NO requiere SQL. -->
 <!-- v107I0 (02/06/2026): Marta VUELVE a ver el módulo FACTURACIÓN (pestaña + iconos 🟢📌🚫 + recuadro del modal con Pendiente/Facturado/No facturable). Hoy en v107GU se le había quitado el acceso; Juan Carlos pide devolvérselo. Se re-añade en _puedeVerFacturacion() por email (marta@typ2014.local) Y por id de usuario (6f657be7-...) para que funcione seguro. María del Mar y Logística siguen igual. NO requiere SQL. -->
+<!-- v107I1 (02/06/2026): Marta y María del Mar VEN el panel "Pendientes de hoy" (duplicados, mat. desconocidas, a revisar, pendientes IA, ITVs) — antes era solo admin (v104b). Lo piden para poder comprobar y ELIMINAR duplicados. Cambio en renderPendientes(): se permite también a Marta (6f657be7-...) y MdM (5059731a-...) por id; el resto de gestores/conductores siguen sin verlo. REQUIERE SQL: ampliar la regla RLS albaranes_delete para que Marta y MdM puedan borrar (igual que el de editar) — si no, verían los duplicados pero no podrían eliminarlos. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -6532,8 +6533,14 @@ function renderAlerts() {
 function renderPendientes() {
   const box = document.getElementById('pendientesBox');
   if (!box) return;
-  // v104b: avisos operativos SOLO para admin. Gestores y conductores no los ven (pantalla limpia).
-  if (currentRole !== 'admin') { box.innerHTML = ''; return; }
+  // v104b: avisos operativos para admin. v107I1 (Juan Carlos 02/06/2026): Marta y
+  // María del Mar (oficina) también los ven, para poder comprobar y eliminar
+  // duplicados, mat. desconocidas, etc. — igual que el admin. Los conductores y demás
+  // gestores siguen con la pantalla limpia (no ven este panel).
+  const _ID_MARTA_P = '6f657be7-1edd-4d5d-9895-cc6777ebbca1';
+  const _ID_MARIADELMAR_P = '5059731a-3e41-4578-b61e-96f20b6d8cc8';
+  const _esOficinaPend = (currentUser?.id === _ID_MARTA_P || currentUser?.id === _ID_MARIADELMAR_P);
+  if (currentRole !== 'admin' && !_esOficinaPend) { box.innerHTML = ''; return; }
 
   const pendIA = records.filter(r => r.procesado === false).length;
   const matDes = records.filter(r => !r._dup && r._matDesconocida).length;
