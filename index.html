@@ -13,6 +13,7 @@
 <!-- v107H7 (02/06/2026): ORIGEN PUIGFEL se relee con el modelo potente (Sonnet 4.6). Haiku falla leyendo el bloque "Origen càrrega Obra:" de los albaranes Puigfel (deja vacío o pone "Celra", que es de Aridcal/Girona Runes). Ahora, igual que con las matrículas y el destino Holcim: si es un albarán Puigfel y el origen está vacío o es un error conocido, se relee SOLO el origen con Sonnet (más fiable), enfocado en "Origen càrrega Obra:" (La Roca / Zona Franca / u otro sitio que indique el albarán; NUNCA Celra). Funciones nuevas: reintentaOrigenPuigfelConSonnet + enchufe en el flujo de relectura. La red de seguridad v107H6 se mantiene como respaldo. NO requiere SQL. -->
 <!-- v107H8 (02/06/2026): CAUSA RAÍZ del origen mal en Puigfel ENCONTRADA por consola. La IA leía BIEN el origen ("La Roca"), pero la regla de GIRONA RUNES (v107AU) lo MACHACABA a "Celra" porque se disparaba con el material 170101 — y Puigfel también lleva escombro 170101. Resultado: La Roca → (Girona Runes lo pisa) → Celra → (Puigfel H6 lo borra) → vacío. Arreglo: la regla Girona Runes ahora EXCLUYE los albaranes Puigfel/Cova Solera (se distinguen por el nombre de cabecera; ambos comparten el 170101 pero son proveedores distintos). Así el "La Roca" que lee la IA ya NO se pisa. Las redes H6/H7 quedan como respaldo. NO requiere SQL. -->
 <!-- v107H9 (02/06/2026): DESTINO PROMSA vacío se relee con el modelo potente (Sonnet 4.6). Caso real albarán 94232-N "65 CONSTANTI": Haiku dejó el destino VACÍO, mientras el 94376-N idéntico sí lo leyó (fallo puntual de lectura de esa foto, NO de regla — el prompt Promsa ya es correcto). Igual que con origen Puigfel (v107H7): si es Promsa/Molins y el destino sale vacío, se relee SOLO el destino con Sonnet, enfocado en el recuadro OBRA (Constantí/Igualada/Cubelles...; NUNCA "Sant Vicenç dels Horts" que es la dirección fiscal). Función nueva reintentaDestinoPromsaConSonnet + enchufe en el flujo. El prompt NO se toca. NO requiere SQL. -->
+<!-- v107I0 (02/06/2026): Marta VUELVE a ver el módulo FACTURACIÓN (pestaña + iconos 🟢📌🚫 + recuadro del modal con Pendiente/Facturado/No facturable). Hoy en v107GU se le había quitado el acceso; Juan Carlos pide devolvérselo. Se re-añade en _puedeVerFacturacion() por email (marta@typ2014.local) Y por id de usuario (6f657be7-...) para que funcione seguro. María del Mar y Logística siguen igual. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7227,8 +7228,12 @@ function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup
 function _puedeVerFacturacion() {
   if (currentRole === 'admin') return true;
   const e = (currentUser?.email || '').toLowerCase().trim();
-  // v107GU (Juan Carlos 02/06): Marta YA NO ve Facturación (quitada de esta lista).
-  return e === 'mariadelmar@typ2014.local'
+  const id = currentUser?.id || '';
+  // v107I0 (Juan Carlos 02/06): Marta VUELVE a ver Facturación (re-añadida por email
+  // Y por id, para que funcione seguro aunque el email venga con alguna variación).
+  if (id === '6f657be7-1edd-4d5d-9895-cc6777ebbca1') return true;  // Marta
+  return e === 'marta@typ2014.local'
+      || e === 'mariadelmar@typ2014.local'
       || e === 'logistica@ttesyportes.2014';
 }
 
