@@ -19,6 +19,7 @@
 <!-- v107I3 (02/06/2026): fix FECHA del lector de albaranes Soledad (v107I2). La fecha se guardaba como "02/06/2026" (DD/MM/AAAA) en una columna de tipo fecha, y la BD la interpretaba al revés (2026-02-06, confundía día/mes). Nueva función _neumFechaISO convierte a AAAA-MM-DD (formato BD, igual que el input type=date manual) antes de insertar el movimiento. Solo afecta a la fecha del lector de neumáticos; el descuento de stock ya funcionaba bien. NO requiere SQL. NOTA: el movimiento de prueba ya guardado (D700004618, fecha 2026-02-06) se puede corregir a mano o re-subir; los nuevos ya saldrán bien. -->
 <!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
+<!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14076,6 +14077,24 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     if (!['TYP2014', 'HISPALIS', 'TRANSMARGAZ'].includes(empresa)) {
       toast('Empresa no válida: ' + empresa, 'err'); return { ok: false, movimientos: 0, sinStock: 0 };
     }
+  }
+
+  // 4b) v107I6 ANTI-DUPLICADO: como varios usuarios comparten correo, es fácil subir
+  // el mismo albarán dos veces. Si ya hay movimientos de ESTE nº de albarán en ESTA
+  // empresa, avisamos antes de volver a descontar/registrar. Buscamos el nº albarán en
+  // las observaciones (donde lo guardamos: "Albarán Soledad D700004618 ...").
+  const numAlbDup = String(lineasNeum[0].num_albaran || '').trim();
+  if (numAlbDup) {
+    try {
+      const { data: yaExisteAlb } = await sb.from('neumaticos_movimientos')
+        .select('id').eq('empresa', empresa).ilike('observaciones', `%${numAlbDup}%`).limit(1);
+      if (yaExisteAlb && yaExisteAlb.length) {
+        if (!confirm(`El albarán ${numAlbDup} ya parece estar cargado en ${empresa}.\n\n(Puede que lo haya subido otro compañero.)\n\n¿Volver a procesarlo igualmente? — CUIDADO: descontaría/registraría el stock OTRA VEZ.`)) {
+          toast(`Albarán ${numAlbDup} omitido (ya estaba cargado)`, 'warn');
+          return { ok: false, movimientos: 0, sinStock: 0 };
+        }
+      }
+    } catch (e) { /* si falla la comprobación, seguimos */ }
   }
 
   // 5) Subir el archivo a Storage (no crítico: si falla, seguimos)
