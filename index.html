@@ -16,6 +16,7 @@
 <!-- v107I0 (02/06/2026): Marta VUELVE a ver el módulo FACTURACIÓN (pestaña + iconos 🟢📌🚫 + recuadro del modal con Pendiente/Facturado/No facturable). Hoy en v107GU se le había quitado el acceso; Juan Carlos pide devolvérselo. Se re-añade en _puedeVerFacturacion() por email (marta@typ2014.local) Y por id de usuario (6f657be7-...) para que funcione seguro. María del Mar y Logística siguen igual. NO requiere SQL. -->
 <!-- v107I1 (02/06/2026): Marta y María del Mar VEN el panel "Pendientes de hoy" (duplicados, mat. desconocidas, a revisar, pendientes IA, ITVs) — antes era solo admin (v104b). Lo piden para poder comprobar y ELIMINAR duplicados. Cambio en renderPendientes(): se permite también a Marta (6f657be7-...) y MdM (5059731a-...) por id; el resto de gestores/conductores siguen sin verlo. REQUIERE SQL: ampliar la regla RLS albaranes_delete para que Marta y MdM puedan borrar (igual que el de editar) — si no, verían los duplicados pero no podrían eliminarlos. -->
 <!-- v107I2 (02/06/2026): NEUMÁTICOS — LECTOR DE ALBARANES SOLEDAD CON IA (Flujo 1, reprogramado tras perderse en una versión anterior). Nueva zona de arrastrar/soltar verde "Subir albarán Soledad" en la pestaña Neumáticos (encima de Acciones). callClaudeNeumAlb (Haiku) lee cada línea de neumático: cantidad, medida (normalizada con coma 385/65X22,5), marca (CONT→CONTINENTAL), modelo (HS5/HD5/HT3 SR...), propiedad, matrícula, fecha, nº albarán, CIF cliente. REGLAS: solo descuenta stock (movimiento montaje, resta) si pone "S/PROP"/"DE SU PROPIEDAD"/"DE SU STOCK"; si no, no toca stock (compra/venta, lo verá la factura). Ignora mano de obra/NFU/17". Avisa de 19,5 sin procesar. Empresa por CIF (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ); si el CIF no se lee/no coincide, PREGUNTA la empresa. Stock por medida+marca+modelo (uso no separa). Funciones: callClaudeNeumAlb, _neumProcesarAlbaranSoledad, handleNeumAlbFiles, dropNeumAlb. Flujo 2 (facturas de compra que suman stock) PENDIENTE para la próxima. NO requiere SQL. -->
+<!-- v107I3 (02/06/2026): fix FECHA del lector de albaranes Soledad (v107I2). La fecha se guardaba como "02/06/2026" (DD/MM/AAAA) en una columna de tipo fecha, y la BD la interpretaba al revés (2026-02-06, confundía día/mes). Nueva función _neumFechaISO convierte a AAAA-MM-DD (formato BD, igual que el input type=date manual) antes de insertar el movimiento. Solo afecta a la fecha del lector de neumáticos; el descuento de stock ya funcionaba bien. NO requiere SQL. NOTA: el movimiento de prueba ya guardado (D700004618, fecha 2026-02-06) se puede corregir a mano o re-subir; los nuevos ya saldrán bien. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13898,6 +13899,26 @@ const _NEUM_CIF_EMPRESA = {
   'B67316752': 'TRANSMARGAZ'
 };
 
+// v107I3 (02/06/2026): convierte una fecha a formato BD AAAA-MM-DD (el que usa la
+// columna fecha de neumaticos_movimientos, igual que el input type=date del formulario
+// manual). Antes el lector guardaba "02/06/2026" (DD/MM/AAAA) y la BD lo interpretaba
+// al revés (2026-02-06). Acepta DD/MM/AAAA, DD-MM-AAAA o ya-AAAA-MM-DD. Si no la
+// entiende, usa la fecha de hoy en formato ISO.
+function _neumFechaISO(s) {
+  const t = String(s || '').trim();
+  // Ya viene en AAAA-MM-DD
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  // DD/MM/AAAA o DD-MM-AAAA
+  m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    let y = m[3]; if (y.length === 2) y = '20' + y;
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  // No reconocida → hoy en ISO
+  return new Date().toISOString().slice(0, 10);
+}
+
 // Maneja los archivos soltados/elegidos en la zona de albaranes Soledad.
 // Procesa cada archivo de uno en uno y muestra un resumen al final.
 async function handleNeumAlbFiles(fileList) {
@@ -13989,7 +14010,7 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     const medida = String(l.medida || '').trim();
     const marca = String(l.marca || '').trim().toUpperCase() || null;
     const modelo = String(l.modelo || '').trim() || null;
-    const fecha = normFecha(l.fecha) || new Date().toLocaleDateString('es-ES');
+    const fecha = _neumFechaISO(l.fecha);
     const matricula = String(l.matricula || '').toUpperCase().replace(/\s+/g, '') || null;
     const esPropiedad = String(l.propiedad || '') === 'SU_PROPIEDAD';
 
