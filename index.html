@@ -17,6 +17,8 @@
 <!-- v107I1 (02/06/2026): Marta y María del Mar VEN el panel "Pendientes de hoy" (duplicados, mat. desconocidas, a revisar, pendientes IA, ITVs) — antes era solo admin (v104b). Lo piden para poder comprobar y ELIMINAR duplicados. Cambio en renderPendientes(): se permite también a Marta (6f657be7-...) y MdM (5059731a-...) por id; el resto de gestores/conductores siguen sin verlo. REQUIERE SQL: ampliar la regla RLS albaranes_delete para que Marta y MdM puedan borrar (igual que el de editar) — si no, verían los duplicados pero no podrían eliminarlos. -->
 <!-- v107I2 (02/06/2026): NEUMÁTICOS — LECTOR DE ALBARANES SOLEDAD CON IA (Flujo 1, reprogramado tras perderse en una versión anterior). Nueva zona de arrastrar/soltar verde "Subir albarán Soledad" en la pestaña Neumáticos (encima de Acciones). callClaudeNeumAlb (Haiku) lee cada línea de neumático: cantidad, medida (normalizada con coma 385/65X22,5), marca (CONT→CONTINENTAL), modelo (HS5/HD5/HT3 SR...), propiedad, matrícula, fecha, nº albarán, CIF cliente. REGLAS: solo descuenta stock (movimiento montaje, resta) si pone "S/PROP"/"DE SU PROPIEDAD"/"DE SU STOCK"; si no, no toca stock (compra/venta, lo verá la factura). Ignora mano de obra/NFU/17". Avisa de 19,5 sin procesar. Empresa por CIF (B90172735=TYP2014, B90286337=HISPALIS, B67316752=TRANSMARGAZ); si el CIF no se lee/no coincide, PREGUNTA la empresa. Stock por medida+marca+modelo (uso no separa). Funciones: callClaudeNeumAlb, _neumProcesarAlbaranSoledad, handleNeumAlbFiles, dropNeumAlb. Flujo 2 (facturas de compra que suman stock) PENDIENTE para la próxima. NO requiere SQL. -->
 <!-- v107I3 (02/06/2026): fix FECHA del lector de albaranes Soledad (v107I2). La fecha se guardaba como "02/06/2026" (DD/MM/AAAA) en una columna de tipo fecha, y la BD la interpretaba al revés (2026-02-06, confundía día/mes). Nueva función _neumFechaISO convierte a AAAA-MM-DD (formato BD, igual que el input type=date manual) antes de insertar el movimiento. Solo afecta a la fecha del lector de neumáticos; el descuento de stock ya funcionaba bien. NO requiere SQL. NOTA: el movimiento de prueba ya guardado (D700004618, fecha 2026-02-06) se puede corregir a mano o re-subir; los nuevos ya saldrán bien. -->
+<!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
+<!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -942,7 +944,7 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
       <!-- v107I2: LECTOR AUTOMÁTICO de albaranes Soledad (descuenta stock con IA) -->
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ok)"></div>SUBIR ALBARÁN SOLEDAD (lee y descuenta stock solo)</div>
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>SUBIR ALBARÁN (descuenta) O FACTURA (suma) — SOLEDAD</div>
         </div>
         <div class="card-bd">
           <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)">
@@ -950,6 +952,13 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
             <div class="dz-ic">🛞</div>
             <div class="dz-t">Arrastra fotos o PDFs de albaranes Soledad · o <span class="hl">haz clic para seleccionar</span></div>
             <div class="dz-s">La IA lee el albarán y, si pone "DE SU STOCK / S/PROP", descuenta del stock automáticamente · detecta la empresa por el CIF</div>
+          </div>
+          <!-- v107I5: zona AZUL para FACTURA de compra (suma stock) -->
+          <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="margin-top:12px;border-color:var(--in)">
+            <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
+            <div class="dz-ic">📄</div>
+            <div class="dz-t">Arrastra la FACTURA de compra Soledad (PDF) · o <span class="hl">haz clic para seleccionar</span></div>
+            <div class="dz-s">La IA lee las compras de almacén y SUMAN al stock · ignora descuentos y tasas · detecta la empresa por el CIF (Holding → TYP2014)</div>
           </div>
         </div>
       </div>
@@ -6452,6 +6461,82 @@ Devuelve SOLO el array JSON, sin texto adicional, sin markdown, sin explicación
     return Array.isArray(parsed) ? parsed : [parsed];
   } catch (e) {
     console.warn('[v107I2] callClaudeNeumAlb no devolvió JSON válido:', text.substring(0, 200));
+    return null;
+  }
+}
+
+// ============================================================
+// v107I5 (02/06/2026): LECTOR DE FACTURA NEUMÁTICOS SOLEDAD (Flujo 2 Parte B)
+// ============================================================
+// Lee una FACTURA PDF de Neumáticos Soledad (la que viene por la Holding:
+// "POR.2014 CAPITAL HOLDINGS S.L." CIF B75555037) y devuelve las líneas de
+// neumático COMPRADO (cantidad positiva = unidades que entran a almacén).
+// Estas facturas son compras GRANDES de almacén ("CUB DEPOSITADAS EN NUESTRO
+// ALMACEN") → SUMAN stock. Va al stock de TYP2014.
+// IGNORA: líneas de descuento (cantidad negativa: "CONTINENTAL CAMION 2026",
+// "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU"), y las líneas de texto
+// ("CUB DEPOSITADAS EN", "NUESTRO ALMACEN", líneas de puntos).
+async function callClaudeNeumFactura(b64, mediaType, key, isPdf, signal) {
+  const prompt = `Eres un OCR experto en FACTURAS de NEUMÁTICOS SOLEDAD (Grupo Soledad) emitidas a empresas de transporte en España.
+
+Devuelve SIEMPRE un ARRAY JSON. Un objeto por cada LÍNEA REAL DE NEUMÁTICO COMPRADO (cantidad positiva). Si no hay ninguna, devuelve [].
+
+🔴 QUÉ ES UNA LÍNEA DE NEUMÁTICO COMPRADO: una línea con una MEDIDA tipo "315/80X22.5", "385/65X22.5" y una CANTIDAD POSITIVA (ej. 16, 68, 64, 18). Describe la cubierta con marca/modelo (ej. "315/80X22.5 CONT.HybHS5 156L", "385/65X22.5 CONT.HybrHT3SR160K").
+
+⛔ IGNORA POR COMPLETO (NO las incluyas en el array):
+- Líneas de DESCUENTO con cantidad NEGATIVA: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD", "DTO ...". (Tienen cantidad con signo menos, ej. -16,00).
+- Tasas: "S.I.Gestión de NFU", "GESTIÓN DE NFU", "ECOTASA".
+- Líneas de texto sin medida: "CUB DEPOSITADAS EN", "NUESTRO ALMACEN", líneas de puntos "............".
+- Cualquier línea sin una medida de neumático válida.
+
+Para CADA línea de neumático comprado devuelve:
+- "cantidad": número entero POSITIVO de unidades (ej. 16, 68, 64, 18). Solo la cantidad de la línea del neumático (la positiva), NUNCA las negativas de descuento.
+- "medida": normalizada SIEMPRE con coma y X mayúscula: "315/80X22,5", "385/65X22,5", "315/70X22,5". (Si ves "22.5" → "22,5".)
+- "marca": en MAYÚSCULAS. Cualquier cosa que empiece por "CONT" → "CONTINENTAL"; "BARUM" → "BARUM"; "MICHELIN" → "MICHELIN". Si no se distingue, "".
+- "modelo": el modelo CORTO sin la marca. Ejemplos: "CONT.HybHS5 156L" → "HS5"; "CONT.HybrHT3SR160K" → "HT3 SR"; "CONT.HybHD5 156L" → "HD5"; "CONT.HybHS5 164K" → "HS5". Quita prefijos "CONT.", "Hyb", "Hybr" y el sufijo de carga (156L, 160K, 164K, etc.). Deja el código (HS5, HD5, HT3 SR, HS3+...).
+- "num_factura": el número de la factura (ej. "N0000050361"). Está junto a "FACTURA".
+- "fecha": la FECHA de la factura en formato DD/MM/AAAA (ej. "31/03/2026").
+- "cif_cliente": el CIF/NIF del cliente al que se emite la factura (campo "N.I.F.", ej. "B75555037"). NO el de Neumáticos Soledad (B03260684).
+
+EJEMPLO REAL: una factura a "POR.2014 CAPITAL HOLDINGS S.L." (N.I.F. B75555037, factura N0000050361, fecha 31/03/2026) con estas líneas:
+"315/80X22.5 CONT.HybHS5 156L ... 16,00 ..." (y debajo "CONTINENTAL CAMION 2026 -16,00" y "DTO NEUMS. SOLEDAD -16,00")
+"385/65X22.5 CONT.HybrHT3SR160K ... 68,00 ..."
+"315/80X22.5 CONT.HybHD5 156L ... 64,00 ..."
+"385/65X22.5 CONT.HybHS5 164K ... 18,00 ..."
+"S.I.Gestión de NFU Cat.N4 166,00 ..."
+→ devuelve EXACTAMENTE 4 objetos (solo los neumáticos con cantidad positiva, ignorando descuentos negativos y la tasa NFU):
+[{"cantidad":16,"medida":"315/80X22,5","marca":"CONTINENTAL","modelo":"HS5","num_factura":"N0000050361","fecha":"31/03/2026","cif_cliente":"B75555037"},
+{"cantidad":68,"medida":"385/65X22,5","marca":"CONTINENTAL","modelo":"HT3 SR","num_factura":"N0000050361","fecha":"31/03/2026","cif_cliente":"B75555037"},
+{"cantidad":64,"medida":"315/80X22,5","marca":"CONTINENTAL","modelo":"HD5","num_factura":"N0000050361","fecha":"31/03/2026","cif_cliente":"B75555037"},
+{"cantidad":18,"medida":"385/65X22,5","marca":"CONTINENTAL","modelo":"HS5","num_factura":"N0000050361","fecha":"31/03/2026","cif_cliente":"B75555037"}]
+
+Devuelve SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  // Factura = documento financiero denso → usamos Sonnet (más fiable que Haiku aquí).
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    let e = {};
+    try { e = await res.json(); } catch (_) {}
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (e) {
+    console.warn('[v107I5] callClaudeNeumFactura no devolvió JSON válido:', text.substring(0, 200));
     return null;
   }
 }
@@ -13893,8 +13978,12 @@ function closeNeumModal() {
 // v107I2 (02/06/2026): PROCESADO DE ALBARANES SOLEDAD (Flujo 1)
 // ============================================================
 // Mapa CIF → empresa (las 3 que llevan stock de neumáticos).
+// v107I4 (02/06/2026): Portes 2014 Import (B02657435) comparte stock con TYP2014
+// (las facturas/albaranes de Soledad de TYP2014 + Portes Import vienen juntas por la
+// Holding). Hispalis y Transmargaz, cada uno al suyo.
 const _NEUM_CIF_EMPRESA = {
-  'B90172735': 'TYP2014',
+  'B90172735': 'TYP2014',         // TYP2014
+  'B02657435': 'TYP2014',         // Portes 2014 Import → mismo stock que TYP2014 (Holding)
   'B90286337': 'HISPALIS',
   'B67316752': 'TRANSMARGAZ'
 };
@@ -13940,7 +14029,7 @@ async function handleNeumAlbFiles(fileList) {
   }
   await loadNeumData();
   let msg = `✓ ${okCount} albarán(es) leídos · ${movCount} movimiento(s) de stock`;
-  if (sinStock) msg += ` · ${sinStock} línea(s) sin tocar stock (compra/venta, lo verá la factura)`;
+  if (sinStock) msg += ` · ${sinStock} compra(s) registrada(s) (stock neutro, pendiente de factura)`;
   if (errores) msg += ` · ⚠️ ${errores} con error`;
   toast(msg, errores ? 'err' : 'ok');
 }
@@ -14002,8 +14091,12 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     }
   } catch (e) { console.warn('[v107I2] No se pudo subir el archivo (no crítico):', e.message); }
 
-  // 6) Crear movimientos: SU_PROPIEDAD → montaje (resta stock). COMPRA_VENTA → no toca.
-  let movimientos = 0, sinStock = 0;
+  // 6) Crear movimientos según propiedad:
+  //    · SU_PROPIEDAD (S/PROP / DE SU STOCK) → 1 montaje (-N): descuenta stock (eran tuyos).
+  //    · COMPRA_VENTA (sin S/PROP) → v107I4: se compran Y se montan en el acto, así que
+  //      registramos 2 movimientos: compra (+N) y montaje (-N) → stock NEUTRO, pero queda
+  //      el registro de la compra para verla y para cuadrarla luego con la factura.
+  let movimientos = 0, compras = 0;
   for (const l of lineasNeum) {
     const cant = Math.abs(parseInt(l.cantidad) || 0);
     if (!cant) continue;
@@ -14013,24 +14106,29 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     const fecha = _neumFechaISO(l.fecha);
     const matricula = String(l.matricula || '').toUpperCase().replace(/\s+/g, '') || null;
     const esPropiedad = String(l.propiedad || '') === 'SU_PROPIEDAD';
+    const numAlb = l.num_albaran || '';
+    const base = { empresa, fecha, marca, modelo, medida, uso: null, tractora: matricula, remolque: null, user_id: currentUser.id, updated_at: new Date().toISOString() };
+    if (fileUrl) base.file_url = fileUrl;
 
-    if (!esPropiedad) { sinStock++; continue; }  // compra/venta → no toca stock
-
-    const payload = {
-      empresa, tipo: 'montaje', fecha,
-      marca, modelo, medida, uso: null,
-      cantidad: -cant,  // montaje = salida (resta)
-      tractora: matricula, remolque: null,
-      observaciones: `Albarán Soledad ${l.num_albaran || ''} (leído por IA, S/PROP)`.trim(),
-      user_id: currentUser.id,
-      updated_at: new Date().toISOString()
-    };
-    if (fileUrl) payload.file_url = fileUrl;
-    const { error } = await sb.from('neumaticos_movimientos').insert(payload);
-    if (error) { console.error('[v107I2] Error guardando movimiento:', error); toast('Error guardando movimiento: ' + error.message, 'err'); }
-    else movimientos++;
+    if (esPropiedad) {
+      // Eran del cliente → solo montaje (resta stock)
+      const pMontaje = Object.assign({}, base, { tipo: 'montaje', cantidad: -cant, observaciones: `Albarán Soledad ${numAlb} (leído por IA, S/PROP)`.trim() });
+      const { error } = await sb.from('neumaticos_movimientos').insert(pMontaje);
+      if (error) { console.error('[v107I4] Error guardando montaje:', error); toast('Error guardando montaje: ' + error.message, 'err'); }
+      else movimientos++;
+    } else {
+      // Compra-y-monta: compra (+) y montaje (-) → stock neutro, queda el registro de compra
+      const pCompra = Object.assign({}, base, { tipo: 'compra', cantidad: cant, proveedor: 'Neumáticos Soledad', num_factura: null, observaciones: `Compra-montaje · Albarán Soledad ${numAlb} (leído por IA, pendiente de factura)`.trim() });
+      const r1 = await sb.from('neumaticos_movimientos').insert(pCompra);
+      if (r1.error) { console.error('[v107I4] Error guardando compra:', r1.error); toast('Error guardando compra: ' + r1.error.message, 'err'); }
+      else compras++;
+      const pMontaje = Object.assign({}, base, { tipo: 'montaje', cantidad: -cant, observaciones: `Montaje (compra-montaje) · Albarán Soledad ${numAlb} (leído por IA)`.trim() });
+      const r2 = await sb.from('neumaticos_movimientos').insert(pMontaje);
+      if (r2.error) { console.error('[v107I4] Error guardando montaje:', r2.error); }
+      else movimientos++;
+    }
   }
-  return { ok: true, movimientos, sinStock };
+  return { ok: true, movimientos, sinStock: compras };
 }
 
 // Drag&drop para la zona de albaranes Soledad (verde).
@@ -14040,6 +14138,126 @@ function dropNeumAlb(e) {
   _dragCounters.set(target, 0);
   target.classList.remove('ov');
   handleNeumAlbFiles(e.dataTransfer.files);
+}
+
+// ============================================================
+// v107I5 (02/06/2026): PROCESADO DE FACTURAS SOLEDAD (Flujo 2 Parte B)
+// ============================================================
+// CIF de la Holding (POR.2014 CAPITAL HOLDINGS) → stock de TYP2014.
+const _NEUM_CIF_FACTURA = Object.assign({}, _NEUM_CIF_EMPRESA, {
+  'B75555037': 'TYP2014'   // POR.2014 CAPITAL HOLDINGS → stock TYP2014
+});
+
+async function handleNeumFacturaFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const key = getKey();
+  if (!key) { toast('Falta la clave de IA (arriba, botón Cambiar)', 'err'); return; }
+  toast(`📄 Leyendo ${files.length} factura(s) de neumáticos (puede tardar un poco)...`, 'ok');
+  let okCount = 0, sumadas = 0, unidades = 0, errores = 0;
+  for (const file of files) {
+    try {
+      const r = await _neumProcesarFacturaSoledad(file, key);
+      if (r && r.ok) { okCount++; sumadas += r.lineas; unidades += r.unidades; }
+      else errores++;
+    } catch (e) {
+      console.error('[v107I5] Error procesando factura neumático:', e);
+      errores++;
+    }
+  }
+  await loadNeumData();
+  let msg = `✓ ${okCount} factura(s) leídas · ${sumadas} línea(s) · +${unidades} neumático(s) sumados al stock`;
+  if (errores) msg += ` · ⚠️ ${errores} con error`;
+  toast(msg, errores ? 'err' : 'ok');
+}
+
+// Procesa UNA factura Soledad: lee con IA, detecta empresa por CIF, sube el
+// archivo a Storage y crea un movimiento de COMPRA (+N) por cada línea → SUMA stock.
+async function _neumProcesarFacturaSoledad(file, key) {
+  const isPdf = (file.type === 'application/pdf') || /\.pdf$/i.test(file.name);
+  const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  const b64 = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1]);
+    fr.onerror = () => rej(new Error('No se pudo leer el archivo'));
+    fr.readAsDataURL(file);
+  });
+
+  const lineas = await callClaudeNeumFactura(b64, mediaType, key, isPdf, null);
+  if (!lineas || !lineas.length) {
+    toast(`⚠️ ${file.name}: no se detectaron neumáticos comprados en la factura`, 'err');
+    return { ok: false, lineas: 0, unidades: 0 };
+  }
+
+  // Empresa por CIF (Holding B75555037 / TYP2014 / Portes Import → TYP2014; Hispalis / Transmargaz a lo suyo)
+  const cif = String(lineas[0].cif_cliente || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let empresa = _NEUM_CIF_FACTURA[cif] || null;
+  if (!empresa) {
+    const elegida = prompt(`No he podido identificar la empresa por el CIF "${cif || '(vacío)'}" de la factura ${lineas[0].num_factura || ''}.\n\nEscribe a qué empresa va el stock:\n- TYP2014\n- HISPALIS\n- TRANSMARGAZ`, neumEmpresaActiva || 'TYP2014');
+    if (!elegida) { toast('Factura cancelada (sin empresa)', 'err'); return { ok: false, lineas: 0, unidades: 0 }; }
+    empresa = elegida.trim().toUpperCase();
+    if (!['TYP2014', 'HISPALIS', 'TRANSMARGAZ'].includes(empresa)) { toast('Empresa no válida: ' + empresa, 'err'); return { ok: false, lineas: 0, unidades: 0 }; }
+  }
+
+  const numFactura = lineas[0].num_factura || '';
+
+  // Anti-duplicado: si ya hay movimientos de compra con esta misma factura, avisar.
+  try {
+    const { data: yaExiste } = await sb.from('neumaticos_movimientos').select('id').eq('empresa', empresa).eq('tipo', 'compra').ilike('num_factura', numFactura).limit(1);
+    if (yaExiste && yaExiste.length) {
+      if (!confirm(`La factura ${numFactura} ya parece estar cargada en ${empresa}.\n\n¿Volver a sumarla igualmente? (cuidado: duplicaría stock)`)) {
+        return { ok: false, lineas: 0, unidades: 0 };
+      }
+    }
+  } catch (e) { /* si falla la comprobación, seguimos */ }
+
+  // Subir el archivo a Storage (no crítico)
+  let fileUrl = null;
+  try {
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+    const ts = Date.now();
+    const filename = `neumaticos/${empresa}/factura-soledad_${ts}.${ext}`;
+    const { error: upErr } = await sb.storage.from('documentos').upload(filename, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
+    if (!upErr) {
+      const { data: urlData } = sb.storage.from('documentos').getPublicUrl(filename);
+      if (urlData && urlData.publicUrl) fileUrl = urlData.publicUrl;
+    }
+  } catch (e) { console.warn('[v107I5] No se pudo subir la factura (no crítico):', e.message); }
+
+  // Crear un movimiento de COMPRA (+N) por cada línea → SUMA stock
+  const fecha = _neumFechaISO(lineas[0].fecha);
+  let nLineas = 0, nUnidades = 0;
+  for (const l of lineas) {
+    const cant = Math.abs(parseInt(l.cantidad) || 0);
+    if (!cant) continue;
+    const medida = String(l.medida || '').trim();
+    if (!medida) continue;
+    const payload = {
+      empresa, tipo: 'compra', fecha,
+      marca: String(l.marca || '').trim().toUpperCase() || null,
+      modelo: String(l.modelo || '').trim() || null,
+      medida, uso: null,
+      cantidad: cant,  // compra = entrada (suma)
+      proveedor: 'Neumáticos Soledad',
+      num_factura: numFactura || null,
+      observaciones: `Compra almacén · Factura Soledad ${numFactura} (leída por IA)`.trim(),
+      user_id: currentUser.id,
+      updated_at: new Date().toISOString()
+    };
+    if (fileUrl) payload.file_url = fileUrl;
+    const { error } = await sb.from('neumaticos_movimientos').insert(payload);
+    if (error) { console.error('[v107I5] Error guardando compra:', error); toast('Error guardando compra: ' + error.message, 'err'); }
+    else { nLineas++; nUnidades += cant; }
+  }
+  return { ok: true, lineas: nLineas, unidades: nUnidades };
+}
+
+function dropNeumFactura(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  _dragCounters.set(target, 0);
+  target.classList.remove('ov');
+  handleNeumFacturaFiles(e.dataTransfer.files);
 }
 
 async function saveNeumModal() {
