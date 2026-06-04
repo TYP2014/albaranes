@@ -20,6 +20,7 @@
 <!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
+<!-- v107I7 (04/06/2026): PROMSA leído de raíz — TODO albarán Promsa (Molins) se relee SIEMPRE con el modelo potente (Sonnet 4.6), tanto el ORIGEN (recuadro CENTRAL: Olesa de Bonesvalls / Cantera de Garraf / Llinars del Vallès) como el DESTINO (recuadro OBRA: Cubelles, Constantí...). Motivo: estos albaranes tienen los datos en recuadros pequeños que Haiku lee regular y fallaban origen Y destino de forma intermitente (un día bien, al siguiente mal) — reforzar el prompt no bastaba. Ahora una sola llamada a Sonnet devuelve {origen,destino} de cada albarán Promsa del lote. NUNCA acepta "Sant Vicenç dels Horts"/"08620" (dirección fiscal). Sustituye el reintento solo-destino-vacío de v107H9 por este completo. Función nueva reintentaPromsaConSonnet. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -5955,7 +5956,14 @@ SOLO JSON válido, sin markdown.`;
   // Haiku a veces deja el destino VACÍO en albaranes Promsa (caso real 94232-N
   // "65 CONSTANTI" vacío, mientras el 94376-N idéntico sí lo leyó). Si es Promsa y
   // el destino está vacío, releemos SOLO el destino con Sonnet (recuadro OBRA).
-  const indicesDestPromsa = [];
+  //
+  // v107I7 (04/06/2026): AMPLIADO. Los albaranes Promsa (Molins) tienen los datos en
+  // recuadros pequeños que Haiku lee regular (falla origen Y destino, no siempre el
+  // mismo). Para acabar con el problema de raíz: TODO albarán Promsa se relee SIEMPRE
+  // con Sonnet, tanto el ORIGEN (recuadro CENTRAL: Olesa de Bonesvalls / Cantera de
+  // Garraf / Llinars del Vallès) como el DESTINO (recuadro OBRA: Cubelles, Constantí...).
+  // Una sola llamada a Sonnet por lote devuelve {origen, destino} de cada uno.
+  const indicesPromsa = [];
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     const _provP = String(r.proveedor || '');
@@ -5967,30 +5975,36 @@ SOLO JSON válido, sin markdown.`;
                    || /\bPromsa\b/i.test(_provP)
                    || (/Cantera\s+de\s+Garraf|Garraf\/Promsa|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plP)
                        && /\bAF-T?-?\d|AG-\d|RD\s*\d|AF-\d/i.test(_prodP));
-    if (!_esPromsa) continue;
-    const _dest = String(r.obra || '').trim();
-    if (!_dest) indicesDestPromsa.push(i);  // solo si está VACÍO
+    if (_esPromsa) indicesPromsa.push(i);  // v107I7: TODOS los Promsa, no solo los vacíos
   }
-  if (indicesDestPromsa.length > 0) {
-    console.log(`[v107H9] ${indicesDestPromsa.length}/${results.length} destinos Promsa vacíos a releer con Sonnet 4.6...`);
-    let destSonnetP = null;
+  if (indicesPromsa.length > 0) {
+    console.log(`[v107I7] ${indicesPromsa.length}/${results.length} albaranes Promsa → releer origen+destino con Sonnet 4.6...`);
+    let promsaSonnet = null;
     try {
-      destSonnetP = await reintentaDestinoPromsaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+      promsaSonnet = await reintentaPromsaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
     } catch (e) {
-      console.warn('[v107H9] Error en reintento Sonnet destino Promsa (no crítico):', e.message);
+      console.warn('[v107I7] Error en reintento Sonnet Promsa (no crítico):', e.message);
     }
-    let recP = 0;
-    for (const i of indicesDestPromsa) {
-      const o = (destSonnetP && destSonnetP.length === results.length) ? destSonnetP[i] : null;
-      const ol = String(o || '').trim();
-      // Aceptamos solo si NO está vacío y NO es la dirección fiscal (Sant Vicenç).
-      if (ol && !/sant\s+vicen[cç]|08620/i.test(ol)) {
-        results[i].obra = ol;
-        console.log(`[v107H9] Destino Promsa recuperado albarán ${i + 1}: "(vacío)" → "${ol}"`);
-        recP++;
+    let recO = 0, recD = 0;
+    for (const i of indicesPromsa) {
+      const o = (promsaSonnet && promsaSonnet.length === results.length) ? promsaSonnet[i] : null;
+      if (!o || typeof o !== 'object') continue;
+      // ORIGEN (recuadro CENTRAL). No aceptamos Sant Vicenç (dirección fiscal).
+      const orig = String(o.origen || '').trim();
+      if (orig && !/sant\s+vicen[cç]|08620/i.test(orig)) {
+        const antes = results[i].planta;
+        results[i].planta = orig;
+        if (antes !== orig) { console.log(`[v107I7] Origen Promsa albarán ${i + 1}: "${antes || '(vacío)'}" → "${orig}"`); recO++; }
+      }
+      // DESTINO (recuadro OBRA). No aceptamos Sant Vicenç.
+      const dest = String(o.destino || '').trim();
+      if (dest && !/sant\s+vicen[cç]|08620/i.test(dest)) {
+        const antes = results[i].obra;
+        results[i].obra = dest;
+        if (antes !== dest) { console.log(`[v107I7] Destino Promsa albarán ${i + 1}: "${antes || '(vacío)'}" → "${dest}"`); recD++; }
       }
     }
-    console.log(`[v107H9] Sonnet recuperó ${recP}/${indicesDestPromsa.length} destinos Promsa`);
+    console.log(`[v107I7] Sonnet ajustó ${recO} origen(es) y ${recD} destino(s) Promsa`);
   }
 
   return results;
@@ -6295,6 +6309,60 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107H9] Sonnet no devolvió JSON válido (destino Promsa):', text.substring(0, 200));
+    return null;
+  }
+}
+
+// v107I7 (04/06/2026): relectura COMPLETA de albaranes Promsa (Molins) con Sonnet 4.6.
+// Lee a la vez el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA) de cada
+// albarán Promsa. Se llama SIEMPRE para los Promsa (no solo cuando dudamos), porque
+// estos albaranes tienen los datos en recuadros pequeños que Haiku lee regular y
+// fallan tanto origen como destino. Devuelve un array de objetos {origen, destino}.
+async function reintentaPromsaConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const reglas = `Estos albaranes son de "Molins Concrete & Aggregates" / "Promotora Mediterránea-2 S.A." (PROMSA). Tienen recuadros CENTRAL (arriba izquierda), CLIENT, OBRA y ADREÇA.
+
+ORIGEN = la planta del recuadro "CENTRAL" (el "Nom:" de CENTRAL). Conviértelo así:
+ · "PROMSA OLESA" / "OLESA" / "OLESA DE BONESVALLS" → "Olesa de Bonesvalls"
+ · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "Cantera de Garraf"
+ · "LLINARS" / "PROMSA LLINARS" → "Llinars del Vallès"
+ · Si es otra planta, devuelve su nombre tal cual aparece en CENTRAL.
+
+DESTINO = la POBLACIÓN del recuadro "OBRA" (debajo de CLIENT, lleva un número delante). Ejemplos: "45 CUBELLES (45)" → "Cubelles"; "65 CONSTANTI (65)" → "Constantí"; "9 IGUALADA (9)" → "Igualada". Primera letra mayúscula, resto minúsculas.
+
+⛔ NUNCA devuelvas "Sant Vicenç dels Horts" ni "08620" en NINGUNO de los dos campos: eso es la dirección FISCAL de la cabecera del PDF / recuadro ADREÇA, NO es ni el origen ni el destino. Si ibas a poner eso, mira el recuadro correcto (CENTRAL para origen, OBRA para destino).
+Si de verdad no ves un campo legible, devuélvelo como "" (vacío). NO inventes.`;
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) Promsa. Para CADA uno lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
+${reglas}
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el ORDEN en que aparecen en el PDF. Cada objeto: {"origen":"...","destino":"..."}.
+Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"Cantera de Garraf","destino":"Constantí"}]
+SOLO el array JSON, sin texto adicional, sin markdown.`
+    : `Este es un albarán Promsa. Lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
+${reglas}
+Devuelve un ARRAY JSON con UN objeto: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"}]. Si no ves algún campo, ponlo "".
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107I7] Sonnet no devolvió JSON válido (Promsa origen+destino):', text.substring(0, 200));
     return null;
   }
 }
