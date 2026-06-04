@@ -21,6 +21,7 @@
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
 <!-- v107I7 (04/06/2026): PROMSA leído de raíz — TODO albarán Promsa (Molins) se relee SIEMPRE con el modelo potente (Sonnet 4.6), tanto el ORIGEN (recuadro CENTRAL: Olesa de Bonesvalls / Cantera de Garraf / Llinars del Vallès) como el DESTINO (recuadro OBRA: Cubelles, Constantí...). Motivo: estos albaranes tienen los datos en recuadros pequeños que Haiku lee regular y fallaban origen Y destino de forma intermitente (un día bien, al siguiente mal) — reforzar el prompt no bastaba. Ahora una sola llamada a Sonnet devuelve {origen,destino} de cada albarán Promsa del lote. NUNCA acepta "Sant Vicenç dels Horts"/"08620" (dirección fiscal). Sustituye el reintento solo-destino-vacío de v107H9 por este completo. Función nueva reintentaPromsaConSonnet. NO requiere SQL. -->
+<!-- v107I8 (04/06/2026): ARIDFLOT añadido como CLIENTE canónico ("Aridflot, S.L."), con sus alias (Aridflot / ARIDFLOT / Aridflot SL / Arid Flot + NIF B75741884). Ya existía como transportista; ahora también está en CLIENTES_CANONICOS para que al leer/editar albaranes se canonice bien el campo cliente. Añadido en el grupo de subcontratistas a los que TYP2014 factura transportes. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11931,6 +11932,13 @@ const CLIENTES_CANONICOS = [
     'Enric Rifé', 'ENRIC RIFÉ', 'Enric Rife', 'ENRIC RIFE',
     'Transports Enric Rifé SL', 'Transports Enric Rifé, S.L.',
     'TRANSPORTS ENRIC RIFE SL', 'TRANSPORTS ENRIC RIFE, S.L.'
+  ] },
+  // === v107I8 (04/06/2026): Aridflot añadido como CLIENTE (ya existía como transportista) ===
+  { canon: 'Aridflot, S.L.', alias: [
+    'Aridflot', 'ARIDFLOT', 'Aridflot SL', 'ARIDFLOT SL',
+    'Aridflot S.L.', 'ARIDFLOT S.L.', 'Aridflot, S.L.', 'ARIDFLOT, S.L.',
+    'Aridflot S.L', 'ARIDFLOT S.L', 'Arid Flot', 'ARID FLOT',
+    'B75741884'  // NIF como alias por si la IA lee el NIF en vez del nombre
   ] },
   // === v107AC: 2 nuevos clientes — empresas de gestión medioambiental / restauración ===
   { canon: 'Centre de Gestió Mediambiental, S.L.', alias: [
