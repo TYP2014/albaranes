@@ -21,6 +21,8 @@
 <!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
+<!-- v107J0 (04/06/2026): Juan Carlos prefiere que el origen Promsa Garraf se guarde LITERAL "PROMSA GARRAF" (como pone el albarán) en vez de "Garraf/Promsa", para liarse menos. Cambios: (1) canon ORIGENES_CANONICOS renombrado a "PROMSA GARRAF" con "Garraf/Promsa" como alias; (2) prompt relectura Sonnet y red de seguridad JS fuerzan "PROMSA GARRAF"; (3) regla material Caliza Promsa → "PROMSA GARRAF". Olesa/Llinars sin cambios. Sigue diferenciándose de la cantera de Garraf de Holcim ("Cantera de Garraf"). Para los albaranes de JUNIO ya subidos hace falta un UPDATE en Supabase (SQL aparte). -->
+<!-- v107I9 (04/06/2026): GARANTÍA origen Promsa Garraf. Red de seguridad en JS: tras la relectura Sonnet, CUALQUIER albarán Promsa cuyo origen contenga "Garraf" (Cantera de Garraf, Garraf, Promsa Garraf, Garraf Arid) se fuerza a "Garraf/Promsa", para diferenciarlo de la cantera de Garraf de Holcim. Olesa de Bonesvalls y Llinars del Vallès NO se tocan. NO requiere SQL. -->
 <!-- v107I8 (04/06/2026): CORRECCIÓN origen Promsa. La función reintentaPromsaConSonnet (v107I7) mapeaba mal el origen "GARRAF/PROMSA GARRAF" a "Cantera de Garraf"; corregido a "Garraf/Promsa" (regla v107GW). Afectaba a TODOS los Promsa de Garraf porque esa relectura Sonnet es la última palabra. Solo cambia ese mapeo en el prompt de la relectura; nada más. NO requiere SQL. -->
 <!-- v107I7 (04/06/2026): PROMSA leído de raíz — TODO albarán Promsa (Molins) se relee SIEMPRE con el modelo potente (Sonnet 4.6), tanto el ORIGEN (recuadro CENTRAL: Olesa de Bonesvalls / Cantera de Garraf / Llinars del Vallès) como el DESTINO (recuadro OBRA: Cubelles, Constantí...). Motivo: estos albaranes tienen los datos en recuadros pequeños que Haiku lee regular y fallaban origen Y destino de forma intermitente (un día bien, al siguiente mal) — reforzar el prompt no bastaba. Ahora una sola llamada a Sonnet devuelve {origen,destino} de cada albarán Promsa del lote. NUNCA acepta "Sant Vicenç dels Horts"/"08620" (dirección fiscal). Sustituye el reintento solo-destino-vacío de v107H9 por este completo. Función nueva reintentaPromsaConSonnet. NO requiere SQL. -->
 <!-- v107I8 (04/06/2026): ARIDFLOT añadido como CLIENTE canónico ("Aridflot, S.L."), con sus alias (Aridflot / ARIDFLOT / Aridflot SL / Arid Flot + NIF B75741884). Ya existía como transportista; ahora también está en CLIENTES_CANONICOS para que al leer/editar albaranes se canonice bien el campo cliente. Añadido en el grupo de subcontratistas a los que TYP2014 factura transportes. NO requiere SQL. -->
@@ -6008,6 +6010,20 @@ SOLO JSON válido, sin markdown.`;
       }
     }
     console.log(`[v107I7] Sonnet ajustó ${recO} origen(es) y ${recD} destino(s) Promsa`);
+
+    // v107I9 (04/06/2026) — GARANTÍA Juan Carlos: TODO albarán Promsa que cargue
+    // en Garraf debe quedar con origen "Garraf/Promsa", para diferenciarlo de la
+    // cantera de Garraf de Holcim ("Cantera de Garraf"). Aunque el re-lectura Sonnet
+    // (v107I8) ya lo pide, si por OCR quedara "Cantera de Garraf" / "Garraf" /
+    // "Promsa Garraf" / "Garraf Arid", lo forzamos aquí. Olesa de Bonesvalls y
+    // Llinars del Vallès NO se tocan (son plantas Promsa distintas, no llevan "garraf").
+    for (const i of indicesPromsa) {
+      const _p = String(results[i].planta || '');
+      if (/garraf/i.test(_p) && results[i].planta !== 'PROMSA GARRAF') {
+        console.log(`[v107J0] Origen Promsa Garraf albarán ${i + 1}: "${_p}" → "PROMSA GARRAF"`);
+        results[i].planta = 'PROMSA GARRAF';
+      }
+    }
   }
 
   return results;
@@ -6326,7 +6342,7 @@ async function reintentaPromsaConSonnet(b64, mediaType, key, isPdf, signal, numA
 
 ORIGEN = la planta del recuadro "CENTRAL" (el "Nom:" de CENTRAL). Conviértelo así:
  · "PROMSA OLESA" / "OLESA" / "OLESA DE BONESVALLS" → "Olesa de Bonesvalls"
- · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "Garraf/Promsa"  (🔴 v107I8 04/06/2026: en albaranes de VENTA de Promsa el origen Garraf se guarda SIEMPRE como "Garraf/Promsa", NUNCA "Cantera de Garraf" — ese nombre es para Sodira/Holcim áridos)
+ · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "PROMSA GARRAF"  (🔴 v107J0 04/06/2026: en albaranes de VENTA de Promsa el origen Garraf se guarda LITERAL "PROMSA GARRAF" como pone el albarán, para diferenciarlo de la cantera de Garraf de Holcim "Cantera de Garraf")
  · "LLINARS" / "PROMSA LLINARS" → "Llinars del Vallès"
  · Si es otra planta, devuelve su nombre tal cual aparece en CENTRAL.
 
@@ -6338,7 +6354,7 @@ Si de verdad no ves un campo legible, devuélvelo como "" (vacío). NO inventes.
     ? `Este PDF contiene ${numAlbaranes} albarán(es) Promsa. Para CADA uno lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
 Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el ORDEN en que aparecen en el PDF. Cada objeto: {"origen":"...","destino":"..."}.
-Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"Garraf/Promsa","destino":"Constantí"}]
+Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"PROMSA GARRAF","destino":"Constantí"}]
 SOLO el array JSON, sin texto adicional, sin markdown.`
     : `Este es un albarán Promsa. Lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
@@ -12474,7 +12490,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Olesa de Bonesvalls', alias: ['Olesa', 'Promsa Olesa'] },
   { canon: 'Sant Vicenç dels Horts', alias: ['Sant Vicenç', 'Sant Vicens'] },
   // Origenes en formato "Cantera/Proveedor" para albaranes de RECEPCIÓN (Holcim recibe de proveedor)
-  { canon: 'Garraf/Promsa', alias: ['Promsa/Garraf'] },
+  { canon: 'PROMSA GARRAF', alias: ['Garraf/Promsa', 'Promsa/Garraf', 'Promsa Garraf', 'GARRAF', 'Garraf Arid', 'GARRAF ARID'] },
   { canon: 'Foj/Vallirana', alias: [] },
   { canon: 'Cemex/Begues', alias: [] },
   // v99c: Adec/Vallirana — origen para albaranes Holcim de RECEPCIÓN de "Árido siderúrgico blanco"
@@ -12559,7 +12575,7 @@ function fixOrigen(o) { return _matchOrigen(o); }
 // MAPPING MATERIAL → ORIGEN: para albaranes de RECEPCIÓN donde Holcim recibe material.
 // El nombre del producto identifica de qué cantera viene físicamente la mercancía.
 const MATERIAL_A_ORIGEN = [
-  { match: /CALIZA\s+PROMSA/i, origen: 'Garraf/Promsa' },
+  { match: /CALIZA\s+PROMSA/i, origen: 'PROMSA GARRAF' },
   { match: /CALIZA\s+FOJ/i, origen: 'Foj/Vallirana' },
   { match: /CALIZA\s+CEMEX/i, origen: 'Cemex/Begues' },
   { match: /CALIZA\s+(GARRAF|HOLCIM)/i, origen: 'Cantera de Garraf' },
