@@ -21,6 +21,7 @@
 <!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
+<!-- v107J4 (04/06/2026): 🔴 FIX REAL origen Promsa "Cantera de Garraf". CAUSA: callClaudeAlb ya ponía "PROMSA GARRAF", pero processQueue ejecutaba DESPUÉS fixOrigen()/inferOrigen() y lo volvía a sobrescribir a "Cantera de Garraf". SOLUCIÓN: forzado de origen Promsa Garraf → "PROMSA GARRAF" como PASO FINAL del origen en processQueue (justo tras inferOrigen, donde están las demás reglas que fuerzan origen), garantizando el valor final. Scoped a proveedor Promsa/Molins; Olesa/Llinars y Holcim/Sodira no se tocan. NO requiere SQL. -->
 <!-- v107J3 (04/06/2026): DESTINO Promsa — fix "El Prat". La relectura Sonnet leía el destino del recuadro ADREÇA (dirección de entrega "moll prat dic sud, PRAT DE LLOBREGAT") en vez del recuadro OBRA. Reforzado el prompt: el destino sale SIEMPRE del recuadro OBRA (acepta nombres de obra como "MUELLE CATALUNYA", no solo poblaciones) y NUNCA de ADREÇA; aviso explícito anti "Prat de Llobregat/El Prat". Con esto Sonnet devuelve "Muelle Catalunya" y la red de seguridad v107J1 lo eleva a "Muelle Catalunya - UTE Mota". Cliente en estos albaranes viene vacío, por eso no servía como identificador. NO requiere SQL. -->
 <!-- v107J2 (04/06/2026): Nº ALBARÁN Promsa automatizado. La relectura con Sonnet (reintentaPromsaConSonnet) ahora lee TAMBIÉN el nº de albarán del recuadro "NÚM. ALBARÀ" (ej. 95431) y NUNCA el código de cliente del recuadro CLIENT (ej. 63017) — corrige el caso real del albarán 95431 que se guardaba como 63017. Se limpia la serie "- N" final y hay guarda anti código-de-cliente. Origen y destino siguen como en v107J0/J1. NO requiere SQL. -->
 <!-- v107J1 (04/06/2026): destino UTE Mota de Recintos (Promsa, cliente 63017). (1) Añadido "Muelle Catalunya - UTE Mota" a DESTINOS_CANONICOS (oficial, sin aviso). (2) Red de seguridad: tras la relectura Sonnet, si el cliente/obra identifican esta obra (UTE MOTA DE RECINTOS / 63017 / MUELLE CATALUNYA), el destino se fuerza a "Muelle Catalunya - UTE Mota" — arregla el caso en que salía "El Prat" o el texto cortado del recuadro OBRA. NO requiere SQL. -->
@@ -4137,6 +4138,25 @@ async function _processOne(it, type, key, timeoutMs) {
         if (inferidoOri && inferidoOri !== data.planta) {
           console.log(`Origen inferido: → "${inferidoOri}"`);
           data.planta = inferidoOri;
+        }
+        // v107J4 (04/06/2026) — FORZAR origen Promsa Garraf como PASO FINAL del origen.
+        // 🔴 BUG REAL detectado por Juan Carlos: callClaudeAlb ya ponía "PROMSA GARRAF",
+        // pero AQUÍ (processQueue) fixOrigen() e inferOrigen() lo volvían a sobrescribir
+        // DESPUÉS, dejándolo en "Cantera de Garraf". Este es el ÚLTIMO paso que toca el
+        // origen, así que garantiza el valor final: si el proveedor es Promsa/Molins y el
+        // origen es cualquier variante de Garraf, se fija "PROMSA GARRAF" (la cantera de
+        // Promsa, NUNCA "Cantera de Garraf" que es de Holcim/Sodira). Olesa de Bonesvalls
+        // y Llinars del Vallès NO se tocan (no contienen "garraf"). Holcim/Sodira tampoco
+        // (otro proveedor). Mismo criterio que las demás reglas que fuerzan origen aquí.
+        {
+          const _provG = String(data.proveedor || '');
+          const _esPromsaG = /Promotora\s+Mediterr[aá]nea/i.test(_provG)
+                          || /\bMolins\b/i.test(_provG)
+                          || /\bPromsa\b/i.test(_provG);
+          if (_esPromsaG && /garraf/i.test(String(data.planta || '')) && data.planta !== 'PROMSA GARRAF') {
+            console.log('[v107J4] Origen Promsa Garraf forzado (paso final): "' + data.planta + '" → "PROMSA GARRAF"');
+            data.planta = 'PROMSA GARRAF';
+          }
         }
         // Red de seguridad Holcim cemento: si por error OCR el origen es "Cantera de Garraf"
         // (cantera de áridos) pero el material es cemento, corregir a "Fábrica Montcada".
