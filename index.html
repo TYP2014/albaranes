@@ -25,6 +25,7 @@
 <!-- v107I9 (04/06/2026): VELOCIDAD vs ESTABILIDAD — bajada la concurrencia de procesado de albaranes de 5 a 3 en paralelo y subida la pausa entre tandas de 0,8s a 1,5s. Motivo: Anthropic avisó por correo de que la cuenta superó el rate limit de Haiku 27 veces en 24h (degradando el servicio). Con 3 a la vez se procesa un poco más lento (~100 albaranes en ~7-8 min en vez de ~5) pero deja de saturar la API y fallar. Juan Carlos prefiere estabilidad. Complementario al saldo recargado (>$400) que sube el tier con el tiempo. Incluye también v107I8 (Aridflot como cliente canónico). Reversible: si sobra margen, se puede volver a subir CONCURRENCY. NO requiere SQL. -->
 <!-- v107J0 (04/06/2026): VELOCIDAD DE ARRANQUE/REFRESCO. La app cargaba los ~5.700 albaranes pidiendo las páginas EN SERIE (1.000 → esperar → 1.000 → esperar... 6 viajes seguidos al servidor = varios segundos de pantalla en blanco al iniciar y al refrescar). Ahora loadData (1) cuenta cuántos hay con una consulta ligera (head, sin traer datos) y (2) pide TODAS las páginas EN PARALELO (Promise.all) juntándolas al llegar → mismos datos, pero los viajes se hacen a la vez en vez de en fila, así arranca mucho más rápido. El filtro de permisos (Marta/MdM/Transmargaz/gestores) es EXACTAMENTE el mismo de antes. Red de seguridad: si el conteo fallara, cae solo al método en serie de siempre (nunca va peor). NO requiere SQL. -->
 <!-- v107J1 (04/06/2026): PANTALLA DE CARGA INMEDIATA (mejora A de velocidad percibida). Al abrir la app aparece AL INSTANTE una pantalla con el logo 🚛 TYP2014 y un indicador girando "Cargando…" (es HTML puro al inicio del <body>, no espera a que cargue el JS de 1MB), en vez de la pantalla en blanco que daba sensación de app colgada. Se oculta sola cuando initApp termina (haya sesión o no). Red de seguridad: si algo fallara, se quita igualmente a los 25s para no tapar la pantalla. NO acelera la descarga del archivo en sí (eso es la mejora C, partir el archivo, pendiente para sesión dedicada junto con la B/caché) pero mejora mucho la SENSACIÓN de arranque. Incluye también v107J0 (carga de albaranes en paralelo). NO requiere SQL. -->
+<!-- v107J2 (04/06/2026): pantalla de carga más PROFESIONAL — sustituido el emoji camión 🚛 (parecía de dibujos animados) por el texto "TYP2014" en tipografía serif elegante BLANCA (letras y números del mismo tamaño), con una línea fina debajo y "GESTIÓN DE ALBARANES". El indicador giratorio ahora es blanco a juego. Quitado el subtítulo "Transportes y Portes" a petición de Juan Carlos. Pendiente para otra sesión: añadir un dibujo del conjunto tractora+semirremolque bañera (cuando JC pueda mandar foto de referencia). NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -393,10 +394,10 @@ tbody tr.row-warn{background:rgba(245,166,35,.04)}
      una pantalla en blanco. Se oculta sola cuando la app está lista (al final de
      initApp o tras el login). Mejora la SENSACIÓN de velocidad. -->
 <div id="bootSplash" style="position:fixed;inset:0;z-index:99999;background:#0c0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#e6edf3">
-  <div style="font-size:54px;line-height:1;margin-bottom:18px">🚛</div>
-  <div style="font-size:22px;font-weight:700;letter-spacing:1px;color:#3ddc84">TYP2014</div>
-  <div style="font-size:12px;opacity:.65;margin-top:6px;letter-spacing:.5px">GESTIÓN DE ALBARANES</div>
-  <div style="margin-top:26px;width:46px;height:46px;border:4px solid #1d2530;border-top-color:#3ddc84;border-radius:50%;animation:bootspin .8s linear infinite"></div>
+  <div style="font-family:Georgia,'Times New Roman',serif;font-size:52px;font-weight:400;letter-spacing:7px;color:#ffffff;font-feature-settings:'lnum' 1">TYP2014</div>
+  <div style="width:150px;height:1px;background:#3a4452;margin-top:14px"></div>
+  <div style="font-size:12px;opacity:.6;margin-top:14px;letter-spacing:.5px">GESTIÓN DE ALBARANES</div>
+  <div style="margin-top:26px;width:46px;height:46px;border:4px solid #1d2530;border-top-color:#ffffff;border-radius:50%;animation:bootspin .8s linear infinite"></div>
   <div id="bootSplashTxt" style="font-size:12px;opacity:.55;margin-top:18px">Cargando…</div>
 </div>
 <style>@keyframes bootspin{to{transform:rotate(360deg)}}</style>
