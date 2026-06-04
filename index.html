@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v107GZ (04/06/2026): NUEVO destino Molins/Promsa "Muelle Catalunya - UTE Mota" (cliente UTE MOTA DE RECINTOS / cód. 63017 / obra MUELLE CATALUNYA). Regla ADITIVA en REGLAS_DESTINO, mismo patrón que Zona Franca II. No toca la lectura del campo OBRA del resto de Promsa ni nada de v107GW/GX. NO requiere SQL. -->
 <!-- v107GW (02/06/2026): PROMSA/Molins — lectura de albaranes de VENTA corregida. (1) ORIGEN recuadro CENTRAL "PROMSA GARRAF"/"GARRAF" → "Garraf/Promsa" (antes la IA ponía "Cantera de Garraf", nombre reservado a Sodira/Holcim áridos). (2) DESTINO recuadro OBRA: ahora la IA entiende el formato SIN guion "[código] POBLACIÓN ([código])" (ej. "9 IGUALADA (9)" → "Igualada", "65 CONSTANTI (65)" → "Constantí") — antes solo entendía el formato con guion y dejaba el destino VACÍO. (3) PROVEEDOR: aviso explícito de que CENTRAL es el origen, nunca el proveedor (siempre "Promotora Mediterránea-2 S.A.U."), corrige el caso 94658 donde puso "PROMSA GARRAF" como proveedor. Red de seguridad Molins ampliada para reconocer también origen "Garraf/Promsa". Solo cambia el PROMPT de lectura de PROMSA; ningún otro proveedor ni la tabla de canonización se tocan. NO requiere SQL. -->
 <!-- v107GX (02/06/2026): PROMSA/Molins — DESTINO refuerzo anti-ADREÇA. Error real confirmado por consola (albarán 94907-N "65 CONSTANTI"): la IA leía el recuadro ADREÇA ("Sant Vicenç dels Horts", dirección fiscal) en vez del recuadro OBRA. La red de seguridad v107EÑ2 lo detectaba y dejaba el destino vacío (correcto, pero no resolvía la raíz). Ahora el prompt avisa CLARAMENTE: OBRA (arriba, con nº de obra) = destino; ADREÇA (debajo, "Sant Vicenç dels Horts") = dirección fiscal, NUNCA destino. Prohibido devolver "Sant Vicenç dels Horts" como destino. Solo toca el PROMPT de PROMSA. NO requiere SQL. -->
 <!-- v107GY (02/06/2026): EDICIÓN Marta + Mª del Mar. El botón "✏️ Escribir" (que cambia el desplegable de Origen/Destino/Proveedor/Cliente por texto libre para teclear a mano) estaba SOLO para admin (v107BR). Ahora aparece también para Marta (6f657be7-...) y Mª del Mar (5059731a-...) por id de usuario, para que editen igual que el admin. El resto de gestores siguen sin él. Complementa el ALTER POLICY albaranes_update (Supabase) que ya les permite GUARDAR cualquier albarán. NO requiere SQL adicional. -->
@@ -12747,6 +12748,26 @@ const REGLAS_DESTINO = [
       return /ZONA\s+FRANCA\s+II/.test(obra) || /ZONA\s+FRANCA\s+II/.test(cliente) || /\b117\b.*ZONA\s+FRANCA/.test(obra);
     },
     destino: 'Zona Franca II'
+  },
+  // v107GZ (Juan Carlos 04/06/2026): Molins/Promsa con destino UTE Mota de Recintos → "Muelle Catalunya - UTE Mota".
+  // Albarán nuevo (ej. 95342-N, PROMSA GARRAF): cliente "63017 UTE MOTA DE RECINTOS (FASE 1)",
+  // obra "2 - MUELLE CATALUNYA. MOTA DE..." (el texto del recuadro OBRA viene cortado/incompleto en el PDF,
+  // por eso se fija el destino canónico a mano en vez de leer la OBRA literal — mismo criterio que Zona Franca II).
+  // Origen sigue siendo Garraf/Promsa (no se toca). Es una red de seguridad ADITIVA: no modifica la lectura
+  // del campo OBRA para el resto de Promsa (Igualada, Cubelles, Constantí, Zona Franca II, etc.).
+  {
+    match: (d) => {
+      const prov = String(d.proveedor || '').toUpperCase();
+      const obra = String(d.obra || '').toUpperCase();
+      const cliente = String(d.cliente || '').toUpperCase();
+      const esMolins = /PROMOTORA\s+MEDITERR[ÁA]NEA/.test(prov) || /MOLINS/.test(prov) || /PROMSA/.test(prov);
+      if (!esMolins) return false;
+      // Identifican esta obra: cliente "UTE MOTA DE RECINTOS", código 63017, u obra "MUELLE CATALUNYA"
+      return /MOTA\s+DE\s+RECINTOS/.test(cliente) || /MOTA\s+DE\s+RECINTOS/.test(obra)
+        || /\b63017\b/.test(cliente) || /\b63017\b/.test(obra)
+        || /MUELLE\s+CATALUNYA/.test(obra) || /MUELLE\s+CATALUNYA/.test(cliente);
+    },
+    destino: 'Muelle Catalunya - UTE Mota'
   },
   // v102: Sodira Iberia → Puerto de Barcelona (cuando la obra/cliente contiene texto
   // relacionado con UTE/PUERTO/SATO RUBAU). Si Sodira tiene un destino distinto a Puerto
