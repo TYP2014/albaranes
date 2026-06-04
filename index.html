@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<!-- v107GZ (04/06/2026): NUEVO destino Molins/Promsa "Muelle Catalunya - UTE Mota" (cliente UTE MOTA DE RECINTOS / cód. 63017 / obra MUELLE CATALUNYA). Regla ADITIVA en REGLAS_DESTINO, mismo patrón que Zona Franca II. No toca la lectura del campo OBRA del resto de Promsa ni nada de v107GW/GX. NO requiere SQL. -->
 <!-- v107GW (02/06/2026): PROMSA/Molins — lectura de albaranes de VENTA corregida. (1) ORIGEN recuadro CENTRAL "PROMSA GARRAF"/"GARRAF" → "Garraf/Promsa" (antes la IA ponía "Cantera de Garraf", nombre reservado a Sodira/Holcim áridos). (2) DESTINO recuadro OBRA: ahora la IA entiende el formato SIN guion "[código] POBLACIÓN ([código])" (ej. "9 IGUALADA (9)" → "Igualada", "65 CONSTANTI (65)" → "Constantí") — antes solo entendía el formato con guion y dejaba el destino VACÍO. (3) PROVEEDOR: aviso explícito de que CENTRAL es el origen, nunca el proveedor (siempre "Promotora Mediterránea-2 S.A.U."), corrige el caso 94658 donde puso "PROMSA GARRAF" como proveedor. Red de seguridad Molins ampliada para reconocer también origen "Garraf/Promsa". Solo cambia el PROMPT de lectura de PROMSA; ningún otro proveedor ni la tabla de canonización se tocan. NO requiere SQL. -->
 <!-- v107GX (02/06/2026): PROMSA/Molins — DESTINO refuerzo anti-ADREÇA. Error real confirmado por consola (albarán 94907-N "65 CONSTANTI"): la IA leía el recuadro ADREÇA ("Sant Vicenç dels Horts", dirección fiscal) en vez del recuadro OBRA. La red de seguridad v107EÑ2 lo detectaba y dejaba el destino vacío (correcto, pero no resolvía la raíz). Ahora el prompt avisa CLARAMENTE: OBRA (arriba, con nº de obra) = destino; ADREÇA (debajo, "Sant Vicenç dels Horts") = dirección fiscal, NUNCA destino. Prohibido devolver "Sant Vicenç dels Horts" como destino. Solo toca el PROMPT de PROMSA. NO requiere SQL. -->
 <!-- v107GY (02/06/2026): EDICIÓN Marta + Mª del Mar. El botón "✏️ Escribir" (que cambia el desplegable de Origen/Destino/Proveedor/Cliente por texto libre para teclear a mano) estaba SOLO para admin (v107BR). Ahora aparece también para Marta (6f657be7-...) y Mª del Mar (5059731a-...) por id de usuario, para que editen igual que el admin. El resto de gestores siguen sin él. Complementa el ALTER POLICY albaranes_update (Supabase) que ya les permite GUARDAR cualquier albarán. NO requiere SQL adicional. -->
@@ -21,18 +20,9 @@
 <!-- v107I4 (02/06/2026): NEUMÁTICOS Flujo 2 Parte A — los albaranes Soledad de COMPRA (sin S/PROP) ya NO se descartan: se compran y se montan en el acto, así que se registran 2 movimientos: compra (+N, proveedor "Neumáticos Soledad", obs "pendiente de factura") y montaje (-N) → stock NEUTRO pero queda el registro de la compra (para verla y cuadrarla con la factura en la Parte B). Los SU_PROPIEDAD siguen igual (1 montaje -N). Además: el CIF de PORTES 2014 IMPORT (B02657435) va al MISMO stock que TYP2014 (B90172735) — las facturas Soledad de TYP2014+Portes Import vienen juntas por la Holding; Hispalis y Transmargaz cada uno al suyo. Mensaje resumen actualizado. Parte B (lector de factura + conciliación + suma de stock de compras grandes) PENDIENTE. NO requiere SQL. -->
 <!-- v107I5 (02/06/2026): NEUMÁTICOS Flujo 2 Parte B — LECTOR DE FACTURA SOLEDAD que SUMA stock. Nueva zona AZUL "Arrastra la FACTURA de compra Soledad" en la pestaña Neumáticos (debajo de la verde de albaranes). callClaudeNeumFactura (Sonnet, por ser documento financiero denso) lee las líneas de neumático comprado (cantidad positiva): medida, modelo, marca, num_factura, fecha, CIF. IGNORA descuentos (cantidad negativa: "CONTINENTAL CAMION 2026", "DTO NEUMS. SOLEDAD"), tasas ("S.I.Gestión de NFU") y líneas de texto ("CUB DEPOSITADAS EN NUESTRO ALMACEN"). Cada línea → movimiento compra (+N) → SUMA stock (son compras de almacén). Empresa por CIF: Holding POR.2014 CAPITAL HOLDINGS (B75555037) + TYP2014 (B90172735) + Portes Import (B02657435) → stock TYP2014; Hispalis/Transmargaz a lo suyo. Anti-duplicado por num_factura (avisa si ya estaba cargada). Funciones: callClaudeNeumFactura, _neumProcesarFacturaSoledad, handleNeumFacturaFiles, dropNeumFactura. La factura de almacén SUMA directamente (no se cruza con albaranes, según lo acordado). NO requiere SQL. -->
 <!-- v107I6 (02/06/2026): NEUMÁTICOS — detección de DUPLICADOS en albaranes Soledad (las facturas ya la tenían desde v107I5). Como varios usuarios comparten correo, es fácil que dos personas suban el mismo albarán. Ahora, antes de procesar un albarán Soledad, se comprueba si ese nº de albarán ya está cargado en esa empresa (busca el nº en observaciones, donde se guarda "Albarán Soledad DXXXX..."); si ya existe, AVISA con confirm y deja al usuario decidir si reprocesar (descontaría/registraría el stock otra vez) u omitir. Solo afecta al lector de albaranes Soledad. NO requiere SQL. -->
-<!-- v107J7 (04/06/2026): coincidencia LISTA = MODAL en proveedor. El proveedor se guardaba sin canonizar (la IA lee "Molins") y solo el modal lo canonizaba al abrir → la lista ponía "Molins" y el modal "Promotora Mediterránea-2, S.A.U.". Ahora se canoniza con fixProveedor al procesar, ANTES de guardar, así el valor en BD ya es el oficial y lista y modal muestran lo mismo. Para los albaranes ya guardados: botón "Re-corregir proveedores" o UPDATE SQL. NO requiere SQL para los nuevos. -->
-<!-- v107J6 (04/06/2026): 🔴 FIX RAÍZ del modal Promsa. matchExacto resolvía "PROMSA GARRAF" a "Cantera de Garraf" porque el canon "Cantera de Garraf" tenía el alias 'Promsa Garraf' (al normalizar, "PROMSA GARRAF"=="Promsa Garraf") y aparece antes en la lista. Por eso el dato estaba bien guardado (lista correcta) pero el desplegable del modal mostraba "Cantera de Garraf". SOLUCIÓN: quitado 'Promsa Garraf' de los alias de "Cantera de Garraf" y limpiados los alias GARRAF/Garraf Arid duplicados (quedan en Cantera de Garraf para Holcim/Sodira; PROMSA GARRAF se queda con Garraf/Promsa, Promsa/Garraf, Promsa Garraf). Holcim/Sodira intactos. NO requiere SQL. -->
-<!-- v107J5 (04/06/2026): origen Promsa Garraf REFORZADO. El forzado de origen ahora canoniza el proveedor con fixProveedor antes de decidir (detecta Promsa aunque la IA lea "Molins Concrete & Aggregates"), y añade log de diagnóstico en consola ([v107J5] ✅ / ⚠️) para ver exactamente por qué se fuerza o no. Reemplaza el bloque v107J4. NO requiere SQL. -->
-<!-- v107J4 (04/06/2026): 🔴 FIX REAL origen Promsa "Cantera de Garraf". CAUSA: callClaudeAlb ya ponía "PROMSA GARRAF", pero processQueue ejecutaba DESPUÉS fixOrigen()/inferOrigen() y lo volvía a sobrescribir a "Cantera de Garraf". SOLUCIÓN: forzado de origen Promsa Garraf → "PROMSA GARRAF" como PASO FINAL del origen en processQueue (justo tras inferOrigen, donde están las demás reglas que fuerzan origen), garantizando el valor final. Scoped a proveedor Promsa/Molins; Olesa/Llinars y Holcim/Sodira no se tocan. NO requiere SQL. -->
-<!-- v107J3 (04/06/2026): DESTINO Promsa — fix "El Prat". La relectura Sonnet leía el destino del recuadro ADREÇA (dirección de entrega "moll prat dic sud, PRAT DE LLOBREGAT") en vez del recuadro OBRA. Reforzado el prompt: el destino sale SIEMPRE del recuadro OBRA (acepta nombres de obra como "MUELLE CATALUNYA", no solo poblaciones) y NUNCA de ADREÇA; aviso explícito anti "Prat de Llobregat/El Prat". Con esto Sonnet devuelve "Muelle Catalunya" y la red de seguridad v107J1 lo eleva a "Muelle Catalunya - UTE Mota". Cliente en estos albaranes viene vacío, por eso no servía como identificador. NO requiere SQL. -->
-<!-- v107J2 (04/06/2026): Nº ALBARÁN Promsa automatizado. La relectura con Sonnet (reintentaPromsaConSonnet) ahora lee TAMBIÉN el nº de albarán del recuadro "NÚM. ALBARÀ" (ej. 95431) y NUNCA el código de cliente del recuadro CLIENT (ej. 63017) — corrige el caso real del albarán 95431 que se guardaba como 63017. Se limpia la serie "- N" final y hay guarda anti código-de-cliente. Origen y destino siguen como en v107J0/J1. NO requiere SQL. -->
-<!-- v107J1 (04/06/2026): destino UTE Mota de Recintos (Promsa, cliente 63017). (1) Añadido "Muelle Catalunya - UTE Mota" a DESTINOS_CANONICOS (oficial, sin aviso). (2) Red de seguridad: tras la relectura Sonnet, si el cliente/obra identifican esta obra (UTE MOTA DE RECINTOS / 63017 / MUELLE CATALUNYA), el destino se fuerza a "Muelle Catalunya - UTE Mota" — arregla el caso en que salía "El Prat" o el texto cortado del recuadro OBRA. NO requiere SQL. -->
-<!-- v107J0 (04/06/2026): Juan Carlos prefiere que el origen Promsa Garraf se guarde LITERAL "PROMSA GARRAF" (como pone el albarán) en vez de "Garraf/Promsa", para liarse menos. Cambios: (1) canon ORIGENES_CANONICOS renombrado a "PROMSA GARRAF" con "Garraf/Promsa" como alias; (2) prompt relectura Sonnet y red de seguridad JS fuerzan "PROMSA GARRAF"; (3) regla material Caliza Promsa → "PROMSA GARRAF". Olesa/Llinars sin cambios. Sigue diferenciándose de la cantera de Garraf de Holcim ("Cantera de Garraf"). Para los albaranes de JUNIO ya subidos hace falta un UPDATE en Supabase (SQL aparte). -->
-<!-- v107I9 (04/06/2026): GARANTÍA origen Promsa Garraf. Red de seguridad en JS: tras la relectura Sonnet, CUALQUIER albarán Promsa cuyo origen contenga "Garraf" (Cantera de Garraf, Garraf, Promsa Garraf, Garraf Arid) se fuerza a "Garraf/Promsa", para diferenciarlo de la cantera de Garraf de Holcim. Olesa de Bonesvalls y Llinars del Vallès NO se tocan. NO requiere SQL. -->
-<!-- v107I8 (04/06/2026): CORRECCIÓN origen Promsa. La función reintentaPromsaConSonnet (v107I7) mapeaba mal el origen "GARRAF/PROMSA GARRAF" a "Cantera de Garraf"; corregido a "Garraf/Promsa" (regla v107GW). Afectaba a TODOS los Promsa de Garraf porque esa relectura Sonnet es la última palabra. Solo cambia ese mapeo en el prompt de la relectura; nada más. NO requiere SQL. -->
 <!-- v107I7 (04/06/2026): PROMSA leído de raíz — TODO albarán Promsa (Molins) se relee SIEMPRE con el modelo potente (Sonnet 4.6), tanto el ORIGEN (recuadro CENTRAL: Olesa de Bonesvalls / Cantera de Garraf / Llinars del Vallès) como el DESTINO (recuadro OBRA: Cubelles, Constantí...). Motivo: estos albaranes tienen los datos en recuadros pequeños que Haiku lee regular y fallaban origen Y destino de forma intermitente (un día bien, al siguiente mal) — reforzar el prompt no bastaba. Ahora una sola llamada a Sonnet devuelve {origen,destino} de cada albarán Promsa del lote. NUNCA acepta "Sant Vicenç dels Horts"/"08620" (dirección fiscal). Sustituye el reintento solo-destino-vacío de v107H9 por este completo. Función nueva reintentaPromsaConSonnet. NO requiere SQL. -->
 <!-- v107I8 (04/06/2026): ARIDFLOT añadido como CLIENTE canónico ("Aridflot, S.L."), con sus alias (Aridflot / ARIDFLOT / Aridflot SL / Arid Flot + NIF B75741884). Ya existía como transportista; ahora también está en CLIENTES_CANONICOS para que al leer/editar albaranes se canonice bien el campo cliente. Añadido en el grupo de subcontratistas a los que TYP2014 factura transportes. NO requiere SQL. -->
+<!-- v107I9 (04/06/2026): VELOCIDAD vs ESTABILIDAD — bajada la concurrencia de procesado de albaranes de 5 a 3 en paralelo y subida la pausa entre tandas de 0,8s a 1,5s. Motivo: Anthropic avisó por correo de que la cuenta superó el rate limit de Haiku 27 veces en 24h (degradando el servicio). Con 3 a la vez se procesa un poco más lento (~100 albaranes en ~7-8 min en vez de ~5) pero deja de saturar la API y fallar. Juan Carlos prefiere estabilidad. Complementario al saldo recargado (>$400) que sube el tier con el tiempo. Incluye también v107I8 (Aridflot como cliente canónico). Reversible: si sobra margen, se puede volver a subir CONCURRENCY. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3805,12 +3795,16 @@ async function processQueue(type) {
     return;
   }
 
-  // Concurrencia: 5 en paralelo = procesa ~100 albaranes en ~5 minutos sin saturar API.
-  // Anthropic Tier 2 permite ~80k tokens/min input, cada albarán usa ~3-5k tokens.
-  // 5 paralelos × 12 segundos/albarán ≈ 25 albaranes/min ≈ 75-125k tokens/min (margen suficiente).
-  const CONCURRENCY = 5;
+  // v107I9 (04/06/2026): bajado de 5 a 3 en paralelo + pausa mayor (1,5s) para NO chocar
+  // con el rate limit de Haiku (el correo de Anthropic avisó de 27 excesos en 24h).
+  // Juan Carlos prefiere estabilidad sobre velocidad: 3 a la vez es un poco más lento
+  // (~100 albaranes en ~7-8 min en vez de ~5) pero deja de saturar la API y fallar.
+  // Además, desde v107I7 los Promsa/Puigfel hacen 2ª llamada a Sonnet, lo que aumenta
+  // el tráfico por lote → con 3 se respeta mejor el límite. Si algún día sobra margen
+  // (más tier), se puede volver a subir este número.
+  const CONCURRENCY = 3;
   const TIMEOUT_MS = 120000;
-  const PAUSE_BETWEEN_BATCHES_MS = 800; // pausa entre tandas para respetar rate limit
+  const PAUSE_BETWEEN_BATCHES_MS = 1500; // pausa entre tandas para respetar rate limit
   let totalDone = 0;
 
   try {
@@ -4135,46 +4129,12 @@ async function _processOne(it, type, key, timeoutMs) {
             data.planta = fixedOri;
           }
         }
-        // v107J7 (04/06/2026) — CANONIZAR EL PROVEEDOR al procesar (igual que origen/destino).
-        // 🔴 Juan Carlos: la LISTA mostraba "Molins" y el MODAL "Promotora Mediterránea-2,
-        // S.A.U." porque el proveedor se guardaba SIN canonizar (la IA lee "Molins") y solo el
-        // modal lo canonizaba al abrir. Ahora se canoniza aquí ANTES de guardar, así el valor
-        // en BD ya es el oficial y LISTA y MODAL muestran lo mismo. Cubre Molins/Promsa y
-        // cualquier otro proveedor con alias (Holcim, Cemex, Portland, etc.).
-        if (data.proveedor && typeof fixProveedor === 'function') {
-          const fixedProv = fixProveedor(data.proveedor);
-          if (fixedProv && fixedProv !== data.proveedor) {
-            console.log('[v107J7] Proveedor canonizado: "' + data.proveedor + '" → "' + fixedProv + '"');
-            data.proveedor = fixedProv;
-          }
-        }
         // Inferencia adicional por MATERIAL/PROVEEDOR: si el contexto identifica claramente
         // de qué cantera viene (ej. "Caliza Promsa" o proveedor "Grupo Portland"), sobrescribir el origen.
         const inferidoOri = inferOrigen(data);
         if (inferidoOri && inferidoOri !== data.planta) {
           console.log(`Origen inferido: → "${inferidoOri}"`);
           data.planta = inferidoOri;
-        }
-        // v107J5 (04/06/2026) — FORZAR origen Promsa Garraf (reforzado + diagnóstico).
-        // callClaudeAlb/inferOrigen no siempre lo dejan bien; este es el paso final del origen.
-        // Canonizamos el proveedor con fixProveedor para detectar Promsa aunque la IA lo haya
-        // leído como "Molins Concrete & Aggregates" u otra variante. Si es Promsa y el origen
-        // contiene "Garraf" → "PROMSA GARRAF". Olesa/Llinars y Holcim/Sodira NO se tocan.
-        // El log permite ver en la consola (F12) por qué se fuerza o por qué no.
-        {
-          const _provRaw = String(data.proveedor || '');
-          const _provCanon = (typeof fixProveedor === 'function') ? fixProveedor(_provRaw) : _provRaw;
-          const _txtProv = _provRaw + ' ' + _provCanon;
-          const _esPromsaG = /Promotora\s+Mediterr[aá]nea/i.test(_txtProv)
-                          || /\bMolins\b/i.test(_txtProv)
-                          || /\bPromsa\b/i.test(_txtProv);
-          const _plG = String(data.planta || '');
-          if (_esPromsaG && /garraf/i.test(_plG) && data.planta !== 'PROMSA GARRAF') {
-            console.log('[v107J5] ✅ Origen Promsa Garraf forzado: "' + _plG + '" → "PROMSA GARRAF" (prov="' + _provRaw + '")');
-            data.planta = 'PROMSA GARRAF';
-          } else if (/garraf/i.test(_plG) && data.planta !== 'PROMSA GARRAF') {
-            console.log('[v107J5] ⚠️ Origen con "Garraf" NO forzado: planta="' + _plG + '" esPromsa=' + _esPromsaG + ' prov_raw="' + _provRaw + '" prov_canon="' + _provCanon + '"');
-          }
         }
         // Red de seguridad Holcim cemento: si por error OCR el origen es "Cantera de Garraf"
         // (cantera de áridos) pero el material es cemento, corregir a "Fábrica Montcada".
@@ -6049,52 +6009,8 @@ SOLO JSON válido, sin markdown.`;
         results[i].obra = dest;
         if (antes !== dest) { console.log(`[v107I7] Destino Promsa albarán ${i + 1}: "${antes || '(vacío)'}" → "${dest}"`); recD++; }
       }
-      // v107J2: Nº ALBARÁN (recuadro NÚM. ALBARÀ). Sonnet lo lee mejor que Haiku, que a veces
-      // cogía el código del recuadro CLIENT (ej. 63017) como nº de albarán. Limpiamos la serie
-      // "- N" final. GUARDA: no aceptamos un nº que coincida con el código de cliente (primer
-      // número del campo cliente) — eso sería el error que queremos evitar.
-      let alb = String(o.albaran || '').trim().replace(/[\s\-]*N$/i, '').trim();
-      const _cliCode = (String(results[i].cliente || '').match(/\b(\d{4,6})\b/) || [])[1] || null;
-      if (alb && /^\d{3,7}$/.test(alb) && alb !== _cliCode && results[i].albaran !== alb) {
-        const antesA = results[i].albaran;
-        results[i].albaran = alb;
-        console.log(`[v107J2] Nº albarán Promsa albarán ${i + 1}: "${antesA || '(vacío)'}" → "${alb}"`);
-      }
     }
     console.log(`[v107I7] Sonnet ajustó ${recO} origen(es) y ${recD} destino(s) Promsa`);
-
-    // v107I9 (04/06/2026) — GARANTÍA Juan Carlos: TODO albarán Promsa que cargue
-    // en Garraf debe quedar con origen "Garraf/Promsa", para diferenciarlo de la
-    // cantera de Garraf de Holcim ("Cantera de Garraf"). Aunque el re-lectura Sonnet
-    // (v107I8) ya lo pide, si por OCR quedara "Cantera de Garraf" / "Garraf" /
-    // "Promsa Garraf" / "Garraf Arid", lo forzamos aquí. Olesa de Bonesvalls y
-    // Llinars del Vallès NO se tocan (son plantas Promsa distintas, no llevan "garraf").
-    for (const i of indicesPromsa) {
-      const _p = String(results[i].planta || '');
-      if (/garraf/i.test(_p) && results[i].planta !== 'PROMSA GARRAF') {
-        console.log(`[v107J0] Origen Promsa Garraf albarán ${i + 1}: "${_p}" → "PROMSA GARRAF"`);
-        results[i].planta = 'PROMSA GARRAF';
-      }
-    }
-
-    // v107J1 (04/06/2026) — RED DE SEGURIDAD DESTINO obra UTE Mota de Recintos (Promsa).
-    // La relectura Sonnet sobrescribe el destino con lo que lee del recuadro OBRA, que en
-    // estos albaranes viene cortado ("MUELLE CATALUNYA. MOTA DE...") o se confunde con la
-    // dirección "PRAT DE LLOBREGAT" → a veces salía "El Prat" o texto cortado. Si el cliente
-    // o la obra identifican esta obra (UTE MOTA DE RECINTOS / código 63017 / MUELLE CATALUNYA),
-    // forzamos el destino canónico. El cliente lo leyó Haiku y NO lo toca el re-lectura Sonnet,
-    // así que es un identificador fiable independientemente de lo que Sonnet ponga en destino.
-    for (const i of indicesPromsa) {
-      const _cli = String(results[i].cliente || '').toUpperCase();
-      const _obr = String(results[i].obra || '').toUpperCase();
-      const _esUteMota = /MOTA\s+DE\s+RECINTOS/.test(_cli) || /\b63017\b/.test(_cli)
-                      || /MOTA\s+DE\s+RECINTOS/.test(_obr) || /\b63017\b/.test(_obr)
-                      || /MUELLE\s+CATALUNYA/.test(_obr);
-      if (_esUteMota && results[i].obra !== 'Muelle Catalunya - UTE Mota') {
-        console.log(`[v107J1] Destino Promsa UTE Mota albarán ${i + 1}: "${results[i].obra}" → "Muelle Catalunya - UTE Mota"`);
-        results[i].obra = 'Muelle Catalunya - UTE Mota';
-      }
-    }
   }
 
   return results;
@@ -6413,26 +6329,23 @@ async function reintentaPromsaConSonnet(b64, mediaType, key, isPdf, signal, numA
 
 ORIGEN = la planta del recuadro "CENTRAL" (el "Nom:" de CENTRAL). Conviértelo así:
  · "PROMSA OLESA" / "OLESA" / "OLESA DE BONESVALLS" → "Olesa de Bonesvalls"
- · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "PROMSA GARRAF"  (🔴 v107J0 04/06/2026: en albaranes de VENTA de Promsa el origen Garraf se guarda LITERAL "PROMSA GARRAF" como pone el albarán, para diferenciarlo de la cantera de Garraf de Holcim "Cantera de Garraf")
+ · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "Cantera de Garraf"
  · "LLINARS" / "PROMSA LLINARS" → "Llinars del Vallès"
  · Si es otra planta, devuelve su nombre tal cual aparece en CENTRAL.
 
-DESTINO = el texto del recuadro "OBRA" (debajo de CLIENT, lleva un número/código delante). Puede ser una POBLACIÓN o un NOMBRE DE OBRA. Lee SIEMPRE lo que pone OBRA, quitando el código de delante. Ejemplos: "45 CUBELLES (45)" → "Cubelles"; "65 CONSTANTI (65)" → "Constantí"; "9 IGUALADA (9)" → "Igualada"; "2 MUELLE CATALUNYA. MOTA DE..." → "Muelle Catalunya". Si es una población, primera letra mayúscula y resto minúsculas; si es un nombre de obra, devuélvelo tal cual.
-🔴 v107J3 CRÍTICO — el DESTINO NUNCA sale del recuadro "ADREÇA" (la dirección de entrega, ej. "moll prat dic sud, PRAT DE LLOBREGAT (EL)"). Esa es la DIRECCIÓN física de descarga, NO el destino que guardamos. Si ves "PRAT DE LLOBREGAT", "EL PRAT", o cualquier calle/CP, has mirado el recuadro ADREÇA por error → vuelve al recuadro OBRA y lee el nombre que pone ahí (ej. "MUELLE CATALUNYA"). El destino sale SIEMPRE del recuadro OBRA, jamás de ADREÇA.
-
-Nº ALBARÁN = el número del recuadro "NÚM. ALBARÀ" (arriba, a la izquierda de DATA). Son 5 dígitos, por ejemplo "95431" (a veces seguido de "- N"; la "N" es la SERIE, NO forma parte del número → devuelve solo "95431"). 🔴 v107J2 CRÍTICO: NUNCA devuelvas como nº de albarán el código del recuadro "CLIENT" (por ejemplo "63017") ni el del recuadro "OBRA": esos son códigos de cliente/obra, NO el albarán. El nº de albarán SIEMPRE sale EXCLUSIVAMENTE del recuadro "NÚM. ALBARÀ". Si no lo ves legible, devuélvelo "".
+DESTINO = la POBLACIÓN del recuadro "OBRA" (debajo de CLIENT, lleva un número delante). Ejemplos: "45 CUBELLES (45)" → "Cubelles"; "65 CONSTANTI (65)" → "Constantí"; "9 IGUALADA (9)" → "Igualada". Primera letra mayúscula, resto minúsculas.
 
 ⛔ NUNCA devuelvas "Sant Vicenç dels Horts" ni "08620" en NINGUNO de los dos campos: eso es la dirección FISCAL de la cabecera del PDF / recuadro ADREÇA, NO es ni el origen ni el destino. Si ibas a poner eso, mira el recuadro correcto (CENTRAL para origen, OBRA para destino).
 Si de verdad no ves un campo legible, devuélvelo como "" (vacío). NO inventes.`;
   const prompt = isPdf
-    ? `Este PDF contiene ${numAlbaranes} albarán(es) Promsa. Para CADA uno lee el ORIGEN (recuadro CENTRAL), el DESTINO (recuadro OBRA) y el Nº ALBARÁN (recuadro NÚM. ALBARÀ).
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) Promsa. Para CADA uno lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
-Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el ORDEN en que aparecen en el PDF. Cada objeto: {"origen":"...","destino":"...","albaran":"..."}.
-Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles","albaran":"95342"},{"origen":"PROMSA GARRAF","destino":"Constantí","albaran":"95431"}]
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el ORDEN en que aparecen en el PDF. Cada objeto: {"origen":"...","destino":"..."}.
+Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"Cantera de Garraf","destino":"Constantí"}]
 SOLO el array JSON, sin texto adicional, sin markdown.`
-    : `Este es un albarán Promsa. Lee el ORIGEN (recuadro CENTRAL), el DESTINO (recuadro OBRA) y el Nº ALBARÁN (recuadro NÚM. ALBARÀ).
+    : `Este es un albarán Promsa. Lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
-Devuelve un ARRAY JSON con UN objeto: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles","albaran":"95342"}]. Si no ves algún campo, ponlo "".
+Devuelve un ARRAY JSON con UN objeto: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"}]. Si no ves algún campo, ponlo "".
 SOLO el array JSON, sin texto adicional, sin markdown.`;
 
   const contentBlock = isPdf
@@ -12423,7 +12336,7 @@ const ORIGENES_CANONICOS = [
   // (variantes que aparecían en albaranes históricos antes de canonizar)
   { canon: 'Cantera de Garraf', alias: [
     'Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf',
-    'Garraf', 'Garraf Arid', 'GARRAF ARID',
+    'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID',
     'GARRAF ASLAND', 'Garraf Asland', 'Cantera Asland', 'CANTERA ASLAND',
     'PUESTO EXP. GARRAF', 'Puesto Exp. Garraf', 'Puesto Exp Garraf',
     'PUESTO EXP GARRAF', 'Puesto expedición Garraf', 'Puesto Expedición Garraf'
@@ -12564,7 +12477,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Olesa de Bonesvalls', alias: ['Olesa', 'Promsa Olesa'] },
   { canon: 'Sant Vicenç dels Horts', alias: ['Sant Vicenç', 'Sant Vicens'] },
   // Origenes en formato "Cantera/Proveedor" para albaranes de RECEPCIÓN (Holcim recibe de proveedor)
-  { canon: 'PROMSA GARRAF', alias: ['Garraf/Promsa', 'Promsa/Garraf', 'Promsa Garraf'] },
+  { canon: 'Garraf/Promsa', alias: ['Promsa/Garraf'] },
   { canon: 'Foj/Vallirana', alias: [] },
   { canon: 'Cemex/Begues', alias: [] },
   // v99c: Adec/Vallirana — origen para albaranes Holcim de RECEPCIÓN de "Árido siderúrgico blanco"
@@ -12649,7 +12562,7 @@ function fixOrigen(o) { return _matchOrigen(o); }
 // MAPPING MATERIAL → ORIGEN: para albaranes de RECEPCIÓN donde Holcim recibe material.
 // El nombre del producto identifica de qué cantera viene físicamente la mercancía.
 const MATERIAL_A_ORIGEN = [
-  { match: /CALIZA\s+PROMSA/i, origen: 'PROMSA GARRAF' },
+  { match: /CALIZA\s+PROMSA/i, origen: 'Garraf/Promsa' },
   { match: /CALIZA\s+FOJ/i, origen: 'Foj/Vallirana' },
   { match: /CALIZA\s+CEMEX/i, origen: 'Cemex/Begues' },
   { match: /CALIZA\s+(GARRAF|HOLCIM)/i, origen: 'Cantera de Garraf' },
@@ -12840,26 +12753,6 @@ const REGLAS_DESTINO = [
     },
     destino: 'Zona Franca II'
   },
-  // v107GZ (Juan Carlos 04/06/2026): Molins/Promsa con destino UTE Mota de Recintos → "Muelle Catalunya - UTE Mota".
-  // Albarán nuevo (ej. 95342-N, PROMSA GARRAF): cliente "63017 UTE MOTA DE RECINTOS (FASE 1)",
-  // obra "2 - MUELLE CATALUNYA. MOTA DE..." (el texto del recuadro OBRA viene cortado/incompleto en el PDF,
-  // por eso se fija el destino canónico a mano en vez de leer la OBRA literal — mismo criterio que Zona Franca II).
-  // Origen sigue siendo Garraf/Promsa (no se toca). Es una red de seguridad ADITIVA: no modifica la lectura
-  // del campo OBRA para el resto de Promsa (Igualada, Cubelles, Constantí, Zona Franca II, etc.).
-  {
-    match: (d) => {
-      const prov = String(d.proveedor || '').toUpperCase();
-      const obra = String(d.obra || '').toUpperCase();
-      const cliente = String(d.cliente || '').toUpperCase();
-      const esMolins = /PROMOTORA\s+MEDITERR[ÁA]NEA/.test(prov) || /MOLINS/.test(prov) || /PROMSA/.test(prov);
-      if (!esMolins) return false;
-      // Identifican esta obra: cliente "UTE MOTA DE RECINTOS", código 63017, u obra "MUELLE CATALUNYA"
-      return /MOTA\s+DE\s+RECINTOS/.test(cliente) || /MOTA\s+DE\s+RECINTOS/.test(obra)
-        || /\b63017\b/.test(cliente) || /\b63017\b/.test(obra)
-        || /MUELLE\s+CATALUNYA/.test(obra) || /MUELLE\s+CATALUNYA/.test(cliente);
-    },
-    destino: 'Muelle Catalunya - UTE Mota'
-  },
   // v102: Sodira Iberia → Puerto de Barcelona (cuando la obra/cliente contiene texto
   // relacionado con UTE/PUERTO/SATO RUBAU). Si Sodira tiene un destino distinto a Puerto
   // de Barcelona, Juan Carlos avisará para añadir otra regla. Por ahora: si es Sodira
@@ -12892,16 +12785,6 @@ function inferDestino(data) {
 
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
-  // v107J1 (04/06/2026): destino oficial para la obra UTE Mota de Recintos (Promsa, cliente 63017).
-  // El albarán trae el recuadro OBRA cortado ("2 - MUELLE CATALUNYA. MOTA DE...") y la dirección
-  // "moll prat dic sud, PRAT DE LLOBREGAT", por lo que la IA a veces ponía "El Prat" o el texto
-  // cortado. Se fija el destino canónico y se fuerza por cliente/obra en la red de seguridad Promsa.
-  { canon: 'Muelle Catalunya - UTE Mota', alias: [
-    'MUELLE CATALUNYA - UTE MOTA', 'Muelle Catalunya-UTE Mota', 'Muelle Catalunya UTE Mota',
-    'MUELLE CATALUNYA. MOTA DE', 'Muelle Catalunya. Mota De', 'MUELLE CATALUNYA MOTA DE',
-    'MUELLE CATALUNYA', 'Muelle Catalunya', 'UTE Mota de Recintos', 'UTE MOTA DE RECINTOS',
-    'UTE MOTA DE RECINTOS (FASE 1)', 'Mota de Recintos'
-  ] },
   // v107Q: vertederos / gestores de residuos. Albaranes con código LER 17xxxx (residuos de construcción).
   // Cliente típico HOLCIM ESPAÑA SAU. Salen de obras u plantas Holcim hacia el gestor de residuos.
   // PUIGFEL/RUBI: planta Cova Solera en Rubí (Compositor Shumann S/N, Pol. Can Jardi). El albarán
