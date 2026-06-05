@@ -5040,7 +5040,18 @@ function _expandirCamionesGasoil(obj, proveedor, origenDato) {
   const out = [];
   const empresa = obj.cif ? _CIF_EMP_GAS[String(obj.cif).toUpperCase().replace(/[\s.\-]/g, '')] : null;
   const norm = (m) => String(m || '').toUpperCase().replace(/[\s\-]/g, '').trim();
-  const num = (n) => { const v = parseFloat(String(n == null ? '' : n).replace(/\./g, '').replace(',', '.')); return isNaN(v) ? 0 : v; };
+  // J16: convertir cantidad a número RESPETANDO decimales. La IA devuelve números
+  // JSON con PUNTO decimal (1012.33). Antes se quitaban los puntos (creyendo que eran
+  // separador de miles) y 1012.33 se volvía 101233. Ahora: si ya es número, se usa tal
+  // cual; si es texto con coma, formato español (1.012,33); si solo tiene punto, decimal JSON.
+  const num = (n) => {
+    if (typeof n === 'number') return isNaN(n) ? 0 : n;
+    let s = String(n == null ? '' : n).trim();
+    if (!s) return 0;
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); // español: punto=miles, coma=decimal
+    const v = parseFloat(s); // si solo tiene punto, es decimal JSON → se deja
+    return isNaN(v) ? 0 : v;
+  };
   (obj.camiones || []).forEach(c => {
     const mat = norm(c.matricula);
     if (!mat || !/^R?\d{4}[A-Z]{3}$/.test(mat)) return; // matrícula española válida
