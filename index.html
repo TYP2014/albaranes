@@ -34,6 +34,7 @@
 <!-- v107J8 (05/06/2026): PROVEEDOR Molins en LISTA. La IA a veces lee el proveedor como el logo "Molins Concrete & Aggregates" (que ES un alias de "Promotora Mediterránea-2, S.A.U."). El MODAL lo canonizaba bien (matchExacto), pero _processOne NO canonizaba el proveedor al subir, así que en la LISTA salía "Molins Concrete & Aggregates" crudo. ARREGLO: añadido data.proveedor = fixProveedor(data.proveedor) en _processOne tras inferDestino (mismo orden seguro que "Re-corregir TODO"). Ahora lista y modal muestran SIEMPRE "Promotora Mediterránea-2, S.A.U.". Las reglas que detectan Molins (/Promotora Mediterránea/i) o fuerzan proveedor (Girona Runes) no se ven afectadas. NO requiere SQL para los nuevos; los viejos con "Molins Concrete..." se arreglan con "Re-corregir TODO". -->
 <!-- v107J9 (05/06/2026): LEGIBILIDAD columna MATRÍCULA en la lista de albaranes. Juan Carlos pidió que las letras no estén tan juntas y que se distingan mejor las parecidas (0/O, 1/I). Cambiado SOLO el estilo de esa celda (td de r.tractora en renderTable): fuente monoespaciada (Roboto Mono/Consolas), un poco más grande (15px), negrita (700) y letter-spacing 1.5px para separar los caracteres. white-space:nowrap para que no parta. No cambia el ancho de columna apreciablemente (matrícula = 7 caracteres fijos). Solo visual, no toca datos ni lógica. -->
 <!-- v107J10 (05/06/2026): FECHA con el mismo formato/tamaño que la matrícula (Juan Carlos: que combinen y no desentone). Misma fuente monoespaciada y 15px/negrita en la celda de la fecha (renderTable), con letter-spacing 0.5px (menos que la matrícula porque la fecha es más larga, 10 caracteres, para no ensanchar la columna). Solo visual. -->
+<!-- v107J11 (05/06/2026): FALSO POSITIVO Molins en áridos Holcim de Cantera de Garraf. La detección _esMolins/_esPromsa tenía un fallback "(origen Cantera de Garraf + material AF-/AG-) → es Molins". Pero Holcim TAMBIÉN trae áridos AF- desde Cantera de Garraf (albaranes de traslado nº 31...). Esos se detectaban como Molins, se mandaban a la relectura Promsa con Sonnet, y Sonnet (guion Promsa "GARRAF → PROMSA GARRAF") les ponía origen "PROMSA GARRAF" en vez del correcto "Cantera de Garraf". ARREGLO: el fallback ahora SOLO aplica si el proveedor NO es Holcim/Cemex/Portland/Sodira/Foj/Aridcal/Canro/Tecnocatalana/ADEC/Élite. Aplicado en los DOS sitios (_esMolins en _processOne y _esPromsa en la selección de relectura). Caso real: albarán Holcim 31048149515 AF-0/4-T-C. Los Molins de verdad siguen igual. NO requiere SQL para los nuevos. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -4504,7 +4505,15 @@ async function _processOne(it, type, key, timeoutMs) {
                          || /\bPROMSA\b/i.test(_provTxt)
                          // Caso fallback: origen "Cantera de Garraf" o "Olesa" o "Llinars"
                          // + material típico Molins (AF-T-, AG-, AF-X/Y-T-C)
-                         || (/Cantera\s+de\s+Garraf|Garraf\/Promsa|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plantaTxt)
+                         // v107J11 (05/06/2026): el fallback SOLO aplica si el proveedor NO es
+                         // un proveedor conocido distinto de Molins. Holcim TAMBIÉN trae áridos
+                         // AF-/AG- desde "Cantera de Garraf", así que sin esta exclusión los
+                         // albaranes de Holcim (Punto expedición Cantera de Garraf) se confundían
+                         // con Molins (_esMolins=true), se mandaban a la relectura Promsa de Sonnet
+                         // y acababan con origen "PROMSA GARRAF" en vez de "Cantera de Garraf".
+                         // Caso real Juan Carlos 05/06: albarán Holcim 31048149515, AF-0/4-T-C.
+                         || (!/Holcim|Cemex|Portland|Sodira|Foj\b|Aridcal|Canro|Tecnocatalana|ADEC|Élite|Elite\s+Cementos/i.test(_provTxt)
+                             && /Cantera\s+de\s+Garraf|Garraf\/Promsa|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plantaTxt)
                              && /\bAF-T?-?\d|AG-\d|RD\s*\d|AF-\d/i.test(_prodTxt));
           const _destSantVicenc = /SANT\s+VICEN[CÇ]\s+DELS\s+HORTS/i.test(String(data.obra || ''));
           // v107EO log diag: ver siempre que haya un proveedor con Molins/Promsa O destino Sant Vicenç
@@ -6062,7 +6071,13 @@ SOLO JSON válido, sin markdown.`;
     const _esPromsa = /Promotora\s+Mediterr[aá]nea/i.test(_provP)
                    || /\bMolins\b/i.test(_provP)
                    || /\bPromsa\b/i.test(_provP)
-                   || (/Cantera\s+de\s+Garraf|Garraf\/Promsa|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plP)
+                   // v107J11 (05/06/2026): el fallback origen+material SOLO si el proveedor NO es
+                   // Holcim/Cemex/etc. Holcim trae áridos AF- desde "Cantera de Garraf"; sin esta
+                   // exclusión esos albaranes se mandaban a Sonnet (relectura Promsa) y Sonnet,
+                   // siguiendo su guion ("GARRAF → PROMSA GARRAF"), les ponía origen "PROMSA GARRAF"
+                   // en vez de "Cantera de Garraf". Caso real: albarán Holcim 31048149515, AF-0/4-T-C.
+                   || (!/Holcim|Cemex|Portland|Sodira|Foj\b|Aridcal|Canro|Tecnocatalana|ADEC|Élite|Elite\s+Cementos/i.test(_provP)
+                       && /Cantera\s+de\s+Garraf|Garraf\/Promsa|Olesa\s+de\s+Bonesvalls|Llinars\s+del\s+Vall[eè]s/i.test(_plP)
                        && /\bAF-T?-?\d|AG-\d|RD\s*\d|AF-\d/i.test(_prodP));
     if (_esPromsa) indicesPromsa.push(i);  // v107I7: TODOS los Promsa, no solo los vacíos
   }
