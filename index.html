@@ -31,6 +31,7 @@
 <!-- v107J5 (05/06/2026): PROMSA GARRAF — CAUSA RAÍZ ENCONTRADA por consola. La IA leía BIEN "PROMSA GARRAF", pero la canonización de origen (fixOrigen / makeCanonMatcher) lo convertía a "Garraf/Promsa". Motivo exacto (verificado con test): al normalizar (quitar espacios/símbolos), "PROMSA GARRAF" y el alias "Promsa/Garraf" (de "Garraf/Promsa") dan la MISMA clave "PROMSAGARRAF", así que el match exacto lo mandaba a "Garraf/Promsa". SOLUCIÓN: añadido "PROMSA GARRAF" como canon propio de origen, DESPUÉS de "Garraf/Promsa" (en el Map gana el último que registra esa clave), así ahora "PROMSAGARRAF" devuelve "PROMSA GARRAF" tal cual. La consola mostraba "[match exacto] PROMSA GARRAF → Garraf/Promsa" — eso ya no pasará. NO requiere SQL (los nuevos salen bien; los viejos se recanonizan con Re-corregir). -->
 <!-- v107J6 (05/06/2026): PROMSA GARRAF — ARREGLO DEFINITIVO lista=modal. El J5 arregló la canonización AUTOMÁTICA (lista), pero el MODAL seguía mostrando mal el origen. Causa raíz encontrada: el modal usa OTRA función (matchExacto) distinta de la automática (makeCanonMatcher). matchExacto recorre la lista y gana el PRIMER match; makeCanonMatcher usa un Map y gana el ÚLTIMO. El alias 'Promsa/Garraf' (de 'Garraf/Promsa', recepción) normaliza IGUAL ("PROMSAGARRAF") que el canon de VENTA 'PROMSA GARRAF', así que matchExacto devolvía 'Garraf/Promsa' en el modal mientras la lista mostraba bien 'PROMSA GARRAF'. SOLUCIÓN: quitado el alias 'Promsa/Garraf' (no se usaba en ningún sitio; la recepción Caliza Promsa se infiere por MATERIAL, no por ese alias). Ahora "PROMSAGARRAF" solo puede ser 'PROMSA GARRAF' en AMBAS funciones → lista y modal coinciden. Verificado con test: PROMSA GARRAF→PROMSA GARRAF (las dos), Garraf/Promsa→Garraf/Promsa (las dos, recepción intacta). NO requiere SQL para los nuevos. -->
 <!-- v107J7 (05/06/2026): PROMSA GARRAF — EL ARREGLO BUENO del modal. El J6 quito el alias 'Promsa/Garraf' (con BARRA) pero el modal SEGUIA mostrando "Cantera de Garraf". Causa raiz REAL encontrada: el canon 'Cantera de Garraf' tenia OTRO alias 'Promsa Garraf' (con ESPACIO) que tambien normaliza a "PROMSAGARRAF", y como 'Cantera de Garraf' va ANTES en la lista, matchExacto (modal, gana el primero) devolvia 'Cantera de Garraf'. QUITADO ese alias. Verificado con test: matchExacto("PROMSA GARRAF")="PROMSA GARRAF" (antes "Cantera de Garraf"); "Cantera de Garraf" y "Garraf/Promsa" siguen OK. Ahora lista Y modal muestran "PROMSA GARRAF". NO requiere SQL para los nuevos. -->
+<!-- v107J8 (05/06/2026): PROVEEDOR Molins en LISTA. La IA a veces lee el proveedor como el logo "Molins Concrete & Aggregates" (que ES un alias de "Promotora Mediterránea-2, S.A.U."). El MODAL lo canonizaba bien (matchExacto), pero _processOne NO canonizaba el proveedor al subir, así que en la LISTA salía "Molins Concrete & Aggregates" crudo. ARREGLO: añadido data.proveedor = fixProveedor(data.proveedor) en _processOne tras inferDestino (mismo orden seguro que "Re-corregir TODO"). Ahora lista y modal muestran SIEMPRE "Promotora Mediterránea-2, S.A.U.". Las reglas que detectan Molins (/Promotora Mediterránea/i) o fuerzan proveedor (Girona Runes) no se ven afectadas. NO requiere SQL para los nuevos; los viejos con "Molins Concrete..." se arreglan con "Re-corregir TODO". -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -4245,6 +4246,22 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         } else {
           console.log(`[v107EA Holcim cisterna] inferDestino bloqueado, destino literal "${data.obra}" preservado`);
+        }
+        // v107J8 (05/06/2026): canonizar el PROVEEDOR al subir, igual que ya hace
+        // "Re-corregir TODO". Antes _processOne NO pasaba el proveedor por fixProveedor,
+        // así que si la IA leía el logo "Molins Concrete & Aggregates" (un alias de
+        // "Promotora Mediterránea-2, S.A.U.") el nombre crudo se guardaba tal cual y en la
+        // LISTA salía "Molins Concrete & Aggregates" (mal), aunque el MODAL sí lo canonizaba.
+        // Ahora se canoniza aquí (después de inferDestino, mismo orden seguro que reanalizarTodo)
+        // para que lista y modal muestren SIEMPRE el proveedor oficial. Las reglas posteriores
+        // que detectan Molins (/Promotora Mediterránea/i) o fuerzan proveedor (Girona Runes →
+        // Holcim por material 170101) siguen funcionando porque no dependen del nombre crudo.
+        if (data.proveedor) {
+          const _provCanon = fixProveedor(data.proveedor);
+          if (_provCanon !== data.proveedor) {
+            console.log(`Proveedor corregido: "${data.proveedor}" → "${_provCanon}"`);
+            data.proveedor = _provCanon;
+          }
         }
         // v107AU: regla específica GIRONA RUNES (escombro de hormigón que sale de
         // la planta Holcim de Celra → vertedero/gestor Girona Runes). El nombre
