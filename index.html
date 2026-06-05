@@ -40,6 +40,7 @@
 <!-- v107J14 (finde): EXCEL más legible. (1) Cambiado el motor Excel a xlsx-js-style (mismo API, pero aplica estilos al escribir; el motor anterior los ignoraba). (2) El Excel de albaranes (COMPLETO y FILTRADO, ambos usan buildExcel) sale ahora con TODAS las celdas en NEGRITA y tamaño 13 (Excel por defecto usa 11), cabecera y fila TOTAL en 14, para que Juan Carlos lo lea mejor sin gafas. Sin pedir nada: solo descargar y ya sale grande y en negrita. Reversible (restaurar la línea cdnjs xlsx 0.18.5). PROBAR tras desplegar: descargar un Excel (debe verse grande/negrita) y leer una factura SOLRED (debe seguir funcionando, usa el mismo motor). NO requiere SQL. -->
 <!-- v107J15 (finde): LECTOR MULTI-PROVEEDOR de facturas de gasoil + aviso de vehículo sin consumo. (1) Al subir una FACTURA de gasoil, la app extrae el texto del PDF con pdf.js, DETECTA el proveedor (SOLRED / PETROMIRALLES / SOLEDAD) y usa el lector correcto. SOLRED: página "Resumen tarjetas" (matrícula + litros por camión). PETROMIRALLES: "DETALLE SUMINISTROS" agrupando por matrícula. SOLEDAD: lector que ya existía, intacto. Anti-duplicados por nº factura + matrícula + tipo. Matrícula sin guión. Empresa por CIF. (2) En CONSUMO, camiones con km pero SIN gasoil muestran "⛔ REVISAR". PROBAR: subir una factura SOLRED, una Petromiralles y una Soledad por SUBIR FACTURA. SQL aparte para 2 tarjetas nuevas + borrar las 4 líneas-total mal metidas. -->
 <!-- v107J16 (finde): ARREGLO litros disparatados en lectores SOLRED/Petromiralles. La función num() de _expandirCamionesGasoil quitaba el PUNTO decimal creyendo que era separador de miles, así 1012.33 (que la IA devuelve con punto decimal JSON) se convertía en 101233. Ahora num() respeta el decimal: si es número JS lo usa tal cual; si es texto con coma lo trata como formato español (1.012,33); si solo tiene punto, decimal JSON. Probado con 472.40/1012.33/3022.64 y con textos españoles. Soledad NO se ve afectado (usa otra ruta). Tras desplegar: ejecutar SQL J16 para borrar las líneas SOLRED erróneas ya guardadas y volver a subir la factura SOLRED limpia. -->
+<!-- v107J17 (finde): Columna ADBLUE (L) en la pantalla de CONSUMO. Suma los litros de adblue por camión en el periodo (mismo filtro Fecha desde/hasta que el gasoil), en una columna nueva entre "Litros gasoil" y "Km recorridos". Si no hay adblue en el periodo, muestra "—". No afecta al cálculo de consumo (sigue siendo gasoil/km). Cabecera de tabla ampliada a 6 columnas (colspan corregido). -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -382,6 +383,7 @@ if (typeof pdfjsLib !== 'undefined') {
                   <th>Matrícula</th>
                   <th>Periodo (km del tacógrafo)</th>
                   <th>Litros gasoil</th>
+                  <th>AdBlue (L)</th>
                   <th>Km recorridos</th>
                   <th>L / 100 km</th>
                 </tr></thead>

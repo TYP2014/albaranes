@@ -6755,7 +6755,7 @@ async function gasRenderConsumo() {
 
   // 1) Cargar km_periodos (una sola vez por sesion, se cachea)
   if (_kmPeriodos === null) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando km del tacógrafo…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando km del tacógrafo…</td></tr>';
     try {
       const { data, error } = await sb.from('km_periodos')
         .select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
@@ -6764,7 +6764,7 @@ async function gasRenderConsumo() {
     } catch (e) {
       console.error('[gasRenderConsumo] error cargando km_periodos:', e);
       _kmPeriodos = [];
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando km del tacógrafo: ' + (e.message || e) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando km del tacógrafo: ' + (e.message || e) + '</td></tr>';
       return;
     }
   }
@@ -6788,6 +6788,19 @@ async function gasRenderConsumo() {
     (litrosPorMat[mat] = litrosPorMat[mat] || []).push({
       f: _gasFechaNum(r.fecha), litros: litros
     });
+  });
+
+  // J17: igual pero para ADBLUE (para la columna AdBlue de consumo).
+  const adbluePorMat = {};
+  gasoilRecords.forEach(r => {
+    const tp = String(r.tipo || '').toLowerCase();
+    if (!/adblue|ad-blue|ad blue|urea/.test(tp)) return; // solo adblue
+    if (_gasEmpresaDeRegistro(r) !== emp) return;
+    const litros = parseFloat(r.litros);
+    if (!litros || litros <= 0) return;
+    const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+    if (!mat) return;
+    (adbluePorMat[mat] = adbluePorMat[mat] || []).push({ f: _gasFechaNum(r.fecha), litros: litros });
   });
 
   // 4) Leer el filtro de fechas que ha puesto el usuario.
@@ -6818,11 +6831,16 @@ async function gasRenderConsumo() {
       const km = parseInt(p.km_diferencia, 10) || 0;
       let consumo = null;
       if (huboLitros && km > 0) consumo = (litros / km) * 100;
+      let adblue = 0;
+      (adbluePorMat[mat] || []).forEach(x => {
+        if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) adblue += x.litros;
+      });
       return {
         mat: p.matricula || '—',
         periodo: _gasPeriodoTexto(p.fecha_inicio, p.fecha_fin),
         orden: mat + '|' + String(iniN).padStart(8, '0'),
         litros: huboLitros ? litros : null,
+        adblue: adblue > 0 ? adblue : null,
         km: km > 0 ? km : null,
         consumo: consumo,
         aviso: ''
@@ -6866,6 +6884,11 @@ async function gasRenderConsumo() {
       if (!bloques.length && !huboLitros) return;
       let consumo = null;
       if (huboLitros && km > 0) consumo = (litros / km) * 100;
+      // J17: adblue de esa matrícula dentro del rango pedido
+      let adblue = 0;
+      (adbluePorMat[mat] || []).forEach(x => {
+        if (x.f && x.f >= rIni && x.f <= rFin) adblue += x.litros;
+      });
       // Texto del periodo: lo que pidio el usuario
       const fmtFecha = (s) => { const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : s; };
       let periodoTxt;
@@ -6878,6 +6901,7 @@ async function gasRenderConsumo() {
         periodo: periodoTxt,
         orden: mat,
         litros: huboLitros ? litros : null,
+        adblue: adblue > 0 ? adblue : null,
         km: km > 0 ? km : null,
         consumo: consumo,
         aviso: (!encajeExacto && bloques.length)
@@ -6909,6 +6933,9 @@ async function gasRenderConsumo() {
     const kmTxt = f.km != null
       ? fmtN(f.km, 0) + ' km'
       : '<span style="color:var(--wn)">⚠️ sin km</span>';
+    const adblueTxt = f.adblue != null
+      ? fmtN(f.adblue, 0) + ' L'
+      : '<span style="color:var(--mu)">—</span>';
     let consumoTxt;
     if (f.consumo != null) {
       // J15: semáforo con iconos. Rojo/llama >40 (excesivo), ámbar 35-40 (vigilar),
@@ -6933,6 +6960,7 @@ async function gasRenderConsumo() {
       + '<td class="tag-mat">' + f.mat + '</td>'
       + periodoCell
       + '<td class="tag-tm">' + litrosTxt + '</td>'
+      + '<td style="color:var(--in)">' + adblueTxt + '</td>'
       + '<td>' + kmTxt + '</td>'
       + '<td>' + consumoTxt + '</td>'
       + '</tr>';
