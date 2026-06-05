@@ -26,6 +26,7 @@
 <!-- v107J0 (04/06/2026): VELOCIDAD DE ARRANQUE/REFRESCO. La app cargaba los ~5.700 albaranes pidiendo las páginas EN SERIE (1.000 → esperar → 1.000 → esperar... 6 viajes seguidos al servidor = varios segundos de pantalla en blanco al iniciar y al refrescar). Ahora loadData (1) cuenta cuántos hay con una consulta ligera (head, sin traer datos) y (2) pide TODAS las páginas EN PARALELO (Promise.all) juntándolas al llegar → mismos datos, pero los viajes se hacen a la vez en vez de en fila, así arranca mucho más rápido. El filtro de permisos (Marta/MdM/Transmargaz/gestores) es EXACTAMENTE el mismo de antes. Red de seguridad: si el conteo fallara, cae solo al método en serie de siempre (nunca va peor). NO requiere SQL. -->
 <!-- v107J1 (04/06/2026): PANTALLA DE CARGA INMEDIATA (mejora A de velocidad percibida). Al abrir la app aparece AL INSTANTE una pantalla con el logo 🚛 TYP2014 y un indicador girando "Cargando…" (es HTML puro al inicio del <body>, no espera a que cargue el JS de 1MB), en vez de la pantalla en blanco que daba sensación de app colgada. Se oculta sola cuando initApp termina (haya sesión o no). Red de seguridad: si algo fallara, se quita igualmente a los 25s para no tapar la pantalla. NO acelera la descarga del archivo en sí (eso es la mejora C, partir el archivo, pendiente para sesión dedicada junto con la B/caché) pero mejora mucho la SENSACIÓN de arranque. Incluye también v107J0 (carga de albaranes en paralelo). NO requiere SQL. -->
 <!-- v107J2 (04/06/2026): pantalla de carga más PROFESIONAL — sustituido el emoji camión 🚛 (parecía de dibujos animados) por el texto "TYP2014" en tipografía serif elegante BLANCA (letras y números del mismo tamaño), con una línea fina debajo y "GESTIÓN DE ALBARANES". El indicador giratorio ahora es blanco a juego. Quitado el subtítulo "Transportes y Portes" a petición de Juan Carlos. Pendiente para otra sesión: añadir un dibujo del conjunto tractora+semirremolque bañera (cuando JC pueda mandar foto de referencia). NO requiere SQL. -->
+<!-- v107J3 (05/06/2026): PROMSA — dos arreglos pedidos por Juan Carlos. (1) ORIGEN GARRAF: la relectura con Sonnet (reintentaPromsaConSonnet, la que MANDA) devolvía "Cantera de Garraf", pero JC quiere "PROMSA GARRAF" (como en el albarán) para todos. Había conflicto: el prompt principal decía "Garraf/Promsa" y la relectura Sonnet decía "Cantera de Garraf" — la Sonnet ganaba. Cambiada la regla Sonnet (Garraf → "PROMSA GARRAF") y su ejemplo. (2) PROVEEDOR: a veces quedaba "Molins/Promsa" (con barra) sin canonizar; añadidos esos alias exactos a "Promotora Mediterránea-2, S.A.U." para que se canonice solo. NO requiere SQL (los albaranes ya guardados con "Cantera de Garraf"/"Molins/Promsa" se pueden recanonizar con Re-corregir o editar; los nuevos ya salen bien). -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -6388,7 +6389,7 @@ async function reintentaPromsaConSonnet(b64, mediaType, key, isPdf, signal, numA
 
 ORIGEN = la planta del recuadro "CENTRAL" (el "Nom:" de CENTRAL). Conviértelo así:
  · "PROMSA OLESA" / "OLESA" / "OLESA DE BONESVALLS" → "Olesa de Bonesvalls"
- · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "Cantera de Garraf"
+ · "GARRAF" / "PROMSA GARRAF" / "GARRAF ARID" → "PROMSA GARRAF"
  · "LLINARS" / "PROMSA LLINARS" → "Llinars del Vallès"
  · Si es otra planta, devuelve su nombre tal cual aparece en CENTRAL.
 
@@ -6400,7 +6401,7 @@ Si de verdad no ves un campo legible, devuélvelo como "" (vacío). NO inventes.
     ? `Este PDF contiene ${numAlbaranes} albarán(es) Promsa. Para CADA uno lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
 Devuelve un ARRAY JSON con exactamente ${numAlbaranes} objetos, en el ORDEN en que aparecen en el PDF. Cada objeto: {"origen":"...","destino":"..."}.
-Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"Cantera de Garraf","destino":"Constantí"}]
+Ejemplo para 2 albaranes: [{"origen":"Olesa de Bonesvalls","destino":"Cubelles"},{"origen":"PROMSA GARRAF","destino":"Constantí"}]
 SOLO el array JSON, sin texto adicional, sin markdown.`
     : `Este es un albarán Promsa. Lee el ORIGEN (recuadro CENTRAL) y el DESTINO (recuadro OBRA).
 ${reglas}
@@ -12150,7 +12151,10 @@ const PROVEEDORES_CANONICOS = [
     'Promotora Mediterranea-2', 'PROMOTORA MEDITERRANEA-2',
     'Promotora Mediterránea-2 S.A', 'Promotora Mediterránea, S.A.',
     'Promsa', 'PROMSA', 'Promsa Garraf', 'PROMSA GARRAF',
-    'Promsa Olesa', 'PROMSA OLESA', 'Promsa Llinars', 'PROMSA LLINARS'
+    'Promsa Olesa', 'PROMSA OLESA', 'Promsa Llinars', 'PROMSA LLINARS',
+    // v107J3 (05/06/2026): la IA a veces deja el proveedor como "Molins/Promsa"
+    // (con barra) y no se canonizaba. Añadidas esas variantes exactas.
+    'Molins/Promsa', 'MOLINS/PROMSA', 'Molins / Promsa', 'Promsa/Molins', 'PROMSA/MOLINS'
   ] },
   { canon: 'Canteras Canro, S.A.', alias: [] },
   // v107k: Albesa Àrids — cantera de Lleida (25135 Albesa, Lleida). Pocas veces al mes
