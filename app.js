@@ -2465,9 +2465,21 @@ async function _processOne(it, type, key, timeoutMs) {
         if (type === 'alb') {
           results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
         } else if (it._esFactura) {
-          // FASE 1: factura mensual de gasoil (Soledad) → lector específico
-          // que devuelve UN registro por cada repostaje de la factura.
-          results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          // J15: factura mensual de gasoil. Detectar proveedor por el texto del
+          // PDF y enrutar al lector correcto. Soledad (u otros/desconocido) usa
+          // el lector que ya existía. La detección se cachea en it._provGasoil.
+          if (it._provGasoil === undefined) {
+            const _txtProv = it.isPdf ? await _textoPdfGasoil(it.b64) : '';
+            it._provGasoil = _detectarProveedorGasoil(_txtProv);
+            console.log('[J15] Factura gasoil detectada como: ' + (it._provGasoil || 'desconocida (uso lector Soledad)'));
+          }
+          if (it._provGasoil === 'SOLRED') {
+            results = await callClaudeFacturaSolred(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          } else if (it._provGasoil === 'PETROMIRALLES') {
+            results = await callClaudeFacturaPetromiralles(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          } else {
+            results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          }
         } else {
           results = await callClaudeGas(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
         }
@@ -3688,6 +3700,28 @@ async function _processOne(it, type, key, timeoutMs) {
               console.warn('[Fase 2 anti-dup] repostaje ya existe (factura '
                 + _nf + ' / albarán ' + _nalb + ' / ' + _tp + ') → OMITIDO');
               continue; // saltar este repostaje, NO guardarlo
+            }
+          }
+        }
+        // J15: repostaje que viene de una FACTURA mensual multi-proveedor
+        // (SOLRED / Petromiralles). Anti-duplicados por nº factura + matrícula + tipo
+        // (un registro por camión y producto por factura).
+        if (data._origenFacturaMulti) {
+          if (data.num_factura) data.num_factura = String(data.num_factura);
+          _facturaTotal++;
+          const _nf = String(data.num_factura || '').trim().toLowerCase();
+          const _mat = String(data.tractora || '').trim().toUpperCase();
+          const _tp = String(data.tipo || '').trim().toLowerCase();
+          if (_nf && _mat) {
+            const _yaExiste = gasoilRecords.some(r =>
+              String(r.num_factura || '').trim().toLowerCase() === _nf &&
+              String(r.tractora || '').trim().toUpperCase() === _mat &&
+              String(r.tipo || '').trim().toLowerCase() === _tp
+            );
+            if (_yaExiste) {
+              _facturaDupOmitidos++;
+              console.warn('[J15 anti-dup] ya existe (factura ' + _nf + ' / ' + _mat + ' / ' + _tp + ') → OMITIDO');
+              continue;
             }
           }
         }
@@ -4967,6 +5001,125 @@ SOLO JSON válido, sin markdown.`;
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(text);
   return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+// ===================== J15: LECTOR MULTI-PROVEEDOR DE FACTURAS DE GASOIL =====================
+// Mapa CIF → empresa del grupo (igual que en el lector de km).
+const _CIF_EMP_GAS = {
+  'B90172735': 'TYP2014', 'B90286337': 'HISPALIS',
+  'B67316752': 'TRANSMARGAZ', 'B02657435': 'PORTES2014IMPORT'
+};
+// Extrae el texto de las primeras páginas de un PDF (base64) con pdf.js, para
+// detectar de qué proveedor es la factura ANTES de elegir el lector.
+async function _textoPdfGasoil(b64) {
+  try {
+    if (typeof pdfjsLib === 'undefined' || !b64) return '';
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    let txt = ''; const maxP = Math.min(pdf.numPages, 4);
+    for (let p = 1; p <= maxP; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      txt += ' ' + tc.items.map(i => i.str).join(' ');
+    }
+    return txt;
+  } catch (e) { console.warn('[J15] no pude leer texto del PDF para detectar proveedor:', e); return ''; }
+}
+// Detecta el proveedor por el texto. Orden pensado para que no se solapen.
+function _detectarProveedorGasoil(txt) {
+  const t = String(txt || '').toUpperCase();
+  if (/PETROMIRALLES/.test(t)) return 'PETROMIRALLES';
+  if (/SOLEDAD|GRUPOSOLEDAD/.test(t)) return 'SOLEDAD';
+  if (/SOLRED|RESUMEN TARJETAS|REPSOL/.test(t)) return 'SOLRED';
+  return null;
+}
+// Expande {camiones:[{matricula, litros_gasoil, litros_adblue, importe_gasoil, importe_adblue}], ...}
+// en un ARRAY de registros de gasoil (uno por matrícula y tipo), listo para el pipeline.
+function _expandirCamionesGasoil(obj, proveedor, origenDato) {
+  const out = [];
+  const empresa = obj.cif ? _CIF_EMP_GAS[String(obj.cif).toUpperCase().replace(/[\s.\-]/g, '')] : null;
+  const norm = (m) => String(m || '').toUpperCase().replace(/[\s\-]/g, '').trim();
+  const num = (n) => { const v = parseFloat(String(n == null ? '' : n).replace(/\./g, '').replace(',', '.')); return isNaN(v) ? 0 : v; };
+  (obj.camiones || []).forEach(c => {
+    const mat = norm(c.matricula);
+    if (!mat || !/^R?\d{4}[A-Z]{3}$/.test(mat)) return; // matrícula española válida
+    const base = { tractora: mat, fecha: obj.fecha || null, proveedor: proveedor,
+      num_factura: obj.num_factura ? String(obj.num_factura) : null,
+      empresa_ticket: empresa || null, empresa_subida: empresa || null,
+      origen_dato: origenDato, _origenFacturaMulti: true };
+    const lg = num(c.litros_gasoil), lad = num(c.litros_adblue);
+    if (lg > 0) out.push(Object.assign({}, base, { tipo: 'gasoil', litros: lg, importe: num(c.importe_gasoil) || null }));
+    if (lad > 0) out.push(Object.assign({}, base, { tipo: 'adblue', litros: lad, importe: num(c.importe_adblue) || null }));
+  });
+  return out;
+}
+// Lector de FACTURA SOLRED (Repsol). Lee la página "Resumen tarjetas", que trae
+// por cada tarjeta su MATRÍCULA y los LITROS (CANTIDAD) por producto.
+async function callClaudeFacturaSolred(b64, mediaType, key, isPdf, signal) {
+  const prompt = `Eres un OCR experto en FACTURAS MENSUALES SOLRED (Repsol) de gasoil/adblue para flotas de camiones en España.
+Busca la página titulada "Resumen tarjetas". Es una tabla con columnas: Nº TARJETA, MATRÍCULA, CONCEPTO (que alterna filas IMPORTE y CANTIDAD), ADBLUE, ADBLUE REPSOL (L), AUTOPISTAS, DIESEL E+ NEOTECH (L), DieselNexa Origen100%R(L).
+Para CADA tarjeta/matrícula necesito los LITROS (la fila CANTIDAD, NO la de IMPORTE) sumando productos del mismo grupo:
+- litros_gasoil = CANTIDAD de "DIESEL E+ NEOTECH (L)" + CANTIDAD de "DieselNexa Origen100%R(L)" (los dos son gasoil).
+- litros_adblue = CANTIDAD de "ADBLUE" + CANTIDAD de "ADBLUE REPSOL (L)".
+- importe_gasoil / importe_adblue = la fila IMPORTE correspondiente (suma igual).
+Ignora la columna AUTOPISTAS (peajes, no es combustible). Ignora la fila TOTAL del final.
+Devuelve SOLO un objeto JSON con esta forma exacta (sin markdown):
+{
+  "num_factura": "el Núm. Factura (ej A260553946)",
+  "fecha": "la fecha FIN del periodo en DD/MM/YYYY (de 'Fecha de operación ... AL dd/mm/aaaa')",
+  "cif": "el NIF/CIF del cliente, formato B+8 dígitos (ej B90286337)",
+  "camiones": [
+    { "matricula": "9566NBR", "litros_gasoil": 3347.06, "litros_adblue": 142.69, "importe_gasoil": 5630.89, "importe_adblue": 229.58 }
+  ]
+}
+La matrícula española es 4 dígitos + 3 letras; quita guiones/espacios (9566-NBR → 9566NBR). Usa punto decimal en el JSON. Si un camión no tiene gasoil o no tiene adblue, pon 0. NO te inventes matrículas. SOLO JSON.`;
+  const obj = await _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt);
+  return _expandirCamionesGasoil(obj, 'Solred', 'factura_solred');
+}
+// Lector de FACTURA PETROMIRALLES. El detalle por matrícula está en "DETALLE
+// SUMINISTROS": filas de repostaje (FECHA, ESTACIÓN, PROD GAS A/ADB, CANTIDAD)
+// agrupadas por matrícula (la matrícula aparece como subtotal de cada grupo).
+async function callClaudeFacturaPetromiralles(b64, mediaType, key, isPdf, signal) {
+  const prompt = `Eres un OCR experto en FACTURAS MENSUALES de PETROMIRALLES S.L. de gasoil/adblue para camiones en España.
+El detalle bueno está en las páginas "DETALLE SUMINISTROS". Ahí hay muchas filas de repostaje con columnas FECHA, HORA, ESTACIÓN SERVICIO, NÚMERO, PROD, CANTIDAD, PRECIO, ... IMPORTE.
+La columna PROD vale "GAS A" (gasoil) o "ADB" (adblue). La columna CANTIDAD son los LITROS.
+Las filas están AGRUPADAS POR MATRÍCULA: dentro de cada grupo, tras sus repostajes, aparece una línea con la MATRÍCULA (formato español 4 dígitos + 3 letras, ej 9295JJZ, 4576JLK, 6285LMG, 6521NHV, 0742KMB, 3628NMW) y un subtotal. Esa matrícula es la de TODOS los repostajes de ese grupo.
+Para CADA matrícula suma:
+- litros_gasoil = suma de CANTIDAD de las filas PROD "GAS A" de ese grupo.
+- litros_adblue = suma de CANTIDAD de las filas PROD "ADB" de ese grupo.
+- importe_gasoil / importe_adblue = suma de IMPORTE de esas filas.
+Devuelve SOLO un objeto JSON (sin markdown):
+{
+  "num_factura": "el nº de factura (campo SERIE - FACTURA, ej 6-15980)",
+  "fecha": "la FECHA de la factura en DD/MM/YYYY (ej 31/05/2026)",
+  "cif": "el CIF/NIF del cliente, formato B+8 dígitos (ej B90286337)",
+  "camiones": [
+    { "matricula": "9295JJZ", "litros_gasoil": 561.63, "litros_adblue": 0, "importe_gasoil": 809.31, "importe_adblue": 0 }
+  ]
+}
+Recorre TODAS las páginas de detalle. Quita guiones/espacios de la matrícula. Usa punto decimal. Si un grupo no tiene gasoil o adblue, pon 0. NO te inventes matrículas ni cantidades. SOLO JSON.`;
+  const obj = await _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt);
+  return _expandirCamionesGasoil(obj, 'Petromiralles', 'factura_petromiralles');
+}
+// Llamada común a la IA para los lectores de factura multi-proveedor. Devuelve el objeto JSON.
+async function _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt) {
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const err = new Error(e.error?.message || `HTTP ${res.status}`); err.status = res.status; throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  return JSON.parse(text);
 }
 
 // FASE 1: lector de FACTURAS MENSUALES de gasoil de Neumáticos Soledad
@@ -6747,10 +6900,18 @@ async function gasRenderConsumo() {
       : '<span style="color:var(--wn)">⚠️ sin km</span>';
     let consumoTxt;
     if (f.consumo != null) {
-      let col = 'var(--ok)';
-      if (f.consumo > 45) col = 'var(--er)';
-      else if (f.consumo > 35) col = 'var(--wn)';
-      consumoTxt = '<strong style="color:' + col + '">' + fmtN(f.consumo, 1) + '</strong>';
+      // J15: semáforo con iconos. Rojo/llama >40 (excesivo), ámbar 35-40 (vigilar),
+      // verde/hoja <35 (buen consumo).
+      let col, icono;
+      if (f.consumo > 40) { col = 'var(--er)'; icono = '🔥 '; }
+      else if (f.consumo >= 35) { col = 'var(--wn)'; icono = '⚠️ '; }
+      else { col = 'var(--ok)'; icono = '🌿 '; }
+      consumoTxt = '<strong style="color:' + col + '">' + icono + fmtN(f.consumo, 1) + '</strong>';
+    } else if (f.km != null && f.litros == null) {
+      // J15: tiene km (el tacógrafo registró movimiento) pero NO hay gasoil
+      // registrado en el periodo → aviso rojo tipo "prohibido" para revisar si
+      // el vehículo no circula o si falta subir su factura de gasoil.
+      consumoTxt = '<span title="Tiene km del tacógrafo pero NO hay gasoil registrado en este periodo. Revisa si el vehículo no está circulando/trabajando o si falta subir su factura de gasoil." style="color:var(--er);font-weight:800;font-family:var(--mn)">⛔ REVISAR</span>';
     } else {
       consumoTxt = '<span style="color:var(--wn)">⚠️</span>';
     }
