@@ -41,6 +41,7 @@
 <!-- v107J15 (finde): LECTOR MULTI-PROVEEDOR de facturas de gasoil + aviso de vehículo sin consumo. (1) Al subir una FACTURA de gasoil, la app extrae el texto del PDF con pdf.js, DETECTA el proveedor (SOLRED / PETROMIRALLES / SOLEDAD) y usa el lector correcto. SOLRED: página "Resumen tarjetas" (matrícula + litros por camión). PETROMIRALLES: "DETALLE SUMINISTROS" agrupando por matrícula. SOLEDAD: lector que ya existía, intacto. Anti-duplicados por nº factura + matrícula + tipo. Matrícula sin guión. Empresa por CIF. (2) En CONSUMO, camiones con km pero SIN gasoil muestran "⛔ REVISAR". PROBAR: subir una factura SOLRED, una Petromiralles y una Soledad por SUBIR FACTURA. SQL aparte para 2 tarjetas nuevas + borrar las 4 líneas-total mal metidas. -->
 <!-- v107J16 (finde): ARREGLO litros disparatados en lectores SOLRED/Petromiralles. La función num() de _expandirCamionesGasoil quitaba el PUNTO decimal creyendo que era separador de miles, así 1012.33 (que la IA devuelve con punto decimal JSON) se convertía en 101233. Ahora num() respeta el decimal: si es número JS lo usa tal cual; si es texto con coma lo trata como formato español (1.012,33); si solo tiene punto, decimal JSON. Probado con 472.40/1012.33/3022.64 y con textos españoles. Soledad NO se ve afectado (usa otra ruta). Tras desplegar: ejecutar SQL J16 para borrar las líneas SOLRED erróneas ya guardadas y volver a subir la factura SOLRED limpia. -->
 <!-- v107J17 (finde): Columna ADBLUE (L) en la pantalla de CONSUMO. Suma los litros de adblue por camión en el periodo (mismo filtro Fecha desde/hasta que el gasoil), en una columna nueva entre "Litros gasoil" y "Km recorridos". Si no hay adblue en el periodo, muestra "—". No afecta al cálculo de consumo (sigue siendo gasoil/km). Cabecera de tabla ampliada a 6 columnas (colspan corregido). -->
+<!-- v107J18 (finde): Reorganización de la pestaña GASOIL + Excel de consumo. (1) SUBIR FACTURA y SUBIR KM (TACÓGRAFO) movidos ARRIBA, al nivel de las pestañas de empresa: son globales y van solos a la empresa correcta por el CIF/matrículas, da igual la subpestaña activa. (2) Quitado SUBIR TICKET (no se usa en TYP2014/Hispalis); el lector de tickets sigue en el código por si se reactiva. (3) Dentro de cada empresa quedan solo las consultas: Excel detalle, Consumo y el nuevo botón EXCEL CONSUMO. (4) exportConsumoExcel() descarga la tabla de consumo (matrícula, periodo, gasoil, adblue, km, L/100km) en negrita y tamaño grande (motor xlsx-js-style), respetando empresa y filtro de fechas. NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -306,39 +307,28 @@ if (typeof pdfjsLib !== 'undefined') {
 
       <!-- v107Y: Subpestañas por empresa (filtrado por matrícula). Misma lógica de privacidad
            que Vacaciones: admin/Maria ven TYP2014+HISPALIS, Transmargaz solo la suya. -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="gasSubtabs">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center" id="gasSubtabs">
         <button class="btn bp" id="gasSubTYP2014" onclick="switchGasEmpresa('TYP2014')" style="font-size:11px">🏢 TYP2014</button>
         <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:11px">🚚 T. HISPALIS 2016</button>
         <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:11px">🚛 TRANSMARGAZ 2018</button>
+        <!-- J18: SUBIR FACTURA y SUBIR KM globales. Da igual la empresa de la subpestaña:
+             la factura/Excel llevan el CIF (y matrículas) y la app los manda solos a la
+             empresa correcta. Por eso van aquí arriba, fuera de cada empresa. -->
+        <span style="margin-left:auto"></span>
+        <button class="btn bp" onclick="document.getElementById('gasFacUploadInline').click()" style="font-size:11px" title="La factura va sola a su empresa por el CIF (SOLRED / Petromiralles / Soledad)">📄 Subir factura</button>
+        <input type="file" id="gasFacUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gasfac'); this.value='';">
+        <button class="btn bp" onclick="document.getElementById('gasKmUploadInline').click()" style="font-size:11px" title="El Excel de km va solo a su empresa por el CIF">📊 Subir km (tacógrafo)</button>
+        <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
       </div>
 
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts">
-            <!-- v107AO: botón Subir ticket aquí mismo, para no tener que ir
-                 arriba al botón Subir general en cada empresa. El ticket se
-                 marca con la empresa de la subpestaña activa (gasEmpresaActiva). -->
-            <button class="btn bp" onclick="document.getElementById('gasUploadInline').click()">📤 Subir ticket</button>
-            <input type="file" id="gasUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gas'); this.value='';">
-            <!-- FASE 1: botón SEPARADO para facturas mensuales de gasoil
-                 (Neumáticos Soledad). Distinto del ticket suelto: una factura
-                 trae MUCHOS repostajes dentro. Usa tipo 'gasfac'. -->
-            <button class="btn bp" onclick="document.getElementById('gasFacUploadInline').click()">📄 Subir factura</button>
-            <input type="file" id="gasFacUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gasfac'); this.value='';">
-            <!-- FASE 4a: subir el Excel de km del tacógrafo (formato "Gasóleo
-                 Profesional"). Lectura directa por código (no IA): formato
-                 fijo con Matrícula/Cuentakilómetros/periodo. Para calcular
-                 consumo L/100km cruzando con los litros de las facturas. -->
-            <button class="btn bp" onclick="document.getElementById('gasKmUploadInline').click()">📊 Subir km (tacógrafo)</button>
-            <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
+            <!-- J18: Subir ticket/factura/km se han movido ARRIBA (factura y km, por CIF)
+                 o quitado (ticket: no se usa en TYP2014/Hispalis). Aquí dentro de cada
+                 empresa solo quedan las consultas: Excel detalle, Consumo y Excel consumo. -->
             <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel detalle</button>
-            <!-- FASE 4b (v107BK): pantalla de RESUMEN DE CONSUMO. Cruza los
-                 litros de gasoil (facturas, tabla gasoil) con los km
-                 recorridos (tabla km_periodos) → L/100km por camion y
-                 periodo. El periodo lo manda el Excel de km que se suba
-                 (mensual, trimestral o anual). Respeta la empresa de la
-                 subpestaña activa (misma privacidad que el resto). -->
             <button class="btn bp" id="gasBtnConsumo" onclick="gasToggleConsumo()">📈 Consumo</button>
           </div>
         </div>
@@ -376,6 +366,7 @@ if (typeof pdfjsLib !== 'undefined') {
               <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="gasConDesde" oninput="gasRenderConsumo()"></div>
               <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="gasConHasta" oninput="gasRenderConsumo()"></div>
               <button class="btn bs" onclick="gasConsumoLimpiar()" style="font-size:11px">✕ Limpiar fechas</button>
+              <button class="btn bp" onclick="exportConsumoExcel()" style="font-size:11px">📥 Excel consumo</button>
             </div>
             <div class="tbl-wrap">
               <table>

@@ -6913,6 +6913,12 @@ async function gasRenderConsumo() {
 
   // 5) Ordenar por matricula (y dentro, por fecha de inicio)
   filas.sort((a, b) => (a.orden < b.orden ? -1 : a.orden > b.orden ? 1 : 0));
+  // J18: guardar la tabla calculada (con su empresa y periodo) para el Excel de consumo.
+  window._consumoUltimo = {
+    filas: filas, empresa: emp,
+    desde: (document.getElementById('gasConDesde') || {}).value || '',
+    hasta: (document.getElementById('gasConHasta') || {}).value || ''
+  };
 
   // 6) Pintar
   if (!filas.length) {
@@ -6974,6 +6980,45 @@ function gasConsumoLimpiar() {
   if (d) d.value = '';
   if (h) h.value = '';
   gasRenderConsumo();
+}
+
+// J18: descargar la tabla de CONSUMO en Excel (negrita y grande, como los demás).
+// Usa lo último calculado por gasRenderConsumo (respeta empresa y filtro de fechas).
+function exportConsumoExcel() {
+  const u = window._consumoUltimo;
+  if (!u || !u.filas || !u.filas.length) {
+    toast('Abre CONSUMO (y pon un periodo si quieres) antes de descargar', 'err');
+    return;
+  }
+  const rows = [['Matrícula', 'Periodo', 'Litros gasoil', 'AdBlue (L)', 'Km recorridos', 'L/100km']];
+  u.filas.forEach(f => {
+    rows.push([
+      f.mat || '',
+      f.periodo || '',
+      f.litros != null ? Math.round(f.litros) : '',
+      f.adblue != null ? Math.round(f.adblue) : '',
+      f.km != null ? f.km : '',
+      f.consumo != null ? Number(f.consumo.toFixed(1)) : ''
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+      if (!ws[addr].s) ws[addr].s = {};
+      ws[addr].s.alignment = { horizontal: 'center', vertical: 'center' };
+      ws[addr].s.font = { bold: true, sz: 13 };
+      if (R === 0) ws[addr].s.font = { bold: true, sz: 14 };
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consumo');
+  const hoy = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `consumo_${u.empresa || 'empresa'}_${hoy}.xlsx`);
+  toast('✓ Excel de consumo descargado');
 }
 
 
