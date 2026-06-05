@@ -7774,8 +7774,11 @@ function buildExcel(data) {
       if (R > 0 && (C === 3 || C === 4)) {
         ws[addr].z = '#,##0.00 €';
       }
-      if (R === 0) ws[addr].s.font = { bold: true };
-      if (R === range.e.r) ws[addr].s.font = { bold: true };
+      // v107J14: TODAS las celdas en NEGRITA y un punto más grandes (tamaño 13, por
+      // defecto Excel usa 11) para que Juan Carlos las lea mejor sin gafas. La cabecera
+      // (fila 0) y la fila TOTAL (última) un poco más grandes aún (14).
+      ws[addr].s.font = { bold: true, sz: 13 };
+      if (R === 0 || R === range.e.r) ws[addr].s.font = { bold: true, sz: 14 };
     }
   }
   const wb = XLSX.utils.book_new();
