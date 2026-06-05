@@ -29,6 +29,7 @@
 <!-- v107J3 (05/06/2026): PROMSA — dos arreglos pedidos por Juan Carlos. (1) ORIGEN GARRAF: la relectura con Sonnet (reintentaPromsaConSonnet, la que MANDA) devolvía "Cantera de Garraf", pero JC quiere "PROMSA GARRAF" (como en el albarán) para todos. Había conflicto: el prompt principal decía "Garraf/Promsa" y la relectura Sonnet decía "Cantera de Garraf" — la Sonnet ganaba. Cambiada la regla Sonnet (Garraf → "PROMSA GARRAF") y su ejemplo. (2) PROVEEDOR: a veces quedaba "Molins/Promsa" (con barra) sin canonizar; añadidos esos alias exactos a "Promotora Mediterránea-2, S.A.U." para que se canonice solo. NO requiere SQL (los albaranes ya guardados con "Cantera de Garraf"/"Molins/Promsa" se pueden recanonizar con Re-corregir o editar; los nuevos ya salen bien). -->
 <!-- v107J4 (05/06/2026): PROMSA GARRAF — arreglo DEFINITIVO del origen. El v107J3 solo cambió la relectura Sonnet, pero al subir un PDF nuevo manda el PROMPT PRINCIPAL (Haiku, _processOne), que seguía diciendo "Garraf/Promsa". Por eso seguía saliendo "Garraf/Promsa". Ahora el prompt principal TAMBIÉN dice Garraf → "PROMSA GARRAF" (coherente con la relectura Sonnet del J3). Verificado que "PROMSA GARRAF" NO es alias de ningún canon de origen, así que no se reconvierte. La excepción de RECEPCIÓN Holcim ("Caliza Promsa" → "Garraf/Promsa") se mantiene intacta (son albaranes distintos, de recepción, no de venta). El proveedor "Molins/Promsa" se canoniza a "Promotora Mediterránea-2, S.A.U." (alias añadidos en J3). NO requiere SQL. -->
 <!-- v107J5 (05/06/2026): PROMSA GARRAF — CAUSA RAÍZ ENCONTRADA por consola. La IA leía BIEN "PROMSA GARRAF", pero la canonización de origen (fixOrigen / makeCanonMatcher) lo convertía a "Garraf/Promsa". Motivo exacto (verificado con test): al normalizar (quitar espacios/símbolos), "PROMSA GARRAF" y el alias "Promsa/Garraf" (de "Garraf/Promsa") dan la MISMA clave "PROMSAGARRAF", así que el match exacto lo mandaba a "Garraf/Promsa". SOLUCIÓN: añadido "PROMSA GARRAF" como canon propio de origen, DESPUÉS de "Garraf/Promsa" (en el Map gana el último que registra esa clave), así ahora "PROMSAGARRAF" devuelve "PROMSA GARRAF" tal cual. La consola mostraba "[match exacto] PROMSA GARRAF → Garraf/Promsa" — eso ya no pasará. NO requiere SQL (los nuevos salen bien; los viejos se recanonizan con Re-corregir). -->
+<!-- v107J6 (05/06/2026): PROMSA GARRAF — ARREGLO DEFINITIVO lista=modal. El J5 arregló la canonización AUTOMÁTICA (lista), pero el MODAL seguía mostrando mal el origen. Causa raíz encontrada: el modal usa OTRA función (matchExacto) distinta de la automática (makeCanonMatcher). matchExacto recorre la lista y gana el PRIMER match; makeCanonMatcher usa un Map y gana el ÚLTIMO. El alias 'Promsa/Garraf' (de 'Garraf/Promsa', recepción) normaliza IGUAL ("PROMSAGARRAF") que el canon de VENTA 'PROMSA GARRAF', así que matchExacto devolvía 'Garraf/Promsa' en el modal mientras la lista mostraba bien 'PROMSA GARRAF'. SOLUCIÓN: quitado el alias 'Promsa/Garraf' (no se usaba en ningún sitio; la recepción Caliza Promsa se infiere por MATERIAL, no por ese alias). Ahora "PROMSAGARRAF" solo puede ser 'PROMSA GARRAF' en AMBAS funciones → lista y modal coinciden. Verificado con test: PROMSA GARRAF→PROMSA GARRAF (las dos), Garraf/Promsa→Garraf/Promsa (las dos, recepción intacta). NO requiere SQL para los nuevos. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12542,14 +12543,18 @@ const ORIGENES_CANONICOS = [
   { canon: 'Olesa de Bonesvalls', alias: ['Olesa', 'Promsa Olesa'] },
   { canon: 'Sant Vicenç dels Horts', alias: ['Sant Vicenç', 'Sant Vicens'] },
   // Origenes en formato "Cantera/Proveedor" para albaranes de RECEPCIÓN (Holcim recibe de proveedor)
-  { canon: 'Garraf/Promsa', alias: ['Promsa/Garraf'] },
-  // v107J5 (05/06/2026): "PROMSA GARRAF" es su PROPIO origen oficial (albaranes de
-  // VENTA de Promsa que cargan en Garraf). Va DESPUÉS de "Garraf/Promsa" porque en el
-  // exactMap (un Map) GANA EL ÚLTIMO que se registra con la misma clave normalizada
-  // ("PROMSAGARRAF" = "GARRAFPROMSA"... en realidad distintas, pero "Promsa/Garraf"
-  // normaliza a "PROMSAGARRAF", igual que "PROMSA GARRAF"). Al ir después, su match
-  // exacto devuelve "PROMSA GARRAF" tal cual y NO se reconvierte a "Garraf/Promsa".
-  // Este era el bug: la IA leía bien "PROMSA GARRAF" pero la canonización lo cambiaba.
+  // v107J6 (05/06/2026): QUITADO el alias 'Promsa/Garraf' de aqui. Causa raiz del bug que
+  // hacia que en el MODAL saliera mal el origen mientras en la LISTA salia bien: el alias
+  // 'Promsa/Garraf' normaliza ("PROMSAGARRAF") IGUAL que el canon de VENTA 'PROMSA GARRAF'.
+  // La funcion automatica (makeCanonMatcher, un Map, gana el ultimo) devolvia 'PROMSA GARRAF'
+  // (lista OK), pero la funcion del modal/edicion manual (matchExacto, recorre el array y
+  // gana el PRIMERO) devolvia el canon de este alias ('Garraf/Promsa') -> modal MAL.
+  // Quitando el alias, "PROMSAGARRAF" solo puede ser 'PROMSA GARRAF' en AMBAS funciones, asi
+  // lista y modal coinciden. La RECEPCION "Caliza Promsa" sigue dando 'Garraf/Promsa' porque
+  // se infiere por el MATERIAL (regla MATERIAL_A_ORIGEN), no por este alias. NO requiere SQL
+  // para los nuevos; los albaranes viejos guardados como 'Cantera de Garraf'/'Garraf/Promsa'
+  // de venta se corrigen a mano o con un UPDATE puntual si Juan Carlos lo pide.
+  { canon: 'Garraf/Promsa', alias: [] },
   { canon: 'PROMSA GARRAF', alias: [] },
   { canon: 'Foj/Vallirana', alias: [] },
   { canon: 'Cemex/Begues', alias: [] },
