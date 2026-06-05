@@ -30,6 +30,7 @@
 <!-- v107J4 (05/06/2026): PROMSA GARRAF — arreglo DEFINITIVO del origen. El v107J3 solo cambió la relectura Sonnet, pero al subir un PDF nuevo manda el PROMPT PRINCIPAL (Haiku, _processOne), que seguía diciendo "Garraf/Promsa". Por eso seguía saliendo "Garraf/Promsa". Ahora el prompt principal TAMBIÉN dice Garraf → "PROMSA GARRAF" (coherente con la relectura Sonnet del J3). Verificado que "PROMSA GARRAF" NO es alias de ningún canon de origen, así que no se reconvierte. La excepción de RECEPCIÓN Holcim ("Caliza Promsa" → "Garraf/Promsa") se mantiene intacta (son albaranes distintos, de recepción, no de venta). El proveedor "Molins/Promsa" se canoniza a "Promotora Mediterránea-2, S.A.U." (alias añadidos en J3). NO requiere SQL. -->
 <!-- v107J5 (05/06/2026): PROMSA GARRAF — CAUSA RAÍZ ENCONTRADA por consola. La IA leía BIEN "PROMSA GARRAF", pero la canonización de origen (fixOrigen / makeCanonMatcher) lo convertía a "Garraf/Promsa". Motivo exacto (verificado con test): al normalizar (quitar espacios/símbolos), "PROMSA GARRAF" y el alias "Promsa/Garraf" (de "Garraf/Promsa") dan la MISMA clave "PROMSAGARRAF", así que el match exacto lo mandaba a "Garraf/Promsa". SOLUCIÓN: añadido "PROMSA GARRAF" como canon propio de origen, DESPUÉS de "Garraf/Promsa" (en el Map gana el último que registra esa clave), así ahora "PROMSAGARRAF" devuelve "PROMSA GARRAF" tal cual. La consola mostraba "[match exacto] PROMSA GARRAF → Garraf/Promsa" — eso ya no pasará. NO requiere SQL (los nuevos salen bien; los viejos se recanonizan con Re-corregir). -->
 <!-- v107J6 (05/06/2026): PROMSA GARRAF — ARREGLO DEFINITIVO lista=modal. El J5 arregló la canonización AUTOMÁTICA (lista), pero el MODAL seguía mostrando mal el origen. Causa raíz encontrada: el modal usa OTRA función (matchExacto) distinta de la automática (makeCanonMatcher). matchExacto recorre la lista y gana el PRIMER match; makeCanonMatcher usa un Map y gana el ÚLTIMO. El alias 'Promsa/Garraf' (de 'Garraf/Promsa', recepción) normaliza IGUAL ("PROMSAGARRAF") que el canon de VENTA 'PROMSA GARRAF', así que matchExacto devolvía 'Garraf/Promsa' en el modal mientras la lista mostraba bien 'PROMSA GARRAF'. SOLUCIÓN: quitado el alias 'Promsa/Garraf' (no se usaba en ningún sitio; la recepción Caliza Promsa se infiere por MATERIAL, no por ese alias). Ahora "PROMSAGARRAF" solo puede ser 'PROMSA GARRAF' en AMBAS funciones → lista y modal coinciden. Verificado con test: PROMSA GARRAF→PROMSA GARRAF (las dos), Garraf/Promsa→Garraf/Promsa (las dos, recepción intacta). NO requiere SQL para los nuevos. -->
+<!-- v107J7 (05/06/2026): PROMSA GARRAF — EL ARREGLO BUENO del modal. El J6 quito el alias 'Promsa/Garraf' (con BARRA) pero el modal SEGUIA mostrando "Cantera de Garraf". Causa raiz REAL encontrada: el canon 'Cantera de Garraf' tenia OTRO alias 'Promsa Garraf' (con ESPACIO) que tambien normaliza a "PROMSAGARRAF", y como 'Cantera de Garraf' va ANTES en la lista, matchExacto (modal, gana el primero) devolvia 'Cantera de Garraf'. QUITADO ese alias. Verificado con test: matchExacto("PROMSA GARRAF")="PROMSA GARRAF" (antes "Cantera de Garraf"); "Cantera de Garraf" y "Garraf/Promsa" siguen OK. Ahora lista Y modal muestran "PROMSA GARRAF". NO requiere SQL para los nuevos. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12402,7 +12403,16 @@ const ORIGENES_CANONICOS = [
   // (variantes que aparecían en albaranes históricos antes de canonizar)
   { canon: 'Cantera de Garraf', alias: [
     'Cantera Garraf', 'Puesto exp. Cantera de Garraf', 'Puesto de Garraf',
-    'Promsa Garraf', 'Garraf', 'Garraf Arid', 'GARRAF ARID',
+    // v107J7 (05/06/2026): QUITADO el alias 'Promsa Garraf' (con espacio) de aqui. ERA EL
+    // VERDADERO culpable de que el MODAL mostrara "Cantera de Garraf" cuando lo guardado era
+    // "PROMSA GARRAF". 'Promsa Garraf' normaliza a "PROMSAGARRAF", igual que el canon de VENTA
+    // 'PROMSA GARRAF', y como 'Cantera de Garraf' va ANTES en la lista, la funcion del modal
+    // (matchExacto, gana el PRIMERO) devolvia 'Cantera de Garraf'. (El J6 quito otro alias
+    // parecido con barra 'Promsa/Garraf', pero el de espacio seguia ganando por ir antes.)
+    // Quitado: ahora "PROMSAGARRAF" solo puede ser 'PROMSA GARRAF' en lista Y modal. Los
+    // demas alias de Garraf ('Garraf', 'Garraf Arid', 'GARRAF ARID') se quedan para Sodira/
+    // Holcim que SI cargan en "Cantera de Garraf" (claves distintas, no colisionan).
+    'Garraf', 'Garraf Arid', 'GARRAF ARID',
     'GARRAF ASLAND', 'Garraf Asland', 'Cantera Asland', 'CANTERA ASLAND',
     'PUESTO EXP. GARRAF', 'Puesto Exp. Garraf', 'Puesto Exp Garraf',
     'PUESTO EXP GARRAF', 'Puesto expedición Garraf', 'Puesto Expedición Garraf'
