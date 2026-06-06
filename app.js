@@ -15407,6 +15407,18 @@ function _factMesBonito(m) {
   return (nom[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
 }
 
+// J31: ¿ya hay una autofactura subida con ESTE nombre de fichero y proveedor?
+// Devuelve cuántas líneas tiene (0 = no está). Rápido: solo cuenta, no trae filas.
+async function _factYaSubida(fichero, proveedor) {
+  try {
+    const r = await sb.from('autofacturas_lineas')
+      .select('fichero', { count: 'exact', head: true })
+      .eq('fichero', fichero).eq('proveedor', proveedor);
+    if (r.error) { console.warn('[J31] comprobar duplicado:', r.error); return 0; }
+    return r.count || 0;
+  } catch (e) { console.warn('[J31] comprobar duplicado (exc):', e); return 0; }
+}
+
 // J30: sube el PDF original de la autofactura al almacén "documentos" y devuelve su enlace
 // público (para poder abrirlo luego desde la lista). Si falla, devuelve null y no rompe nada.
 async function _factSubirPdf(file, proveedor, mes) {
@@ -15707,6 +15719,18 @@ async function factSubirAutofactura(files) {
 
   const estado = document.getElementById('factAutoEstado');
   const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
+
+  // J31: si esta autofactura YA está subida (mismo nombre de fichero), no la leas otra vez
+  // (ahorra tiempo e IA). Pregunta por si la quieres re-subir a propósito.
+  const _fich = (file && file.name) || '';
+  if (_fich) {
+    const ya = await _factYaSubida(_fich, 'CEMEX');
+    if (ya > 0 && !confirm('Esta autofactura ya la tienes subida:\n"' + _fich + '" (' + ya + ' líneas).\n\n¿Volver a leerla de todas formas?')) {
+      setEstado('✅ No la he vuelto a leer: ya estaba subida (' + ya + ' líneas). Pulsa 📅 para revisar el mes.');
+      return;
+    }
+  }
+
   setEstado('⏳ Leyendo la autofactura CEMEX… (puede tardar un poco si tiene muchas páginas)');
 
   // J26: leer el PDF. Si es largo, _leerAutofacturaGrande lo parte en trozos para
@@ -16170,6 +16194,17 @@ async function factSubirAutofacturaHolcim(files) {
 
   const estado = document.getElementById('factHolcimEstado');
   const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
+
+  // J31: si esta liquidación YA está subida (mismo nombre), no la leas otra vez.
+  const _fich = (file && file.name) || '';
+  if (_fich) {
+    const ya = await _factYaSubida(_fich, 'HOLCIM');
+    if (ya > 0 && !confirm('Esta liquidación de Holcim ya la tienes subida:\n"' + _fich + '" (' + ya + ' líneas).\n\n¿Volver a leerla de todas formas?')) {
+      setEstado('✅ No la he vuelto a leer: ya estaba subida (' + ya + ' líneas). Pulsa 📅 para revisar el mes.');
+      return;
+    }
+  }
+
   setEstado('⏳ Leyendo la autofactura de Holcim… (puede tardar si tiene muchas páginas)');
 
   let lineas;
