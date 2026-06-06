@@ -15340,32 +15340,62 @@ function _uint8ToBase64(u8) {
 async function _leerAutofacturaGrande(file, key, lector, setEstado) {
   const PAG = 8;            // páginas por trozo (cabe de sobra en un solo tiro)
   const UMBRAL = 10;        // a partir de aquí, partir
+  window._factPartesFallidas = [];
+  // 1) Intentar abrir el PDF para partirlo.
+  let src = null, total = 0;
   try {
     if (window.PDFLib && file) {
       const buf = await file.arrayBuffer();
-      const src = await window.PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
-      const total = src.getPageCount();
-      if (total > UMBRAL) {
-        const nTrozos = Math.ceil(total / PAG);
-        let todas = [];
-        for (let i = 0, parte = 1; i < total; i += PAG, parte++) {
-          if (setEstado) setEstado('⏳ Leyendo parte ' + parte + ' de ' + nTrozos + ' (PDF de ' + total + ' páginas)…');
-          const out = await window.PDFLib.PDFDocument.create();
-          const idx = [];
-          for (let p = i; p < Math.min(i + PAG, total); p++) idx.push(p);
-          const pgs = await out.copyPages(src, idx);
-          pgs.forEach(pg => out.addPage(pg));
-          const bytes = await out.save();
-          const ls = await lector(_uint8ToBase64(bytes), key);
-          todas = todas.concat(ls || []);
-        }
-        return todas;
-      }
+      src = await window.PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+      total = src.getPageCount();
     }
   } catch (e) {
-    console.warn('[J26] no pude partir el PDF, lo leo entero:', e);
+    console.warn('[J34] no pude abrir el PDF para partirlo, lo leo entero:', e);
+    src = null;
   }
-  // PDF pequeño (o pdf-lib no disponible) → leer entero, como siempre.
+  // 2) Si es largo, leer POR TROZOS. Cada trozo es independiente: si uno falla,
+  //    se reintenta y, si aun así no se puede, se SIGUE con los demás (no se pierde el resto).
+  if (src && total > UMBRAL) {
+    const nTrozos = Math.ceil(total / PAG);
+    let todas = [];
+    const fallidos = [];
+    for (let i = 0, parte = 1; i < total; i += PAG, parte++) {
+      if (setEstado) setEstado('⏳ Leyendo parte ' + parte + ' de ' + nTrozos + ' (PDF de ' + total + ' páginas)…');
+      // 2a) preparar el trozo (PDF de pocas páginas)
+      let b64trozo = null;
+      try {
+        const out = await window.PDFLib.PDFDocument.create();
+        const idx = [];
+        for (let p = i; p < Math.min(i + PAG, total); p++) idx.push(p);
+        const pgs = await out.copyPages(src, idx);
+        pgs.forEach(pg => out.addPage(pg));
+        const bytes = await out.save();
+        b64trozo = _uint8ToBase64(bytes);
+      } catch (e) {
+        console.warn('[J34] no pude preparar la parte ' + parte + ':', e);
+        fallidos.push(parte);
+        continue;
+      }
+      // 2b) leer el trozo con hasta 3 intentos; si todos fallan, anotar y seguir.
+      let leido = null;
+      for (let intento = 1; intento <= 3 && leido === null; intento++) {
+        try {
+          leido = await lector(b64trozo, key);
+        } catch (e) {
+          console.warn('[J34] fallo leyendo la parte ' + parte + ' (intento ' + intento + '):', e);
+          if (intento < 3) {
+            if (setEstado) setEstado('⏳ Reintentando parte ' + parte + ' de ' + nTrozos + '… (intento ' + (intento + 1) + ')');
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+      }
+      if (leido === null) fallidos.push(parte);
+      else todas = todas.concat(leido);
+    }
+    window._factPartesFallidas = fallidos;
+    return todas;
+  }
+  // 3) PDF pequeño (o pdf-lib no disponible) → leer entero, como siempre.
   const b64 = await new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(((r.result || '') + '').split(',')[1] || '');
@@ -15757,6 +15787,10 @@ async function factSubirAutofactura(files) {
   if (!lineas || !lineas.length) {
     setEstado('⚠️ No he encontrado líneas de porte en este PDF. ¿Seguro que es una preliquidación CEMEX?');
     return;
+  }
+  // J34: si alguna parte del PDF no se pudo leer (tras reintentos), avisar para re-subir.
+  if (window._factPartesFallidas && window._factPartesFallidas.length) {
+    toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de este PDF. Vuelve a subirlo para completarlo.', 'err');
   }
   // J25: si la autofactura era tan larga que la lectura se cortó, avisar (se guarda lo leído).
   if (window._factAutoCortada) {
@@ -16229,6 +16263,10 @@ async function factSubirAutofacturaHolcim(files) {
   if (!lineas || !lineas.length) {
     setEstado('⚠️ No he encontrado líneas de porte. ¿Seguro que es una liquidación de Holcim?');
     return;
+  }
+  // J34: avisar si alguna parte del PDF no se pudo leer (tras reintentos).
+  if (window._factPartesFallidas && window._factPartesFallidas.length) {
+    toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de esta liquidación. Vuelve a subirla para completarla.', 'err');
   }
 
   // J27: guardar PERMANENTE por mes (proveedor HOLCIM) y conciliar el mes entero.
