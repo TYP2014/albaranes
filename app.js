@@ -15311,6 +15311,12 @@ let _factAutoUltimo = null;
 // Se vacía al refrescar la página (para empezar un mes nuevo, refresca y vuelve a subir).
 let _factAutoLineasAcum = [];   // portes acumulados
 let _factAutoFicheros = [];     // nombres de los PDF subidos esta sesión
+let _factAutoAjustesAcum = [];  // J23: ajustes acumulados (sábados, repercusión gasoil…)
+
+// J23: clave para no duplicar ajustes (misma matrícula + scd + importe).
+function _factAjusteKey(L) {
+  return _factNormMat(L && L.matricula) + '|' + String((L && L.scd) || '') + '|' + (L ? _factNum(L.importe) : '');
+}
 
 // J21: ¿son el MISMO destino aunque esté escrito distinto? CEMEX escribe la planta
 // (ej "HORMIGON SANT JUST", "HORMIGON MONTCADA") y nosotros el pueblo ("Sant Just
@@ -15334,7 +15340,7 @@ function _factDestinoIgual(a, b) {
 // --- Lector IA de la autofactura CEMEX (PDF multipágina) ---
 async function callClaudeAutofacturaCemex(b64, key, signal) {
   const prompt = 'Eres un OCR experto en "Reporte de Preliquidación" de CEMEX ESPAÑA OPERACIONES para transportistas en España. Es un PDF de varias páginas. CEMEX paga al transportista por cada porte.\n\n'
-    + 'Devuelve SIEMPRE un ARRAY JSON, un objeto por CADA línea de porte con número de albarán.\n\n'
+    + 'Devuelve SIEMPRE un ARRAY JSON. Incluye DOS tipos de objeto: (A) PORTES = líneas con Número Albarán (los viajes normales). (B) AJUSTES = líneas SIN número de albarán o con Cantidad 0 pero CON un importe (columna "Ajustes" o "Importe Total"): son cobros extra a favor del transportista (mínimos de facturación por día, repercusión del gasoil, trabajo en sábados/festivos, peajes…). Marca cada AJUSTE con "es_ajuste": true; los PORTES con "es_ajuste": false.\n\n'
     + 'Cada línea tiene estas columnas en este orden: Matrícula | Planta(origen) | Fecha Albarán | Número Albarán | Obra(destino) | Grupo Porte | Cantidad(TN) | Unidad | Importe Total | Moneda | Importe Base | ... | SCD.\n\n'
     + 'De cada línea saca:\n'
     + '- numero_albaran: el "Número Albarán", que empieza por M y tiene muchos dígitos (ej "M4690000242019" áridos, "M8480000008858" cemento). SIN espacios. Es el dato MÁS importante.\n'
@@ -15343,13 +15349,16 @@ async function callClaudeAutofacturaCemex(b64, key, signal) {
     + '- origen: el texto de "Planta" (ej "CANTERA BEGUES", "ES - Silo Portcement Alcanar").\n'
     + '- destino: el texto de "Obra" (ej "HORMIGON MONTCADA", "IN BCN ZONA FRANCA", "HORMIGON SANT JUST").\n'
     + '- tn: la Cantidad en toneladas, con punto decimal (ej 28.340).\n'
-    + '- importe: el "Importe Total" en euros, con punto decimal (ej 212.55).\n'
-    + '- scd: el código largo de la columna SCD (ej "28260687"), solo como referencia.\n\n'
+    + '- importe: el "Importe Total" en euros, con punto decimal (ej 212.55). En los AJUSTES, el importe es el número de la columna "Ajustes" (o el "Importe Total" si ese trae el valor del ajuste).\n'
+    + '- scd: el código largo de la columna SCD (ej "28260687"), solo como referencia.\n'
+    + '- es_ajuste: true SOLO si la línea es un ajuste (sin nº de albarán, o Cantidad 0, con importe). false en los portes normales.\n'
+    + '- concepto: SOLO para los ajustes, el texto que describe el ajuste (lo que ponga en Obra/Planta/Grupo Porte de esa línea, ej "ES - Silo Portcement Alcanar"). En los portes, null.\n\n'
     + 'REGLAS IMPORTANTES:\n'
     + '- Recorre TODAS las páginas y TODAS las líneas. Puede haber decenas o cientos. No te dejes ninguna.\n'
     + '- Una misma matrícula encabeza un bloque y debajo van varias líneas: cada línea es un objeto, todas con esa matrícula hasta que cambie.\n'
-    + '- IGNORA estas líneas (NO son portes, NO las incluyas): las que NO tienen Número Albarán (solo SCD, son ajustes/peajes), las de "Total Matrícula", "Total Cantidad", "Total Importe", "Total Ajuste", cabeceras y pies de página. También ignora líneas con Cantidad 0 (son ajustes manuales).\n'
-    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null (pero el numero_albaran y la matricula deben verse).\n\n'
+    + '- AJUSTES: las líneas SIN número de albarán (o con Cantidad 0) que tengan un IMPORTE en "Ajustes" o "Importe Total" SÍ debes incluirlas, marcadas con es_ajuste:true (con su matricula, fecha si la hay, concepto, importe y scd). NO las ignores.\n'
+    + '- IGNORA SIEMPRE (ni como porte ni como ajuste): las filas de totales ("Total Matrícula", "Total Cantidad", "Total Importe", "Total Ajuste"), cabeceras, pies de página y logos. Y NO incluyas como ajuste una línea cuyo único dato sea un SCD sin importe.\n'
+    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null. En los PORTES, numero_albaran y matricula deben verse; en los AJUSTES puede no haber numero_albaran (déjalo null) pero debe haber importe.\n\n'
     + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -15439,10 +15448,22 @@ async function factSubirAutofactura(files) {
   if (file && file.name && _factAutoFicheros.indexOf(file.name) === -1) _factAutoFicheros.push(file.name);
   {
     const yaNum = new Set(_factAutoLineasAcum.map(L => _factNormAlb(L.numero_albaran)).filter(Boolean));
+    const yaAjuste = new Set(_factAutoAjustesAcum.map(_factAjusteKey));
     lineas.forEach(L => {
       const n = _factNormAlb(L.numero_albaran);
-      if (n && yaNum.has(n)) return;   // ya estaba (no duplicar)
-      if (n) yaNum.add(n);
+      const tieneImporte = (L.importe != null && String(L.importe) !== '');
+      const esAjuste = (L.es_ajuste === true) || (!n && tieneImporte);
+      if (esAjuste) {
+        // J23: ajuste (sábados, repercusión gasoil…) → a su lista, deduplicado.
+        const k = _factAjusteKey(L);
+        if (yaAjuste.has(k)) return;
+        yaAjuste.add(k);
+        _factAutoAjustesAcum.push(L);
+        return;
+      }
+      if (!n) return;                  // sin número y sin importe → ignorar
+      if (yaNum.has(n)) return;        // porte ya estaba (no duplicar)
+      yaNum.add(n);
       _factAutoLineasAcum.push(L);
     });
   }
@@ -15606,7 +15627,7 @@ async function factSubirAutofactura(files) {
     noAbonados.push(r);
   });
 
-  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, fichero: _factAutoFicheros.join('  +  '), fecha: new Date() };
+  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, ajustes: _factAutoAjustesAcum, fichero: _factAutoFicheros.join('  +  '), fecha: new Date() };
 
   // Marcar los abonados como facturados (en memoria + Supabase en 2º plano).
   let marcados = 0;
@@ -15641,6 +15662,7 @@ function factAutoVaciar() {
   if (!confirm('¿Vaciar las autofacturas subidas y empezar de cero?\n\nEsto NO borra los puntos verdes ni tus albaranes: solo olvida las líneas leídas de los PDF para empezar un mes nuevo.')) return;
   _factAutoLineasAcum = [];
   _factAutoFicheros = [];
+  _factAutoAjustesAcum = [];
   _factAutoUltimo = null;
   document.getElementById('ovFactAuto').classList.remove('open');
   const estado = document.getElementById('factAutoEstado');
@@ -15710,6 +15732,27 @@ function _factAutoMostrarInforme() {
   }
   h += '</div>';
 
+  // J23: Bloque AJUSTES (cobros extra a tu favor: sábados/festivos, repercusión gasoil…)
+  const ajustes = u.ajustes || [];
+  let totalAj = 0;
+  ajustes.forEach(L => { const n = _factNum(L.importe); if (!isNaN(n)) totalAj += n; });
+  h += '<div style="margin-bottom:6px;margin-top:18px">';
+  h += '<div style="font-weight:700;color:#b48be8;margin-bottom:8px">💶 AJUSTES (' + ajustes.length + ')'
+    + (ajustes.length ? ' · Total: ' + (Math.round(totalAj * 100) / 100).toFixed(2) + '€' : '') + '</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Cobros extra que CEMEX te abona aparte de los viajes (mínimos por día, repercusión del gasoil, sábados/festivos…). Revísalos a mano para confirmar que están bien. También salen en el Excel.</div>';
+  if (!ajustes.length) {
+    h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>';
+  } else {
+    h += '<div style="font-size:12px;line-height:1.6">';
+    ajustes.forEach(L => {
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + esc(L.matricula || '—') + ' · ' + esc(L.fecha || '') + ' · ' + esc(L.concepto || L.origen || '—')
+        + ' · <strong>' + esc(L.importe) + '€</strong></div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
   if (body) body.innerHTML = h;
   document.getElementById('ovFactAuto').classList.add('open');
 }
@@ -15746,6 +15789,16 @@ function factAutoExcel() {
     aoaSin.push([L.numero_albaran || '', L.matricula || '', L.fecha || '', L.tn || '', L.importe || '', L.origen || '', L.destino || '']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Sin copia');
+
+  // Hoja 4 (J23): AJUSTES
+  const aoaAj = [['Matrícula', 'Fecha', 'Concepto', 'Importe €', 'SCD']];
+  let totAj = 0;
+  (u.ajustes || []).forEach(L => {
+    aoaAj.push([L.matricula || '', L.fecha || '', L.concepto || L.origen || '', L.importe || '', L.scd || '']);
+    const n = _factNum(L.importe); if (!isNaN(n)) totAj += n;
+  });
+  aoaAj.push(['', '', 'TOTAL', Math.round(totAj * 100) / 100, '']);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaAj), 'Ajustes');
 
   const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
