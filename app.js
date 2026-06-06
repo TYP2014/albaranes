@@ -5005,9 +5005,13 @@ SOLO JSON válido, sin markdown.`;
 
 // ===================== J15: LECTOR MULTI-PROVEEDOR DE FACTURAS DE GASOIL =====================
 // Mapa CIF → empresa del grupo (igual que en el lector de km).
+// J19: Portes 2014 Import (B02657435) se trata como TYP2014 en gasoil (sus 2 tractoras
+// operan dentro de TYP2014), igual que ya se hace en Neumáticos (mismo holding). Así los
+// litros de sus facturas y los km de su tacógrafo caen en TYP2014 y el consumo de esas
+// tractoras sale junto al resto de TYP2014.
 const _CIF_EMP_GAS = {
   'B90172735': 'TYP2014', 'B90286337': 'HISPALIS',
-  'B67316752': 'TRANSMARGAZ', 'B02657435': 'PORTES2014IMPORT'
+  'B67316752': 'TRANSMARGAZ', 'B02657435': 'TYP2014'
 };
 // Extrae el texto de las primeras páginas de un PDF (base64) con pdf.js, para
 // detectar de qué proveedor es la factura ANTES de elegir el lector.
@@ -14539,12 +14543,14 @@ async function gasImportarKmExcel(file) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
 
-    // 1) Empresa por CIF (mismo mapeo que las facturas).
+    // 1) Empresa por CIF (mismo mapeo que las facturas). J19: Portes 2014 Import
+    // (B02657435) se trata como TYP2014 (sus 2 tractoras operan en TYP2014), para que
+    // sus km caigan en TYP2014 igual que sus litros y el consumo salga junto.
     const CIF_EMP = {
       'B90172735': 'TYP2014',
       'B90286337': 'HISPALIS',
       'B67316752': 'TRANSMARGAZ',
-      'B02657435': 'PORTES2014IMPORT'
+      'B02657435': 'TYP2014'
     };
     let cifDoc = '', empresaDoc = '';
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
