@@ -9491,7 +9491,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { factCargarMeses(); } catch (e) { console.warn('[J24] meses:', e); } }
+  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); } catch (e) { console.warn('[J24] meses:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -15408,14 +15408,14 @@ function _factMesBonito(m) {
 
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
-async function _factGuardarEnTabla(lineas, mes, fichero) {
+async function _factGuardarEnTabla(lineas, mes, fichero, proveedor) {
   await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
   const filas = (lineas || []).map(L => {
     const n = _factNormAlb(L.numero_albaran);
     const imp = _factNum(L.importe);
     const tn = _factNum(L.tn);
     return {
-      mes: mes, fichero: fichero,
+      mes: mes, fichero: fichero, proveedor: proveedor || 'CEMEX',
       numero_albaran: L.numero_albaran || null,
       fecha: L.fecha || null,
       matricula: L.matricula || null,
@@ -15440,7 +15440,7 @@ async function factCargarMeses() {
   if (!cont) return;
   let data;
   try {
-    const r = await sb.from('autofacturas_lineas').select('mes');
+    const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'CEMEX');
     if (r.error) throw r.error;
     data = r.data || [];
   } catch (e) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--er)">No se pudieron cargar los meses: ' + (e.message || e) + '</span>'; return; }
@@ -15461,7 +15461,7 @@ async function factConciliarMes(mes) {
   setEstado('⏳ Cargando autofacturas de ' + _factMesBonito(mes) + '…');
   let data;
   try {
-    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes);
+    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes).eq('proveedor', 'CEMEX');
     if (r.error) throw r.error;
     data = r.data || [];
   } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
@@ -15471,6 +15471,52 @@ async function factConciliarMes(mes) {
   _factAutoAjustesAcum = data.filter(L => L.es_ajuste);
   _factAutoFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
   _factProcesarYMostrar(setEstado);
+}
+
+// J27: ===== lo mismo pero para HOLCIM (tabla compartida, columna proveedor='HOLCIM') =====
+let _factHolcimLineasAcum = [];
+let _factHolcimMesActual = '';
+let _factHolcimFicheros = [];
+
+// Pintar los botones de meses que tienen autofactura HOLCIM guardada.
+async function factCargarMesesHolcim() {
+  const cont = document.getElementById('factMesesBarHolcim');
+  if (!cont) return;
+  let data;
+  try {
+    const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM');
+    if (r.error) throw r.error;
+    data = r.data || [];
+  } catch (e) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--er)">No se pudieron cargar los meses: ' + (e.message || e) + '</span>'; return; }
+  const meses = [...new Set(data.map(r => r.mes).filter(Boolean))].sort().reverse();
+  if (!meses.length) {
+    cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay liquidaciones de Holcim guardadas. Sube una y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
+    return;
+  }
+  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button>').join(' ');
+}
+
+// Revisar un mes de Holcim: carga lo guardado de ese mes y lo cruza con tus albaranes.
+async function factConciliarMesHolcim(mes) {
+  const estado = document.getElementById('factHolcimEstado');
+  const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
+  setEstado('⏳ Cargando liquidaciones de Holcim de ' + _factMesBonito(mes) + '…');
+  let data;
+  try {
+    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes).eq('proveedor', 'HOLCIM');
+    if (r.error) throw r.error;
+    data = r.data || [];
+  } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
+  if (!data.length) { setEstado('No hay liquidaciones de Holcim guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
+  _factHolcimMesActual = mes;
+  _factHolcimFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
+  // Restaurar los nombres de campo que usa el cruce/informe de Holcim.
+  _factHolcimLineasAcum = data.map(r => ({
+    num_entrega: r.numero_albaran, fecha: r.fecha, matricula: r.matricula,
+    material: r.concepto, tn: r.tn, valor_neto: r.importe, transportista: r.destino
+  }));
+  _factProcesarYMostrarHolcim(setEstado);
 }
 
 // J21: ¿son el MISMO destino aunque esté escrito distinto? CEMEX escribe la planta
@@ -15624,7 +15670,7 @@ async function factSubirAutofactura(files) {
   // Guardar PERMANENTE en la tabla (por mes). Re-subir el mismo PDF reemplaza sus líneas.
   setEstado('⏳ Guardando la autofactura de ' + _factMesBonito(mesDoc) + '…');
   try {
-    await _factGuardarEnTabla(portesDoc.concat(ajustesDoc), mesDoc, (file && file.name) || ('autofactura_' + Date.now()));
+    await _factGuardarEnTabla(portesDoc.concat(ajustesDoc), mesDoc, (file && file.name) || ('autofactura_' + Date.now()), 'CEMEX');
   } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
 
   factCargarMeses();
@@ -16063,7 +16109,26 @@ async function factSubirAutofacturaHolcim(files) {
     return;
   }
 
-  setEstado('⏳ Cruzando ' + lineas.length + ' líneas con tus albaranes…');
+  // J27: guardar PERMANENTE por mes (proveedor HOLCIM) y conciliar el mes entero.
+  const lineasGen = lineas.map(L => ({
+    numero_albaran: L.num_entrega || null, fecha: L.fecha || null, matricula: L.matricula || null,
+    origen: null, destino: L.transportista || null, tn: L.tn, importe: L.valor_neto, scd: null,
+    es_ajuste: false, concepto: L.material || null
+  }));
+  const mesDoc = _factMesDeLineas(lineas) || _factMesDeFichero(file && file.name) || 'sin-mes';
+  setEstado('⏳ Guardando la liquidación de Holcim de ' + _factMesBonito(mesDoc) + '…');
+  try {
+    await _factGuardarEnTabla(lineasGen, mesDoc, (file && file.name) || ('holcim_' + Date.now()), 'HOLCIM');
+  } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
+  factCargarMesesHolcim();
+  await factConciliarMesHolcim(mesDoc);
+}
+
+// J27: cruza las líneas de Holcim acumuladas (de la tabla, por mes) con tus albaranes y
+// muestra el informe. Lo usan la subida de una liquidación Y el botón "Revisar mes".
+function _factProcesarYMostrarHolcim(setEstado) {
+  setEstado = setEstado || function () {};
+  const lineas = _factHolcimLineasAcum;
 
   // --- CRUCE ---
   const porNum = new Map();
@@ -16186,7 +16251,7 @@ async function factSubirAutofacturaHolcim(files) {
     noAbonados.push(r);
   });
 
-  _factHolcimUltimo = { abonados, posibles, noAbonados, sinAlbaran, fichero: file.name, fecha: new Date() };
+  _factHolcimUltimo = { abonados, posibles, noAbonados, sinAlbaran, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
 
   // Marcar abonados como facturados (memoria + Supabase en 2º plano).
   for (const a of abonados) {
@@ -16201,9 +16266,9 @@ async function factSubirAutofacturaHolcim(files) {
     }
   }
 
-  setEstado('✅ Listo. Abro el resumen.');
+  setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia.');
   _factHolcimMostrarInforme();
-  toast('Holcim: ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia', 'ok');
+  toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia', 'ok');
 }
 
 function _factHolcimMostrarInforme() {
