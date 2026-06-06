@@ -9490,6 +9490,8 @@ function switchTab(tab) {
   }
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
+  // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
+  if (tab === 'facturacion') { try { factCargarMeses(); } catch (e) { console.warn('[J24] meses:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -15318,6 +15320,108 @@ function _factAjusteKey(L) {
   return _factNormMat(L && L.matricula) + '|' + String((L && L.scd) || '') + '|' + (L ? _factNum(L.importe) : '');
 }
 
+// J24: ===== AUTOFACTURAS GUARDADAS POR MES (tabla autofacturas_lineas) =====
+let _factMesActual = '';   // mes que se está viendo, ej "2026-05"
+
+// Mes a partir de las fechas de las líneas (el más repetido) → "YYYY-MM".
+function _factMesDeLineas(lineas) {
+  const cuenta = {};
+  (lineas || []).forEach(L => {
+    const f = normFecha(L.fecha); // DD/MM/YYYY
+    const m = f.match(/^\d{1,2}\/(\d{2})\/(\d{4})$/);
+    if (m) { const k = m[2] + '-' + m[1]; cuenta[k] = (cuenta[k] || 0) + 1; }
+  });
+  let best = '', n = -1;
+  for (const k in cuenta) if (cuenta[k] > n) { n = cuenta[k]; best = k; }
+  return best;
+}
+
+// Mes a partir del nombre del PDF (ej "...2026 May_Preliquidación...") → "YYYY-MM".
+function _factMesDeFichero(nombre) {
+  if (!nombre) return '';
+  const t = String(nombre).toLowerCase();
+  const anio = (t.match(/20\d{2}/) || [])[0];
+  const meses = { ene: '01', enero: '01', feb: '02', febrero: '02', mar: '03', marzo: '03', abr: '04', abril: '04', may: '05', mayo: '05', jun: '06', junio: '06', jul: '07', julio: '07', ago: '08', agosto: '08', sep: '09', sept: '09', septiembre: '09', oct: '10', octubre: '10', nov: '11', noviembre: '11', dic: '12', diciembre: '12' };
+  let mm = '';
+  for (const k in meses) { if (new RegExp('\\b' + k).test(t)) { mm = meses[k]; break; } }
+  return (anio && mm) ? (anio + '-' + mm) : '';
+}
+
+// "2026-05" → "Mayo 2026".
+function _factMesBonito(m) {
+  if (!m || m === 'sin-mes') return 'Sin mes';
+  const p = String(m).split('-');
+  const nom = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return (nom[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
+}
+
+// Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
+// fichero) reemplaza sus líneas, para no duplicar.
+async function _factGuardarEnTabla(lineas, mes, fichero) {
+  await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
+  const filas = (lineas || []).map(L => {
+    const n = _factNormAlb(L.numero_albaran);
+    const imp = _factNum(L.importe);
+    const tn = _factNum(L.tn);
+    return {
+      mes: mes, fichero: fichero,
+      numero_albaran: L.numero_albaran || null,
+      fecha: L.fecha || null,
+      matricula: L.matricula || null,
+      origen: L.origen || null,
+      destino: L.destino || null,
+      tn: isNaN(tn) ? null : tn,
+      importe: isNaN(imp) ? null : imp,
+      scd: L.scd != null ? String(L.scd) : null,
+      es_ajuste: (L.es_ajuste === true) || (!n && !isNaN(imp)),
+      concepto: L.concepto || null
+    };
+  });
+  for (let i = 0; i < filas.length; i += 200) {
+    const { error } = await sb.from('autofacturas_lineas').insert(filas.slice(i, i + 200));
+    if (error) throw error;
+  }
+}
+
+// Pintar los botones de meses que tienen autofactura guardada.
+async function factCargarMeses() {
+  const cont = document.getElementById('factMesesBar');
+  if (!cont) return;
+  let data;
+  try {
+    const r = await sb.from('autofacturas_lineas').select('mes');
+    if (r.error) throw r.error;
+    data = r.data || [];
+  } catch (e) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--er)">No se pudieron cargar los meses: ' + (e.message || e) + '</span>'; return; }
+  const meses = [...new Set(data.map(r => r.mes).filter(Boolean))].sort().reverse();
+  if (!meses.length) {
+    cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay autofacturas guardadas. Sube una y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
+    return;
+  }
+  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button>').join(' ');
+}
+
+// Revisar un mes: carga de la tabla TODO lo guardado de ese mes y lo cruza con tus
+// albaranes del momento. NO hace falta volver a subir la autofactura.
+async function factConciliarMes(mes) {
+  const estado = document.getElementById('factAutoEstado');
+  const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
+  setEstado('⏳ Cargando autofacturas de ' + _factMesBonito(mes) + '…');
+  let data;
+  try {
+    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes);
+    if (r.error) throw r.error;
+    data = r.data || [];
+  } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
+  if (!data.length) { setEstado('No hay autofacturas guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
+  _factMesActual = mes;
+  _factAutoLineasAcum = data.filter(L => !L.es_ajuste && _factNormAlb(L.numero_albaran));
+  _factAutoAjustesAcum = data.filter(L => L.es_ajuste);
+  _factAutoFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
+  _factProcesarYMostrar(setEstado);
+}
+
 // J21: ¿son el MISMO destino aunque esté escrito distinto? CEMEX escribe la planta
 // (ej "HORMIGON SANT JUST", "HORMIGON MONTCADA") y nosotros el pueblo ("Sant Just
 // Desvern", "Montcada"). Quitamos palabras de relleno y comparamos el núcleo.
@@ -15443,33 +15547,35 @@ async function factSubirAutofactura(files) {
     return;
   }
 
-  // J21: acumular las líneas de ESTA autofactura con las de las anteriores (dedup por nº
-  // de albarán). Así el informe es el cuadro COMPLETO de todas las autofacturas subidas.
-  if (file && file.name && _factAutoFicheros.indexOf(file.name) === -1) _factAutoFicheros.push(file.name);
-  {
-    const yaNum = new Set(_factAutoLineasAcum.map(L => _factNormAlb(L.numero_albaran)).filter(Boolean));
-    const yaAjuste = new Set(_factAutoAjustesAcum.map(_factAjusteKey));
-    lineas.forEach(L => {
-      const n = _factNormAlb(L.numero_albaran);
-      const tieneImporte = (L.importe != null && String(L.importe) !== '');
-      const esAjuste = (L.es_ajuste === true) || (!n && tieneImporte);
-      if (esAjuste) {
-        // J23: ajuste (sábados, repercusión gasoil…) → a su lista, deduplicado.
-        const k = _factAjusteKey(L);
-        if (yaAjuste.has(k)) return;
-        yaAjuste.add(k);
-        _factAutoAjustesAcum.push(L);
-        return;
-      }
-      if (!n) return;                  // sin número y sin importe → ignorar
-      if (yaNum.has(n)) return;        // porte ya estaba (no duplicar)
-      yaNum.add(n);
-      _factAutoLineasAcum.push(L);
-    });
-  }
-  const lineasTodas = _factAutoLineasAcum;   // trabajamos con TODAS las acumuladas
+  // J24: separar portes y ajustes de ESTA autofactura.
+  const portesDoc = [], ajustesDoc = [];
+  lineas.forEach(L => {
+    const n = _factNormAlb(L.numero_albaran);
+    const tieneImporte = (L.importe != null && String(L.importe) !== '');
+    const esAjuste = (L.es_ajuste === true) || (!n && tieneImporte);
+    if (esAjuste) { L.es_ajuste = true; ajustesDoc.push(L); }
+    else if (n) portesDoc.push(L);
+  });
 
-  setEstado('⏳ Cruzando ' + lineasTodas.length + ' líneas (de ' + _factAutoFicheros.length + ' autofactura/s) con tus albaranes…');
+  // J24: de qué MES es esta autofactura (por las fechas; si no, por el nombre del PDF).
+  const mesDoc = _factMesDeLineas(lineas) || _factMesDeFichero(file && file.name) || 'sin-mes';
+
+  // Guardar PERMANENTE en la tabla (por mes). Re-subir el mismo PDF reemplaza sus líneas.
+  setEstado('⏳ Guardando la autofactura de ' + _factMesBonito(mesDoc) + '…');
+  try {
+    await _factGuardarEnTabla(portesDoc.concat(ajustesDoc), mesDoc, (file && file.name) || ('autofactura_' + Date.now()));
+  } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
+
+  factCargarMeses();
+  // Conciliar el MES ENTERO (carga de la tabla TODO lo de ese mes y lo cruza con tus albaranes).
+  await factConciliarMes(mesDoc);
+}
+
+// J24: cruza las líneas acumuladas (cargadas de la tabla, por mes) con tus albaranes y
+// muestra el informe. Lo usan la subida de una autofactura Y el botón "Revisar mes".
+function _factProcesarYMostrar(setEstado) {
+  setEstado = setEstado || function () {};
+  const lineasTodas = _factAutoLineasAcum;
 
   // --- CRUCE ---
   // Índice de albaranes del usuario por número (normalizado).
@@ -15627,7 +15733,7 @@ async function factSubirAutofactura(files) {
     noAbonados.push(r);
   });
 
-  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, ajustes: _factAutoAjustesAcum, fichero: _factAutoFicheros.join('  +  '), fecha: new Date() };
+  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, ajustes: _factAutoAjustesAcum, fichero: _factMesBonito(_factMesActual) + ' — ' + _factAutoFicheros.join('  +  '), fecha: new Date() };
 
   // Marcar los abonados como facturados (en memoria + Supabase en 2º plano).
   let marcados = 0;
@@ -15646,9 +15752,9 @@ async function factSubirAutofactura(files) {
     }
   }
 
-  setEstado('✅ Listo. Abro el resumen (acumulado de ' + _factAutoFicheros.length + ' autofactura/s).');
+  setEstado('✅ Listo. ' + _factMesBonito(_factMesActual) + ': ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' que no tenemos.');
   _factAutoMostrarInforme();
-  toast('Acumulado de ' + _factAutoFicheros.length + ' autofactura/s: ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' que no tenemos', 'ok');
+  toast(_factMesBonito(_factMesActual) + ': ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' que no tenemos', 'ok');
 }
 
 // J21: vaciar el acumulado de autofacturas (para empezar un mes nuevo sin refrescar).
