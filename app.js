@@ -15313,6 +15313,7 @@ let _factAutoUltimo = null;
 // Se vacía al refrescar la página (para empezar un mes nuevo, refresca y vuelve a subir).
 let _factAutoLineasAcum = [];   // portes acumulados
 let _factAutoFicheros = [];     // nombres de los PDF subidos esta sesión
+let _factAutoArchivos = [];     // J28: [{fichero, n}] cargados del mes (para mostrar la lista)
 let _factAutoAjustesAcum = [];  // J23: ajustes acumulados (sábados, repercusión gasoil…)
 
 // J23: clave para no duplicar ajustes (misma matrícula + scd + importe).
@@ -15406,6 +15407,24 @@ function _factMesBonito(m) {
   return (nom[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
 }
 
+// J28: cuenta cuántas líneas tiene cada PDF cargado del mes → [{fichero, n}] ordenado.
+function _factContarArchivos(data) {
+  const c = {};
+  (data || []).forEach(L => { if (L.fichero) c[L.fichero] = (c[L.fichero] || 0) + 1; });
+  return Object.keys(c).sort().map(f => ({ fichero: f, n: c[f] }));
+}
+
+// J28: bloque HTML con la lista de PDF cargados del mes (para el informe).
+function _factBloqueArchivos(arr, esc) {
+  if (!arr || !arr.length) return '';
+  let h = '<div style="margin-bottom:16px;padding:10px 12px;background:var(--bg2,#1a1a1a);border:1px solid var(--bd);border-radius:8px">';
+  h += '<div style="font-weight:700;color:var(--mu);font-size:11px;margin-bottom:6px">📎 AUTOFACTURAS CARGADAS ESTE MES (' + arr.length + ')</div>';
+  h += '<div style="font-size:11px;line-height:1.7;font-family:var(--mn)">';
+  arr.forEach(a => { h += '<div>• ' + esc(a.fichero) + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span></div>'; });
+  h += '</div></div>';
+  return h;
+}
+
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
 async function _factGuardarEnTabla(lineas, mes, fichero, proveedor) {
@@ -15470,6 +15489,7 @@ async function factConciliarMes(mes) {
   _factAutoLineasAcum = data.filter(L => !L.es_ajuste && _factNormAlb(L.numero_albaran));
   _factAutoAjustesAcum = data.filter(L => L.es_ajuste);
   _factAutoFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
+  _factAutoArchivos = _factContarArchivos(data);
   _factProcesarYMostrar(setEstado);
 }
 
@@ -15477,6 +15497,7 @@ async function factConciliarMes(mes) {
 let _factHolcimLineasAcum = [];
 let _factHolcimMesActual = '';
 let _factHolcimFicheros = [];
+let _factHolcimArchivos = [];   // J28: [{fichero, n}] de Holcim del mes
 
 // Pintar los botones de meses que tienen autofactura HOLCIM guardada.
 async function factCargarMesesHolcim() {
@@ -15511,6 +15532,7 @@ async function factConciliarMesHolcim(mes) {
   if (!data.length) { setEstado('No hay liquidaciones de Holcim guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
   _factHolcimMesActual = mes;
   _factHolcimFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
+  _factHolcimArchivos = _factContarArchivos(data);
   // Restaurar los nombres de campo que usa el cruce/informe de Holcim.
   _factHolcimLineasAcum = data.map(r => ({
     num_entrega: r.numero_albaran, fecha: r.fecha, matricula: r.matricula,
@@ -15895,6 +15917,7 @@ function _factAutoMostrarInforme() {
 
   // Bloque ABONADOS
   let h = '';
+  h += _factBloqueArchivos(_factAutoArchivos, esc);
   h += '<div style="margin-bottom:18px">';
   h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + u.abonados.length + ')</div>';
   if (!u.abonados.length) {
@@ -16280,6 +16303,7 @@ function _factHolcimMostrarInforme() {
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   let h = '';
+  h += _factBloqueArchivos(_factHolcimArchivos, esc);
   h += '<div style="margin-bottom:18px">';
   h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + u.abonados.length + ')</div>';
   if (!u.abonados.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
