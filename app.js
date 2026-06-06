@@ -15429,6 +15429,28 @@ async function _factSubirPdf(file, proveedor, mes) {
   } catch (e) { console.warn('[J32] subir PDF autofactura:', e); return null; }
 }
 
+// J33: trae TODAS las líneas de un mes/proveedor. Supabase devuelve máx. 1000 por consulta,
+// así que pedimos por tandas de 1000 hasta traerlas todas (Holcim pasa de 2000/mes). Si no
+// hiciéramos esto, faltarían archivos en la lista Y el cruce sería incompleto.
+async function _factTraerLineas(mes, proveedor, cols) {
+  async function tanda(orderCol) {
+    let todas = [], desde = 0; const LOTE = 1000;
+    for (let i = 0; i < 80; i++) { // tope de seguridad: 80.000 líneas
+      const r = await sb.from('autofacturas_lineas').select(cols)
+        .eq('mes', mes).eq('proveedor', proveedor)
+        .order(orderCol, { ascending: true }).range(desde, desde + LOTE - 1);
+      if (r.error) throw r.error;
+      const lote = r.data || [];
+      todas = todas.concat(lote);
+      if (lote.length < LOTE) break;
+      desde += LOTE;
+    }
+    return todas;
+  }
+  try { return await tanda('id'); }
+  catch (e) { console.warn('[J33] sin columna id, ordeno por fichero:', e); return await tanda('fichero'); }
+}
+
 // J28: cuenta cuántas líneas tiene cada PDF cargado del mes → [{fichero, n}] ordenado.
 function _factContarArchivos(data) {
   const c = {}, url = {};
@@ -15449,9 +15471,7 @@ async function factVerSubidas(mes, proveedor) {
   setEstado('⏳ Cargando la lista de subidas…');
   let data;
   try {
-    const r = await sb.from('autofacturas_lineas').select('fichero, fichero_url').eq('mes', mes).eq('proveedor', proveedor);
-    if (r.error) throw r.error;
-    data = r.data || [];
+    data = await _factTraerLineas(mes, proveedor, 'fichero, fichero_url');
   } catch (e) { setEstado('❌ No pude cargar la lista: ' + (e.message || e)); return; }
   const arr = _factContarArchivos(data);
   if (!arr.length) { setEstado('No hay autofacturas guardadas de ' + _factMesBonito(mes) + '.'); return; }
@@ -15539,9 +15559,7 @@ async function factConciliarMes(mes) {
   setEstado('⏳ Cargando autofacturas de ' + _factMesBonito(mes) + '…');
   let data;
   try {
-    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes).eq('proveedor', 'CEMEX');
-    if (r.error) throw r.error;
-    data = r.data || [];
+    data = await _factTraerLineas(mes, 'CEMEX', '*');
   } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
   if (!data.length) { setEstado('No hay autofacturas guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
   _factMesActual = mes;
@@ -15584,9 +15602,7 @@ async function factConciliarMesHolcim(mes) {
   setEstado('⏳ Cargando liquidaciones de Holcim de ' + _factMesBonito(mes) + '…');
   let data;
   try {
-    const r = await sb.from('autofacturas_lineas').select('*').eq('mes', mes).eq('proveedor', 'HOLCIM');
-    if (r.error) throw r.error;
-    data = r.data || [];
+    data = await _factTraerLineas(mes, 'HOLCIM', '*');
   } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
   if (!data.length) { setEstado('No hay liquidaciones de Holcim guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
   _factHolcimMesActual = mes;
