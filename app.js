@@ -15512,7 +15512,11 @@ async function factSubirAutofactura(files) {
 
   const noAbonados = [];
   records.forEach(r => {
-    if (r.db_id && idsAbonados.has(String(r.db_id))) return; // ya abonado
+    if (r.db_id && idsAbonados.has(String(r.db_id))) return; // ya abonado en ESTA autofactura
+    // J20: si ya está marcado como facturado por una autofactura ANTERIOR (otra empresa
+    // u otra subida del mismo día), NO es un "no abonado". Esto evita que al subir la
+    // autofactura de TYP2014 reaparezcan como "no abonados" los de Hispalis ya pagados.
+    if (r.estado_facturacion === 'facturado') return;
     const n = _factNormAlb(r.albaran);
     if (!/^M\d{6,}$/.test(n)) return; // solo albaranes con pinta de CEMEX (empiezan por M)
     // Si sabemos el/los mes(es) de la autofactura, solo avisamos de los albaranes de ESE mes.
@@ -15579,7 +15583,7 @@ function _factAutoMostrarInforme() {
   // Bloque NO ABONADOS
   h += '<div style="margin-bottom:18px">';
   h += '<div style="font-weight:700;color:#e0a000;margin-bottom:8px">⚠️ NO ABONADOS (' + u.noAbonados.length + ')</div>';
-  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Albaranes tuyos (tipo CEMEX) que NO aparecen en esta autofactura. Revísalos: puede que falten o se paguen otro mes.</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Albaranes tuyos (tipo CEMEX) que NO aparecen en esta autofactura. Revísalos: puede que falten, se paguen otro mes, o estén en otra autofactura que aún no hayas subido.</div>';
   if (!u.noAbonados.length) {
     h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>';
   } else {
@@ -15865,6 +15869,7 @@ async function factSubirAutofacturaHolcim(files) {
   const noAbonados = [];
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
+    if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
     const n = _factNormAlb(r.albaran);
     const pareceHolcim = /^3104\d{7}$/.test(n) || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase());
     if (!pareceHolcim) return;
