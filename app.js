@@ -15304,6 +15304,33 @@ function closeRecambiosInf() { document.getElementById('ovRecambiosInf').classLi
 // Estado del último cruce (para el botón Excel del modal).
 let _factAutoUltimo = null;
 
+// J21: ACUMULADOR de líneas de autofactura. Como hay varias autofacturas por mes
+// (Hispalis, TYP2014, Portes…), las vamos juntando aquí según se suben, deduplicadas
+// por nº de albarán. Así el informe muestra SIEMPRE el cuadro completo (todos los
+// abonados, todos los "que no tenemos", todos los no abonados), no solo la última.
+// Se vacía al refrescar la página (para empezar un mes nuevo, refresca y vuelve a subir).
+let _factAutoLineasAcum = [];   // portes acumulados
+let _factAutoFicheros = [];     // nombres de los PDF subidos esta sesión
+
+// J21: ¿son el MISMO destino aunque esté escrito distinto? CEMEX escribe la planta
+// (ej "HORMIGON SANT JUST", "HORMIGON MONTCADA") y nosotros el pueblo ("Sant Just
+// Desvern", "Montcada"). Quitamos palabras de relleno y comparamos el núcleo.
+function _factDestinoIgual(a, b) {
+  const limpia = (s) => String(s || '')
+    .toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')        // quitar acentos
+    .replace(/\b(HORMIGON|HORMIGO|PLANTA|FABRICA|OBRA|CANTERA|ARIDOS?|CEMENTO|DESVERN|DEL|DE|LA|EL|LOS|LAS|SILO|ES)\b/g, ' ')
+    .replace(/[^A-Z0-9]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  const x = limpia(a), y = limpia(b);
+  if (!x || !y) return true;            // si uno está vacío, no avisamos
+  if (x === y) return true;
+  // coincide si comparten al menos una palabra fuerte (3+ letras)
+  const px = x.split(' ').filter(w => w.length >= 3);
+  const py = y.split(' ').filter(w => w.length >= 3);
+  return px.some(w => py.includes(w));
+}
+
 // --- Lector IA de la autofactura CEMEX (PDF multipágina) ---
 async function callClaudeAutofacturaCemex(b64, key, signal) {
   const prompt = 'Eres un OCR experto en "Reporte de Preliquidación" de CEMEX ESPAÑA OPERACIONES para transportistas en España. Es un PDF de varias páginas. CEMEX paga al transportista por cada porte.\n\n'
@@ -15407,7 +15434,21 @@ async function factSubirAutofactura(files) {
     return;
   }
 
-  setEstado('⏳ Cruzando ' + lineas.length + ' líneas con tus albaranes…');
+  // J21: acumular las líneas de ESTA autofactura con las de las anteriores (dedup por nº
+  // de albarán). Así el informe es el cuadro COMPLETO de todas las autofacturas subidas.
+  if (file && file.name && _factAutoFicheros.indexOf(file.name) === -1) _factAutoFicheros.push(file.name);
+  {
+    const yaNum = new Set(_factAutoLineasAcum.map(L => _factNormAlb(L.numero_albaran)).filter(Boolean));
+    lineas.forEach(L => {
+      const n = _factNormAlb(L.numero_albaran);
+      if (n && yaNum.has(n)) return;   // ya estaba (no duplicar)
+      if (n) yaNum.add(n);
+      _factAutoLineasAcum.push(L);
+    });
+  }
+  const lineasTodas = _factAutoLineasAcum;   // trabajamos con TODAS las acumuladas
+
+  setEstado('⏳ Cruzando ' + lineasTodas.length + ' líneas (de ' + _factAutoFicheros.length + ' autofactura/s) con tus albaranes…');
 
   // --- CRUCE ---
   // Índice de albaranes del usuario por número (normalizado).
@@ -15454,9 +15495,38 @@ async function factSubirAutofactura(files) {
   const sinAlbaran = [];    // 📋 en autofactura pero sin albarán nuestro
   const idsAbonados = new Set();
 
-  lineas.forEach(L => {
+  // J22: índice de TUS albaranes CEMEX por matrícula+fecha, para RESCATAR los que no
+  // cruzan por número porque el número se leyó con un dígito mal al escanear
+  // (ej. tú M4690000242234 / CEMEX M4690000244234 = mismo viaje). Solo albaranes con
+  // pinta de CEMEX (empiezan por M) para no cruzar por error con uno de Holcim.
+  const porMatFecha = new Map();
+  records.forEach(r => {
+    const n = _factNormAlb(r.albaran);
+    if (!/^M\d{6,}$/.test(n)) return;
+    const k = _factNormMat(r.tractora) + '|' + normFecha(r.fecha);
+    if (!porMatFecha.has(k)) porMatFecha.set(k, []);
+    porMatFecha.get(k).push(r);
+  });
+  // Busca un albarán tuyo con la MISMA matrícula+fecha y TN casi igual (±0,05).
+  const _matchPorMFT = (L) => {
+    const mat = _factNormMat(L.matricula);
+    const fec = normFecha(L.fecha);
+    if (!mat || !fec) return null;
+    const cand = porMatFecha.get(mat + '|' + fec);
+    if (!cand) return null;
+    const tnL = _factNum(L.tn);
+    for (const r of cand) {
+      if (r.db_id && idsAbonados.has(String(r.db_id))) continue; // ya usado por otra línea
+      const tnR = _factNum(r.tm);
+      if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) <= 0.05) return r;
+    }
+    return null;
+  };
+
+  lineasTodas.forEach(L => {
     const numA = _factNormAlb(L.numero_albaran);
     let match = null;
+    let porFallback = false;
     if (numA && porNum.has(numA)) {
       const cand = porNum.get(numA);
       // Si hay varios con el mismo número, preferimos el que más datos cuadre.
@@ -15468,24 +15538,32 @@ async function factSubirAutofactura(files) {
     if (!match) {
       match = _matchColaVieja(numA);
     }
+    // J22 — último intento: por matrícula + fecha + TN (rescata números mal leídos).
+    if (!match) {
+      match = _matchPorMFT(L);
+      if (match) porFallback = true;
+    }
     if (match) {
       // Comprobar diferencias en los datos de apoyo (nota corta).
       const difs = [];
-      const matL = _factNormMat(L.matricula);
-      const matR = _factNormMat(match.tractora);
-      if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / CEMEX: ' + (L.matricula || '—') + ')');
+      if (porFallback) {
+        // Cruzó por matrícula+fecha+TN: el número de albarán no coincide (mal leído).
+        difs.push('Nº de albarán NO coincide — tú: ' + (match.albaran || '—') + ' / CEMEX: ' + (L.numero_albaran || '—') + ' (revisa/corrige tu número)');
+      } else {
+        const matL = _factNormMat(L.matricula);
+        const matR = _factNormMat(match.tractora);
+        if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / CEMEX: ' + (L.matricula || '—') + ')');
 
-      const tnL = _factNum(L.tn);
-      const tnR = _factNum(match.tm);
-      if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > 0.05) difs.push('TN (tú: ' + (match.tm || '—') + ' / CEMEX: ' + (L.tn || '—') + ')');
+        const tnL = _factNum(L.tn);
+        const tnR = _factNum(match.tm);
+        if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > 0.05) difs.push('TN (tú: ' + (match.tm || '—') + ' / CEMEX: ' + (L.tn || '—') + ')');
 
-      const fL = normFecha(L.fecha);
-      const fR = normFecha(match.fecha);
-      if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / CEMEX: ' + (L.fecha || '—') + ')');
+        const fL = normFecha(L.fecha);
+        const fR = normFecha(match.fecha);
+        if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / CEMEX: ' + (L.fecha || '—') + ')');
 
-      const dL = String(L.destino || '').trim().toUpperCase();
-      const dR = String(match.obra || match.destino || '').trim().toUpperCase();
-      if (dL && dR && !dL.includes(dR) && !dR.includes(dL)) difs.push('destino (tú: ' + (match.obra || match.destino || '—') + ' / CEMEX: ' + (L.destino || '—') + ')');
+        if (!_factDestinoIgual(L.destino, match.obra || match.destino)) difs.push('destino (tú: ' + (match.obra || match.destino || '—') + ' / CEMEX: ' + (L.destino || '—') + ')');
+      }
 
       abonados.push({ linea: L, rec: match, difs: difs });
       if (match.db_id) idsAbonados.add(String(match.db_id));
@@ -15508,7 +15586,7 @@ async function factSubirAutofactura(files) {
     return m ? m[1] : ''; // devuelve "MM/YYYY"
   };
   const mesesAuto = new Set();
-  lineas.forEach(L => { const mm = _factMes(L.fecha); if (mm) mesesAuto.add(mm); });
+  lineasTodas.forEach(L => { const mm = _factMes(L.fecha); if (mm) mesesAuto.add(mm); });
 
   const noAbonados = [];
   records.forEach(r => {
@@ -15528,7 +15606,7 @@ async function factSubirAutofactura(files) {
     noAbonados.push(r);
   });
 
-  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, fichero: file.name, fecha: new Date() };
+  _factAutoUltimo = { abonados, noAbonados, sinAlbaran, fichero: _factAutoFicheros.join('  +  '), fecha: new Date() };
 
   // Marcar los abonados como facturados (en memoria + Supabase en 2º plano).
   let marcados = 0;
@@ -15547,9 +15625,27 @@ async function factSubirAutofactura(files) {
     }
   }
 
-  setEstado('✅ Listo. Abro el resumen.');
+  setEstado('✅ Listo. Abro el resumen (acumulado de ' + _factAutoFicheros.length + ' autofactura/s).');
   _factAutoMostrarInforme();
-  toast('Autofactura procesada: ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' sin albarán', 'ok');
+  toast('Acumulado de ' + _factAutoFicheros.length + ' autofactura/s: ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinAlbaran.length + ' que no tenemos', 'ok');
+}
+
+// J21: vaciar el acumulado de autofacturas (para empezar un mes nuevo sin refrescar).
+// NO toca los albaranes ni el punto verde ya guardado: solo olvida las líneas leídas
+// de los PDF de autofactura de esta sesión.
+function factAutoVaciar() {
+  if (!_factAutoLineasAcum.length && !_factAutoFicheros.length) {
+    toast('No hay autofacturas acumuladas', 'ok');
+    return;
+  }
+  if (!confirm('¿Vaciar las autofacturas subidas y empezar de cero?\n\nEsto NO borra los puntos verdes ni tus albaranes: solo olvida las líneas leídas de los PDF para empezar un mes nuevo.')) return;
+  _factAutoLineasAcum = [];
+  _factAutoFicheros = [];
+  _factAutoUltimo = null;
+  document.getElementById('ovFactAuto').classList.remove('open');
+  const estado = document.getElementById('factAutoEstado');
+  if (estado) { estado.style.display = 'none'; estado.innerHTML = ''; }
+  toast('Listo, empezamos de cero. Sube las autofacturas del mes.', 'ok');
 }
 
 // --- Render del informe en el modal ---
