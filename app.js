@@ -15419,18 +15419,14 @@ async function _factYaSubida(fichero, proveedor) {
   } catch (e) { console.warn('[J31] comprobar duplicado (exc):', e); return 0; }
 }
 
-// J30: sube el PDF original de la autofactura al almacén "documentos" y devuelve su enlace
-// público (para poder abrirlo luego desde la lista). Si falla, devuelve null y no rompe nada.
+// J30/J32: sube el PDF original de la autofactura al almacén y devuelve su enlace público.
+// J32: reusa uploadFile() (la misma que ya funciona para albaranes/recambios), porque guarda
+// la ruta con el id de usuario que pide la regla de seguridad de Supabase. Si falla, null.
 async function _factSubirPdf(file, proveedor, mes) {
   try {
     if (!file) return null;
-    const safe = (file.name || ('doc_' + Date.now() + '.pdf')).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = 'autofacturas/' + (proveedor || 'CEMEX') + '/' + (mes || 'sin-mes') + '/' + safe;
-    const { error } = await sb.storage.from('documentos').upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' });
-    if (error) { console.warn('[J30] subir PDF autofactura:', error); return null; }
-    const { data } = sb.storage.from('documentos').getPublicUrl(path);
-    return (data && data.publicUrl) || null;
-  } catch (e) { console.warn('[J30] subir PDF autofactura (exc):', e); return null; }
+    return await uploadFile(file, 'autofacturas');
+  } catch (e) { console.warn('[J32] subir PDF autofactura:', e); return null; }
 }
 
 // J28: cuenta cuántas líneas tiene cada PDF cargado del mes → [{fichero, n}] ordenado.
