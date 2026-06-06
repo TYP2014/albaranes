@@ -15323,6 +15323,57 @@ function _factAjusteKey(L) {
 // J24: ===== AUTOFACTURAS GUARDADAS POR MES (tabla autofacturas_lineas) =====
 let _factMesActual = '';   // mes que se está viendo, ej "2026-05"
 
+// J26: convertir bytes (Uint8Array) a base64, por trozos para no petar la pila.
+function _uint8ToBase64(u8) {
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+// J26: leer una autofactura. Si tiene muchas páginas, la parte en TROZOS de pocas
+// páginas, lee cada trozo con la IA y junta el resultado. Así no se corta nunca,
+// por muy extensa que sea (Holcim: 7 autofacturas, alguna de 40+ páginas).
+async function _leerAutofacturaGrande(file, key, lector, setEstado) {
+  const PAG = 8;            // páginas por trozo (cabe de sobra en un solo tiro)
+  const UMBRAL = 10;        // a partir de aquí, partir
+  try {
+    if (window.PDFLib && file) {
+      const buf = await file.arrayBuffer();
+      const src = await window.PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+      const total = src.getPageCount();
+      if (total > UMBRAL) {
+        const nTrozos = Math.ceil(total / PAG);
+        let todas = [];
+        for (let i = 0, parte = 1; i < total; i += PAG, parte++) {
+          if (setEstado) setEstado('⏳ Leyendo parte ' + parte + ' de ' + nTrozos + ' (PDF de ' + total + ' páginas)…');
+          const out = await window.PDFLib.PDFDocument.create();
+          const idx = [];
+          for (let p = i; p < Math.min(i + PAG, total); p++) idx.push(p);
+          const pgs = await out.copyPages(src, idx);
+          pgs.forEach(pg => out.addPage(pg));
+          const bytes = await out.save();
+          const ls = await lector(_uint8ToBase64(bytes), key);
+          todas = todas.concat(ls || []);
+        }
+        return todas;
+      }
+    }
+  } catch (e) {
+    console.warn('[J26] no pude partir el PDF, lo leo entero:', e);
+  }
+  // PDF pequeño (o pdf-lib no disponible) → leer entero, como siempre.
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(((r.result || '') + '').split(',')[1] || '');
+    r.onerror = () => rej(new Error('No se pudo leer el PDF'));
+    r.readAsDataURL(file);
+  });
+  return await lector(b64, key);
+}
+
 // Mes a partir de las fechas de las líneas (el más repetido) → "YYYY-MM".
 function _factMesDeLineas(lineas) {
   const cuenta = {};
@@ -15539,21 +15590,11 @@ async function factSubirAutofactura(files) {
   const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
   setEstado('⏳ Leyendo la autofactura CEMEX… (puede tardar un poco si tiene muchas páginas)');
 
-  // PDF → base64
-  let b64;
-  try {
-    b64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1] || '');
-      r.onerror = () => rej(new Error('No se pudo leer el PDF'));
-      r.readAsDataURL(file);
-    });
-  } catch (e) { setEstado('❌ ' + (e.message || e)); return; }
-
-  // Leer con IA
+  // J26: leer el PDF. Si es largo, _leerAutofacturaGrande lo parte en trozos para
+  // que no se corte (Holcim grandes). Si es corto, lo lee entero como siempre.
   let lineas;
   try {
-    lineas = await callClaudeAutofacturaCemex(b64, key);
+    lineas = await _leerAutofacturaGrande(file, key, callClaudeAutofacturaCemex, setEstado);
   } catch (e) {
     setEstado('❌ No se pudo leer la autofactura: ' + (e.message || e));
     return;
@@ -16010,19 +16051,9 @@ async function factSubirAutofacturaHolcim(files) {
   const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
   setEstado('⏳ Leyendo la autofactura de Holcim… (puede tardar si tiene muchas páginas)');
 
-  let b64;
-  try {
-    b64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1] || '');
-      r.onerror = () => rej(new Error('No se pudo leer el PDF'));
-      r.readAsDataURL(file);
-    });
-  } catch (e) { setEstado('❌ ' + (e.message || e)); return; }
-
   let lineas;
   try {
-    lineas = await callClaudeAutofacturaHolcim(b64, key);
+    lineas = await _leerAutofacturaGrande(file, key, callClaudeAutofacturaHolcim, setEstado);
   } catch (e) {
     setEstado('❌ No se pudo leer la autofactura: ' + (e.message || e));
     return;
