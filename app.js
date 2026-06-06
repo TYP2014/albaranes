@@ -15470,7 +15470,7 @@ async function callClaudeAutofacturaCemex(b64, key, signal) {
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
-      max_tokens: 16000,
+      max_tokens: 32000,
       messages: [{ role: 'user', content: [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
         { type: 'text', text: prompt }
@@ -15486,7 +15486,23 @@ async function callClaudeAutofacturaCemex(b64, key, signal) {
   }
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(text);
+  // J25: marcar si la respuesta se cortó por tamaño (autofactura muy larga).
+  window._factAutoCortada = (d.stop_reason === 'max_tokens');
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    // Si el PDF es muy largo y la respuesta vino cortada, recuperar hasta el último
+    // objeto completo en vez de fallar del todo (igual que en Holcim).
+    const lastObj = text.lastIndexOf('}');
+    if (lastObj > -1) {
+      let t2 = text.slice(0, lastObj + 1);
+      if (!t2.trim().startsWith('[')) t2 = '[' + t2;
+      parsed = JSON.parse(t2 + ']');
+      window._factAutoCortada = true;
+      console.warn('[J25] respuesta CEMEX recuperada parcialmente (PDF largo).');
+    } else { throw e; }
+  }
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
@@ -15545,6 +15561,10 @@ async function factSubirAutofactura(files) {
   if (!lineas || !lineas.length) {
     setEstado('⚠️ No he encontrado líneas de porte en este PDF. ¿Seguro que es una preliquidación CEMEX?');
     return;
+  }
+  // J25: si la autofactura era tan larga que la lectura se cortó, avisar (se guarda lo leído).
+  if (window._factAutoCortada) {
+    toast('⚠️ Autofactura muy larga: leídas ' + lineas.length + ' líneas, pero puede faltar alguna del final. Si ves que falta, divide el PDF en 2 y súbelos (se acumulan en el mes).', 'err');
   }
 
   // J24: separar portes y ajustes de ESTA autofactura.
@@ -15942,7 +15962,7 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
-      max_tokens: 16000,
+      max_tokens: 32000,
       messages: [{ role: 'user', content: [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
         { type: 'text', text: prompt }
