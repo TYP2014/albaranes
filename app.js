@@ -15338,8 +15338,8 @@ function _uint8ToBase64(u8) {
 // páginas, lee cada trozo con la IA y junta el resultado. Así no se corta nunca,
 // por muy extensa que sea (Holcim: 7 autofacturas, alguna de 40+ páginas).
 async function _leerAutofacturaGrande(file, key, lector, setEstado) {
-  const PAG = 8;            // páginas por trozo (cabe de sobra en un solo tiro)
-  const UMBRAL = 10;        // a partir de aquí, partir
+  const PAG = 4;            // v107J36: páginas por trozo (antes 8). Trozos más pequeños = respuesta IA más corta = no se corta nunca.
+  const UMBRAL = 6;         // v107J36: a partir de aquí, partir (antes 10). Las liquidaciones densas de arena (cientos de líneas) saturaban el trozo de 8 págs.
   window._factPartesFallidas = [];
   // 1) Intentar abrir el PDF para partirlo.
   let src = null, total = 0;
