@@ -15407,11 +15407,57 @@ function _factMesBonito(m) {
   return (nom[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
 }
 
+// J30: sube el PDF original de la autofactura al almacén "documentos" y devuelve su enlace
+// público (para poder abrirlo luego desde la lista). Si falla, devuelve null y no rompe nada.
+async function _factSubirPdf(file, proveedor, mes) {
+  try {
+    if (!file) return null;
+    const safe = (file.name || ('doc_' + Date.now() + '.pdf')).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = 'autofacturas/' + (proveedor || 'CEMEX') + '/' + (mes || 'sin-mes') + '/' + safe;
+    const { error } = await sb.storage.from('documentos').upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' });
+    if (error) { console.warn('[J30] subir PDF autofactura:', error); return null; }
+    const { data } = sb.storage.from('documentos').getPublicUrl(path);
+    return (data && data.publicUrl) || null;
+  } catch (e) { console.warn('[J30] subir PDF autofactura (exc):', e); return null; }
+}
+
 // J28: cuenta cuántas líneas tiene cada PDF cargado del mes → [{fichero, n}] ordenado.
 function _factContarArchivos(data) {
-  const c = {};
-  (data || []).forEach(L => { if (L.fichero) c[L.fichero] = (c[L.fichero] || 0) + 1; });
-  return Object.keys(c).sort().map(f => ({ fichero: f, n: c[f] }));
+  const c = {}, url = {};
+  (data || []).forEach(L => {
+    if (!L.fichero) return;
+    c[L.fichero] = (c[L.fichero] || 0) + 1;
+    if (L.fichero_url && !url[L.fichero]) url[L.fichero] = L.fichero_url;
+  });
+  return Object.keys(c).sort().map(f => ({ fichero: f, n: c[f], url: url[f] || null }));
+}
+
+// J29: VER SUBIDAS — lista los PDF cargados de un mes SIN cruzar nada (rápido).
+// Pensado para cuando solo estás subiendo y quieres comprobar cuáles llevas / cuáles faltan.
+async function factVerSubidas(mes, proveedor) {
+  const esHolcim = (proveedor === 'HOLCIM');
+  const estado = document.getElementById(esHolcim ? 'factHolcimEstado' : 'factAutoEstado');
+  const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
+  setEstado('⏳ Cargando la lista de subidas…');
+  let data;
+  try {
+    const r = await sb.from('autofacturas_lineas').select('fichero, fichero_url').eq('mes', mes).eq('proveedor', proveedor);
+    if (r.error) throw r.error;
+    data = r.data || [];
+  } catch (e) { setEstado('❌ No pude cargar la lista: ' + (e.message || e)); return; }
+  const arr = _factContarArchivos(data);
+  if (!arr.length) { setEstado('No hay autofacturas guardadas de ' + _factMesBonito(mes) + '.'); return; }
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let h = '<div style="font-family:var(--mn);font-size:12px;line-height:1.7;margin-top:4px">';
+  h += '<div style="font-weight:700;color:var(--mu);margin-bottom:4px">📎 ' + _factMesBonito(mes) + ' — ' + arr.length + ' autofacturas cargadas (sin revisar):</div>';
+  arr.forEach(a => {
+    const nom = a.url
+      ? '<a href="' + a.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">' + esc(a.fichero) + '</a> 🔗'
+      : esc(a.fichero);
+    h += '<div>• ' + nom + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span></div>';
+  });
+  h += '</div>';
+  setEstado(h);
 }
 
 // J28: bloque HTML con la lista de PDF cargados del mes (para el informe).
@@ -15420,21 +15466,26 @@ function _factBloqueArchivos(arr, esc) {
   let h = '<div style="margin-bottom:16px;padding:10px 12px;background:var(--bg2,#1a1a1a);border:1px solid var(--bd);border-radius:8px">';
   h += '<div style="font-weight:700;color:var(--mu);font-size:11px;margin-bottom:6px">📎 AUTOFACTURAS CARGADAS ESTE MES (' + arr.length + ')</div>';
   h += '<div style="font-size:11px;line-height:1.7;font-family:var(--mn)">';
-  arr.forEach(a => { h += '<div>• ' + esc(a.fichero) + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span></div>'; });
+  arr.forEach(a => {
+    const nom = a.url
+      ? '<a href="' + a.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">' + esc(a.fichero) + '</a> 🔗'
+      : esc(a.fichero);
+    h += '<div>• ' + nom + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span></div>';
+  });
   h += '</div></div>';
   return h;
 }
 
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
-async function _factGuardarEnTabla(lineas, mes, fichero, proveedor) {
+async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) {
   await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
   const filas = (lineas || []).map(L => {
     const n = _factNormAlb(L.numero_albaran);
     const imp = _factNum(L.importe);
     const tn = _factNum(L.tn);
     return {
-      mes: mes, fichero: fichero, proveedor: proveedor || 'CEMEX',
+      mes: mes, fichero: fichero, proveedor: proveedor || 'CEMEX', fichero_url: ficheroUrl || null,
       numero_albaran: L.numero_albaran || null,
       fecha: L.fecha || null,
       matricula: L.matricula || null,
@@ -15469,7 +15520,7 @@ async function factCargarMeses() {
     return;
   }
   cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button>').join(' ');
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'CEMEX\')">📎 Ver subidas</button>').join(' ');
 }
 
 // Revisar un mes: carga de la tabla TODO lo guardado de ese mes y lo cruza con tus
@@ -15515,7 +15566,7 @@ async function factCargarMesesHolcim() {
     return;
   }
   cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button>').join(' ');
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'HOLCIM\')">📎 Ver subidas</button>').join(' ');
 }
 
 // Revisar un mes de Holcim: carga lo guardado de ese mes y lo cruza con tus albaranes.
@@ -15691,8 +15742,9 @@ async function factSubirAutofactura(files) {
 
   // Guardar PERMANENTE en la tabla (por mes). Re-subir el mismo PDF reemplaza sus líneas.
   setEstado('⏳ Guardando la autofactura de ' + _factMesBonito(mesDoc) + '…');
+  const urlPdf = await _factSubirPdf(file, 'CEMEX', mesDoc);
   try {
-    await _factGuardarEnTabla(portesDoc.concat(ajustesDoc), mesDoc, (file && file.name) || ('autofactura_' + Date.now()), 'CEMEX');
+    await _factGuardarEnTabla(portesDoc.concat(ajustesDoc), mesDoc, (file && file.name) || ('autofactura_' + Date.now()), 'CEMEX', urlPdf);
   } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
 
   factCargarMeses();
@@ -16140,8 +16192,9 @@ async function factSubirAutofacturaHolcim(files) {
   }));
   const mesDoc = _factMesDeLineas(lineas) || _factMesDeFichero(file && file.name) || 'sin-mes';
   setEstado('⏳ Guardando la liquidación de Holcim de ' + _factMesBonito(mesDoc) + '…');
+  const urlPdf = await _factSubirPdf(file, 'HOLCIM', mesDoc);
   try {
-    await _factGuardarEnTabla(lineasGen, mesDoc, (file && file.name) || ('holcim_' + Date.now()), 'HOLCIM');
+    await _factGuardarEnTabla(lineasGen, mesDoc, (file && file.name) || ('holcim_' + Date.now()), 'HOLCIM', urlPdf);
   } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
   factCargarMesesHolcim();
   await factConciliarMesHolcim(mesDoc);
