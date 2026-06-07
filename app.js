@@ -16553,7 +16553,18 @@ function _factProcesarYMostrarHolcim(setEstado) {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
     const n = _factNormAlb(r.albaran);
-    const pareceHolcim = /^3104\d{7}$/.test(n) || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase());
+    // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
+    //   (a) su nº empieza por 3104 (formato Holcim de cemento/áridos/clinker), o
+    //   (b) el proveedor/cliente contiene HOLCIM/LAFARGE, o
+    //   (c) su MATERIAL es uno de los materiales/servicios que paga Holcim (familia ≠ Otros).
+    // Esto último es la clave (JC 07/06): Holcim paga el yeso, arcilla, calizas, áridos,
+    // clinker, escorias, reciclado, servicios… AUNQUE el proveedor de origen sea otro
+    // (Guixos Canals para el yeso, Promotora para Promsa, etc.). El proveedor es la cantera;
+    // quien paga es Holcim. Por eso miramos el material, no solo el proveedor.
+    const _famR = _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+    const pareceHolcim = /^3104\d{7}$/.test(n)
+      || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase())
+      || (_famR && _famR !== 'Otros');
     if (!pareceHolcim) return;
     if (mesesPermitidos.size > 0) {
       const mr = _factMes(r.fecha);
