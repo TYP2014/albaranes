@@ -16536,6 +16536,17 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const TOL_TN = 0.05;   // margen mínimo de redondeo en toneladas
   const VENT_DIAS = 10;  // ventana de fecha para "a revisar" (Holcim arrastra portes días después)
 
+  // v107J52 — CRUCE EN DOS PASADAS (arregla el ROBO de albaranes entre días distintos).
+  // PROBLEMA real confirmado (albarán 0070482139, camión 1365NMH): el mismo camión hizo 29,67 T el
+  // 18/05 Y otra vez 29,67 T el 28/05. La línea de Holcim del 18/05 cogía por "parcial" (±10 días)
+  // el albarán del 28/05 ANTES de que la línea buena del 28/05 pudiera cruzarlo EXACTO → el albarán
+  // del 28/05 caía en "sin copia" y se quedaba en pendiente.
+  // SOLUCIÓN: 1ª PASADA empareja TODO lo EXACTO (nº de albarán, o matrícula+fecha+TN clavados) y
+  // consume esos albaranes. Solo DESPUÉS, en la 2ª PASADA y con lo que SOBRE, se aplica el margen de
+  // ±10 días. Así lo exacto gana siempre y ninguna línea le roba el albarán a su día correcto.
+  const _pendienteParcial = [];
+
+  // ---- PASADA 1: nº de albarán + EXACTO (matrícula+fecha+TN) ----
   lineas.forEach(L => {
     const numA = _factNormAlb(L.num_entrega);
     const matL = _factNormMat(L.matricula);
@@ -16560,10 +16571,8 @@ function _factProcesarYMostrarHolcim(setEstado) {
       return;
     }
 
-    // 2) MATERIAS PRIMAS (el nº de Holcim NUNCA coincide con el del albarán). Anclamos en matrícula exacta.
+    // 2a) EXACTO: materia prima, misma matrícula + misma fecha + misma TN (al céntimo) → ABONADO.
     const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL);
-
-    // 2a) EXACTO: misma fecha + misma TN (al céntimo, con margen mínimo de redondeo) → ABONADO verde solo.
     let exacto = null, exDiff = 999;
     for (const r of cands) {
       if (normFecha(r.fecha) !== fL) continue;
@@ -16577,12 +16586,19 @@ function _factProcesarYMostrarHolcim(setEstado) {
       return;
     }
 
+    // No cruzó exacto → se intenta en la 2ª pasada (parcial), cuando ya no quede nada exacto que robar.
+    _pendienteParcial.push({ L: L, matL: matL, fL: fL, tnL: tnL });
+  });
+
+  // ---- PASADA 2: PARCIAL (±10 días) SOLO con lo que sobró tras la pasada exacta ----
+  _pendienteParcial.forEach(function (p) {
+    const L = p.L, matL = p.matL, fL = p.fL, tnL = p.tnL;
+
     // 2b) PARCIAL → A REVISAR: misma matrícula y TN exacta, pero la fecha baila pocos días.
-    // v107J38: ANTES también valía "misma fecha aunque la TN no cuadre" (línea fOK). Eso era
-    // demasiado goloso: con líneas duplicadas en la autofactura, una copia sobrante de otra TN
-    // (ej. 27,865) agarraba por fecha el albarán de OTRA TN (ej. 30,1) del mismo día y lo dejaba
-    // sin poder cruzar con su línea buena. Ahora SOLO se acepta parcial si la TN cuadra (al céntimo)
-    // y la fecha está cerca; NO se acepta "solo por fecha". Así un duplicado ya no roba albaranes ajenos.
+    // v107J38: SOLO se acepta si la TN cuadra (al céntimo) y la fecha está cerca; NO "solo por fecha".
+    // v107J52: ahora esto corre DESPUÉS de toda la pasada exacta, así que ya no roba albaranes que
+    // pertenecen a su día correcto (esos ya se cruzaron exactos y están consumidos).
+    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL);
     let parcial = null; const difsP = [];
     for (const r of cands) {
       const d = Math.abs(_factNum(r.tm) - tnL);
