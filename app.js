@@ -16530,23 +16530,26 @@ function _factProcesarYMostrarHolcim(setEstado) {
 
   // NO ABONADOS: albaranes nuestros con pinta de Holcim, del periodo, no abonados.
   const _factMes = (s) => { const f = normFecha(s); const m = f.match(/^\d{1,2}\/(\d{2}\/\d{4})$/); return m ? m[1] : ''; };
-  // v107GB — Holcim a veces cierra la liquidación a primeros del mes siguiente y arrastra
-  // portes (sobre todo materias primas a Fábrica Montcada). Por eso el aviso de "no abonados"
-  // NO se limita al mes exacto, sino al/los mes(es) de la autofactura ± 1 mes (anterior y
-  // siguiente). Así no marcamos como "no abonado" algo que Holcim pagará en otra liquidación,
-  // ni dejamos fuera lo que arrastra de un mes a otro.
-  const _mesAdy = (mmYYYY) => {
-    const m = mmYYYY.match(/^(\d{2})\/(\d{4})$/); if (!m) return [mmYYYY];
-    const mes = parseInt(m[1], 10), anio = parseInt(m[2], 10);
-    const fmt = (me, an) => String(me).padStart(2, '0') + '/' + an;
-    let pM = mes - 1, pA = anio; if (pM < 1) { pM = 12; pA--; }
-    let nM = mes + 1, nA = anio; if (nM > 12) { nM = 1; nA++; }
-    return [fmt(pM, pA), fmt(mes, anio), fmt(nM, nA)];
+  // v107J49 — VENTANA: del DÍA 20 DEL MES ANTERIOR al DÍA 5 DEL MES SIGUIENTE. Decisión JC:
+  // la liquidación Holcim de un mes arranca hacia el 20-25 del mes anterior y cierra a primeros
+  // del siguiente (no el 30/31). Con esta ventana se cubren todos los casos (calizas, áridos,
+  // servicios). Lo que pague de más un mes, el siguiente ya lo verá en verde (abonado) y no
+  // molesta. Los abonados se quedan abonados; aquí solo se decide qué se avisa como "no abonado".
+  const _ventanaHolcim = (() => {
+    const m = String(_factHolcimMesActual || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const anio = parseInt(m[1], 10), mes = parseInt(m[2], 10);
+    const desde = new Date(anio, mes - 2, 20); // día 20 del mes ANTERIOR (mes-1 en 1-based → mes-2 en 0-based)
+    const hasta = new Date(anio, mes, 5);       // día 5 del mes SIGUIENTE
+    return { desde, hasta };
+  })();
+  const _fechaEnVentana = (fechaStr) => {
+    if (!_ventanaHolcim) return true;
+    const f = normFecha(fechaStr); const mm = f.match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/);
+    if (!mm) return false;
+    const d = new Date(parseInt(mm[3], 10), parseInt(mm[2], 10) - 1, parseInt(mm[1], 10));
+    return d >= _ventanaHolcim.desde && d <= _ventanaHolcim.hasta;
   };
-  const mesesAuto = new Set();
-  lineas.forEach(L => { const mm = _factMes(L.fecha); if (mm) mesesAuto.add(mm); });
-  const mesesPermitidos = new Set();
-  mesesAuto.forEach(mm => _mesAdy(mm).forEach(x => mesesPermitidos.add(x)));
 
   const noAbonados = [];
   records.forEach(r => {
@@ -16554,22 +16557,16 @@ function _factProcesarYMostrarHolcim(setEstado) {
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
     const n = _factNormAlb(r.albaran);
     // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
-    //   (a) su nº empieza por 3104 (formato Holcim de cemento/áridos/clinker), o
-    //   (b) el proveedor/cliente contiene HOLCIM/LAFARGE, o
-    //   (c) su MATERIAL es uno de los materiales/servicios que paga Holcim (familia ≠ Otros).
-    // Esto último es la clave (JC 07/06): Holcim paga el yeso, arcilla, calizas, áridos,
-    // clinker, escorias, reciclado, servicios… AUNQUE el proveedor de origen sea otro
-    // (Guixos Canals para el yeso, Promotora para Promsa, etc.). El proveedor es la cantera;
-    // quien paga es Holcim. Por eso miramos el material, no solo el proveedor.
+    //   (a) su nº empieza por 3104, (b) proveedor/cliente HOLCIM/LAFARGE, o
+    //   (c) su MATERIAL es uno de los que paga Holcim (familia ≠ Otros), aunque el
+    //   proveedor de origen sea otro (Guixos Canals yeso, Promotora Promsa…).
     const _famR = _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
     const pareceHolcim = /^3104\d{7}$/.test(n)
       || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase())
       || (_famR && _famR !== 'Otros');
     if (!pareceHolcim) return;
-    if (mesesPermitidos.size > 0) {
-      const mr = _factMes(r.fecha);
-      if (mr && !mesesPermitidos.has(mr)) return;
-    }
+    // v107J48: solo dentro de la ventana de fechas precisa (no mes entero).
+    if (!_fechaEnVentana(r.fecha)) return;
     noAbonados.push(r);
   });
 
