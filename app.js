@@ -16583,6 +16583,46 @@ function _factProcesarYMostrarHolcim(setEstado) {
   toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia', 'ok');
 }
 
+// v107J44 — FAMILIAS DE REPASO HOLCIM. Clasifica cada línea (material + destino) en una
+// familia, para agrupar el repaso como lo hace Juan Carlos. El material viene canonizado
+// (concepto/material) y el destino del campo `origen` (lo lee J42: La Roca, Zona Franca,
+// Montcada, Molienda Tarragona, CLINKER - GRAO DE CASTELLON, NUCLEO GARRAF A PUERTO…).
+function _factFamiliaHolcim(material, destino) {
+  const m = String(material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const d = String(destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // 1) Servicios de Transporte (cisternas Élite + Núcleo Garraf): se separan por destino.
+  if (/SERVICIOS?\s+DE\s+TRANSPORTE/.test(m)) {
+    if (/PUERTO|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
+    return 'Cisternas (Élite)';
+  }
+  // 2) Áridos (AF-/AG-) Cantera Garraf, separados por destino.
+  if (/^AF[-\s]|^AG[-\s]|ARIDO\s|ARIDOS\s/.test(m) || /^A[FG]\d/.test(m)) {
+    if (/ROCA/.test(d)) return 'Áridos Garraf → La Roca';
+    if (/ZONA\s*FRANCA/.test(d)) return 'Áridos Garraf → Zona Franca';
+    if (/MONTCADA/.test(d)) return 'Áridos Garraf → Montcada';
+    return 'Áridos Garraf → (otros destinos)';
+  }
+  // 3) Clinker por tipo.
+  if (/GREY\s+CLINKER|CLINKER\s+NORMAL/.test(m) || (/CLINKER/.test(m) && /MOLIENDA|TARRAGONA/.test(d))) return 'Clinker → Molienda Tarragona';
+  if (/CLINKER/.test(m)) return 'Clinker → Grao Castellón';
+  // 4) Escorias/Adec y Árido reciclado/Tecnocatalana (cruzan por nº 908 a mano).
+  if (/SIDERURGICO|ESCORIA/.test(m)) return 'Escorias / Adec';
+  if (/RECICLADO/.test(m)) return 'Árido reciclado / Tecnocatalana';
+  // 5) Cementos / sacos / palets (todo junto).
+  if (/CEM\s|CEMENTO|ECOPLANET|PALET|ENSACADO|MORTERO|GRANEL/.test(m)) return 'Cementos / Sacos / Palets';
+  // 6) Materia prima (cada una su familia, por el material canónico).
+  if (/CALIZA\s+PROMSA/.test(m)) return 'Caliza Promsa';
+  if (/CALIZA\s+FOJ/.test(m)) return 'Caliza Foj';
+  if (/CALIZA\s+CEMEX/.test(m)) return 'Caliza Cemex';
+  if (/CALIZA\s+GARRAF|ZAHORRA/.test(m)) return 'Caliza Garraf Zahorra';
+  if (/ARENA/.test(m)) return 'Arena Martorell';
+  if (/ARCILLA/.test(m)) return 'Arcilla';
+  if (/YESO/.test(m)) return 'Yeso';
+  if (/LIMONITA/.test(m)) return 'Limonita';
+  if (/ESCOMBRO/.test(m)) return 'Escombros';
+  return 'Otros';
+}
+
 function _factHolcimMostrarInforme() {
   const u = _factHolcimUltimo;
   if (!u) return;
@@ -16595,35 +16635,41 @@ function _factHolcimMostrarInforme() {
   // de la columna concepto); cada albarán nuestro su producto. Canonizamos con fixMaterial
   // para agrupar variantes. _factHolcimMatSel = material elegido (null = todos). Los botones
   // de arriba filtran las 4 listas a ese material; el Excel saca una pestaña por material.
-  const _matDe = (s) => { const c = fixMaterial(String(s || '').trim()); return c || '(sin material)'; };
-  const _matLinea = (L) => _matDe(L.material);
-  const _matAlb = (r) => _matDe(r.producto);
-  // Conjunto de materiales presentes en el informe (de las 4 listas)
+  // v107J44: agrupar por FAMILIA (no por material suelto). La familia se calcula con
+  // material + destino. El destino de la línea está en L.destino (lo leyó J42); el de
+  // un albarán nuestro (no abonados) en r.obra/r.destino.
+  const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  // Conjunto de familias presentes en el informe (de las 4 listas)
   const _setMat = new Set();
-  (u.abonados || []).forEach(a => _setMat.add(_matLinea(a.linea)));
-  (u.posibles || []).forEach(a => _setMat.add(_matLinea(a.linea)));
-  (u.noAbonados || []).forEach(r => _setMat.add(_matAlb(r)));
-  (u.sinAlbaran || []).forEach(L => _setMat.add(_matLinea(L)));
-  // v107J41: los BOTONES solo muestran los 12 materiales Holcim canónicos (no los
-  // materiales de albaranes "no abonados" tipo BIGMAT/AF-… que ensuciaban la barra).
-  // Y de esos 12, solo los que de verdad tienen alguna línea en este informe.
-  const _materiales = MATERIALES_HOLCIM_CANONICOS
-    .map(it => it.canon)
-    .filter(c => _setMat.has(c))
-    .sort((a, b) => a.localeCompare(b, 'es'));
+  (u.abonados || []).forEach(a => _setMat.add(_famLinea(a.linea)));
+  (u.posibles || []).forEach(a => _setMat.add(_famLinea(a.linea)));
+  (u.noAbonados || []).forEach(r => _setMat.add(_famAlb(r)));
+  (u.sinAlbaran || []).forEach(L => _setMat.add(_famLinea(L)));
+  // Orden lógico de familias (las que existan en este informe)
+  const _ORDEN_FAM = [
+    'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
+    'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Áridos Garraf → (otros destinos)',
+    'Núcleo Garraf → Puerto Barcelona', 'Cisternas (Élite)',
+    'Cementos / Sacos / Palets',
+    'Clinker → Grao Castellón', 'Clinker → Molienda Tarragona',
+    'Escorias / Adec', 'Árido reciclado / Tecnocatalana', 'Otros'
+  ];
+  const _materiales = _ORDEN_FAM.filter(f => _setMat.has(f));
   const _sel = window._factHolcimMatSel || null;
-  // Filtros que aplican el material elegido (si no hay, pasan todo)
-  const _fAb = (u.abonados || []).filter(a => !_sel || _matLinea(a.linea) === _sel);
-  const _fPo = (u.posibles || []).filter(a => !_sel || _matLinea(a.linea) === _sel);
-  const _fNo = (u.noAbonados || []).filter(r => !_sel || _matAlb(r) === _sel);
-  const _fSin = (u.sinAlbaran || []).filter(L => !_sel || _matLinea(L) === _sel);
+  // Filtros que aplican la familia elegida (si no hay, pasan todo)
+  const _fAb = (u.abonados || []).filter(a => !_sel || _famLinea(a.linea) === _sel);
+  const _fPo = (u.posibles || []).filter(a => !_sel || _famLinea(a.linea) === _sel);
+  const _fNo = (u.noAbonados || []).filter(r => !_sel || _famAlb(r) === _sel);
+  const _fSin = (u.sinAlbaran || []).filter(L => !_sel || _famLinea(L) === _sel);
 
   let h = '';
   h += _factBloqueArchivos(_factHolcimArchivos, esc);
 
-  // v107J40 — barra de botones de material (repaso por material/servicio)
+  // v107J44 — barra de botones por FAMILIA (repaso por familia/servicio)
   h += '<div style="margin-bottom:14px;padding:10px;background:var(--s2);border-radius:8px">';
-  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Repasar por material (pincha para filtrar el informe):</div>';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Repasar por familia (pincha para filtrar el informe):</div>';
   h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
   const _btnTodos = !_sel ? 'background:#2563eb;color:#fff' : 'background:#1f2333;color:#9fc6ff';
   h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(null)" style="margin:2px;padding:4px 10px;font-size:11px;' + _btnTodos + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">TODOS</button>';
@@ -16632,7 +16678,7 @@ function _factHolcimMostrarInforme() {
     h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(this.dataset.m)" data-m="' + esc(m) + '" style="margin:2px;padding:4px 10px;font-size:11px;' + activo + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">' + esc(m) + '</button>';
   });
   h += '</div>';
-  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Excel con una pestaña por material" style="font-size:11px">📊 Excel por material</button></div>';
+  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Excel con una pestaña por familia" style="font-size:11px">📊 Excel por familia</button></div>';
   if (_sel) h += '<div style="margin-top:6px;font-size:11px;color:#9fc6ff">Mostrando solo: <b>' + esc(_sel) + '</b></div>';
   h += '</div>';
 
@@ -16721,58 +16767,64 @@ function factHolcimExcelPorMaterial() {
   const u = _factHolcimUltimo;
   if (!u) { toast('No hay datos que exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
-  const _matDe = (s) => { const c = fixMaterial(String(s || '').trim()); return c || '(sin material)'; };
-  // Reunir todos los materiales presentes
+  const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  // Reunir todas las familias presentes
   const setM = new Set();
-  (u.abonados || []).forEach(a => setM.add(_matDe(a.linea.material)));
-  (u.posibles || []).forEach(a => setM.add(_matDe(a.linea.material)));
-  (u.noAbonados || []).forEach(r => setM.add(_matDe(r.producto)));
-  (u.sinAlbaran || []).forEach(L => setM.add(_matDe(L.material)));
-  // v107J41: solo pestañas de los 12 materiales Holcim canónicos (con datos).
-  const materiales = MATERIALES_HOLCIM_CANONICOS
-    .map(it => it.canon)
-    .filter(c => setM.has(c))
-    .sort((a, b) => a.localeCompare(b, 'es'));
-  if (!materiales.length) { toast('No hay materiales', 'err'); return; }
+  (u.abonados || []).forEach(a => setM.add(_famLinea(a.linea)));
+  (u.posibles || []).forEach(a => setM.add(_famLinea(a.linea)));
+  (u.noAbonados || []).forEach(r => setM.add(_famAlb(r)));
+  (u.sinAlbaran || []).forEach(L => setM.add(_famLinea(L)));
+  const _ORDEN_FAM = [
+    'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
+    'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Áridos Garraf → (otros destinos)',
+    'Núcleo Garraf → Puerto Barcelona', 'Cisternas (Élite)',
+    'Cementos / Sacos / Palets',
+    'Clinker → Grao Castellón', 'Clinker → Molienda Tarragona',
+    'Escorias / Adec', 'Árido reciclado / Tecnocatalana', 'Otros'
+  ];
+  const materiales = _ORDEN_FAM.filter(f => setM.has(f));
+  if (!materiales.length) { toast('No hay familias', 'err'); return; }
 
   const wb = XLSX.utils.book_new();
   // Nombre de pestaña válido para Excel (máx 31 chars, sin : \ / ? * [ ])
-  const _hoja = (s) => String(s).replace(/[:\\/?*\[\]]/g, '').slice(0, 31) || 'Material';
+  const _hoja = (s) => String(s).replace(/[:\\/?*\[\]→]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'Familia';
   const usados = {};
 
   materiales.forEach(mat => {
-    const ab = (u.abonados || []).filter(a => _matDe(a.linea.material) === mat);
-    const po = (u.posibles || []).filter(a => _matDe(a.linea.material) === mat);
-    const no = (u.noAbonados || []).filter(r => _matDe(r.producto) === mat);
-    const sin = (u.sinAlbaran || []).filter(L => _matDe(L.material) === mat);
+    const ab = (u.abonados || []).filter(a => _famLinea(a.linea) === mat);
+    const po = (u.posibles || []).filter(a => _famLinea(a.linea) === mat);
+    const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
+    const sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
     const aoa = [];
-    aoa.push(['MATERIAL: ' + mat]);
+    aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
     aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Observación']);
-    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino', 'Observación']);
+    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
     aoa.push([]);
     aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
-    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
-    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
+    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
+    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
     aoa.push([]);
     aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
     aoa.push(['Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
     no.forEach(r => aoa.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material']);
-    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.valor_neto || '', L.material || '']));
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino']);
+    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.valor_neto || '', L.material || '', L.destino || '']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:11},{wch:28},{wch:14},{wch:12},{wch:12},{wch:10}];
+    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:11},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
   });
 
-  XLSX.writeFile(wb, 'Holcim_por_material_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-  toast('✓ Excel por material descargado (' + materiales.length + ' pestañas)', 'ok');
+  XLSX.writeFile(wb, 'Holcim_por_familia_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast('✓ Excel por familia descargado (' + materiales.length + ' pestañas)', 'ok');
 }
 
 // v107GB — Confirmar una "posible" (la marca facturada en memoria + Supabase y refresca el modal).
