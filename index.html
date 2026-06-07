@@ -75,6 +75,7 @@
 <!-- v107J48 (07/06/2026): VENTANA DE FECHAS PRECISA en "no abonados" Holcim. Antes era ±1 mes ENTERO → al subir mayo salía TODO abril y TODO junio como "no abonado" (abril no se repasó/subió). Holcim no cierra el 30/31: arrastra a primeros del mes siguiente (si el 30 es viernes, cierra el lunes 3 / hasta el 5) y a veces corta sobre el 23-25 del mes anterior. Nueva ventana: DESDE 10 días antes del día 1 del mes de la autofactura HASTA el día 5 del mes siguiente. Así no muestra el mes anterior entero ni el siguiente entero, solo el arrastre real. Sustituye _mesAdy/mesesPermitidos por _ventanaHolcim (fechas exactas) + _fechaEnVentana. Solo cambia app.js. NO requiere SQL. -->
 <!-- v107J49 (07/06/2026): ajuste de la ventana a petición de JC con caso real (Excel de ayuda Holcim: la liquidación de mayo va del 21 abril al 25 mayo). Ventana definitiva: del DÍA 20 DEL MES ANTERIOR al DÍA 5 DEL MES SIGUIENTE (antes era "10 días antes del día 1"). Cubre todos los casos (calizas, áridos, servicios); lo que pague de más un mes, el siguiente lo ve ya en verde (abonado) y no molesta. Verificado el cálculo en bordes de año (enero→desde 20 dic año anterior; diciembre→hasta 5 enero siguiente). Solo cambia app.js. NO requiere SQL. -->
 <!-- v107J50 (07/06/2026): SELECCIÓN MÚLTIPLE de familias para el Excel. Antes el Excel salía de 1 familia (la filtrada) o de todas. Ahora, bajo la barra de botones, hay CASILLAS para marcar las familias que quieras (1, 2, 3 o las que sea) y un botón "📊 DESCARGAR EXCEL" que saca solo las marcadas; si no marcas ninguna → salen TODAS. Los botones de arriba siguen filtrando lo que VES (de uno en uno); las casillas son solo para el Excel. window._factExcelMarcadas (Set) guarda las marcadas; _factExcelToggle(m) marca/desmarca; se resetea al recalcular el informe. El nombre del fichero es Holcim_<familia> si es una sola, Holcim_por_familia si son varias. Excel sigue SIN precios (J47). Solo cambia app.js. NO requiere SQL. -->
+<!-- v107J51 (FASE 3 — 07/06/2026): ARRANQUE RÁPIDO + CRECIMIENTO. Antes loadData traía TODOS los albaranes de golpe (6.633 → y creciendo a 15-20.000). Ahora al abrir trae solo los SUBIDOS en los últimos 3 MESES (filtro created_at en _mkQuery y _mkCount). Así el arranque es rápido y se mantiene rápido aunque la BD crezca. Botón "Ver todo el histórico" (aviso #avisoHistorico sobre la tabla) → cargarTodoHistorico() pone window._cargarTodo=true y recarga TODO. Si JC filtra una fecha "desde" anterior al corte de 3 meses sin haber cargado todo, applyFilters muestra un aviso para cargar el histórico (así nunca parece que "faltan" albaranes). Red de seguridad: si el conteo falla, cae al método de siempre. Las estadísticas de arriba reflejan lo cargado (3 meses o todo). Decisión JC: 3 meses (colchón para que el mes anterior nunca falte). Cambia app.js + index.html (nuevo div avisoHistorico). NO requiere SQL. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -309,6 +310,8 @@ if (typeof pdfjsLib !== 'undefined') {
             <div class="srch">🔍 <input id="srchIn" placeholder="Buscar en todos los campos..." oninput="applyFilters()"></div>
             <span class="res-count" id="resCount"></span>
           </div>
+          <!-- v107J51 (FASE 3): aviso de "mostrando últimos 3 meses" + botón ver todo el histórico -->
+          <div id="avisoHistorico" style="display:none;margin:6px 0;padding:8px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-size:12px;color:#cfe;font-family:var(--mn)"></div>
           <div class="tbl-wrap">
             <table>
               <thead><tr>
@@ -1277,6 +1280,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

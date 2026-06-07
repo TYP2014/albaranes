@@ -781,14 +781,35 @@ async function loadData() {
       .order('created_at', { ascending: false })
       .range(desde, hasta);
     if (_aplicaFiltro) q = q.eq('user_id', currentUser.id);
+    // v107J51 (FASE 3): si NO estamos en modo "ver todo", solo traer los albaranes
+    // SUBIDOS en los últimos 3 meses (created_at). Esto hace el arranque rápido y
+    // preparado para crecer (da igual que haya 6.000 o 50.000 en total). El histórico
+    // completo se trae a la carta con cargarTodoHistorico() (botón "ver todo").
+    if (!window._cargarTodo) {
+      const corte = new Date();
+      corte.setMonth(corte.getMonth() - 3);
+      q = q.gte('created_at', corte.toISOString());
+    }
     return q;
+  };
+
+  // v107J51: el conteo debe usar el MISMO filtro de 3 meses que la carga, para que el
+  // número de páginas cuadre y no se queden filas sin traer.
+  const _mkCount = () => {
+    let c = sb.from('albaranes').select('id', { count: 'exact', head: true });
+    if (_aplicaFiltro) c = c.eq('user_id', currentUser.id);
+    if (!window._cargarTodo) {
+      const corte = new Date();
+      corte.setMonth(corte.getMonth() - 3);
+      c = c.gte('created_at', corte.toISOString());
+    }
+    return c;
   };
 
   let allRows = [];
   try {
     // (1) Contar cuántas filas hay (consulta ligera: head=true no trae datos, solo el total)
-    let countQuery = sb.from('albaranes').select('id', { count: 'exact', head: true });
-    if (_aplicaFiltro) countQuery = countQuery.eq('user_id', currentUser.id);
+    let countQuery = _mkCount();
     const { count, error: cErr } = await countQuery;
 
     if (cErr || count == null) {
@@ -821,7 +842,7 @@ async function loadData() {
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
     return;
   }
-  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD`);
+  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD` + (window._cargarTodo ? ' (TODO el histórico)' : ' (últimos 3 meses)'));
   // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
   // v76: además, si la columna manual_edit=true en BD, marcamos _manual en memoria.
   // Así el albarán queda protegido contra reanálisis automáticos en TODA la sesión.
@@ -923,7 +944,43 @@ async function loadData() {
   } catch (e) { console.error('[loadData] contadores pestañas fallaron:', e); }
   // v107: marcar timestamp de última carga. Lo usa switchTab() para refresco inteligente.
   _lastLoadDataTs = Date.now();
+  // v107J51 (FASE 3): refrescar el aviso de "mostrando últimos 3 meses" tras cargar.
+  try { _actualizarAvisoHistorico(); } catch (e) { console.warn('[J51] aviso histórico:', e); }
 }
+
+// v107J51 (FASE 3) — BOTÓN "VER TODO EL HISTÓRICO". Cuando JC necesita un albarán antiguo
+// (cosa puntual), pulsa el aviso y esto recarga TODOS los albaranes (sin el filtro de 3
+// meses). A partir de ahí ya está todo en memoria, como antes de la Fase 3.
+async function cargarTodoHistorico() {
+  if (window._cargarTodo) return; // ya está todo cargado
+  const aviso = document.getElementById('avisoHistorico');
+  if (aviso) aviso.innerHTML = '<span style="color:var(--mu)">⏳ Cargando todo el histórico…</span>';
+  window._cargarTodo = true;
+  try {
+    await loadData();
+    toast('✓ Histórico completo cargado', 'ok');
+  } catch (e) {
+    toast('Error cargando el histórico: ' + (e.message || e), 'err');
+    window._cargarTodo = false; // si falla, volver al modo 3 meses
+  }
+}
+
+// v107J51 (FASE 3) — pinta/actualiza el aviso sobre la tabla de albaranes. Si estamos en
+// modo 3 meses, muestra el botón "ver todo". Si ya se cargó todo, lo oculta.
+function _actualizarAvisoHistorico() {
+  const aviso = document.getElementById('avisoHistorico');
+  if (!aviso) return;
+  if (window._cargarTodo) {
+    aviso.style.display = 'none';
+    aviso.innerHTML = '';
+  } else {
+    aviso.style.display = '';
+    aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos 3 meses</b> (arranque rápido). '
+      + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Ver todo el histórico</a> '
+      + '<span style="color:var(--mu)">· para fechas más antiguas, cárgalo aquí.</span>';
+  }
+}
+
 // v107: timestamp de última carga de loadData (para refresco automático en switchTab).
 let _lastLoadDataTs = 0;
 
@@ -5890,6 +5947,21 @@ function msFilter(listId, q) {
 function applyFilters() {
   window._limVisible = 200; // v107J43: al filtrar u ordenar, volver a mostrar las primeras 200 (rendimiento)
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
+  // v107J51 (FASE 3): si JC busca una fecha "desde" ANTERIOR al corte de 3 meses y todavía
+  // no se ha cargado el histórico completo, avisar para que cargue todo (si no, parecería
+  // que "faltan" albaranes). El filtro fDesde es tipo date (YYYY-MM-DD).
+  if (desde && !window._cargarTodo) {
+    const corte = new Date(); corte.setMonth(corte.getMonth() - 3);
+    const fd = new Date(desde + 'T00:00:00');
+    if (!isNaN(fd) && fd < corte) {
+      const aviso = document.getElementById('avisoHistorico');
+      if (aviso) {
+        aviso.style.display = '';
+        aviso.innerHTML = '⚠️ Estás filtrando una fecha de hace más de 3 meses. Esos albaranes aún no están cargados. '
+          + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Cargar todo el histórico</a> para verlos.';
+      }
+    }
+  }
   // v100: Proveedor, Origen, Destino, Material y Subido por son ahora multi-select.
   // Las variables `prov`, `origen`, etc. (inputs antiguos) ya no existen — usamos los Sets.
   const subidoEl = document.getElementById('fSubidoEl')?.value; // v83: fecha de subida (created_at)
