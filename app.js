@@ -938,6 +938,17 @@ async function saveRecord(data) {
   // Así el conductor sigue viendo SU albarán y ve en la columna nueva
   // "Editado por" quién lo corrigió (admin, oficina, o él mismo).
   const rec = { ...data };
+  // v107J39: canonizar el MATERIAL Holcim en el punto único de guardado (después de
+  // que TODAS las reglas de origen/destino hayan usado el texto crudo del producto).
+  // fixMaterial SOLO cambia los materiales Holcim de la lista (acento, mayúsculas,
+  // abreviaturas → forma canónica); cualquier otro material se queda tal cual.
+  if (rec.producto) {
+    const _matCanon = fixMaterial(rec.producto);
+    if (_matCanon && _matCanon !== rec.producto) {
+      console.log(`[v107J39 material] "${rec.producto}" → "${_matCanon}"`);
+      rec.producto = _matCanon;
+    }
+  }
   if (!data.db_id) {
     // Es nuevo: el dueño es quien lo sube.
     rec.user_id = currentUser.id;
@@ -7344,6 +7355,20 @@ function openModal(id) {
         : '';
       return `<div class="fg full"><label class="fl">${f.l}${btnManual}</label><select class="fi" id="mf_${f.k}">${opts}</select></div>`;
     }
+    // v107J39: el campo MATERIAL (producto) sigue siendo escribible (no rompe los
+    // materiales que no son Holcim), pero añadimos DEBAJO botones pinchables con los
+    // materiales Holcim habituales. Al pinchar, rellena el campo con el nombre canónico.
+    if (f.k === 'producto' && (currentRole === 'admin' || currentRole === 'gestor')) {
+      const chipsMat = MATERIALES_HOLCIM_CANONICOS.map(it => {
+        const c = esc(it.canon);
+        return `<button type="button" class="bm" onclick="document.getElementById('mf_producto').value=this.dataset.m" data-m="${c}" style="margin:2px;padding:3px 8px;font-size:11px;background:#1f2333;color:#9fc6ff;border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">${c}</button>`;
+      }).join('');
+      return `<div class="fg full"><label class="fl">${f.l}</label>`
+        + `<input class="fi" id="mf_${f.k}" value="${val}">`
+        + `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:2px">`
+        + `<span style="width:100%;font-size:10px;color:var(--mu);margin-bottom:2px">Materiales Holcim (pincha para rellenar):</span>`
+        + chipsMat + `</div></div>`;
+    }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
 
@@ -7569,6 +7594,8 @@ async function saveModal() {
       else if (f.k === 'planta') newVal = matchExacto(newVal, ORIGENES_CANONICOS) || newVal;
       else if (f.k === 'obra') newVal = matchExacto(newVal, DESTINOS_CANONICOS) || newVal;
       else if (f.k === 'cliente') newVal = matchExacto(newVal, CLIENTES_CANONICOS) || newVal;
+      // v107J39: material Holcim → forma canónica (solo los de la lista Holcim).
+      else if (f.k === 'producto') newVal = matchExacto(newVal, MATERIALES_HOLCIM_CANONICOS) || newVal;
       // v107U: quitada la canonización automática de matrícula al guardar manualmente.
       // El problema: fixMatricula busca variantes ortográficas (cambia W↔N, I↔1, etc.) y si
       // alguna variante coincide con una matrícula oficial, devuelve esa, pisando lo que el
@@ -11371,6 +11398,68 @@ const ORIGENES_CANONICOS = [
 ];
 const _matchOrigen = makeCanonMatcher(ORIGENES_CANONICOS);
 function fixOrigen(o) { return _matchOrigen(o); }
+
+// ============================================================================
+// v107J39 — MATERIALES HOLCIM CANÓNICOS (pinchables en el modal + corrección
+// automática). Lista cerrada de los materiales habituales de Holcim, que son
+// los únicos que aparecían repetidos en el filtro por culpa de variantes
+// (acento sí/no, mayúsculas, abreviaturas). Para CADA uno, "canon" es el nombre
+// bueno tal como lo quiere Juan Carlos, y "alias" las formas en que puede venir
+// mal escrito (por la IA o a mano). fixMaterial() SOLO toca estos; cualquier
+// otro material (CEM II, AF-0/4, etc.) se deja TAL CUAL. Decisión JC 07/06/2026.
+// NOTA cruce: Adec ("Árido siderúrgico blanco") y Tecnocatalana ("Árido
+// reciclado") cruzan por Nº de albarán (908…) que JC mete a mano desde el
+// Excel de Holcim; aquí solo se canoniza su NOMBRE, no afecta al cruce.
+// ============================================================================
+const MATERIALES_HOLCIM_CANONICOS = [
+  { canon: 'ARENA EXTRAIDA CANTERA MARTORELL', alias: [
+    'ARENA EXTRAÍDA CANTERA MARTORELL', 'ARENA EXTRAIDA CANTERA MARTORE',
+    'ARENA EXTRAÍDA CANTERA MARTORE', 'ARENA EXTRAIDA MARTORELL',
+    'ARENA MARTORELL', 'ARENA CANTERA MARTORELL', 'ARENA EXTRAIDA',
+    'ARENA EXTRAÍDA', 'ARENA', 'arena martorell', 'arena'
+  ] },
+  { canon: 'YESO', alias: ['yeso', 'Yeso'] },
+  { canon: 'ARCILLA SILICIA PAPIOL', alias: [
+    'ARCILLA SILÍCIA PAPIOL', 'ARCILLA SILICEA PAPIOL', 'ARCILLA SILÍCEA PAPIOL',
+    'ARCILLA SILICIA', 'ARCILLA SILÍCIA', 'ARCILLA PAPIOL', 'ARCILLA',
+    'arcilla silicia papiol', 'arcilla papiol', 'arcilla'
+  ] },
+  { canon: 'CALIZA GARRAF ZAHORRA', alias: [
+    'CALIZA GARRAF ZAORRA', 'CALIZA GARRAF', 'CALIZA ZAHORRA',
+    'GARRAF ZAHORRA', 'caliza garraf zahorra', 'caliza garraf'
+  ] },
+  { canon: 'Caliza Promsa', alias: [
+    'CALIZA PROMSA', 'caliza promsa', 'Caliza promsa', 'CALIZA PROMSA GARRAF',
+    'Caliza Promsa Garraf'
+  ] },
+  { canon: 'Caliza Foj', alias: [
+    'CALIZA FOJ', 'caliza foj', 'Caliza foj'
+  ] },
+  { canon: 'Caliza Cemex', alias: [
+    'CALIZA CEMEX', 'caliza cemex', 'Caliza cemex'
+  ] },
+  { canon: 'Árido siderúrgico blanco', alias: [
+    'ARIDO SIDERURGICO BLANCO', 'ÁRIDO SIDERÚRGICO BLANCO', 'Arido siderurgico blanco',
+    'ÁRIDO SIDERÚRGICO', 'ARIDO SIDERURGICO', 'Árido siderúrgico',
+    'ESCORIAS VALLIRANA', 'ESCORIAS', 'escorias vallirana', 'escorias',
+    'arido siderurgico blanco'
+  ] },
+  { canon: 'Árido reciclado', alias: [
+    'ARIDO RECICLADO', 'ÁRIDO RECICLADO', 'Arido reciclado',
+    'ARIDO RECICLADO LES FRANQUESES', 'ÁRIDO RECICLADO LES FRANQUESES',
+    'arido reciclado', 'arido reciclado les franqueses'
+  ] },
+  { canon: 'LIMONITA', alias: ['limonita', 'Limonita'] },
+  { canon: 'CLINKER', alias: ['clinker', 'Clinker', 'CLÍNKER', 'Clínker', 'clínker'] },
+  { canon: 'ESCOMBROS', alias: ['escombros', 'Escombros', 'ESCOMBRO', 'Escombro', 'escombro'] }
+];
+const _matchMaterialHolcim = makeCanonMatcher(MATERIALES_HOLCIM_CANONICOS);
+// Devuelve el nombre canónico SOLO si el material es uno de los Holcim de la lista;
+// si no lo es (CEM II, AF-0/4, etc.) makeCanonMatcher devuelve el original tal cual.
+function fixMaterial(m) {
+  if (!m) return m;
+  return _matchMaterialHolcim(m);
+}
 
 // MAPPING MATERIAL → ORIGEN: para albaranes de RECEPCIÓN donde Holcim recibe material.
 // El nombre del producto identifica de qué cantera viene físicamente la mercancía.
