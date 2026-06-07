@@ -16686,7 +16686,8 @@ function _factHolcimMostrarInforme() {
     h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(this.dataset.m)" data-m="' + esc(m) + '" style="margin:2px;padding:4px 10px;font-size:11px;' + activo + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">' + esc(m) + '</button>';
   });
   h += '</div>';
-  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Excel con una pestaña por familia" style="font-size:11px">📊 Excel por familia</button></div>';
+  const _txtBtnExcel = _sel ? ('📊 Excel de: ' + esc(_sel)) : '📊 Excel (todas las familias)';
+  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Si tienes una familia pinchada, el Excel sale solo de esa" style="font-size:11px">' + _txtBtnExcel + '</button></div>';
   if (_sel) h += '<div style="margin-top:6px;font-size:11px;color:#9fc6ff">Mostrando solo: <b>' + esc(_sel) + '</b></div>';
   h += '</div>';
 
@@ -16794,13 +16795,18 @@ function factHolcimExcelPorMaterial() {
   ];
   const materiales = _ORDEN_FAM.filter(f => setM.has(f));
   if (!materiales.length) { toast('No hay familias', 'err'); return; }
+  // v107J47: si hay una familia FILTRADA (botón pinchado), el Excel saca SOLO esa
+  // pestaña (lo que ves en pantalla es lo que sale). Si estás en TODOS, saca todas.
+  const _selFam = window._factHolcimMatSel || null;
+  const materialesFinal = _selFam ? materiales.filter(f => f === _selFam) : materiales;
+  if (!materialesFinal.length) { toast('No hay datos de esa familia', 'err'); return; }
 
   const wb = XLSX.utils.book_new();
   // Nombre de pestaña válido para Excel (máx 31 chars, sin : \ / ? * [ ])
   const _hoja = (s) => String(s).replace(/[:\\/?*\[\]→]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'Familia';
   const usados = {};
 
-  materiales.forEach(mat => {
+  materialesFinal.forEach(mat => {
     const ab = (u.abonados || []).filter(a => _famLinea(a.linea) === mat);
     const po = (u.posibles || []).filter(a => _famLinea(a.linea) === mat);
     const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
@@ -16809,30 +16815,31 @@ function factHolcimExcelPorMaterial() {
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
     aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino', 'Observación']);
-    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Observación']);
+    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
     aoa.push([]);
     aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
-    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
-    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
+    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
+    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
     aoa.push([]);
     aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
     aoa.push(['Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
     no.forEach(r => aoa.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Destino']);
-    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.valor_neto || '', L.material || '', L.destino || '']));
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.destino || '']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:11},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
+    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
   });
 
-  XLSX.writeFile(wb, 'Holcim_por_familia_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-  toast('✓ Excel por familia descargado (' + materiales.length + ' pestañas)', 'ok');
+  const _nomFich = _selFam ? ('Holcim_' + _selFam.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)) : 'Holcim_por_familia';
+  XLSX.writeFile(wb, _nomFich + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)'), 'ok');
 }
 
 // v107GB — Confirmar una "posible" (la marca facturada en memoria + Supabase y refresca el modal).
