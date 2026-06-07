@@ -16391,15 +16391,18 @@ function _factProcesarYMostrarHolcim(setEstado) {
       return;
     }
 
-    // 2b) PARCIAL → A REVISAR: misma matrícula y TN pero la fecha baila pocos días; o misma fecha pero TN distinta.
+    // 2b) PARCIAL → A REVISAR: misma matrícula y TN exacta, pero la fecha baila pocos días.
+    // v107J38: ANTES también valía "misma fecha aunque la TN no cuadre" (línea fOK). Eso era
+    // demasiado goloso: con líneas duplicadas en la autofactura, una copia sobrante de otra TN
+    // (ej. 27,865) agarraba por fecha el albarán de OTRA TN (ej. 30,1) del mismo día y lo dejaba
+    // sin poder cruzar con su línea buena. Ahora SOLO se acepta parcial si la TN cuadra (al céntimo)
+    // y la fecha está cerca; NO se acepta "solo por fecha". Así un duplicado ya no roba albaranes ajenos.
     let parcial = null; const difsP = [];
     for (const r of cands) {
       const d = Math.abs(_factNum(r.tm) - tnL);
       const tnOK = !isNaN(d) && d <= TOL_TN;
-      const fOK = normFecha(r.fecha) === fL;
       const dias = _diasEntre(fL, normFecha(r.fecha));
       if (tnOK && dias <= VENT_DIAS) { parcial = r; difsP.push('fecha (tú: ' + (r.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')'); break; }
-      if (fOK) { parcial = r; difsP.push('TN (tú: ' + (r.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')'); break; }
     }
     if (parcial) {
       posibles.push({ linea: L, rec: parcial, difs: difsP, modo: 'parcial' });
