@@ -15744,7 +15744,8 @@ async function factConciliarMesHolcim(mes) {
   // Restaurar los nombres de campo que usa el cruce/informe de Holcim.
   _factHolcimLineasAcum = data.map(r => ({
     num_entrega: r.numero_albaran, fecha: r.fecha, matricula: r.matricula,
-    material: r.concepto, tn: r.tn, valor_neto: r.importe, transportista: r.destino
+    material: r.concepto, tn: r.tn, valor_neto: r.importe, transportista: r.destino,
+    destino: r.origen || null // v107J42: destino/cliente de la línea (La Roca, Zona Franca, Montcada, Molienda Tarragona, Grao Castellón…)
   }));
   _factProcesarYMostrarHolcim(setEstado);
 }
@@ -16282,6 +16283,7 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
     + '- fecha: la "Fecha de entrega" en formato DD/MM/YYYY (en el PDF viene como DD.MM.YYYY, conviértela con barras).\n'
     + '- matricula: SOLO la matrícula TRACTORA, que es la que va ANTES de la "/" (ej. en "0755KMB / R8205BDG" la tractora es "0755KMB"). La de después empieza por "R" y es el REMOLQUE: NO la cojas. Sin espacios.\n'
     + '- material: el texto de "Material de servicio" (ej. "CEM II/A-L 42,5 R GRANEL", "AF-0/4-T-C", "PALET CEMENTO", "YESO", "Caliza Foj", "CLINKER").\n'
+    + '- destino: el texto de la columna "Nombre Proveedor/Cliente" (o "Nombre Proveedor") de esa línea, TAL CUAL, que indica el destino/cliente del porte (ej. "La Roca", "Planta Hormigones Zona Franca", "Montcada (Hormig)", "CLINKER - GRAO DE CASTELLON", "Molienda Tarragona", "PROMOTORA MEDITERRANEA 2 S A", "SABADELL"). Es importante para separar después por destino (áridos a La Roca / Zona Franca / Montcada) y por tipo (clinker de Castellón / Tarragona). Si no se ve, null.\n'
     + '- tn: el valor de la columna "Cta." (cantidad), con punto decimal (ej 30.040). En las líneas de PALET es negativo (ej -10): cópialo igual.\n'
     + '- valor_neto: el valor de la última columna "Valor neto" en euros, con punto decimal (ej 160.78).\n'
     + '- transportista: el nombre de la fila de cabecera "Transportista :" que manda sobre ese bloque (ej "TRANSPORTES Y PORTES 2014", "TRANSPORTES HISPALIS 2016", "TRANSMARGAZ 2018"). Repítelo en cada línea de su bloque hasta que aparezca otra cabecera "Transportista :".\n\n'
@@ -16392,9 +16394,12 @@ async function factSubirAutofacturaHolcim(files) {
   }
 
   // J27: guardar PERMANENTE por mes (proveedor HOLCIM) y conciliar el mes entero.
+  // v107J42: el "destino/cliente" de cada línea (La Roca, Zona Franca, Montcada, Molienda
+  // Tarragona, Grao Castellón…) se guarda en la columna `origen` (que estaba libre/null),
+  // porque `destino` ya se usa para el transportista. Sirve para el repaso por destino.
   const lineasGen = lineas.map(L => ({
     numero_albaran: L.num_entrega || null, fecha: L.fecha || null, matricula: L.matricula || null,
-    origen: null, destino: L.transportista || null, tn: L.tn, importe: L.valor_neto, scd: null,
+    origen: L.destino || null, destino: L.transportista || null, tn: L.tn, importe: L.valor_neto, scd: null,
     es_ajuste: false, concepto: L.material || null
   }));
   const mesDoc = _factMesDeLineas(lineas) || _factMesDeFichero(file && file.name) || 'sin-mes';
@@ -16579,7 +16584,13 @@ function _factHolcimMostrarInforme() {
   (u.posibles || []).forEach(a => _setMat.add(_matLinea(a.linea)));
   (u.noAbonados || []).forEach(r => _setMat.add(_matAlb(r)));
   (u.sinAlbaran || []).forEach(L => _setMat.add(_matLinea(L)));
-  const _materiales = Array.from(_setMat).sort((a, b) => a.localeCompare(b, 'es'));
+  // v107J41: los BOTONES solo muestran los 12 materiales Holcim canónicos (no los
+  // materiales de albaranes "no abonados" tipo BIGMAT/AF-… que ensuciaban la barra).
+  // Y de esos 12, solo los que de verdad tienen alguna línea en este informe.
+  const _materiales = MATERIALES_HOLCIM_CANONICOS
+    .map(it => it.canon)
+    .filter(c => _setMat.has(c))
+    .sort((a, b) => a.localeCompare(b, 'es'));
   const _sel = window._factHolcimMatSel || null;
   // Filtros que aplican el material elegido (si no hay, pasan todo)
   const _fAb = (u.abonados || []).filter(a => !_sel || _matLinea(a.linea) === _sel);
@@ -16697,7 +16708,11 @@ function factHolcimExcelPorMaterial() {
   (u.posibles || []).forEach(a => setM.add(_matDe(a.linea.material)));
   (u.noAbonados || []).forEach(r => setM.add(_matDe(r.producto)));
   (u.sinAlbaran || []).forEach(L => setM.add(_matDe(L.material)));
-  const materiales = Array.from(setM).sort((a, b) => a.localeCompare(b, 'es'));
+  // v107J41: solo pestañas de los 12 materiales Holcim canónicos (con datos).
+  const materiales = MATERIALES_HOLCIM_CANONICOS
+    .map(it => it.canon)
+    .filter(c => setM.has(c))
+    .sort((a, b) => a.localeCompare(b, 'es'));
   if (!materiales.length) { toast('No hay materiales', 'err'); return; }
 
   const wb = XLSX.utils.book_new();
