@@ -16572,6 +16572,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
 
   _factHolcimUltimo = { abonados, posibles, noAbonados, sinAlbaran, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
   window._factHolcimMatSel = null; // v107J40: empezar siempre mostrando TODOS los materiales
+  window._factExcelMarcadas = new Set(); // v107J50: empezar sin familias marcadas para el Excel
 
   // Marcar abonados como facturados (memoria + Supabase en 2º plano).
   for (const a of abonados) {
@@ -16683,9 +16684,22 @@ function _factHolcimMostrarInforme() {
     h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(this.dataset.m)" data-m="' + esc(m) + '" style="margin:2px;padding:4px 10px;font-size:11px;' + activo + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">' + esc(m) + '</button>';
   });
   h += '</div>';
-  const _txtBtnExcel = _sel ? ('📊 Excel de: ' + esc(_sel)) : '📊 Excel (todas las familias)';
-  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Si tienes una familia pinchada, el Excel sale solo de esa" style="font-size:11px">' + _txtBtnExcel + '</button></div>';
-  if (_sel) h += '<div style="margin-top:6px;font-size:11px;color:#9fc6ff">Mostrando solo: <b>' + esc(_sel) + '</b></div>';
+  // v107J50 — SELECCIÓN MÚLTIPLE PARA EL EXCEL. Los botones de arriba filtran lo que VES
+  // (de uno en uno). Aquí abajo, casillas para MARCAR varias familias y sacar el Excel de
+  // las marcadas. Si no marcas ninguna → saca TODAS. window._factExcelMarcadas = Set.
+  if (!window._factExcelMarcadas) window._factExcelMarcadas = new Set();
+  h += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)">';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">📊 Para el Excel: marca las familias que quieras (si no marcas ninguna, salen TODAS):</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+  _materiales.forEach(m => {
+    const chk = window._factExcelMarcadas.has(m) ? 'checked' : '';
+    h += '<label style="font-size:11px;color:#cfe;display:inline-flex;align-items:center;gap:3px;cursor:pointer">'
+      + '<input type="checkbox" ' + chk + ' onchange="_factExcelToggle(this.dataset.m)" data-m="' + esc(m) + '" style="cursor:pointer">'
+      + esc(m) + '</label>';
+  });
+  h += '</div>';
+  h += '<button class="btn bs" onclick="factHolcimExcelPorMaterial()" style="font-size:11px">📊 DESCARGAR EXCEL</button>';
+  h += '</div>';
   h += '</div>';
 
   h += '<div style="margin-bottom:18px">';
@@ -16767,6 +16781,13 @@ function _factHolcimFiltrarMaterial(m) {
   _factHolcimMostrarInforme();
 }
 
+// v107J50 — marca/desmarca una familia para el Excel (no repinta todo, solo el Set).
+function _factExcelToggle(m) {
+  if (!window._factExcelMarcadas) window._factExcelMarcadas = new Set();
+  if (window._factExcelMarcadas.has(m)) window._factExcelMarcadas.delete(m);
+  else window._factExcelMarcadas.add(m);
+}
+
 // v107J40 — Excel con UNA PESTAÑA POR MATERIAL. Cada pestaña lleva las 4 secciones
 // (Abonados / A revisar / No abonados / Sin copia) de ese material, una debajo de otra.
 function factHolcimExcelPorMaterial() {
@@ -16794,9 +16815,11 @@ function factHolcimExcelPorMaterial() {
   if (!materiales.length) { toast('No hay familias', 'err'); return; }
   // v107J47: si hay una familia FILTRADA (botón pinchado), el Excel saca SOLO esa
   // pestaña (lo que ves en pantalla es lo que sale). Si estás en TODOS, saca todas.
-  const _selFam = window._factHolcimMatSel || null;
-  const materialesFinal = _selFam ? materiales.filter(f => f === _selFam) : materiales;
-  if (!materialesFinal.length) { toast('No hay datos de esa familia', 'err'); return; }
+  // v107J50: el Excel usa las familias MARCADAS con las casillas. Si no hay ninguna
+  // marcada → saca TODAS. (Antes usaba el filtro de "ver", ahora la selección múltiple.)
+  const _marc = window._factExcelMarcadas && window._factExcelMarcadas.size ? window._factExcelMarcadas : null;
+  const materialesFinal = _marc ? materiales.filter(f => _marc.has(f)) : materiales;
+  if (!materialesFinal.length) { toast('No hay datos de las familias marcadas', 'err'); return; }
 
   const wb = XLSX.utils.book_new();
   // Nombre de pestaña válido para Excel (máx 31 chars, sin : \ / ? * [ ])
@@ -16834,7 +16857,9 @@ function factHolcimExcelPorMaterial() {
     XLSX.utils.book_append_sheet(wb, ws, nombre);
   });
 
-  const _nomFich = _selFam ? ('Holcim_' + _selFam.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)) : 'Holcim_por_familia';
+  const _nomFich = (materialesFinal.length === 1)
+    ? ('Holcim_' + materialesFinal[0].replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30))
+    : 'Holcim_por_familia';
   XLSX.writeFile(wb, _nomFich + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)'), 'ok');
 }
