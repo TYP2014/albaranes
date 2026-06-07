@@ -5888,6 +5888,7 @@ function msFilter(listId, q) {
 }
 
 function applyFilters() {
+  window._limVisible = 200; // v107J43: al filtrar u ordenar, volver a mostrar las primeras 200 (rendimiento)
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
   // v100: Proveedor, Origen, Destino, Material y Subido por son ahora multi-select.
   // Las variables `prov`, `origen`, etc. (inputs antiguos) ya no existen — usamos los Sets.
@@ -6615,8 +6616,16 @@ function renderTable() {
   document.querySelectorAll('th[id^="th-"]').forEach(th => { th.className = th.id === 'th-' + sortCol ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : ''; });
   if (!filtered.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
-  tbody.innerHTML = filtered.map(r => `
-    <!-- v107CS: anchos reducidos en Material (100), Cliente (110), Subido por (70), Editado por (70) para que la columna Subido quepa al final sin scroll. -->
+  // v107J43: RENDIMIENTO. Antes se pintaban TODAS las filas filtradas (con 6600+
+  // albaranes eran ~6900 filas a la vez → 430MB y la app iba lentísima). Ahora se
+  // pintan solo las primeras _limVisible (200) y, si hay más, una fila "▼ Ver más"
+  // al final que añade otras 200. Los filtros, orden y selección NO cambian: siguen
+  // operando sobre TODO `filtered`; esto solo limita cuántas se DIBUJAN de golpe.
+  if (typeof window._limVisible !== 'number') window._limVisible = 200;
+  const totalFil = filtered.length;
+  const lim = Math.min(window._limVisible, totalFil);
+  const visibles = filtered.slice(0, lim);
+  tbody.innerHTML = visibles.map(r => `
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
       <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${rowBadge(r)} ${factIcon(r)}</td>
@@ -6632,7 +6641,12 @@ function renderTable() {
       <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:#fbbf24;font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
       <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:125px">${fmtTS(r.created_at || r._ts)}</td>
-    </tr>`).join('');
+    </tr>`).join('')
+    + (totalFil > lim
+      ? `<tr class="fila-vermas"><td colspan="14" style="text-align:center;padding:14px;background:var(--s2)">
+           <button class="btn bs" onclick="event.stopPropagation();_verMasFilas()" style="font-size:12px;padding:7px 18px">▼ Ver más (mostrando ${lim} de ${totalFil})</button>
+         </td></tr>`
+      : '');
   // v107CP: si el modo selección está activo, al repintar la tabla las
   // casillas vuelven a salir ocultas (HTML recreado). Las volvemos a
   // mostrar para que no se "pierdan" al filtrar o reordenar.
@@ -6642,6 +6656,12 @@ function renderTable() {
     if (thSel) thSel.style.display = 'table-cell';
     _selUno();
   }
+}
+
+// v107J43: muestra 200 filas más (y repinta). Lo llama el botón "Ver más".
+function _verMasFilas() {
+  window._limVisible = (window._limVisible || 200) + 200;
+  renderTable();
 }
 
 function renderGasTable() {
