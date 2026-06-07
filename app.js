@@ -15393,16 +15393,30 @@ async function _leerAutofacturaGrande(file, key, lector, setEstado) {
       else todas = todas.concat(leido);
     }
     window._factPartesFallidas = fallidos;
-    return todas;
+    // v107J37: separar el objeto de control (_control) de las líneas reales.
+    window._factControl = null;
+    const limpias = [];
+    for (const x of todas) {
+      if (x && x._control === true) { window._factControl = x; }
+      else { limpias.push(x); }
+    }
+    return limpias;
   }
   // 3) PDF pequeño (o pdf-lib no disponible) → leer entero, como siempre.
+  window._factControl = null;
   const b64 = await new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(((r.result || '') + '').split(',')[1] || '');
     r.onerror = () => rej(new Error('No se pudo leer el PDF'));
     r.readAsDataURL(file);
   });
-  return await lector(b64, key);
+  const leidoEntero = await lector(b64, key);
+  const limpiasEntero = [];
+  for (const x of (leidoEntero || [])) {
+    if (x && x._control === true) { window._factControl = x; }
+    else { limpiasEntero.push(x); }
+  }
+  return limpiasEntero;
 }
 
 // Mes a partir de las fechas de las líneas (el más repetido) → "YYYY-MM".
@@ -16187,7 +16201,9 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
     + '- IGNORA por completo (NO las incluyas) las filas "Fin de semana" (no tienen Num. Entrega, su UoM es "UP", son un recargo). IGNORA también cabeceras, subtítulos, "Página X / Y", "Referencia", "Periodo", "Lafarge CEM Planta", direcciones de empresa y pies de página.\n'
     + '- Una misma matrícula encabeza un bloque y debajo van varias líneas: cada línea es un objeto, todas con esa matrícula hasta que cambie.\n'
     + '- 🔴 MUY IMPORTANTE (páginas SIN cabecera de columnas): cuando cambia de transportista (aparece otra fila "Transportista :") o simplemente al pasar de página, la tabla MUCHAS VECES continúa SIN volver a imprimir la fila de títulos de columna (Fecha | Num. Entrega | Matrícula | ... | Cta. | ...). Esas filas SON LÍNEAS DE PORTE VÁLIDAS y NO debes saltártelas: el orden de las columnas es SIEMPRE el mismo aunque no se vea la cabecera. Lee esas filas EXACTAMENTE igual que las de una página con cabecera (fecha, num_entrega, matrícula tractora antes de la "/", material, Cta. como tn, Valor neto). NO ignores una fila solo porque encima no tenga títulos de columna. Procesa TODAS las filas que tengan una fecha + Num. Entrega + matrícula, estén donde estén, en cualquier página, con o sin cabecera y bajo cualquier "Transportista :".\n'
-    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null (pero num_entrega y matricula deben verse).\n\n'
+    + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null (pero num_entrega y matricula deben verse).\n'
+    + '- 🔴 NO TE DEJES NINGUNA FILA: es PREFERIBLE que repitas una línea de más a que te dejes una sin leer. Si dudas si una fila ya la has puesto, ponla igualmente. Lo importante es que NO falte ninguna.\n'
+    + '- 🔴 TOTAL DE CONTROL: si en ESTE PDF ves la fila final de totales (textos como "Total transporte", "Subtotal por PO" o "NNN Envíos"), añade al final del array UN objeto especial: {"_control": true, "envios": NÚMERO_DE_ENVÍOS, "total_tn": TONELADAS_TOTALES}. Ejemplo: si pone "7.257,270 T ... 245 Envíos" añade {"_control":true,"envios":245,"total_tn":7257.270}. Si en este PDF NO aparece esa fila de totales, NO añadas el objeto de control.\n\n'
     + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -16268,6 +16284,22 @@ async function factSubirAutofacturaHolcim(files) {
   // J34: avisar si alguna parte del PDF no se pudo leer (tras reintentos).
   if (window._factPartesFallidas && window._factPartesFallidas.length) {
     toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de esta liquidación. Vuelve a subirla para completarla.', 'err');
+  }
+
+  // v107J37: comprobar contra el TOTAL declarado en el PDF ("NNN Envíos").
+  // Lo importante es NO dejarse líneas. Si leemos MENOS que el total, avisar fuerte.
+  const _ctrl = window._factControl;
+  if (_ctrl && _ctrl.envios) {
+    const leidas = lineas.length;
+    const declaradas = parseInt(_ctrl.envios, 10);
+    if (!isNaN(declaradas) && declaradas > 0) {
+      if (leidas < declaradas) {
+        const faltan = declaradas - leidas;
+        toast('⚠️ ATENCIÓN: el PDF dice ' + declaradas + ' envíos y solo he leído ' + leidas + '. FALTAN ' + faltan + ' líneas. Vuelve a subirla para que las lea todas.', 'err');
+      } else {
+        toast('✅ Leídas ' + leidas + ' líneas (el PDF declara ' + declaradas + ' envíos). No falta ninguna.', 'ok');
+      }
+    }
   }
 
   // J27: guardar PERMANENTE por mes (proveedor HOLCIM) y conciliar el mes entero.
