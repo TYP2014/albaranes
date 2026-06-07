@@ -16538,6 +16538,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
   });
 
   _factHolcimUltimo = { abonados, posibles, noAbonados, sinAlbaran, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
+  window._factHolcimMatSel = null; // v107J40: empezar siempre mostrando TODOS los materiales
 
   // Marcar abonados como facturados (memoria + Supabase en 2º plano).
   for (const a of abonados) {
@@ -16565,14 +16566,51 @@ function _factHolcimMostrarInforme() {
   if (tit) tit.textContent = 'AUTOFACTURA HOLCIM — ' + (u.fichero || '');
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // v107J40: REPASO POR MATERIAL. Cada línea de Holcim trae su material (a.linea.material,
+  // de la columna concepto); cada albarán nuestro su producto. Canonizamos con fixMaterial
+  // para agrupar variantes. _factHolcimMatSel = material elegido (null = todos). Los botones
+  // de arriba filtran las 4 listas a ese material; el Excel saca una pestaña por material.
+  const _matDe = (s) => { const c = fixMaterial(String(s || '').trim()); return c || '(sin material)'; };
+  const _matLinea = (L) => _matDe(L.material);
+  const _matAlb = (r) => _matDe(r.producto);
+  // Conjunto de materiales presentes en el informe (de las 4 listas)
+  const _setMat = new Set();
+  (u.abonados || []).forEach(a => _setMat.add(_matLinea(a.linea)));
+  (u.posibles || []).forEach(a => _setMat.add(_matLinea(a.linea)));
+  (u.noAbonados || []).forEach(r => _setMat.add(_matAlb(r)));
+  (u.sinAlbaran || []).forEach(L => _setMat.add(_matLinea(L)));
+  const _materiales = Array.from(_setMat).sort((a, b) => a.localeCompare(b, 'es'));
+  const _sel = window._factHolcimMatSel || null;
+  // Filtros que aplican el material elegido (si no hay, pasan todo)
+  const _fAb = (u.abonados || []).filter(a => !_sel || _matLinea(a.linea) === _sel);
+  const _fPo = (u.posibles || []).filter(a => !_sel || _matLinea(a.linea) === _sel);
+  const _fNo = (u.noAbonados || []).filter(r => !_sel || _matAlb(r) === _sel);
+  const _fSin = (u.sinAlbaran || []).filter(L => !_sel || _matLinea(L) === _sel);
+
   let h = '';
   h += _factBloqueArchivos(_factHolcimArchivos, esc);
+
+  // v107J40 — barra de botones de material (repaso por material/servicio)
+  h += '<div style="margin-bottom:14px;padding:10px;background:var(--s2);border-radius:8px">';
+  h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Repasar por material (pincha para filtrar el informe):</div>';
+  h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  const _btnTodos = !_sel ? 'background:#2563eb;color:#fff' : 'background:#1f2333;color:#9fc6ff';
+  h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(null)" style="margin:2px;padding:4px 10px;font-size:11px;' + _btnTodos + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">TODOS</button>';
+  _materiales.forEach(m => {
+    const activo = _sel === m ? 'background:#2563eb;color:#fff' : 'background:#1f2333;color:#9fc6ff';
+    h += '<button class="bm" onclick="_factHolcimFiltrarMaterial(this.dataset.m)" data-m="' + esc(m) + '" style="margin:2px;padding:4px 10px;font-size:11px;' + activo + ';border:1px solid #2f3a5a;border-radius:6px;cursor:pointer">' + esc(m) + '</button>';
+  });
+  h += '</div>';
+  h += '<div style="margin-top:8px"><button class="btn bs" onclick="factHolcimExcelPorMaterial()" title="Excel con una pestaña por material" style="font-size:11px">📊 Excel por material</button></div>';
+  if (_sel) h += '<div style="margin-top:6px;font-size:11px;color:#9fc6ff">Mostrando solo: <b>' + esc(_sel) + '</b></div>';
+  h += '</div>';
+
   h += '<div style="margin-bottom:18px">';
-  h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + u.abonados.length + ')</div>';
-  if (!u.abonados.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  h += '<div style="font-weight:700;color:var(--ok);margin-bottom:8px">🟢 ABONADOS (' + _fAb.length + ')</div>';
+  if (!_fAb.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.6">';
-    u.abonados.forEach(a => {
+    _fAb.forEach(a => {
       const nota = a.difs.length ? ' <span style="color:#e0a000">✅ Coincide todo menos ' + a.difs.map(esc).join(' y ') + '</span>' : '';
       const via = ' <span style="color:var(--mu);font-size:10px">[' + esc(a.modo) + ']</span>';
       h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
@@ -16585,12 +16623,13 @@ function _factHolcimMostrarInforme() {
 
   // v107GB — POSIBLES (cuadran por fecha+matrícula+TN, requieren confirmación a mano)
   h += '<div style="margin-bottom:18px">';
-  h += '<div style="font-weight:700;color:#ff9d3b;margin-bottom:8px">⚠️ A REVISAR — UNO A UNO (' + (u.posibles ? u.posibles.length : 0) + ')</div>';
+  h += '<div style="font-weight:700;color:#ff9d3b;margin-bottom:8px">⚠️ A REVISAR — UNO A UNO (' + _fPo.length + ')</div>';
   h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Solo los que NO cuadran del todo: misma matrícula y TN pero la fecha baila unos días, o misma fecha pero TN distinta (típico de las fotos de cantera subidas antes del papel oficial). Los que coinciden enteros ya están en Abonados. Debajo de cada línea de Holcim tienes TU albarán; pulsa Confirmar en los que veas bien.</div>';
-  if (!u.posibles || !u.posibles.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguna.</div>'; }
+  if (!_fPo.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguna.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.5">';
-    u.posibles.forEach((a, i) => {
+    _fPo.forEach((a) => {
+      const i = (u.posibles || []).indexOf(a); // índice real para Confirmar
       const tuyo = 'Tu albarán: ' + esc(a.rec.albaran || '—') + ' · ' + esc(a.rec.tractora || '') + ' · ' + esc(a.rec.fecha || '') + ' · ' + esc(a.rec.tm || '') + ' TN';
       const btn = a.confirmado
         ? '<span style="color:var(--ok);font-weight:700;font-size:11px">✅ Confirmado</span>'
@@ -16606,27 +16645,27 @@ function _factHolcimMostrarInforme() {
 
   // Bloque NO ABONADOS
   h += '<div style="margin-bottom:18px">';
-  h += '<div style="font-weight:700;color:#e0a000;margin-bottom:8px">⚠️ NO ABONADOS (' + u.noAbonados.length + ')</div>';
+  h += '<div style="font-weight:700;color:#e0a000;margin-bottom:8px">⚠️ NO ABONADOS (' + _fNo.length + ')</div>';
   h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Albaranes tuyos tipo Holcim que NO aparecen en esta autofactura. Revísalos: puede que falten o se paguen en otra liquidación.</div>';
-  if (!u.noAbonados.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  if (!_fNo.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.6">';
-    u.noAbonados.forEach(r => {
+    _fNo.forEach(r => {
       h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
         + esc(r.albaran) + ' · ' + esc(r.tractora) + ' · ' + esc(r.fecha)
-        + ' · ' + esc(r.tm) + ' TN · ' + esc(r.obra || r.destino || '') + '</div>';
+        + ' · ' + esc(r.tm) + ' TN · ' + esc(r.producto || '') + ' · ' + esc(r.obra || r.destino || '') + '</div>';
     });
     h += '</div>';
   }
   h += '</div>';
 
   h += '<div style="margin-bottom:6px">';
-  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS SIN COPIA DE ALBARÁN (' + u.sinAlbaran.length + ')</div>';
+  h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS SIN COPIA DE ALBARÁN (' + _fSin.length + ')</div>';
   h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Holcim paga estas líneas pero no tienes el albarán en la app (el conductor lo perdió, no se subió…). Como Holcim no paga sin porte, seguro que existieron. También salen en el Excel.</div>';
-  if (!u.sinAlbaran.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
+  if (!_fSin.length) { h += '<div style="font-size:12px;color:var(--mu)">Ninguno.</div>'; }
   else {
     h += '<div style="font-size:12px;line-height:1.6">';
-    u.sinAlbaran.forEach(L => {
+    _fSin.forEach(L => {
       h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
         + esc(L.num_entrega) + ' · ' + esc(L.matricula) + ' · ' + esc(L.fecha)
         + ' · ' + esc(L.tn) + ' · ' + esc(L.material || '') + ' · ' + esc(L.valor_neto) + '€</div>';
@@ -16637,6 +16676,68 @@ function _factHolcimMostrarInforme() {
 
   if (body) body.innerHTML = h;
   document.getElementById('ovFactHolcim').classList.add('open');
+}
+
+// v107J40 — cambia el material seleccionado y repinta el informe
+function _factHolcimFiltrarMaterial(m) {
+  window._factHolcimMatSel = m;
+  _factHolcimMostrarInforme();
+}
+
+// v107J40 — Excel con UNA PESTAÑA POR MATERIAL. Cada pestaña lleva las 4 secciones
+// (Abonados / A revisar / No abonados / Sin copia) de ese material, una debajo de otra.
+function factHolcimExcelPorMaterial() {
+  const u = _factHolcimUltimo;
+  if (!u) { toast('No hay datos que exportar', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const _matDe = (s) => { const c = fixMaterial(String(s || '').trim()); return c || '(sin material)'; };
+  // Reunir todos los materiales presentes
+  const setM = new Set();
+  (u.abonados || []).forEach(a => setM.add(_matDe(a.linea.material)));
+  (u.posibles || []).forEach(a => setM.add(_matDe(a.linea.material)));
+  (u.noAbonados || []).forEach(r => setM.add(_matDe(r.producto)));
+  (u.sinAlbaran || []).forEach(L => setM.add(_matDe(L.material)));
+  const materiales = Array.from(setM).sort((a, b) => a.localeCompare(b, 'es'));
+  if (!materiales.length) { toast('No hay materiales', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+  // Nombre de pestaña válido para Excel (máx 31 chars, sin : \ / ? * [ ])
+  const _hoja = (s) => String(s).replace(/[:\\/?*\[\]]/g, '').slice(0, 31) || 'Material';
+  const usados = {};
+
+  materiales.forEach(mat => {
+    const ab = (u.abonados || []).filter(a => _matDe(a.linea.material) === mat);
+    const po = (u.posibles || []).filter(a => _matDe(a.linea.material) === mat);
+    const no = (u.noAbonados || []).filter(r => _matDe(r.producto) === mat);
+    const sin = (u.sinAlbaran || []).filter(L => _matDe(L.material) === mat);
+    const aoa = [];
+    aoa.push(['MATERIAL: ' + mat]);
+    aoa.push([]);
+    aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Observación']);
+    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    aoa.push([]);
+    aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
+    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
+    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.valor_neto || '', a.linea.material || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
+    aoa.push([]);
+    aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
+    aoa.push(['Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+    no.forEach(r => aoa.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+    aoa.push([]);
+    aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
+    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Material']);
+    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.valor_neto || '', L.material || '']));
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:11},{wch:28},{wch:14},{wch:12},{wch:12},{wch:10}];
+    let nombre = _hoja(mat);
+    if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
+    XLSX.utils.book_append_sheet(wb, ws, nombre);
+  });
+
+  XLSX.writeFile(wb, 'Holcim_por_material_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast('✓ Excel por material descargado (' + materiales.length + ' pestañas)', 'ok');
 }
 
 // v107GB — Confirmar una "posible" (la marca facturada en memoria + Supabase y refresca el modal).
