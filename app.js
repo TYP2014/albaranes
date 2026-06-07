@@ -16590,26 +16590,23 @@ function _factProcesarYMostrarHolcim(setEstado) {
 function _factFamiliaHolcim(material, destino) {
   const m = String(material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const d = String(destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  // 1) Servicios de Transporte (cisternas Élite + Núcleo Garraf): se separan por destino.
-  if (/SERVICIOS?\s+DE\s+TRANSPORTE/.test(m)) {
-    if (/PUERTO|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
-    return 'Cisternas (Élite)';
-  }
-  // 2) Áridos (AF-/AG-) Cantera Garraf, separados por destino.
+  // 1) Núcleo Garraf → Puerto (obra temporal, familia propia). Se separa por destino.
+  if (/SERVICIOS?\s+DE\s+TRANSPORTE/.test(m) && /PUERTO|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
+  // 2) Áridos (AF-/AG-) Cantera Garraf, separados por destino. Los de otros destinos → Otros.
   if (/^AF[-\s]|^AG[-\s]|ARIDO\s|ARIDOS\s/.test(m) || /^A[FG]\d/.test(m)) {
     if (/ROCA/.test(d)) return 'Áridos Garraf → La Roca';
     if (/ZONA\s*FRANCA/.test(d)) return 'Áridos Garraf → Zona Franca';
     if (/MONTCADA/.test(d)) return 'Áridos Garraf → Montcada';
-    return 'Áridos Garraf → (otros destinos)';
+    return 'Otros';
   }
-  // 3) Clinker por tipo.
-  if (/GREY\s+CLINKER|CLINKER\s+NORMAL/.test(m) || (/CLINKER/.test(m) && /MOLIENDA|TARRAGONA/.test(d))) return 'Clinker → Molienda Tarragona';
-  if (/CLINKER/.test(m)) return 'Clinker → Grao Castellón';
+  // 3) Clinker: un solo botón (dentro del Excel se separa por tipo con la columna Material/Destino).
+  if (/CLINKER/.test(m)) return 'Clinker';
   // 4) Escorias/Adec y Árido reciclado/Tecnocatalana (cruzan por nº 908 a mano).
   if (/SIDERURGICO|ESCORIA/.test(m)) return 'Escorias / Adec';
   if (/RECICLADO/.test(m)) return 'Árido reciclado / Tecnocatalana';
-  // 5) Cementos / sacos / palets (todo junto).
-  if (/CEM\s|CEMENTO|ECOPLANET|PALET|ENSACADO|MORTERO|GRANEL/.test(m)) return 'Cementos / Sacos / Palets';
+  // 5) Cisternas + Cementos + Sacos + Palets + Élite → TODO JUNTO en una familia.
+  if (/SERVICIOS?\s+DE\s+TRANSPORTE/.test(m)) return 'Cisternas / Sacos / Palets';
+  if (/CEM\s|CEMENTO|ECOPLANET|PALET|ENSACADO|MORTERO|GRANEL/.test(m)) return 'Cisternas / Sacos / Palets';
   // 6) Materia prima (cada una su familia, por el material canónico).
   if (/CALIZA\s+PROMSA/.test(m)) return 'Caliza Promsa';
   if (/CALIZA\s+FOJ/.test(m)) return 'Caliza Foj';
@@ -16650,10 +16647,10 @@ function _factHolcimMostrarInforme() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Áridos Garraf → (otros destinos)',
-    'Núcleo Garraf → Puerto Barcelona', 'Cisternas (Élite)',
-    'Cementos / Sacos / Palets',
-    'Clinker → Grao Castellón', 'Clinker → Molienda Tarragona',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
+    'Núcleo Garraf → Puerto Barcelona',
+    'Cisternas / Sacos / Palets',
+    'Clinker',
     'Escorias / Adec', 'Árido reciclado / Tecnocatalana', 'Otros'
   ];
   const _materiales = _ORDEN_FAM.filter(f => _setMat.has(f));
@@ -16778,10 +16775,10 @@ function factHolcimExcelPorMaterial() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Áridos Garraf → (otros destinos)',
-    'Núcleo Garraf → Puerto Barcelona', 'Cisternas (Élite)',
-    'Cementos / Sacos / Palets',
-    'Clinker → Grao Castellón', 'Clinker → Molienda Tarragona',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
+    'Núcleo Garraf → Puerto Barcelona',
+    'Cisternas / Sacos / Palets',
+    'Clinker',
     'Escorias / Adec', 'Árido reciclado / Tecnocatalana', 'Otros'
   ];
   const materiales = _ORDEN_FAM.filter(f => setM.has(f));
