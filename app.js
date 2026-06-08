@@ -2564,6 +2564,8 @@ async function _processOne(it, type, key, timeoutMs) {
             results = await callClaudeFacturaSolred(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
           } else if (it._provGasoil === 'PETROMIRALLES') {
             results = await callClaudeFacturaPetromiralles(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          } else if (it._provGasoil === 'MOEVE') {
+            results = await callClaudeFacturaMoeve(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
           } else {
             results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
           }
@@ -5126,6 +5128,7 @@ function _detectarProveedorGasoil(txt) {
   const t = String(txt || '').toUpperCase();
   if (/PETROMIRALLES/.test(t)) return 'PETROMIRALLES';
   if (/SOLEDAD|GRUPOSOLEDAD/.test(t)) return 'SOLEDAD';
+  if (/MOEVE|ECOBLUE|DIESEL STAR/.test(t)) return 'MOEVE'; // v107J77 — Moeve (antes Cepsa)
   if (/SOLRED|RESUMEN TARJETAS|REPSOL/.test(t)) return 'SOLRED';
   return null;
 }
@@ -5207,6 +5210,34 @@ Devuelve SOLO un objeto JSON (sin markdown):
 Recorre TODAS las páginas de detalle. Quita guiones/espacios de la matrícula. Usa punto decimal. Si un grupo no tiene gasoil o adblue, pon 0. NO te inventes matrículas ni cantidades. SOLO JSON.`;
   const obj = await _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt);
   return _expandirCamionesGasoil(obj, 'Petromiralles', 'factura_petromiralles');
+}
+// v107J77 — Lector de EXTRACTO MOEVE (antes Cepsa). El detalle por matrícula está en el extracto anexo:
+// por cada "MATRÍCULA: XXXX-LLL" van sus repostajes (CONCEPTO + CANTIDAD=litros). DIESEL STAR=gasoil, ECOBLUE=adblue.
+async function callClaudeFacturaMoeve(b64, mediaType, key, isPdf, signal) {
+  const prompt = `Eres un OCR experto en EXTRACTOS de MOEVE PRO (antes Cepsa) de gasoil/adblue para flotas de camiones en España.
+El documento es un EXTRACTO con el detalle por vehículo, ORGANIZADO POR MATRÍCULA: cada bloque empieza con una línea "MATRÍCULA: XXXX-LLL / PAN: ..." y debajo van sus repostajes en una tabla con columnas: ESTABLECIMIENTO, FECHA/HORA, CONCEPTO, KMS, CANTIDAD, UD MEDIDA, PVP, IMPORTE OPERACIÓN, ... IMPORTE FINAL, %IVA.
+La columna CANTIDAD son los LITROS de cada repostaje. El CONCEPTO indica el producto:
+- "DIESEL STAR" (o cualquier concepto con DIESEL o GASOLEO) es GASOIL.
+- "ECOBLUE" y "ECOBLUE GRANEL" es ADBLUE.
+- "Promoción ..." (cantidad 0) NO es un repostaje: IGNÓRALA.
+Para CADA matrícula suma los LITROS (columna CANTIDAD) por tipo:
+- litros_gasoil = suma de CANTIDAD de las líneas DIESEL STAR de ese bloque.
+- litros_adblue = suma de CANTIDAD de las líneas ECOBLUE / ECOBLUE GRANEL de ese bloque.
+- DEVOLUCIONES/ABONOS: si una línea tiene IMPORTE OPERACIÓN o PVP NEGATIVO, es una devolución: RESTA esos litros (no los sumes).
+- importe_gasoil / importe_adblue = suma del IMPORTE FINAL de esas líneas (si no lo ves, pon 0).
+NO uses las líneas "Total matrícula ... AGRUPADOS LOS CONCEPTOS" (esas son importes en euros, no litros) ni el bloque "TOTAL FACTURADO POR CONCEPTO".
+Devuelve SOLO un objeto JSON (sin markdown):
+{
+  "num_factura": "el número de factura/extracto (campo CORRESPONDIENTE A: o NÚMERO, ej BA72400000209698)",
+  "fecha": "la fecha del extracto en DD/MM/YYYY (de EXTRACTO HASTA: dd-mm-aaaa, ej 31/05/2026)",
+  "cif": "el CIF/NIF del cliente si aparece, formato B+8 dígitos (puede venir como ESB90172735 -> quita el ES -> B90172735)",
+  "camiones": [
+    { "matricula": "6430KDG", "litros_gasoil": 0, "litros_adblue": 127.88, "importe_gasoil": 0, "importe_adblue": 102.79 }
+  ]
+}
+La matrícula española es 4 dígitos + 3 letras; QUITA el guión (6430-KDG -> 6430KDG). Recorre TODAS las páginas del extracto. Usa punto decimal en el JSON. Si un bloque no tiene gasoil o no tiene adblue, pon 0. NO te inventes matrículas ni cantidades. SOLO JSON.`;
+  const obj = await _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt);
+  return _expandirCamionesGasoil(obj, 'Moeve', 'factura_moeve');
 }
 // Llamada común a la IA para los lectores de factura multi-proveedor. Devuelve el objeto JSON.
 async function _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt) {
