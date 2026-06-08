@@ -16914,11 +16914,21 @@ function factHolcimExcelPorMaterial() {
   const _hoja = (s) => String(s).replace(/[:\\/?*\[\]→]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'Familia';
   const usados = {};
 
+  // v107J53 — ordenar cada sección del Excel por MATRÍCULA y luego por FECHA (como vienen los PDF de Holcim).
+  const _matKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const _fechaKey = (f) => { const m = String(f || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return '9999-99-99'; const y = m[3].length === 2 ? ('20' + m[3]) : m[3]; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); };
+  const _cmpMatFecha = (mA, fA, mB, fB) => { const A = _matKey(mA), B = _matKey(mB); if (A < B) return -1; if (A > B) return 1; const FA = _fechaKey(fA), FB = _fechaKey(fB); return FA < FB ? -1 : (FA > FB ? 1 : 0); };
+
   materialesFinal.forEach(mat => {
     const ab = (u.abonados || []).filter(a => _famLinea(a.linea) === mat);
     const po = (u.posibles || []).filter(a => _famLinea(a.linea) === mat);
     const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
     const sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
+    // Orden: matrícula primero, fecha después (igual que la autofactura de Holcim).
+    ab.sort((x, y) => _cmpMatFecha(x.linea.matricula, x.linea.fecha, y.linea.matricula, y.linea.fecha));
+    po.sort((x, y) => _cmpMatFecha(x.linea.matricula, x.linea.fecha, y.linea.matricula, y.linea.fecha));
+    no.sort((x, y) => _cmpMatFecha(x.tractora, x.fecha, y.tractora, y.fecha));
+    sin.sort((x, y) => _cmpMatFecha(x.matricula, x.fecha, y.matricula, y.fecha));
     const aoa = [];
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
