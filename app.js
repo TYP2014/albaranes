@@ -16653,17 +16653,11 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const TOL_TN = 0.05;   // margen mínimo de redondeo en toneladas
   const VENT_DIAS = 10;  // ventana de fecha para "a revisar" (Holcim arrastra portes días después)
 
-  // v107J52 — CRUCE EN DOS PASADAS (arregla el ROBO de albaranes entre días distintos).
-  // PROBLEMA real confirmado (albarán 0070482139, camión 1365NMH): el mismo camión hizo 29,67 T el
-  // 18/05 Y otra vez 29,67 T el 28/05. La línea de Holcim del 18/05 cogía por "parcial" (±10 días)
-  // el albarán del 28/05 ANTES de que la línea buena del 28/05 pudiera cruzarlo EXACTO → el albarán
-  // del 28/05 caía en "sin copia" y se quedaba en pendiente.
-  // SOLUCIÓN: 1ª PASADA empareja TODO lo EXACTO (nº de albarán, o matrícula+fecha+TN clavados) y
-  // consume esos albaranes. Solo DESPUÉS, en la 2ª PASADA y con lo que SOBRE, se aplica el margen de
-  // ±10 días. Así lo exacto gana siempre y ninguna línea le roba el albarán a su día correcto.
-  const _pendienteParcial = [];
-
-  // ---- PASADA 1: nº de albarán + EXACTO (matrícula+fecha+TN) ----
+  // v107J65 — CRUCE según reglas de Juan Carlos (08/06/2026), SIN emparejados "por parecido":
+  //   • Áridos / cemento / clinker / palets → POR Nº DE ALBARÁN. Si el nº coincide, se comprueba
+  //     matrícula + TN + FECHA: todo OK → ABONADO 🟢; nº OK pero falla algo → A REVISAR ⚠️.
+  //   • Caliza / arena / yeso / arcilla / limonita (no llevan nº de Holcim) → matrícula + FECHA + TN
+  //     exactas (fecha obligatoria). Si no cuadra → SIN COPIA 📋. Nunca se inventa por "parecido".
   lineas.forEach(L => {
     const numA = _factNormAlb(L.num_entrega);
     const matL = _factNormMat(L.matricula);
@@ -16671,6 +16665,10 @@ function _factProcesarYMostrarHolcim(setEstado) {
 
     const fL = normFecha(L.fecha);
     const tnL = Math.abs(_factNum(L.tn));
+    // v107J65 — ¿es materia prima? (caliza/arena/yeso/arcilla/limonita). Esas NO llevan el nº de Holcim,
+    // así que se cruzan por matrícula+fecha+TN. El resto (áridos, cemento, clinker, palets) por número.
+    const matUp = String(L.material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const esMateriaPrima = /CALIZA|ARENA|YESO|ARCILLA|LIMONITA/.test(matUp);
 
     // 1) POR Nº DE ALBARÁN (cemento, áridos, clinker, palets) → ABONADO directo (el número manda).
     if (numA && porNum.has(numA)) {
@@ -16683,53 +16681,35 @@ function _factProcesarYMostrarHolcim(setEstado) {
       if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > TOL_TN) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
       const fR = normFecha(match.fecha);
       if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
-      abonados.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán' });
+      if (difs.length === 0) {
+        abonados.push({ linea: L, rec: match, difs: [], modo: 'nº albarán' });
+      } else {
+        // v107J65 — el nº coincide pero falla matrícula, TN o fecha → A REVISAR (no se da por bueno solo).
+        posibles.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán (revisar)' });
+      }
       if (match.db_id) { idsMatched.add(String(match.db_id)); usados.add(String(match.db_id)); }
       return;
     }
 
-    // 2a) EXACTO: materia prima, misma matrícula + misma fecha + misma TN (al céntimo) → ABONADO.
-    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
-    let exacto = null, exDiff = 999;
-    for (const r of cands) {
-      if (normFecha(r.fecha) !== fL) continue;
-      const d = Math.abs(_factNum(r.tm) - tnL);
-      if (isNaN(d) || d > TOL_TN) continue;
-      if (d < exDiff) { exacto = r; exDiff = d; }
-    }
-    if (exacto) {
-      abonados.push({ linea: L, rec: exacto, difs: [], modo: 'fecha+matrícula+TN' });
-      idsMatched.add(String(exacto.db_id)); usados.add(String(exacto.db_id));
-      return;
-    }
-
-    // No cruzó exacto → se intenta en la 2ª pasada (parcial), cuando ya no quede nada exacto que robar.
-    _pendienteParcial.push({ L: L, matL: matL, fL: fL, tnL: tnL });
-  });
-
-  // ---- PASADA 2: PARCIAL (±10 días) SOLO con lo que sobró tras la pasada exacta ----
-  _pendienteParcial.forEach(function (p) {
-    const L = p.L, matL = p.matL, fL = p.fL, tnL = p.tnL;
-
-    // 2b) PARCIAL → A REVISAR: misma matrícula y TN exacta, pero la fecha baila pocos días.
-    // v107J38: SOLO se acepta si la TN cuadra (al céntimo) y la fecha está cerca; NO "solo por fecha".
-    // v107J52: ahora esto corre DESPUÉS de toda la pasada exacta, así que ya no roba albaranes que
-    // pertenecen a su día correcto (esos ya se cruzaron exactos y están consumidos).
-    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
-    let parcial = null; const difsP = [];
-    for (const r of cands) {
-      const d = Math.abs(_factNum(r.tm) - tnL);
-      const tnOK = !isNaN(d) && d <= TOL_TN;
-      const dias = _diasEntre(fL, normFecha(r.fecha));
-      if (tnOK && dias <= VENT_DIAS) { parcial = r; difsP.push('fecha (tú: ' + (r.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')'); break; }
-    }
-    if (parcial) {
-      posibles.push({ linea: L, rec: parcial, difs: difsP, modo: 'parcial' });
-      idsMatched.add(String(parcial.db_id)); usados.add(String(parcial.db_id));
-      return;
+    // 2) MATERIA PRIMA (caliza/arena/yeso/arcilla/limonita) → matrícula + FECHA + TN, las tres EXACTAS.
+    // La fecha es OBLIGATORIA: si hay 2 viajes del mismo camión con la misma TN, la fecha los distingue.
+    if (esMateriaPrima && matL) {
+      const cands = records.filter(r => !usados.has(String(r.db_id)) && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
+      let exacto = null, exDiff = 999;
+      for (const r of cands) {
+        if (normFecha(r.fecha) !== fL) continue;            // fecha obligatoria (exacta)
+        const d = Math.abs(_factNum(r.tm) - tnL);
+        if (isNaN(d) || d > TOL_TN) continue;               // TN al céntimo
+        if (d < exDiff) { exacto = r; exDiff = d; }
+      }
+      if (exacto) {
+        abonados.push({ linea: L, rec: exacto, difs: [], modo: 'fecha+matrícula+TN' });
+        idsMatched.add(String(exacto.db_id)); usados.add(String(exacto.db_id));
+        return;
+      }
     }
 
-    // 3) Nada parecido → Holcim lo paga pero no tenemos copia del albarán.
+    // 3) Nada cuadra → Holcim lo paga pero no tenemos el albarán. NO se inventa por "parecido".
     sinAlbaran.push(L);
   });
 
