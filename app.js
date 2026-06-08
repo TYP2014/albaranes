@@ -16643,23 +16643,19 @@ function _factProcesarYMostrarHolcim(setEstado) {
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
-    // v107J54 — Promsa (Promotora Mediterránea-2) NO es Holcim, aunque sus áridos sean AF-/AG-.
-    // v107J57 — IGUAL para CEMEX: sus áridos (albarán Ref-CemexGo "M…" o proveedor Cemex) tienen su
-    // propia facturación, no los autofactura Holcim → FUERA del repaso. Holcim solo paga los áridos
-    // de Cantera Garraf (proveedor Holcim, nº 3104). Señales para excluir: proveedor Promsa/Cemex +
-    // material árido, o el destino "Zona Franca II" (planta de Promsa). NO afecta a "Caliza Promsa"
-    // ni "Caliza Cemex" (materia prima de recepción en Fábrica Montcada, que SÍ la paga Holcim y NO
-    // son áridos AF-/AG-): el material de esas es "CALIZA …", no entra en _esArido.
-    {
-      const _provU = String(r.proveedor || '').toUpperCase();
-      const _albU = String(r.albaran || '').toUpperCase().replace(/\s/g, '');
-      const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
-      const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
-      const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
-      if (((_esPromsa || _esCemex) && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
-    }
+    // v107J57 — CEMEX áridos: FUERA del repaso del todo (tienen su propia facturación).
+    // v107J58 — Promsa áridos: NO se descartan; se dejan pasar para listarlos en la familia nueva
+    //   "Promotora Mediterránea" (los facturas tú; es solo una lista de repaso, no se cruza nada).
+    //   NO afecta a "Caliza Promsa"/"Caliza Cemex" (materia prima "CALIZA …", no entra en _esArido).
+    const _provU = String(r.proveedor || '').toUpperCase();
+    const _albU = String(r.albaran || '').toUpperCase().replace(/\s/g, '');
+    const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+    const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
+    const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+    if (_esCemex && _esArido) return; // CEMEX áridos fuera.
+    const _esPromsaArido = (_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU);
     const n = _factNormAlb(r.albaran);
     // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
     //   (a) su nº empieza por 3104, (b) proveedor/cliente HOLCIM/LAFARGE, o
@@ -16669,7 +16665,8 @@ function _factProcesarYMostrarHolcim(setEstado) {
     const pareceHolcim = /^3104\d{7}$/.test(n)
       || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase())
       || (_famR && _famR !== 'Otros');
-    if (!pareceHolcim) return;
+    // v107J58: entra si parece Holcim O si es un árido de Promsa (para la familia "Promotora Mediterránea").
+    if (!pareceHolcim && !_esPromsaArido) return;
     // v107J48: solo dentro de la ventana de fechas precisa (no mes entero).
     if (!_fechaEnVentana(r.fecha)) return;
     noAbonados.push(r);
@@ -16738,6 +16735,19 @@ function _factFamiliaHolcim(material, destino) {
   return 'Otros';
 }
 
+// v107J58 — FAMILIA de un albarán NUESTRO. Igual que _factFamiliaHolcim, pero los áridos de Promsa
+// (proveedor Promotora Mediterránea/Promsa/Molins + material AF-/AG-, o destino "Zona Franca II")
+// van a su familia propia "Promotora Mediterránea" (lista de repaso; esos los factura Juan Carlos).
+function _famAlbProm(r) {
+  const _provU = String(r.proveedor || '').toUpperCase();
+  const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+  const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+  if ((_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return 'Promotora Mediterránea';
+  return _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+}
+
 function _factHolcimMostrarInforme() {
   const u = _factHolcimUltimo;
   if (!u) return;
@@ -16754,7 +16764,7 @@ function _factHolcimMostrarInforme() {
   // material + destino. El destino de la línea está en L.destino (lo leyó J42); el de
   // un albarán nuestro (no abonados) en r.obra/r.destino.
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  const _famAlb = (r) => _famAlbProm(r);
   // Conjunto de familias presentes en el informe (de las 4 listas)
   const _setMat = new Set();
   (u.abonados || []).forEach(a => _setMat.add(_famLinea(a.linea)));
@@ -16765,7 +16775,7 @@ function _factHolcimMostrarInforme() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Promotora Mediterránea',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
     'Clinker',
@@ -16904,7 +16914,7 @@ function factHolcimExcelPorMaterial() {
   if (!u) { toast('No hay datos que exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  const _famAlb = (r) => _famAlbProm(r);
   // Reunir todas las familias presentes
   const setM = new Set();
   (u.abonados || []).forEach(a => setM.add(_famLinea(a.linea)));
@@ -16914,7 +16924,7 @@ function factHolcimExcelPorMaterial() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Promotora Mediterránea',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
     'Clinker',
@@ -16959,6 +16969,22 @@ function factHolcimExcelPorMaterial() {
     po.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
+    // v107J58 — "Promotora Mediterránea" es solo una LISTA (no hay autofactura que cruzar): sale una
+    // hoja limpia con tus albaranes de Promsa, ordenada por transportista → matrícula → fecha.
+    if (mat === 'Promotora Mediterránea') {
+      const aoaP = [];
+      aoaP.push(['PROMOTORA MEDITERRÁNEA — áridos (los facturas tú)']);
+      aoaP.push([]);
+      aoaP.push(['📋 ALBARANES (' + no.length + ')']);
+      aoaP.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+      no.forEach(r => aoaP.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+      const wsP = XLSX.utils.aoa_to_sheet(aoaP);
+      wsP['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 22 }];
+      let nombreP = _hoja(mat);
+      if (usados[nombreP]) { usados[nombreP]++; nombreP = _hoja(mat).slice(0, 28) + '_' + usados[nombreP]; } else { usados[nombreP] = 1; }
+      XLSX.utils.book_append_sheet(wb, wsP, nombreP);
+      return;
+    }
     const aoa = [];
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
