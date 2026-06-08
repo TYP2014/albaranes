@@ -6789,8 +6789,9 @@ function verFacturasGasoilSubidas() {
   (gasoilRecords || []).forEach(r => {
     if (!hasValidUrl(r.file_url)) return;
     let g = grupos.get(r.file_url);
-    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', meses: new Set(), n: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
+    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', meses: new Set(), n: 0, imp: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
     g.n++;
+    g.imp += Number(r.importe) || 0;
     if (!g.prov && r.proveedor) g.prov = r.proveedor;
     const mm = _mes(r.fecha); if (mm) g.meses.add(mm);
     const t = r.created_at || r._ts || ''; if (String(t) > String(g.ts)) g.ts = t;
@@ -6807,10 +6808,12 @@ function verFacturasGasoilSubidas() {
       const mesTxt = meses.length ? meses.join(', ') : '—';
       const cuando = g.ts ? fmtTS(g.ts) : '';
       const nom = _nombreArchivoDeUrl(g.url);
+      const impTxt = g.imp > 0 ? g.imp.toFixed(2).replace('.', ',') + ' €' : '—';
       h += '<div style="padding:5px 0;border-bottom:1px solid var(--bd)">'
         + '<a href="' + g.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">👁 Abrir PDF</a> · '
         + (nom ? '<strong>' + esc(nom) + '</strong> · ' : '')
         + esc(g.prov || 'Proveedor ?') + ' · mes: ' + esc(mesTxt)
+        + ' · <strong style="color:var(--ok)">' + impTxt + '</strong>'
         + ' <span style="color:var(--mu)">(' + g.n + ' camiones' + (cuando ? ' · subida ' + esc(cuando) : '') + ')</span></div>';
     });
   }
