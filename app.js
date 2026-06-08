@@ -15799,7 +15799,25 @@ function _factBloqueArchivos(arr, esc) {
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
 async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) {
-  await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
+  // v107J66 — HOLCIM tiene VARIOS PDF por mes (por servicio/material, ~7). Por eso NO se puede borrar
+  // por mes (borraría los otros PDF) ni por nombre de archivo (cambia entre re-subidas → se acumulaban
+  // cientos de copias). Se borra POR CONTENIDO: las líneas ya guardadas de este mes cuyo nº de albarán
+  // venga en ESTE PDF se eliminan antes de reinsertar → re-subir un PDF reemplaza SOLO sus líneas y deja
+  // intactos los otros 6. CEMEX se queda EXACTAMENTE igual que antes (borrado por nombre de archivo).
+  if ((proveedor || '') === 'HOLCIM') {
+    const nums = [...new Set((lineas || []).map(L => L.numero_albaran).filter(Boolean).map(String))];
+    for (let i = 0; i < nums.length; i += 100) {
+      const { error } = await sb.from('autofacturas_lineas').delete()
+        .eq('proveedor', 'HOLCIM').eq('mes', mes).in('numero_albaran', nums.slice(i, i + 100));
+      if (error) throw error;
+    }
+    // Las líneas sin nº de albarán de ese mismo archivo (no se pueden casar por contenido) se reemplazan
+    // al menos por nombre de archivo, para no acumular las del propio PDF re-subido con el mismo nombre.
+    await sb.from('autofacturas_lineas').delete()
+      .eq('proveedor', 'HOLCIM').eq('mes', mes).eq('fichero', fichero).is('numero_albaran', null);
+  } else {
+    await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
+  }
   const filas = (lineas || []).map(L => {
     const n = _factNormAlb(L.numero_albaran);
     const imp = _factNum(L.importe);
