@@ -1396,8 +1396,14 @@ async function _borrarSeleccionados() {
 // STORAGE — subir archivo
 // ============================================================
 async function uploadFile(file, folder) {
-  const ext = file.name.split('.').pop();
-  const path = `${folder}/${currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  // v107J61 — conservar el NOMBRE ORIGINAL del archivo en la ruta (con un timestamp delante para no
+  // duplicar). Se sanea para que sea una clave válida de Storage. Así luego se puede MOSTRAR el nombre
+  // tal cual lo sube Juan Carlos (mes/empresa). Los archivos ya subidos antes NO tienen este nombre.
+  const limpio = String(file.name || 'archivo')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // quitar acentos
+    .replace(/[^A-Za-z0-9._-]+/g, '_')                  // espacios y caracteres raros → _
+    .replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'archivo';
+  const path = `${folder}/${currentUser.id}/${Date.now()}_${limpio}`;
   const { error } = await sb.storage.from('documentos').upload(path, file);
   if (error) throw error;
   const { data } = sb.storage.from('documentos').getPublicUrl(path);
@@ -6756,10 +6762,23 @@ function renderGasTable() {
     </tr>`).join('');
 }
 
+// v107J61 — sacar el nombre original del archivo desde su URL. Las nuevas se subieron como
+// "{timestamp}_{NombreOriginal}"; las antiguas como "{timestamp}_{aleatorio}.ext" (sin nombre útil).
+function _nombreArchivoDeUrl(url) {
+  try {
+    let seg = decodeURIComponent(String(url).split('?')[0].split('/').pop() || '');
+    seg = seg.replace(/^\d{10,}_/, '');           // quitar el timestamp de delante
+    const base = seg.replace(/\.[^.]+$/, '');      // sin extensión
+    // ¿parece el nombre interno aleatorio antiguo? (todo minúsculas/dígitos, sin separadores y largo)
+    const pareceAleatorio = base.length >= 8 && /^[a-z0-9]+$/.test(base);
+    return pareceAleatorio ? '' : seg;
+  } catch (e) { return ''; }
+}
+
 // v107J60 — "Facturas subidas" de gasoil: lista SIN repetir (una por PDF subido), para ver de un
 // vistazo qué facturas tienes ya cargadas y cuáles te faltan. Agrupa los registros por su file_url
-// (una factura mensual se reparte en muchas filas/camiones, todas con el mismo PDF). Como no se
-// guarda el nombre original del archivo, se muestra proveedor + mes(es) + nº camiones + cuándo se subió.
+// (una factura mensual se reparte en muchas filas/camiones, todas con el mismo PDF). v107J61: si la
+// factura se subió con la versión nueva, muestra su NOMBRE ORIGINAL; si es antigua, muestra empresa + mes.
 function verFacturasGasoilSubidas() {
   const panel = document.getElementById('gasFacturasSubidas');
   if (!panel) return;
@@ -6787,9 +6806,11 @@ function verFacturasGasoilSubidas() {
       const meses = [...g.meses].sort((a, b) => (a.split('/')[1] + a.split('/')[0]).localeCompare(b.split('/')[1] + b.split('/')[0]));
       const mesTxt = meses.length ? meses.join(', ') : '—';
       const cuando = g.ts ? fmtTS(g.ts) : '';
+      const nom = _nombreArchivoDeUrl(g.url);
       h += '<div style="padding:5px 0;border-bottom:1px solid var(--bd)">'
         + '<a href="' + g.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">👁 Abrir PDF</a> · '
-        + '<strong>' + esc(g.prov || 'Proveedor ?') + '</strong> · mes: ' + esc(mesTxt)
+        + (nom ? '<strong>' + esc(nom) + '</strong> · ' : '')
+        + esc(g.prov || 'Proveedor ?') + ' · mes: ' + esc(mesTxt)
         + ' <span style="color:var(--mu)">(' + g.n + ' camiones' + (cuando ? ' · subida ' + esc(cuando) : '') + ')</span></div>';
     });
   }
