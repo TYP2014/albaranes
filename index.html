@@ -542,6 +542,20 @@ if (typeof pdfjsLib !== 'undefined') {
           <div id="factHolcimEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
         </div>
       </div>
+
+      <!-- v107J59: PROMOTORA MEDITERRÁNEA (SOLO ADMIN) — lista para facturar, filtrable por mes -->
+      <div class="card" id="factPromotoraCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#c79cff"></div>PROMOTORA MEDITERRÁNEA&nbsp;<span style="font-size:10px;color:var(--mu);font-weight:400">· solo admin</span></div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
+            Tus <strong style="color:var(--tx)">áridos de Promsa</strong> (los facturas tú). Pincha un <strong style="color:var(--tx)">mes</strong> para descargar el Excel con la lista (transportista · albarán · matrícula · fecha · TN · material · destino), agrupada por transportista. No cruza nada: es solo la lista para hacer las facturas.
+          </div>
+          <div id="factMesesBarPromotora" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px"></div>
+          <div id="factPromotoraEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
+        </div>
+      </div>
     </div>
 
     <!-- v107FJ: contenedor tabContentItv que faltaba (causaba que ITV se viera en Albaranes) -->
@@ -1280,6 +1294,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=25"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>

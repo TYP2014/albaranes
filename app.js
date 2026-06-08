@@ -317,6 +317,7 @@ async function loadUserMap() {
       // aunque la pestaña Facturación la vean también MdM/Marta/Logística. El de CEMEX
       // se queda visible para ellos como hasta ahora.
       try { const _hc = document.getElementById('factHolcimCard'); if (_hc) _hc.style.display = _esAdminFinal ? '' : 'none'; } catch (e) {}
+      try { const _pc = document.getElementById('factPromotoraCard'); if (_pc) _pc.style.display = _esAdminFinal ? '' : 'none'; } catch (e) {}
 
       if (!_veTodo) {
         // No es ninguno de los 3 → ocultar las pestañas extra, dejar solo
@@ -9610,7 +9611,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); } catch (e) { console.warn('[J24] meses:', e); } }
+  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -15820,6 +15821,56 @@ async function factCargarMesesHolcim() {
     + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'HOLCIM\')">📎 Ver subidas</button>').join(' ');
 }
 
+// v107J59 — APARTADO PROMOTORA (lista para facturar; NO cruza nada). Recoge tus albaranes de áridos
+// de Promsa (proveedor Promotora/Promsa/Molins + AF-/AG-, o destino "Zona Franca II"), agrupa botones
+// por mes y, al pulsar uno, descarga el Excel de ese mes (transportista → matrícula → fecha).
+function _esAlbPromsaArido(r) {
+  const _provU = String(r.proveedor || '').toUpperCase();
+  const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+  const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+  return (_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU);
+}
+function _mesDeFechaAlb(f) { const m = String(f || '').match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? (m[3] + '-' + m[2]) : ''; }
+function factCargarMesesPromotora() {
+  const cont = document.getElementById('factMesesBarPromotora');
+  if (!cont) return;
+  const proms = (records || []).filter(_esAlbPromsaArido);
+  const meses = [...new Set(proms.map(r => _mesDeFechaAlb(r.fecha)).filter(Boolean))].sort().reverse();
+  if (!meses.length) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay albaranes de áridos de Promsa.</span>'; return; }
+  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Descargar Excel del mes:</span>'
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="exportPromotoraExcelMes(\'' + m + '\')">📊 ' + _factMesBonito(m) + '</button>').join(' ');
+}
+function exportPromotoraExcelMes(mes) {
+  const estado = document.getElementById('factPromotoraEstado');
+  const setE = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
+  if (typeof XLSX === 'undefined') { setE('❌ No se pudo cargar el generador de Excel'); return; }
+  const lista = (records || []).filter(r => _esAlbPromsaArido(r) && _mesDeFechaAlb(r.fecha) === mes);
+  if (!lista.length) { setE('No hay áridos de Promsa en ' + _factMesBonito(mes) + '.'); return; }
+  const _matKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const _fKey = (f) => { const m = String(f || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return '9999-99-99'; const y = m[3].length === 2 ? ('20' + m[3]) : m[3]; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); };
+  const _tKey = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ZZZZ';
+  const _tr = (r) => r.transportista || (typeof getTransportista === 'function' ? getTransportista(r.tractora) : '') || '';
+  lista.sort((a, b) => {
+    const TA = _tKey(_tr(a)), TB = _tKey(_tr(b)); if (TA < TB) return -1; if (TA > TB) return 1;
+    const MA = _matKey(a.tractora), MB = _matKey(b.tractora); if (MA < MB) return -1; if (MA > MB) return 1;
+    const FA = _fKey(a.fecha), FB = _fKey(b.fecha); return FA < FB ? -1 : (FA > FB ? 1 : 0);
+  });
+  const aoa = [];
+  aoa.push(['PROMOTORA MEDITERRÁNEA — ' + _factMesBonito(mes) + ' (los facturas tú)']);
+  aoa.push([]);
+  aoa.push(['📋 ALBARANES (' + lista.length + ')']);
+  aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+  lista.forEach(r => aoa.push([_tr(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 22 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, ('Promotora ' + _factMesBonito(mes)).slice(0, 31));
+  XLSX.writeFile(wb, 'Promotora_' + mes + '.xlsx');
+  setE('✅ Excel de Promotora ' + _factMesBonito(mes) + ' descargado (' + lista.length + ' albaranes).');
+}
+
 // Revisar un mes de Holcim: carga lo guardado de ese mes y lo cruza con tus albaranes.
 async function factConciliarMesHolcim(mes) {
   const estado = document.getElementById('factHolcimEstado');
@@ -16643,19 +16694,20 @@ function _factProcesarYMostrarHolcim(setEstado) {
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
-    // v107J57 — CEMEX áridos: FUERA del repaso del todo (tienen su propia facturación).
-    // v107J58 — Promsa áridos: NO se descartan; se dejan pasar para listarlos en la familia nueva
-    //   "Promotora Mediterránea" (los facturas tú; es solo una lista de repaso, no se cruza nada).
-    //   NO afecta a "Caliza Promsa"/"Caliza Cemex" (materia prima "CALIZA …", no entra en _esArido).
-    const _provU = String(r.proveedor || '').toUpperCase();
-    const _albU = String(r.albaran || '').toUpperCase().replace(/\s/g, '');
-    const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
-    const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
-    const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
-    if (_esCemex && _esArido) return; // CEMEX áridos fuera.
-    const _esPromsaArido = (_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU);
+    // v107J54/J57 — Promsa y CEMEX áridos NO son Holcim (tienen su propia facturación) → FUERA del
+    //   repaso. Señales: proveedor Promsa/Cemex (o nº Ref-CemexGo "M…") + material árido, o destino
+    //   "Zona Franca II" (planta de Promsa). NO afecta a "Caliza Promsa"/"Caliza Cemex" (materia prima
+    //   "CALIZA …", no entra en _esArido). La lista de Promsa se saca en su apartado propio (Promotora).
+    {
+      const _provU = String(r.proveedor || '').toUpperCase();
+      const _albU = String(r.albaran || '').toUpperCase().replace(/\s/g, '');
+      const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+      const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
+      const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+      if (((_esPromsa || _esCemex) && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
+    }
     const n = _factNormAlb(r.albaran);
     // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
     //   (a) su nº empieza por 3104, (b) proveedor/cliente HOLCIM/LAFARGE, o
@@ -16665,8 +16717,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
     const pareceHolcim = /^3104\d{7}$/.test(n)
       || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase())
       || (_famR && _famR !== 'Otros');
-    // v107J58: entra si parece Holcim O si es un árido de Promsa (para la familia "Promotora Mediterránea").
-    if (!pareceHolcim && !_esPromsaArido) return;
+    if (!pareceHolcim) return;
     // v107J48: solo dentro de la ventana de fechas precisa (no mes entero).
     if (!_fechaEnVentana(r.fecha)) return;
     noAbonados.push(r);
@@ -16735,19 +16786,6 @@ function _factFamiliaHolcim(material, destino) {
   return 'Otros';
 }
 
-// v107J58 — FAMILIA de un albarán NUESTRO. Igual que _factFamiliaHolcim, pero los áridos de Promsa
-// (proveedor Promotora Mediterránea/Promsa/Molins + material AF-/AG-, o destino "Zona Franca II")
-// van a su familia propia "Promotora Mediterránea" (lista de repaso; esos los factura Juan Carlos).
-function _famAlbProm(r) {
-  const _provU = String(r.proveedor || '').toUpperCase();
-  const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
-  const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
-  if ((_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return 'Promotora Mediterránea';
-  return _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
-}
-
 function _factHolcimMostrarInforme() {
   const u = _factHolcimUltimo;
   if (!u) return;
@@ -16764,7 +16802,7 @@ function _factHolcimMostrarInforme() {
   // material + destino. El destino de la línea está en L.destino (lo leyó J42); el de
   // un albarán nuestro (no abonados) en r.obra/r.destino.
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _famAlbProm(r);
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
   // Conjunto de familias presentes en el informe (de las 4 listas)
   const _setMat = new Set();
   (u.abonados || []).forEach(a => _setMat.add(_famLinea(a.linea)));
@@ -16775,7 +16813,7 @@ function _factHolcimMostrarInforme() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Promotora Mediterránea',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
     'Clinker',
@@ -16914,7 +16952,7 @@ function factHolcimExcelPorMaterial() {
   if (!u) { toast('No hay datos que exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _famAlbProm(r);
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
   // Reunir todas las familias presentes
   const setM = new Set();
   (u.abonados || []).forEach(a => setM.add(_famLinea(a.linea)));
@@ -16924,7 +16962,7 @@ function factHolcimExcelPorMaterial() {
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
     'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
-    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada', 'Promotora Mediterránea',
+    'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
     'Clinker',
@@ -16969,22 +17007,6 @@ function factHolcimExcelPorMaterial() {
     po.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
-    // v107J58 — "Promotora Mediterránea" es solo una LISTA (no hay autofactura que cruzar): sale una
-    // hoja limpia con tus albaranes de Promsa, ordenada por transportista → matrícula → fecha.
-    if (mat === 'Promotora Mediterránea') {
-      const aoaP = [];
-      aoaP.push(['PROMOTORA MEDITERRÁNEA — áridos (los facturas tú)']);
-      aoaP.push([]);
-      aoaP.push(['📋 ALBARANES (' + no.length + ')']);
-      aoaP.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-      no.forEach(r => aoaP.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
-      const wsP = XLSX.utils.aoa_to_sheet(aoaP);
-      wsP['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 22 }];
-      let nombreP = _hoja(mat);
-      if (usados[nombreP]) { usados[nombreP]++; nombreP = _hoja(mat).slice(0, 28) + '_' + usados[nombreP]; } else { usados[nombreP] = 1; }
-      XLSX.utils.book_append_sheet(wb, wsP, nombreP);
-      return;
-    }
     const aoa = [];
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
