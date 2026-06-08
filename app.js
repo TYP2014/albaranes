@@ -16822,6 +16822,11 @@ function _factFamiliaHolcim(material, destino) {
   // Se clasifican ANTES que los áridos de Garraf, porque su nombre contiene "ÁRIDO" y antes se
   // colaban en "Áridos Garraf → Montcada" (el destino "Fábrica Montcada" contiene "Montcada").
   if (/SIDERURGICO|ESCORIA/.test(m)) return 'Escorias / Adec';
+  // v107J68 — Holcim factura la escoria con material "Transporte de Residuos Sólidos" y destino
+  // "ESCORIAS VALLIRANA …". Como nuestro albarán dice "árido siderúrgico" (→ Escorias/Adec) pero su
+  // línea de Holcim no lleva esa palabra en el material, el abonado se iba a "Otros" en el Excel.
+  // Si el DESTINO menciona ESCORIA, es la misma familia → así abonado y no-abonado caen en la misma hoja.
+  if (/ESCORIA/.test(d)) return 'Escorias / Adec';
   if (/RECICLADO/.test(m)) return 'Árido reciclado / Tecnocatalana';
   // 2) Áridos de Cantera Garraf: SOLO AF-/AG- (el "árido siderúrgico/reciclado" ya se filtró arriba),
   // separados por destino. v107J56: "Fábrica Montcada" NO es "Montcada" (eso es recepción de materia
