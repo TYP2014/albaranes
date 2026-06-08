@@ -15842,7 +15842,8 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
       mes: mes, fichero: fichero, proveedor: proveedor || 'CEMEX', fichero_url: ficheroUrl || null,
       numero_albaran: L.numero_albaran || null,
       fecha: L.fecha || null,
-      matricula: L.matricula || null,
+      // v107J76 — corrige matrícula mal leída SOLO en Holcim (encaja la inválida con la conocida por 4 dígitos)
+      matricula: (proveedor === 'HOLCIM' ? _corregirMatAutof(L.matricula) : L.matricula) || null,
       origen: L.origen || null,
       destino: L.destino || null,
       tn: isNaN(tn) ? null : tn,
@@ -16084,6 +16085,23 @@ function _factNormAlb(s) {
 // Normaliza matrícula (sin espacios/guiones, mayúsculas).
 function _factNormMat(s) {
   return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+// v107J76 — Corrige una matrícula MAL LEÍDA de una autofactura de Holcim. Las matrículas españolas son
+// 4 dígitos + 3 CONSONANTES (sin vocales A E I O U, ni Ñ ni Q). Si la IA lee algo inválido (ej. "9295LIZ":
+// la "I" es vocal → imposible), la encaja con la matrícula CONOCIDA que tenga esos MISMOS 4 dígitos, y SOLO
+// si hay UNA única coincidencia. Si la matrícula leída ya es válida, se respeta tal cual. NUNCA inventa:
+// si no hay una única conocida con esos dígitos, deja lo leído como está.
+function _corregirMatAutof(mat) {
+  const m = String(mat || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!m) return m;
+  const FORMATO = /^[0-9]{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+  if (FORMATO.test(m)) return m;                 // ya es válida → respetar, no tocar
+  const dig = m.slice(0, 4);
+  if (/^[0-9]{4}$/.test(dig) && typeof TRANSPORTISTAS === 'object' && TRANSPORTISTAS) {
+    const cands = Object.keys(TRANSPORTISTAS).filter(k => k.slice(0, 4) === dig && FORMATO.test(k));
+    if (cands.length === 1) return cands[0];     // única conocida con esos 4 dígitos → corregir
+  }
+  return m;                                      // no se puede corregir con seguridad → dejar lo leído
 }
 // Convierte TN a número (admite coma o punto decimal).
 function _factNum(s) {
@@ -16694,7 +16712,9 @@ function _factProcesarYMostrarHolcim(setEstado) {
   //     exactas (fecha obligatoria). Si no cuadra → SIN COPIA 📋. Nunca se inventa por "parecido".
   lineas.forEach(L => {
     const numA = _factNormAlb(L.num_entrega);
-    const matL = _factNormMat(L.matricula);
+    // v107J76 — corrige matrícula mal leída (ej. "9295LIZ"→"9295JJZ") antes de cruzar, encajándola con la
+    // conocida por los 4 dígitos. Arregla en caliente las autofacturas ya guardadas con la matrícula mal.
+    const matL = _factNormMat(_corregirMatAutof(L.matricula));
     if (!numA && !matL) return; // fila basura (ej. "Fin de semana")
 
     const fL = normFecha(L.fecha);
@@ -16745,16 +16765,28 @@ function _factProcesarYMostrarHolcim(setEstado) {
     // 2) MATERIA PRIMA (caliza/arena/yeso/arcilla/limonita) → matrícula + FECHA + TN, las tres EXACTAS.
     // La fecha es OBLIGATORIA: si hay 2 viajes del mismo camión con la misma TN, la fecha los distingue.
     if (esMateriaPrima && matL) {
+      // v107J75 — La FECHA puede bailar hasta 2 días en arena/materia prima (mismo viaje; Holcim a veces
+      // pone la fecha de la liquidación, no la del día real — confirmado por Juan Carlos). Antes se exigía
+      // EXACTA y generaba mucho "sin copia"/"no abonado" del mismo viaje. Seguimos exigiendo matrícula y TN
+      // exactas (±0,05 T); solo la fecha tiene margen de ±2 días, ni uno más (para no reabrir falsos
+      // positivos). La fecha exacta SIEMPRE gana: solo se usa el margen si no hay coincidencia el mismo día.
+      const _diaNum = (s) => { const f = normFecha(s); const m = f.match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10)).getTime() : null; };
+      const tL = _diaNum(L.fecha);
       const cands = records.filter(r => !usados.has(String(r.db_id)) && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
-      let exacto = null, exDiff = 999;
+      let exacto = null, mejorScore = Infinity, exDias = 0;
       for (const r of cands) {
-        if (normFecha(r.fecha) !== fL) continue;            // fecha obligatoria (exacta)
         const d = Math.abs(_factNum(r.tm) - tnL);
-        if (isNaN(d) || d > TOL_TN) continue;               // TN al céntimo
-        if (d < exDiff) { exacto = r; exDiff = d; }
+        if (isNaN(d) || d > TOL_TN) continue;               // TN al céntimo (obligatoria)
+        const tR = _diaNum(r.fecha);
+        let diasDif;
+        if (tL !== null && tR !== null) diasDif = Math.round(Math.abs(tL - tR) / 86400000);
+        else { if (normFecha(r.fecha) !== fL) continue; diasDif = 0; } // sin fecha medible → exige exacta
+        if (diasDif > 2) continue;                          // ventana ±2 días, ni uno más
+        const score = diasDif * 1000 + d;                   // fecha más cercana primero, luego TN más cercana
+        if (score < mejorScore) { exacto = r; mejorScore = score; exDias = diasDif; }
       }
       if (exacto) {
-        abonados.push({ linea: L, rec: exacto, difs: [], modo: 'fecha+matrícula+TN' });
+        abonados.push({ linea: L, rec: exacto, difs: [], modo: exDias === 0 ? 'fecha+matrícula+TN' : ('matrícula+TN (fecha ±' + exDias + 'd)') });
         idsMatched.add(String(exacto.db_id)); usados.add(String(exacto.db_id));
         return;
       }
