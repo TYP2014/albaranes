@@ -16699,8 +16699,20 @@ function _factProcesarYMostrarHolcim(setEstado) {
       if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > TOL_TN) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
       const fR = normFecha(match.fecha);
       if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
-      if (difs.length === 0) {
-        abonados.push({ linea: L, rec: match, difs: [], modo: 'nº albarán' });
+      // v107J70 — Reglas por familia cuando el Nº DE ALBARÁN ya coincide:
+      //   • ADEC / escoria → nº + TN (matrícula y fecha bailan porque Holcim usa su camión y su fecha).
+      //   • Tecnocatalana / árido reciclado → SOLO Nº. Holcim paga POR VIAJE (importe fijo), y nosotros
+      //     ponemos TN = 1 a propósito, así que la TN NUNCA coincide → no se mira ni TN ni matrícula ni fecha.
+      //   • Resto (clinker/áridos/cemento) → las tres: nº + TN + fecha + matrícula.
+      const _famL = _factFamiliaHolcim(L.material, L.destino);
+      const esAdec = (_famL === 'Escorias / Adec');
+      const esTecno = (_famL === 'Árido reciclado / Tecnocatalana');
+      let difsBloquean;
+      if (esTecno) difsBloquean = [];                                  // Tecnocatalana: solo nº
+      else if (esAdec) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC: nº + TN
+      else difsBloquean = difs;                                        // resto: nº + TN + fecha + matrícula
+      if (difsBloquean.length === 0) {
+        abonados.push({ linea: L, rec: match, difs: [], modo: esTecno ? 'nº (Tecno)' : (esAdec ? 'nº + TN (ADEC)' : 'nº albarán') });
       } else {
         // v107J65 — el nº coincide pero falla matrícula, TN o fecha → A REVISAR (no se da por bueno solo).
         posibles.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán (revisar)' });
