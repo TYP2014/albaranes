@@ -1219,10 +1219,22 @@ async function deleteRecordDB(dbId) {
 
 window._modoSel = false;
 
-// Mostrar el botón "Selección" solo si es admin (se llama al cargar).
+// v107J73 — Quién puede usar la selección múltiple (botón Selección + borrar/facturar varios a la vez):
+// el admin (Juan Carlos) y, además, Marta y María del Mar (gestoras), identificadas por su UUID. NO se
+// abre a todo el rol "gestor" para no dárselo sin querer a otros usuarios (logística, taller…).
+function _puedeSeleccionMultiple() {
+  try {
+    if (typeof _recambiosEsAdmin === 'function' && _recambiosEsAdmin()) return true;
+    const _ids = ['6f657be7-1edd-4d5d-9895-cc6777ebbca1',   // Marta
+                  '5059731a-3e41-4578-b61e-96f20b6d8cc8'];  // María del Mar
+    return _ids.indexOf(currentUser && currentUser.id) !== -1;
+  } catch (e) { return false; }
+}
+
+// Mostrar el botón "Selección" si el usuario puede usar la selección múltiple (se llama al cargar).
 function _initBorradoMultiple() {
   try {
-    if (typeof _recambiosEsAdmin === 'function' && _recambiosEsAdmin()) {
+    if (_puedeSeleccionMultiple()) {
       const b = document.getElementById('btnModoSel');
       if (b) b.style.display = 'flex';
     }
@@ -1317,9 +1329,9 @@ async function _facturarSeleccionados() {
 
 // Borrar todos los marcados, con confirmación y número exacto.
 async function _borrarSeleccionados() {
-  // Seguridad extra: solo admin.
-  if (typeof _recambiosEsAdmin === 'function' && !_recambiosEsAdmin()) {
-    toast('Solo el administrador puede borrar albaranes.', 'err');
+  // v107J73 — pueden borrar el admin y las gestoras autorizadas (Marta, María del Mar).
+  if (!_puedeSeleccionMultiple()) {
+    toast('No tienes permiso para borrar albaranes.', 'err');
     return;
   }
   const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
