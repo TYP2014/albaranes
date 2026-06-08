@@ -16689,7 +16689,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
     }
 
     // 2a) EXACTO: materia prima, misma matrícula + misma fecha + misma TN (al céntimo) → ABONADO.
-    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL);
+    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
     let exacto = null, exDiff = 999;
     for (const r of cands) {
       if (normFecha(r.fecha) !== fL) continue;
@@ -16715,7 +16715,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
     // v107J38: SOLO se acepta si la TN cuadra (al céntimo) y la fecha está cerca; NO "solo por fecha".
     // v107J52: ahora esto corre DESPUÉS de toda la pasada exacta, así que ya no roba albaranes que
     // pertenecen a su día correcto (esos ya se cruzaron exactos y están consumidos).
-    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL);
+    const cands = records.filter(r => !usados.has(String(r.db_id)) && matL && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
     let parcial = null; const difsP = [];
     for (const r of cands) {
       const d = Math.abs(_factNum(r.tm) - tnL);
@@ -16850,6 +16850,24 @@ function _factFamiliaHolcim(material, destino) {
   if (/LIMONITA/.test(m)) return 'Limonita';
   if (/ESCOMBRO/.test(m)) return 'Escombros';
   return 'Otros';
+}
+
+// v107J63/J64 — una línea de Holcim NO debe emparejarse con un albarán que es de OTRO proveedor.
+// Antes el cruce por matrícula+TN cogía un albarán de CEMEX ("M…"), Sodira ("1/01718/…") o Àrids
+// Garcia (gravetas) del mismo camión y lo metía en "a revisar". Regla robusta (no proveedor a proveedor):
+// solo cruza si es de HOLCIM (proveedor o nº 3104…) o si es MATERIA PRIMA que Holcim paga aunque el
+// proveedor sea un tercero (Caliza Cemex/Promsa/Foj, Arena, Arcilla, Yeso, Árido siderúrgico/reciclado…).
+// El resto de áridos/gravetas de terceros (CEMEX, Sodira, Àrids Garcia, etc.) queda FUERA del cruce.
+function _albNoEsParaHolcim(r) {
+  const prov = String(r.proveedor || '').toUpperCase();
+  if (/HOLCIM|LAFARGE/.test(prov)) return false;            // es de Holcim → cruza
+  const albN = _factNormAlb(r.albaran);
+  if (/^3104\d{7}$/.test(albN)) return false;               // nº de Holcim (3104…) → cruza
+  const matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Materia prima que Holcim paga aunque el proveedor de origen sea un tercero:
+  if (/CALIZA|ARCILLA|YESO|ARENA|LIMONITA|ESCOMBRO|SIDERURGIC|ESCORIA|RECICLAD|TECNOCATALANA|ADEC/.test(matU)) return false;
+  // El resto (áridos/gravetas de CEMEX, Sodira, Àrids Garcia, etc.) NO es de Holcim → fuera del cruce.
+  return true;
 }
 
 function _factHolcimMostrarInforme() {
