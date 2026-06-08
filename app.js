@@ -5225,7 +5225,10 @@ Para CADA matrícula suma los LITROS (columna CANTIDAD) por tipo:
 - litros_adblue = suma de CANTIDAD de las líneas ECOBLUE / ECOBLUE GRANEL de ese bloque.
 - DEVOLUCIONES/ABONOS: si una línea tiene IMPORTE OPERACIÓN o PVP NEGATIVO, es una devolución: RESTA esos litros (no los sumes).
 - importe_gasoil / importe_adblue = suma del IMPORTE FINAL de esas líneas (si no lo ves, pon 0).
-NO uses las líneas "Total matrícula ... AGRUPADOS LOS CONCEPTOS" (esas son importes en euros, no litros) ni el bloque "TOTAL FACTURADO POR CONCEPTO".
+ATENCION MUY IMPORTANTE — LITROS, NO EUROS: los litros SIEMPRE salen de la columna CANTIDAD de cada repostaje, sumándolos uno a uno. NUNCA cojas un número de las líneas "Total matrícula ... AGRUPADOS LOS CONCEPTOS" ni del bloque "TOTAL FACTURADO POR CONCEPTO": esos son IMPORTES EN EUROS, no litros.
+EJEMPLO DE CÁLCULO (matrícula de ejemplo 0000XXX, NO la copies, es solo para enseñarte el método): un bloque con líneas ECOBLUE de CANTIDAD 41,62 (importe +39,91), 39,31 (importe +35,34), 65,08 (importe -58,51, NEGATIVO = devolución) y 46,95 (importe +46,72), y debajo la línea "Total matrícula ECOBLUE 102,79":
+   - litros_adblue CORRECTO = 41,62 + 39,31 + 46,95 - 65,08 = 62,80 (sumas las CANTIDAD positivas y RESTAS la de la devolución).
+   - litros_adblue INCORRECTO = 102,79 -> eso es el importe en EUROS de la línea "Total matrícula", NO son litros. NUNCA pongas ese número.
 Devuelve SOLO un objeto JSON (sin markdown):
 {
   "num_factura": "el número de factura/extracto (campo CORRESPONDIENTE A: o NÚMERO, ej BA72400000209698)",
