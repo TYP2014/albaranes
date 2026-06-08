@@ -16644,17 +16644,21 @@ function _factProcesarYMostrarHolcim(setEstado) {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
     // v107J54 — Promsa (Promotora Mediterránea-2) NO es Holcim, aunque sus áridos sean AF-/AG-.
-    // Holcim solo paga los áridos de Cantera Garraf (proveedor Holcim). Los de Promsa se facturan
-    // a Promsa, no los autofactura Holcim → FUERA del repaso. Señales: proveedor Promsa + material
-    // árido, o el destino "Zona Franca II" (planta propia de Promsa). NO afecta a "Caliza Promsa"
-    // (materia prima de recepción en Fábrica Montcada, que esa SÍ la paga Holcim y NO es árido AF-/AG-).
+    // v107J57 — IGUAL para CEMEX: sus áridos (albarán Ref-CemexGo "M…" o proveedor Cemex) tienen su
+    // propia facturación, no los autofactura Holcim → FUERA del repaso. Holcim solo paga los áridos
+    // de Cantera Garraf (proveedor Holcim, nº 3104). Señales para excluir: proveedor Promsa/Cemex +
+    // material árido, o el destino "Zona Franca II" (planta de Promsa). NO afecta a "Caliza Promsa"
+    // ni "Caliza Cemex" (materia prima de recepción en Fábrica Montcada, que SÍ la paga Holcim y NO
+    // son áridos AF-/AG-): el material de esas es "CALIZA …", no entra en _esArido.
     {
       const _provU = String(r.proveedor || '').toUpperCase();
+      const _albU = String(r.albaran || '').toUpperCase().replace(/\s/g, '');
       const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+      const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
       const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
-      if ((_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
+      if (((_esPromsa || _esCemex) && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
     }
     const n = _factNormAlb(r.albaran);
     // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
