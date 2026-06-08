@@ -16725,12 +16725,15 @@ function _factProcesarYMostrarHolcim(setEstado) {
       const _famR = _factFamiliaHolcim(match.producto, match.obra || match.destino || '');
       const esAdec = (_famR === 'Escorias / Adec');
       const esTecno = (_famR === 'Árido reciclado / Tecnocatalana');
+      // v107J74 — Núcleo Garraf → Puerto: Holcim lo factura con SU camión fijo (0658HLF) y SU fecha de
+      // liquidación, igual que la escoria de ADEC. Se cobra por TN → nº + TN basta; matrícula/fecha bailan.
+      const esGarrafPuerto = (_famR === 'Núcleo Garraf → Puerto Barcelona');
       let difsBloquean;
       if (esTecno) difsBloquean = [];                                  // Tecnocatalana: solo nº
-      else if (esAdec) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC: nº + TN
+      else if (esAdec || esGarrafPuerto) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC / Garraf→Puerto: nº + TN
       else difsBloquean = difs;                                        // resto: nº + TN + fecha + matrícula
       if (difsBloquean.length === 0) {
-        abonados.push({ linea: L, rec: match, difs: [], modo: esTecno ? 'nº (Tecno)' : (esAdec ? 'nº + TN (ADEC)' : 'nº albarán') });
+        abonados.push({ linea: L, rec: match, difs: [], modo: esTecno ? 'nº (Tecno)' : ((esAdec || esGarrafPuerto) ? 'nº + TN' : 'nº albarán') });
       } else {
         // v107J65 — el nº coincide pero falla matrícula, TN o fecha → A REVISAR (no se da por bueno solo).
         posibles.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán (revisar)' });
@@ -16847,7 +16850,11 @@ function _factFamiliaHolcim(material, destino) {
   const m = String(material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const d = String(destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   // 1) Núcleo Garraf → Puerto (obra temporal, familia propia). Se separa por destino.
-  if (/SERVICIOS?\s+DE\s+TRANSPORTE/.test(m) && /PUERTO|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
+  // v107J74 — clasificar por el DESTINO (Puerto de Barcelona / Núcleo Garraf), valga el material que
+  // valga. Holcim lo factura como "Servicios de Transporte", pero NUESTRO albarán (Sodira) lo trae como
+  // árido "AG-…" → antes caía en "Otros" y no cuadraba con la línea de Holcim. Así ambos van a la misma
+  // familia. (La Roca / Zona Franca / Montcada NO contienen "Puerto de Barcelona" → no se ven afectados.)
+  if (/PUERTO\s+DE\s+BARCELONA|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
   // v107J56 — Escoria/siderúrgico y árido reciclado son MATERIA PRIMA que entra en Fábrica Montcada.
   // Se clasifican ANTES que los áridos de Garraf, porque su nombre contiene "ÁRIDO" y antes se
   // colaban en "Áridos Garraf → Montcada" (el destino "Fábrica Montcada" contiene "Montcada").
