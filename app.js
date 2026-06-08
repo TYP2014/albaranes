@@ -3251,7 +3251,11 @@ async function _processOne(it, type, key, timeoutMs) {
           const _todo = _prov + ' ' + _dest + ' ' + _orig;
 
           // Caso 1: Tecnocatalana + Árido reciclado
-          const _esTecno = _todo.indexOf('tecnocatalana') !== -1;
+          // v107J72 — "Tecnocatalana" es nombre ÚNICO de este proveedor de árido reciclado (paga por
+          // viaje), igual que "Girona Runes" en los escombros. El nombre SOLO ya basta: no exigimos
+          // además que el material sea "árido reciclado", porque la IA a veces lo lee distinto y entonces
+          // el albarán se escapaba con la TN real. Miramos proveedor/destino/origen Y el propio producto.
+          const _esTecno = (_todo + ' ' + _prod).indexOf('tecnocatalana') !== -1;
           const _esAridoRec = _prod.indexOf('rido reciclado') !== -1
                             || _prod.indexOf('arido reciclado') !== -1;
 
@@ -3302,7 +3306,7 @@ async function _processOne(it, type, key, timeoutMs) {
           const _esEscombroFabMontcada = _esHolcimProv && _esFabMontcadaDest && _esHormigonPlanta;
 
           const _porViaje =
-                (_esTecno && _esAridoRec)
+                _esTecno
              || _esGironaRunes
              || (_esPuigfel && _esEscombro170101)
              || _esEscombroFabMontcada;
@@ -3313,7 +3317,7 @@ async function _processOne(it, type, key, timeoutMs) {
               data.observaciones = (data.observaciones ? String(data.observaciones) + ' · ' : '')
                 + 'Cobro por viaje (TN real ' + _tnReal + ')';
             }
-            const _cual = (_esTecno && _esAridoRec) ? 'Tecnocatalana+Árido reciclado'
+            const _cual = _esTecno ? 'Tecnocatalana+Árido reciclado'
                         : _esGironaRunes ? 'Girona Runes+escombro 170101'
                         : _esEscombroFabMontcada ? 'Escombro Holcim → Fábrica Montcada'
                         : 'Puigfel/Cova Solera+escombro 170101';
