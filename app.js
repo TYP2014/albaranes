@@ -15799,22 +15799,22 @@ function _factBloqueArchivos(arr, esc) {
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
 async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) {
-  // v107J66 — HOLCIM tiene VARIOS PDF por mes (por servicio/material, ~7). Por eso NO se puede borrar
-  // por mes (borraría los otros PDF) ni por nombre de archivo (cambia entre re-subidas → se acumulaban
-  // cientos de copias). Se borra POR CONTENIDO: las líneas ya guardadas de este mes cuyo nº de albarán
-  // venga en ESTE PDF se eliminan antes de reinsertar → re-subir un PDF reemplaza SOLO sus líneas y deja
-  // intactos los otros 6. CEMEX se queda EXACTAMENTE igual que antes (borrado por nombre de archivo).
+  // v107J67 — HOLCIM: VARIOS PDF por mes y los nº de servicio semanales ("19W2026-…") los comparten
+  // MUCHAS líneas distintas, así que NO se puede borrar por número ni por nombre de archivo. Solución
+  // SIN RIESGO (no se borra nada): se traen las líneas ya guardadas del mes y solo se insertan las que
+  // NO existan ya (misma CLAVE DE CONTENIDO: nº+fecha+matrícula+TN+concepto). Re-subir un PDF deja de
+  // crear copias y nunca se pierde una línea buena. CEMEX se queda EXACTAMENTE igual (borra por archivo).
+  const _claveLinea = (numero, fecha, mat, tn, concepto) =>
+    [String(numero || ''), String(fecha || ''), String(mat || ''),
+     (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)), String(concepto || '')].join('|');
   if ((proveedor || '') === 'HOLCIM') {
-    const nums = [...new Set((lineas || []).map(L => L.numero_albaran).filter(Boolean).map(String))];
-    for (let i = 0; i < nums.length; i += 100) {
-      const { error } = await sb.from('autofacturas_lineas').delete()
-        .eq('proveedor', 'HOLCIM').eq('mes', mes).in('numero_albaran', nums.slice(i, i + 100));
-      if (error) throw error;
-    }
-    // Las líneas sin nº de albarán de ese mismo archivo (no se pueden casar por contenido) se reemplazan
-    // al menos por nombre de archivo, para no acumular las del propio PDF re-subido con el mismo nombre.
-    await sb.from('autofacturas_lineas').delete()
-      .eq('proveedor', 'HOLCIM').eq('mes', mes).eq('fichero', fichero).is('numero_albaran', null);
+    const existentes = new Set();
+    try {
+      const { data } = await sb.from('autofacturas_lineas')
+        .select('numero_albaran,fecha,matricula,tn,concepto').eq('proveedor', 'HOLCIM').eq('mes', mes);
+      (data || []).forEach(r => existentes.add(_claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto)));
+    } catch (e) { console.warn('[J67] no pude leer existentes:', e); }
+    lineas = (lineas || []).filter(L => !existentes.has(_claveLinea(L.numero_albaran, L.fecha, L.matricula, L.tn, L.concepto)));
   } else {
     await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
   }
