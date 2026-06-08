@@ -16643,6 +16643,19 @@ function _factProcesarYMostrarHolcim(setEstado) {
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
+    // v107J54 — Promsa (Promotora Mediterránea-2) NO es Holcim, aunque sus áridos sean AF-/AG-.
+    // Holcim solo paga los áridos de Cantera Garraf (proveedor Holcim). Los de Promsa se facturan
+    // a Promsa, no los autofactura Holcim → FUERA del repaso. Señales: proveedor Promsa + material
+    // árido, o el destino "Zona Franca II" (planta propia de Promsa). NO afecta a "Caliza Promsa"
+    // (materia prima de recepción en Fábrica Montcada, que esa SÍ la paga Holcim y NO es árido AF-/AG-).
+    {
+      const _provU = String(r.proveedor || '').toUpperCase();
+      const _matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const _destU = String(r.obra || r.destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
+      const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+      if ((_esPromsa && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
+    }
     const n = _factNormAlb(r.albaran);
     // v107J46: un albarán es "Holcim" para el repaso si CUALQUIERA de estas cosas:
     //   (a) su nº empieza por 3104, (b) proveedor/cliente HOLCIM/LAFARGE, o
@@ -16919,37 +16932,46 @@ function factHolcimExcelPorMaterial() {
   const _fechaKey = (f) => { const m = String(f || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return '9999-99-99'; const y = m[3].length === 2 ? ('20' + m[3]) : m[3]; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); };
   const _cmpMatFecha = (mA, fA, mB, fB) => { const A = _matKey(mA), B = _matKey(mB); if (A < B) return -1; if (A > B) return 1; const FA = _fechaKey(fA), FB = _fechaKey(fB); return FA < FB ? -1 : (FA > FB ? 1 : 0); };
 
+  // v107J55 — diferenciar por TRANSPORTISTA: columna nueva + orden transportista → matrícula → fecha.
+  // El transportista sale del albarán (abonados/a revisar/no abonados); en "Sin copia" (sin albarán)
+  // se deduce de la matrícula con getTransportista(). Si no se sabe, va vacío y al final del orden.
+  const _trAb = (a) => (a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula) || '';
+  const _trNo = (r) => r.transportista || getTransportista(r.tractora) || '';
+  const _trSin = (L) => getTransportista(L.matricula) || '';
+  const _transKey = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ZZZZ';
+  const _cmpTMF = (tA, mA, fA, tB, mB, fB) => { const TA = _transKey(tA), TB = _transKey(tB); if (TA < TB) return -1; if (TA > TB) return 1; return _cmpMatFecha(mA, fA, mB, fB); };
+
   materialesFinal.forEach(mat => {
     const ab = (u.abonados || []).filter(a => _famLinea(a.linea) === mat);
     const po = (u.posibles || []).filter(a => _famLinea(a.linea) === mat);
     const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
     const sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
-    // Orden: matrícula primero, fecha después (igual que la autofactura de Holcim).
-    ab.sort((x, y) => _cmpMatFecha(x.linea.matricula, x.linea.fecha, y.linea.matricula, y.linea.fecha));
-    po.sort((x, y) => _cmpMatFecha(x.linea.matricula, x.linea.fecha, y.linea.matricula, y.linea.fecha));
-    no.sort((x, y) => _cmpMatFecha(x.tractora, x.fecha, y.tractora, y.fecha));
-    sin.sort((x, y) => _cmpMatFecha(x.matricula, x.fecha, y.matricula, y.fecha));
+    // Orden: TRANSPORTISTA primero, luego matrícula, luego fecha (para diferenciar por transportista).
+    ab.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
+    po.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
+    no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
+    sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
     const aoa = [];
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
     aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Observación']);
-    ab.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Observación']);
+    ab.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
     aoa.push([]);
     aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
-    aoa.push(['Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
-    po.forEach(a => aoa.push([a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
+    aoa.push(['Transportista', 'Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
+    po.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
     aoa.push([]);
     aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
-    aoa.push(['Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-    no.forEach(r => aoa.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+    aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+    no.forEach(r => aoa.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
-    aoa.push(['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-    sin.forEach(L => aoa.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.destino || '']));
+    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
+    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.destino || '']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
+    ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
