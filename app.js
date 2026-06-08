@@ -6756,6 +6756,48 @@ function renderGasTable() {
     </tr>`).join('');
 }
 
+// v107J60 — "Facturas subidas" de gasoil: lista SIN repetir (una por PDF subido), para ver de un
+// vistazo qué facturas tienes ya cargadas y cuáles te faltan. Agrupa los registros por su file_url
+// (una factura mensual se reparte en muchas filas/camiones, todas con el mismo PDF). Como no se
+// guarda el nombre original del archivo, se muestra proveedor + mes(es) + nº camiones + cuándo se subió.
+function verFacturasGasoilSubidas() {
+  const panel = document.getElementById('gasFacturasSubidas');
+  if (!panel) return;
+  if (panel.dataset.open === '1') { panel.style.display = 'none'; panel.dataset.open = '0'; return; }
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const _mes = (f) => { const m = String(f || '').match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? (m[2] + '/' + m[3]) : ''; };
+  const grupos = new Map();
+  (gasoilRecords || []).forEach(r => {
+    if (!hasValidUrl(r.file_url)) return;
+    let g = grupos.get(r.file_url);
+    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', meses: new Set(), n: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
+    g.n++;
+    if (!g.prov && r.proveedor) g.prov = r.proveedor;
+    const mm = _mes(r.fecha); if (mm) g.meses.add(mm);
+    const t = r.created_at || r._ts || ''; if (String(t) > String(g.ts)) g.ts = t;
+  });
+  const arr = [...grupos.values()].sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    + '<span style="font-weight:700;color:var(--mu)">📎 Facturas de gasoil subidas (' + arr.length + ')</span>'
+    + '<button class="btn bs" style="font-size:10px;padding:2px 8px" onclick="verFacturasGasoilSubidas()">✕ Cerrar</button></div>';
+  if (!arr.length) {
+    h += '<div style="color:var(--mu)">No hay facturas con PDF. (Los repostajes metidos a mano no tienen archivo adjunto.)</div>';
+  } else {
+    arr.forEach(g => {
+      const meses = [...g.meses].sort((a, b) => (a.split('/')[1] + a.split('/')[0]).localeCompare(b.split('/')[1] + b.split('/')[0]));
+      const mesTxt = meses.length ? meses.join(', ') : '—';
+      const cuando = g.ts ? fmtTS(g.ts) : '';
+      h += '<div style="padding:5px 0;border-bottom:1px solid var(--bd)">'
+        + '<a href="' + g.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">👁 Abrir PDF</a> · '
+        + '<strong>' + esc(g.prov || 'Proveedor ?') + '</strong> · mes: ' + esc(mesTxt)
+        + ' <span style="color:var(--mu)">(' + g.n + ' camiones' + (cuando ? ' · subida ' + esc(cuando) : '') + ')</span></div>';
+    });
+  }
+  panel.innerHTML = h;
+  panel.style.display = 'block';
+  panel.dataset.open = '1';
+}
+
 // ============================================================
 // FASE 4b (v107BK): RESUMEN DE CONSUMO de gasoil
 // Litros de gasoil (facturas, tabla gasoil) / km recorridos
