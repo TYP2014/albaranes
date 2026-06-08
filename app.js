@@ -16699,14 +16699,16 @@ function _factProcesarYMostrarHolcim(setEstado) {
       if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > TOL_TN) difs.push('TN (tú: ' + (match.tm || '—') + ' / Holcim: ' + (L.tn || '—') + ')');
       const fR = normFecha(match.fecha);
       if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + (match.fecha || '—') + ' / Holcim: ' + (L.fecha || '—') + ')');
-      // v107J70 — Reglas por familia cuando el Nº DE ALBARÁN ya coincide:
-      //   • ADEC / escoria → nº + TN (matrícula y fecha bailan porque Holcim usa su camión y su fecha).
-      //   • Tecnocatalana / árido reciclado → SOLO Nº. Holcim paga POR VIAJE (importe fijo), y nosotros
+      // v107J70/J71 — Reglas por familia cuando el Nº DE ALBARÁN ya coincide. La familia se decide por
+      // NUESTRO material (match.producto), que es fiable; el material de la línea de Holcim no sirve porque
+      // a la escoria la llama "Transporte de Residuos Sólidos" y al reciclado lo factura como servicio.
+      //   • ADEC / escoria → nº + TN (matrícula y fecha bailan: Holcim usa su camión 7874LCM y su fecha).
+      //   • Tecnocatalana / árido reciclado → SOLO Nº. Holcim paga POR VIAJE (importe fijo) y nosotros
       //     ponemos TN = 1 a propósito, así que la TN NUNCA coincide → no se mira ni TN ni matrícula ni fecha.
       //   • Resto (clinker/áridos/cemento) → las tres: nº + TN + fecha + matrícula.
-      const _famL = _factFamiliaHolcim(L.material, L.destino);
-      const esAdec = (_famL === 'Escorias / Adec');
-      const esTecno = (_famL === 'Árido reciclado / Tecnocatalana');
+      const _famR = _factFamiliaHolcim(match.producto, match.obra || match.destino || '');
+      const esAdec = (_famR === 'Escorias / Adec');
+      const esTecno = (_famR === 'Árido reciclado / Tecnocatalana');
       let difsBloquean;
       if (esTecno) difsBloquean = [];                                  // Tecnocatalana: solo nº
       else if (esAdec) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC: nº + TN
@@ -16902,10 +16904,13 @@ function _factHolcimMostrarInforme() {
   // un albarán nuestro (no abonados) en r.obra/r.destino.
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
   const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  // v107J71 — abonado/a-revisar se clasifica por NUESTRO albarán (a.rec), no por la línea de Holcim
+  // (Holcim renombra escoria→"residuos" y reciclado→"servicio"). Así caen en su familia correcta.
+  const _famPar = (a) => (a && a.rec ? _famAlb(a.rec) : _famLinea(a.linea));
   // Conjunto de familias presentes en el informe (de las 4 listas)
   const _setMat = new Set();
-  (u.abonados || []).forEach(a => _setMat.add(_famLinea(a.linea)));
-  (u.posibles || []).forEach(a => _setMat.add(_famLinea(a.linea)));
+  (u.abonados || []).forEach(a => _setMat.add(_famPar(a)));
+  (u.posibles || []).forEach(a => _setMat.add(_famPar(a)));
   (u.noAbonados || []).forEach(r => _setMat.add(_famAlb(r)));
   (u.sinAlbaran || []).forEach(L => _setMat.add(_famLinea(L)));
   // Orden lógico de familias (las que existan en este informe)
@@ -16921,8 +16926,8 @@ function _factHolcimMostrarInforme() {
   const _materiales = _ORDEN_FAM.filter(f => _setMat.has(f));
   const _sel = window._factHolcimMatSel || null;
   // Filtros que aplican la familia elegida (si no hay, pasan todo)
-  const _fAb = (u.abonados || []).filter(a => !_sel || _famLinea(a.linea) === _sel);
-  const _fPo = (u.posibles || []).filter(a => !_sel || _famLinea(a.linea) === _sel);
+  const _fAb = (u.abonados || []).filter(a => !_sel || _famPar(a) === _sel);
+  const _fPo = (u.posibles || []).filter(a => !_sel || _famPar(a) === _sel);
   const _fNo = (u.noAbonados || []).filter(r => !_sel || _famAlb(r) === _sel);
   const _fSin = (u.sinAlbaran || []).filter(L => !_sel || _famLinea(L) === _sel);
 
@@ -17052,10 +17057,12 @@ function factHolcimExcelPorMaterial() {
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
   const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  // v107J71 — abonado/a-revisar se clasifica por NUESTRO albarán (a.rec), no por la línea de Holcim.
+  const _famPar = (a) => (a && a.rec ? _famAlb(a.rec) : _famLinea(a.linea));
   // Reunir todas las familias presentes
   const setM = new Set();
-  (u.abonados || []).forEach(a => setM.add(_famLinea(a.linea)));
-  (u.posibles || []).forEach(a => setM.add(_famLinea(a.linea)));
+  (u.abonados || []).forEach(a => setM.add(_famPar(a)));
+  (u.posibles || []).forEach(a => setM.add(_famPar(a)));
   (u.noAbonados || []).forEach(r => setM.add(_famAlb(r)));
   (u.sinAlbaran || []).forEach(L => setM.add(_famLinea(L)));
   const _ORDEN_FAM = [
@@ -17097,8 +17104,8 @@ function factHolcimExcelPorMaterial() {
   const _cmpTMF = (tA, mA, fA, tB, mB, fB) => { const TA = _transKey(tA), TB = _transKey(tB); if (TA < TB) return -1; if (TA > TB) return 1; return _cmpMatFecha(mA, fA, mB, fB); };
 
   materialesFinal.forEach(mat => {
-    const ab = (u.abonados || []).filter(a => _famLinea(a.linea) === mat);
-    const po = (u.posibles || []).filter(a => _famLinea(a.linea) === mat);
+    const ab = (u.abonados || []).filter(a => _famPar(a) === mat);
+    const po = (u.posibles || []).filter(a => _famPar(a) === mat);
     const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
     const sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
     // Orden: TRANSPORTISTA primero, luego matrícula, luego fecha (para diferenciar por transportista).
