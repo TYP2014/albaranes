@@ -125,6 +125,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K3 (09/06/2026): TARIFAS Paso 2 — el precio sale solo en el Excel. En buildExcel, si un
+     albarán no tiene precio propio, se rellena la columna PRECIO con la TARIFA de su RUTA
+     (origen → destino) del MES del albarán (función _tarifaDe). El Total (col E) ya es =TN×precio.
+     exportExcel y exportExcelFiltrado ahora cargan las tarifas (await loadTarifas) antes de generar
+     el Excel. Lo ve todo el mundo (es el precio del subcontratado). Si un albarán ya tuviera precio
+     propio (>0), se respeta. Cambios: app.js + cache-buster app.js?v=65. NO requiere SQL. -->
 <!-- v107K2 (09/06/2026): quitada la card explicativa "FACTURACIÓN" de la pestaña Facturación (era
      solo texto informativo; el marcado 🟢📌🚫 se hace en el modal del albarán y el filtro está en
      Albaranes). Solo cambia index.html (no hace falta resubir app.js). NO requiere SQL. -->
@@ -1462,6 +1468,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=64"></script>
+<script src="app.js?v=65"></script>
 </body>
 </html>

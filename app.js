@@ -8433,7 +8433,18 @@ function buildExcel(data) {
   const rows = [EHEAD, ...ordered.map((r, idx) => {
     const tm = parseFloat(r.tm) || 0;
     // Precio siempre numérico (0 por defecto si no hay valor) — facilita edición posterior.
-    const precio = r.precio != null && r.precio !== '' ? parseFloat(r.precio) : 0;
+    // v107K2 (Paso 2): si el albarán no trae precio propio, usar la TARIFA de su RUTA
+    // (origen → destino) del MES del albarán. Así el precio que pusiste una vez en
+    // "Tarifas por servicio" sale solo en todos los albaranes de esa ruta. Total = TN × precio.
+    let precio = (r.precio != null && r.precio !== '' && parseFloat(r.precio) > 0) ? parseFloat(r.precio) : 0;
+    if (!precio) {
+      const _tsP = parseDate(r.fecha || '');
+      if (_tsP) {
+        const _dP = new Date(_tsP);
+        const _tar = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dP.getFullYear(), _dP.getMonth() + 1);
+        if (_tar != null) precio = _tar;
+      }
+    }
     // Total como FÓRMULA. Al editar el precio en Excel, el total se recalcula solo.
     const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
     const totalFormula = { f: `C${filaExcel}*D${filaExcel}` };
@@ -8502,8 +8513,8 @@ function buildExcel(data) {
   return { wb, tm: tmTot };
 }
 
-function exportExcel() { if (!records.length) { toast('No hay albaranes', 'err'); return; } const {wb,tm} = buildExcel(records); XLSX.writeFile(wb, `albaranes_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`); }
-function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; } const {wb,tm} = buildExcel(filtered); XLSX.writeFile(wb, `albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`); }
+async function exportExcel() { if (!records.length) { toast('No hay albaranes', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(records); XLSX.writeFile(wb, `albaranes_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`); }
+async function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(filtered); XLSX.writeFile(wb, `albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`); }
 
 // v83: Resumen agrupado por Origen + Destino + Material.
 // Construye un array de filas { origen, destino, material, viajes, tn } a partir de los albaranes
