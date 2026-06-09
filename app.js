@@ -8651,11 +8651,10 @@ function buildExcel(data) {
       if (R > 0 && (C === 3 || C === 4)) {
         ws[addr].z = '#,##0.00 €';
       }
-      // v107J14: TODAS las celdas en NEGRITA y un punto más grandes (tamaño 13, por
-      // defecto Excel usa 11) para que Juan Carlos las lea mejor sin gafas. La cabecera
-      // (fila 0) y la fila TOTAL (última) un poco más grandes aún (14).
-      ws[addr].s.font = { bold: true, sz: 13 };
-      if (R === 0 || R === range.e.r) ws[addr].s.font = { bold: true, sz: 14 };
+      // v107K8: letra del Excel de albaranes. Datos en TAMAÑO 12 (normal), y la cabecera (fila 0)
+      // y la fila TOTAL (última) en 13 NEGRITA. (Antes datos 13 y cabecera/total 14, todo negrita.)
+      ws[addr].s.font = { bold: false, sz: 12 };
+      if (R === 0 || R === range.e.r) ws[addr].s.font = { bold: true, sz: 13 };
     }
   }
   const wb = XLSX.utils.book_new();

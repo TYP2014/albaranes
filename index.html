@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K8 (09/06/2026): ARREGLO letra del Excel de albaranes. En v107J95/K6 toqué por error la
+     función equivocada (exportConsumoExcel, hoja "Consumo"), por eso el Excel de albaranes seguía en
+     14/13. Ahora se cambia en la función correcta (buildExcel): datos en 12 (normal), cabecera y fila
+     TOTAL en 13 negrita. Solo app.js + cache-buster app.js?v=70. NO requiere SQL. -->
 <!-- v107K7 (09/06/2026): FASE 2 (preparada) — PRECIO CLIENTE Y BENEFICIO, PRIVADO (solo admin). Card
      nueva en Facturación (oculta salvo admin): lista las rutas del mes (origen→destino) y muestra el
      COSTE subcontratado (de Fase 1, solo lectura), un campo para el PRECIO CLIENTE (Holcim/CEMEX) y
@@ -1507,6 +1511,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=69"></script>
+<script src="app.js?v=70"></script>
 </body>
 </html>
