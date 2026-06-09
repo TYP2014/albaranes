@@ -6040,6 +6040,7 @@ function applyFilters() {
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
   const fTn = (document.getElementById('fTn')?.value || '').trim().replace(',', '.'); // v107J92: filtro toneladas
+  const fFact = document.getElementById('fFactura')?.value || ''; // v107J93: filtro facturación
   // v80: normalización robusta antes de comparar (espacios extra, tildes, mayúsculas)
   // para evitar que filtros oculten albaranes por diferencias invisibles entre BD y dropdown.
   const norm = s => String(s || '')
@@ -6128,6 +6129,12 @@ function applyFilters() {
         const matchNum = !isNaN(asNum) && !isNaN(tmNum) && Math.abs(tmNum - asNum) < 0.001;
         if (!tmStr.includes(fTn) && !matchNum) return false;
       }
+    }
+    // v107J93: filtro por estado de FACTURACIÓN (facturado / pendiente / no_facturable).
+    // El que no tiene estado guardado cuenta como 'pendiente' (no facturado).
+    if (fFact) {
+      const est = r.estado_facturacion || 'pendiente';
+      if (est !== fFact) return false;
     }
     if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
     return true;
@@ -6305,7 +6312,7 @@ function switchGasEmpresa(emp) {
 }
 
 function resetFilters() { 
-  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   // v100: limpiar TODOS los multi-select. Antes solo Matrícula y Transportista; ahora también
   // Proveedor, Origen, Destino, Material y Subido por.
   selectedMatriculas.clear();
