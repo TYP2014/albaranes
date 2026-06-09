@@ -125,6 +125,15 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K0 (09/06/2026): TARIFAS POR SERVICIO (sustituye a "por material" de v107J99). Ahora el
+     precio se pone por SERVICIO = origen + destino + material (tal como sale en el Excel), porque
+     hay muchísimos áridos y lo que manda es de dónde a dónde. La pantalla (pestaña Facturación)
+     lista los servicios distintos movidos ese mes (origen→destino·material) con un € /TN cada uno;
+     "Guardar" hace upsert por (origen,destino,material,anio,mes). Precio = lo que cobra el
+     subcontratado (vuestro coste), público en el Excel. REQUIERE SQL nuevo: tarifas_servicio.sql
+     (la tabla tarifas_material anterior ya no se usa, se puede dejar o borrar). Cambios: app.js
+     (loadTarifas/_tarifaDe/_tarifaNorm/renderTarifasEditor/guardarTarifas por servicio) + index.html
+     (card "TARIFAS POR SERVICIO" + cache-buster app.js?v=63). Paso 2 pendiente: rellenar el Excel. -->
 <!-- v107J99 (09/06/2026): TARIFAS POR MATERIAL — Fase 1, Paso 1. Nueva tabla Supabase
      "tarifas_material" (material, anio, mes, precio_tn) y una pantalla en la pestaña Facturación:
      eliges mes/año, "Ver materiales" lista los materiales movidos ese mes (de los albaranes
@@ -646,19 +655,19 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
-      <!-- v107J99: TARIFAS POR MATERIAL (precio del subcontratado, por mes) -->
+      <!-- v107K0: TARIFAS POR SERVICIO (origen → destino · material), precio del subcontratado, por mes -->
       <div class="card" style="margin-top:18px">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>TARIFAS POR MATERIAL (€/TN del subcontratado)</div>
+          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>TARIFAS POR SERVICIO (€/TN del subcontratado)</div>
         </div>
         <div class="card-bd">
           <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:12px">
-            Pon aquí el precio por tonelada de cada material del mes (lo que paga el subcontratado). Elige <strong style="color:var(--tx)">mes y año</strong>, pulsa <strong style="color:var(--tx)">Ver materiales</strong>, rellena los precios y <strong style="color:var(--tx)">Guardar</strong>. (En el siguiente paso, este precio se pondrá solo en la columna PRECIO del Excel.)
+            Pon el precio por tonelada de cada <strong style="color:var(--tx)">servicio</strong> (origen → destino · material), tal como sale en el Excel. Es <strong style="color:var(--tx)">lo que cobra el subcontratado</strong> (vuestro coste). Elige <strong style="color:var(--tx)">mes y año</strong>, pulsa <strong style="color:var(--tx)">Ver servicios</strong>, rellena los precios y <strong style="color:var(--tx)">Guardar</strong>. (En el siguiente paso, este precio se pondrá solo en la columna PRECIO del Excel.)
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
             <select class="fil-sel" id="tarifaMes" style="width:auto"></select>
             <select class="fil-sel" id="tarifaAnio" style="width:auto"></select>
-            <button class="btn bs" onclick="verTarifasMes()">Ver materiales</button>
+            <button class="btn bs" onclick="verTarifasMes()">Ver servicios</button>
             <button class="btn" onclick="guardarTarifas()" style="margin-left:auto">💾 Guardar tarifas</button>
           </div>
           <div id="tarifasCont" style="overflow-x:auto"></div>
@@ -1458,6 +1467,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=62"></script>
+<script src="app.js?v=63"></script>
 </body>
 </html>

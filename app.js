@@ -459,32 +459,36 @@ async function loadTarjetasRepsol() {
   } catch (e) { console.warn('[tarjetas] Error en loadTarjetasRepsol:', e); }
 }
 
-// ============ TARIFAS POR MATERIAL (Fase 1, v107J99) ============
-// Precio que se PAGA al subcontratado (vuestro coste), por material y por mes.
-// NO es secreto: en el Paso 2 rellenará la columna PRECIO del Excel de todos.
+// ============ TARIFAS POR SERVICIO (Fase 1, v107K0) ============
+// Servicio = ORIGEN + DESTINO + MATERIAL (tal como sale en el Excel).
+// Precio = lo que cobra el subcontratado (vuestro coste). NO es secreto.
+// En el Paso 2 rellenará la columna PRECIO del Excel de todos.
 let _tarifas = [];
 
 async function loadTarifas() {
   try {
-    const { data, error } = await sb.from('tarifas_material').select('material, anio, mes, precio_tn');
+    const { data, error } = await sb.from('tarifas_servicio').select('origen, destino, material, anio, mes, precio_tn');
     if (error) {
       if (error.message && /does not exist|relation/i.test(error.message)) {
-        console.warn('[tarifas] La tabla tarifas_material no existe todavía. Ejecuta el SQL en Supabase.');
+        console.warn('[tarifas] La tabla tarifas_servicio no existe todavía. Ejecuta el SQL en Supabase.');
         return;
       }
-      console.warn('[tarifas] Error cargando tarifas_material:', error.message);
+      console.warn('[tarifas] Error cargando tarifas_servicio:', error.message);
       return;
     }
     _tarifas = data || [];
-    console.log(`[tarifas] ${_tarifas.length} tarifas cargadas`);
+    console.log(`[tarifas] ${_tarifas.length} tarifas (servicio) cargadas`);
   } catch (e) { console.warn('[tarifas] Error en loadTarifas:', e); }
 }
 
-// Precio €/TN de un material para un año/mes (o null si no hay).
-function _tarifaDe(material, anio, mes) {
-  const m = String(material || '').trim().toLowerCase();
-  const t = _tarifas.find(x => String(x.material || '').trim().toLowerCase() === m
-    && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
+// Normaliza un texto para comparar (minúsculas, sin espacios de más).
+function _tarifaNorm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+// Precio €/TN de un servicio (origen+destino+material) para un año/mes (o null si no hay).
+function _tarifaDe(origen, destino, material, anio, mes) {
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino), m = _tarifaNorm(material);
+  const t = _tarifas.find(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+    && _tarifaNorm(x.material) === m && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
   return t ? Number(t.precio_tn) : null;
 }
 
@@ -499,14 +503,14 @@ function _tarifasInitSelects() {
   for (let y = yA - 2; y <= yA + 1; y++) { const o = document.createElement('option'); o.value = y; o.textContent = y; if (y === yA) o.selected = true; selA.appendChild(o); }
 }
 
-// Botón "Ver materiales": asegura selects + tarifas cargadas y pinta el editor.
+// Botón "Ver servicios": asegura selects + tarifas cargadas y pinta el editor.
 async function verTarifasMes() {
   _tarifasInitSelects();
   await loadTarifas();
   renderTarifasEditor();
 }
 
-// Pinta los materiales movidos ese mes con su campo €/TN (relleno si ya hay tarifa).
+// Pinta los SERVICIOS (origen → destino · material) movidos ese mes, con su € /TN.
 function renderTarifasEditor() {
   const cont = document.getElementById('tarifasCont');
   if (!cont) return;
@@ -514,60 +518,73 @@ function renderTarifasEditor() {
   const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
   if (!anio || !mes) { cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Elige mes y año.</div>'; return; }
 
-  const mats = {};
+  // Servicios distintos (origen + destino + material) movidos ese mes.
+  const serv = {};
   (records || []).forEach(r => {
     if (r._dup) return;
     const ts = parseDate(r.fecha || '');
     if (!ts) return;
     const d = new Date(ts);
     if (d.getFullYear() === anio && (d.getMonth() + 1) === mes) {
-      const mat = String(r.producto || '').trim();
-      if (mat) mats[mat] = (mats[mat] || 0) + 1;
+      const origen = String(r.planta || r.origen || '').trim();
+      const destino = String(r.obra || r.destino || '').trim();
+      const material = String(r.producto || '').trim();
+      if (!origen && !destino && !material) return;
+      const key = _tarifaNorm(origen) + '||' + _tarifaNorm(destino) + '||' + _tarifaNorm(material);
+      if (!serv[key]) serv[key] = { origen, destino, material, count: 0 };
+      serv[key].count++;
     }
   });
-  const lista = Object.keys(mats).sort((a, b) => a.localeCompare(b));
+  const lista = Object.values(serv).sort((a, b) =>
+    (a.origen + a.destino + a.material).localeCompare(b.origen + b.destino + b.material));
   if (!lista.length) {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
   }
-  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>'
-    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">Material</th>'
-    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">Albaranes</th>'
-    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">€ / Tonelada</th>'
+  const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
+  let html = '<table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr>'
+    + th('Origen') + th('Destino') + th('Material') + th('Alb.') + th('€ / Tonelada')
     + '</tr></thead><tbody>';
-  lista.forEach(mat => {
-    const prev = _tarifaDe(mat, anio, mes);
+  lista.forEach(s => {
+    const prev = _tarifaDe(s.origen, s.destino, s.material, anio, mes);
     const val = prev != null ? prev : '';
+    const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt || '—') + '</td>';
     html += '<tr>'
-      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--tx)">' + _fichajeEsc(mat) + '</td>'
-      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--mu);font-family:var(--mn)">' + mats[mat] + '</td>'
+      + td(s.origen) + td(s.destino) + td(s.material)
+      + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
       + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
-      + '<input type="number" step="0.01" min="0" class="fil-sel" data-mat="' + _fichajeEsc(mat) + '" value="' + val + '" placeholder="0.00" style="width:120px;font-family:var(--mn);font-size:12px"></td>'
+      + '<input type="number" step="0.01" min="0" class="fil-sel"'
+      + ' data-orig="' + _fichajeEsc(s.origen) + '"'
+      + ' data-dest="' + _fichajeEsc(s.destino) + '"'
+      + ' data-mat="' + _fichajeEsc(s.material) + '"'
+      + ' value="' + val + '" placeholder="0.00" style="width:120px;font-family:var(--mn);font-size:12px"></td>'
       + '</tr>';
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
 
-// Guarda (upsert) las tarifas del mes seleccionado.
+// Guarda (upsert) las tarifas por servicio del mes seleccionado.
 async function guardarTarifas() {
   const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
   const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
   if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
-  const inputs = document.querySelectorAll('#tarifasCont input[data-mat]');
-  if (!inputs.length) { toast('Primero pulsa "Ver materiales"', 'warn'); return; }
+  const inputs = document.querySelectorAll('#tarifasCont input[data-orig]');
+  if (!inputs.length) { toast('Primero pulsa "Ver servicios"', 'warn'); return; }
   const filas = [];
   inputs.forEach(inp => {
-    const material = inp.getAttribute('data-mat');
+    const origen = inp.getAttribute('data-orig') || '';
+    const destino = inp.getAttribute('data-dest') || '';
+    const material = inp.getAttribute('data-mat') || '';
     const precio = parseFloat(String(inp.value).replace(',', '.'));
-    if (material && !isNaN(precio) && precio > 0) {
-      filas.push({ material, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
+    if (!isNaN(precio) && precio > 0) {
+      filas.push({ origen, destino, material, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
     }
   });
   if (!filas.length) { toast('Pon algún precio antes de guardar', 'warn'); return; }
   toast('💾 Guardando tarifas...');
   try {
-    const { error } = await sb.from('tarifas_material').upsert(filas, { onConflict: 'material,anio,mes' });
+    const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes' });
     if (error) { console.error('[tarifas] guardar', error); toast('Error al guardar: ' + error.message, 'err'); return; }
     await loadTarifas();
     toast('✅ Tarifas guardadas (' + filas.length + ')');
