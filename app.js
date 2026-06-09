@@ -459,6 +459,121 @@ async function loadTarjetasRepsol() {
   } catch (e) { console.warn('[tarjetas] Error en loadTarjetasRepsol:', e); }
 }
 
+// ============ TARIFAS POR MATERIAL (Fase 1, v107J99) ============
+// Precio que se PAGA al subcontratado (vuestro coste), por material y por mes.
+// NO es secreto: en el Paso 2 rellenará la columna PRECIO del Excel de todos.
+let _tarifas = [];
+
+async function loadTarifas() {
+  try {
+    const { data, error } = await sb.from('tarifas_material').select('material, anio, mes, precio_tn');
+    if (error) {
+      if (error.message && /does not exist|relation/i.test(error.message)) {
+        console.warn('[tarifas] La tabla tarifas_material no existe todavía. Ejecuta el SQL en Supabase.');
+        return;
+      }
+      console.warn('[tarifas] Error cargando tarifas_material:', error.message);
+      return;
+    }
+    _tarifas = data || [];
+    console.log(`[tarifas] ${_tarifas.length} tarifas cargadas`);
+  } catch (e) { console.warn('[tarifas] Error en loadTarifas:', e); }
+}
+
+// Precio €/TN de un material para un año/mes (o null si no hay).
+function _tarifaDe(material, anio, mes) {
+  const m = String(material || '').trim().toLowerCase();
+  const t = _tarifas.find(x => String(x.material || '').trim().toLowerCase() === m
+    && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
+  return t ? Number(t.precio_tn) : null;
+}
+
+// Rellena los desplegables de mes/año (la primera vez).
+function _tarifasInitSelects() {
+  const selM = document.getElementById('tarifaMes'), selA = document.getElementById('tarifaAnio');
+  if (!selM || !selA || selM.options.length) return;
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const now = new Date();
+  meses.forEach((nm, i) => { const o = document.createElement('option'); o.value = i + 1; o.textContent = nm; if (i === now.getMonth()) o.selected = true; selM.appendChild(o); });
+  const yA = now.getFullYear();
+  for (let y = yA - 2; y <= yA + 1; y++) { const o = document.createElement('option'); o.value = y; o.textContent = y; if (y === yA) o.selected = true; selA.appendChild(o); }
+}
+
+// Botón "Ver materiales": asegura selects + tarifas cargadas y pinta el editor.
+async function verTarifasMes() {
+  _tarifasInitSelects();
+  await loadTarifas();
+  renderTarifasEditor();
+}
+
+// Pinta los materiales movidos ese mes con su campo €/TN (relleno si ya hay tarifa).
+function renderTarifasEditor() {
+  const cont = document.getElementById('tarifasCont');
+  if (!cont) return;
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  if (!anio || !mes) { cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Elige mes y año.</div>'; return; }
+
+  const mats = {};
+  (records || []).forEach(r => {
+    if (r._dup) return;
+    const ts = parseDate(r.fecha || '');
+    if (!ts) return;
+    const d = new Date(ts);
+    if (d.getFullYear() === anio && (d.getMonth() + 1) === mes) {
+      const mat = String(r.producto || '').trim();
+      if (mat) mats[mat] = (mats[mat] || 0) + 1;
+    }
+  });
+  const lista = Object.keys(mats).sort((a, b) => a.localeCompare(b));
+  if (!lista.length) {
+    cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
+    return;
+  }
+  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">Material</th>'
+    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">Albaranes</th>'
+    + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">€ / Tonelada</th>'
+    + '</tr></thead><tbody>';
+  lista.forEach(mat => {
+    const prev = _tarifaDe(mat, anio, mes);
+    const val = prev != null ? prev : '';
+    html += '<tr>'
+      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--tx)">' + _fichajeEsc(mat) + '</td>'
+      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--mu);font-family:var(--mn)">' + mats[mat] + '</td>'
+      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
+      + '<input type="number" step="0.01" min="0" class="fil-sel" data-mat="' + _fichajeEsc(mat) + '" value="' + val + '" placeholder="0.00" style="width:120px;font-family:var(--mn);font-size:12px"></td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+// Guarda (upsert) las tarifas del mes seleccionado.
+async function guardarTarifas() {
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
+  const inputs = document.querySelectorAll('#tarifasCont input[data-mat]');
+  if (!inputs.length) { toast('Primero pulsa "Ver materiales"', 'warn'); return; }
+  const filas = [];
+  inputs.forEach(inp => {
+    const material = inp.getAttribute('data-mat');
+    const precio = parseFloat(String(inp.value).replace(',', '.'));
+    if (material && !isNaN(precio) && precio > 0) {
+      filas.push({ material, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
+    }
+  });
+  if (!filas.length) { toast('Pon algún precio antes de guardar', 'warn'); return; }
+  toast('💾 Guardando tarifas...');
+  try {
+    const { error } = await sb.from('tarifas_material').upsert(filas, { onConflict: 'material,anio,mes' });
+    if (error) { console.error('[tarifas] guardar', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    await loadTarifas();
+    toast('✅ Tarifas guardadas (' + filas.length + ')');
+  } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
+}
+
 // Dada una cadena de tarjeta del ticket (ej "***0321" o "************0321"),
 // busca su matrícula/empresa. Compara por terminación porque el ticket suele
 // ocultar los primeros dígitos con asteriscos.
@@ -9819,7 +9934,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } }
+  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña

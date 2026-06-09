@@ -125,6 +125,14 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J99 (09/06/2026): TARIFAS POR MATERIAL — Fase 1, Paso 1. Nueva tabla Supabase
+     "tarifas_material" (material, anio, mes, precio_tn) y una pantalla en la pestaña Facturación:
+     eliges mes/año, "Ver materiales" lista los materiales movidos ese mes (de los albaranes
+     cargados) con un campo €/TN cada uno, y "Guardar" los guarda (upsert por material+mes). Este
+     precio es el del SUBCONTRATADO (vuestro coste) y NO es secreto. Paso 2 (siguiente): rellenar
+     solo la columna PRECIO del Excel con estas tarifas. Cambios: app.js (loadTarifas, _tarifaDe,
+     _tarifasInitSelects, verTarifasMes, renderTarifasEditor, guardarTarifas + init en switchTab) +
+     index.html (card Tarifas + cache-buster app.js?v=62). REQUIERE SQL: ejecutar tarifas_material.sql. -->
 <!-- v107J98 (09/06/2026): ARREGLO escombro Holcim → Fábrica Montcada cuando la IA coloca mal los
      campos. Caso real (albarán 0066911323, 04/11/2025, 9918MXC): la IA puso "Fábrica Montcada" como
      ORIGEN y dejó el DESTINO vacío, así que no se detectaba el escombro (material seguía "Hormigón
@@ -635,6 +643,25 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;background:rgba(124,196,255,.06);border:1px solid rgba(124,196,255,.25);border-radius:9px;padding:12px 14px">
             Para marcar un albarán a mano: abre la pestaña <strong style="color:var(--tx)">📄 Albaranes</strong>, pulsa sobre el albarán y usa el recuadro azul <strong style="color:#7cc4ff">🧾 Facturación</strong> del modal.
           </div>
+        </div>
+      </div>
+
+      <!-- v107J99: TARIFAS POR MATERIAL (precio del subcontratado, por mes) -->
+      <div class="card" style="margin-top:18px">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>TARIFAS POR MATERIAL (€/TN del subcontratado)</div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:12px">
+            Pon aquí el precio por tonelada de cada material del mes (lo que paga el subcontratado). Elige <strong style="color:var(--tx)">mes y año</strong>, pulsa <strong style="color:var(--tx)">Ver materiales</strong>, rellena los precios y <strong style="color:var(--tx)">Guardar</strong>. (En el siguiente paso, este precio se pondrá solo en la columna PRECIO del Excel.)
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <select class="fil-sel" id="tarifaMes" style="width:auto"></select>
+            <select class="fil-sel" id="tarifaAnio" style="width:auto"></select>
+            <button class="btn bs" onclick="verTarifasMes()">Ver materiales</button>
+            <button class="btn" onclick="guardarTarifas()" style="margin-left:auto">💾 Guardar tarifas</button>
+          </div>
+          <div id="tarifasCont" style="overflow-x:auto"></div>
         </div>
       </div>
 
@@ -1431,6 +1458,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=61"></script>
+<script src="app.js?v=62"></script>
 </body>
 </html>
