@@ -3313,10 +3313,12 @@ async function _processOne(it, type, key, timeoutMs) {
           //       escombro. NUNCA pillará "yeso", "caliza X", "árido
           //       siderúrgico", etc. que entran como materia prima real.
           const _esHolcimProv = _todo.indexOf('holcim') !== -1;
-          const _esFabMontcadaDest = /f[áa]brica\s+montcada/.test(_dest);
+          // v107J98: "Fábrica Montcada" puede venir tanto en destino como en ORIGEN (la IA a veces lo
+          // coloca en planta y deja el destino vacío). Lo aceptamos en cualquiera de los dos.
+          const _esFabMontcadaDest = /f[áa]brica\s+montcada/.test(_dest) || /f[áa]brica\s+montcada/.test(_orig);
           // Patrón: "hormigón " + nombre de planta (no número, no vacío).
           // Cubrimos variantes OCR ("hormigon" sin tilde) y nombres conocidos.
-          const _esHormigonPlanta = /^hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/.test(_prod);
+          const _esHormigonPlanta = /hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/.test(_prod);
           const _esEscombroFabMontcada = _esHolcimProv && _esFabMontcadaDest && _esHormigonPlanta;
 
           const _porViaje =
@@ -3350,10 +3352,12 @@ async function _processOne(it, type, key, timeoutMs) {
         {
           const _prov2 = String(data.proveedor || '').toLowerCase();
           const _dest2 = String(data.obra || '').toLowerCase();
+          const _orig2 = String(data.planta || '').toLowerCase();
           const _prod2 = String(data.producto || '').toLowerCase();
           const _esHolcim2 = _prov2.indexOf('holcim') !== -1;
-          const _esFabMontcada2 = /f[áa]brica\s+montcada/.test(_dest2);
-          const _matchHormigon = _prod2.match(/^hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/);
+          // v107J98: "Fábrica Montcada" puede estar en destino o en origen (la IA a veces lo coloca mal).
+          const _esFabMontcada2 = /f[áa]brica\s+montcada/.test(_dest2) || /f[áa]brica\s+montcada/.test(_orig2);
+          const _matchHormigon = _prod2.match(/hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/);
           if (_esHolcim2 && _esFabMontcada2 && _matchHormigon) {
             // Normalizar el origen con mayúsculas iniciales y nombre limpio.
             const _origenRaw = _matchHormigon[1].trim().toLowerCase();
@@ -3383,6 +3387,15 @@ async function _processOne(it, type, key, timeoutMs) {
                 + '" → origen "' + (data.planta || 'vacío') + '" → "' + _origenLimpio + '"');
               data.planta = _origenLimpio;
             }
+            // v107J98: la fábrica receptora es SIEMPRE el DESTINO (Fábrica Montcada). Si la IA la
+            // puso en origen y dejó el destino vacío (o con la fábrica), lo corregimos.
+            const _obraActual = String(data.obra || '').trim();
+            if (!_obraActual || /f[áa]brica\s+montcada/.test(_orig2)) {
+              if (data.obra !== 'Fábrica Montcada') {
+                console.log('[v107J98 destino escombro] destino "' + (data.obra || 'vacío') + '" → "Fábrica Montcada"');
+                data.obra = 'Fábrica Montcada';
+              }
+            }
           }
         }
         // v107J96: VIAJES DE ESCOMBROS → el Material se muestra como "ESCOMBROS".
@@ -3402,7 +3415,7 @@ async function _processOne(it, type, key, timeoutMs) {
           const _gironaRunes = /girona\s*(de\s*)?runes/.test(_todoE);
           const _puigfel = _todoE.indexOf('puigfel') !== -1 || _todoE.indexOf('cova solera') !== -1;
           const _fabMontcada = _p.indexOf('holcim') !== -1
-                             && /f[áa]brica\s+montcada/.test(_d)
+                             && (/f[áa]brica\s+montcada/.test(_d) || /f[áa]brica\s+montcada/.test(_o))
                              && /hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/.test(_pr);
           const _yaEscombro = _pr.indexOf('escombro') !== -1;
           const _esEscombro = !_esAridoRec && (_gironaRunes || (_puigfel && _esc170101) || _fabMontcada || _esc170101 || _yaEscombro);
