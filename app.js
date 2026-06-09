@@ -9783,6 +9783,7 @@ function switchTab(tab) {
 
 let _fichajes = [];          // todas las filas cargadas (según permisos RLS)
 let _fichajeRelojTimer = null;
+let _fichajeEvsHoy = [];   // v107J83: eventos de jornada de HOY (con hora) para el reloj del total
 
 // Etiquetas legibles de cada tipo
 const _FICHAJE_LABELS = {
@@ -9854,10 +9855,10 @@ async function loadFichajes() {
   }
 }
 
-// Devuelve los eventos VÁLIDOS (aplicando correcciones) de un user en un día.
-// Cada correccion con tipo_corregido reemplaza el evento de ese tipo; si
-// anulado=TRUE, ese evento queda sin efecto.
-function _fichajeEventosValidosDia(userId, fechaISO) {
+// Devuelve los eventos VÁLIDOS CON SU HORA (aplicando correcciones) de un user
+// en un día: [{tipo, ts}] ordenados por hora. Es la base; _fichajeEventosValidosDia
+// devuelve solo los tipos (compatibilidad con el resto del código).
+function _fichajeEventosConHoraDia(userId, fechaISO) {
   // Filas de ese usuario y día (por ts local)
   const delDia = _fichajes.filter(f => {
     if (f.user_id !== userId) return false;
@@ -9879,11 +9880,49 @@ function _fichajeEventosValidosDia(userId, fechaISO) {
     if (f.anulado) { delete estado[t]; }
     else { estado[t] = { ts: f.ts_corregido || f.ts, anulado: false, id: f.id }; }
   });
-  // Devolver tipos presentes ordenados por hora
+  // Devolver {tipo, ts} ordenados por hora
   return Object.keys(estado)
     .map(t => ({ tipo: t, ts: estado[t].ts }))
-    .sort((a, b) => new Date(a.ts) - new Date(b.ts))
-    .map(e => e.tipo);
+    .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+}
+
+// Solo los TIPOS válidos del día, ordenados por hora (como antes).
+function _fichajeEventosValidosDia(userId, fechaISO) {
+  return _fichajeEventosConHoraDia(userId, fechaISO).map(e => e.tipo);
+}
+
+// v107J83: MINUTOS TRABAJADOS de un día (restando la comida), en vivo respecto a "ahora".
+//   Mañana: entrada -> (salida a comer | salida | ahora)
+//   Tarde:  vuelta de comer -> (salida | ahora)
+// Si está comiendo (hay salida_comida pero aún no vuelta), el total queda CONGELADO.
+function _fichajeMinutosTrabajados(evsConHora, ahora) {
+  const tsDe = (t) => {
+    const e = (evsConHora || []).find(x => x.tipo === t);
+    return e ? new Date(e.ts).getTime() : null;
+  };
+  const entrada = tsDe('entrada');
+  if (!entrada) return 0;
+  const salComida    = tsDe('salida_comida');
+  const vueltaComida = tsDe('vuelta_comida');
+  const salida       = tsDe('salida');
+  const now = (ahora instanceof Date ? ahora : new Date()).getTime();
+  let ms = 0;
+  // Segmento de la mañana
+  const finManana = salComida || salida || now;
+  ms += Math.max(0, finManana - entrada);
+  // Segmento de la tarde (solo si volvió de comer)
+  if (vueltaComida) {
+    const finTarde = salida || now;
+    ms += Math.max(0, finTarde - vueltaComida);
+  }
+  return Math.floor(ms / 60000);
+}
+
+// "H:MM" a partir de minutos (ej. 488 -> "8:08")
+function _fichajeFmtMin(min) {
+  min = Math.max(0, Math.round(min));
+  const h = Math.floor(min / 60), m = min % 60;
+  return h + ':' + String(m).padStart(2, '0');
 }
 
 // Fecha local YYYY-MM-DD de un timestamp
@@ -9940,6 +9979,20 @@ function _fichajeRenderBotonera() {
   if (fechaEl) fechaEl.textContent = _fichajeFechaBonita(hoyISO);
 
   const eventosHoy = _fichajeEventosValidosDia(currentUser.id, hoyISO);
+
+  // v107J83: eventos de hoy CON HORA, para mostrar las horas fichadas y el total en vivo.
+  const evsConHoraHoy = _fichajeEventosConHoraDia(currentUser.id, hoyISO);
+  const evsJornadaHoy = evsConHoraHoy.filter(e => !_fichajeEsAusencia(e.tipo));
+  _fichajeEvsHoy = evsJornadaHoy;
+  const horasBox = document.getElementById('fichajeHorasHoy');
+  if (horasBox) {
+    horasBox.innerHTML = evsJornadaHoy.length
+      ? evsJornadaHoy.map(e =>
+          (_FICHAJE_LABELS[e.tipo] || e.tipo) +
+          ' · <b style="color:var(--tx)">' + _fichajeHoraLocal(e.ts).slice(0, 5) + '</b>'
+        ).join('<br>')
+      : '';
+  }
   // ¿Hoy hay una ausencia marcada (vacaciones/baja/festivo/falta)?
   const ausenciaHoy = eventosHoy.find(t => _fichajeEsAusencia(t));
   // Para el botón de horas, solo cuentan los eventos de jornada (no ausencias)
@@ -10024,10 +10077,21 @@ function _fichajeRenderBotonera() {
 
 function _fichajeArrancarReloj() {
   const relojEl = document.getElementById('fichajeRelojVivo');
+  const lblEl = document.getElementById('fichajeRelojLabel');
   if (!relojEl) return;
+  const TOPE_MIN = 8 * 60; // 8 horas = norma
   const tick = () => {
-    const ahora = new Date();
-    relojEl.textContent = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const min = _fichajeMinutosTrabajados(_fichajeEvsHoy, new Date());
+    const h = Math.floor(min / 60), m = min % 60;
+    relojEl.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    const pasado = min >= TOPE_MIN;
+    relojEl.style.color = pasado ? 'var(--er)' : 'var(--ac)'; // rojo si ya hizo 8h
+    if (lblEl) {
+      lblEl.style.color = pasado ? 'var(--er)' : 'var(--mu)';
+      lblEl.textContent = pasado
+        ? ('TRABAJADO HOY · +' + _fichajeFmtMin(min - TOPE_MIN) + ' sobre las 8h')
+        : 'TRABAJADO HOY · de 8:00';
+    }
   };
   tick();
   if (_fichajeRelojTimer) clearInterval(_fichajeRelojTimer);

@@ -122,6 +122,14 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J83 (09/06/2026): FICHAJE — pantalla del trabajador mejorada. Ahora el trabajador VE
+     (1) las HORAS de cada fichaje de hoy (Entrada 07:14 · Salida a comer 13:20 · ...), y
+     (2) el reloj grande pasa a mostrar el TOTAL TRABAJADO del día EN VIVO (restando la comida),
+     con la referencia de 8h; al pasar de 8h el número se pone ROJO y sigue contando (no bloquea).
+     Cambios: app.js (nuevas _fichajeEventosConHoraDia/_fichajeMinutosTrabajados/_fichajeFmtMin,
+     relleno de horas en _fichajeRenderBotonera y reloj=total en _fichajeArrancarReloj) +
+     index.html (huecos fichajeHorasHoy/fichajeRelojLabel y cache-buster app.js?v=47). El resumen
+     SEMANAL de horas extras va en la proxima version. NO requiere SQL. -->
 <!-- v107J82 (09/06/2026): LOGO en la CABECERA de la app (pagina principal). Sustituido
      el "TYP2014" verde (emoji camion + texto, clase .logo) por el LOGO completo (SVG inline,
      version con TRANSPORTES en blanco porque la barra de cabecera es oscura), a 34px de alto.
@@ -1001,9 +1009,11 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
         <div class="card-bd" style="text-align:center;padding:24px 16px">
           <div id="fichajeEstadoTxt" style="font-family:var(--mn);font-size:12px;color:var(--mu);margin-bottom:18px"></div>
+          <div id="fichajeHorasHoy" style="font-family:var(--mn);font-size:13px;color:var(--mu);margin-bottom:18px;line-height:2"></div>
           <button id="fichajeBtnGrande" class="login-btn" style="max-width:340px;margin:0 auto 16px;font-size:15px;padding:18px"
             onclick="ficharBotonGrande()">Cargando...</button>
           <div id="fichajeRelojVivo" style="font-family:var(--dp);font-size:40px;letter-spacing:3px;color:var(--ac)"></div>
+          <div id="fichajeRelojLabel" style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px;letter-spacing:.5px"></div>
           <!-- Opción ficha a mano (por si se olvidó al llegar) -->
           <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">✍️ Apuntar una hora a mano</button>
@@ -1310,6 +1320,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=46"></script>
+<script src="app.js?v=47"></script>
 </body>
 </html>
