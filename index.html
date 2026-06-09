@@ -125,6 +125,9 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K2 (09/06/2026): quitada la card explicativa "FACTURACIÓN" de la pestaña Facturación (era
+     solo texto informativo; el marcado 🟢📌🚫 se hace en el modal del albarán y el filtro está en
+     Albaranes). Solo cambia index.html (no hace falta resubir app.js). NO requiere SQL. -->
 <!-- v107K1 (09/06/2026): TARIFAS POR RUTA (antes era por servicio origen+destino+material). Visto
      con datos reales (ARIDFLOT mayo, 271 alb): para una misma ruta origen→destino el precio es
      SIEMPRE el mismo aunque cambie el material (0 conflictos), así que el material sobra y generaba
@@ -644,24 +647,8 @@ if (typeof pdfjsLib !== 'undefined') {
          desde v107FD). En la próxima versión (v107FI) se añadirá aquí el botón de
          subir autofactura CEMEX + cruce + Excel resumen. -->
     <div id="tabContentFacturacion" class="wrap" style="display:none">
-      <div class="card">
-        <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>FACTURACIÓN</div>
-        </div>
-        <div class="card-bd">
-          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:16px">
-            Desde aquí se controla qué albaranes están facturados. Cada albarán tiene un estado que ves en la columna <strong style="color:var(--tx)">Est</strong> de la pestaña Albaranes:
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--tx);margin-bottom:18px">
-            <div>🟢 &nbsp;<strong>Facturado</strong> — ya está cobrado / autofacturado.</div>
-            <div>📌 &nbsp;<strong>Pendiente</strong> — aún no facturado (estado normal de partida).</div>
-            <div>🚫 &nbsp;<strong>No facturable</strong> — comodín, casi nunca se usa.</div>
-          </div>
-          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;background:rgba(124,196,255,.06);border:1px solid rgba(124,196,255,.25);border-radius:9px;padding:12px 14px">
-            Para marcar un albarán a mano: abre la pestaña <strong style="color:var(--tx)">📄 Albaranes</strong>, pulsa sobre el albarán y usa el recuadro azul <strong style="color:#7cc4ff">🧾 Facturación</strong> del modal.
-          </div>
-        </div>
-      </div>
+      <!-- v107K2: quitada la card explicativa de FACTURACIÓN (era solo texto; el marcado se hace en
+           el modal del albarán y el filtro está en la pestaña Albaranes). -->
 
       <!-- v107K0: TARIFAS POR SERVICIO (origen → destino · material), precio del subcontratado, por mes -->
       <div class="card" style="margin-top:18px">
