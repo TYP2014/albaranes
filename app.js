@@ -6039,6 +6039,7 @@ function applyFilters() {
   const subidoEl = document.getElementById('fSubidoEl')?.value; // v83: fecha de subida (created_at)
   const estado = document.getElementById('fEstado')?.value, q = (document.getElementById('srchIn')?.value || '').toLowerCase();
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
+  const fTn = (document.getElementById('fTn')?.value || '').trim().replace(',', '.'); // v107J92: filtro toneladas
   // v80: normalización robusta antes de comparar (espacios extra, tildes, mayúsculas)
   // para evitar que filtros oculten albaranes por diferencias invisibles entre BD y dropdown.
   const norm = s => String(s || '')
@@ -6110,6 +6111,22 @@ function applyFilters() {
       if (partes.length > 0) {
         const albStr = String(r.albaran || '').toLowerCase();
         if (!partes.some(p => albStr.includes(p))) return false;
+      }
+    }
+    // v107J92: filtro por TONELADAS (TN). Acepta un valor exacto (25, 26.74) o un rango (24-26).
+    if (fTn) {
+      const tmNum = parseFloat(String(r.tm).replace(',', '.'));
+      if (fTn.includes('-')) {
+        const ext = fTn.split('-').map(x => parseFloat(x));
+        const a = ext[0], b = ext[1];
+        if (!isNaN(a) && !isNaN(b)) {
+          if (isNaN(tmNum) || tmNum < Math.min(a, b) || tmNum > Math.max(a, b)) return false;
+        }
+      } else {
+        const tmStr = String(r.tm).replace(',', '.');
+        const asNum = parseFloat(fTn);
+        const matchNum = !isNaN(asNum) && !isNaN(tmNum) && Math.abs(tmNum - asNum) < 0.001;
+        if (!tmStr.includes(fTn) && !matchNum) return false;
       }
     }
     if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
@@ -6288,7 +6305,7 @@ function switchGasEmpresa(emp) {
 }
 
 function resetFilters() { 
-  ['fDesde','fHasta','srchIn','fAlbaran','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   // v100: limpiar TODOS los multi-select. Antes solo Matrícula y Transportista; ahora también
   // Proveedor, Origen, Destino, Material y Subido por.
   selectedMatriculas.clear();
