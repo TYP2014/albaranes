@@ -717,6 +717,7 @@ async function onLogin(user) {
     await loadUserMap();
     await loadMatriculasAprendidas();
     await loadTarjetasRepsol();
+    loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
     await loadData();
     // v107EQ5 (27/05/2026): marcar la app como LISTA para aceptar subidas.
     // Causa raíz del bug histórico "falla siempre la 1ª vez que entra":
@@ -7802,6 +7803,27 @@ function openModal(id) {
         + `<span style="width:100%;font-size:10px;color:var(--mu);margin-bottom:2px">Materiales Holcim (pincha para rellenar):</span>`
         + chipsMat + `</div></div>`;
     }
+    // v107K4: el PRECIO se muestra en SOLO LECTURA (lo edita JC en Facturación → Tarifas por
+    // servicio). Muestra la tarifa de la RUTA (origen → destino) del MES del albarán y el Total
+    // (TN × precio). Lo ve todo el mundo. No es un input, así que no se puede editar desde aquí.
+    if (f.k === 'precio') {
+      let _pr = null;
+      const _tsm = parseDate(r.fecha || '');
+      if (_tsm) { const _dm = new Date(_tsm); _pr = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dm.getFullYear(), _dm.getMonth() + 1); }
+      const _tmm = parseFloat(r.tm) || 0;
+      let _txt;
+      if (_pr != null) {
+        const _tot = _tmm * _pr;
+        _txt = `<strong style="color:var(--fg)">${_pr.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} €/TN</strong>`
+          + ` &nbsp;·&nbsp; Total: <strong style="color:var(--fg)">${_tot.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} €</strong>`
+          + ` <span style="color:var(--mu)">(${_tmm} TN)</span>`;
+      } else {
+        _txt = `<span style="color:var(--mu)">Sin tarifa para esta ruta este mes</span>`;
+      }
+      return `<div class="fg full"><label class="fl">${f.l} <span style="color:var(--mu);font-weight:400;font-size:11px">(tarifa de la ruta · solo lectura)</span></label>`
+        + `<div style="font-family:var(--mn);font-size:13px;padding:8px 10px;background:var(--s2);border-radius:6px;line-height:1.6">${_txt}</div>`
+        + `<div style="font-size:11px;color:var(--mu);margin-top:3px">Se cambia en Facturación → Tarifas por servicio.</div></div>`;
+    }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
 
@@ -8016,6 +8038,7 @@ async function saveModal() {
   const cambios = [];
 
   FIELDS.forEach(f => {
+    if (f.k === 'precio') return; // v107K4: precio es solo lectura (tarifa de la ruta), no se edita aquí
     const v = document.getElementById('mf_' + f.k)?.value?.trim();
     let newVal = v || null;
     // Normalización canónica al guardar manualmente: si lo que escribe el usuario coincide
@@ -8445,9 +8468,11 @@ function buildExcel(data) {
         if (_tar != null) precio = _tar;
       }
     }
-    // Total como FÓRMULA. Al editar el precio en Excel, el total se recalcula solo.
+    // v107K5: Total ya CALCULADO (TN × precio). Antes era una fórmula =C*D que a veces no se
+    // calculaba y la columna Total salía VACÍA. Como el precio viene de la tarifa, ponemos el
+    // número directo (redondeado a 2 decimales) y así siempre se ve.
     const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
-    const totalFormula = { f: `C${filaExcel}*D${filaExcel}` };
+    const totalFormula = Math.round(tm * precio * 100) / 100;
     // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
     // FECHA, MATRICULA, TN, PRECIO, TOTAL, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
     // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO

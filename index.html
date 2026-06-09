@@ -125,6 +125,16 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K5 (09/06/2026): ARREGLO Total del Excel. La columna TOTAL (€) salía VACÍA porque estaba
+     puesta como fórmula =C*D y el Excel generado no la calculaba. Ahora el Total va ya calculado
+     como NÚMERO (TN × precio, 2 decimales), así siempre se ve. Incluye también v107K4 (precio en el
+     modal en solo lectura) si no se había subido. Cambios: app.js + cache-buster app.js?v=67. NO SQL. -->
+<!-- v107K4 (09/06/2026): PRECIO en el modal del albarán, SOLO LECTURA. El campo "Precio (€/TN)" del
+     modal ya no es editable: muestra la TARIFA de la RUTA (origen → destino) del mes del albarán y el
+     Total (TN × precio). Lo ve todo el mundo; solo JC lo cambia en Facturación → Tarifas por servicio,
+     y al descargar el Excel aparece (Paso 2). saveModal ya no toca r.precio. Las tarifas se cargan al
+     arrancar (loadTarifas en el login) para que el modal las tenga. Cambios: app.js + cache-buster
+     app.js?v=66. NO requiere SQL. -->
 <!-- v107K3 (09/06/2026): TARIFAS Paso 2 — el precio sale solo en el Excel. En buildExcel, si un
      albarán no tiene precio propio, se rellena la columna PRECIO con la TARIFA de su RUTA
      (origen → destino) del MES del albarán (función _tarifaDe). El Total (col E) ya es =TN×precio.
@@ -1468,6 +1478,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=65"></script>
+<script src="app.js?v=67"></script>
 </body>
 </html>
