@@ -122,6 +122,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J87 (09/06/2026): FICHAJE — EXCEL MENSUAL con HORAS EXTRAS. La hoja "Registro Legal"
+     (Art. 10 RD-ley 8/2019, la que se imprime y firma) ahora trae por dia dos columnas mas:
+     "H. ordinarias" (hasta 8h) y "H. extras" (lo que pasa de 8h). Abajo: TOTAL de horas,
+     ordinarias y extras del mes, y una linea "Saldo (sobre 8h/dia)" con el neto (compensa dias
+     cortos con largos: jueves +1 / viernes -1 = 0). Asi se ve lo que hay que pagar o compensar.
+     Cambios en app.js (_fichajeAoaLegal: columnas + saldo, y anchos de la hoja) + cache-buster
+     app.js?v=51. NO requiere SQL. -->
 <!-- v107J86 (09/06/2026): FICHAJE — el ADMIN ya VE las horas de cada trabajador. El admin no
      ficha, asi que solo veia la tabla de marcas sueltas y no las horas acumuladas (Marta si las
      veia porque es trabajadora). Ahora, encima de la tabla, sale un cuadro "HORAS POR TRABAJADOR ·
@@ -1343,6 +1350,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=50"></script>
+<script src="app.js?v=51"></script>
 </body>
 </html>

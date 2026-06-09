@@ -10693,15 +10693,17 @@ function _fichajeAoaLegal(filas) {
     aoa.push(['Trabajador:', g.trabajador, '', 'DNI/NIE:', g.dni]);
     aoa.push(['Nº horas según contrato:', '', 'Mes:', `${MESES[g.mesNum-1]} ${g.anio}`, 'Centro Trabajo:', _FICHAJE_CENTRO_TRABAJO]);
     aoa.push([]);
-    aoa.push(['Día', 'Entrada', 'Salida comer', 'Vuelta comer', 'Salida', 'Horas día', 'Observaciones']);
+    aoa.push(['Día', 'Entrada', 'Salida comer', 'Vuelta comer', 'Salida', 'Horas día', 'H. ordinarias', 'H. extras', 'Observaciones']);
 
     // Días del mes (1..número de días reales del mes)
     const numDias = new Date(parseInt(g.anio,10), g.mesNum, 0).getDate();
-    let totalMin = 0;
+    const TOPE = 8 * 60; // 8 horas = jornada normal
+    const fmtm = (m) => { m = Math.max(0, Math.round(m)); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
+    let totalMin = 0, totalOrd = 0, totalExt = 0, saldoMin = 0;
     for (let d = 1; d <= numDias; d++) {
       const D = g.dias[d];
-      if (!D) { aoa.push([d, '', '', '', '', '', '']); continue; }
-      if (D.ausencia) { aoa.push([d, '', '', '', '', '', D.ausencia]); continue; }
+      if (!D) { aoa.push([d, '', '', '', '', '', '', '', '']); continue; }
+      if (D.ausencia) { aoa.push([d, '', '', '', '', '', '', '', D.ausencia]); continue; }
       // Calcular horas del día: (salida_comida - entrada) + (salida - vuelta_comida).
       // Si faltan tramos, sumamos lo que haya de forma sensata.
       const min = (hhmm) => { if(!hhmm) return null; const [h,m]=hhmm.split(':').map(Number); return h*60+m; };
@@ -10711,13 +10713,17 @@ function _fichajeAoaLegal(filas) {
       if (vc!=null && s!=null)  dm += Math.max(0, s-vc);
       // Si solo hay entrada y salida (sin pausa de comida), contar entrada→salida.
       if (dm===0 && e!=null && s!=null && sc==null && vc==null) dm = Math.max(0, s-e);
-      totalMin += dm;
-      const horasTxt = dm>0 ? `${Math.floor(dm/60)}:${String(dm%60).padStart(2,'0')}` : '';
-      aoa.push([d, D.entrada, D.salida_comida, D.vuelta_comida, D.salida, horasTxt, '']);
+      const ord = Math.min(dm, TOPE);          // ordinarias: hasta 8h
+      const ext = Math.max(0, dm - TOPE);      // extras: lo que pase de 8h
+      totalMin += dm; totalOrd += ord; totalExt += ext;
+      if (dm > 0) saldoMin += (dm - TOPE);     // saldo neto (compensa días cortos con largos)
+      aoa.push([d, D.entrada, D.salida_comida, D.vuelta_comida, D.salida,
+                dm>0 ? fmtm(dm) : '', dm>0 ? fmtm(ord) : '', ext>0 ? fmtm(ext) : '', '']);
     }
-    const tH = Math.floor(totalMin/60), tM = totalMin%60;
-    aoa.push(['TOTAL', '', '', '', '', `${tH}:${String(tM).padStart(2,'0')}`, '']);
-    aoa.push(['Firma trabajador:', '', '', '', 'Firma empresa:', '', '']);
+    aoa.push(['TOTAL', '', '', '', '', fmtm(totalMin), fmtm(totalOrd), fmtm(totalExt), '']);
+    const saldoTxt = (saldoMin >= 0 ? '+' : '-') + fmtm(Math.abs(saldoMin));
+    aoa.push(['Saldo (sobre 8h/día):', '', '', '', '', saldoTxt, '', '', '']);
+    aoa.push(['Firma trabajador:', '', '', '', 'Firma empresa:', '', '', '', '']);
   });
 
   return aoa;
@@ -10778,7 +10784,7 @@ function exportFichajesExcel() {
     try {
       const aoaLegal = _fichajeAoaLegal(filas);
       const wsL = XLSX.utils.aoa_to_sheet(aoaLegal);
-      wsL['!cols'] = [{wch:6},{wch:11},{wch:13},{wch:13},{wch:13},{wch:11},{wch:11}];
+      wsL['!cols'] = [{wch:6},{wch:11},{wch:13},{wch:13},{wch:13},{wch:11},{wch:13},{wch:11},{wch:18}];
       XLSX.utils.book_append_sheet(wb, wsL, 'Registro Legal');
     } catch (eL) {
       console.warn('[v107FG] no pude construir la hoja Registro Legal:', eL);
