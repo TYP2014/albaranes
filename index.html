@@ -125,6 +125,14 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K7 (09/06/2026): FASE 2 (preparada) — PRECIO CLIENTE Y BENEFICIO, PRIVADO (solo admin). Card
+     nueva en Facturación (oculta salvo admin): lista las rutas del mes (origen→destino) y muestra el
+     COSTE subcontratado (de Fase 1, solo lectura), un campo para el PRECIO CLIENTE (Holcim/CEMEX) y
+     el BENEFICIO €/TN (cliente − coste, verde/rojo). Se mete a mano de momento; leerlo de las
+     autofacturas se hará más adelante. Tabla nueva tarifas_cliente (REQUIERE SQL: tarifas_cliente.sql).
+     Funciones: loadTarifasCliente, _tarifaClienteDe, renderTarifasClienteEditor, guardarTarifasCliente
+     + show/hide en switchTab solo si admin. Cambios: app.js + index.html (card + cache-buster
+     app.js?v=69). El resto (Fase 1, modal, Excel) sin tocar. -->
 <!-- v107K6 (09/06/2026): Excel — cabecera a tamaño 13 (negrita), datos siguen a 12. Solo cambia el
      tamaño de la fila de títulos. app.js + cache-buster app.js?v=68. NO requiere SQL. -->
 <!-- v107K5 (09/06/2026): ARREGLO Total del Excel. La columna TOTAL (€) salía VACÍA porque estaba
@@ -684,6 +692,25 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn" onclick="guardarTarifas()" style="margin-left:auto">💾 Guardar tarifas</button>
           </div>
           <div id="tarifasCont" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- v107K7: FASE 2 — PRECIO CLIENTE Y BENEFICIO (SOLO ADMIN; oculto por defecto, switchTab lo muestra si admin) -->
+      <div class="card" id="tarifasCliCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#f5a623"></div>PRECIO CLIENTE Y BENEFICIO (privado · solo tú)</div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:12px">
+            <strong style="color:var(--tx)">Solo lo ves tú (admin).</strong> Aquí pones lo que te paga el <strong style="color:var(--tx)">cliente</strong> (Holcim/CEMEX) por ruta, y la app calcula el <strong style="color:var(--tx)">beneficio</strong> por tonelada (precio cliente − coste del subcontratado de la Fase 1). De momento se mete a mano; leerlo de las autofacturas lo afinamos más adelante. Elige mes/año, <strong style="color:var(--tx)">Ver rutas</strong>, pon el precio cliente y <strong style="color:var(--tx)">Guardar</strong>.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <select class="fil-sel" id="tarifaCliMes" style="width:auto"></select>
+            <select class="fil-sel" id="tarifaCliAnio" style="width:auto"></select>
+            <button class="btn bs" onclick="verTarifasClienteMes()">Ver rutas</button>
+            <button class="btn" onclick="guardarTarifasCliente()" style="margin-left:auto">💾 Guardar precios cliente</button>
+          </div>
+          <div id="tarifasCliCont" style="overflow-x:auto"></div>
         </div>
       </div>
 
@@ -1480,6 +1507,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=68"></script>
+<script src="app.js?v=69"></script>
 </body>
 </html>

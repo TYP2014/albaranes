@@ -591,6 +591,138 @@ async function guardarTarifas() {
   } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
+// ============ FASE 2 — PRECIO CLIENTE Y BENEFICIO (v107K7) ============
+// PRIVADO: solo lo ve el ADMIN (Juan Carlos). Precio que pagan los clientes (Holcim/CEMEX)
+// por RUTA (origen → destino) y por mes. Beneficio = precio cliente − precio subcontratado
+// (la tarifa de la Fase 1). De momento se mete a mano; leerlo de las autofacturas se hará más
+// adelante. Usa la tabla tarifas_cliente (misma estructura que tarifas_servicio).
+let _tarifasCliente = [];
+
+async function loadTarifasCliente() {
+  try {
+    const { data, error } = await sb.from('tarifas_cliente').select('origen, destino, anio, mes, precio_tn');
+    if (error) {
+      if (error.message && /does not exist|relation/i.test(error.message)) {
+        console.warn('[tarifas-cliente] La tabla tarifas_cliente no existe todavía. Ejecuta el SQL en Supabase.');
+        return;
+      }
+      console.warn('[tarifas-cliente] Error cargando tarifas_cliente:', error.message);
+      return;
+    }
+    _tarifasCliente = data || [];
+    console.log(`[tarifas-cliente] ${_tarifasCliente.length} precios cliente cargados`);
+  } catch (e) { console.warn('[tarifas-cliente] Error en loadTarifasCliente:', e); }
+}
+
+// Precio €/TN que paga el cliente para una ruta (origen+destino) en un año/mes (o null).
+function _tarifaClienteDe(origen, destino, anio, mes) {
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
+  const t = _tarifasCliente.find(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+    && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
+  return t ? Number(t.precio_tn) : null;
+}
+
+// Rellena los selects de mes/año de la tarjeta de cliente (la primera vez).
+function _tarifasCliInitSelects() {
+  const selM = document.getElementById('tarifaCliMes'), selA = document.getElementById('tarifaCliAnio');
+  if (!selM || !selA || selM.options.length) return;
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const now = new Date();
+  meses.forEach((nm, i) => { const o = document.createElement('option'); o.value = i + 1; o.textContent = nm; if (i === now.getMonth()) o.selected = true; selM.appendChild(o); });
+  const yA = now.getFullYear();
+  for (let y = yA - 2; y <= yA + 1; y++) { const o = document.createElement('option'); o.value = y; o.textContent = y; if (y === yA) o.selected = true; selA.appendChild(o); }
+}
+
+async function verTarifasClienteMes() {
+  if (currentRole !== 'admin') return;
+  _tarifasCliInitSelects();
+  await loadTarifas();         // coste (subcontratado), para el beneficio
+  await loadTarifasCliente();  // precio cliente
+  renderTarifasClienteEditor();
+}
+
+// Lista las rutas del mes con: coste (subcontratado, solo lectura), precio cliente (editable) y beneficio.
+function renderTarifasClienteEditor() {
+  const cont = document.getElementById('tarifasCliCont');
+  if (!cont) return;
+  if (currentRole !== 'admin') { cont.innerHTML = ''; return; }
+  const anio = parseInt(document.getElementById('tarifaCliAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaCliMes')?.value, 10);
+  if (!anio || !mes) { cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Elige mes y año.</div>'; return; }
+
+  const serv = {};
+  (records || []).forEach(r => {
+    if (r._dup) return;
+    const ts = parseDate(r.fecha || '');
+    if (!ts) return;
+    const dd = new Date(ts);
+    if (dd.getFullYear() === anio && (dd.getMonth() + 1) === mes) {
+      const origen = String(r.planta || r.origen || '').trim();
+      const destino = String(r.obra || r.destino || '').trim();
+      if (!origen && !destino) return;
+      const key = _tarifaNorm(origen) + '||' + _tarifaNorm(destino);
+      if (!serv[key]) serv[key] = { origen, destino, count: 0 };
+      serv[key].count++;
+    }
+  });
+  const lista = Object.values(serv).sort((a, b) => (a.origen + a.destino).localeCompare(b.origen + b.destino));
+  if (!lista.length) {
+    cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
+    return;
+  }
+  const fmt = n => (n == null ? '—' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
+  const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
+  let html = '<table style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
+    + th('Origen') + th('Destino') + th('Alb.') + th('Coste subcontratado') + th('Precio cliente (€/TN)') + th('Beneficio €/TN')
+    + '</tr></thead><tbody>';
+  lista.forEach(s => {
+    const coste = _tarifaDe(s.origen, s.destino, anio, mes);
+    const cliente = _tarifaClienteDe(s.origen, s.destino, anio, mes);
+    const benef = (coste != null && cliente != null) ? (cliente - coste) : null;
+    const benColor = benef == null ? 'var(--mu)' : (benef >= 0 ? 'var(--ac)' : 'var(--er)');
+    const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt) + '</td>';
+    html += '<tr>'
+      + td(s.origen || '—') + td(s.destino || '—')
+      + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
+      + td(coste != null ? fmt(coste) : '— (pon tarifa)', 'color:var(--mu);font-family:var(--mn)')
+      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
+      + '<input type="number" step="0.01" min="0" class="fil-sel"'
+      + ' data-orig="' + _fichajeEsc(s.origen) + '" data-dest="' + _fichajeEsc(s.destino) + '"'
+      + ' value="' + (cliente != null ? cliente : '') + '" placeholder="0.00" style="width:110px;font-family:var(--mn);font-size:12px"></td>'
+      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;font-weight:600;color:' + benColor + '">' + (benef != null ? fmt(benef) : '—') + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+async function guardarTarifasCliente() {
+  if (currentRole !== 'admin') { toast('Solo el admin', 'err'); return; }
+  const anio = parseInt(document.getElementById('tarifaCliAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaCliMes')?.value, 10);
+  if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
+  const inputs = document.querySelectorAll('#tarifasCliCont input[data-orig]');
+  if (!inputs.length) { toast('Primero pulsa "Ver rutas"', 'warn'); return; }
+  const filas = [];
+  inputs.forEach(inp => {
+    const origen = inp.getAttribute('data-orig') || '';
+    const destino = inp.getAttribute('data-dest') || '';
+    const precio = parseFloat(String(inp.value).replace(',', '.'));
+    if (!isNaN(precio) && precio > 0) {
+      filas.push({ origen, destino, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
+    }
+  });
+  if (!filas.length) { toast('Pon algún precio antes de guardar', 'warn'); return; }
+  toast('💾 Guardando precios cliente...');
+  try {
+    const { error } = await sb.from('tarifas_cliente').upsert(filas, { onConflict: 'origen,destino,anio,mes' });
+    if (error) { console.error('[tarifas-cliente] guardar', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    await loadTarifasCliente();
+    renderTarifasClienteEditor();
+    toast('✅ Precios cliente guardados (' + filas.length + ')');
+  } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
+}
+
 // Dada una cadena de tarjeta del ticket (ej "***0321" o "************0321"),
 // busca su matrícula/empresa. Compara por terminación porque el ticket suele
 // ocultar los primeros dígitos con asteriscos.
@@ -9987,7 +10119,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } }
+  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
