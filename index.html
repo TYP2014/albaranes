@@ -122,6 +122,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J90 (09/06/2026): REPASO PROMOTORA — añadido ORIGEN al Excel. El Excel de repaso de
+     Promotora (exportPromotoraExcelMes) no mostraba el origen, asi que no se veia si era PROMSA
+     GARRAF, Olesa de Bonesvalls o Llinars. Ahora las columnas son: Transportista · Fecha ·
+     Matricula · Nº Albaran · ORIGEN (campo planta) · Destino · Material · TN. Pendiente de aclarar
+     que es "minimo" (no hay ese dato guardado) y, si se confirma, replicar a los repasos de
+     Holcim/CEMEX. Solo cambia app.js + cache-buster app.js?v=53. NO requiere SQL. -->
 <!-- v107J89 (09/06/2026): CABECERA — logo más visible. El logo de la barra superior se veía
      apagado sobre el fondo oscuro. Ahora va dentro de un RECUADRO BLANCO (chip redondeado) con el
      logo a COLOR original (más grande, 40px), que resalta sobre la barra oscura. La zona de las
@@ -1361,6 +1367,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=52"></script>
+<script src="app.js?v=53"></script>
 </body>
 </html>

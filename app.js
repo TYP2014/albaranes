@@ -16206,10 +16206,13 @@ function exportPromotoraExcelMes(mes) {
   aoa.push(['PROMOTORA MEDITERRÁNEA — ' + _factMesBonito(mes) + ' (los facturas tú)']);
   aoa.push([]);
   aoa.push(['📋 ALBARANES (' + lista.length + ')']);
-  aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-  lista.forEach(r => aoa.push([_tr(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+  aoa.push(['Transportista', 'Fecha', 'Matrícula', 'Nº Albarán', 'Origen', 'Destino', 'Material', 'TN']);
+  lista.forEach(r => aoa.push([
+    _tr(r), r.fecha || '', r.tractora || '', r.albaran || '',
+    r.planta || r.origen || '', r.obra || r.destino || '', r.producto || '', r.tm || ''
+  ]));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 22 }];
+  ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 24 }, { wch: 22 }, { wch: 30 }, { wch: 9 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, ('Promotora ' + _factMesBonito(mes)).slice(0, 31));
   XLSX.writeFile(wb, 'Promotora_' + mes + '.xlsx');
