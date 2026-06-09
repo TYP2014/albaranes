@@ -17419,23 +17419,23 @@ function factHolcimExcelPorMaterial() {
     aoa.push(['FAMILIA: ' + mat]);
     aoa.push([]);
     aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
-    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Observación']);
-    ab.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino', 'Observación']);
+    ab.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
     aoa.push([]);
     aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
-    aoa.push(['Transportista', 'Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
-    po.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
+    aoa.push(['Transportista', 'Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu origen', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
+    po.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
     aoa.push([]);
     aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
-    aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-    no.forEach(r => aoa.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.obra || r.destino || '']));
+    aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino']);
+    no.forEach(r => aoa.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '']));
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
     aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
     sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.destino || '']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:14},{wch:12},{wch:12},{wch:10}];
+    ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:22},{wch:16},{wch:12},{wch:12},{wch:10}];
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);

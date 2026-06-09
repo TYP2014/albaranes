@@ -122,6 +122,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J91 (09/06/2026): REPASO HOLCIM — añadido ORIGEN. En el Excel de repaso por familia
+     (factHolcimExcelPorMaterial) ahora se ve el origen: en ABONADOS y NO ABONADOS columna "Origen"
+     (de nuestro albaran, campo planta) antes de Destino; en A REVISAR columna "Tu origen". Motivo:
+     a un mismo destino (ej. Hormigones Zona Franca) se llega desde varios origenes, y filtrar solo
+     por destino llevaba a errores. (SIN COPIA no lleva origen porque son lineas de Holcim sin
+     albaran nuestro.) El repaso simple (factHolcimExcel) ya mostraba Origen en "No abonados". Solo
+     cambia app.js + cache-buster app.js?v=54. NO toca el cruce, solo el Excel. NO requiere SQL. -->
 <!-- v107J90 (09/06/2026): REPASO PROMOTORA — añadido ORIGEN al Excel. El Excel de repaso de
      Promotora (exportPromotoraExcelMes) no mostraba el origen, asi que no se veia si era PROMSA
      GARRAF, Olesa de Bonesvalls o Llinars. Ahora las columnas son: Transportista · Fecha ·
@@ -1367,6 +1374,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=53"></script>
+<script src="app.js?v=54"></script>
 </body>
 </html>
