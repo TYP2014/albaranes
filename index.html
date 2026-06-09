@@ -122,6 +122,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J88 (09/06/2026): FICHAJE — Excel mensual con UNA PESTAÑA POR TRABAJADOR. Antes la hoja
+     "Registro Legal" apilaba a todos los trabajadores en una sola hoja (incomodo para imprimir
+     cada parte por separado a fin de mes). Ahora cada trabajador+mes va en SU PROPIA pestaña
+     ("Nombre Apellido MM-AAAA"), con las mismas columnas (ordinarias/extras) y el saldo. Asi el
+     admin imprime cada hoja por su cuenta. Cambios en app.js (_fichajeAoaLegal devuelve secciones
+     y exportFichajesExcel crea una hoja por seccion con nombre unico/valido) + cache-buster
+     app.js?v=52. NO requiere SQL. -->
 <!-- v107J87 (09/06/2026): FICHAJE — EXCEL MENSUAL con HORAS EXTRAS. La hoja "Registro Legal"
      (Art. 10 RD-ley 8/2019, la que se imprime y firma) ahora trae por dia dos columnas mas:
      "H. ordinarias" (hasta 8h) y "H. extras" (lo que pasa de 8h). Abajo: TOTAL de horas,
@@ -1350,6 +1357,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=51"></script>
+<script src="app.js?v=52"></script>
 </body>
 </html>

@@ -10675,17 +10675,18 @@ function _fichajeAoaLegal(filas) {
     }
   });
 
-  // 2) Construir las filas (aoa) del Excel, sección por sección.
-  const aoa = [];
+  // 2) Construir UNA hoja (aoa) por cada Trabajador+Mes -> [{nombre, anio, mesNum, aoa}].
+  //    Así el admin puede imprimir cada parte por separado (una pestaña por trabajador).
   const claves = Object.keys(grupos).sort(); // orden por trabajador y mes
-  if (!claves.length) {
-    aoa.push(['No hay fichajes en el rango seleccionado.']);
-    return aoa;
-  }
+  const secciones = [];
+  if (!claves.length) return secciones;
 
-  claves.forEach((clave, idx) => {
+  const TOPE = 8 * 60; // 8 horas = jornada normal
+  const fmtm = (m) => { m = Math.max(0, Math.round(m)); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
+
+  claves.forEach((clave) => {
     const g = grupos[clave];
-    if (idx > 0) { aoa.push([]); aoa.push([]); } // separación entre secciones
+    const aoa = [];
 
     aoa.push(['REGISTRO DIARIO JORNADA DE TRABAJO']);
     aoa.push(['Registro elaborado de acuerdo a lo establecido en el Art. 10 del Real Decreto-ley 8/2019, de 8 de marzo']);
@@ -10697,8 +10698,6 @@ function _fichajeAoaLegal(filas) {
 
     // Días del mes (1..número de días reales del mes)
     const numDias = new Date(parseInt(g.anio,10), g.mesNum, 0).getDate();
-    const TOPE = 8 * 60; // 8 horas = jornada normal
-    const fmtm = (m) => { m = Math.max(0, Math.round(m)); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
     let totalMin = 0, totalOrd = 0, totalExt = 0, saldoMin = 0;
     for (let d = 1; d <= numDias; d++) {
       const D = g.dias[d];
@@ -10724,9 +10723,11 @@ function _fichajeAoaLegal(filas) {
     const saldoTxt = (saldoMin >= 0 ? '+' : '-') + fmtm(Math.abs(saldoMin));
     aoa.push(['Saldo (sobre 8h/día):', '', '', '', '', saldoTxt, '', '', '']);
     aoa.push(['Firma trabajador:', '', '', '', 'Firma empresa:', '', '', '', '']);
+
+    secciones.push({ nombre: g.trabajador || 'Trabajador', anio: g.anio, mesNum: g.mesNum, aoa });
   });
 
-  return aoa;
+  return secciones;
 }
 
 function exportFichajesExcel() {
@@ -10782,10 +10783,31 @@ function exportFichajesExcel() {
     //   · Fila de totales (suma de horas del mes).
     // La hoja "Fichajes" (lista cronológica) se mantiene intacta arriba.
     try {
-      const aoaLegal = _fichajeAoaLegal(filas);
-      const wsL = XLSX.utils.aoa_to_sheet(aoaLegal);
-      wsL['!cols'] = [{wch:6},{wch:11},{wch:13},{wch:13},{wch:13},{wch:11},{wch:13},{wch:11},{wch:18}];
-      XLSX.utils.book_append_sheet(wb, wsL, 'Registro Legal');
+      const secciones = _fichajeAoaLegal(filas);
+      if (!secciones.length) {
+        const wsE = XLSX.utils.aoa_to_sheet([['No hay fichajes en el rango seleccionado.']]);
+        XLSX.utils.book_append_sheet(wb, wsE, 'Registro Legal');
+      } else {
+        const MESN = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+        const usados = {};
+        // Nombre de pestaña: "Nombre Apellido MM-AAAA", limpio, único y <=31 caracteres
+        // (Excel no admite \ / ? * [ ] : en el nombre de la hoja).
+        const nombreHoja = (s) => {
+          let base = String(s.nombre || 'Trab').replace(/[\\\/\?\*\[\]:]/g, ' ').replace(/\s+/g, ' ').trim();
+          const sufijo = ' ' + MESN[s.mesNum - 1] + '-' + s.anio;        // " MM-AAAA"
+          base = base.slice(0, 31 - sufijo.length).trim();               // recorta el nombre solo si no cabe
+          let nom = (base + sufijo).slice(0, 31).trim();
+          let n = nom, i = 2;
+          while (usados[n.toLowerCase()]) { n = (nom.slice(0, 27) + ' (' + i + ')').slice(0, 31); i++; }
+          usados[n.toLowerCase()] = true;
+          return n;
+        };
+        secciones.forEach(s => {
+          const wsL = XLSX.utils.aoa_to_sheet(s.aoa);
+          wsL['!cols'] = [{wch:6},{wch:11},{wch:13},{wch:13},{wch:13},{wch:11},{wch:13},{wch:11},{wch:18}];
+          XLSX.utils.book_append_sheet(wb, wsL, nombreHoja(s));
+        });
+      }
     } catch (eL) {
       console.warn('[v107FG] no pude construir la hoja Registro Legal:', eL);
     }
