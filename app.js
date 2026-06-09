@@ -484,11 +484,12 @@ async function loadTarifas() {
 // Normaliza un texto para comparar (minúsculas, sin espacios de más).
 function _tarifaNorm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
-// Precio €/TN de un servicio (origen+destino+material) para un año/mes (o null si no hay).
-function _tarifaDe(origen, destino, material, anio, mes) {
-  const o = _tarifaNorm(origen), d = _tarifaNorm(destino), m = _tarifaNorm(material);
+// Precio €/TN de una RUTA (origen+destino) para un año/mes (o null si no hay).
+// v107K1: el material ya NO entra en el precio (misma ruta = mismo precio).
+function _tarifaDe(origen, destino, anio, mes) {
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
   const t = _tarifas.find(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
-    && _tarifaNorm(x.material) === m && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
+    && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
   return t ? Number(t.precio_tn) : null;
 }
 
@@ -510,7 +511,8 @@ async function verTarifasMes() {
   renderTarifasEditor();
 }
 
-// Pinta los SERVICIOS (origen → destino · material) movidos ese mes, con su € /TN.
+// Pinta las RUTAS (origen → destino) movidas ese mes, con su € /TN.
+// v107K1: agrupado por origen+destino (sin material), porque misma ruta = mismo precio.
 function renderTarifasEditor() {
   const cont = document.getElementById('tarifasCont');
   if (!cont) return;
@@ -518,7 +520,7 @@ function renderTarifasEditor() {
   const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
   if (!anio || !mes) { cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Elige mes y año.</div>'; return; }
 
-  // Servicios distintos (origen + destino + material) movidos ese mes.
+  // Rutas distintas (origen + destino) movidas ese mes.
   const serv = {};
   (records || []).forEach(r => {
     if (r._dup) return;
@@ -528,35 +530,33 @@ function renderTarifasEditor() {
     if (d.getFullYear() === anio && (d.getMonth() + 1) === mes) {
       const origen = String(r.planta || r.origen || '').trim();
       const destino = String(r.obra || r.destino || '').trim();
-      const material = String(r.producto || '').trim();
-      if (!origen && !destino && !material) return;
-      const key = _tarifaNorm(origen) + '||' + _tarifaNorm(destino) + '||' + _tarifaNorm(material);
-      if (!serv[key]) serv[key] = { origen, destino, material, count: 0 };
+      if (!origen && !destino) return;
+      const key = _tarifaNorm(origen) + '||' + _tarifaNorm(destino);
+      if (!serv[key]) serv[key] = { origen, destino, count: 0 };
       serv[key].count++;
     }
   });
   const lista = Object.values(serv).sort((a, b) =>
-    (a.origen + a.destino + a.material).localeCompare(b.origen + b.destino + b.material));
+    (a.origen + a.destino).localeCompare(b.origen + b.destino));
   if (!lista.length) {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
   }
   const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
-  let html = '<table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr>'
-    + th('Origen') + th('Destino') + th('Material') + th('Alb.') + th('€ / Tonelada')
+  let html = '<table style="width:100%;border-collapse:collapse;min-width:560px"><thead><tr>'
+    + th('Origen') + th('Destino') + th('Alb.') + th('€ / Tonelada')
     + '</tr></thead><tbody>';
   lista.forEach(s => {
-    const prev = _tarifaDe(s.origen, s.destino, s.material, anio, mes);
+    const prev = _tarifaDe(s.origen, s.destino, anio, mes);
     const val = prev != null ? prev : '';
     const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt || '—') + '</td>';
     html += '<tr>'
-      + td(s.origen) + td(s.destino) + td(s.material)
+      + td(s.origen) + td(s.destino)
       + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
       + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
       + '<input type="number" step="0.01" min="0" class="fil-sel"'
       + ' data-orig="' + _fichajeEsc(s.origen) + '"'
       + ' data-dest="' + _fichajeEsc(s.destino) + '"'
-      + ' data-mat="' + _fichajeEsc(s.material) + '"'
       + ' value="' + val + '" placeholder="0.00" style="width:120px;font-family:var(--mn);font-size:12px"></td>'
       + '</tr>';
   });
@@ -575,10 +575,10 @@ async function guardarTarifas() {
   inputs.forEach(inp => {
     const origen = inp.getAttribute('data-orig') || '';
     const destino = inp.getAttribute('data-dest') || '';
-    const material = inp.getAttribute('data-mat') || '';
     const precio = parseFloat(String(inp.value).replace(',', '.'));
     if (!isNaN(precio) && precio > 0) {
-      filas.push({ origen, destino, material, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
+      // v107K1: material vacío (el precio es por ruta origen+destino).
+      filas.push({ origen, destino, material: '', anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
     }
   });
   if (!filas.length) { toast('Pon algún precio antes de guardar', 'warn'); return; }

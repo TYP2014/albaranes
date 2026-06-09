@@ -125,6 +125,14 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K1 (09/06/2026): TARIFAS POR RUTA (antes era por servicio origen+destino+material). Visto
+     con datos reales (ARIDFLOT mayo, 271 alb): para una misma ruta origen→destino el precio es
+     SIEMPRE el mismo aunque cambie el material (0 conflictos), así que el material sobra y generaba
+     muchas líneas repetidas (ej. Bàscara→Celra salían 7, CANTERA BEGUES/CEMEX→Montcada varias...).
+     Ahora la pantalla agrupa SOLO por origen+destino (de 37 a 21 rutas). No requiere SQL: se
+     reaprovecha la tabla tarifas_servicio guardando material=''. Cambios: app.js (_tarifaDe por
+     origen+destino, renderTarifasEditor agrupa por ruta, guardarTarifas material='') + index.html
+     (texto + cache-buster app.js?v=64). -->
 <!-- v107K0 (09/06/2026): TARIFAS POR SERVICIO (sustituye a "por material" de v107J99). Ahora el
      precio se pone por SERVICIO = origen + destino + material (tal como sale en el Excel), porque
      hay muchísimos áridos y lo que manda es de dónde a dónde. La pantalla (pestaña Facturación)
@@ -662,7 +670,7 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
         <div class="card-bd">
           <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:12px">
-            Pon el precio por tonelada de cada <strong style="color:var(--tx)">servicio</strong> (origen → destino · material), tal como sale en el Excel. Es <strong style="color:var(--tx)">lo que cobra el subcontratado</strong> (vuestro coste). Elige <strong style="color:var(--tx)">mes y año</strong>, pulsa <strong style="color:var(--tx)">Ver servicios</strong>, rellena los precios y <strong style="color:var(--tx)">Guardar</strong>. (En el siguiente paso, este precio se pondrá solo en la columna PRECIO del Excel.)
+            Pon el precio por tonelada de cada <strong style="color:var(--tx)">ruta</strong> (origen → destino). Es <strong style="color:var(--tx)">lo que cobra el subcontratado</strong> (vuestro coste). Para una misma ruta el precio es el mismo aunque cambie el material, por eso va por ruta. Elige <strong style="color:var(--tx)">mes y año</strong>, pulsa <strong style="color:var(--tx)">Ver servicios</strong>, rellena los precios y <strong style="color:var(--tx)">Guardar</strong>. (En el siguiente paso, este precio se pondrá solo en la columna PRECIO del Excel.)
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
             <select class="fil-sel" id="tarifaMes" style="width:auto"></select>
@@ -1467,6 +1475,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=63"></script>
+<script src="app.js?v=64"></script>
 </body>
 </html>
