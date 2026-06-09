@@ -122,6 +122,11 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J84 (09/06/2026): FICHAJE — al APUNTAR UNA HORA A MANO el MOTIVO es obligatorio.
+     El boton "✍️ Apuntar una hora a mano" sigue igual (no se quita: los olvidos son normales),
+     pero ahora exige escribir el motivo (ej. "olvide fichar al llegar") antes de guardar. En las
+     correcciones del admin el motivo sigue siendo opcional. Cambios en app.js (label + validacion
+     en guardarFichajeManual) + cache-buster app.js?v=48. NO requiere SQL. -->
 <!-- v107J83 (09/06/2026): FICHAJE — pantalla del trabajador mejorada. Ahora el trabajador VE
      (1) las HORAS de cada fichaje de hoy (Entrada 07:14 · Salida a comer 13:20 · ...), y
      (2) el reloj grande pasa a mostrar el TOTAL TRABAJADO del día EN VIVO (restando la comida),
@@ -1320,6 +1325,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=47"></script>
+<script src="app.js?v=48"></script>
 </body>
 </html>

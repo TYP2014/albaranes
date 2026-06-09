@@ -10169,8 +10169,9 @@ function abrirFichajeManual() {
         </div>
       </div>
       <div class="login-field">
-        <label class="login-label">Motivo (opcional)</label>
+        <label class="login-label">Motivo (obligatorio)</label>
         <input type="text" class="login-input" id="fmNota" placeholder="Ej: olvidé fichar al llegar">
+        <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">Di por qué lo apuntas a mano (un olvido, el reloj iba mal, etc.)</div>
       </div>
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
         Queda registrado como fichaje "a mano". No borra ningún fichaje anterior.
@@ -10246,8 +10247,11 @@ async function guardarFichajeManual() {
     const tipo = document.getElementById('fmTipo')?.value;
     const fecha = document.getElementById('fmFecha')?.value;
     const hora = document.getElementById('fmHora')?.value;
-    const nota = document.getElementById('fmNota')?.value || null;
+    const nota = (document.getElementById('fmNota')?.value || '').trim() || null;
     if (!tipo || !fecha || !hora) { toast('Rellena tipo, fecha y hora', 'warn'); return; }
+    // v107J84: al APUNTAR A MANO el motivo es obligatorio (saber por qué se apunta a mano).
+    // En las correcciones del admin sigue siendo opcional.
+    if (_fichajeModalModo === 'manual' && !nota) { toast('Pon el motivo (por qué lo apuntas a mano)', 'warn'); return; }
     // Construir timestamp local -> ISO
     const tsLocal = new Date(`${fecha}T${hora}:00`);
     if (isNaN(tsLocal.getTime())) { toast('Fecha u hora no válidas', 'err'); return; }
