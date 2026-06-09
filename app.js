@@ -9925,6 +9925,61 @@ function _fichajeFmtMin(min) {
   return h + ':' + String(m).padStart(2, '0');
 }
 
+// v107J85: lunes (00:00 local) de la semana que contiene la fecha d.
+function _fichajeLunesSemana(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (x.getDay() + 6) % 7; // 0 = lunes
+  x.setDate(x.getDate() - dow);
+  return x;
+}
+
+// v107J85: resumen de la semana (L..D) de un trabajador. Para cada día con jornada
+// calcula los minutos trabajados (restando comida). El SALDO suma (trabajado - 8h)
+// SOLO de los días TERMINADOS (con salida), para no salir en negativo durante el día.
+function _fichajeResumenSemana(userId, refDate) {
+  const TOPE = 8 * 60;
+  const lunes = _fichajeLunesSemana(refDate || new Date());
+  const ahora = new Date();
+  const hoyISO = _fichajeFechaLocal(ahora);
+  const NOM = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const dias = [];
+  let totalMin = 0, saldoMin = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(lunes); d.setDate(lunes.getDate() + i);
+    const fISO = _fichajeFechaLocal(d);
+    const evs = _fichajeEventosConHoraDia(userId, fISO).filter(e => !_fichajeEsAusencia(e.tipo));
+    const tieneEntrada = evs.some(e => e.tipo === 'entrada');
+    const terminado = evs.some(e => e.tipo === 'salida');
+    const min = tieneEntrada ? _fichajeMinutosTrabajados(evs, ahora) : 0;
+    if (tieneEntrada) { totalMin += min; if (terminado) saldoMin += (min - TOPE); }
+    dias.push({ nombre: NOM[i], fISO, min, tieneEntrada, terminado, esHoy: fISO === hoyISO });
+  }
+  return { dias, totalMin, saldoMin };
+}
+
+// v107J85: pinta el resumen de la semana en la pantalla del trabajador.
+function _fichajeRenderSemana() {
+  const box = document.getElementById('fichajeSemana');
+  if (!box) return;
+  const r = _fichajeResumenSemana(currentUser.id, new Date());
+  const celdas = r.dias.map(d => {
+    const val = d.tieneEntrada ? _fichajeFmtMin(d.min) : '—';
+    const col = d.esHoy ? 'var(--ac)' : (d.tieneEntrada ? 'var(--tx)' : 'var(--mu)');
+    return '<div style="text-align:center;min-width:36px">' +
+             '<div style="font-size:10px;color:var(--mu)">' + d.nombre + '</div>' +
+             '<div style="font-size:12px;font-weight:600;color:' + col + '">' + val + '</div>' +
+           '</div>';
+  }).join('');
+  const saldoTxt = (r.saldoMin >= 0 ? '+' : '−') + _fichajeFmtMin(Math.abs(r.saldoMin));
+  const saldoCol = r.saldoMin > 0 ? 'var(--wn)' : (r.saldoMin < 0 ? 'var(--in)' : 'var(--mu)');
+  box.innerHTML =
+    '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);letter-spacing:.5px;margin-bottom:8px">ESTA SEMANA</div>' +
+    '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px">' + celdas + '</div>' +
+    '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Total: <b style="color:var(--tx)">' + _fichajeFmtMin(r.totalMin) + '</b>' +
+    ' · Saldo: <b style="color:' + saldoCol + '">' + saldoTxt + '</b></div>' +
+    '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">(saldo sobre 8h/día, solo días terminados)</div>';
+}
+
 // Fecha local YYYY-MM-DD de un timestamp
 function _fichajeFechaLocal(ts) {
   const d = new Date(ts);
@@ -9993,6 +10048,8 @@ function _fichajeRenderBotonera() {
         ).join('<br>')
       : '';
   }
+  // v107J85: resumen de la semana (días + total + saldo de extras)
+  _fichajeRenderSemana();
   // ¿Hoy hay una ausencia marcada (vacaciones/baja/festivo/falta)?
   const ausenciaHoy = eventosHoy.find(t => _fichajeEsAusencia(t));
   // Para el botón de horas, solo cuentan los eventos de jornada (no ausencias)

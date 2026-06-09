@@ -122,6 +122,14 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J85 (09/06/2026): FICHAJE — RESUMEN SEMANAL en la pantalla del trabajador. Debajo del
+     reloj del día aparece "ESTA SEMANA": las horas trabajadas de cada día (L M X J V S D), el
+     TOTAL de la semana y el SALDO de extras = suma de (trabajado - 8h) de los días YA TERMINADOS
+     (verde el día de hoy; saldo en naranja si hay extras a favor, azul si debe horas). Así el
+     trabajador y el admin ven las extras para compensar otro día o pagarlas. Cambios en app.js
+     (_fichajeLunesSemana/_fichajeResumenSemana/_fichajeRenderSemana + llamada en la botonera) +
+     index.html (hueco fichajeSemana y cache-buster app.js?v=49). Falta (otra version): columnas de
+     extras en el Excel mensual. NO requiere SQL. -->
 <!-- v107J84 (09/06/2026): FICHAJE — al APUNTAR UNA HORA A MANO el MOTIVO es obligatorio.
      El boton "✍️ Apuntar una hora a mano" sigue igual (no se quita: los olvidos son normales),
      pero ahora exige escribir el motivo (ej. "olvide fichar al llegar") antes de guardar. En las
@@ -1019,6 +1027,7 @@ if (typeof pdfjsLib !== 'undefined') {
             onclick="ficharBotonGrande()">Cargando...</button>
           <div id="fichajeRelojVivo" style="font-family:var(--dp);font-size:40px;letter-spacing:3px;color:var(--ac)"></div>
           <div id="fichajeRelojLabel" style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px;letter-spacing:.5px"></div>
+          <div id="fichajeSemana" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bd)"></div>
           <!-- Opción ficha a mano (por si se olvidó al llegar) -->
           <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">✍️ Apuntar una hora a mano</button>
@@ -1325,6 +1334,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 </body>
 </html>
