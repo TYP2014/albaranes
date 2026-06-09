@@ -125,6 +125,19 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J97 (09/06/2026): al pasar el Material a ESCOMBROS (v107J96), se guarda en OBSERVACIONES
+     lo que ponía antes: "Material original: <texto>" (ej. "Hormigón Zona Franca", "TN GESTIÓ FORMIGÓ
+     LER 170101"). Así no se pierde el detalle. No duplica la nota si ya estaba. Solo app.js +
+     cache-buster app.js?v=60. NO requiere SQL. -->
+<!-- v107J96 (09/06/2026): MATERIAL = ESCOMBROS en los viajes de escombros. Tras leer el origen
+     (que usa el texto "Hormigón [planta]"), si el albarán es de escombros se fuerza el material a
+     "ESCOMBROS" (así se ve claro y cae en la familia Escombros). Casos confirmados con 3 albaranes
+     reales: Holcim → Fábrica Montcada "Hormigón Zona Franca" / "Hormigón La Roca"; Puigfel/Cova
+     Solera "TN GESTIÓ FORMIGÓ LER 170101"; Girona Runes; y cualquier material con LER 170101.
+     EXCLUYE árido reciclado / Tecnocatalana (no es escombro aunque lleve 170101). El ORIGEN se
+     conserva (Zona Franca, La Roca...). El botón ESCOMBROS de "Materiales Holcim (pincha)" ya
+     existía. Solo cambia app.js + cache-buster app.js?v=59. Aplica a albaranes nuevos y a los que se
+     re-corrijan; los viejos se pueden actualizar con SQL aparte si hace falta. NO requiere SQL. -->
 <!-- v107J95 (09/06/2026): DOS retoques. (1) EXCEL de Albaranes (EXCEL COMPLETO/filtrado): la letra
      pasa de 13/14 y todo en negrita a TAMAÑO 12 (datos normales, cabecera en negrita 12), para que
      no ocupe tanto. (2) Nombres de los FILTROS (FECHA DESDE, PROVEEDOR..., y el rótulo "Facturación:")
@@ -1409,6 +1422,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=58"></script>
+<script src="app.js?v=60"></script>
 </body>
 </html>

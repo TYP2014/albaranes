@@ -3385,6 +3385,41 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+        // v107J96: VIAJES DE ESCOMBROS → el Material se muestra como "ESCOMBROS".
+        // IMPORTANTE: se hace DESPUÉS de leer el origen (que usa el texto "Hormigón [planta]"),
+        // para NO perder el origen (Zona Franca, La Roca, Papiol...). Cubre: Girona Runes,
+        // Puigfel/Cova Solera, escombro Holcim → Fábrica Montcada ("Hormigón [planta]") y cualquier
+        // material con código de residuo LER 170101 (escombro de hormigón). EXCLUYE el árido
+        // reciclado / Tecnocatalana, que también puede llevar 170101 pero NO es escombro.
+        {
+          const _p = String(data.proveedor || '').toLowerCase();
+          const _d = String(data.obra || '').toLowerCase();
+          const _o = String(data.planta || '').toLowerCase();
+          const _pr = String(data.producto || '').toLowerCase();
+          const _todoE = _p + ' ' + _d + ' ' + _o;
+          const _esAridoRec = _pr.indexOf('reciclado') !== -1 || _todoE.indexOf('tecnocatalana') !== -1;
+          const _esc170101 = /17\s*[\.\s]?\s*01\s*[\.\s]?\s*01/.test(_pr) || _pr.indexOf('170101') !== -1;
+          const _gironaRunes = /girona\s*(de\s*)?runes/.test(_todoE);
+          const _puigfel = _todoE.indexOf('puigfel') !== -1 || _todoE.indexOf('cova solera') !== -1;
+          const _fabMontcada = _p.indexOf('holcim') !== -1
+                             && /f[áa]brica\s+montcada/.test(_d)
+                             && /hormig[óo]n\s+(zona\s*franca|la\s*roca|papiol|montcada|celra|sant\s*just|riudellots|riudarenes|alcover|tarragona|manlleu|alaior|ciutadella)/.test(_pr);
+          const _yaEscombro = _pr.indexOf('escombro') !== -1;
+          const _esEscombro = !_esAridoRec && (_gironaRunes || (_puigfel && _esc170101) || _fabMontcada || _esc170101 || _yaEscombro);
+          if (_esEscombro && data.producto !== 'ESCOMBROS') {
+            const _matOriginal = String(data.producto || '').trim();
+            // v107J97: guardar en Observaciones lo que ponía antes en Material (no perder el detalle).
+            if (_matOriginal) {
+              const _nota = 'Material original: ' + _matOriginal;
+              const _obsPrev = data.observaciones ? String(data.observaciones) : '';
+              if (_obsPrev.indexOf(_nota) === -1) {
+                data.observaciones = _obsPrev ? (_obsPrev + ' · ' + _nota) : _nota;
+              }
+            }
+            console.log('[v107J96 escombro] Material "' + data.producto + '" → "ESCOMBROS" (origen conservado: ' + (data.planta || 'vacío') + ')');
+            data.producto = 'ESCOMBROS';
+          }
+        }
         // v107b: red de seguridad específica para Sodira. El nº albarán SIEMPRE tiene formato
         // exacto "1/01718/XXXXXX" (6 dígitos al final). Lógica:
         // 1) Si el valor ya está en formato correcto → nada que hacer.
