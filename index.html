@@ -122,6 +122,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J86 (09/06/2026): FICHAJE — el ADMIN ya VE las horas de cada trabajador. El admin no
+     ficha, asi que solo veia la tabla de marcas sueltas y no las horas acumuladas (Marta si las
+     veia porque es trabajadora). Ahora, encima de la tabla, sale un cuadro "HORAS POR TRABAJADOR ·
+     ESTA SEMANA" con Hoy / Total semana / Saldo de extras por persona (solo lo ve el admin).
+     Cambios en app.js (_fichajeRenderAdminResumen + llamada en renderFichaje) + index.html (card
+     fichajeAdminResumen y cache-buster app.js?v=50). NO requiere SQL. -->
 <!-- v107J85 (09/06/2026): FICHAJE — RESUMEN SEMANAL en la pantalla del trabajador. Debajo del
      reloj del día aparece "ESTA SEMANA": las horas trabajadas de cada día (L M X J V S D), el
      TOTAL de la semana y el SALDO de extras = suma de (trabajado - 8h) de los días YA TERMINADOS
@@ -1036,6 +1042,9 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
+      <!-- v107J86: RESUMEN DE HORAS POR TRABAJADOR (solo admin) -->
+      <div class="card" id="fichajeAdminResumen" style="margin-top:14px;display:none"></div>
+
       <!-- Mi histórico de hoy (trabajadora) / Selector empresa (admin) -->
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
@@ -1334,6 +1343,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=49"></script>
+<script src="app.js?v=50"></script>
 </body>
 </html>

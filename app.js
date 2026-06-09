@@ -9980,6 +9980,47 @@ function _fichajeRenderSemana() {
     '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">(saldo sobre 8h/día, solo días terminados)</div>';
 }
 
+// v107J86: RESUMEN DE HORAS POR TRABAJADOR (solo admin). El admin no ficha, así que
+// no veía las horas que lleva cada uno; aquí las mostramos (hoy, semana y saldo).
+function _fichajeRenderAdminResumen() {
+  const box = document.getElementById('fichajeAdminResumen');
+  if (!box) return;
+  if (!_fichajeEsAdmin()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  // Trabajadores presentes en los fichajes (user_id -> nombre)
+  const nombres = {};
+  _fichajes.forEach(f => { if (f.user_id) nombres[f.user_id] = f.trabajador || nombres[f.user_id] || f.user_id; });
+
+  const ahora = new Date();
+  const hoyISO = _fichajeFechaLocal(ahora);
+  const filas = Object.keys(nombres).map(uid => {
+    const evsHoy = _fichajeEventosConHoraDia(uid, hoyISO).filter(e => !_fichajeEsAusencia(e.tipo));
+    const minHoy = evsHoy.some(e => e.tipo === 'entrada') ? _fichajeMinutosTrabajados(evsHoy, ahora) : 0;
+    const sem = _fichajeResumenSemana(uid, ahora);
+    return { nombre: nombres[uid], minHoy, semMin: sem.totalMin, saldoMin: sem.saldoMin };
+  }).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+
+  if (!filas.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+
+  const th = (t) => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu);white-space:nowrap">' + t + '</th>';
+  const td = (t, col) => '<td style="padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;white-space:nowrap;color:' + (col || 'var(--tx)') + '">' + t + '</td>';
+
+  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    + th('Trabajador') + th('Hoy') + th('Esta semana') + th('Saldo') + '</tr></thead><tbody>';
+  filas.forEach(f => {
+    const saldoCol = f.saldoMin > 0 ? 'var(--wn)' : (f.saldoMin < 0 ? 'var(--in)' : 'var(--mu)');
+    const saldoTxt = (f.saldoMin >= 0 ? '+' : '−') + _fichajeFmtMin(Math.abs(f.saldoMin));
+    html += '<tr>' + td('<b>' + _fichajeEsc(f.nombre) + '</b>') + td(_fichajeFmtMin(f.minHoy)) +
+            td(_fichajeFmtMin(f.semMin)) + td(saldoTxt, saldoCol) + '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px;padding:0 10px">Saldo = horas sobre 8h/día de los días YA TERMINADOS de esta semana.</div>';
+
+  box.innerHTML = '<div class="card-hd"><div class="st"><div class="dot" style="--c:var(--ac)"></div>HORAS POR TRABAJADOR · ESTA SEMANA</div></div>' +
+                  '<div class="card-bd" style="overflow-x:auto">' + html + '</div>';
+}
+
 // Fecha local YYYY-MM-DD de un timestamp
 function _fichajeFechaLocal(ts) {
   const d = new Date(ts);
@@ -10024,6 +10065,7 @@ function renderFichaje() {
     if (btnAusAdm) btnAusAdm.style.display = 'none';
     _fichajeRenderBotonera();
   }
+  _fichajeRenderAdminResumen();
   renderFichajes();
 }
 
