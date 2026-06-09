@@ -6018,6 +6018,9 @@ function msFilter(listId, q) {
 
 function applyFilters() {
   window._limVisible = 200; // v107J43: al filtrar u ordenar, volver a mostrar las primeras 200 (rendimiento)
+  // v107J94: el desplegable de Facturación (arriba) solo lo ven admin + Marta + Mª del Mar + Logística.
+  const _fw = document.getElementById('fFacturaWrap');
+  if (_fw) _fw.style.display = (typeof _puedeVerFacturacion === 'function' && _puedeVerFacturacion()) ? '' : 'none';
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
   // v107J51 (FASE 3): si JC busca una fecha "desde" ANTERIOR al corte de 3 meses y todavía
   // no se ha cargado el histórico completo, avisar para que cargue todo (si no, parecería

@@ -122,6 +122,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107J94 (09/06/2026): FILTRO FACTURACIÓN arriba y restringido. El desplegable de Facturación
+     (Todos / 🟢 Facturado / 📌 No facturado / 🚫 No facturable) se MUEVE de la fila de filtros a la
+     barra superior de la tabla de Albaranes (a la izquierda, empuja el contador a la derecha) y SOLO
+     lo ven admin + Marta + Mª del Mar + Logística (reutiliza _puedeVerFacturacion). Sigue usando el
+     mismo filtro de applyFilters (v107J93). Cambios: index.html (quitar fFactura de filtros, añadir
+     #fFacturaWrap en .tbl-top, cache-buster app.js?v=57) y app.js (mostrar/ocultar segun permiso).
+     NO requiere SQL. -->
 <!-- v107J93 (09/06/2026): FILTRO FACTURACIÓN. Nuevo desplegable "Facturación" en la tabla de
      Albaranes (junto a Estado): Todos / 🟢 Facturado / 📌 No facturado / 🚫 No facturable. Filtra
      por r.estado_facturacion (el que no tiene estado cuenta como 'pendiente'=no facturado). Pensado
@@ -385,12 +392,19 @@ if (typeof pdfjsLib !== 'undefined') {
             <div class="fil-group"><label class="fil-label">Subido por</label><details class="fil-multi" id="fSubidoPorBox"><summary id="fSubidoPorSum">Todos</summary><div class="fil-multi-list" id="fSubidoPorList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido el</label><input class="fil-inp" type="date" id="fSubidoEl" oninput="applyFilters()" title="Filtra por la fecha en que se subió a la app (no la fecha del albarán)"></div>
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
-            <div class="fil-group"><label class="fil-label">Facturación</label><select class="fil-sel" id="fFactura" onchange="applyFilters()"><option value="">Todos</option><option value="facturado">🟢 Facturado</option><option value="pendiente">📌 No facturado</option><option value="no_facturable">🚫 No facturable</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="fil-group"><label class="fil-label">TN</label><input class="fil-sel" id="fTn" oninput="applyFilters()" placeholder="Ej: 25 o 24-26" title="Busca por toneladas: un valor exacto (25 o 26.74) o un rango (24-26)" style="font-family:var(--mn);font-size:11px"></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
           </div>
           <div class="tbl-top">
+            <span id="fFacturaWrap" style="display:none;font-family:var(--mn);font-size:12px;color:var(--mu);white-space:nowrap">Facturación:
+              <select class="fil-sel" id="fFactura" onchange="applyFilters()" style="display:inline-block;width:auto;margin-left:6px">
+                <option value="">Todos</option>
+                <option value="facturado">🟢 Facturado</option>
+                <option value="pendiente">📌 No facturado</option>
+                <option value="no_facturable">🚫 No facturable</option>
+              </select>
+            </span>
             <div class="srch">🔍 <input id="srchIn" placeholder="Buscar en todos los campos..." oninput="applyFilters()"></div>
             <span class="res-count" id="resCount"></span>
           </div>
@@ -1386,6 +1400,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=56"></script>
+<script src="app.js?v=57"></script>
 </body>
 </html>
