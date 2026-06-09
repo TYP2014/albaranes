@@ -125,6 +125,8 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K6 (09/06/2026): Excel — cabecera a tamaño 13 (negrita), datos siguen a 12. Solo cambia el
+     tamaño de la fila de títulos. app.js + cache-buster app.js?v=68. NO requiere SQL. -->
 <!-- v107K5 (09/06/2026): ARREGLO Total del Excel. La columna TOTAL (€) salía VACÍA porque estaba
      puesta como fórmula =C*D y el Excel generado no la calculaba. Ahora el Total va ya calculado
      como NÚMERO (TN × precio, 2 decimales), así siempre se ve. Incluye también v107K4 (precio en el
@@ -1478,6 +1480,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=67"></script>
+<script src="app.js?v=68"></script>
 </body>
 </html>

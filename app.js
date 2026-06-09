@@ -7460,7 +7460,7 @@ function exportConsumoExcel() {
       // v107J95: letra a tamaño 12 (antes 13/14 y todo en negrita, ocupaba mucho).
       // Datos normales (sin negrita) y solo la cabecera en negrita, para que se lea bien y quepa.
       ws[addr].s.font = { bold: false, sz: 12 };
-      if (R === 0) ws[addr].s.font = { bold: true, sz: 12 };
+      if (R === 0) ws[addr].s.font = { bold: true, sz: 13 }; // v107K6: cabecera 13 negrita, datos 12
     }
   }
   const wb = XLSX.utils.book_new();
