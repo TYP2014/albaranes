@@ -8585,6 +8585,7 @@ function buildExcel(data) {
   const valid = ordered.filter(r => !r._dup), tmTot = valid.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   // v95b: Total ahora va al lado de Precio (columna E). TN=C, Precio=D, Total=E.
   // Fórmula =C*D para que al editar el precio se calcule solo.
+  let _sumEuros = 0; // v107K9: acumula el TOTAL en € para la fila de TOTALES (como número, no fórmula)
   const rows = [EHEAD, ...ordered.map((r, idx) => {
     const tm = parseFloat(r.tm) || 0;
     // Precio siempre numérico (0 por defecto si no hay valor) — facilita edición posterior.
@@ -8605,6 +8606,7 @@ function buildExcel(data) {
     // número directo (redondeado a 2 decimales) y así siempre se ve.
     const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
     const totalFormula = Math.round(tm * precio * 100) / 100;
+    _sumEuros += totalFormula;
     // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
     // FECHA, MATRICULA, TN, PRECIO, TOTAL, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
     // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO
@@ -8632,9 +8634,10 @@ function buildExcel(data) {
       r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'
     ];
   })];
-  // Fila TOTAL al final con SUMA de TN y de Total. TN en C, Total en E.
+  // v107K9: fila TOTAL con la SUMA ya calculada como NÚMERO (antes eran fórmulas =SUM(...) que el
+  // Excel generado no calculaba y salían vacías). TN sumadas en C, € sumados en E.
   const filaUltimaDato = rows.length;
-  const filaSuma = ['', 'TOTAL', { f: `SUM(C2:C${filaUltimaDato})` }, '', { f: `SUM(E2:E${filaUltimaDato})` }, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+  const filaSuma = ['', 'TOTAL', Math.round(tmTot * 1000) / 1000, '', Math.round(_sumEuros * 100) / 100, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   // v107CP: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
@@ -8651,9 +8654,8 @@ function buildExcel(data) {
       if (R > 0 && (C === 3 || C === 4)) {
         ws[addr].z = '#,##0.00 €';
       }
-      // v107K8: letra del Excel de albaranes. Datos en TAMAÑO 12 (normal), y la cabecera (fila 0)
-      // y la fila TOTAL (última) en 13 NEGRITA. (Antes datos 13 y cabecera/total 14, todo negrita.)
-      ws[addr].s.font = { bold: false, sz: 12 };
+      // v107K9: datos en 12 NEGRITA; cabecera (fila 0) y fila TOTAL (última) en 13 negrita.
+      ws[addr].s.font = { bold: true, sz: 12 };
       if (R === 0 || R === range.e.r) ws[addr].s.font = { bold: true, sz: 13 };
     }
   }

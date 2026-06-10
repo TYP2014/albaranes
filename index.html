@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K9 (10/06/2026): Excel albaranes — (1) fila de TOTALES como NÚMERO sumado (antes fórmulas
+     =SUM que no se calculaban y salían vacías): TN sumadas + € sumados. (2) datos en 12 NEGRITA
+     (cabecera y fila total siguen 13 negrita). Las filas de datos ya traían precio (tarifa de la
+     ruta) y total calculado. Solo app.js + cache-buster app.js?v=71. NO requiere SQL. -->
 <!-- v107K8 (09/06/2026): ARREGLO letra del Excel de albaranes. En v107J95/K6 toqué por error la
      función equivocada (exportConsumoExcel, hoja "Consumo"), por eso el Excel de albaranes seguía en
      14/13. Ahora se cambia en la función correcta (buildExcel): datos en 12 (normal), cabecera y fila
@@ -1511,6 +1515,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=70"></script>
+<script src="app.js?v=71"></script>
 </body>
 </html>
