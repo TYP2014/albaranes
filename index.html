@@ -125,6 +125,11 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K10 (10/06/2026): Excel — el TOTAL vuelve a ser FÓRMULA (=C*D) pero CON el valor ya
+     calculado en caché. Así: se ve el número al abrir Y si editas el PRECIO a mano en Excel, el Total
+     se recalcula solo. La fila de TOTALES igual (=SUM con valor en caché). Resuelve el "no hace la
+     fórmula": antes la fórmula iba sin valor y salía en blanco. Datos siguen en 12 negrita. Solo
+     app.js + cache-buster app.js?v=72. NO requiere SQL. -->
 <!-- v107K9 (10/06/2026): Excel albaranes — (1) fila de TOTALES como NÚMERO sumado (antes fórmulas
      =SUM que no se calculaban y salían vacías): TN sumadas + € sumados. (2) datos en 12 NEGRITA
      (cabecera y fila total siguen 13 negrita). Las filas de datos ya traían precio (tarifa de la
@@ -1515,6 +1520,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=71"></script>
+<script src="app.js?v=72"></script>
 </body>
 </html>

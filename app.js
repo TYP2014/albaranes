@@ -8642,6 +8642,19 @@ function buildExcel(data) {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   // v107CP: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
   ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
+  // v107K10: el TOTAL (col E) es FÓRMULA =C*D pero con el VALOR ya calculado en caché. Así se ve el
+  // número al abrir el Excel Y, si editas el PRECIO a mano, el Total se recalcula solo. La fila de
+  // TOTALES igual: SUM con su valor en caché (antes salían en blanco porque no llevaban valor).
+  {
+    const _ultDato = filaUltimaDato;   // última fila de DATOS en Excel (cabecera = fila 1)
+    const _filaTot = rows.length;      // fila de TOTALES (última, ya empujada)
+    for (let R = 2; R <= _ultDato; R++) {
+      const e = 'E' + R;
+      if (ws[e] && ws[e].v != null && ws[e].v !== '') ws[e] = { t: 'n', f: `C${R}*D${R}`, v: ws[e].v };
+    }
+    if (ws['C' + _filaTot] && ws['C' + _filaTot].v != null && ws['C' + _filaTot].v !== '') ws['C' + _filaTot] = { t: 'n', f: `SUM(C2:C${_ultDato})`, v: ws['C' + _filaTot].v };
+    if (ws['E' + _filaTot] && ws['E' + _filaTot].v != null && ws['E' + _filaTot].v !== '') ws['E' + _filaTot] = { t: 'n', f: `SUM(E2:E${_ultDato})`, v: ws['E' + _filaTot].v };
+  }
   // Alineación centrada en TODAS las celdas + formato moneda en Precio (D) y Total (E).
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; R++) {
