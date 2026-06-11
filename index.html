@@ -125,6 +125,19 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K20 (11/06/2026): Albaranes — botón ⬇️ en cada fila para DESCARGAR el PDF del albarán
+     directamente, sin abrir el modal. Aparece junto al nº de albarán solo si el albarán tiene
+     archivo. Descarga el archivo de verdad (plan B: lo abre en pestaña si CORS lo impide). Solo
+     app.js + cache-buster app.js?v=82. NO requiere SQL. -->
+<!-- v107K19 (11/06/2026): ARREGLO cruce Holcim — una línea de materia prima (caliza/yeso/arena/
+     arcilla/limonita) ya NO puede emparejarse con un albarán de ÁRIDO por casualidad (mismo camión+
+     fecha+TN). Ahora el candidato nuestro debe ser de la MISMA materia prima. Esto evita que esas
+     filas se cuelen como abonado en la hoja de áridos. Cambio acotado al paso 2 (materia prima) del
+     cruce. app.js + cache-buster app.js?v=81. NO requiere SQL. -->
+<!-- v107K18 (11/06/2026): Excel repaso Holcim — en SIN COPIA la columna ORIGEN salía vacía porque la
+     línea de la autofactura no trae origen. Ahora se deduce del material (áridos → Cantera de Garraf,
+     cemento/clinker → Fábrica Montcada, calizas/arena/arcilla → su origen). Solo Excel. app.js +
+     cache-buster app.js?v=80. NO requiere SQL. -->
 <!-- v107K17 (11/06/2026): Excel repaso Holcim — la sección SIN COPIA ahora tiene las MISMAS columnas
      que ABONADOS (Transportista, Nº Albarán, Matrícula, Fecha, TN, Material, Origen, Destino,
      Observación). Antes le faltaban Origen y Observación. Solo Excel. app.js + cache-buster
@@ -1559,6 +1572,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=79"></script>
+<script src="app.js?v=82"></script>
 </body>
 </html>

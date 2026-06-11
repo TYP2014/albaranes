@@ -7169,7 +7169,7 @@ function renderTable() {
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? Number(r.tm).toFixed(3) : '—'}</td>
-      <td style="max-width:130px;padding-right:14px"><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;font-size:13px;cursor:pointer">📎${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:600;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
+      <td style="max-width:130px;padding-right:14px"><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;font-size:13px;cursor:pointer">📎${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:600;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}${hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="margin-left:6px;cursor:pointer;font-size:13px">⬇️</span>` : ''}</td>
       <td style="color:#fff;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--ac);font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:#fff;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
@@ -7220,7 +7220,34 @@ function renderGasTable() {
     </tr>`).join('');
 }
 
-// v107J61 — sacar el nombre original del archivo desde su URL. Las nuevas se subieron como
+// v107K20 — descarga directa del PDF del albarán desde la fila, SIN abrir el modal.
+// Descarga el archivo de verdad (no lo abre en otra pestaña): trae el contenido y lo
+// guarda con un nombre legible. Si por lo que sea no se pudiera descargar (p. ej. CORS),
+// como plan B lo abre en una pestaña nueva.
+async function _descargarAlb(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r || !hasValidUrl(r.file_url)) { toast('Este albarán no tiene archivo para descargar', 'err'); return; }
+  const nombre = _nombreArchivoDeUrl(r.file_url)
+    || ('albaran_' + String(r.albaran || id).replace(/[^\w.-]+/g, '_') + (/\.pdf(\?|#|$)/i.test(r.file_url) ? '.pdf' : (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(r.file_url) ? '.jpg' : '')));
+  try {
+    const resp = await fetch(r.file_url);
+    if (!resp.ok) throw new Error('descarga ' + resp.status);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    toast('⬇️ Descargando ' + nombre, 'ok');
+  } catch (e) {
+    // plan B: abrir en pestaña nueva para que lo guarde a mano
+    try { window.open(r.file_url, '_blank'); } catch (e2) {}
+    toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
+  }
+}
+
+
 // "{timestamp}_{NombreOriginal}"; las antiguas como "{timestamp}_{aleatorio}.ext" (sin nombre útil).
 function _nombreArchivoDeUrl(url) {
   try {
@@ -17477,7 +17504,22 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // positivos). La fecha exacta SIEMPRE gana: solo se usa el margen si no hay coincidencia el mismo día.
       const _diaNum = (s) => { const f = normFecha(s); const m = f.match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10)).getTime() : null; };
       const tL = _diaNum(L.fecha);
-      const cands = records.filter(r => !usados.has(String(r.db_id)) && _factNormMat(r.tractora) === matL && !_albNoEsParaHolcim(r));
+      // v107K19 (Juan Carlos 11/06/2026): el albarán NUESTRO candidato debe ser de la MISMA materia
+      // prima que la línea de Holcim. ANTES una línea de caliza/yeso podía "agarrar" un albarán de
+      // ÁRIDO con el mismo camión+fecha+TN (pura casualidad) y se colaba como abonado en la hoja de
+      // áridos. Ahora exigimos que nuestro material contenga el mismo tipo (CALIZA/ARENA/YESO/ARCILLA/
+      // LIMONITA). Si no hay albarán nuestro de esa materia prima, la línea va a "sin copia" (correcto).
+      const _tipoMP = (matUp.match(/CALIZA|ARENA|YESO|ARCILLA|LIMONITA/) || [''])[0];
+      const cands = records.filter(r => {
+        if (usados.has(String(r.db_id))) return false;
+        if (_factNormMat(r.tractora) !== matL) return false;
+        if (_albNoEsParaHolcim(r)) return false;
+        if (_tipoMP) {
+          const _rmat = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (!_rmat.includes(_tipoMP)) return false;
+        }
+        return true;
+      });
       let exacto = null, mejorScore = Infinity, exDias = 0;
       for (const r of cands) {
         const d = Math.abs(_factNum(r.tm) - tnL);
@@ -17817,6 +17859,22 @@ function factHolcimExcelPorMaterial() {
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
   const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  // v107K18: deducir el ORIGEN de una línea Holcim (las líneas de la autofactura no traen origen).
+  // Igual que en el resto: áridos Garraf → "Cantera de Garraf"; cemento/clinker → "Fábrica Montcada";
+  // calizas/arena/arcilla → su origen de materia prima. Si no se reconoce, se deja vacío.
+  const _origenLinea = (L) => {
+    const m = String(L && L.material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/^AF[-\s]|^AG[-\s]|^A[FG]\d/.test(m)) return 'Cantera de Garraf';
+    if (/CALIZA\s+PROMSA/.test(m)) return 'Garraf/Promsa';
+    if (/CALIZA\s+FOJ/.test(m)) return 'Foj/Vallirana';
+    if (/CALIZA\s+CEMEX/.test(m)) return 'Cemex/Begues';
+    if (/CALIZA\s+GARRAF|ZAHORRA/.test(m)) return 'Cantera de Garraf';
+    if (/ARENA/.test(m)) return 'Martorell';
+    if (/ARCILLA/.test(m)) return 'Papiol';
+    if (/CLINKER/.test(m)) return 'Fábrica Montcada';
+    if (/CEM\s|CEMENTO|ECOPLANET|PALET|ENSACADO|MORTERO|GRANEL/.test(m)) return 'Fábrica Montcada';
+    return '';
+  };
   // v107J71 — abonado/a-revisar se clasifica por NUESTRO albarán (a.rec), no por la línea de Holcim.
   const _famPar = (a) => (a && a.rec ? _famAlb(a.rec) : _famLinea(a.linea));
   // Reunir todas las familias presentes
@@ -17890,7 +17948,7 @@ function factHolcimExcelPorMaterial() {
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
     aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino', 'Observación']);
-    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.origen || '', L.destino || '', 'Sin copia (no lo tenemos)']));
+    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.origen || _origenLinea(L), L.destino || '', 'Sin copia (no lo tenemos)']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:22},{wch:16},{wch:12},{wch:12},{wch:10}];
