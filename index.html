@@ -125,6 +125,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K13 (10/06/2026): Repaso Holcim — si el Nº DE ALBARÁN coincide → PAGADO (abonado) SIEMPRE,
+     como CEMEX (áridos, cemento/cisternas, ADEC, Tecnocatalana, clinker, palets…). Aunque baile la TN,
+     la fecha o la matrícula, se marca pagado igualmente y la diferencia se ANOTA (sale en el informe y
+     en la columna "Observación" del Excel: "Coincide todo menos…"). Ya NO se manda a "a revisar" por
+     bailes cuando el nº cuadra. Las MATERIAS PRIMAS (caliza/arena/yeso/arcilla/limonita — no llevan nº
+     de Holcim) siguen cruzando por fecha+matrícula+TN. Cambio en _factProcesarYMostrarHolcim (paso 1).
+     Solo app.js + cache-buster app.js?v=75. NO requiere SQL. -->
 <!-- v107K12 (10/06/2026): ARREGLO repaso Holcim — no cruzaba albaranes de meses anteriores. Causa: el
      cruce usa los albaranes en memoria (records) y la app solo carga los últimos 3 meses por defecto;
      los de mayo (u otros) no estaban cargados, así que salían como "no abonado"/"sin copia" aunque el
@@ -1534,6 +1541,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=74"></script>
+<script src="app.js?v=75"></script>
 </body>
 </html>

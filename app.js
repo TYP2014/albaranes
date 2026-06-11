@@ -17446,14 +17446,14 @@ function _factProcesarYMostrarHolcim(setEstado) {
       const esGarrafPuerto = (_famR === 'Núcleo Garraf → Puerto Barcelona');
       let difsBloquean;
       if (esTecno) difsBloquean = [];                                  // Tecnocatalana: solo nº
-      else if (esAdec || esGarrafPuerto) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC / Garraf→Puerto: nº + TN
-      else difsBloquean = difs;                                        // resto: nº + TN + fecha + matrícula
-      if (difsBloquean.length === 0) {
-        abonados.push({ linea: L, rec: match, difs: [], modo: esTecno ? 'nº (Tecno)' : ((esAdec || esGarrafPuerto) ? 'nº + TN' : 'nº albarán') });
-      } else {
-        // v107J65 — el nº coincide pero falla matrícula, TN o fecha → A REVISAR (no se da por bueno solo).
-        posibles.push({ linea: L, rec: match, difs: difs, modo: 'nº albarán (revisar)' });
-      }
+      else if (esAdec || esGarrafPuerto) difsBloquean = difs.filter(d => d.indexOf('TN') === 0); // ADEC / Garraf→Puerto: nº + TN (la matrícula/fecha bailan por diseño)
+      else difsBloquean = difs;                                        // resto: anota TN + fecha + matrícula si bailan
+      // v107K13 (Juan Carlos 10/06/2026): si el Nº DE ALBARÁN coincide → PAGADO (abonado) SIEMPRE,
+      // igual que en CEMEX. Aunque baile la TN, la fecha o la matrícula, se marca pagado IGUALMENTE;
+      // las diferencias (difsBloquean) se ANOTAN para que salgan en el informe y en el Excel. Ya NO se
+      // manda nada a "a revisar" por bailes cuando el número cuadra. (Las materias primas — caliza/
+      // arena/yeso/arcilla/limonita — siguen cruzando por fecha+matrícula+TN, en el bloque de abajo.)
+      abonados.push({ linea: L, rec: match, difs: difsBloquean, modo: difsBloquean.length ? 'nº albarán ⚠ con diferencias' : (esTecno ? 'nº (Tecno)' : ((esAdec || esGarrafPuerto) ? 'nº + TN' : 'nº albarán')) });
       if (match.db_id) { idsMatched.add(String(match.db_id)); usados.add(String(match.db_id)); }
       return;
     }
