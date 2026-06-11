@@ -1527,6 +1527,9 @@ function _toggleModoSel() {
   if (btnFac) btnFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
   const btnNoFac = document.getElementById('btnNoFacturarSel');
   if (btnNoFac) btnNoFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
+  // Excel de lo seleccionado: disponible para cualquiera que esté en modo selección.
+  const btnExSel = document.getElementById('btnExcelSel');
+  if (btnExSel) btnExSel.style.display = window._modoSel ? 'flex' : 'none';
   if (btnSel) {
     btnSel.textContent = window._modoSel ? '✖️ Cancelar selección' : '☑️ Selección';
   }
@@ -1553,6 +1556,8 @@ function _selUno() {
   if (spanF) spanF.textContent = n;
   const spanNF = document.getElementById('selCountNoFact');
   if (spanNF) spanNF.textContent = n;
+  const spanEx = document.getElementById('selCountExcel');
+  if (spanEx) spanEx.textContent = n;
 }
 
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
@@ -8774,6 +8779,25 @@ function buildExcel(data) {
 
 async function exportExcel() { if (!records.length) { toast('No hay albaranes', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(records); XLSX.writeFile(wb, `albaranes_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`); }
 async function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(filtered); XLSX.writeFile(wb, `albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`); }
+
+// v107K25 — Excel SOLO de los albaranes marcados con las casillas (modo selección). Antes solo había
+// "Excel filtrado" (todo lo filtrado). Recoge los seleccionados igual que _facturarSeleccionados.
+async function exportExcelSeleccionados() {
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const recs = [];
+  for (const id of ids) {
+    const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+    if (r) recs.push(r);
+  }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán seleccionado.', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  await loadTarifas();
+  const { wb, tm } = buildExcel(recs);
+  XLSX.writeFile(wb, `albaranes_seleccionados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast(`✓ Excel de ${recs.length} seleccionados · ${tm.toFixed(3)} TN`, 'ok');
+}
 
 // v83: Resumen agrupado por Origen + Destino + Material.
 // Construye un array de filas { origen, destino, material, viajes, tn } a partir de los albaranes

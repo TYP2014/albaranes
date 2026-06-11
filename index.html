@@ -125,6 +125,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K25 (11/06/2026): dos cambios en la barra de selección de Albaranes — (1) el botón "Marcar
+     facturados" usaba var(--ok) (color INEXISTENTE en el CSS) y salía sin recuadro (solo un punto
+     verde); ahora usa var(--ac) (verde real) con check ✓, se ve como un botón en condiciones. (2)
+     Nuevo botón "📊 Excel seleccionados (N)": descarga un Excel SOLO con los albaranes marcados con
+     las casillas (antes solo existía "Excel filtrado" = todo lo filtrado). app.js + index +
+     cache-buster app.js?v=87. NO requiere SQL. -->
 <!-- v107K24 (11/06/2026): el reloj de 'pendiente de facturar' pasa de ámbar a ROJO (var(--er)) para
      que se vea mejor, a petición de JC. app.js + cache-buster app.js?v=86. -->
 <!-- v107K23 (11/06/2026): iconos de la fila un poco más grandes (15px → 18px), a petición de JC.
@@ -531,8 +537,9 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn bw" id="btnReanalizarTodo" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor). Solo admin.">🔄 Re-corregir TODO</button>
             <button class="btn bw" id="btnModoSel" onclick="_toggleModoSel()" style="display:none;align-items:center;gap:5px" title="Marcar varios albaranes con casillas para borrarlos de golpe (solo admin)">☑️ Selección</button>
             <button class="btn br" id="btnBorrarSel" onclick="_borrarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--er);color:#fff;font-weight:600" title="Borrar todos los albaranes marcados">🗑 Borrar seleccionados (<span id="selCount">0</span>)</button>
-            <button class="btn" id="btnFacturarSel" onclick="_facturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--ok);color:#04200f;font-weight:700" title="Marcar como facturados todos los albaranes seleccionados">🟢 Marcar facturados (<span id="selCountFact">0</span>)</button>
+            <button class="btn" id="btnFacturarSel" onclick="_facturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--ac);color:#04200f;font-weight:700" title="Marcar como facturados todos los albaranes seleccionados">✓ Marcar facturados (<span id="selCountFact">0</span>)</button>
             <button class="btn" id="btnNoFacturarSel" onclick="_noFacturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--wn);color:#3a2a00;font-weight:700" title="Marcar como NO facturados (pendiente 📌) todos los albaranes seleccionados">📌 No facturados (<span id="selCountNoFact">0</span>)</button>
+            <button class="btn" id="btnExcelSel" onclick="exportExcelSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--in);color:#fff;font-weight:700" title="Descargar un Excel solo con los albaranes seleccionados">📊 Excel seleccionados (<span id="selCountExcel">0</span>)</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -1582,6 +1589,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=86"></script>
+<script src="app.js?v=87"></script>
 </body>
 </html>
