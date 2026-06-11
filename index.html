@@ -125,6 +125,11 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K15 (11/06/2026): ARREGLO — no aparecía el mes de ABRIL en el desplegable del repaso Holcim
+     aunque estaba bien guardado (1403 líneas). Causa: factCargarMesesHolcim hacía un select('mes')
+     simple que se topaba con el límite de 1000 filas de Supabase, así que con mayo (2922) + abril
+     (1403) solo "veía" un mes. Ahora pagina en lotes de 1000 y junta todos los meses. Solo app.js +
+     cache-buster app.js?v=77. NO requiere SQL. -->
 <!-- v107K14 (10/06/2026): ARREGLO RAÍZ de los duplicados — el número de albarán. Antes, si la IA no
      leía bien el nº, a veces ponía un número que YA EXISTÍA → dos albaranes distintos con el mismo
      número (duplicado falso). Nueva regla en el prompt de lectura (campo "albaran"): si no lee el nº
@@ -1547,6 +1552,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=76"></script>
+<script src="app.js?v=77"></script>
 </body>
 </html>

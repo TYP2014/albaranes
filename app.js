@@ -16595,13 +16595,22 @@ let _factHolcimArchivos = [];   // J28: [{fichero, n}] de Holcim del mes
 async function factCargarMesesHolcim() {
   const cont = document.getElementById('factMesesBarHolcim');
   if (!cont) return;
-  let data;
+  // v107K15: ANTES un .select('mes') simple se topaba con el límite de 1000 filas de Supabase, así
+  // que con muchas líneas (mayo 2922 + abril 1403) solo "veía" las primeras 1000 (de un mes) y los
+  // demás meses NO salían en el desplegable. Ahora paginamos en lotes de 1000 y juntamos los meses.
+  const _mesesSet = new Set();
   try {
-    const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM');
-    if (r.error) throw r.error;
-    data = r.data || [];
+    const PAG = 1000;
+    for (let desde = 0; ; desde += PAG) {
+      const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM').range(desde, desde + PAG - 1);
+      if (r.error) throw r.error;
+      const lote = r.data || [];
+      lote.forEach(x => { if (x.mes) _mesesSet.add(x.mes); });
+      if (lote.length < PAG) break;
+      if (desde > 200000) break; // tope de seguridad
+    }
   } catch (e) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--er)">No se pudieron cargar los meses: ' + (e.message || e) + '</span>'; return; }
-  const meses = [...new Set(data.map(r => r.mes).filter(Boolean))].sort().reverse();
+  const meses = [..._mesesSet].sort().reverse();
   if (!meses.length) {
     cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay liquidaciones de Holcim guardadas. Sube una y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
     return;
