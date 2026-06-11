@@ -6222,6 +6222,22 @@ function _resFactParseFecha(s) {
   m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
   const d = new Date(s); return isNaN(d.getTime()) ? null : d;
 }
+// v107K33 — precio (€/TN) e importe (€) de un albarán: su precio propio o, si no, la TARIFA de coste
+// de su ruta+mes (igual que el Excel de albaranes). Para saber lo que nos cuesta/factura el subcontratado.
+function _resFactPrecio(r) {
+  let precio = (r.precio != null && r.precio !== '' && parseFloat(r.precio) > 0) ? parseFloat(r.precio) : 0;
+  if (!precio) {
+    const d = _resFactParseFecha(r.fecha || '');
+    if (d && typeof _tarifaDe === 'function') {
+      const t = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', d.getFullYear(), d.getMonth() + 1);
+      if (t != null) precio = t;
+    }
+  }
+  return precio;
+}
+function _resFactImporte(r) {
+  return Math.round((parseFloat(r.tm) || 0) * _resFactPrecio(r) * 100) / 100;
+}
 function _resFactDatos() {
   const dDesde = window._resFactDesde ? new Date(window._resFactDesde + 'T00:00:00') : null;
   const dHasta = window._resFactHasta ? new Date(window._resFactHasta + 'T23:59:59') : null;
@@ -6237,21 +6253,23 @@ function _resFactDatos() {
     // TYP2014 somos nosotros: no nos facturamos a nosotros mismos → fuera del resumen.
     const tn = t.toUpperCase().replace(/[\.\s,]/g, '');
     if (tn === 'TYP2014' || tn.indexOf('TRANSPORTESYPORTES2014') !== -1) continue;
-    if (!map.has(t)) map.set(t, { transportista: t, alb: 0, pend: 0, rec: 0, tn: 0 });
+    if (!map.has(t)) map.set(t, { transportista: t, alb: 0, pend: 0, rec: 0, tn: 0, eur: 0 });
     const o = map.get(t);
     o.alb++;
     if ((r.estado_factura_recibida || 'pendiente') === 'recibida') o.rec++; else o.pend++;
     o.tn += (parseFloat(r.tm) || 0);
+    o.eur += _resFactImporte(r);
   }
   return [...map.values()].sort((a, b) => b.pend - a.pend || b.alb - a.alb);
 }
-function abrirResumenFacturas() {
+async function abrirResumenFacturas() {
   if (!_puedeSeleccionMultiple()) { toast('No tienes permiso', 'err'); return; }
   if (!window._resFactDesde || !window._resFactHasta) {
     const hoy = new Date(); const d0 = new Date(); d0.setDate(d0.getDate() - 30);
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     window._resFactHasta = fmt(hoy); window._resFactDesde = fmt(d0);
   }
+  try { if (typeof loadTarifas === 'function') await loadTarifas(); } catch (e) {}
   _resFactRender();
 }
 // Atajos: rellenan las fechas (hoy - N días → hoy) y refrescan.
@@ -6276,6 +6294,7 @@ function _resFactRender() {
   const totPend = filas.reduce((s, f) => s + f.pend, 0);
   const totRec = filas.reduce((s, f) => s + f.rec, 0);
   const totTn = filas.reduce((s, f) => s + f.tn, 0);
+  const totEur = filas.reduce((s, f) => s + (f.eur || 0), 0);
   const _inpFecha = 'background:#1e2129;color:#fff;border:1px solid #2a2d36;border-radius:6px;padding:5px 8px;font-size:12px;margin-left:4px';
   const pbtn = (d, t) => `<button class="btn bs" onclick="_resFactPeriodo(${d})" style="padding:4px 10px">${t}</button>`;
   let html = `<div class="m-bd" style="padding:0;max-width:1000px">
@@ -6296,7 +6315,7 @@ function _resFactRender() {
         <strong style="color:var(--ac)">${filas.length}</strong> transportistas ·
         <strong style="color:var(--er)">${totPend}</strong> pendientes de facturarnos ·
         <strong style="color:var(--pu)">${totRec}</strong> ya nos han facturado ·
-        <strong>${totAlb}</strong> albaranes · <strong>${totTn.toFixed(3)}</strong> TN
+        <strong>${totAlb}</strong> albaranes · <strong>${totTn.toFixed(3)}</strong> TN · <strong style="color:var(--am)">${totEur.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong>
         <span style="margin-left:8px;color:var(--mt)">(${rango})</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -6307,6 +6326,7 @@ function _resFactRender() {
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">PENDIENTES</th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">YA FACTURADOS</th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">TN</th>
+          <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">IMPORTE €</th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3)"></th>
         </tr></thead><tbody>`;
   filas.forEach((f, i) => {
@@ -6317,6 +6337,7 @@ function _resFactRender() {
       <td style="padding:7px 8px;text-align:right;color:var(--er);font-weight:700">${f.pend}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--pu);font-weight:700">${f.rec}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--am)">${f.tn.toFixed(3)}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--am);font-weight:600">${(f.eur || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
       <td style="padding:7px 8px;text-align:right;white-space:nowrap"><button class="btn bs" style="padding:4px 8px" onclick="_resFactExcelTransportista(${i})" title="Excel con el desglose de albaranes de este transportista (en el rango de fechas)">📊 Excel</button>${f.pend > 0 ? ` <button class="btn bs" style="padding:4px 10px" onclick="_resFactVerMarcar(${i})">Ver y marcar →</button>` : ' <span style="color:var(--mt)">✓ al día</span>'}</td>
     </tr>`;
   });
@@ -6372,6 +6393,7 @@ function _resFactSheetData(transportista) {
     if (t !== transportista) continue;
     lineas.push({
       fecha: r.fecha || '', mat: r.tractora || '', alb: r.albaran || '', tm: parseFloat(r.tm) || 0,
+      eur: _resFactImporte(r),
       origen: r.planta || '', destino: r.obra || '', material: r.producto || '',
       rec: (r.estado_factura_recibida || 'pendiente') === 'recibida' ? 'S\u00ed' : 'Pendiente'
     });
@@ -6381,14 +6403,14 @@ function _resFactSheetData(transportista) {
     ['Transportista:', transportista],
     ['Periodo:', (window._resFactDesde || '') + ' \u2192 ' + (window._resFactHasta || '')],
     [],
-    ['Fecha', 'Matr\u00edcula', 'N\u00ba Albar\u00e1n', 'TN', 'Origen', 'Destino', 'Material', '\u00bfNos han facturado?']
+    ['Fecha', 'Matr\u00edcula', 'N\u00ba Albar\u00e1n', 'TN', 'Importe \u20ac', 'Origen', 'Destino', 'Material', '\u00bfNos han facturado?']
   ];
-  let sum = 0;
-  lineas.forEach(l => { aoa.push([l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, l.origen, l.destino, l.material, l.rec]); sum += l.tm; });
-  aoa.push(['TOTAL', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, '', '', '', '']);
+  let sum = 0, sumE = 0;
+  lineas.forEach(l => { aoa.push([l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, Math.round(l.eur * 100) / 100, l.origen, l.destino, l.material, l.rec]); sum += l.tm; sumE += l.eur; });
+  aoa.push(['TOTAL', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, Math.round(sumE * 100) / 100, '', '', '', '']);
   return { aoa, n: lineas.length };
 }
-const _RESFACT_COLS = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
+const _RESFACT_COLS = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 11 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
 
 function _resFactExcelTransportista(idx) {
   const f = (window._resFactFilas || [])[idx]; if (!f) return;
@@ -6429,12 +6451,12 @@ function exportResumenFacturasExcel() {
   if (!filas.length) { toast('No hay datos para el Excel', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const lbl = (window._resFactDesde || '') + '_' + (window._resFactHasta || '');
-  const aoa = [['Transportista', 'Albaranes', 'Pendientes de facturarnos', 'Ya nos han facturado', 'TN']];
-  filas.forEach(f => aoa.push([f.transportista, f.alb, f.pend, f.rec, Math.round(f.tn * 1000) / 1000]));
-  const tot = filas.reduce((a, f) => ({ alb: a.alb + f.alb, pend: a.pend + f.pend, rec: a.rec + f.rec, tn: a.tn + f.tn }), { alb: 0, pend: 0, rec: 0, tn: 0 });
-  aoa.push(['TOTAL', tot.alb, tot.pend, tot.rec, Math.round(tot.tn * 1000) / 1000]);
+  const aoa = [['Transportista', 'Albaranes', 'Pendientes de facturarnos', 'Ya nos han facturado', 'TN', 'Importe €']];
+  filas.forEach(f => aoa.push([f.transportista, f.alb, f.pend, f.rec, Math.round(f.tn * 1000) / 1000, Math.round((f.eur || 0) * 100) / 100]));
+  const tot = filas.reduce((a, f) => ({ alb: a.alb + f.alb, pend: a.pend + f.pend, rec: a.rec + f.rec, tn: a.tn + f.tn, eur: a.eur + (f.eur || 0) }), { alb: 0, pend: 0, rec: 0, tn: 0, eur: 0 });
+  aoa.push(['TOTAL', tot.alb, tot.pend, tot.rec, Math.round(tot.tn * 1000) / 1000, Math.round(tot.eur * 100) / 100]);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 32 }, { wch: 11 }, { wch: 24 }, { wch: 20 }, { wch: 12 }];
+  ws['!cols'] = [{ wch: 32 }, { wch: 11 }, { wch: 24 }, { wch: 20 }, { wch: 12 }, { wch: 13 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Facturas recibidas');
   XLSX.writeFile(wb, `facturas_recibidas_${lbl}_${new Date().toISOString().slice(0, 10)}.xlsx`);

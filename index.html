@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K33 (11/06/2026): Resumen "Nos han facturado" — IMPORTE en € por albarán (en el desglose)
+     y TOTAL € por transportista (en la tabla y en los dos Excel). El precio sale del que ya está
+     preparado (precio propio del albarán o la TARIFA de coste de la ruta+mes); si la ruta no tiene
+     tarifa, queda en 0 (se ajusta poniendo la tarifa). app.js + index + cache app.js?v=95. -->
 <!-- v107K32 (11/06/2026): Resumen — (1) ARREGLO: el botón "📊 Excel" de cada fila llamaba a una
      función inexistente y no descargaba; ahora existe (_resFactExcelTransportista) y baja el desglose
      de ese transportista. (2) "Desglose marcados": al marcar varios, cada transportista va en su
@@ -1637,6 +1641,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=94"></script>
+<script src="app.js?v=95"></script>
 </body>
 </html>
