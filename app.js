@@ -6281,7 +6281,8 @@ function _resFactRender() {
   let html = `<div class="m-bd" style="padding:0;max-width:1000px">
     <div class="m-hdr"><div class="m-tit">📋 Nos han facturado · por transportista</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn bs" onclick="exportResumenFacturasExcel()" title="Descargar este resumen como Excel">📊 Excel</button>
+        <button class="btn bs" onclick="exportDesgloseSeleccionados()" title="Excel con el DESGLOSE de albaranes de los transportistas marcados">📥 Desglose marcados</button>
+        <button class="btn bs" onclick="exportResumenFacturasExcel()" title="Excel del resumen (totales por transportista)">📊 Excel resumen</button>
         <button class="m-cls" onclick="_cerrarResFact()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
       </div></div>
     <div style="padding:14px;max-height:75vh;overflow:auto">
@@ -6300,6 +6301,7 @@ function _resFactRender() {
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:rgba(0,232,122,.08);text-align:left">
+          <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);width:30px;text-align:center"><input type="checkbox" title="Marcar todos" onclick="document.querySelectorAll('.resfact-chk').forEach(c=>{c.checked=this.checked})"></th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3)">TRANSPORTISTA</th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">ALBARANES</th>
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3);text-align:right">PENDIENTES</th>
@@ -6309,12 +6311,13 @@ function _resFactRender() {
         </tr></thead><tbody>`;
   filas.forEach((f, i) => {
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+      <td style="padding:7px 8px;text-align:center"><input type="checkbox" class="resfact-chk" value="${i}"></td>
       <td style="padding:7px 8px">${esc(f.transportista)}</td>
       <td style="padding:7px 8px;text-align:right">${f.alb}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--er);font-weight:700">${f.pend}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--pu);font-weight:700">${f.rec}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--am)">${f.tn.toFixed(3)}</td>
-      <td style="padding:7px 8px;text-align:right">${f.pend > 0 ? `<button class="btn bs" style="padding:4px 10px" onclick="_resFactVerMarcar(${i})">Ver y marcar →</button>` : '<span style="color:var(--mt)">✓ al día</span>'}</td>
+      <td style="padding:7px 8px;text-align:right;white-space:nowrap"><button class="btn bs" style="padding:4px 8px" onclick="_resFactExcelTransportista(${i})" title="Excel con el desglose de albaranes de este transportista (en el rango de fechas)">📊 Excel</button>${f.pend > 0 ? ` <button class="btn bs" style="padding:4px 10px" onclick="_resFactVerMarcar(${i})">Ver y marcar →</button>` : ' <span style="color:var(--mt)">✓ al día</span>'}</td>
     </tr>`;
   });
   html += `</tbody></table>
@@ -6346,6 +6349,49 @@ function _resFactVerMarcar(idx) {
   try { msUpdateSummary && msUpdateSummary('fTransSum', selectedTransportistas, 'Todos', 'transportistas'); } catch (e) {}
   toast('Pendientes de facturarnos de ' + f.transportista + '. Pulsa ☑️ Selección y marca los que te hayan facturado.', 'ok');
 }
+// v107K31 — Excel con el DESGLOSE (lista de albaranes) de los transportistas MARCADOS en el resumen
+// (uno o varios), dentro del rango de fechas elegido. No es el general de todos.
+function exportDesgloseSeleccionados() {
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.resfact-chk:checked'));
+  if (!marcados.length) { toast('Marca al menos un transportista (casilla de la izquierda)', 'err'); return; }
+  const filas = window._resFactFilas || [];
+  const setTr = new Set();
+  marcados.forEach(c => { const f = filas[+c.value]; if (f) setTr.add(f.transportista); });
+  if (!setTr.size) { toast('No se pudo identificar el transportista', 'err'); return; }
+  const dDesde = window._resFactDesde ? new Date(window._resFactDesde + 'T00:00:00') : null;
+  const dHasta = window._resFactHasta ? new Date(window._resFactHasta + 'T23:59:59') : null;
+  const lineas = [];
+  for (const r of records) {
+    if (r._dup) continue;
+    const f = _resFactParseFecha(r.fecha);
+    if (!f) continue;
+    if (dDesde && f < dDesde) continue;
+    if (dHasta && f > dHasta) continue;
+    let t = (r.transportista || getTransportista(r.tractora) || '').trim();
+    if (!t) t = '(sin transportista)';
+    if (!setTr.has(t)) continue;
+    lineas.push({
+      t, fecha: r.fecha || '', mat: r.tractora || '', alb: r.albaran || '', tm: parseFloat(r.tm) || 0,
+      origen: r.planta || '', destino: r.obra || '', material: r.producto || '',
+      rec: (r.estado_factura_recibida || 'pendiente') === 'recibida' ? 'Sí' : 'Pendiente'
+    });
+  }
+  if (!lineas.length) { toast('No hay albaranes de esos transportistas en el rango', 'err'); return; }
+  lineas.sort((a, b) => (a.t.localeCompare(b.t)) || String(a.fecha).localeCompare(String(b.fecha)));
+  const aoa = [['Transportista', 'Fecha', 'Matrícula', 'Nº Albarán', 'TN', 'Origen', 'Destino', 'Material', '¿Nos han facturado?']];
+  let sum = 0;
+  lineas.forEach(l => { aoa.push([l.t, l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, l.origen, l.destino, l.material, l.rec]); sum += l.tm; });
+  aoa.push(['TOTAL', '', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, '', '', '', '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Desglose');
+  const nom = setTr.size === 1 ? [...setTr][0].replace(/[^\w]+/g, '_').slice(0, 24) : (setTr.size + 'transportistas');
+  XLSX.writeFile(wb, `desglose_${nom}_${(window._resFactDesde || '')}_${(window._resFactHasta || '')}.xlsx`);
+  toast('✓ Desglose de ' + lineas.length + ' albaranes (' + setTr.size + ' transportista' + (setTr.size > 1 ? 's' : '') + ')', 'ok');
+}
+
 function exportResumenFacturasExcel() {
   const filas = (window._resFactFilas && window._resFactFilas.length) ? window._resFactFilas : _resFactDatos();
   if (!filas.length) { toast('No hay datos para el Excel', 'err'); return; }
