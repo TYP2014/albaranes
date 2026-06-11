@@ -125,6 +125,9 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K16 (11/06/2026): remate del K15 — la paginación de meses Holcim ahora ORDENA por mes
+     (.order('mes')) para que las páginas sean fiables y siempre alcance abril (sin orden, Postgres
+     devolvía páginas inconsistentes y a veces no llegaba a abril). app.js + cache-buster app.js?v=78. -->
 <!-- v107K15 (11/06/2026): ARREGLO — no aparecía el mes de ABRIL en el desplegable del repaso Holcim
      aunque estaba bien guardado (1403 líneas). Causa: factCargarMesesHolcim hacía un select('mes')
      simple que se topaba con el límite de 1000 filas de Supabase, así que con mayo (2922) + abril
@@ -1552,6 +1555,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=77"></script>
+<script src="app.js?v=78"></script>
 </body>
 </html>

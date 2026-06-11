@@ -16602,7 +16602,7 @@ async function factCargarMesesHolcim() {
   try {
     const PAG = 1000;
     for (let desde = 0; ; desde += PAG) {
-      const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM').range(desde, desde + PAG - 1);
+      const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM').order('mes', { ascending: true }).range(desde, desde + PAG - 1);
       if (r.error) throw r.error;
       const lote = r.data || [];
       lote.forEach(x => { if (x.mes) _mesesSet.add(x.mes); });
