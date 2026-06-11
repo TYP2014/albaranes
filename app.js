@@ -6749,12 +6749,20 @@ function _puedeVerFacturacion() {
 // Si el usuario no tiene permiso, devuelve cadena vacía (no ve nada).
 // 🟢 facturado · 📌 pendiente · 🚫 no_facturable.
 // Albaranes sin estado en BD se tratan como pendientes (📌).
+// v107K22 — iconos uniformes (mismo trazo y tamaño) en lugar de emojis sueltos.
+// Ayudante: dibuja un icono SVG de líneas, 15px, con el color que se le pase.
+function _svgIco(inner, color, title) {
+  return `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><title>${title || ''}</title>${inner}</svg>`;
+}
+
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
   const est = r.estado_facturacion || 'pendiente';
-  if (est === 'facturado')      return `<span title="Facturado" style="font-size:13px">🟢</span>`;
-  if (est === 'no_facturable')  return `<span title="No facturable" style="font-size:13px">🚫</span>`;
-  return `<span title="Pendiente de facturar" style="font-size:13px">📌</span>`;
+  // facturado = círculo con check (verde); no_facturable = círculo con aspa (rojo);
+  // pendiente = reloj (ámbar). Mismo estilo de línea para los tres.
+  if (est === 'facturado')      return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.4 2.4 4.6-5"/>', '#34d399', 'Facturado');
+  if (est === 'no_facturable')  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M7 7l10 10"/>', 'var(--er)', 'No facturable');
+  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>', 'var(--wn)', 'Pendiente de facturar');
 }
 
 // Marca el estado de facturación de UN albarán y lo guarda en Supabase.
@@ -7165,7 +7173,7 @@ function renderTable() {
   tbody.innerHTML = visibles.map(r => `
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
-      <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${rowBadge(r)} ${factIcon(r)}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer;font-size:13px;margin-left:2px">⬇️</span>` : ''}</td>
+      <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${rowBadge(r)} ${factIcon(r)}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer;margin-left:2px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF')}</span>` : ''}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? Number(r.tm).toFixed(3) : '—'}</td>

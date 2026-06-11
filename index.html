@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K22 (11/06/2026): iconos de la fila de Albaranes UNIFORMES — los emojis sueltos (📌 pendiente,
+     🟢 facturado, 🚫 no facturable, ⬇️ descarga) pasan a un juego de iconos SVG del MISMO trazo y
+     tamaño (15px, líneas), manteniendo los colores con significado: ámbar=pendiente, verde=facturado,
+     rojo=no facturable, azul=descarga. Solo visual, no cambia lógica. app.js + cache-buster app.js?v=84. -->
 <!-- v107K21 (11/06/2026): el botón ⬇️ de descarga se mueve junto a la chincheta (primera columna,
      celda de estado), en vez de junto al nº de albarán. app.js + cache-buster app.js?v=83. -->
 <!-- v107K20 (11/06/2026): Albaranes — botón ⬇️ en cada fila para DESCARGAR el PDF del albarán
@@ -1574,6 +1578,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=83"></script>
+<script src="app.js?v=84"></script>
 </body>
 </html>
