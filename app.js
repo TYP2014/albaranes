@@ -6223,15 +6223,20 @@ function _resFactParseFecha(s) {
   const d = new Date(s); return isNaN(d.getTime()) ? null : d;
 }
 function _resFactDatos() {
-  const dias = window._resFactDias || 30;
-  const corte = new Date(); corte.setHours(0, 0, 0, 0); corte.setDate(corte.getDate() - dias);
+  const dDesde = window._resFactDesde ? new Date(window._resFactDesde + 'T00:00:00') : null;
+  const dHasta = window._resFactHasta ? new Date(window._resFactHasta + 'T23:59:59') : null;
   const map = new Map();
   for (const r of records) {
     if (r._dup) continue;
     const f = _resFactParseFecha(r.fecha);
-    if (!f || f < corte) continue;
+    if (!f) continue;
+    if (dDesde && f < dDesde) continue;
+    if (dHasta && f > dHasta) continue;
     let t = (r.transportista || getTransportista(r.tractora) || '').trim();
     if (!t) t = '(sin transportista)';
+    // TYP2014 somos nosotros: no nos facturamos a nosotros mismos → fuera del resumen.
+    const tn = t.toUpperCase().replace(/[\.\s,]/g, '');
+    if (tn === 'TYP2014' || tn.indexOf('TRANSPORTESYPORTES2014') !== -1) continue;
     if (!map.has(t)) map.set(t, { transportista: t, alb: 0, pend: 0, rec: 0, tn: 0 });
     const o = map.get(t);
     o.alb++;
@@ -6242,33 +6247,56 @@ function _resFactDatos() {
 }
 function abrirResumenFacturas() {
   if (!_puedeSeleccionMultiple()) { toast('No tienes permiso', 'err'); return; }
-  if (!window._resFactDias) window._resFactDias = 30;
+  if (!window._resFactDesde || !window._resFactHasta) {
+    const hoy = new Date(); const d0 = new Date(); d0.setDate(d0.getDate() - 30);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    window._resFactHasta = fmt(hoy); window._resFactDesde = fmt(d0);
+  }
   _resFactRender();
 }
-function _resFactPeriodo(dias) { window._resFactDias = dias; _resFactRender(); }
+// Atajos: rellenan las fechas (hoy - N días → hoy) y refrescan.
+function _resFactPeriodo(dias) {
+  const hoy = new Date(); const d0 = new Date(); d0.setDate(d0.getDate() - dias);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  window._resFactHasta = fmt(hoy); window._resFactDesde = fmt(d0);
+  _resFactRender();
+}
+// Lee las dos cajas de fecha del propio resumen y refresca.
+function _resFactSetFechas() {
+  const d = document.getElementById('resFactDesde'); const h = document.getElementById('resFactHasta');
+  window._resFactDesde = (d && d.value) ? d.value : null;
+  window._resFactHasta = (h && h.value) ? h.value : null;
+  _resFactRender();
+}
 function _resFactRender() {
   const filas = _resFactDatos();
   window._resFactFilas = filas;
-  const dias = window._resFactDias || 30;
-  const lbl = dias === 7 ? '1 semana' : (dias === 30 ? '1 mes' : '3 meses');
+  const rango = `${window._resFactDesde || '?'} → ${window._resFactHasta || '?'}`;
   const totAlb = filas.reduce((s, f) => s + f.alb, 0);
   const totPend = filas.reduce((s, f) => s + f.pend, 0);
   const totRec = filas.reduce((s, f) => s + f.rec, 0);
   const totTn = filas.reduce((s, f) => s + f.tn, 0);
-  const pbtn = (d, t) => `<button class="btn ${dias === d ? 'bp' : 'bs'}" onclick="_resFactPeriodo(${d})" style="padding:5px 12px">${t}</button>`;
+  const _inpFecha = 'background:#1e2129;color:#fff;border:1px solid #2a2d36;border-radius:6px;padding:5px 8px;font-size:12px;margin-left:4px';
+  const pbtn = (d, t) => `<button class="btn bs" onclick="_resFactPeriodo(${d})" style="padding:4px 10px">${t}</button>`;
   let html = `<div class="m-bd" style="padding:0;max-width:1000px">
-    <div class="m-hdr"><div class="m-tit">📋 Nos han facturado · por transportista (${lbl})</div>
+    <div class="m-hdr"><div class="m-tit">📋 Nos han facturado · por transportista</div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn bs" onclick="exportResumenFacturasExcel()" title="Descargar este resumen como Excel">📊 Excel</button>
         <button class="m-cls" onclick="_cerrarResFact()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
       </div></div>
     <div style="padding:14px;max-height:75vh;overflow:auto">
-      <div style="display:flex;gap:8px;margin-bottom:12px">${pbtn(7, '1 semana')}${pbtn(30, '1 mes')}${pbtn(90, '3 meses')}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <label style="font-size:12px;color:var(--mt)">Desde <input type="date" id="resFactDesde" value="${window._resFactDesde || ''}" onchange="_resFactSetFechas()" style="${_inpFecha}"></label>
+        <label style="font-size:12px;color:var(--mt)">Hasta <input type="date" id="resFactHasta" value="${window._resFactHasta || ''}" onchange="_resFactSetFechas()" style="${_inpFecha}"></label>
+        <span style="font-size:11px;color:var(--mt);margin-left:6px">Atajos:</span>
+        ${pbtn(7, '1 sem')}${pbtn(30, '1 mes')}${pbtn(90, '3 meses')}
+      </div>
       <div style="margin-bottom:10px;font-size:12px;color:var(--mt)">
         <strong style="color:var(--ac)">${filas.length}</strong> transportistas ·
         <strong style="color:var(--er)">${totPend}</strong> pendientes de facturarnos ·
         <strong style="color:var(--pu)">${totRec}</strong> ya nos han facturado ·
         <strong>${totAlb}</strong> albaranes · <strong>${totTn.toFixed(3)}</strong> TN
+        <span style="margin-left:8px;color:var(--mt)">(${rango})</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:rgba(0,232,122,.08);text-align:left">
@@ -6312,11 +6340,8 @@ function _resFactVerMarcar(idx) {
     if (f.transportista && f.transportista !== '(sin transportista)') selectedTransportistas.add(f.transportista);
   }
   const rec = document.getElementById('fRecibida'); if (rec) rec.value = 'pendiente';
-  const dias = window._resFactDias || 30;
-  const hoy = new Date(); const desde = new Date(); desde.setDate(desde.getDate() - dias);
-  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const fD = document.getElementById('fDesde'); const fH = document.getElementById('fHasta');
-  if (fD) fD.value = fmt(desde); if (fH) fH.value = fmt(hoy);
+  if (fD) fD.value = window._resFactDesde || ''; if (fH) fH.value = window._resFactHasta || '';
   try { applyFilters(); } catch (e) { console.error(e); }
   try { msUpdateSummary && msUpdateSummary('fTransSum', selectedTransportistas, 'Todos', 'transportistas'); } catch (e) {}
   toast('Pendientes de facturarnos de ' + f.transportista + '. Pulsa ☑️ Selección y marca los que te hayan facturado.', 'ok');
@@ -6325,8 +6350,7 @@ function exportResumenFacturasExcel() {
   const filas = (window._resFactFilas && window._resFactFilas.length) ? window._resFactFilas : _resFactDatos();
   if (!filas.length) { toast('No hay datos para el Excel', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
-  const dias = window._resFactDias || 30;
-  const lbl = dias === 7 ? '1semana' : (dias === 30 ? '1mes' : '3meses');
+  const lbl = (window._resFactDesde || '') + '_' + (window._resFactHasta || '');
   const aoa = [['Transportista', 'Albaranes', 'Pendientes de facturarnos', 'Ya nos han facturado', 'TN']];
   filas.forEach(f => aoa.push([f.transportista, f.alb, f.pend, f.rec, Math.round(f.tn * 1000) / 1000]));
   const tot = filas.reduce((a, f) => ({ alb: a.alb + f.alb, pend: a.pend + f.pend, rec: a.rec + f.rec, tn: a.tn + f.tn }), { alb: 0, pend: 0, rec: 0, tn: 0 });
