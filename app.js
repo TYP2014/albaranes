@@ -6260,7 +6260,7 @@ function _resFactRender() {
     <div class="m-hdr"><div class="m-tit">📋 Nos han facturado · por transportista (${lbl})</div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn bs" onclick="exportResumenFacturasExcel()" title="Descargar este resumen como Excel">📊 Excel</button>
-        <button class="m-cls" onclick="cerrarModal()">✕</button>
+        <button class="m-cls" onclick="_cerrarResFact()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
       </div></div>
     <div style="padding:14px;max-height:75vh;overflow:auto">
       <div style="display:flex;gap:8px;margin-bottom:12px">${pbtn(7, '1 semana')}${pbtn(30, '1 mes')}${pbtn(90, '3 meses')}</div>
@@ -6292,14 +6292,20 @@ function _resFactRender() {
   html += `</tbody></table>
       <div style="margin-top:12px;font-size:11px;color:var(--mt)">Pulsa <strong>Ver y marcar</strong> en un transportista para ir a sus albaranes pendientes y tildar (con ☑️ Selección) los que te hayan facturado.</div>
     </div></div>`;
-  const md = document.getElementById('modal');
+  const md = document.getElementById('resFactModalBody');
+  if (!md) { toast('No se encontró la ventana del resumen', 'err'); return; }
   md.innerHTML = html;
-  md.style.display = 'flex';
+  const ov = document.getElementById('resFactModal');
+  if (ov) ov.style.display = 'flex';
+}
+function _cerrarResFact() {
+  const m = document.getElementById('resFactModal');
+  if (m) m.style.display = 'none';
 }
 function _resFactVerMarcar(idx) {
   const f = (window._resFactFilas || [])[idx];
   if (!f) return;
-  cerrarModal();
+  _cerrarResFact();
   try { switchTab('alb'); } catch (e) {}
   if (typeof selectedTransportistas !== 'undefined' && selectedTransportistas) {
     selectedTransportistas.clear();

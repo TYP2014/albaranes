@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K29 (11/06/2026): ARREGLO — el botón "📋 Facturas recibidas" no hacía nada porque pintaba en
+     un id="modal" que NO existe (copiado de abrirResumenAgrupado, que también está roto por lo mismo).
+     Ahora el resumen tiene su PROPIA ventana (#resFactModal/#resFactModalBody) con cierre propio
+     (_cerrarResFact). index + app.js + cache-buster app.js?v=91. -->
 <!-- v107K28 (11/06/2026): FASE 2 (parte 2) — RESUMEN "Nos han facturado" por transportista. Botón
      "📋 Facturas recibidas" (solo Admin/Marta/Mª del Mar) abre una ventana con selector de periodo
      (1 semana / 1 mes / 3 meses) y, por transportista: nº albaranes, pendientes de facturarnos, ya
@@ -1618,6 +1622,10 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=90"></script>
+<div id="resFactModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto">
+  <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
+</div>
+
+<script src="app.js?v=91"></script>
 </body>
 </html>
