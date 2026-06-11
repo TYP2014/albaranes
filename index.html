@@ -125,6 +125,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K14 (10/06/2026): ARREGLO RAÍZ de los duplicados — el número de albarán. Antes, si la IA no
+     leía bien el nº, a veces ponía un número que YA EXISTÍA → dos albaranes distintos con el mismo
+     número (duplicado falso). Nueva regla en el prompt de lectura (campo "albaran"): si no lee el nº
+     con seguridad → lo deja VACÍO (null); NUNCA inventa, NUNCA copia un nº de los ejemplos, NUNCA
+     reutiliza el nº de otro albarán. Un nº en blanco es mejor que uno repetido. Aplica a todos los
+     proveedores. Solo app.js (prompt) + cache-buster app.js?v=76. NO requiere SQL. -->
 <!-- v107K13 (10/06/2026): Repaso Holcim — si el Nº DE ALBARÁN coincide → PAGADO (abonado) SIEMPRE,
      como CEMEX (áridos, cemento/cisternas, ADEC, Tecnocatalana, clinker, palets…). Aunque baile la TN,
      la fecha o la matrícula, se marca pagado igualmente y la diferencia se ANOTA (sale en el informe y
@@ -1541,6 +1547,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=75"></script>
+<script src="app.js?v=76"></script>
 </body>
 </html>
