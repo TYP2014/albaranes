@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K17 (11/06/2026): Excel repaso Holcim — la sección SIN COPIA ahora tiene las MISMAS columnas
+     que ABONADOS (Transportista, Nº Albarán, Matrícula, Fecha, TN, Material, Origen, Destino,
+     Observación). Antes le faltaban Origen y Observación. Solo Excel. app.js + cache-buster
+     app.js?v=79. NO requiere SQL. -->
 <!-- v107K16 (11/06/2026): remate del K15 — la paginación de meses Holcim ahora ORDENA por mes
      (.order('mes')) para que las páginas sean fiables y siempre alcance abril (sin orden, Postgres
      devolvía páginas inconsistentes y a veces no llegaba a abril). app.js + cache-buster app.js?v=78. -->
@@ -1555,6 +1559,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=78"></script>
+<script src="app.js?v=79"></script>
 </body>
 </html>

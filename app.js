@@ -17889,8 +17889,8 @@ function factHolcimExcelPorMaterial() {
     no.forEach(r => aoa.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '']));
     aoa.push([]);
     aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
-    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino']);
-    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.destino || '']));
+    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino', 'Observación']);
+    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.origen || '', L.destino || '', 'Sin copia (no lo tenemos)']));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:22},{wch:16},{wch:12},{wch:12},{wch:10}];
