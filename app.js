@@ -1499,7 +1499,9 @@ function _puedeSeleccionMultiple() {
 // Mostrar el botón "Selección" si el usuario puede usar la selección múltiple (se llama al cargar).
 function _initBorradoMultiple() {
   try {
-    if (_puedeSeleccionMultiple()) {
+    // v107K11: el botón "Selección" se muestra a quien puede borrar (admin/Marta/Mª del Mar) O a
+    // quien puede facturar (admin/Marta/Mª del Mar/Logística), para marcar facturados en bloque.
+    if (_puedeSeleccionMultiple() || (typeof _puedeVerFacturacion === 'function' && _puedeVerFacturacion())) {
       const b = document.getElementById('btnModoSel');
       if (b) b.style.display = 'flex';
     }
@@ -1516,9 +1518,15 @@ function _toggleModoSel() {
   const disp = window._modoSel ? '' : 'none';
   if (thSel)  thSel.style.display  = window._modoSel ? 'table-cell' : 'none';
   celdas.forEach(function (c) { c.style.display = window._modoSel ? 'table-cell' : 'none'; });
-  if (btnBor) btnBor.style.display = window._modoSel ? 'flex' : 'none';
+  // v107K11: cada botón según permiso. Borrar SOLO admin/Marta/Mª del Mar. Facturar y No facturar:
+  // quien pueda facturar (incluye Logística). Así Logística entra en selección pero no ve Borrar.
+  const _puedeBor = _puedeSeleccionMultiple();
+  const _puedeFac = (typeof _puedeVerFacturacion === 'function') && _puedeVerFacturacion();
+  if (btnBor) btnBor.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
   const btnFac = document.getElementById('btnFacturarSel');
-  if (btnFac) btnFac.style.display = window._modoSel ? 'flex' : 'none';
+  if (btnFac) btnFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
+  const btnNoFac = document.getElementById('btnNoFacturarSel');
+  if (btnNoFac) btnNoFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
   if (btnSel) {
     btnSel.textContent = window._modoSel ? '✖️ Cancelar selección' : '☑️ Selección';
   }
@@ -1543,6 +1551,8 @@ function _selUno() {
   if (span) span.textContent = n;
   const spanF = document.getElementById('selCountFact');
   if (spanF) spanF.textContent = n;
+  const spanNF = document.getElementById('selCountNoFact');
+  if (spanNF) spanNF.textContent = n;
 }
 
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
@@ -1587,6 +1597,49 @@ async function _facturarSeleccionados() {
   else toast('🟢 ' + dbIds.length + ' albaranes marcados como facturados', 'ok');
 
   // Limpiar y cerrar el modo selección.
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
+}
+
+// v107K11 — Marcar como NO FACTURADOS (📌 pendiente) de golpe los albaranes seleccionados. Espejo de
+// _facturarSeleccionados: pone estado_facturacion='pendiente' y borra la fecha de factura.
+async function _noFacturarSeleccionados() {
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturar', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+
+  const recs = [];
+  for (const id of ids) {
+    const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+    if (r && r.db_id) recs.push(r);
+  }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+
+  const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como NO FACTURADOS 📌.\n\n¿Continuar?');
+  if (!ok) return;
+
+  const dbIds = [];
+  for (const r of recs) {
+    r.estado_facturacion = 'pendiente';
+    r.factura_fecha = null;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+  }
+
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try {
+      const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null }).in('id', grupo);
+      if (error) throw error;
+    } catch (e) { console.error('[v107K11] no facturar lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron en la base de datos. Vuelve a intentarlo.', 'err');
+  else toast('📌 ' + dbIds.length + ' albaranes marcados como NO facturados', 'ok');
+
   document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
   const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
   if (window._modoSel) _toggleModoSel();

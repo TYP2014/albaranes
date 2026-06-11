@@ -125,6 +125,13 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K11 (10/06/2026): FACTURAR EN BLOQUE. En modo Selección (casillas), botones arriba para marcar
+     los albaranes marcados como FACTURADOS 🟢 o NO FACTURADOS 📌 de golpe (1, 10, 100…), sin entrar en
+     cada modal. Ya existía _facturarSeleccionados; añadido _noFacturarSeleccionados (pone pendiente +
+     borra fecha) y botón 📌. Acceso: el botón Selección + Facturar/No facturar ahora también para
+     LOGÍSTICA (Transmargaz), además de admin/Marta/Mª del Mar. El botón BORRAR sigue SOLO admin/Marta/
+     Mª del Mar (Logística no borra). Cambios: app.js + index.html (botón + cache-buster app.js?v=73).
+     NO requiere SQL (columna estado_facturacion ya existe). -->
 <!-- v107K10 (10/06/2026): Excel — el TOTAL vuelve a ser FÓRMULA (=C*D) pero CON el valor ya
      calculado en caché. Así: se ve el número al abrir Y si editas el PRECIO a mano en Excel, el Total
      se recalcula solo. La fila de TOTALES igual (=SUM con valor en caché). Resuelve el "no hace la
@@ -471,6 +478,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn bw" id="btnModoSel" onclick="_toggleModoSel()" style="display:none;align-items:center;gap:5px" title="Marcar varios albaranes con casillas para borrarlos de golpe (solo admin)">☑️ Selección</button>
             <button class="btn br" id="btnBorrarSel" onclick="_borrarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--er);color:#fff;font-weight:600" title="Borrar todos los albaranes marcados">🗑 Borrar seleccionados (<span id="selCount">0</span>)</button>
             <button class="btn" id="btnFacturarSel" onclick="_facturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--ok);color:#04200f;font-weight:700" title="Marcar como facturados todos los albaranes seleccionados">🟢 Marcar facturados (<span id="selCountFact">0</span>)</button>
+            <button class="btn" id="btnNoFacturarSel" onclick="_noFacturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--wn);color:#3a2a00;font-weight:700" title="Marcar como NO facturados (pendiente 📌) todos los albaranes seleccionados">📌 No facturados (<span id="selCountNoFact">0</span>)</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -1520,6 +1528,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=72"></script>
+<script src="app.js?v=73"></script>
 </body>
 </html>
