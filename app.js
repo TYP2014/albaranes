@@ -6401,6 +6401,9 @@ function applyFilters() {
   // v107J94: el desplegable de Facturación (arriba) solo lo ven admin + Marta + Mª del Mar + Logística.
   const _fw = document.getElementById('fFacturaWrap');
   if (_fw) _fw.style.display = (typeof _puedeVerFacturacion === 'function' && _puedeVerFacturacion()) ? '' : 'none';
+  // v107K27: el filtro "Nos han facturado" solo lo ven Admin/Marta/Mª del Mar.
+  const _rw = document.getElementById('fRecibidaWrap');
+  if (_rw) _rw.style.display = (typeof _puedeSeleccionMultiple === 'function' && _puedeSeleccionMultiple()) ? '' : 'none';
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
   // v107J51 (FASE 3): si JC busca una fecha "desde" ANTERIOR al corte de 3 meses y todavía
   // no se ha cargado el histórico completo, avisar para que cargue todo (si no, parecería
@@ -6424,6 +6427,7 @@ function applyFilters() {
   const fAlb = (document.getElementById('fAlbaran')?.value || '').toLowerCase().trim();
   const fTn = (document.getElementById('fTn')?.value || '').trim().replace(',', '.'); // v107J92: filtro toneladas
   const fFact = document.getElementById('fFactura')?.value || ''; // v107J93: filtro facturación
+  const fRec = document.getElementById('fRecibida')?.value || ''; // v107K27: filtro nos-han-facturado
   // v80: normalización robusta antes de comparar (espacios extra, tildes, mayúsculas)
   // para evitar que filtros oculten albaranes por diferencias invisibles entre BD y dropdown.
   const norm = s => String(s || '')
@@ -6518,6 +6522,11 @@ function applyFilters() {
     if (fFact) {
       const est = r.estado_facturacion || 'pendiente';
       if (est !== fFact) return false;
+    }
+    // v107K27: filtro por "nos han facturado" (recibida / pendiente). Sin valor guardado = pendiente.
+    if (fRec) {
+      const er = r.estado_factura_recibida || 'pendiente';
+      if (er !== fRec) return false;
     }
     if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
     return true;
@@ -6695,7 +6704,7 @@ function switchGasEmpresa(emp) {
 }
 
 function resetFilters() { 
-  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fRecibida','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   // v100: limpiar TODOS los multi-select. Antes solo Matrícula y Transportista; ahora también
   // Proveedor, Origen, Destino, Material y Subido por.
   selectedMatriculas.clear();

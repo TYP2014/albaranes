@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K27 (11/06/2026): FASE 2 (parte 1) — FILTRO "Nos han facturado". Nuevo desplegable arriba
+     (junto a Facturación): Todos / 📥 Ya nos han facturado / 📄 Pendiente de facturarnos. Solo lo
+     ven Admin/Marta/Mª del Mar. Filtra por estado_factura_recibida. "Limpiar" también lo resetea.
+     app.js + index + cache-buster app.js?v=89. NO requiere SQL (usa la columna del K26). -->
 <!-- v107K26 (11/06/2026): FASE 1 del control "NOS HAN FACTURADO" (segundo sentido de facturación: que
      el transportista —de fuera o de nuestras empresas— nos ha pasado su factura por el viaje). Es
      INDEPENDIENTE del facturado a cliente. (1) columnas nuevas en BD: estado_factura_recibida +
@@ -581,6 +585,13 @@ if (typeof pdfjsLib !== 'undefined') {
                 <option value="facturado">🟢 Facturado</option>
                 <option value="pendiente">📌 No facturado</option>
                 <option value="no_facturable">🚫 No facturable</option>
+              </select>
+            </span>
+            <span id="fRecibidaWrap" style="display:none;font-family:var(--mn);font-size:12px;color:var(--tx);white-space:nowrap">Nos han facturado:
+              <select class="fil-sel" id="fRecibida" onchange="applyFilters()" style="display:inline-block;width:auto;margin-left:6px">
+                <option value="">Todos</option>
+                <option value="recibida">📥 Ya nos han facturado</option>
+                <option value="pendiente">📄 Pendiente de facturarnos</option>
               </select>
             </span>
             <div class="srch">🔍 <input id="srchIn" placeholder="Buscar en todos los campos..." oninput="applyFilters()"></div>
@@ -1600,6 +1611,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=88"></script>
+<script src="app.js?v=89"></script>
 </body>
 </html>
