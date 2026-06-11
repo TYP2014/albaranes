@@ -125,6 +125,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K28 (11/06/2026): FASE 2 (parte 2) — RESUMEN "Nos han facturado" por transportista. Botón
+     "📋 Facturas recibidas" (solo Admin/Marta/Mª del Mar) abre una ventana con selector de periodo
+     (1 semana / 1 mes / 3 meses) y, por transportista: nº albaranes, pendientes de facturarnos, ya
+     facturados y TN. Botón "Ver y marcar" → lleva a la tabla filtrada por ese transportista +
+     pendientes para tildar los concretos con Selección. Botón Excel del resumen. app.js + index +
+     cache-buster app.js?v=90. NO requiere SQL. CIERRA la Fase 2. -->
 <!-- v107K27 (11/06/2026): FASE 2 (parte 1) — FILTRO "Nos han facturado". Nuevo desplegable arriba
      (junto a Facturación): Todos / 📥 Ya nos han facturado / 📄 Pendiente de facturarnos. Solo lo
      ven Admin/Marta/Mª del Mar. Filtra por estado_factura_recibida. "Limpiar" también lo resetea.
@@ -547,6 +553,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn br" id="btnExFil" onclick="exportExcelFiltrado()" style="display:none">📊 Excel filtrado</button>
             <button class="btn bp" id="btnDlFil" onclick="descargarArchivosFiltrados()" style="display:none">📦 Descargar archivos</button>
             <button class="btn bs" onclick="abrirResumenAgrupado()" style="display:flex;align-items:center;gap:5px" title="Resumen agrupado por Origen + Destino + Material con totales (respeta filtros activos)">📊 Resumen</button>
+            <button class="btn bs" id="btnResFact" onclick="abrirResumenFacturas()" style="display:none;align-items:center;gap:5px" title="Resumen por transportista de qué nos han facturado y qué falta (1 semana / 1 mes / 3 meses)">📋 Facturas recibidas</button>
             <button class="btn bw" id="btnReanalizarTodo" onclick="reanalizarTodo()" style="display:flex;align-items:center;gap:5px" title="Re-aplica TODAS las reglas de corrección a los albaranes ya guardados (origen, destino, matrícula y proveedor). Solo admin.">🔄 Re-corregir TODO</button>
             <button class="btn bw" id="btnModoSel" onclick="_toggleModoSel()" style="display:none;align-items:center;gap:5px" title="Marcar varios albaranes con casillas para borrarlos de golpe (solo admin)">☑️ Selección</button>
             <button class="btn br" id="btnBorrarSel" onclick="_borrarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--er);color:#fff;font-weight:600" title="Borrar todos los albaranes marcados">🗑 Borrar seleccionados (<span id="selCount">0</span>)</button>
@@ -1611,6 +1618,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=89"></script>
+<script src="app.js?v=90"></script>
 </body>
 </html>
