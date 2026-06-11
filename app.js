@@ -6752,7 +6752,7 @@ function _puedeVerFacturacion() {
 // v107K22 — iconos uniformes (mismo trazo y tamaño) en lugar de emojis sueltos.
 // Ayudante: dibuja un icono SVG de líneas, 15px, con el color que se le pase.
 function _svgIco(inner, color, title) {
-  return `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><title>${title || ''}</title>${inner}</svg>`;
+  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><title>${title || ''}</title>${inner}</svg>`;
 }
 
 function factIcon(r) {
@@ -6762,7 +6762,7 @@ function factIcon(r) {
   // pendiente = reloj (ámbar). Mismo estilo de línea para los tres.
   if (est === 'facturado')      return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.4 2.4 4.6-5"/>', '#34d399', 'Facturado');
   if (est === 'no_facturable')  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M7 7l10 10"/>', 'var(--er)', 'No facturable');
-  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>', 'var(--wn)', 'Pendiente de facturar');
+  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>', 'var(--er)', 'Pendiente de facturar');
 }
 
 // Marca el estado de facturación de UN albarán y lo guarda en Supabase.
