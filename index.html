@@ -125,6 +125,15 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K26 (11/06/2026): FASE 1 del control "NOS HAN FACTURADO" (segundo sentido de facturación: que
+     el transportista —de fuera o de nuestras empresas— nos ha pasado su factura por el viaje). Es
+     INDEPENDIENTE del facturado a cliente. (1) columnas nuevas en BD: estado_factura_recibida +
+     factura_recibida_fecha (ver factura_recibida_fase1.sql, EJECUTAR ANTES). (2) segundo icono en la
+     fila (documento morado=nos han facturado / gris=pendiente), solo Admin/Marta/Mª del Mar. (3)
+     botones en bloque "📥 Nos han facturado" y "↩ Pendiente facturarnos". Refactor: _celdaEstadoHtml
+     unifica el contenido de la celda de estado (arregla de paso que al marcar no desaparezcan los
+     iconos/descarga). app.js + index + cache-buster app.js?v=88. Pendiente Fase 2: vista por
+     transportista + filtro. -->
 <!-- v107K25 (11/06/2026): dos cambios en la barra de selección de Albaranes — (1) el botón "Marcar
      facturados" usaba var(--ok) (color INEXISTENTE en el CSS) y salía sin recuadro (solo un punto
      verde); ahora usa var(--ac) (verde real) con check ✓, se ve como un botón en condiciones. (2)
@@ -540,6 +549,8 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn" id="btnFacturarSel" onclick="_facturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--ac);color:#04200f;font-weight:700" title="Marcar como facturados todos los albaranes seleccionados">✓ Marcar facturados (<span id="selCountFact">0</span>)</button>
             <button class="btn" id="btnNoFacturarSel" onclick="_noFacturarSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--wn);color:#3a2a00;font-weight:700" title="Marcar como NO facturados (pendiente 📌) todos los albaranes seleccionados">📌 No facturados (<span id="selCountNoFact">0</span>)</button>
             <button class="btn" id="btnExcelSel" onclick="exportExcelSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--in);color:#fff;font-weight:700" title="Descargar un Excel solo con los albaranes seleccionados">📊 Excel seleccionados (<span id="selCountExcel">0</span>)</button>
+            <button class="btn" id="btnRecibidaSel" onclick="_recibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--pu);color:#1a0a2e;font-weight:700" title="Marcar que el transportista YA NOS HA FACTURADO estos albaranes">📥 Nos han facturado (<span id="selCountRec">0</span>)</button>
+            <button class="btn" id="btnNoRecibidaSel" onclick="_noRecibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--pu);color:var(--pu);font-weight:700" title="Quitar la marca: pendiente de que nos facturen">↩ Pendiente facturarnos (<span id="selCountNoRec">0</span>)</button>
             <button class="btn br" style="padding:7px 10px;font-size:10px" onclick="clearAll()">🗑</button>
           </div>
         </div>
@@ -1589,6 +1600,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=87"></script>
+<script src="app.js?v=88"></script>
 </body>
 </html>

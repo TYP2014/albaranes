@@ -1530,6 +1530,11 @@ function _toggleModoSel() {
   // Excel de lo seleccionado: disponible para cualquiera que esté en modo selección.
   const btnExSel = document.getElementById('btnExcelSel');
   if (btnExSel) btnExSel.style.display = window._modoSel ? 'flex' : 'none';
+  // v107K26: "Nos han facturado" / "Pendiente de facturarnos" — solo Admin/Marta/María del Mar.
+  const btnRec = document.getElementById('btnRecibidaSel');
+  if (btnRec) btnRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
+  const btnNoRec = document.getElementById('btnNoRecibidaSel');
+  if (btnNoRec) btnNoRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
   if (btnSel) {
     btnSel.textContent = window._modoSel ? '✖️ Cancelar selección' : '☑️ Selección';
   }
@@ -1558,6 +1563,10 @@ function _selUno() {
   if (spanNF) spanNF.textContent = n;
   const spanEx = document.getElementById('selCountExcel');
   if (spanEx) spanEx.textContent = n;
+  const spanRec = document.getElementById('selCountRec');
+  if (spanRec) spanRec.textContent = n;
+  const spanNoRec = document.getElementById('selCountNoRec');
+  if (spanNoRec) spanNoRec.textContent = n;
 }
 
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
@@ -1586,7 +1595,7 @@ async function _facturarSeleccionados() {
     r.factura_fecha = fecha;
     dbIds.push(r.db_id);
     const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
-    if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
   }
 
   // Guardar en Supabase en lotes de 100 (por si hay muchos seleccionados).
@@ -1631,7 +1640,7 @@ async function _noFacturarSeleccionados() {
     r.factura_fecha = null;
     dbIds.push(r.db_id);
     const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
-    if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
   }
 
   const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
@@ -6760,6 +6769,24 @@ function _svgIco(inner, color, title) {
   return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><title>${title || ''}</title>${inner}</svg>`;
 }
 
+// v107K26 — Icono del SEGUNDO sentido de facturación: "¿nos ha facturado a NOSOTROS el transportista?"
+// Solo lo ven Admin/Marta/María del Mar. Documento con check (morado) = ya nos han facturado;
+// documento vacío (gris) = pendiente de que nos facturen. Es independiente del facturado a cliente.
+function factProvIcon(r) {
+  if (!_puedeSeleccionMultiple()) return '';
+  const est = r.estado_factura_recibida || 'pendiente';
+  if (est === 'recibida') return _svgIco('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4.5-4.5"/>', 'var(--pu)', 'Nos han facturado');
+  return _svgIco('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>', '#6b7280', 'Pendiente de que nos facturen');
+}
+
+// v107K26 — contenido completo de la primera celda (estado) de la fila de Albaranes. Se usa tanto en
+// el render como al marcar en bloque, así los iconos (calidad, facturado-cliente, nos-han-facturado,
+// descarga) quedan SIEMPRE consistentes y no desaparece ninguno al marcar.
+function _celdaEstadoHtml(r) {
+  const dl = hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer;margin-left:2px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF')}</span>` : '';
+  return `${rowBadge(r)} ${factIcon(r)} ${factProvIcon(r)}${dl}`;
+}
+
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
   const est = r.estado_facturacion || 'pendiente';
@@ -7178,7 +7205,7 @@ function renderTable() {
   tbody.innerHTML = visibles.map(r => `
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
-      <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${rowBadge(r)} ${factIcon(r)}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer;margin-left:2px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF')}</span>` : ''}</td>
+      <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${_celdaEstadoHtml(r)}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? Number(r.tm).toFixed(3) : '—'}</td>
@@ -8797,6 +8824,72 @@ async function exportExcelSeleccionados() {
   const { wb, tm } = buildExcel(recs);
   XLSX.writeFile(wb, `albaranes_seleccionados_${new Date().toISOString().slice(0, 10)}.xlsx`);
   toast(`✓ Excel de ${recs.length} seleccionados · ${tm.toFixed(3)} TN`, 'ok');
+}
+
+// v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos
+// viajes). Independiente del facturado a cliente. Solo Admin/Marta/María del Mar.
+async function _recibidaSeleccionados() {
+  if (!_puedeSeleccionMultiple()) { toast('No tienes permiso', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const recs = [];
+  for (const id of ids) { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+  const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como NOS HAN FACTURADO 📥.\n\n¿Continuar?');
+  if (!ok) return;
+  const fecha = new Date().toISOString();
+  const dbIds = [];
+  for (const r of recs) {
+    r.estado_factura_recibida = 'recibida';
+    r.factura_recibida_fecha = fecha;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+  }
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try { const { error } = await sb.from('albaranes').update({ estado_factura_recibida: 'recibida', factura_recibida_fecha: fecha }).in('id', grupo); if (error) throw error; }
+    catch (e) { console.error('[v107K26] recibida lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron en la base. Reintenta.', 'err');
+  else toast('📥 ' + dbIds.length + ' albaranes marcados como NOS HAN FACTURADO', 'ok');
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
+}
+
+// v107K26 — Quitar la marca: vuelve a "pendiente de que nos facturen". Espejo del anterior.
+async function _noRecibidaSeleccionados() {
+  if (!_puedeSeleccionMultiple()) { toast('No tienes permiso', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const recs = [];
+  for (const id of ids) { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+  const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como PENDIENTES de que nos facturen.\n\n¿Continuar?');
+  if (!ok) return;
+  const dbIds = [];
+  for (const r of recs) {
+    r.estado_factura_recibida = 'pendiente';
+    r.factura_recibida_fecha = null;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+  }
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try { const { error } = await sb.from('albaranes').update({ estado_factura_recibida: 'pendiente', factura_recibida_fecha: null }).in('id', grupo); if (error) throw error; }
+    catch (e) { console.error('[v107K26] no recibida lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron en la base. Reintenta.', 'err');
+  else toast('↩ ' + dbIds.length + ' albaranes: pendientes de que nos facturen', 'ok');
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
 }
 
 // v83: Resumen agrupado por Origen + Destino + Material.
@@ -17125,7 +17218,7 @@ function _factProcesarYMostrar(setEstado) {
       marcados++;
       // pintar icono si la fila está visible
       const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
-      if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+      if (celda) celda.innerHTML = _celdaEstadoHtml(r);
       // guardar en 2º plano
       sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha }).eq('id', r.db_id)
         .then(({ error }) => { if (error) console.warn('[v107FI] guardar facturado:', error); });
@@ -17642,7 +17735,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
       r.estado_facturacion = 'facturado';
       r.factura_fecha = new Date().toISOString();
       const celda = document.querySelector(`td[data-fact="${r.db_id}"]`);
-      if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+      if (celda) celda.innerHTML = _celdaEstadoHtml(r);
       sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha }).eq('id', r.db_id)
         .then(({ error }) => { if (error) console.warn('[v107GA] guardar facturado:', error); });
     }
@@ -18008,7 +18101,7 @@ function factHolcimConfirmar(i) {
     r.estado_facturacion = 'facturado';
     r.factura_fecha = new Date().toISOString();
     const celda = document.querySelector(`td[data-fact="${r.db_id}"]`);
-    if (celda) celda.innerHTML = `${rowBadge(r)} ${factIcon(r)}`;
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
     sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha }).eq('id', r.db_id)
       .then(({ error }) => { if (error) console.warn('[v107GB] confirmar posible:', error); });
   }
