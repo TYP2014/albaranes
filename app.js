@@ -6351,45 +6351,77 @@ function _resFactVerMarcar(idx) {
 }
 // v107K31 — Excel con el DESGLOSE (lista de albaranes) de los transportistas MARCADOS en el resumen
 // (uno o varios), dentro del rango de fechas elegido. No es el general de todos.
-function exportDesgloseSeleccionados() {
-  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
-  const marcados = Array.from(document.querySelectorAll('.resfact-chk:checked'));
-  if (!marcados.length) { toast('Marca al menos un transportista (casilla de la izquierda)', 'err'); return; }
-  const filas = window._resFactFilas || [];
-  const setTr = new Set();
-  marcados.forEach(c => { const f = filas[+c.value]; if (f) setTr.add(f.transportista); });
-  if (!setTr.size) { toast('No se pudo identificar el transportista', 'err'); return; }
+// v107K32 — helpers del desglose: nombre de pestaña válido y datos de UN transportista.
+function _resFactSheetName(t, usados) {
+  let n = String(t).replace(/[\[\]\:\*\?\/\\]/g, ' ').trim().slice(0, 28) || 'Hoja';
+  let base = n, i = 2;
+  while (usados && usados.has(n.toLowerCase())) { n = (base.slice(0, 25) + ' ' + i); i++; }
+  if (usados) usados.add(n.toLowerCase());
+  return n;
+}
+function _resFactSheetData(transportista) {
   const dDesde = window._resFactDesde ? new Date(window._resFactDesde + 'T00:00:00') : null;
   const dHasta = window._resFactHasta ? new Date(window._resFactHasta + 'T23:59:59') : null;
   const lineas = [];
   for (const r of records) {
     if (r._dup) continue;
-    const f = _resFactParseFecha(r.fecha);
-    if (!f) continue;
+    const f = _resFactParseFecha(r.fecha); if (!f) continue;
     if (dDesde && f < dDesde) continue;
     if (dHasta && f > dHasta) continue;
-    let t = (r.transportista || getTransportista(r.tractora) || '').trim();
-    if (!t) t = '(sin transportista)';
-    if (!setTr.has(t)) continue;
+    let t = (r.transportista || getTransportista(r.tractora) || '').trim(); if (!t) t = '(sin transportista)';
+    if (t !== transportista) continue;
     lineas.push({
-      t, fecha: r.fecha || '', mat: r.tractora || '', alb: r.albaran || '', tm: parseFloat(r.tm) || 0,
+      fecha: r.fecha || '', mat: r.tractora || '', alb: r.albaran || '', tm: parseFloat(r.tm) || 0,
       origen: r.planta || '', destino: r.obra || '', material: r.producto || '',
-      rec: (r.estado_factura_recibida || 'pendiente') === 'recibida' ? 'Sí' : 'Pendiente'
+      rec: (r.estado_factura_recibida || 'pendiente') === 'recibida' ? 'S\u00ed' : 'Pendiente'
     });
   }
-  if (!lineas.length) { toast('No hay albaranes de esos transportistas en el rango', 'err'); return; }
-  lineas.sort((a, b) => (a.t.localeCompare(b.t)) || String(a.fecha).localeCompare(String(b.fecha)));
-  const aoa = [['Transportista', 'Fecha', 'Matrícula', 'Nº Albarán', 'TN', 'Origen', 'Destino', 'Material', '¿Nos han facturado?']];
+  lineas.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  const aoa = [
+    ['Transportista:', transportista],
+    ['Periodo:', (window._resFactDesde || '') + ' \u2192 ' + (window._resFactHasta || '')],
+    [],
+    ['Fecha', 'Matr\u00edcula', 'N\u00ba Albar\u00e1n', 'TN', 'Origen', 'Destino', 'Material', '\u00bfNos han facturado?']
+  ];
   let sum = 0;
-  lineas.forEach(l => { aoa.push([l.t, l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, l.origen, l.destino, l.material, l.rec]); sum += l.tm; });
-  aoa.push(['TOTAL', '', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, '', '', '', '']);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
+  lineas.forEach(l => { aoa.push([l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, l.origen, l.destino, l.material, l.rec]); sum += l.tm; });
+  aoa.push(['TOTAL', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, '', '', '', '']);
+  return { aoa, n: lineas.length };
+}
+const _RESFACT_COLS = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
+
+function _resFactExcelTransportista(idx) {
+  const f = (window._resFactFilas || [])[idx]; if (!f) return;
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const d = _resFactSheetData(f.transportista);
+  if (!d.n) { toast('No hay albaranes de ' + f.transportista + ' en el rango', 'err'); return; }
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Desglose');
-  const nom = setTr.size === 1 ? [...setTr][0].replace(/[^\w]+/g, '_').slice(0, 24) : (setTr.size + 'transportistas');
-  XLSX.writeFile(wb, `desglose_${nom}_${(window._resFactDesde || '')}_${(window._resFactHasta || '')}.xlsx`);
-  toast('✓ Desglose de ' + lineas.length + ' albaranes (' + setTr.size + ' transportista' + (setTr.size > 1 ? 's' : '') + ')', 'ok');
+  const ws = XLSX.utils.aoa_to_sheet(d.aoa); ws['!cols'] = _RESFACT_COLS;
+  XLSX.utils.book_append_sheet(wb, ws, _resFactSheetName(f.transportista));
+  XLSX.writeFile(wb, 'desglose_' + f.transportista.replace(/[^\w]+/g, '_').slice(0, 24) + '_' + (window._resFactDesde || '') + '_' + (window._resFactHasta || '') + '.xlsx');
+  toast('\u2713 ' + d.n + ' albaranes de ' + f.transportista, 'ok');
+}
+
+function exportDesgloseSeleccionados() {
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.resfact-chk:checked'));
+  if (!marcados.length) { toast('Marca al menos un transportista (casilla de la izquierda)', 'err'); return; }
+  const filas = window._resFactFilas || [];
+  const wb = XLSX.utils.book_new();
+  const usados = new Set();
+  const vistos = new Set();
+  let total = 0;
+  marcados.forEach(c => {
+    const f = filas[+c.value]; if (!f || vistos.has(f.transportista)) return;
+    vistos.add(f.transportista);
+    const d = _resFactSheetData(f.transportista); if (!d.n) return;
+    const ws = XLSX.utils.aoa_to_sheet(d.aoa); ws['!cols'] = _RESFACT_COLS;
+    XLSX.utils.book_append_sheet(wb, ws, _resFactSheetName(f.transportista, usados));
+    total += d.n;
+  });
+  if (!wb.SheetNames.length) { toast('No hay albaranes de esos transportistas en el rango', 'err'); return; }
+  XLSX.writeFile(wb, 'desglose_' + wb.SheetNames.length + 'transportistas_' + (window._resFactDesde || '') + '_' + (window._resFactHasta || '') + '.xlsx');
+  toast('\u2713 ' + total + ' albaranes en ' + wb.SheetNames.length + ' pesta\u00f1a' + (wb.SheetNames.length > 1 ? 's' : ''), 'ok');
 }
 
 function exportResumenFacturasExcel() {

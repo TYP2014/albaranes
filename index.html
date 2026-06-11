@@ -125,6 +125,10 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K32 (11/06/2026): Resumen — (1) ARREGLO: el botón "📊 Excel" de cada fila llamaba a una
+     función inexistente y no descargaba; ahora existe (_resFactExcelTransportista) y baja el desglose
+     de ese transportista. (2) "Desglose marcados": al marcar varios, cada transportista va en su
+     PROPIA PESTAÑA (no mezclados). app.js + index + cache app.js?v=94. -->
 <!-- v107K31 (11/06/2026): Resumen "Nos han facturado" — casilla por transportista (uno o varios) +
      botón "📥 Desglose marcados": Excel con la LISTA de albaranes (fecha, matrícula, nº, TN, origen,
      destino, material, ¿nos han facturado?) de los transportistas marcados, en el rango de fechas.
@@ -1633,6 +1637,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=93"></script>
+<script src="app.js?v=94"></script>
 </body>
 </html>
