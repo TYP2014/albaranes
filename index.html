@@ -125,6 +125,8 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K21 (11/06/2026): el botón ⬇️ de descarga se mueve junto a la chincheta (primera columna,
+     celda de estado), en vez de junto al nº de albarán. app.js + cache-buster app.js?v=83. -->
 <!-- v107K20 (11/06/2026): Albaranes — botón ⬇️ en cada fila para DESCARGAR el PDF del albarán
      directamente, sin abrir el modal. Aparece junto al nº de albarán solo si el albarán tiene
      archivo. Descarga el archivo de verdad (plan B: lo abre en pestaña si CORS lo impide). Solo
@@ -1572,6 +1574,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=82"></script>
+<script src="app.js?v=83"></script>
 </body>
 </html>
