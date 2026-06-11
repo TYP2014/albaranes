@@ -16667,7 +16667,12 @@ function exportPromotoraExcelMes(mes) {
 async function factConciliarMesHolcim(mes) {
   const estado = document.getElementById('factHolcimEstado');
   const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
-  setEstado('⏳ Cargando liquidaciones de Holcim de ' + _factMesBonito(mes) + '…');
+  // v107K12: el cruce necesita TODOS tus albaranes en memoria. Por defecto la app solo carga los
+  // últimos 3 meses, así que los albaranes de meses anteriores NO cruzaban (salían como "no abonado"
+  // / "sin copia" aunque el nº coincidía). Cargamos el histórico completo ANTES de cruzar. Es
+  // idempotente: si ya está cargado, no hace nada.
+  setEstado('⏳ Cargando todos tus albaranes y las liquidaciones de Holcim de ' + _factMesBonito(mes) + '…');
+  try { await cargarTodoHistorico(); } catch (e) { console.warn('[v107K12] cargar histórico antes del repaso Holcim:', e); }
   let data;
   try {
     data = await _factTraerLineas(mes, 'HOLCIM', '*');

@@ -125,6 +125,12 @@ if (typeof pdfjsLib !== 'undefined') {
 </head>
 <body>
 
+<!-- v107K12 (10/06/2026): ARREGLO repaso Holcim — no cruzaba albaranes de meses anteriores. Causa: el
+     cruce usa los albaranes en memoria (records) y la app solo carga los últimos 3 meses por defecto;
+     los de mayo (u otros) no estaban cargados, así que salían como "no abonado"/"sin copia" aunque el
+     nº de albarán coincidía. Ahora factConciliarMesHolcim hace await cargarTodoHistorico() ANTES de
+     cruzar (idempotente: si ya está cargado, no hace nada). Confirmado por JC: tras cargar histórico,
+     Mayo pasó de ~0 a 2508 abonados. Solo app.js + cache-buster app.js?v=74. NO requiere SQL. -->
 <!-- v107K11 (10/06/2026): FACTURAR EN BLOQUE. En modo Selección (casillas), botones arriba para marcar
      los albaranes marcados como FACTURADOS 🟢 o NO FACTURADOS 📌 de golpe (1, 10, 100…), sin entrar en
      cada modal. Ya existía _facturarSeleccionados; añadido _noFacturarSeleccionados (pone pendiente +
@@ -1528,6 +1534,6 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=73"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>
