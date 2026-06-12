@@ -4437,10 +4437,10 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false)
 Si el albarán NO es de BENSEC, ignora esta regla y sigue con las de abajo.
 
 🔴🔴 IDM / SECTRES — COMPRUÉBALO ANTES QUE NADA (v107K47, Juan Carlos 12/06/2026): si la CABECERA pone "SECTRES", o el sello/logo pone "IDM morteros", o aparece "INVESTIGACIÓN DESARROLLO MORTEROS" (CIF B55590772, Planta Pontils, Tarragona) y es un "Ticket de Pesada" de SALIDAS, es un albarán de IDM. Aplica SIEMPRE estas reglas — NO las de Holcim, AUNQUE el cliente sea Holcim y AUNQUE haya un sello de "Fábrica de Montcada":
-  · proveedor = "IDM (Investigación Desarrollo Morteros)"
+  · proveedor = "IDM (Investigación Desarrollo Morteros)". 🔴 NUNCA pongas "SECTRES": es solo el rótulo comercial de la cabecera (aunque salga en letra grande arriba), NO es el proveedor. El proveedor que guardas SIEMPRE es "IDM (Investigación Desarrollo Morteros)".
   · cliente = "Holcim España, S.A.U."
   · planta (ORIGEN) = "Pontils"
-  · obra (DESTINO) = se lee del campo "Destino:" (arriba a la derecha). SOLO hay dos posibles: si pone "HOLCIM MONTCADA" → "Fábrica Montcada"; si pone "HOLCIM ESFERA TARRAGONA" → "Esfera Tarragona".
+  · obra (DESTINO) = se lee del campo "Destino:" (arriba a la derecha). Ese campo trae un CÓDIGO numérico + "SP HOLCIM ..." (ej. "5500119787 SP HOLCIM MONTCADA" o "5500121083 SP HOLCIM ESFERA TARRAGONA"). IGNORA el código numérico y el "SP HOLCIM". SOLO hay dos destinos posibles: si el texto contiene "MONTCADA" → obra = "Fábrica Montcada"; si contiene "ESFERA TARRAGONA" → obra = "Esfera Tarragona". 🔴 NUNCA dejes el destino VACÍO en un albarán de IDM: SIEMPRE es "Fábrica Montcada" o "Esfera Tarragona". Ejemplo real albarán GV/887: "Destino: 5500119787 SP HOLCIM MONTCADA" → obra = "Fábrica Montcada".
   · albaran = el campo "Número" del tipo "GV / XXXX" → cópialo SIN espacios, ej. "GV/887".
   · fecha = el campo "Fecha".
   · MATERIAL y tm — mira la tabla "Descripción / Palets / Unidades":
