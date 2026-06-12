@@ -4424,6 +4424,18 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false)
   }
   const prompt = `Eres un OCR experto en albaranes de transporte de áridos y materiales a granel en España.
 
+🔴🔴 BENSEC eco — COMPRUÉBALO ANTES QUE NADA (v107K46, Juan Carlos 12/06/2026): si la CABECERA o el LOGO del albarán pone "BENSEC" o "BENSEC eco" (CIF B60047404, Pol. Ind. Congost, Montornès del Vallès), es un albarán de BENSEC y aplicas SIEMPRE estas reglas — NO las de Holcim, AUNQUE el cliente sea Holcim y AUNQUE haya un sello de "Fábrica de Montcada":
+  · proveedor = "BENSEC eco"
+  · cliente = "Holcim España, S.A.U."
+  · planta (ORIGEN) = "Montornès del Vallès"
+  · obra (DESTINO) = "Fábrica Montcada"
+  · producto (MATERIAL) = el texto LITERAL de la columna "Descripción" (es cemento ENSACADO en sacos de 25 kg). Ejemplo real albarán 26/00009880: Descripción "HS-25/12 LAFARGE SACO 25 KG" → producto = "HS-25/12 LAFARGE SACO 25 KG".
+  · tm = el número del campo "TOTAL KG" DIVIDIDO entre 1000. Ejemplo: TOTAL KG 30800 → tm = 30.8. 🔴 NUNCA uses la columna "Cantidad" como tm: en BENSEC esa columna es el número de SACOS (ej. 1.232), NO toneladas.
+  · observaciones = el número de la columna "Cantidad" seguido de las palabras "sacos de cemento". Ejemplo: Cantidad 1.232 → observaciones = "1.232 sacos de cemento".
+  · tractora = la "MATRÍCULA CAMIÓN" (4 dígitos + 3 letras, ej. 9499LHT). NUNCA la "MATRÍCULA REMOLQUE" (empieza por R, ej. R8672BCN).
+  · albaran = el "Nº albarán" tal cual lo veas (ej. "26/00009880").
+Si el albarán NO es de BENSEC, ignora esta regla y sigue con las de abajo.
+
 🔴 PRIORIDAD ABSOLUTA — HOLCIM ALBARÁN DE SALIDA (v107D3, leer ANTES que ninguna otra regla):
 
 Un Holcim ALBARÁN DE SALIDA se identifica por: cabecera con logo "HOLCIM" + título "Albarán" o "Albarán de traslado" + número de 11 dígitos que empieza por 31... (ej. 31042168675, 31041060962, 31048148672) O número 35692XXXXXXX (sacos paletizados). NO confundir con "ALBARÁN DE RECEPCIÓN DE MATERIAL" (esos siguen otras reglas).
