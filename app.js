@@ -6997,7 +6997,7 @@ function filterByStatus(st) {
   } 
 }
 
-function rowBadge(r) { if (r._dup) return `<span class="badge badge-dup">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn">⚠ Rev</span>`; return `<span class="badge badge-ok">✓</span>`; }
+function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
 
 // ============================================================
 // v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual).
