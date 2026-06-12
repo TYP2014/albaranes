@@ -15631,8 +15631,11 @@ function _tallerSemaforo(estado) {
 function renderTallerTabla() {
   const body = document.getElementById('tallerTablaBody');
   if (!body) return;
+  // v107K41: filtro por matrícula (campo de búsqueda encima de la tabla)
+  const _q = (document.getElementById('tallerSearchMat')?.value || '').toUpperCase().replace(/\s+/g, '');
   const vs = tallerVehiculos
     .filter(v => v.empresa === tallerEmpresaActiva)
+    .filter(v => !_q || (v.matricula || '').toUpperCase().replace(/\s+/g, '').includes(_q))
     .sort((a, b) => {
       // Ordenar por estado (peor primero) y luego matrícula
       const ea = _tallerEstadoVehiculo(a).estado, eb = _tallerEstadoVehiculo(b).estado;

@@ -1211,6 +1211,11 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
         <div class="card-bd" style="overflow-x:auto">
+          <!-- v107K41: filtro por matrícula en Mantenimientos -->
+          <div style="margin-bottom:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input class="fi" id="tallerSearchMat" placeholder="🔍 Filtrar por matrícula..." oninput="renderTallerTabla()" style="text-transform:uppercase;max-width:260px">
+            <button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('tallerSearchMat').value='';renderTallerTabla()">✕ Limpiar</button>
+          </div>
           <table class="tbl" id="tallerTabla">
             <thead>
               <tr>
@@ -1660,6 +1665,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=102"></script>
+<script src="app.js?v=103"></script>
 </body>
 </html>
