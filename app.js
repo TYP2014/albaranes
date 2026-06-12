@@ -4436,6 +4436,21 @@ async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false)
   · albaran = el "Nº albarán" tal cual lo veas (ej. "26/00009880").
 Si el albarán NO es de BENSEC, ignora esta regla y sigue con las de abajo.
 
+🔴🔴 IDM / SECTRES — COMPRUÉBALO ANTES QUE NADA (v107K47, Juan Carlos 12/06/2026): si la CABECERA pone "SECTRES", o el sello/logo pone "IDM morteros", o aparece "INVESTIGACIÓN DESARROLLO MORTEROS" (CIF B55590772, Planta Pontils, Tarragona) y es un "Ticket de Pesada" de SALIDAS, es un albarán de IDM. Aplica SIEMPRE estas reglas — NO las de Holcim, AUNQUE el cliente sea Holcim y AUNQUE haya un sello de "Fábrica de Montcada":
+  · proveedor = "IDM (Investigación Desarrollo Morteros)"
+  · cliente = "Holcim España, S.A.U."
+  · planta (ORIGEN) = "Pontils"
+  · obra (DESTINO) = se lee del campo "Destino:" (arriba a la derecha). SOLO hay dos posibles: si pone "HOLCIM MONTCADA" → "Fábrica Montcada"; si pone "HOLCIM ESFERA TARRAGONA" → "Esfera Tarragona".
+  · albaran = el campo "Número" del tipo "GV / XXXX" → cópialo SIN espacios, ej. "GV/887".
+  · fecha = el campo "Fecha".
+  · MATERIAL y tm — mira la tabla "Descripción / Palets / Unidades":
+      - El MATERIAL es la línea cuya descripción empieza por "BB" (Big Bag, ej. "BB Formigó ecolabel 30% R LAFARGE") o por "Sac" (sacos, ej. "Sac Formigó HS-25 Gris LAFARGE"). producto = esa descripción LITERAL.
+      - tm = el número de la columna "Palets" de esa línea de material. En IDM cada Big Bag/palet de material pesa 1 tonelada (26 palets = tm 26). 🔴 En IDM el tm PUEDE ser menor de 20: NO apliques aquí el límite "tm entre 20 y 36"; pon el número de big bags/palets tal cual.
+  · LÍNEAS QUE NO SE LEEN (ignóralas, NO son material): "Palet Estàndard" (el positivo), "LDPE PLÀSTIC FILM", "PAPER", "Contribució SCRAP".
+  · RETORNO DE PALETS — SÍ se lee: si hay una línea "Retorn Palet Estàndard" con un número NEGATIVO (ej. -61, -27), apúntalo en observaciones como "Retorno NN palets" (NN = el número sin el signo; ej. -61 → "Retorno 61 palets").
+  · tractora = la matrícula ANOTADA A MANO (formato 4 dígitos + 3 letras, ej. 9499LHT). El campo impreso pone "TTE PROPIO" (transporte propio): NUNCA pongas "TTE PROPIO" como matrícula. Si la matrícula manuscrita no se lee con seguridad, deja tractora vacía (null). El remolque manuscrito empieza por R (ej. R8672BCN) y NO va como tractora.
+Si el albarán NO es de IDM/SECTRES, ignora esta regla y sigue con las de abajo.
+
 🔴 PRIORIDAD ABSOLUTA — HOLCIM ALBARÁN DE SALIDA (v107D3, leer ANTES que ninguna otra regla):
 
 Un Holcim ALBARÁN DE SALIDA se identifica por: cabecera con logo "HOLCIM" + título "Albarán" o "Albarán de traslado" + número de 11 dígitos que empieza por 31... (ej. 31042168675, 31041060962, 31048148672) O número 35692XXXXXXX (sacos paletizados). NO confundir con "ALBARÁN DE RECEPCIÓN DE MATERIAL" (esos siguen otras reglas).
