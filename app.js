@@ -7044,8 +7044,9 @@ function _svgIco(inner, color, title) {
 function factProvIcon(r) {
   if (!_puedeSeleccionMultiple()) return '';
   const est = r.estado_factura_recibida || 'pendiente';
-  if (est === 'recibida') return _svgIco('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4.5-4.5"/>', 'var(--pu)', 'Nos han facturado');
-  return _svgIco('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>', '#6b7280', 'Pendiente de que nos facturen');
+  // Nos han facturado los SUBCONTRATADOS: morado=nos facturó, rojo=sin recibir.
+  if (est === 'recibida') return _pill('✓ Nos facturó', '#7c3aed', 'El transportista ya nos ha facturado');
+  return _pill('Sin recibir', '#dc2626', 'Pendiente de que el transportista nos facture');
 }
 
 // v107K26 — contenido completo de la primera celda (estado) de la fila de Albaranes. Se usa tanto en
@@ -7056,14 +7057,17 @@ function _celdaEstadoHtml(r) {
   return `${rowBadge(r)} ${factIcon(r)} ${factProvIcon(r)}${dl}`;
 }
 
+// v107K35 — etiqueta de estado (pill de texto). Con color/relleno = hecho; rojo = pendiente.
+function _pill(txt, bg, title) {
+  return `<span title="${title || txt}" style="display:inline-block;background:${bg};color:#fff;font-size:11px;font-weight:600;line-height:1;padding:3px 7px;border-radius:5px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
+}
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
   const est = r.estado_facturacion || 'pendiente';
-  // facturado = círculo con check (verde); no_facturable = círculo con aspa (rojo);
-  // pendiente = reloj (ámbar). Mismo estilo de línea para los tres.
-  if (est === 'facturado')      return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.4 2.4 4.6-5"/>', '#34d399', 'Facturado');
-  if (est === 'no_facturable')  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M7 7l10 10"/>', 'var(--er)', 'No facturable');
-  return _svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>', 'var(--er)', 'Pendiente de facturar');
+  // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
+  if (est === 'facturado')      return _pill('✓ Facturado', '#16a34a', 'Facturado a cliente');
+  if (est === 'no_facturable')  return _pill('No facturable', '#6b7280', 'No facturable');
+  return _pill('Pendiente', '#dc2626', 'Pendiente de facturar al cliente');
 }
 
 // Marca el estado de facturación de UN albarán y lo guarda en Supabase.
