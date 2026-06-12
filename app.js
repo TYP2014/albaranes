@@ -7136,8 +7136,8 @@ function _facturacionModalHtml(r) {
     <button onclick="event.stopPropagation();marcarFacturacion('${id}','${val}')"
       style="flex:1;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;
              border:1px solid ${activo ? col : 'var(--bd)'};
-             background:${activo ? col + '26' : 'var(--bg2)'};
-             color:${activo ? col : 'var(--tx)'}">${etiqueta}</button>`;
+             background:${activo ? col : 'var(--bg2)'};
+             color:${activo ? '#fff' : 'var(--tx)'}">${etiqueta}</button>`;
   return `
     <div style="font-weight:600;color:#7cc4ff;margin-bottom:8px;font-size:13px">🧾 Facturación a cliente</div>
     <div style="display:flex;gap:6px">
