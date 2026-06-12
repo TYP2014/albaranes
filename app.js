@@ -15717,6 +15717,7 @@ function tallerAbrirModal(vehId) {
         <select class="fi" id="tallerVintKm" style="font-size:11px;padding:4px">${_tallerOpcsKm(v.intervalo_km || 60000)}</select></div>
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:100px;font-size:11px;padding:4px"></div>
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
+      <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
     </div>
     <div style="overflow-x:auto">
       <table class="tbl" id="tallerModalTabla">
@@ -15824,6 +15825,33 @@ async function tallerGuardarVehiculo(vehId) {
     toast('Configuración guardada', 'ok');
     await loadTallerData();
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107K42: eliminar vehículo (cualquier usuario con acceso a Taller) con DOBLE
+// confirmación. Borrado reversible: marca activo=false (loadTallerData solo carga
+// activo=true), así el vehículo desaparece de Mantenimientos pero NO se pierde de la BD.
+// Para recuperarlo: UPDATE taller_vehiculos SET activo=true WHERE matricula='XXXX';
+async function tallerEliminarVehiculo(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const mat = v.matricula || '';
+  // 1ª confirmación: intención
+  if (!confirm(`¿ELIMINAR el vehículo ${mat} (${v.empresa})?\n\nDejará de aparecer en Mantenimientos.`)) return;
+  // 2ª confirmación: escribir la matrícula exacta (a prueba de errores)
+  const tecleado = prompt(`CONFIRMA: escribe la matrícula ${mat} para eliminarla.`);
+  if (tecleado === null) return; // canceló
+  const norm = s => (s || '').toUpperCase().replace(/\s+/g, '');
+  if (norm(tecleado) !== norm(mat)) { toast('La matrícula no coincide. No se ha eliminado.', 'err'); return; }
+  try {
+    const { error } = await sb.from('taller_vehiculos').update({ activo: false }).eq('id', vehId);
+    if (error) throw error;
+    toast(`Vehículo ${mat} eliminado`, 'ok');
+    closeTallerMant();
+    await loadTallerData();
+  } catch (e) {
+    console.error('[tallerEliminarVehiculo]', e);
+    toast('Error eliminando: ' + (e.message || e), 'err');
+  }
 }
 
 // Añadir vehículo nuevo manualmente (compra de camión, etc.)
