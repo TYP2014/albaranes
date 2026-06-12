@@ -7132,18 +7132,18 @@ function _facturacionModalHtml(r) {
   const fechaTxt = (est === 'facturado' && r.factura_fecha)
     ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">Facturado el ${fmtTS(r.factura_fecha)}</div>`
     : '';
-  const btn = (val, etiqueta, activo) => `
+  const btn = (val, etiqueta, activo, col) => `
     <button onclick="event.stopPropagation();marcarFacturacion('${id}','${val}')"
       style="flex:1;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;
-             border:1px solid ${activo ? 'var(--ac)' : 'var(--bd)'};
-             background:${activo ? 'rgba(0,232,122,.15)' : 'var(--bg2)'};
-             color:${activo ? 'var(--ac)' : 'var(--tx)'}">${etiqueta}</button>`;
+             border:1px solid ${activo ? col : 'var(--bd)'};
+             background:${activo ? col + '26' : 'var(--bg2)'};
+             color:${activo ? col : 'var(--tx)'}">${etiqueta}</button>`;
   return `
-    <div style="font-weight:600;color:#7cc4ff;margin-bottom:8px;font-size:13px">🧾 Facturación</div>
+    <div style="font-weight:600;color:#7cc4ff;margin-bottom:8px;font-size:13px">🧾 Facturación a cliente</div>
     <div style="display:flex;gap:6px">
-      ${btn('pendiente',     '📌 Pendiente',     est === 'pendiente')}
-      ${btn('facturado',     '🟢 Facturado',     est === 'facturado')}
-      ${btn('no_facturable', '🚫 No facturable', est === 'no_facturable')}
+      ${btn('pendiente',     'Pendiente',     est === 'pendiente',     '#dc2626')}
+      ${btn('facturado',     '✓ Facturado',   est === 'facturado',     '#16a34a')}
+      ${btn('no_facturable', 'No facturable', est === 'no_facturable', '#6b7280')}
     </div>
     ${fechaTxt}`;
 }
