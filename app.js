@@ -7046,7 +7046,7 @@ function factProvIcon(r) {
   const est = r.estado_factura_recibida || 'pendiente';
   // Nos han facturado los SUBCONTRATADOS: morado=nos facturó, rojo=sin recibir.
   if (est === 'recibida') return _pill('✓ Nos facturó', '#7c3aed', 'El transportista ya nos ha facturado');
-  return _pill('Sin recibir', '#dc2626', 'Pendiente de que el transportista nos facture');
+  return _pillOut('Sin factura', '#a855f7', 'Pendiente de que el transportista nos facture');
 }
 
 // v107K26 — contenido completo de la primera celda (estado) de la fila de Albaranes. Se usa tanto en
@@ -7059,7 +7059,10 @@ function _celdaEstadoHtml(r) {
 
 // v107K35 — etiqueta de estado (pill de texto). Con color/relleno = hecho; rojo = pendiente.
 function _pill(txt, bg, title) {
-  return `<span title="${title || txt}" style="display:inline-block;background:${bg};color:#fff;font-size:11px;font-weight:600;line-height:1;padding:3px 7px;border-radius:5px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
+  return `<span title="${title || txt}" style="display:inline-block;background:${bg};color:#fff;font-size:9px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
+}
+function _pillOut(txt, color, title) {
+  return `<span title="${title || txt}" style="display:inline-block;background:transparent;color:${color};border:1.2px solid ${color};font-size:9px;font-weight:600;line-height:1;padding:1px 4px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
 }
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
