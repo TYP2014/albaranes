@@ -15525,7 +15525,7 @@ async function loadTallerData() {
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
-    if (body) body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error cargando taller: ${esc(e.message || e)}</td></tr>`;
+    if (body) body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error cargando taller: ${esc(e.message || e)}</td></tr>`;
   }
 }
 
@@ -15644,17 +15644,26 @@ function renderTallerTabla() {
       return (a.matricula || '').localeCompare(b.matricula || '');
     });
   if (!vs.length) {
-    body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">No hay vehículos en ${tallerEmpresaActiva}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">No hay vehículos en ${tallerEmpresaActiva}</td></tr>`;
     return;
   }
   body.innerHTML = vs.map(v => {
     const e = _tallerEstadoVehiculo(v);
     const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? '🚛' : '🚚';
+    // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
+    let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
+    if (v.km_actual_fecha) {
+      const _d = Math.floor((Date.now() - new Date(v.km_actual_fecha + 'T00:00:00')) / 86400000);
+      const _txt = v.km_actual_fecha.split('-').reverse().join('/');
+      const _col = _d > 45 ? ';color:var(--wn);font-weight:600' : '';
+      kmFechaCell = `<td style="font-size:11px${_col}" title="Km de hace ${_d} días">${_txt}</td>`;
+    }
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
       <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
       <td style="font-size:11px">${tipoIcon} ${v.tipo_vehiculo === 'semirremolque' ? 'Remolque' : 'Tractora'}</td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
+      ${kmFechaCell}
       <td style="font-size:11px">${e.ultimaFecha}</td>
       <td style="font-size:11px">${e.proxFecha}</td>
       <td style="font-size:11px">${e.proxKm}</td>
@@ -16020,12 +16029,19 @@ async function gasImportarKmExcel(file) {
     const fIniISO = toISO(perIni), fFinISO = toISO(perFin);
 
     let guardados = 0, dupOmitidos = 0, sinDatos = 0;
+    const kmMaxPorMat = {}; // v107K43: km_fin más alto de cada matrícula → se lleva a Taller
     for (let i = hIdx + 1; i < rows.length; i++) {
       const fila = rows[i] || [];
       const mat = String(fila[cMat] || '').toUpperCase().replace(/[\s\-]/g, '').trim();
       if (!mat || !/^R?\d/.test(mat)) continue;
       const kIni = parseInt(String(fila[cKIni] || '0').replace(/[^\d]/g, ''), 10) || 0;
       const kFin = parseInt(String(fila[cKFin] || '0').replace(/[^\d]/g, ''), 10) || 0;
+      // v107K43: guardar el km_fin más alto por matrícula CON su fecha real de lectura
+      // (la "fecha fin" del Excel, no la de hoy), para saber de cuándo son esos km.
+      const _fFinReg = (cFFin >= 0 ? toISO(fila[cFFin]) : null) || fFinISO;
+      if (kFin > 0 && (!kmMaxPorMat[mat] || kFin > kmMaxPorMat[mat].km)) {
+        kmMaxPorMat[mat] = { km: kFin, fecha: _fFinReg };
+      }
       let dif = cDif >= 0 ? (parseInt(String(fila[cDif] || '0').replace(/[^\d]/g, ''), 10) || 0) : 0;
       if (!dif && kFin && kIni) dif = kFin - kIni;
       // fecha inicio/fin: de la fila si existe, si no la del periodo global
@@ -16045,11 +16061,33 @@ async function gasImportarKmExcel(file) {
       else console.warn('[gasImportarKmExcel] error guardando ' + mat + ':', error.message);
     }
 
+    // v107K43: trasladar el km más actual de cada matrícula al "KM actual" de Taller.
+    // Solo sube (el cuentakm no baja). No depende de que Taller esté cargado en pantalla.
+    let tallerAct = 0;
+    try {
+      const { data: vehs } = await sb.from('taller_vehiculos').select('id,matricula,km_actual').eq('activo', true);
+      const byMat = {};
+      (vehs || []).forEach(v => { byMat[String(v.matricula || '').toUpperCase().replace(/[\s\-]/g, '')] = v; });
+      const hoyTaller = new Date().toISOString().slice(0, 10);
+      for (const mat in kmMaxPorMat) {
+        const kmFin = kmMaxPorMat[mat].km;
+        const fechaKm = kmMaxPorMat[mat].fecha || hoyTaller; // fecha real de la lectura
+        const v = byMat[mat];
+        if (!v) continue;
+        if (v.km_actual && kmFin <= v.km_actual) continue; // no machacar un km mayor ya guardado
+        const { error } = await sb.from('taller_vehiculos')
+          .update({ km_actual: kmFin, km_actual_fecha: fechaKm, updated_at: new Date().toISOString() })
+          .eq('id', v.id);
+        if (!error) tallerAct++;
+      }
+    } catch (e) { console.warn('[gasImportarKmExcel] traslado km a Taller:', e); }
+
     let msg = '✅ Km tacógrafo: ' + guardados + ' camiones guardados';
     if (empresaDoc) msg += ' (' + empresaDoc + ')';
     if (perIni && perFin) msg += ' · periodo ' + perIni + ' a ' + perFin;
     if (dupOmitidos) msg += ' · ' + dupOmitidos + ' ya estaban (omitidos)';
     if (sinDatos) msg += ' · ' + sinDatos + ' sin km (ignorados)';
+    if (tallerAct) msg += ' · 🔧 ' + tallerAct + ' km al día en Taller';
     console.log('[gasImportarKmExcel] ' + msg);
     toast(msg, guardados ? 'ok' : 'warn');
     // v107BK: invalidar la cache de km para que la vista de Consumo
