@@ -3936,12 +3936,19 @@ async function _processOne(it, type, key, timeoutMs) {
             const tmAbs = Math.abs(parseFloat(data.tm) || 0);
             data.tm = tmAbs > 0 ? tmAbs : null;
             data.devolucion_palets = true;
-            const _esMontcada = (s) => /MONTCADA/i.test(String(s || ''));
-            let _almacen = '';
-            if (data.planta && !_esMontcada(data.planta)) _almacen = data.planta;
-            else if (data.obra && !_esMontcada(data.obra)) _almacen = data.obra;
-            data.obra = /MORTERO/i.test(String(data.producto)) ? 'Montcada Mortero' : 'Fábrica Montcada';
-            data.planta = _almacen;
+            // v107K51: IDM/SECTRES/BENSEC devuelven los palets AL PROVEEDOR (vuelven
+            // DESDE Montcada). En esos NO invertimos: respetamos el origen/destino que
+            // ya leyó la IA (origen "Fábrica Montcada" → destino el proveedor, ej. Pontils).
+            // El forzado a Montcada solo aplica a las Notas de recibo de Holcim.
+            const _provRetornoAlProveedor = /\b(IDM|SECTRES|BENSEC)\b/i.test(String(data.proveedor || ''));
+            if (!_provRetornoAlProveedor) {
+              const _esMontcada = (s) => /MONTCADA/i.test(String(s || ''));
+              let _almacen = '';
+              if (data.planta && !_esMontcada(data.planta)) _almacen = data.planta;
+              else if (data.obra && !_esMontcada(data.obra)) _almacen = data.obra;
+              data.obra = /MORTERO/i.test(String(data.producto)) ? 'Montcada Mortero' : 'Fábrica Montcada';
+              data.planta = _almacen;
+            }
             const obsActual = String(data.observaciones || '').trim();
             if (!/devoluc/i.test(obsActual)) {
               data.observaciones = obsActual
