@@ -4032,11 +4032,17 @@ async function _processOne(it, type, key, timeoutMs) {
             // Si no coincide ninguna regla, NO es suplemento (es material real)
             return false;
           };
+          // v107K55: en IDM/SECTRES/BENSEC la línea "Retorno palets" SÍ es válida
+          // (es un retorno facturable a 0,75€/palet), NO se filtra como los palets normales.
+          const _esProvRetornoLinea = /\b(IDM|SECTRES|BENSEC)\b/i.test(String(data.proveedor || ''));
+          const _esRetornoLinea = (m) => _esProvRetornoLinea && /retorn/i.test(String((m && m.producto) || ''));
           const materialesValidos = data.materiales.filter(m =>
             m && m.producto && parseFloat(m.tm) > 0
-            && !_esPalet(m.producto)
-            && !/^70001/.test(String(m.codigo || m.cod || ''))
-            && !_esSuplementoMolins(m)
+            && (_esRetornoLinea(m) || (
+                 !_esPalet(m.producto)
+                 && !/^70001/.test(String(m.codigo || m.cod || ''))
+                 && !_esSuplementoMolins(m)
+               ))
           );
           // Log adicional v107D6: cuántos materiales descartó por palet.
           const _descartadosPalet = data.materiales.length - materialesValidos.length;
@@ -4091,6 +4097,13 @@ async function _processOne(it, type, key, timeoutMs) {
               delete filaMat.db_id;
               filaMat.producto = mat.producto;
               filaMat.tm = parseFloat(mat.tm);
+              // v107K55: la línea de retorno de palets (IDM/BENSEC) va al REVÉS que el
+              // material: los palets vuelven DESDE el destino del material HACIA el origen.
+              if (_esRetornoLinea(mat)) {
+                const _o = filaMat.planta, _d = filaMat.obra;
+                filaMat.planta = _d;
+                filaMat.obra = _o;
+              }
               filaMat.linea_albaran = lineaIdx;
               delete filaMat.materiales;
               if (typeof it._tandaSubida === 'number') filaMat._tandaSubida = it._tandaSubida;
@@ -4457,7 +4470,7 @@ Si el albarán NO es de BENSEC, ignora esta regla y sigue con las de abajo.
       - Si hay VARIAS líneas de material (ej. una "BB ..." y una "Sac ...") → devuelve materiales: [ {producto:"<descripción 1>", tm:<tm 1>}, {producto:"<descripción 2>", tm:<tm 2>} ] con UN OBJETO por cada línea de material, en el orden en que aparecen, IGUAL que en los albaranes Holcim de sacos paletizados. Ejemplo real albarán GV/994: "BB Formigó ecolabel 30% R LAFARGE / Palets 15" + "Sac Formigó HS-25 Gris LAFARGE / Unidades 504" → materiales=[{producto:"BB Formigó ecolabel 30% R LAFARGE", tm:15},{producto:"Sac Formigó HS-25 Gris LAFARGE", tm:12.6}].
       🔴 En IDM el tm PUEDE ser menor de 20: NO apliques aquí el límite "tm entre 20 y 36"; pon el valor calculado tal cual.
   · LÍNEAS QUE NO SE LEEN (ignóralas, NO son material): "Palet Estàndard" (el positivo), "LDPE PLÀSTIC FILM", "PAPER", "Contribució SCRAP".
-  · RETORNO DE PALETS — SÍ se lee: si hay una línea "Retorn Palet Estàndard" con un número NEGATIVO (ej. -61, -27), apúntalo en observaciones como "Retorno NN palets" (NN = el número sin el signo; ej. -61 → "Retorno 61 palets").
+  · RETORNO DE PALETS (cuando el albarán TAMBIÉN lleva material) — se lee como UNA LÍNEA MÁS: si además de la(s) línea(s) de material (BB/Sac) hay una línea "Retorn Palet Estàndard" con un número NEGATIVO (ej. -61), añádela al array materiales como un objeto MÁS: {producto:"Retorno palets", tm:<nº de palets en valor ABSOLUTO>}. Es decir, un albarán con material + retorno devuelve TODAS las líneas en materiales. Ejemplo real albarán GV/1180: "BB Formigó ecolabel 30% R LAFARGE / Palets 26" + "Retorn Palet Estàndard -61" → materiales=[{producto:"BB Formigó ecolabel 30% R LAFARGE", tm:26},{producto:"Retorno palets", tm:61}]. (La línea "Palet Estàndard" POSITIVA se sigue IGNORANDO; solo cuenta el "Retorn" NEGATIVO.) El sistema ya coloca esa línea de retorno en sentido inverso (vuelve a IDM), tú solo devuélvela en materiales.
   · ALBARÁN SOLO DE RETORNO (sin material): si NO hay NINGUNA línea "BB ..." ni "Sac ..." y lo único que hay es "Retorn Palet Estàndard" (negativo) y/o "Contribució SCRAP", es un albarán de SOLO retorno: son palets vacíos que VUELVEN desde Montcada hacia IDM. En este caso el origen y el destino van AL REVÉS que en un albarán normal: planta (ORIGEN) = "Fábrica Montcada" (de donde vuelven los palets) y obra (DESTINO) = "Pontils" (a donde se devuelven). producto = "Retorno palets", tm = el número de palets devueltos (el valor ABSOLUTO del negativo de "Retorn Palet Estàndard"; ej. -27 → tm 27), observaciones = "Retorno NN palets". 🔴 OJO: el campo "Destino:" del papel pone "SP HOLCIM MONTCADA", pero en un albarán de solo retorno eso es el ORIGEN (de donde vuelven los palets), NO el destino. Ejemplo real albarán GV/942 (línea "Retorn Palet Estàndard -27", el papel pone "Destino: 5500119787 SP HOLCIM MONTCADA") → producto="Retorno palets", tm=27, planta="Fábrica Montcada", obra="Pontils", observaciones="Retorno 27 palets".
   · tractora = la matrícula ANOTADA A MANO (formato 4 dígitos + 3 letras, ej. 9499LHT). El campo impreso pone "TTE PROPIO" (transporte propio): NUNCA pongas "TTE PROPIO" como matrícula. Si la matrícula manuscrita no se lee con seguridad, deja tractora vacía (null). El remolque manuscrito empieza por R (ej. R8672BCN) y NO va como tractora.
 Si el albarán NO es de IDM/SECTRES, ignora esta regla y sigue con las de abajo.
