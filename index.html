@@ -557,6 +557,8 @@ if (typeof pdfjsLib !== 'undefined') {
            loadUserMap() cuando se confirma que currentRole === 'admin'. Para gestores
            y conductores queda oculta (no necesitan ver datos globales de toda la flota). -->
       <div class="tab" id="tabProduccion" onclick="switchTab('produccion')" style="display:none">📊 Producción</div>
+      <!-- v107K56: pestaña Panel (cuadro de mando) SOLO admin. Se muestra desde loadUserMap cuando currentRole==='admin'. -->
+      <div class="tab" id="tabPanel" onclick="switchTab('panel')" style="display:none">🏠 Panel</div>
       <!-- v107FA: pestaña Fichaje (registro de jornada). Oculta por defecto.
            Solo la ven: el admin (vista completa de todas las trabajadoras) y
            quien tenga puede_fichar=TRUE en profiles (su propio fichaje). -->
@@ -1021,6 +1023,23 @@ if (typeof pdfjsLib !== 'undefined') {
     </div>
 
     <!-- v105: TAB PRODUCCIÓN MENSUAL POR TRANSPORTISTA -->
+    <!-- v107K56: PANEL (cuadro de mando) — solo admin. Las tarjetas las rellena loadPanel(). -->
+    <div id="tabContentPanel" class="wrap" style="display:none">
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>PANEL — RESUMEN</div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="loadPanel()" style="display:flex;align-items:center;gap:5px" title="Actualizar el panel">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card-bd">
+          <div id="panelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+            <div style="color:var(--mu);font-size:12px;padding:20px">Cargando panel...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="tabContentProduccion" class="wrap" style="display:none">
       <div class="card">
         <div class="card-hd">
@@ -1665,6 +1684,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=117"></script>
+<script src="app.js?v=118"></script>
 </body>
 </html>

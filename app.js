@@ -839,6 +839,9 @@ async function onLogin(user) {
       // Para gestores como María del Mar queda oculta — no necesitan ver datos consolidados.
       const tProd = document.getElementById('tabProduccion');
       if (tProd) tProd.style.display = 'flex';
+      // v107K56: pestaña Panel (cuadro de mando) también solo para admin.
+      const tPanel = document.getElementById('tabPanel');
+      if (tPanel) tPanel.style.display = 'flex';
     } else {
       // v103b: el botón "Re-corregir TODO" toca el campo transportista (entre otros).
       // Para mantener la política "solo admin cambia transportistas", lo ocultamos a gestores.
@@ -6163,6 +6166,76 @@ function _prodCalcular() {
   return { filas, totalAlb: filtrados.length, totalTn };
 }
 
+// v107K56: PANEL — cuadro de mando (solo admin). Usa datos ya cargados (records, itvRecords).
+async function loadPanel() {
+  const cont = document.getElementById('panelCards');
+  if (!cont) return;
+  // Asegurar ITVs cargadas para la tarjeta de flota.
+  try { if (!Array.isArray(itvRecords) || !itvRecords.length) await loadItvData(); } catch (e) { console.warn('[panel] itv:', e); }
+
+  const hoy = new Date();
+  const mesAct = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+  const mAntD = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const mesAnt = mAntD.getFullYear() + '-' + String(mAntD.getMonth() + 1).padStart(2, '0');
+
+  const esRetorno = (r) => /palet/i.test(String(r.producto || ''));
+  const validos = (records || []).filter(r => !r._dup);
+
+  // Este mes vs mes anterior (TN excluye retornos de palets para no inflar)
+  let tnMes = 0, nMes = 0, tnAnt = 0, nAnt = 0;
+  validos.forEach(r => {
+    const f = String(r.fecha || '').slice(0, 7);
+    const tn = (!esRetorno(r) && r.tm != null) ? Number(r.tm) : 0;
+    if (f === mesAct) { tnMes += tn; nMes++; }
+    else if (f === mesAnt) { tnAnt += tn; nAnt++; }
+  });
+  const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null;
+  const flecha = (p) => p == null ? 'sin comparativa' : (p >= 0 ? `▲ ${p}% vs mes anterior` : `▼ ${Math.abs(p)}% vs mes anterior`);
+  const colFl = (p) => p == null ? 'var(--mu)' : (p >= 0 ? 'var(--ac)' : 'var(--er)');
+
+  // Pendiente de facturar (ni facturado ni no_facturable)
+  let nPend = 0, tnPend = 0;
+  validos.forEach(r => {
+    const ef = r.estado_facturacion;
+    if (ef !== 'facturado' && ef !== 'no_facturable') {
+      nPend++;
+      if (!esRetorno(r) && r.tm != null) tnPend += Number(r.tm);
+    }
+  });
+
+  // ITVs de flota
+  let itvCad = 0, itvProx = 0;
+  if (Array.isArray(itvRecords)) {
+    itvRecords.forEach(r => {
+      const e = _itvEstado(r);
+      if (e.tipo === 'caducada') itvCad++;
+      else if (e.tipo === 'aviso') itvProx++;
+    });
+  }
+
+  const fmt = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
+  const tarjeta = (titulo, valor, sub, color, onclick) => `
+    <div onclick="${onclick}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:16px;cursor:pointer">
+      <div style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${titulo}</div>
+      <div style="font-size:26px;font-weight:700;color:${color || '#e8eef5'}">${valor}</div>
+      <div style="font-size:12px;color:var(--mu);margin-top:6px">${sub}</div>
+    </div>`;
+
+  cont.innerHTML =
+    tarjeta('Este mes',
+      fmt(tnMes) + ' TN',
+      `${nMes} albaranes · <span style="color:${colFl(pct(tnMes, tnAnt))}">${flecha(pct(tnMes, tnAnt))}</span>`,
+      'var(--ac)', "switchTab('alb')") +
+    tarjeta('Pendiente de facturar',
+      nPend + ' albaranes',
+      fmt(tnPend) + ' TN sin facturar',
+      'var(--wn)', "switchTab('facturacion')") +
+    tarjeta('ITV flota',
+      (itvCad + itvProx) + '',
+      `${itvCad} caducadas · ${itvProx} próximas (≤15 días)`,
+      itvCad > 0 ? 'var(--er)' : (itvProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('itv')");
+}
+
 function loadProduccion() {
   // Punto de entrada al cambiar a esta pestaña
   _prodInitMes();
@@ -10649,7 +10722,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','fichaje','subir','admin','facturacion'].forEach(t => {
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','fichaje','subir','admin','facturacion'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -10673,6 +10746,8 @@ function switchTab(tab) {
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v105: cargar tabla de producción al entrar en su pestaña
   if (tab === 'produccion') { loadProduccion(); }
+  // v107K56: cargar el Panel al entrar en su pestaña
+  if (tab === 'panel') { loadPanel(); }
   // v107j: cargar Neumáticos al entrar en su pestaña
   if (tab === 'neum') { loadNeumData(); }
   // v107M: cargar Vacaciones al entrar en su pestaña
