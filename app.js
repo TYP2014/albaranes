@@ -8126,6 +8126,33 @@ async function gasRenderConsumo() {
       matsUnicas.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${m}</option>`).join('');
     if (selVeh.value) filas = filas.filter(f => f.mat === selVeh.value);
   }
+
+  // v107K65: tarjetas resumen del consumo (litros, km, media L/100km, AdBlue, camiones)
+  const resEl = document.getElementById('gasConResumen');
+  if (resEl) {
+    let totL = 0, totKm = 0, totAd = 0;
+    const matsSet = new Set();
+    filas.forEach(f => {
+      if (f.litros != null) totL += f.litros;
+      if (f.km != null) totKm += f.km;
+      if (f.adblue != null) totAd += f.adblue;
+      if (f.mat) matsSet.add(f.mat);
+    });
+    const media = totKm > 0 ? (totL / totKm * 100) : null;
+    const colMedia = media == null ? '#ffffff' : (media > 40 ? '#ff5050' : (media >= 35 ? '#ffa726' : '#00e87a'));
+    const f0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
+    const card = (titulo, valor, color) => `
+      <div style="background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.10);border-left:3px solid ${color};border-radius:12px;padding:13px 15px">
+        <div style="font-size:10px;color:#fff;text-transform:uppercase;letter-spacing:.5px;font-weight:600;opacity:.9;margin-bottom:7px">${titulo}</div>
+        <div style="font-size:23px;font-weight:800;color:${color};line-height:1">${valor}</div>
+      </div>`;
+    resEl.innerHTML =
+      card('Litros gasoil', f0(totL) + ' L', '#ffa726') +
+      card('Km recorridos', f0(totKm) + ' km', '#42a5f5') +
+      card('Media L/100km', media != null ? media.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—', colMedia) +
+      card('AdBlue', f0(totAd) + ' L', '#78909c') +
+      card('Camiones', matsSet.size + '', '#ab47bc');
+  }
   // J18: guardar la tabla calculada (con su empresa y periodo) para el Excel de consumo.
   window._consumoUltimo = {
     filas: filas, empresa: emp,

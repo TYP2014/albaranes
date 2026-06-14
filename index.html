@@ -747,6 +747,8 @@ if (typeof pdfjsLib !== 'undefined') {
               <button class="btn bs" onclick="gasConsumoLimpiar()" style="font-size:11px">✕ Limpiar fechas</button>
               <button class="btn bp" onclick="exportConsumoExcel()" style="font-size:11px">📥 Excel consumo</button>
             </div>
+            <!-- v107K65: tarjetas resumen del consumo (las rellena gasRenderConsumo) -->
+            <div id="gasConResumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
             <div class="tbl-wrap">
               <table>
                 <thead><tr>
@@ -1701,6 +1703,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=125"></script>
+<script src="app.js?v=126"></script>
 </body>
 </html>
