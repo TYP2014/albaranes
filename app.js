@@ -6172,6 +6172,8 @@ async function loadPanel() {
   if (!cont) return;
   // Asegurar ITVs cargadas para la tarjeta de flota.
   try { if (!Array.isArray(itvRecords) || !itvRecords.length) await loadItvData(); } catch (e) { console.warn('[panel] itv:', e); }
+  // v107K60: asegurar vehículos de Taller cargados para la tarjeta de mantenimiento.
+  try { if (!Array.isArray(tallerVehiculos) || !tallerVehiculos.length) await loadTallerData(); } catch (e) { console.warn('[panel] taller:', e); }
 
   const hoy = new Date();
   const mesAct = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
@@ -6250,6 +6252,18 @@ async function loadPanel() {
     });
   }
 
+  // v107K60: Mantenimiento (km/tiempo) — vencidos y próximos (estado actual de la flota)
+  let mantVenc = 0, mantProx = 0;
+  if (Array.isArray(tallerVehiculos)) {
+    tallerVehiculos.forEach(v => {
+      try {
+        const e = _tallerEstadoVehiculo(v);
+        if (e.estado === 'vencido') mantVenc++;
+        else if (e.estado === 'pronto') mantProx++;
+      } catch (_) {}
+    });
+  }
+
   const fmt = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
   const tarjeta = (titulo, valor, sub, color, onclick) => `
     <div onclick="${onclick}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:16px;cursor:pointer">
@@ -6270,7 +6284,11 @@ async function loadPanel() {
     tarjeta('ITV flota (ahora)',
       (itvCad + itvProx) + '',
       `${itvCad} caducadas · ${itvProx} próximas (≤15 días)`,
-      itvCad > 0 ? 'var(--er)' : (itvProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('itv')");
+      itvCad > 0 ? 'var(--er)' : (itvProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('itv')") +
+    tarjeta('Mantenimiento (ahora)',
+      (mantVenc + mantProx) + '',
+      `${mantVenc} vencidos · ${mantProx} próximos`,
+      mantVenc > 0 ? 'var(--er)' : (mantProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('taller')");
 }
 
 
