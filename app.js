@@ -6266,10 +6266,13 @@ async function loadPanel() {
 
   const fmt = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
   const tarjeta = (titulo, valor, sub, color, onclick) => `
-    <div onclick="${onclick}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:16px;cursor:pointer">
-      <div style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${titulo}</div>
-      <div style="font-size:26px;font-weight:700;color:${color || '#e8eef5'}">${valor}</div>
-      <div style="font-size:12px;color:var(--mu);margin-top:6px">${sub}</div>
+    <div onclick="${onclick}"
+         onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='rgba(255,255,255,.20)'"
+         onmouseout="this.style.transform='none';this.style.borderColor='rgba(255,255,255,.10)'"
+         style="position:relative;background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.10);border-left:3px solid ${color || '#00e87a'};border-radius:12px;padding:16px 18px;cursor:pointer;transition:transform .12s,border-color .12s">
+      <div style="font-size:11px;color:#ffffff;text-transform:uppercase;letter-spacing:.6px;font-weight:600;opacity:.92;margin-bottom:10px">${titulo}</div>
+      <div style="font-size:28px;font-weight:800;color:${color || '#ffffff'};line-height:1">${valor}</div>
+      <div style="font-size:12px;color:#d3dae3;margin-top:8px">${sub}</div>
     </div>`;
 
   cont.innerHTML =
