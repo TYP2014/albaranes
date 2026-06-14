@@ -6181,10 +6181,20 @@ async function loadPanel() {
   const esRetorno = (r) => /palet/i.test(String(r.producto || ''));
   const validos = (records || []).filter(r => !r._dup);
 
+  // v107K57: las fechas vienen como "dd/mm/aaaa". Sacamos el "aaaa-mm" para comparar el mes.
+  const mesDe = (f) => {
+    const s = String(f || '');
+    let m = s.match(/^(\d{4})-(\d{2})/);            // por si alguna viniera aaaa-mm-dd
+    if (m) return m[1] + '-' + m[2];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);  // formato real dd/mm/aaaa
+    if (m) return m[3] + '-' + m[2].padStart(2, '0');
+    return '';
+  };
+
   // Este mes vs mes anterior (TN excluye retornos de palets para no inflar)
   let tnMes = 0, nMes = 0, tnAnt = 0, nAnt = 0;
   validos.forEach(r => {
-    const f = String(r.fecha || '').slice(0, 7);
+    const f = mesDe(r.fecha);
     const tn = (!esRetorno(r) && r.tm != null) ? Number(r.tm) : 0;
     if (f === mesAct) { tnMes += tn; nMes++; }
     else if (f === mesAnt) { tnAnt += tn; nAnt++; }
