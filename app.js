@@ -8153,6 +8153,44 @@ async function gasRenderConsumo() {
       card('AdBlue', f0(totAd) + ' L', '#78909c') +
       card('Camiones', matsSet.size + '', '#ab47bc');
   }
+
+  // v107K66: gráfico de barras de consumo (L/100km) por camión, agrupando por matrícula.
+  const grafEl = document.getElementById('gasConGrafico');
+  if (grafEl) {
+    const porMat = {};
+    filas.forEach(f => {
+      if (f.litros == null || f.km == null || !f.mat) return; // solo con litros Y km
+      porMat[f.mat] = porMat[f.mat] || { litros: 0, km: 0 };
+      porMat[f.mat].litros += f.litros;
+      porMat[f.mat].km += f.km;
+    });
+    const datos = Object.entries(porMat)
+      .map(([m, v]) => ({ mat: m, cons: v.km > 0 ? (v.litros / v.km * 100) : null }))
+      .filter(d => d.cons != null)
+      .sort((a, b) => b.cons - a.cons);
+    if (!datos.length) {
+      grafEl.innerHTML = '';
+    } else {
+      const maxC = Math.max(...datos.map(d => d.cons));
+      const colC = (c) => c > 40 ? '#ff5050' : (c >= 35 ? '#ffa726' : '#00e87a');
+      const barras = datos.map(d => {
+        const w = maxC > 0 ? (d.cons / maxC * 100) : 0;
+        const c = colC(d.cons);
+        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+          <div style="width:78px;font-family:var(--mn);font-size:11px;color:#fff;flex-shrink:0">${d.mat}</div>
+          <div style="flex:1;background:rgba(255,255,255,.06);border-radius:5px;height:20px;overflow:hidden">
+            <div style="width:${w.toFixed(1)}%;background:${c};height:100%;border-radius:5px;min-width:3px"></div>
+          </div>
+          <div style="width:54px;text-align:right;font-family:var(--mn);font-size:12px;font-weight:700;color:${c};flex-shrink:0">${d.cons.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
+        </div>`;
+      }).join('');
+      grafEl.innerHTML = `
+        <div style="background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:16px 18px">
+          <div style="font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:.5px;font-weight:600;opacity:.9;margin-bottom:14px">Consumo por camión (L/100 km)</div>
+          ${barras}
+        </div>`;
+    }
+  }
   // J18: guardar la tabla calculada (con su empresa y periodo) para el Excel de consumo.
   window._consumoUltimo = {
     filas: filas, empresa: emp,
