@@ -6175,37 +6175,64 @@ async function loadPanel() {
 
   const hoy = new Date();
   const mesAct = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
-  const mAntD = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-  const mesAnt = mAntD.getFullYear() + '-' + String(mAntD.getMonth() + 1).padStart(2, '0');
 
   const esRetorno = (r) => /palet/i.test(String(r.producto || ''));
   const validos = (records || []).filter(r => !r._dup);
 
-  // v107K57: las fechas vienen como "dd/mm/aaaa". Sacamos el "aaaa-mm" para comparar el mes.
+  // Las fechas vienen como "dd/mm/aaaa". Helpers para sacar "aaaa-mm" y "aaaa-mm-dd".
   const mesDe = (f) => {
     const s = String(f || '');
-    let m = s.match(/^(\d{4})-(\d{2})/);            // por si alguna viniera aaaa-mm-dd
-    if (m) return m[1] + '-' + m[2];
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);  // formato real dd/mm/aaaa
-    if (m) return m[3] + '-' + m[2].padStart(2, '0');
+    let m = s.match(/^(\d{4})-(\d{2})/); if (m) return m[1] + '-' + m[2];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[3] + '-' + m[2].padStart(2, '0');
     return '';
   };
+  const isoDe = (f) => {
+    const s = String(f || '');
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    return '';
+  };
+  const nombreMes = (ym) => {
+    const ms = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const p = String(ym).split('-'); return (ms[Number(p[1])] || '') + ' ' + p[0];
+  };
 
-  // Este mes vs mes anterior (TN excluye retornos de palets para no inflar)
-  let tnMes = 0, nMes = 0, tnAnt = 0, nAnt = 0;
+  // v107K58: periodo elegido por el usuario. Si hay rango Desde/Hasta manda el rango;
+  // si no, el mes del selector; si no hay nada, el mes actual.
+  const mesSel = document.getElementById('panelMes')?.value || '';
+  const desde = document.getElementById('panelDesde')?.value || '';
+  const hasta = document.getElementById('panelHasta')?.value || '';
+  const usaRango = !!(desde || hasta);
+
+  let enPeriodo, periodoLabel, mostrarComp = false, mesAnt = '';
+  if (usaRango) {
+    const d = desde || '0000-00-00', h = hasta || '9999-99-99';
+    enPeriodo = (r) => { const iso = isoDe(r.fecha); return iso && iso >= d && iso <= h; };
+    periodoLabel = (desde ? desde.split('-').reverse().join('/') : 'inicio') + ' a ' + (hasta ? hasta.split('-').reverse().join('/') : 'hoy');
+  } else {
+    const m = mesSel || mesAct;
+    enPeriodo = (r) => mesDe(r.fecha) === m;
+    const [yy, mm] = m.split('-').map(Number);
+    const ant = new Date(yy, mm - 2, 1);
+    mesAnt = ant.getFullYear() + '-' + String(ant.getMonth() + 1).padStart(2, '0');
+    mostrarComp = true;
+    periodoLabel = nombreMes(m);
+  }
+
+  // TN y nº del periodo (TN excluye retornos de palets para no inflar)
+  let tnP = 0, nP = 0, tnAnt = 0;
   validos.forEach(r => {
-    const f = mesDe(r.fecha);
     const tn = (!esRetorno(r) && r.tm != null) ? Number(r.tm) : 0;
-    if (f === mesAct) { tnMes += tn; nMes++; }
-    else if (f === mesAnt) { tnAnt += tn; nAnt++; }
+    if (enPeriodo(r)) { tnP += tn; nP++; }
+    if (mostrarComp && mesDe(r.fecha) === mesAnt) tnAnt += tn;
   });
   const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null;
-  const flecha = (p) => p == null ? 'sin comparativa' : (p >= 0 ? `▲ ${p}% vs mes anterior` : `▼ ${Math.abs(p)}% vs mes anterior`);
-  const colFl = (p) => p == null ? 'var(--mu)' : (p >= 0 ? 'var(--ac)' : 'var(--er)');
+  const comp = (p) => p == null ? '' : (p >= 0 ? ` · <span style="color:var(--ac)">▲ ${p}% vs mes anterior</span>` : ` · <span style="color:var(--er)">▼ ${Math.abs(p)}% vs mes anterior</span>`);
 
-  // Pendiente de facturar (ni facturado ni no_facturable)
+  // Pendiente de facturar DEL PERIODO (ni facturado ni no_facturable)
   let nPend = 0, tnPend = 0;
   validos.forEach(r => {
+    if (!enPeriodo(r)) return;
     const ef = r.estado_facturacion;
     if (ef !== 'facturado' && ef !== 'no_facturable') {
       nPend++;
@@ -6213,7 +6240,7 @@ async function loadPanel() {
     }
   });
 
-  // ITVs de flota
+  // ITVs de flota (estado actual, no depende del periodo)
   let itvCad = 0, itvProx = 0;
   if (Array.isArray(itvRecords)) {
     itvRecords.forEach(r => {
@@ -6232,19 +6259,21 @@ async function loadPanel() {
     </div>`;
 
   cont.innerHTML =
-    tarjeta('Este mes',
-      fmt(tnMes) + ' TN',
-      `${nMes} albaranes · <span style="color:${colFl(pct(tnMes, tnAnt))}">${flecha(pct(tnMes, tnAnt))}</span>`,
+    tarjeta('TN movidas · ' + periodoLabel,
+      fmt(tnP) + ' TN',
+      `${nP} albaranes${mostrarComp ? comp(pct(tnP, tnAnt)) : ''}`,
       'var(--ac)', "switchTab('alb')") +
-    tarjeta('Pendiente de facturar',
+    tarjeta('Pendiente de facturar · ' + periodoLabel,
       nPend + ' albaranes',
       fmt(tnPend) + ' TN sin facturar',
       'var(--wn)', "switchTab('facturacion')") +
-    tarjeta('ITV flota',
+    tarjeta('ITV flota (ahora)',
       (itvCad + itvProx) + '',
       `${itvCad} caducadas · ${itvProx} próximas (≤15 días)`,
       itvCad > 0 ? 'var(--er)' : (itvProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('itv')");
 }
+
+
 
 function loadProduccion() {
   // Punto de entrada al cambiar a esta pestaña

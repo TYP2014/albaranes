@@ -1033,6 +1033,17 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
         <div class="card-bd">
+          <!-- v107K58: selector de periodo (mes o rango Desde/Hasta) -->
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+            <label style="font-size:11px;color:var(--mu)">Mes:</label>
+            <input type="month" id="panelMes" class="fi" style="max-width:150px" onchange="document.getElementById('panelDesde').value='';document.getElementById('panelHasta').value='';loadPanel()">
+            <span style="color:var(--mu);font-size:11px">— o rango —</span>
+            <label style="font-size:11px;color:var(--mu)">Desde:</label>
+            <input type="date" id="panelDesde" class="fi" style="max-width:145px" onchange="loadPanel()">
+            <label style="font-size:11px;color:var(--mu)">Hasta:</label>
+            <input type="date" id="panelHasta" class="fi" style="max-width:145px" onchange="loadPanel()">
+            <button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('panelMes').value='';document.getElementById('panelDesde').value='';document.getElementById('panelHasta').value='';loadPanel()">✕ Mes actual</button>
+          </div>
           <div id="panelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
             <div style="color:var(--mu);font-size:12px;padding:20px">Cargando panel...</div>
           </div>
@@ -1684,6 +1695,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=119"></script>
+<script src="app.js?v=120"></script>
 </body>
 </html>
