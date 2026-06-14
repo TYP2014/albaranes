@@ -8115,6 +8115,17 @@ async function gasRenderConsumo() {
 
   // 5) Ordenar por matricula (y dentro, por fecha de inicio)
   filas.sort((a, b) => (a.orden < b.orden ? -1 : a.orden > b.orden ? 1 : 0));
+
+  // v107K64: filtro por vehículo. Rellenar el desplegable con las matrículas presentes
+  // (preservando la selección) y filtrar las filas por la matrícula elegida.
+  const selVeh = document.getElementById('gasConVehiculo');
+  if (selVeh) {
+    const matsUnicas = [...new Set(filas.map(f => f.mat).filter(Boolean))].sort();
+    const sel = selVeh.value;
+    selVeh.innerHTML = '<option value="">Todos los vehículos</option>' +
+      matsUnicas.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${m}</option>`).join('');
+    if (selVeh.value) filas = filas.filter(f => f.mat === selVeh.value);
+  }
   // J18: guardar la tabla calculada (con su empresa y periodo) para el Excel de consumo.
   window._consumoUltimo = {
     filas: filas, empresa: emp,

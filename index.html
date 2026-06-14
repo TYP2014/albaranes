@@ -736,6 +736,8 @@ if (typeof pdfjsLib !== 'undefined') {
             </div>
             <!-- v107BL: filtro de periodo a medida (igual que en Albaranes) -->
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+              <!-- v107K64: filtro por vehículo -->
+              <div class="fil-group"><label class="fil-label">Vehículo</label><select class="fil-inp" id="gasConVehiculo" onchange="gasRenderConsumo()"><option value="">Todos los vehículos</option></select></div>
               <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="gasConDesde" oninput="gasRenderConsumo()"></div>
               <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="gasConHasta" oninput="gasRenderConsumo()"></div>
               <!-- v107K63: atajos rápidos de periodo -->
@@ -1699,6 +1701,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=124"></script>
+<script src="app.js?v=125"></script>
 </body>
 </html>
