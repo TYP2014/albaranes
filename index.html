@@ -738,6 +738,10 @@ if (typeof pdfjsLib !== 'undefined') {
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
               <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="gasConDesde" oninput="gasRenderConsumo()"></div>
               <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="gasConHasta" oninput="gasRenderConsumo()"></div>
+              <!-- v107K63: atajos rápidos de periodo -->
+              <button class="btn bs" onclick="gasConsumoAtajo('mes')" style="font-size:11px">Este mes</button>
+              <button class="btn bs" onclick="gasConsumoAtajo('6m')" style="font-size:11px">6 meses</button>
+              <button class="btn bs" onclick="gasConsumoAtajo('12m')" style="font-size:11px">12 meses</button>
               <button class="btn bs" onclick="gasConsumoLimpiar()" style="font-size:11px">✕ Limpiar fechas</button>
               <button class="btn bp" onclick="exportConsumoExcel()" style="font-size:11px">📥 Excel consumo</button>
             </div>
@@ -1695,6 +1699,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=123"></script>
+<script src="app.js?v=124"></script>
 </body>
 </html>

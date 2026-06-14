@@ -8184,6 +8184,25 @@ function gasConsumoLimpiar() {
   gasRenderConsumo();
 }
 
+// v107K63: atajos de periodo en el consumo de Gasoil (mes / 6 meses / 12 meses).
+function gasConsumoAtajo(tipo) {
+  const isoLocal = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const hoy = new Date();
+  let ini;
+  if (tipo === 'mes') {
+    ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  } else if (tipo === '6m') {
+    ini = new Date(hoy); ini.setMonth(ini.getMonth() - 6);
+  } else { // '12m'
+    ini = new Date(hoy); ini.setMonth(ini.getMonth() - 12);
+  }
+  const d = document.getElementById('gasConDesde');
+  const h = document.getElementById('gasConHasta');
+  if (d) d.value = isoLocal(ini);
+  if (h) h.value = isoLocal(hoy);
+  gasRenderConsumo();
+}
+
 // J18: descargar la tabla de CONSUMO en Excel (negrita y grande, como los demás).
 // Usa lo último calculado por gasRenderConsumo (respeta empresa y filtro de fechas).
 function exportConsumoExcel() {
