@@ -6264,6 +6264,42 @@ async function loadPanel() {
     });
   }
 
+  // v107K62: Gasoil del periodo — litros + media L/100km (aprox.)
+  try {
+    if (_kmPeriodos === null) {
+      const { data } = await sb.from('km_periodos').select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
+      _kmPeriodos = data || [];
+    }
+  } catch (e) { console.warn('[panel] km_periodos:', e); }
+
+  // Rango numérico (YYYYMMDD) del periodo elegido
+  let desdeN, hastaN;
+  if (usaRango) {
+    desdeN = desde ? _gasFechaNum(desde) : 0;
+    hastaN = hasta ? _gasFechaNum(hasta) : 99999999;
+  } else {
+    const pm = (mesSel || mesAct).split('-');
+    desdeN = parseInt(pm[0]) * 10000 + parseInt(pm[1]) * 100 + 1;
+    hastaN = parseInt(pm[0]) * 10000 + parseInt(pm[1]) * 100 + 31;
+  }
+
+  let litrosGas = 0;
+  (gasoilRecords || []).forEach(r => {
+    const tp = String(r.tipo || '').toLowerCase();
+    if (/adblue|ad-blue|ad blue|urea/.test(tp)) return;                 // excluir adblue
+    if (tp && tp !== 'gasoil' && tp !== 'gas-oil' && tp !== 'diesel') return; // solo gasoil
+    const l = parseFloat(r.litros); if (!l || l <= 0) return;
+    const fn = _gasFechaNum(r.fecha);
+    if (fn >= desdeN && fn <= hastaN) litrosGas += l;
+  });
+
+  let kmGas = 0;
+  (_kmPeriodos || []).forEach(p => {
+    const fn = _gasFechaNum(p.fecha_fin);
+    if (fn >= desdeN && fn <= hastaN) kmGas += (parseFloat(p.km_diferencia) || 0);
+  });
+  const consumo = kmGas > 0 ? (litrosGas / kmGas * 100) : null;
+
   const fmt = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
   const tarjeta = (titulo, valor, sub, color, onclick) => `
     <div onclick="${onclick}"
@@ -6291,7 +6327,11 @@ async function loadPanel() {
     tarjeta('Mantenimiento (ahora)',
       (mantVenc + mantProx) + '',
       `${mantVenc} vencidos · ${mantProx} próximos`,
-      mantVenc > 0 ? 'var(--er)' : (mantProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('taller')");
+      mantVenc > 0 ? 'var(--er)' : (mantProx > 0 ? 'var(--wn)' : 'var(--ac)'), "switchTab('taller')") +
+    tarjeta('Gasoil · ' + periodoLabel,
+      fmt(litrosGas) + ' L',
+      consumo != null ? `media ${consumo.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L/100km (aprox.)` : 'sin km para calcular media',
+      '#ffa726', "switchTab('gas')");
 }
 
 
