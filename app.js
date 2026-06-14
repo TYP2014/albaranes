@@ -842,6 +842,9 @@ async function onLogin(user) {
       // v107K56: pestaña Panel (cuadro de mando) también solo para admin.
       const tPanel = document.getElementById('tabPanel');
       if (tPanel) tPanel.style.display = 'flex';
+      // v107K67: pestaña Costes también solo para admin.
+      const tCostes = document.getElementById('tabCostes');
+      if (tCostes) tCostes.style.display = 'flex';
     } else {
       // v103b: el botón "Re-corregir TODO" toca el campo transportista (entre otros).
       // Para mantener la política "solo admin cambia transportistas", lo ocultamos a gestores.
@@ -6336,6 +6339,77 @@ async function loadPanel() {
 
 
 
+// v107K67: COSTES — coste de gasoil por camión y €/km (embrión del coste real por vehículo).
+async function loadCostes() {
+  const tbody = document.getElementById('tbodyCostes');
+  const empty = document.getElementById('emptyCostes');
+  if (!tbody) return;
+  try {
+    if (_kmPeriodos === null) {
+      const { data } = await sb.from('km_periodos').select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
+      _kmPeriodos = data || [];
+    }
+  } catch (e) { console.warn('[costes] km_periodos:', e); }
+
+  const dStr = document.getElementById('costesDesde')?.value || '';
+  const hStr = document.getElementById('costesHasta')?.value || '';
+  const desdeN = dStr ? _gasFechaNum(dStr) : 0;
+  const hastaN = hStr ? _gasFechaNum(hStr) : 99999999;
+
+  const porMat = {}; // mat -> { imp, km }
+  (gasoilRecords || []).forEach(r => {
+    const tp = String(r.tipo || '').toLowerCase();
+    if (/adblue|ad-blue|ad blue|urea/.test(tp)) return;
+    if (tp && tp !== 'gasoil' && tp !== 'gas-oil' && tp !== 'diesel') return;
+    const imp = parseFloat(r.importe); if (!imp || imp <= 0) return;
+    const fn = _gasFechaNum(r.fecha);
+    if (fn < desdeN || fn > hastaN) return;
+    const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+    if (!mat) return;
+    porMat[mat] = porMat[mat] || { imp: 0, km: 0 };
+    porMat[mat].imp += imp;
+  });
+  (_kmPeriodos || []).forEach(p => {
+    const fn = _gasFechaNum(p.fecha_fin);
+    if (fn < desdeN || fn > hastaN) return;
+    const mat = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+    if (!mat) return;
+    porMat[mat] = porMat[mat] || { imp: 0, km: 0 };
+    porMat[mat].km += (parseInt(p.km_diferencia, 10) || 0);
+  });
+
+  const filas = Object.entries(porMat)
+    .map(([mat, v]) => ({ mat, imp: v.imp, km: v.km, eurkm: v.km > 0 ? v.imp / v.km : null }))
+    .filter(f => f.imp > 0 || f.km > 0)
+    .sort((a, b) => (b.eurkm || 0) - (a.eurkm || 0));
+
+  if (!filas.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  if (empty) empty.style.display = 'none';
+  const fmtE = (n) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
+  tbody.innerHTML = filas.map(f => {
+    const impTxt = f.imp > 0 ? fmtE(f.imp) + ' €' : '<span style="color:var(--mu)">—</span>';
+    const kmTxt = f.km > 0 ? fmt0(f.km) + ' km' : '<span style="color:var(--wn)">⚠️ sin km</span>';
+    const eurkmTxt = f.eurkm != null ? fmtE(f.eurkm) + ' €/km' : '<span style="color:var(--wn)">⚠️ sin km</span>';
+    return `<tr><td style="padding:8px;font-family:var(--mn)">${f.mat}</td><td style="padding:8px">${impTxt}</td><td style="padding:8px">${kmTxt}</td><td style="padding:8px;font-weight:700">${eurkmTxt}</td></tr>`;
+  }).join('');
+}
+
+function costesAtajo(tipo) {
+  const isoLocal = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const hoy = new Date();
+  const d = document.getElementById('costesDesde');
+  const h = document.getElementById('costesHasta');
+  if (tipo === 'todo') { if (d) d.value = ''; if (h) h.value = ''; loadCostes(); return; }
+  let ini;
+  if (tipo === 'mes') ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  else if (tipo === '6m') { ini = new Date(hoy); ini.setMonth(ini.getMonth() - 6); }
+  else { ini = new Date(hoy); ini.setMonth(ini.getMonth() - 12); }
+  if (d) d.value = isoLocal(ini);
+  if (h) h.value = isoLocal(hoy);
+  loadCostes();
+}
+
 function loadProduccion() {
   // Punto de entrada al cambiar a esta pestaña
   _prodInitMes();
@@ -10917,7 +10991,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','fichaje','subir','admin','facturacion'].forEach(t => {
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -10943,6 +11017,8 @@ function switchTab(tab) {
   if (tab === 'produccion') { loadProduccion(); }
   // v107K56: cargar el Panel al entrar en su pestaña
   if (tab === 'panel') { loadPanel(); }
+  // v107K67: cargar Costes al entrar en su pestaña
+  if (tab === 'costes') { loadCostes(); }
   // v107j: cargar Neumáticos al entrar en su pestaña
   if (tab === 'neum') { loadNeumData(); }
   // v107M: cargar Vacaciones al entrar en su pestaña

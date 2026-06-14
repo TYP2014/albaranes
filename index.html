@@ -559,6 +559,8 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="tab" id="tabProduccion" onclick="switchTab('produccion')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ab47bc" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 4v16h16"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg> Producción</div>
       <!-- v107K56: pestaña Panel (cuadro de mando) SOLO admin. Se muestra desde loadUserMap cuando currentRole==='admin'. -->
       <div class="tab" id="tabPanel" onclick="switchTab('panel')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00e87a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+      <!-- v107K67: pestaña Costes (coste por camión) SOLO admin. -->
+      <div class="tab" id="tabCostes" onclick="switchTab('costes')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#26c6da" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M15 9.5a3.5 3.5 0 0 0-3-1.5c-2 0-3 1.5-3 4s1 4 3 4a3.5 3.5 0 0 0 3-1.5"/><path d="M7 11h5M7 13h5"/></svg> Costes</div>
       <!-- v107FA: pestaña Fichaje (registro de jornada). Oculta por defecto.
            Solo la ven: el admin (vista completa de todas las trabajadoras) y
            quien tenga puede_fichar=TRUE en profiles (su propio fichaje). -->
@@ -1057,6 +1059,43 @@ if (typeof pdfjsLib !== 'undefined') {
           <div id="panelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
             <div style="color:var(--mu);font-size:12px;padding:20px">Cargando panel...</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- v107K67: COSTES (coste por camión) — solo admin. La tabla la rellena loadCostes(). -->
+    <div id="tabContentCostes" class="wrap" style="display:none">
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#26c6da"></div>COSTE POR CAMIÓN</div>
+          <div class="tbl-acts">
+            <button class="btn bs" onclick="loadCostes()" style="font-size:11px">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card-bd">
+          <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.5">
+            De momento muestra el <b>coste de gasoil</b> de cada camión y su <b>€/km</b> (gasoil € ÷ km del tacógrafo). Iremos sumando taller, neumáticos y seguro. El €/km es aproximado cuando los km del tacógrafo no encajan exactos con las fechas.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+            <div class="fil-group"><label class="fil-label">Desde</label><input class="fil-inp" type="date" id="costesDesde" oninput="loadCostes()"></div>
+            <div class="fil-group"><label class="fil-label">Hasta</label><input class="fil-inp" type="date" id="costesHasta" oninput="loadCostes()"></div>
+            <button class="btn bs" onclick="costesAtajo('mes')" style="font-size:11px">Este mes</button>
+            <button class="btn bs" onclick="costesAtajo('6m')" style="font-size:11px">6 meses</button>
+            <button class="btn bs" onclick="costesAtajo('12m')" style="font-size:11px">12 meses</button>
+            <button class="btn bs" onclick="costesAtajo('todo')" style="font-size:11px">Todo</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Matrícula</th>
+                <th>Gasoil €</th>
+                <th>Km</th>
+                <th>€/km (gasoil)</th>
+              </tr></thead>
+              <tbody id="tbodyCostes"></tbody>
+            </table>
+          </div>
+          <div id="emptyCostes" style="display:none;text-align:center;padding:40px;font-family:var(--mn);font-size:12px;color:var(--mu)">No hay datos en el periodo elegido.</div>
         </div>
       </div>
     </div>
@@ -1705,6 +1744,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=127"></script>
+<script src="app.js?v=128"></script>
 </body>
 </html>
