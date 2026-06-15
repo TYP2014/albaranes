@@ -18788,11 +18788,10 @@ function factHolcimExcelPorMaterial() {
   const _trAb = (a) => (a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula) || '';
   const _trNo = (r) => r.transportista || getTransportista(r.tractora) || '';
   const _trSin = (L) => getTransportista(L.matricula) || '';
-  // v107K70: precio (€/TN) y total (€) de TU albarán, igual que el Excel de albaranes.
-  // Si el albarán no trae precio propio, lo coge de la tarifa de la ruta (origen→destino) del mes.
-  const _precTot = (rec) => {
-    if (!rec) return ['', ''];
-    const tm = parseFloat(rec.tm) || 0;
+  // v107K71: precio (€/TN) de TU albarán. Si no trae precio propio, lo coge de la tarifa de la
+  // ruta (origen→destino) del mes. Si tampoco hay tarifa → 0 (NUNCA vacío, así se puede editar).
+  const _precio = (rec) => {
+    if (!rec) return 0;
     let precio = (rec.precio != null && rec.precio !== '' && parseFloat(rec.precio) > 0) ? parseFloat(rec.precio) : 0;
     if (!precio) {
       const m = String(rec.fecha || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -18801,8 +18800,7 @@ function factHolcimExcelPorMaterial() {
         if (_tar != null) precio = _tar;
       }
     }
-    const total = Math.round(tm * precio * 100) / 100;
-    return [precio || '', total || ''];
+    return precio || 0;
   };
   const _transKey = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ZZZZ';
   const _cmpTMF = (tA, mA, fA, tB, mB, fB) => { const TA = _transKey(tA), TB = _transKey(tB); if (TA < TB) return -1; if (TA > TB) return 1; return _cmpMatFecha(mA, fA, mB, fB); };
@@ -18818,13 +18816,14 @@ function factHolcimExcelPorMaterial() {
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
     const aoa = [];
-    // v107K70: columna ESTADO + cabecera con PRECIO/TOTAL (de tu tarifa), destino de TU albarán.
-    // Sin columna Cruce ni Valor neto (privacidad). Filas agrupadas por estado, sin líneas, autofiltro.
+    // v107K71: PRECIO numérico (0 si no hay tarifa) y TOTAL como FÓRMULA viva =TN×PRECIO
+    // (col E × col F). Si editas el precio en Excel, el total se recalcula solo.
     aoa.push(['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']);
-    ab.forEach(a => { const [pr, to] = _precTot(a.rec); aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', (a.rec && a.rec.tm) || a.linea.tn || '', pr, to, a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
-    no.forEach(r => { const [pr, to] = _precTot(r); aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', pr, to, r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
-    sin.forEach(L => aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', '', '', L.material || '', L.origen || _origenLinea(L), L.destino || '', _trSin(L), 'Sin copia (no lo tenemos)']));
-    po.forEach(a => { const [pr, to] = _precTot(a.rec); aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', (a.rec && a.rec.tm) || a.linea.tn || '', pr, to, a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
+    const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
+    ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
+    no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
+    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), L.destino || '', _trSin(L), 'Sin copia (no lo tenemos)']); });
+    po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 36 }];
