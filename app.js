@@ -18822,7 +18822,7 @@ function factHolcimExcelPorMaterial() {
     const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
     ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
     no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
-    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), L.destino || '', _trSin(L), 'Sin copia (no lo tenemos)']); });
+    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/promsa/i.test(String(L.material || '')) ? 'Fábrica Montcada' : (L.destino || '')), _trSin(L), 'Sin copia (no lo tenemos)']); });
     po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -18866,29 +18866,47 @@ function factHolcimExcel() {
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const wb = XLSX.utils.book_new();
 
-  // v107K68: UNA sola hoja filtrable. Columna ESTADO + cabecera común para todas las filas.
-  // Las filas van agrupadas por estado (Abonados → No abonados → Sin copia → A revisar) SIN
-  // filas separadoras, para que el autofiltro de Excel actúe sobre toda la tabla a la vez.
-  const CAB = ['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Valor neto €', 'Origen', 'Destino', 'Transportista', 'Cruce', 'Observación'];
-  const aoa = [CAB];
+  // v107K72: mismo formato que el Excel de familias — columna ESTADO + PRECIO/TOTAL (fórmula viva),
+  // destino de TU albarán, sin Cruce ni Valor neto. Una sola hoja filtrable.
+  const _precio = (rec) => {
+    if (!rec) return 0;
+    let precio = (rec.precio != null && rec.precio !== '' && parseFloat(rec.precio) > 0) ? parseFloat(rec.precio) : 0;
+    if (!precio) {
+      const m = String(rec.fecha || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (m && typeof _tarifaDe === 'function') {
+        const _tar = _tarifaDe(rec.planta || rec.origen || '', rec.obra || rec.destino || '', parseInt(m[3], 10), parseInt(m[2], 10));
+        if (_tar != null) precio = _tar;
+      }
+    }
+    return precio || 0;
+  };
+  // v107K72: Caliza Promsa SIEMPRE va a "Fábrica Montcada" (nunca "Promotora Mediterránea").
+  const _destProm = (mat, dest) => (/promsa/i.test(String(mat || '')) ? 'Fábrica Montcada' : (dest || ''));
+
+  const aoa = [['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']];
+  const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
 
   (u.abonados || []).forEach(a => {
-    aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', '', '', a.linea.transportista || '', a.modo || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
+    const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0;
+    aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
   });
   (u.noAbonados || []).forEach(r => {
-    aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', '', r.planta || r.origen || '', r.obra || r.destino || '', r.transportista || '', '', '']);
+    const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0;
+    aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', r.transportista || getTransportista(r.tractora) || '', '']);
   });
   (u.sinAlbaran || []).forEach(L => {
-    aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.origen || '', L.destino || '', L.transportista || '', '', 'Sin copia (no lo tenemos)']);
+    const tn = parseFloat(L.tn || 0) || 0;
+    aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || '', _destProm(L.material, L.destino), L.transportista || getTransportista(L.matricula) || '', 'Sin copia (no lo tenemos)']);
   });
   (u.posibles || []).forEach(a => {
+    const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0;
     const tuAlb = (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)';
-    aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', '', '', '', 'fecha+matrícula+TN', 'Tu albarán: ' + tuAlb + (a.confirmado ? ' — CONFIRMADO' : '')]);
+    aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', 'Tu albarán: ' + tuAlb + (a.confirmado ? ' — CONFIRMADO' : '')]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 18 }, { wch: 36 }];
-  ws['!autofilter'] = { ref: 'A1:L1' }; // filtro activado en la cabecera
+  ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 36 }];
+  ws['!autofilter'] = { ref: 'A1:L1' };
   XLSX.utils.book_append_sheet(wb, ws, 'Conciliación Holcim');
 
   const nombre = 'Autofactura_HOLCIM_' + new Date().toISOString().slice(0, 10) + '.xlsx';
