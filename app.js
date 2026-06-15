@@ -18860,36 +18860,30 @@ function factHolcimExcel() {
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const wb = XLSX.utils.book_new();
 
-  const aoaAb = [['Num. Entrega', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Cruce', 'Transportista', 'Observación']];
-  u.abonados.forEach(a => {
-    aoaAb.push([
-      a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '',
-      a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', a.modo || '',
-      a.linea.transportista || '',
-      a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK'
-    ]);
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaAb), 'Abonados');
+  // v107K68: UNA sola hoja filtrable. Columna ESTADO + cabecera común para todas las filas.
+  // Las filas van agrupadas por estado (Abonados → No abonados → Sin copia → A revisar) SIN
+  // filas separadoras, para que el autofiltro de Excel actúe sobre toda la tabla a la vez.
+  const CAB = ['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Valor neto €', 'Origen', 'Destino', 'Transportista', 'Cruce', 'Observación'];
+  const aoa = [CAB];
 
-  // v107GB — hoja de POSIBLES (cuadran por fecha+matrícula+TN, pendientes de confirmar)
-  const aoaPos = [['Num. Entrega Holcim', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Tu albarán', 'Confirmado']];
+  (u.abonados || []).forEach(a => {
+    aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', '', '', a.linea.transportista || '', a.modo || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
+  });
+  (u.noAbonados || []).forEach(r => {
+    aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', '', r.planta || r.origen || '', r.obra || r.destino || '', r.transportista || '', '', '']);
+  });
+  (u.sinAlbaran || []).forEach(L => {
+    aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.origen || '', L.destino || '', L.transportista || '', '', 'Sin copia (no lo tenemos)']);
+  });
   (u.posibles || []).forEach(a => {
-    aoaPos.push([
-      a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '',
-      a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '',
-      (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)',
-      a.confirmado ? 'SÍ' : 'no'
-    ]);
+    const tuAlb = (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)';
+    aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', '', '', '', 'fecha+matrícula+TN', 'Tu albarán: ' + tuAlb + (a.confirmado ? ' — CONFIRMADO' : '')]);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaPos), 'A revisar');
 
-  const aoaNo = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Origen', 'Destino']];
-  u.noAbonados.forEach(r => { aoaNo.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.planta || r.origen || '', r.obra || r.destino || '']); });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaNo), 'No abonados');
-
-  const aoaSin = [['Num. Entrega', 'Matrícula', 'Fecha', 'Cta/TN', 'Material', 'Valor neto €', 'Transportista']];
-  u.sinAlbaran.forEach(L => { aoaSin.push([L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.transportista || '']); });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Sin copia');
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 18 }, { wch: 36 }];
+  ws['!autofilter'] = { ref: 'A1:L1' }; // filtro activado en la cabecera
+  XLSX.utils.book_append_sheet(wb, ws, 'Conciliación Holcim');
 
   const nombre = 'Autofactura_HOLCIM_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
