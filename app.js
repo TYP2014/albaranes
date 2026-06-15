@@ -10487,11 +10487,33 @@ function renderCitasTable() {
       <td>${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
-      <td style="font-size:11px">${esc(r.centro || '—')}</td>
+      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''}</td>
     </tr>`;
   }).join('');
   // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
   _aplicarItvSoloLectura();
+}
+
+// v107K82: descarga la foto (jpg) de una cita ITV.
+async function _descargarCita(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
+  if (!r || !hasValidUrl(r.file_url)) { toast('Esta cita no tiene foto para descargar', 'err'); return; }
+  const nombre = _nombreArchivoDeUrl(r.file_url) || ('cita_' + String(r.matricula || id).replace(/[^\w.-]+/g, '_') + '.jpg');
+  try {
+    const resp = await fetch(r.file_url);
+    if (!resp.ok) throw new Error('descarga ' + resp.status);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    toast('⬇️ Descargando ' + nombre, 'ok');
+  } catch (e) {
+    try { window.open(r.file_url, '_blank'); } catch (e2) {}
+    toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
+  }
 }
 
 // v107h: abrir modal de cita (existente o nueva)
@@ -10614,6 +10636,16 @@ async function handleCitaFiles(files) {
       toast('⚠️ La IA no pudo leer la fecha. Usa "+ Nueva cita" para introducirla a mano.', 'err');
       return;
     }
+    // v107K82: guardar la FOTO de la cita en el almacén para poder descargarla luego.
+    // Si la subida falla, se guarda la cita igualmente (sin foto) — no se bloquea.
+    let citaFileUrl = null;
+    try {
+      const limpio = String(f.name || 'cita').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'cita';
+      const path = `citas/${currentUser.id}/${Date.now()}_${limpio}`;
+      const { error: upErr } = await sb.storage.from('documentos').upload(path, f);
+      if (!upErr) { const { data: pub } = sb.storage.from('documentos').getPublicUrl(path); citaFileUrl = pub.publicUrl; }
+      else console.warn('[cita] no se pudo guardar la foto:', upErr.message);
+    } catch (e) { console.warn('[cita] error guardando foto:', e); }
     // v107EN5c: guardar directamente en BD (sin abrir modal)
     const payload = {
       matricula,
@@ -10622,6 +10654,7 @@ async function handleCitaFiles(files) {
       centro,
       direccion: null,
       observaciones: null,
+      file_url: citaFileUrl,
       user_id: currentUser.id,
       updated_at: new Date().toISOString()
     };
