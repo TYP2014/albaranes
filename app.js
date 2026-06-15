@@ -18802,26 +18802,18 @@ function factHolcimExcelPorMaterial() {
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
     const aoa = [];
-    aoa.push(['FAMILIA: ' + mat]);
-    aoa.push([]);
-    aoa.push(['🟢 ABONADOS (' + ab.length + ')']);
-    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino', 'Observación']);
-    ab.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.linea.destino || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
-    aoa.push([]);
-    aoa.push(['⚠️ A REVISAR (' + po.length + ')']);
-    aoa.push(['Transportista', 'Holcim Nº', 'Matrícula', 'Fecha', 'TN', 'Material', 'Destino', 'Tu origen', 'Tu albarán', 'Tu matrícula', 'Tu fecha', 'Tu TN']);
-    po.forEach(a => aoa.push([_trAb(a), a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.destino || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.rec.albaran || '', a.rec.tractora || '', a.rec.fecha || '', a.rec.tm || '']));
-    aoa.push([]);
-    aoa.push(['⚠️ NO ABONADOS (' + no.length + ')']);
-    aoa.push(['Transportista', 'Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino']);
-    no.forEach(r => aoa.push([_trNo(r), r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '']));
-    aoa.push([]);
-    aoa.push(['📋 SIN COPIA (' + sin.length + ')']);
-    aoa.push(['Transportista', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Origen', 'Destino', 'Observación']);
-    sin.forEach(L => aoa.push([_trSin(L), L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.origen || _origenLinea(L), L.destino || '', 'Sin copia (no lo tenemos)']));
+    // v107K69: mismo formato que el Excel de Autofactura — columna ESTADO + cabecera común,
+    // filas agrupadas por estado (Abonados → No abonados → Sin copia → A revisar) SIN líneas
+    // separadoras, para poder filtrar toda la familia de golpe (autofiltro activado abajo).
+    aoa.push(['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'Material', 'Valor neto €', 'Origen', 'Destino', 'Transportista', 'Cruce', 'Observación']);
+    ab.forEach(a => aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.linea.destino || '', _trAb(a), a.modo || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']));
+    no.forEach(r => aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.producto || '', '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '', '']));
+    sin.forEach(L => aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', L.tn || '', L.material || '', L.valor_neto || '', L.origen || _origenLinea(L), L.destino || '', _trSin(L), '', 'Sin copia (no lo tenemos)']));
+    po.forEach(a => aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', a.linea.tn || '', a.linea.material || '', a.linea.valor_neto || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', a.linea.destino || '', _trAb(a), 'fecha+matrícula+TN', 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]));
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:22},{wch:16},{wch:12},{wch:12},{wch:10},{wch:28},{wch:22},{wch:22},{wch:16},{wch:12},{wch:12},{wch:10}];
+    ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 18 }, { wch: 36 }];
+    ws['!autofilter'] = { ref: 'A1:L1' };
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
