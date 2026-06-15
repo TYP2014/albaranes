@@ -697,7 +697,13 @@ function renderTarifasClienteEditor() {
   }
   const fmt = n => (n == null ? '—' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
   const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
-  let html = '<table style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
+  // v107K81: buscador Origen/Destino + botón "✕ Recoger" (igual que en Tarifas por servicio).
+  let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
+    + '<input id="tarifaCliBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaCliBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<button class="btn bs" onclick="_tarifaCliCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">✕ Recoger</button>'
+    + '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
     + th('Origen') + th('Destino') + th('Alb.') + th('Coste subcontratado') + th('Precio cliente (€/TN)') + th('Beneficio €/TN')
     + '</tr></thead><tbody>';
   lista.forEach(s => {
@@ -706,7 +712,7 @@ function renderTarifasClienteEditor() {
     const benef = (coste != null && cliente != null) ? (cliente - coste) : null;
     const benColor = benef == null ? 'var(--mu)' : (benef >= 0 ? 'var(--ac)' : 'var(--er)');
     const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt) + '</td>';
-    html += '<tr>'
+    html += '<tr data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '">'
       + td(s.origen || '—') + td(s.destino || '—')
       + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
       + td(coste != null ? fmt(coste) : '— (pon tarifa)', 'color:var(--mu);font-family:var(--mn)')
@@ -719,6 +725,22 @@ function renderTarifasClienteEditor() {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+}
+
+// v107K81: filtrar y recoger la tabla de precio cliente (igual que tarifas servicio).
+function _tarifaCliFiltrar() {
+  const fo = _tarifaNorm(document.getElementById('tarifaCliBuscaOrigen')?.value || '');
+  const fd = _tarifaNorm(document.getElementById('tarifaCliBuscaDestino')?.value || '');
+  document.querySelectorAll('#tarifasCliCont tbody tr').forEach(tr => {
+    const o = tr.getAttribute('data-fo') || '';
+    const d = tr.getAttribute('data-fd') || '';
+    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1);
+    tr.style.display = ok ? '' : 'none';
+  });
+}
+function _tarifaCliCerrar() {
+  const c = document.getElementById('tarifasCliCont');
+  if (c) c.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Pulsa el botón de arriba para ver y poner los precios cliente.</div>';
 }
 
 async function guardarTarifasCliente() {
