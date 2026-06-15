@@ -543,14 +543,19 @@ function renderTarifasEditor() {
     return;
   }
   const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
-  let html = '<table style="width:100%;border-collapse:collapse;min-width:560px"><thead><tr>'
+  // v107K79: buscador por Origen y Destino (antes había que mirar de una en una).
+  let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+    + '<input id="tarifaBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;min-width:560px"><thead><tr>'
     + th('Origen') + th('Destino') + th('Alb.') + th('€ / Tonelada')
     + '</tr></thead><tbody>';
   lista.forEach(s => {
     const prev = _tarifaDe(s.origen, s.destino, anio, mes);
     const val = prev != null ? prev : '';
     const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt || '—') + '</td>';
-    html += '<tr>'
+    html += '<tr data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '">'
       + td(s.origen) + td(s.destino)
       + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
       + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
@@ -562,6 +567,18 @@ function renderTarifasEditor() {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+}
+
+// v107K79: filtra las filas de la tabla de tarifas por Origen y/o Destino (sin perder los precios escritos).
+function _tarifaFiltrar() {
+  const fo = _tarifaNorm(document.getElementById('tarifaBuscaOrigen')?.value || '');
+  const fd = _tarifaNorm(document.getElementById('tarifaBuscaDestino')?.value || '');
+  document.querySelectorAll('#tarifasCont tbody tr').forEach(tr => {
+    const o = tr.getAttribute('data-fo') || '';
+    const d = tr.getAttribute('data-fd') || '';
+    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1);
+    tr.style.display = ok ? '' : 'none';
+  });
 }
 
 // Guarda (upsert) las tarifas por servicio del mes seleccionado.
@@ -18826,10 +18843,10 @@ function factHolcimExcelPorMaterial() {
     // (col E × col F). Si editas el precio en Excel, el total se recalcula solo.
     aoa.push(['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']);
     const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
-    ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
+    ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
     no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
     sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), 'Sin copia (no lo tenemos)']); });
-    po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
+    po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 36 }];
@@ -18896,7 +18913,7 @@ function factHolcimExcel() {
 
   (u.abonados || []).forEach(a => {
     const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0;
-    aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
+    aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
   });
   (u.noAbonados || []).forEach(r => {
     const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0;
@@ -18909,7 +18926,7 @@ function factHolcimExcel() {
   (u.posibles || []).forEach(a => {
     const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0;
     const tuAlb = (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)';
-    aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', 'Tu albarán: ' + tuAlb + (a.confirmado ? ' — CONFIRMADO' : '')]);
+    aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || _destProm(a.linea.material, a.linea.destino), (a.rec && a.rec.transportista) || getTransportista(a.linea.matricula) || '', 'Tu albarán: ' + tuAlb + (a.confirmado ? ' — CONFIRMADO' : '')]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
