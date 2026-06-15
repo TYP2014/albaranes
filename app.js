@@ -18439,7 +18439,11 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const noAbonados = [];
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
-    if (r.estado_facturacion === 'facturado') return; // J20: ya facturado por otra autofactura anterior
+    // v107K75 (Juan Carlos 15/06/2026): YA NO se esconden los albaranes facturados.
+    // Antes, si un albarán estaba marcado "facturado", no se mostraba como "no abonado", y eso
+    // hacía DESAPARECER viajes del Excel (faltaban 5+ en Arena Martorell-Hispalis). Ahora, si
+    // Holcim no lo ha abonado en su autofactura, SALE como "NO ABONADO" aunque esté facturado,
+    // para que veas TODOS tus viajes. (La ventana de fechas sigue limitando el periodo.)
     // v107J54/J57 — Promsa y CEMEX áridos NO son Holcim (tienen su propia facturación) → FUERA del
     //   repaso. Señales: proveedor Promsa/Cemex (o nº Ref-CemexGo "M…") + material árido, o destino
     //   "Zona Franca II" (planta de Promsa). NO afecta a "Caliza Promsa"/"Caliza Cemex" (materia prima
