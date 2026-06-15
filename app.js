@@ -18824,7 +18824,7 @@ function factHolcimExcelPorMaterial() {
     const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
     ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
     no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
-    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/promsa/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), 'Sin copia (no lo tenemos)']); });
+    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), 'Sin copia (no lo tenemos)']); });
     po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', a.linea.num_entrega || '', a.linea.matricula || '', a.linea.fecha || '', tn, pr, _celTotal(tn, pr), a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -18885,7 +18885,7 @@ function factHolcimExcel() {
   // v107K73: normaliza el FORMATO del destino (de "FÁBRICA MONTCADA" a "Fábrica Montcada"),
   // sin cambiar el destino. Y la regla Caliza Promsa → "Fábrica Montcada".
   const _titulo = (s) => { const min = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'a', 'en']); return String(s || '').trim().toLowerCase().split(/\s+/).map((w, i) => (i > 0 && min.has(w)) ? w : (w.charAt(0).toUpperCase() + w.slice(1))).join(' '); };
-  const _destProm = (mat, dest) => (/promsa/i.test(String(mat || '')) ? 'Fábrica Montcada' : _titulo(dest));
+  const _destProm = (mat, dest) => (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(mat || '')) ? 'Fábrica Montcada' : _titulo(dest));
 
   const aoa = [['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']];
   const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
