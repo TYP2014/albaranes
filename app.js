@@ -544,9 +544,11 @@ function renderTarifasEditor() {
   }
   const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
   // v107K79: buscador por Origen y Destino (antes había que mirar de una en una).
-  let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+  // v107K80: botón "✕ Recoger" para cerrar la tabla y volver a la pantalla pequeña.
+  let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
     + '<input id="tarifaBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
     + '<input id="tarifaBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
   html += '<table style="width:100%;border-collapse:collapse;min-width:560px"><thead><tr>'
     + th('Origen') + th('Destino') + th('Alb.') + th('€ / Tonelada')
@@ -567,6 +569,12 @@ function renderTarifasEditor() {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+}
+
+// v107K80: cierra la tabla de tarifas y vuelve a la pantalla pequeña (solo mes/año + "Ver servicios").
+function _tarifaCerrar() {
+  const c = document.getElementById('tarifasCont');
+  if (c) c.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Pulsa “Ver servicios” para ver y poner los precios.</div>';
 }
 
 // v107K79: filtra las filas de la tabla de tarifas por Origen y/o Destino (sin perder los precios escritos).
