@@ -18542,6 +18542,11 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const noAbonados = [];
   records.forEach(r => {
     if (r.db_id && idsMatched.has(String(r.db_id))) return;
+    // v107K40 (Juan Carlos 16/06/2026): si el albarán YA está marcado como DUPLICADO
+    // (⛔ Dup — mismo nº+fecha+TN que otra copia), NO debe salir como "no abonado": es una
+    // copia repetida, no un viaje sin pagar. El viaje real lo representa la copia buena (que
+    // sí cuadra con la autofactura). Antes el duplicado se colaba en la lista de no abonados.
+    if (r._dup) return;
     // v107K75 (Juan Carlos 15/06/2026): YA NO se esconden los albaranes facturados.
     // Antes, si un albarán estaba marcado "facturado", no se mostraba como "no abonado", y eso
     // hacía DESAPARECER viajes del Excel (faltaban 5+ en Arena Martorell-Hispalis). Ahora, si
