@@ -7837,7 +7837,7 @@ function renderTable() {
       <td style="color:#fff;font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--ac);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:#fff;font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
-      <td class="tag-mat" style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
+      <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:#fbbf24;font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
