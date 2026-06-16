@@ -10792,11 +10792,34 @@ function renderItvTable() {
       <td>${diasTxt}</td>
       <td><span class="badge">${tipoLbl}</span></td>
       <td>${esc(subPor)}</td>
-      <td>${fmtTSItv(r.created_at)}</td>
+      <td>${fmtTSItv(r.created_at)}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarItv(event,${r.db_id})" title="Descargar documento de ITV" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''}</td>
     </tr>`;
   }).join('');
   // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
   _aplicarItvSoloLectura();
+}
+
+// Descargar el documento original de una ITV del Registro (igual que en Próximas Citas).
+async function _descargarItv(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = (itvRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
+  if (!r || !hasValidUrl(r.file_url)) { toast('Esta ITV no tiene documento para descargar', 'err'); return; }
+  const esPdf = /\.pdf(\?|#|$)/i.test(r.file_url);
+  const nombre = _nombreArchivoDeUrl(r.file_url) || ('itv_' + String(r.matricula || id).replace(/[^\w.-]+/g, '_') + (esPdf ? '.pdf' : '.jpg'));
+  try {
+    const resp = await fetch(r.file_url);
+    if (!resp.ok) throw new Error('descarga ' + resp.status);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    toast('⬇️ Descargando ' + nombre, 'ok');
+  } catch (e) {
+    try { window.open(r.file_url, '_blank'); } catch (e2) {}
+    toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
+  }
 }
 
 function openItvModal(dbId) {
