@@ -5058,6 +5058,53 @@ SOLO JSON válido, sin markdown.`;
     console.log(`[v107FN] Sonnet recuperó ${recuperados}/${indicesDestSospechoso.length} destinos`);
   }
 
+  // v107K83 (Juan Carlos 17/06/2026) — VALIDACIÓN DEL Nº DE ALBARÁN DE TRASLADO HOLCIM.
+  // El nº SIEMPRE tiene 11 cifras y empieza por 3 (hoy 31048…). Si Haiku se dejó o añadió
+  // una cifra (lee 10 o 12), el viaje no cruza con la autofactura y sale NO abonado. Aquí
+  // detectamos los Holcim de TRASLADO cuyo nº empieza por 3 y NO tiene 11 cifras, los
+  // releemos con Sonnet (más fiable), y si Sonnet saca 11 cifras lo corregimos; si no, se
+  // marca "a revisar" más abajo (en analyzeRecords) para que NO se cuele.
+  // MUY dirigido: excluye palets (nº empieza por 5), recepción (destino Fábrica Montcada),
+  // CEMEX (nº con "/") y los 908… manuales (empiezan por 9). Solo toca el traslado clásico.
+  const _esNumHolcimTrasladoSospechoso = (r) => {
+    if (!/HOLCIM/i.test(String(r.proveedor || ''))) return false;
+    if (r.devolucion_palets) return false;
+    if (/F[ÁA]BRICA\s+MONTCADA/i.test(String(r.obra || ''))) return false;
+    const n = String(r.albaran || '').trim();
+    if (!/^3\d+$/.test(n)) return false;            // todo cifras y empieza por 3 (traslado)
+    if (n.length < 6 || n.length > 13) return false; // fuera de rango → no es un traslado mal leído
+    return n.length !== 11;                          // sospechoso si no son 11 cifras
+  };
+  const _esPlaceholderHolcim = (s) => s === '30000000000' || s === '30000000001';
+  const indicesNumHolcim = [];
+  for (let i = 0; i < results.length; i++) {
+    if (_esNumHolcimTrasladoSospechoso(results[i])) indicesNumHolcim.push(i);
+  }
+  if (indicesNumHolcim.length > 0) {
+    console.log(`[v107K83] ${indicesNumHolcim.length}/${results.length} nº albarán Holcim sospechosos (no 11 cifras) → releer con Sonnet...`);
+    let numSonnet = null;
+    try {
+      numSonnet = await reintentaNumeroHolcimConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+    } catch (e) {
+      console.warn('[v107K83] Error en reintento Sonnet nº Holcim (no crítico):', e.message);
+    }
+    let recuperados = 0;
+    for (const i of indicesNumHolcim) {
+      const ns = (numSonnet && numSonnet.length === results.length)
+        ? String(numSonnet[i] || '').replace(/\D/g, '')
+        : '';
+      if (/^3\d{10}$/.test(ns) && !_esPlaceholderHolcim(ns)) {
+        const antes = results[i].albaran;
+        results[i].albaran = ns;
+        if (String(antes) !== ns) console.log(`[v107K83] Nº Holcim corregido albarán ${i + 1}: "${antes}" → "${ns}"`);
+        recuperados++;
+      } else {
+        console.warn(`[v107K83] Nº Holcim albarán ${i + 1} sigue sin 11 cifras ("${results[i].albaran}") → quedará marcado a revisar`);
+      }
+    }
+    console.log(`[v107K83] Sonnet recuperó ${recuperados}/${indicesNumHolcim.length} números Holcim`);
+  }
+
   // v107H7 — RELECTURA DEL ORIGEN EN ALBARANES PUIGFEL con Sonnet.
   // Haiku falla leyendo el "Origen càrrega Obra:" de los Puigfel (deja vacío o pone
   // "Celra"). Detectamos los Puigfel y, si su origen está vacío o es un error conocido,
@@ -5167,6 +5214,54 @@ SOLO JSON válido, sin markdown.`;
 // no cuadra con bruto-tara). Devuelve un array de objetos {tm, bruto_kg, tara_kg} con
 // tantas posiciones como albaranes haya. Si no se puede parsear alguno, esa posición
 // queda null. Devuelve null si el parseo global falla (no rompe el flujo).
+// v107K83 (Juan Carlos 17/06/2026) — Relectura FOCALIZADA del NÚMERO de albarán de
+// traslado de HOLCIM con Sonnet 4.6. Estos números SIEMPRE tienen 11 cifras y empiezan
+// por "3" (hoy 31048…). Haiku a veces se deja o añade una cifra (lee 10 o 12) y entonces
+// el viaje no cruza con la autofactura y sale como NO abonado por error. Cuando detectamos
+// uno así, releemos SOLO el número con Sonnet (prompt cortísimo, más fiable). Devuelve un
+// array con un número por albarán, en orden. Mismo patrón que las otras relecturas Sonnet.
+// Los números de ejemplo del prompt son FICTICIOS (solo enseñan el formato); el código de
+// abajo además rechaza esos placeholders por si el modelo intentara copiarlos.
+async function reintentaNumeroHolcimConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const reglas = `Cada albarán de traslado de Holcim lleva, en la parte superior central, un NÚMERO grande de identificación. Ese número SIEMPRE tiene 11 cifras y empieza por "3". Léelo dígito a dígito, con MUCHO cuidado de no dejarte ni añadir ninguna cifra (es el error típico: leer 10 o 12 cuando son 11). Devuelve SOLO ese número, sin espacios ni puntos.
+⛔ Los números de ejemplo de más abajo son SOLO para enseñarte el FORMATO; NUNCA los copies. Lee SIEMPRE el número real impreso en CADA albarán.
+Si de verdad no se lee con claridad, devuelve "" (cadena vacía). NO inventes ni completes cifras que no veas.`;
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) de traslado de Holcim. Para cada uno, lee SOLO el NÚMERO de albarán de traslado (11 cifras, empieza por 3).
+${reglas}
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} elementos, en el ORDEN en que aparecen en el PDF.
+Ejemplo de FORMATO (no lo copies) para 2 albaranes: ["30000000000","30000000001"]
+SOLO el array JSON, sin texto adicional, sin markdown.`
+    : `Este es un albarán de traslado de Holcim. Lee SOLO el NÚMERO de albarán de traslado (11 cifras, empieza por 3).
+${reglas}
+Devuelve un ARRAY JSON con UN elemento. Ejemplo de FORMATO (no lo copies): ["30000000000"]. Si no lo ves, [""].
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107K83] Sonnet no devolvió JSON válido (nº Holcim):', text.substring(0, 200));
+    return null;
+  }
+}
+
 async function reintentaTnConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
   const prompt = isPdf
     ? `Este PDF contiene ${numAlbaranes} albarán(es) de transporte de áridos/cemento en España. Para cada uno, lee SOLO los tres valores de peso:
@@ -6082,6 +6177,19 @@ function analyzeRecords() {
     if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok'
         && !_esPaletDevolucion(r.producto)) {
       r._quality = 'warn';
+    }
+    // v107K83 (Juan Carlos 17/06/2026): Nº ALBARÁN DE TRASLADO HOLCIM. Estos números SIEMPRE
+    // tienen 11 cifras y empiezan por 3 (hoy 31048…). Si es Holcim de traslado y el número
+    // empieza por 3 pero NO tiene 11 cifras, casi seguro se dejó/añadió una cifra → forzar
+    // "a revisar" (⚠ Rev) para que NO se cuele (si no, no cruza con la autofactura → NO abonado).
+    // Excluye palets (nº empieza por 5) y recepción (destino Fábrica Montcada), que usan otra numeración.
+    if (r._quality === 'ok' && /HOLCIM/i.test(String(r.proveedor || ''))
+        && !r.devolucion_palets
+        && !/F[ÁA]BRICA\s+MONTCADA/i.test(String(r.obra || ''))) {
+      const _nAlb = String(r.albaran || '').trim();
+      if (/^3\d+$/.test(_nAlb) && _nAlb.length >= 6 && _nAlb.length <= 13 && _nAlb.length !== 11) {
+        r._quality = 'warn';
+      }
     }
     // v91: detectar matrículas desconocidas (rellenas pero no en TRANSPORTISTAS oficiales
     // ni en MATRICULAS_APRENDIDAS). Esto enciende un banner separado y un aviso en el modal
