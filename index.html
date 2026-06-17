@@ -1150,18 +1150,29 @@ if (typeof pdfjsLib !== 'undefined') {
           <div class="st"><div class="dot" style="--c:var(--ok)"></div>SUBIR ALBARÁN (descuenta) O FACTURA (suma) — SOLEDAD</div>
         </div>
         <div class="card-bd">
-          <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)">
-            <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumAlbFiles(this.files); this.value='';">
-            <div class="dz-ic">🛞</div>
-            <div class="dz-t">Arrastra fotos o PDFs de albaranes Soledad · o <span class="hl">haz clic para seleccionar</span></div>
-            <div class="dz-s">La IA lee el albarán y, si pone "DE SU STOCK / S/PROP", descuenta del stock automáticamente · detecta la empresa por el CIF</div>
-          </div>
-          <!-- v107I5: zona AZUL para FACTURA de compra (suma stock) -->
-          <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="margin-top:12px;border-color:var(--in)">
-            <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
-            <div class="dz-ic">📄</div>
-            <div class="dz-t">Arrastra la FACTURA de compra Soledad (PDF) · o <span class="hl">haz clic para seleccionar</span></div>
-            <div class="dz-s">La IA lee las compras de almacén y SUMAN al stock · ignora descuentos y tasas · detecta la empresa por el CIF (Holding → TYP2014)</div>
+          <!-- v107K87 (Juan Carlos 17/06/2026): las dos casillas SEPARADAS en dos columnas
+               (izquierda = ALBARANES que descuentan; derecha = FACTURAS que suman) con
+               etiqueta de color, para que no se confundan al subir. En móvil se apilan solas.
+               Mismo arrastrar/soltar y clic de siempre (ids y handlers intactos). -->
+          <div style="display:flex;gap:28px;flex-wrap:wrap">
+            <div style="flex:1;min-width:280px">
+              <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:13px">⬅ ALBARANES SOLEDAD · DESCUENTAN stock</div>
+              <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)" style="border-color:var(--ok)">
+                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumAlbFiles(this.files); this.value='';">
+                <div class="dz-ic">🛞</div>
+                <div class="dz-t">Arrastra fotos o PDFs de albaranes Soledad · o <span class="hl">haz clic para seleccionar</span></div>
+                <div class="dz-s">La IA lee el albarán y, si pone "DE SU STOCK / S/PROP", descuenta del stock automáticamente · detecta la empresa por el CIF</div>
+              </div>
+            </div>
+            <div style="flex:1;min-width:280px">
+              <div style="font-weight:700;color:var(--in);margin-bottom:8px;font-size:13px">FACTURAS DE COMPRA · SUMAN stock ➡</div>
+              <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="border-color:var(--in)">
+                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
+                <div class="dz-ic">📄</div>
+                <div class="dz-t">Arrastra la FACTURA de compra Soledad (PDF) · o <span class="hl">haz clic para seleccionar</span></div>
+                <div class="dz-s">La IA lee las compras de almacén y SUMAN al stock · ignora descuentos y tasas · detecta la empresa por el CIF (Holding → TYP2014)</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
