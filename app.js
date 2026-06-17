@@ -3611,9 +3611,12 @@ async function _processOne(it, type, key, timeoutMs) {
                   data.obra = 'Sant Just Desvern';
                 }
               } else if (/montcada/.test(_d)) {
-                if (data.obra !== 'Montcada') {
-                  console.log('[v107BG CEMEX destino] "' + data.obra + '" → "Montcada"');
-                  data.obra = 'Montcada';
+                // v107K84 (Juan Carlos 17/06/2026): CEMEX a Montcada se unifica SIEMPRE como
+                // "HORMIGON MONTCADA" (tal cual viene en el albarán CEMEX), para que NO se
+                // mezcle con el "Montcada (Hormig)" de Holcim al filtrar y poner precios.
+                if (data.obra !== 'HORMIGON MONTCADA') {
+                  console.log('[v107BG CEMEX destino] "' + data.obra + '" → "HORMIGON MONTCADA"');
+                  data.obra = 'HORMIGON MONTCADA';
                 }
               }
             }
@@ -12611,7 +12614,7 @@ function fixDestino(d) {
   if (/^CE\d{2}[A-Z]?$/.test(u)) {
     console.warn(`[fixDestino] Código sospechoso "${d}" sin pueblo. Revisar manualmente.`);
     // Mapeo conocido de algunos códigos a pueblos
-    const map = { 'CE44I': 'Celra', 'CE44D': 'Barcelona', 'CE44K': 'Montcada', 'CE44E': 'La Roca', 'CES17': 'Riudellots de la Selva' };
+    const map = { 'CE44I': 'Celra', 'CE44D': 'Barcelona', 'CE44K': 'Montcada (Hormig)', 'CE44E': 'La Roca', 'CES17': 'Riudellots de la Selva' };
     if (map[u]) return map[u];
   }
   // Paso final: normalizar contra lista de destinos canónicos (gestiona variantes como
@@ -13524,7 +13527,7 @@ const REGLAS_DESTINO = [
       const esPlantaMontcada = (s) => /MONTCADA\s*\(\s*HORMIG/.test(s) || /PLANTA\s+HORMIGONES?\s+MONTCADA/.test(s) || (/MONTCADA/.test(s) && !/F[ÁA]BRICA/.test(s));
       return esGarraf && (esPlantaMontcada(obra) || esPlantaMontcada(cliente));
     },
-    destino: 'Montcada'
+    destino: 'Montcada (Hormig)'
   },
   // Áridos con destino La Roca → "La Roca" (v107BB: alias ampliados para captar "La Roca del Vallès", "Font Parera", etc.)
   // El código de obra CE44E identifica La Roca (Polígono Industrial Font de la Pare).
@@ -13633,12 +13636,23 @@ const DESTINOS_CANONICOS = [
   // alias de hormigonera Holcim se mueven aquí desde "Planta de Montcada".
   // "Planta de Montcada" se RESERVA para destino de ÁRIDOS (es distinto, lo
   // dejamos intacto más abajo, NO se toca su uso para áridos).
-  { canon: 'Montcada', alias: [
+  // v107K84 (Juan Carlos 17/06/2026): la hormigonera de Holcim en Montcada se unifica
+  // SIEMPRE como "Montcada (Hormig)" (tal cual viene en el albarán de Holcim). Antes el
+  // canon era "Montcada" a secas; se renombra para que Holcim y CEMEX NO se mezclen al
+  // filtrar / poner precios. CEMEX tiene su propio canon "HORMIGON MONTCADA" (debajo).
+  // Las otras Montcada (Fábrica Montcada de recepción, Montcada Mortero y la depuradora
+  // "Planta de Montcada i Reixac") tienen sus propios canon y NO se tocan.
+  { canon: 'Montcada (Hormig)', alias: [
     'Montcada i Reixac', 'MONTCADA', 'Montcada I Reixac',
     'Montcada (Hormig)', 'MONTCADA (HORMIG)', 'Montcada Hormig',
     'Planta Hormigones Montcada', 'Planta Hormigones Montcada (Hormig)',
     'Planta Hormigón Montcada', 'Planta Hormigon Montcada',
     'Planta de Montcada (Hormig)', 'CE44K'
+  ] },
+  // v107K84: CEMEX hormigonera Montcada — destino propio, tal cual viene en el albarán CEMEX.
+  { canon: 'HORMIGON MONTCADA', alias: [
+    'Hormigon Montcada', 'Hormigón Montcada', 'HORMIGÓN MONTCADA',
+    'HORMIGON MONTCADA I REIXAC', 'Hormigon Montcada i Reixac'
   ] },
   { canon: 'Planta de Montcada', alias: ['Planta de Montcada áridos', 'Planta áridos Montcada'] },
   { canon: 'Planta Hormigones Zona Franca', alias: ['PH Zona Franca', 'Planta Hormigon Zona Franca', 'Planta Hormigones ZF', 'Planta Horigenes Zona Franca', 'Planta Horígenes Zona Franca', 'Planta Hormigon ZF', 'Planta Horigon Zona Franca'] },
