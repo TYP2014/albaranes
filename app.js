@@ -4784,8 +4784,18 @@ SOLO JSON válido, sin markdown.`;
     return false;
   }
   const indicesVacios = results.map((r, i) => _v107D0_matSospechosa(r) ? i : -1).filter(i => i >= 0);
-  if (indicesVacios.length > 0) {
-    console.log(`[v107D0] Haiku dejó ${indicesVacios.length}/${results.length} matrículas sospechosas (vacías, inválidas o posible remolque). Reintentando con Sonnet 4.6...`);
+  // v107K89 (Juan Carlos 17/06/2026): además de las sospechosas, releemos las matrículas
+  // VÁLIDAS pero DESCONOCIDAS (no están en la flota oficial ni en las aprendidas). Caso real:
+  // Haiku leyó "6286LMG" en vez de "6285LMG" (un dígito); como el formato es válido, antes
+  // NO se reintentaba y salía "desconocida". Ahora se relee con Sonnet y SOLO se corrige si
+  // Sonnet devuelve una matrícula que SÍ está en tu flota/aprendidas. Si es un subcontratado
+  // real con matrícula nueva, NO se toca (se queda igual y la asignas tú, como siempre).
+  const _setVacios = new Set(indicesVacios);
+  const indicesDesconocidas = results.map((r, i) =>
+    (!_setVacios.has(i) && esMatriculaValida(r.tractora) && !getTransportista(r.tractora)) ? i : -1
+  ).filter(i => i >= 0);
+  if (indicesVacios.length > 0 || indicesDesconocidas.length > 0) {
+    console.log(`[v107D0] Haiku dejó ${indicesVacios.length} sospechosas y ${indicesDesconocidas.length} desconocidas de ${results.length}. Reintentando con Sonnet 4.6...`);
     try {
       const matriculasSonnet = await reintentaMatriculaConSonnet(b64, mediaType, key, isPdf, signal, results.length);
       if (matriculasSonnet && matriculasSonnet.length === results.length) {
@@ -4808,6 +4818,22 @@ SOLO JSON válido, sin markdown.`;
           }
         }
         console.log(`[v107D0] Sonnet recuperó ${recuperadas}/${indicesVacios.length} matrículas`);
+        // v107K89: desconocidas — SOLO corregir si Sonnet devuelve una matrícula que YA está
+        // en la flota/aprendidas (getTransportista la reconoce). Si no, dejar la de Haiku
+        // (puede ser un subcontratado real con matrícula nueva).
+        let _corrDesc = 0;
+        for (const i of indicesDesconocidas) {
+          const m = matriculasSonnet[i];
+          if (m && esMatriculaValida(m) && !/^\d{4}BD[A-Z]$/i.test(String(m).trim())) {
+            const _mLimpia = String(m).trim().toUpperCase();
+            if (_mLimpia !== String(results[i].tractora).trim().toUpperCase() && getTransportista(_mLimpia)) {
+              console.log(`[v107K89] Matrícula desconocida corregida albarán ${i + 1}: ${results[i].tractora} → ${_mLimpia} (reconocida en flota/aprendidas)`);
+              results[i].tractora = _mLimpia;
+              _corrDesc++;
+            }
+          }
+        }
+        if (_corrDesc) console.log(`[v107K89] Sonnet corrigió ${_corrDesc}/${indicesDesconocidas.length} matrículas desconocidas a conocidas`);
       } else {
         console.warn(`[v93] Sonnet devolvió ${matriculasSonnet?.length || 0} matrículas pero esperábamos ${results.length}, descartando reintento`);
       }
