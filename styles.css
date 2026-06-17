@@ -194,9 +194,11 @@ th.sort-desc::after{content:' ↓';color:var(--ac)}
 td{padding:10px 12px;font-size:11px;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);white-space:nowrap}
 tr:last-child td{border-bottom:none}
 tbody tr{transition:background .1s;cursor:pointer}
-tbody tr:hover{background:var(--s2)}
+tbody tr:hover{background:rgba(255,255,255,.09)}
 tbody tr.row-dup{background:rgba(232,64,64,.05);opacity:.7}
-tbody tr.row-warn{background:rgba(245,166,35,.04)}
+tbody tr.row-dup:hover{background:rgba(232,64,64,.16)}
+tbody tr.row-warn{background:rgba(245,166,35,.09)}
+tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .tag-n{background:rgba(0,232,122,.1);color:#fff;padding:2px 8px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid rgba(0,232,122,.2)}
 .tag-tm{color:var(--wn);font-weight:600;font-size:12px}
 .tag-mat{color:var(--pu)}
