@@ -5108,6 +5108,50 @@ SOLO JSON válido, sin markdown.`;
     console.log(`[v107K83] Sonnet recuperó ${recuperados}/${indicesNumHolcim.length} números Holcim`);
   }
 
+  // v107K85 (Juan Carlos 17/06/2026) — VALIDACIÓN DE LA REF. CEMEXGO (nº que cruza en CEMEX).
+  // En CEMEX el número que cuadra con la autofactura es la "Ref. CemexGo": una M seguida de
+  // 13 cifras (ej. M4690000245728). Si Haiku lee la M con una cifra de más o de menos, no
+  // cruza y el viaje sale NO abonado. Detectamos los CEMEX cuyo nº empieza por M pero NO es
+  // "M + 13 cifras", los releemos con Sonnet, y si saca el formato bueno lo corregimos; si no,
+  // se marca "a revisar" más abajo (analyzeRecords). MUY dirigido: solo toca números que
+  // empiezan por M; NO toca el "No Albarán: 77469/XXXXXX" (no empieza por M) ni nada de Holcim.
+  // NO modifica la lógica de lectura ni de cruce de CEMEX — solo añade esta red de seguridad.
+  const _esNumCemexSospechoso = (r) => {
+    if (!/CEMEX/i.test(String(r.proveedor || ''))) return false;
+    const n = String(r.albaran || '').trim().toUpperCase();
+    if (!/^M/.test(n)) return false;          // solo la Ref CemexGo (empieza por M)
+    return !/^M\d{13}$/.test(n);              // sospechosa si no es M + 13 cifras exactas
+  };
+  const _esPlaceholderCemex = (s) => s === 'M0000000000000' || s === 'M0000000000001';
+  const indicesNumCemex = [];
+  for (let i = 0; i < results.length; i++) {
+    if (_esNumCemexSospechoso(results[i])) indicesNumCemex.push(i);
+  }
+  if (indicesNumCemex.length > 0) {
+    console.log(`[v107K85] ${indicesNumCemex.length}/${results.length} Ref CemexGo sospechosas (no M+13) → releer con Sonnet...`);
+    let numSonnetCx = null;
+    try {
+      numSonnetCx = await reintentaNumeroCemexConSonnet(b64, mediaType, key, isPdf, signal, results.length);
+    } catch (e) {
+      console.warn('[v107K85] Error en reintento Sonnet Ref CemexGo (no crítico):', e.message);
+    }
+    let recuperadosCx = 0;
+    for (const i of indicesNumCemex) {
+      const ns = (numSonnetCx && numSonnetCx.length === results.length)
+        ? String(numSonnetCx[i] || '').trim().toUpperCase().replace(/[^M0-9]/g, '')
+        : '';
+      if (/^M\d{13}$/.test(ns) && !_esPlaceholderCemex(ns)) {
+        const antes = results[i].albaran;
+        results[i].albaran = ns;
+        if (String(antes) !== ns) console.log(`[v107K85] Ref CemexGo corregida albarán ${i + 1}: "${antes}" → "${ns}"`);
+        recuperadosCx++;
+      } else {
+        console.warn(`[v107K85] Ref CemexGo albarán ${i + 1} sigue sin M+13 ("${results[i].albaran}") → quedará marcada a revisar`);
+      }
+    }
+    console.log(`[v107K85] Sonnet recuperó ${recuperadosCx}/${indicesNumCemex.length} Ref CemexGo`);
+  }
+
   // v107H7 — RELECTURA DEL ORIGEN EN ALBARANES PUIGFEL con Sonnet.
   // Haiku falla leyendo el "Origen càrrega Obra:" de los Puigfel (deja vacío o pone
   // "Celra"). Detectamos los Puigfel y, si su origen está vacío o es un error conocido,
@@ -5217,6 +5261,52 @@ SOLO JSON válido, sin markdown.`;
 // no cuadra con bruto-tara). Devuelve un array de objetos {tm, bruto_kg, tara_kg} con
 // tantas posiciones como albaranes haya. Si no se puede parsear alguno, esa posición
 // queda null. Devuelve null si el parseo global falla (no rompe el flujo).
+// v107K85 (Juan Carlos 17/06/2026) — Relectura FOCALIZADA de la REF. CEMEXGO con Sonnet 4.6.
+// La Ref. CemexGo es el nº que cruza con la autofactura de CEMEX: una M + 13 cifras
+// (ej. M4690000245728). Cuando Haiku lee la M con una cifra de más o de menos, releemos
+// SOLO ese número con Sonnet. Devuelve un array con un número por albarán, en orden.
+// Números de ejemplo FICTICIOS; el código que llama rechaza esos placeholders.
+async function reintentaNumeroCemexConSonnet(b64, mediaType, key, isPdf, signal, numAlbaranes) {
+  const reglas = `Cada albarán de CEMEX (cabecera con el logo "CEMEX ESPAÑA") lleva arriba, en el centro, el campo "Ref. CemexGo:" seguido de un código que empieza por la letra M y va seguido de 13 cifras (por ejemplo, en áridos y en cemento). Ese es el número que necesito. Léelo carácter a carácter, con MUCHO cuidado de no dejarte ni añadir ninguna cifra. Devuélvelo COMPLETO, empezando por M, sin espacios ni puntos.
+⛔ NO devuelvas el otro número de arriba a la izquierda "No Albarán: 77469/XXXXXX" — ese NO es el que necesito (no empieza por M).
+⛔ Los números de ejemplo de más abajo son SOLO para enseñarte el FORMATO; NUNCA los copies. Lee SIEMPRE la Ref. CemexGo real impresa en CADA albarán.
+Si de verdad no se lee con claridad, devuelve "" (cadena vacía). NO inventes ni completes cifras que no veas.`;
+  const prompt = isPdf
+    ? `Este PDF contiene ${numAlbaranes} albarán(es) de CEMEX. Para cada uno, lee SOLO la "Ref. CemexGo" (una M seguida de 13 cifras).
+${reglas}
+Devuelve un ARRAY JSON con exactamente ${numAlbaranes} elementos, en el ORDEN en que aparecen en el PDF.
+Ejemplo de FORMATO (no lo copies) para 2 albaranes: ["M0000000000000","M0000000000001"]
+SOLO el array JSON, sin texto adicional, sin markdown.`
+    : `Este es un albarán de CEMEX. Lee SOLO la "Ref. CemexGo" (una M seguida de 13 cifras).
+${reglas}
+Devuelve un ARRAY JSON con UN elemento. Ejemplo de FORMATO (no lo copies): ["M0000000000000"]. Si no lo ves, [""].
+SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) ? arr : [arr];
+  } catch (e) {
+    console.warn('[v107K85] Sonnet no devolvió JSON válido (Ref CemexGo):', text.substring(0, 200));
+    return null;
+  }
+}
+
 // v107K83 (Juan Carlos 17/06/2026) — Relectura FOCALIZADA del NÚMERO de albarán de
 // traslado de HOLCIM con Sonnet 4.6. Estos números SIEMPRE tienen 11 cifras y empiezan
 // por "3" (hoy 31048…). Haiku a veces se deja o añade una cifra (lee 10 o 12) y entonces
@@ -6191,6 +6281,16 @@ function analyzeRecords() {
         && !/F[ÁA]BRICA\s+MONTCADA/i.test(String(r.obra || ''))) {
       const _nAlb = String(r.albaran || '').trim();
       if (/^3\d+$/.test(_nAlb) && _nAlb.length >= 6 && _nAlb.length <= 13 && _nAlb.length !== 11) {
+        r._quality = 'warn';
+      }
+    }
+    // v107K85 (Juan Carlos 17/06/2026): REF. CEMEXGO. El nº que cruza en CEMEX es "M + 13 cifras".
+    // Si es CEMEX y el número empieza por M pero NO es M+13, casi seguro se dejó/añadió una cifra
+    // → forzar "a revisar" (⚠ Rev) para que NO se cuele (si no, no cruza con la autofactura).
+    // Solo mira los que empiezan por M (la Ref CemexGo); el "77469/XXXXXX" no entra.
+    if (r._quality === 'ok' && /CEMEX/i.test(String(r.proveedor || ''))) {
+      const _nCx = String(r.albaran || '').trim().toUpperCase();
+      if (/^M/.test(_nCx) && !/^M\d{13}$/.test(_nCx)) {
         r._quality = 'warn';
       }
     }
