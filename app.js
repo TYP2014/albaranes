@@ -12905,6 +12905,12 @@ function fixCliente(c) {
   if (/TRANSPORTES?\s+Y\s+PORTES\s+2014/i.test(u) || /PORTES\s+2014\s+IMPORT/i.test(u)) {
     return null;
   }
+  // v107K93 (Juan Carlos 17/06/2026): Llantada y Aridflot llegan a veces con la grafía larga del
+  // papel ("TRANSP. LLANTADA E HIJOS S.L.") que el match exacto de abajo no pillaba. Como son
+  // nombres muy específicos (no hay otros clientes parecidos), cualquier cliente que los contenga
+  // se canoniza SIEMPRE a su forma única. Segunda red de seguridad por si el K92 no actuara.
+  if (/LLANTADA/.test(u)) return 'Llantada e Hijos, S.L.';
+  if (/AR[IY]DFLOT/.test(u)) return 'Aridflot, S.L.';
   // v107W: intentar canonizar contra CLIENTES_CANONICOS (match contra canon o alias normalizado)
   const norm = (s) => String(s||'').toUpperCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
   const cn = norm(c);
