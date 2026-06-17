@@ -13756,7 +13756,10 @@ const DESTINOS_CANONICOS = [
   ] },
   // Fábrica Montcada: planta de Holcim que recibe materias primas (yeso, calizas externas,
   // árido siderúrgico, arcillas, arena, árido reciclado). Destino fijo de albaranes de RECEPCIÓN.
-  { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada'] },
+  // v107K90: la Fábrica de Montcada (recepción de CLINKER/cemento, código CE104, cliente "LH España")
+  // es DISTINTA de la planta de hormigón "Montcada (Hormig)". Añadidos alias para que el clinker que
+  // llega de Molienda Tarragona se canonice aquí y NO en la planta de hormigón.
+  { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada', 'LH España', 'LH ESPAÑA', 'LH Espana', 'LH España S.A.U.', 'LH ESPAÑA S.A.U.', 'LH España SAU', 'LH ESPAÑA SAU', 'CE104'] },
   // v107BU: unificación destino Montcada (cemento Holcim, código CE44K).
   // Juan Carlos: NO quiere que albaranes del MISMO origen acaben con
   // destinos distintos. Antes el mismo camión Holcim de Montcada salía unas
@@ -13773,7 +13776,10 @@ const DESTINOS_CANONICOS = [
   // Las otras Montcada (Fábrica Montcada de recepción, Montcada Mortero y la depuradora
   // "Planta de Montcada i Reixac") tienen sus propios canon y NO se tocan.
   { canon: 'Montcada (Hormig)', alias: [
-    'Montcada i Reixac', 'MONTCADA', 'Montcada I Reixac',
+    // v107K90 (Juan Carlos 17/06/2026): QUITADOS los alias genéricos "Montcada"/"Montcada i Reixac"
+    // que capturaban de más (un CLINKER de Molienda Tarragona a la Fábrica de Montcada se iba por
+    // error a la planta de hormigón). Ahora SOLO van a la planta de hormigón los destinos que dicen
+    // explícitamente "Hormig" o el código CE44K. El "Montcada" genérico de los Garraf lo resuelve inferDestino.
     'Montcada (Hormig)', 'MONTCADA (HORMIG)', 'Montcada Hormig',
     'Planta Hormigones Montcada', 'Planta Hormigones Montcada (Hormig)',
     'Planta Hormigón Montcada', 'Planta Hormigon Montcada',
