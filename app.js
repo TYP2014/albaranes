@@ -8086,6 +8086,7 @@ function renderTable() {
       <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${_celdaEstadoHtml(r)}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
       <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
+      <td style="color:#cfe;font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
       <td style="max-width:130px;padding-right:14px"><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;font-size:13px;cursor:pointer">📎${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:600;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
       <td style="color:#fff;font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
@@ -8098,7 +8099,7 @@ function renderTable() {
       <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:125px">${fmtTS(r.created_at || r._ts)}</td>
     </tr>`).join('')
     + (totalFil > lim
-      ? `<tr class="fila-vermas"><td colspan="14" style="text-align:center;padding:14px;background:var(--s2)">
+      ? `<tr class="fila-vermas"><td colspan="15" style="text-align:center;padding:14px;background:var(--s2)">
            <button class="btn bs" onclick="event.stopPropagation();_verMasFilas()" style="font-size:12px;padding:7px 18px">▼ Ver más (mostrando ${lim} de ${totalFil})</button>
          </td></tr>`
       : '');
@@ -12615,6 +12616,45 @@ const TRANSPORTISTAS_OFICIALES = [
   'CIPRIAN IOAN BUSILA','ANTONIO MARTIN','JOAQUIN CAÑAS','MIGUEL A. GARCIA','ARIDFLOT',
   'T. REFRIGERADOS DOMINGUEZ','T. SATIG 79','OP TRANS V.'
 ];
+
+// v107K94 (Juan Carlos 17/06/2026): abreviaturas del transportista SOLO para la columna visual
+// de la tabla de albaranes (para ver de un vistazo, sin abrir el modal, si la matrícula se leyó
+// bien y quién factura). NO afecta a los datos guardados ni al Excel (siguen con el nombre completo).
+const _ABREV_TRANSP = {
+  'TYP2014': 'TYP2014',
+  'TTES HISPALIS 2016': 'Hispalis',
+  'TRANSMARGAZ 2018': 'Transmargaz',
+  'JOSE MIGUEL VALLDEPEREZ': 'J. Miguel',
+  'FRANCISCO OCAÑA': 'Fran',
+  'CIPRIAN IOAN BUSILA': 'Ciprian',
+  'ANTONIO MARTIN': 'A. Martín',
+  'JOAQUIN CAÑAS': 'J. Cañas',
+  'MIGUEL A. GARCIA': 'M. Ángel',
+  'ARIDFLOT': 'Aridflot',
+  'T. REFRIGERADOS DOMINGUEZ': 'R. Domínguez',
+  'T. SATIG 79': 'Satig',
+  'OP TRANS V.': 'OP Trans'
+};
+function _abrevTransp(t) {
+  if (!t) return '—';
+  const k = String(t).toUpperCase().trim();
+  if (_ABREV_TRANSP[k]) return _ABREV_TRANSP[k];
+  // Fallback por contención (variantes antiguas o con "S.L." al final)
+  if (/HISPALIS/.test(k)) return 'Hispalis';
+  if (/TRANSMARGAZ/.test(k)) return 'Transmargaz';
+  if (/PORTES\s*2014|TYP\s*2014/.test(k)) return 'TYP2014';
+  if (/VALLDEP/.test(k)) return 'J. Miguel';
+  if (/OCA[ÑN]A/.test(k)) return 'Fran';
+  if (/CIPRIAN/.test(k)) return 'Ciprian';
+  if (/ANTONIO MART/.test(k)) return 'A. Martín';
+  if (/CA[ÑN]AS/.test(k)) return 'J. Cañas';
+  if (/MIGUEL A|GARCIA/.test(k)) return 'M. Ángel';
+  if (/ARIDFLOT/.test(k)) return 'Aridflot';
+  if (/DOMINGUEZ|REFRIGERAD/.test(k)) return 'R. Domínguez';
+  if (/SATIG/.test(k)) return 'Satig';
+  if (/OP\s*TRANS/.test(k)) return 'OP Trans';
+  return t; // desconocido: muestra el nombre tal cual para que se note y se revise
+}
 
 // v106: red de seguridad agresiva para canonizar transportistas guardados con variantes
 // raras (OCR antiguo, matrículas aprendidas mal antes de v103, denominaciones legales con
