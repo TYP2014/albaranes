@@ -3159,6 +3159,11 @@ async function _processOne(it, type, key, timeoutMs) {
             if (/LLANTADA/.test(_tpK92)) { data.cliente = 'Llantada e Hijos, S.L.'; console.log(`[v107K92] Cliente Promsa fijado a Llantada (transportista_papel="${data.transportista_papel}")`); }
             else if (/AR[IY]DFLOT/.test(_tpK92)) { data.cliente = 'Aridflot, S.L.'; console.log(`[v107K92] Cliente Promsa fijado a Aridflot (transportista_papel="${data.transportista_papel}")`); }
           }
+          // v107K95 (Juan Carlos 17/06/2026): transportista_papel es SOLO un dato auxiliar de
+          // lectura; NO es una columna de la tabla 'albaranes'. Hay que quitarlo SIEMPRE antes de
+          // guardar, o Supabase rechaza el guardado (PGRST204 "Could not find the
+          // 'transportista_papel' column"). Por eso el K92 no guardaba los Promsa.
+          delete data.transportista_papel;
         }
         // Red de seguridad: canonizar el campo CLIENTE/COMPRADOR PRIMERO. Pilla variantes OCR
         // como "Planta Horígenes Zona Franca" o "Planta Hormagones Montcada" y las unifica.
