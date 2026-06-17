@@ -6003,10 +6003,12 @@ async function callClaudeNeumAlb(b64, mediaType, key, isPdf, signal) {
 
 Devuelve SIEMPRE un ARRAY JSON. Un objeto por cada LÍNEA REAL DE NEUMÁTICO del albarán. Si no hay ninguna línea de neumático, devuelve [].
 
-🔴 QUÉ ES UNA LÍNEA DE NEUMÁTICO: una línea cuyo artículo describe una cubierta, con una MEDIDA tipo "385/65X22.5", "315/80X22.5", "315/70X22.5" (ancho/perfil + X + diámetro). Suele venir con marca y modelo (ej. "385/55X22.5 CONT.HybHS5 160K", "385/65X22.5 HT3 SR").
+🔴 QUÉ ES UNA LÍNEA DE NEUMÁTICO: una línea cuyo artículo describe una cubierta, con una MEDIDA tipo "385/65X22.5", "315/80X22.5", "315/70X22.5" (ancho/perfil + X + diámetro). Suele venir con marca y modelo (ej. "385/55X22.5 CONT.HybHS5 160K", "385/65X22.5 HT3 SR"). 🔴 La medida de un neumático SIEMPRE lleva una BARRA "/" (ej. 385/65X22.5). Si lo que ves NO tiene barra (ej. "2250X11.75", "2250X1175", "2250X1175 H10D26XB"), NO es un neumático: es una LLANTA u otra pieza → IGNÓRALA por completo.
 
 ⛔ IGNORA POR COMPLETO (NO las incluyas en el array):
-- Mano de obra: "MONTAJE CAMION", "MONTAJE FIJACIÓN", "QUIT.PONER", "EQUILIBRADO", "MANTENIMIENTO", "DESMONTAJE".
+- LLANTAS (la pieza metálica de metal, NO la cubierta de goma): cualquier línea que empiece por "LLANTA" (ej. "LLANTA WIS 2250X11.75 H10D26XB"). Su medida NO lleva barra "/". NUNCA la metas como neumático.
+- Kilometraje y desplazamiento: "KILOMETRAJE", "KM RECORRIDOS", "KM", "DESPLAZAM", "DESPLAZAMIENTO".
+- Mano de obra: "MONTAJE CAMION", "MONTAJE CAM.MAY", "MONTAJE FIJACIÓN", "MONTAJE /FIJACION", "QUIT.PONER", "EQUILIBRADO", "MANTENIMIENTO", "DESMONTAJE", "M.O", "M.O DIURNA", "MANO DE OBRA", "HORAS DE OPERARIO", "HORAS OPERARIO".
 - Tasas: "NFU", "GESTIÓN DE RESIDUOS", "ECOTASA".
 - Diagnosis, revisión, alineación sin neumático.
 - Ruedas de turismo o medidas de 17 pulgadas o menos (ej. "/17", "R17").
@@ -6024,6 +6026,8 @@ Para CADA línea de neumático devuelve estos campos:
 - "cif_cliente": el CIF/NIF del CLIENTE (el campo "N.I.F." dentro del recuadro "Cliente", ej. "B90172735"). NO el CIF del taller emisor (que es B03260684). Devuélvelo en mayúsculas sin espacios.
 
 EJEMPLO REAL: un albarán que en "Trabajos Realizados" tiene "MONTAJE CAMION MAYOR 19.5", "MONTAJE FIJACIÓN(QUIT.PONER)CM" y el texto "SE MONTAN 2 385/65X22.5 HT3 SR DE SU STOCK" → devuelve UN solo objeto de neumático: {"cantidad":2,"medida":"385/65X22,5","marca":"CONTINENTAL","modelo":"HT3 SR","propiedad":"SU_PROPIEDAD","avisa19_5":false,"num_albaran":"D700004618","fecha":"02/06/2026","matricula":"R0953BCY","cif_cliente":"B90172735"} (las líneas de MONTAJE son mano de obra → se ignoran; "DE SU STOCK" → SU_PROPIEDAD).
+
+🔴 ANTI-EJEMPLO REAL (albarán D810006460 — NO repitas este error): el albarán tenía estas líneas: "LLANTA WIS 2250X11.75 H10D26XB" (1), "DESPLAZAM.DIURNO TRUCKSERV.EXT" (1), "MONTAJE CAM.MAY 19.5 TRUCK EXT" (1), "MONTAJE /FIJACION TRUCK EXT" (1), "M.O DIURNA TRUCK SERV.EXTERNA" (2), "KILOMETRAJE DIURNO TRUCK EXTER" (40), y la línea de neumático "1- 385/65X22.5 CONT.HybrHT3SR160K" con "SE MONTA DE SU STOCK". La respuesta CORRECTA es UN SOLO objeto: {"cantidad":1,"medida":"385/65X22,5","marca":"CONTINENTAL","modelo":"HT3 SR","propiedad":"SU_PROPIEDAD","avisa19_5":false,"num_albaran":"D810006460","fecha":"10/06/2026","matricula":"R0953BCY","cif_cliente":"B90172735"}. ERRORES PROHIBIDOS: (a) cantidad = 1, NUNCA 40 (el 40 son KM recorridos, NO neumáticos; jamás uses como cantidad los km, las horas de operario ni ninguna cifra que no sea el número de cubiertas). (b) NUNCA metas "LLANTA WIS 2250X11.75" como neumático (es una llanta, su medida no lleva barra "/"). (c) "CONT.HybrHT3SR160K" → modelo "HT3 SR". (d) Ignora desplazamiento, montaje, mano de obra y kilometraje.
 
 Devuelve SOLO el array JSON, sin texto adicional, sin markdown, sin explicación.`;
 
