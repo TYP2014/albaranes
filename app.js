@@ -16398,10 +16398,28 @@ function _tallerEstadoVehiculo(v) {
   const intKm = v.intervalo_km || 60000;
   const hoy = new Date();
 
+  // v107K99 (Juan Carlos 18/06/2026): si el vehículo está marcado "No avisar", no se calcula ningún
+  // aviso (queda al día y no salta nada).
+  if (v.sin_aviso) {
+    return {
+      estado: 'ok',
+      ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
+      ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
+      proxFecha: 'No avisar', proxKm: '—', numMants: mants.length
+    };
+  }
+
   let estadoTiempo = 'ok', proxFechaStr = '—';
-  if (ultimo && ultimo.fecha) {
+  // v107K99: si hay FECHA manual de próxima revisión, MANDA esa (la pone Juan Carlos a mano con el
+  // calendario); si no, se calcula con el intervalo + la fecha del último mantenimiento.
+  let fProx = null;
+  if (v.prox_fecha_manual) {
+    fProx = new Date(v.prox_fecha_manual + 'T00:00:00');
+  } else if (ultimo && ultimo.fecha) {
     const fUlt = new Date(ultimo.fecha + 'T00:00:00');
-    const fProx = new Date(fUlt); fProx.setMonth(fProx.getMonth() + intMeses);
+    fProx = new Date(fUlt); fProx.setMonth(fProx.getMonth() + intMeses);
+  }
+  if (fProx && !isNaN(fProx)) {
     proxFechaStr = `${String(fProx.getDate()).padStart(2,'0')}/${String(fProx.getMonth()+1).padStart(2,'0')}/${fProx.getFullYear()}`;
     const diasRest = Math.floor((fProx - hoy) / 86400000);
     if (diasRest < 0) estadoTiempo = 'vencido';
@@ -16413,8 +16431,12 @@ function _tallerEstadoVehiculo(v) {
 
   let estadoKm = 'ok', proxKmStr = '—';
   const kmActual = v.km_actual || 0;
-  if (ultimo && ultimo.km != null && kmActual > 0) {
-    const kmProx = ultimo.km + intKm;
+  // v107K99: si hay KM manual de próxima revisión, MANDA ese; si no, se calcula con el intervalo + el
+  // km del último mantenimiento.
+  let kmProx = null;
+  if (v.prox_km_manual) kmProx = v.prox_km_manual;
+  else if (ultimo && ultimo.km != null) kmProx = ultimo.km + intKm;
+  if (kmProx != null && kmActual > 0) {
     proxKmStr = kmProx.toLocaleString('es-ES') + ' km';
     const kmRest = kmProx - kmActual;
     // v107AL: umbrales km según Juan Carlos: 10.000 (plan) / 5.000 (pronto) / 0 (vencido)
@@ -16439,7 +16461,7 @@ function _tallerEstadoVehiculo(v) {
 // v107AL: genera <option> de tiempo marcando el valor actual. Si el valor
 // guardado no está en la lista, lo añade para no perderlo.
 function _tallerOpcsMeses(actual) {
-  const vals = [6, 12, 18, 24];
+  const vals = [1, 3, 6, 12, 18, 24];
   if (!vals.includes(actual)) vals.push(actual);
   vals.sort((a, b) => a - b);
   return vals.map(m => `<option value="${m}"${m === actual ? ' selected' : ''}>${m} meses</option>`).join('');
@@ -16556,6 +16578,13 @@ function tallerAbrirModal(vehId) {
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo km</label><br>
         <select class="fi" id="tallerVintKm" style="font-size:11px;padding:4px">${_tallerOpcsKm(v.intervalo_km || 60000)}</select></div>
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:100px;font-size:11px;padding:4px"></div>
+      <div style="width:100%;height:1px;background:var(--bd);margin:2px 0"></div>
+      <div style="width:100%;font-size:10px;color:var(--mu);font-family:var(--mn)">📌 A MANO (si pones fecha o km aquí, MANDA esto en vez del intervalo de arriba):</div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Próxima revisión — FECHA</label><br>
+        <input type="date" class="fi" id="tallerVproxFecha" value="${v.prox_fecha_manual || ''}" style="font-size:11px;padding:4px"></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Próxima revisión — KM</label><br>
+        <input type="number" class="fi" id="tallerVproxKm" value="${v.prox_km_manual || ''}" placeholder="km" style="width:110px;font-size:11px;padding:4px"></div>
+      <div style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tallerVsinAviso" ${v.sin_aviso ? 'checked' : ''} style="width:16px;height:16px"><label for="tallerVsinAviso" style="font-size:11px;color:var(--mu);font-family:var(--mn)">No avisar</label></div>
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
       <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
     </div>
@@ -16657,7 +16686,16 @@ async function tallerGuardarVehiculo(vehId) {
   const intMeses = parseInt(document.getElementById('tallerVintMeses')?.value || '12', 10);
   const intKm = parseInt(document.getElementById('tallerVintKm')?.value || '60000', 10);
   const kmActualRaw = document.getElementById('tallerVkmActual')?.value || '';
-  const upd = { intervalo_meses: intMeses, intervalo_km: intKm, updated_at: new Date().toISOString() };
+  const proxFechaRaw = document.getElementById('tallerVproxFecha')?.value || '';
+  const proxKmRaw = document.getElementById('tallerVproxKm')?.value || '';
+  const sinAviso = !!document.getElementById('tallerVsinAviso')?.checked;
+  const upd = {
+    intervalo_meses: intMeses, intervalo_km: intKm,
+    prox_fecha_manual: proxFechaRaw || null,
+    prox_km_manual: proxKmRaw ? parseInt(proxKmRaw, 10) : null,
+    sin_aviso: sinAviso,
+    updated_at: new Date().toISOString()
+  };
   if (kmActualRaw) { upd.km_actual = parseInt(kmActualRaw, 10); upd.km_actual_fecha = new Date().toISOString().slice(0, 10); }
   try {
     const { error } = await sb.from('taller_vehiculos').update(upd).eq('id', vehId);
