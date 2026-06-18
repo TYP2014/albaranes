@@ -16319,6 +16319,7 @@ function openVacTrabajadorDetalle(trabajadorId) {
 // ============================================================
 let tallerVehiculos = [];      // filas de taller_vehiculos
 let tallerMantenimientos = []; // filas de taller_mantenimientos
+let tallerVencimientos = [];   // v107L1: filas de taller_vencimientos (lista de avisos por vehículo)
 let tallerEmpresaActiva = 'TYP2014';
 
 async function loadTallerData() {
@@ -16333,17 +16334,20 @@ async function loadTallerData() {
     });
     if (!permitidas.includes(tallerEmpresaActiva)) tallerEmpresaActiva = permitidas[0] || 'TYP2014';
 
-    const [vehRes, manRes] = await Promise.all([
+    const [vehRes, manRes, vencRes] = await Promise.all([
       sb.from('taller_vehiculos').select('*').eq('activo', true),
-      sb.from('taller_mantenimientos').select('*').order('fecha', { ascending: false })
+      sb.from('taller_mantenimientos').select('*').order('fecha', { ascending: false }),
+      sb.from('taller_vencimientos').select('*').eq('activo', true)
     ]);
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
+    if (vencRes.error) console.warn('[v107L1] vencimientos:', vencRes.error);
     // v107AO: filtrar por empresas permitidas (window._empresaTaller).
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
     tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
     tallerMantenimientos = (manRes.data || []).filter(m => permitidas.includes(m.empresa));
+    tallerVencimientos = (vencRes.data || []);
 
     // Badge con total de vehículos de la empresa activa
     const cnt = document.getElementById('tabTallerCount');
@@ -16588,6 +16592,25 @@ function tallerAbrirModal(vehId) {
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
       <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
     </div>
+    <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
+      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:8px">🔔 VENCIMIENTOS PROGRAMADOS</div>
+      <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
+        <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Qué vence</label><br>
+          <input type="text" class="fi" id="tallerVencDesc" placeholder="Ej: Filtro y aceite motor" style="width:100%;font-size:11px;padding:4px"></div>
+        <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Fecha</label><br>
+          <input type="date" class="fi" id="tallerVencFecha" style="font-size:11px;padding:4px"></div>
+        <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Km</label><br>
+          <input type="number" class="fi" id="tallerVencKm" placeholder="km" style="width:90px;font-size:11px;padding:4px"></div>
+        <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">➕ Añadir</button>
+      </div>
+      <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:var(--mn)">Rellenar fecha rápido:
+        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(1)">+1 mes</button>
+        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(3)">+3 meses</button>
+        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(6)">+6 meses</button>
+        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(12)">+1 año</button>
+      </div>
+    </div>
     <div style="overflow-x:auto">
       <table class="tbl" id="tallerModalTabla">
         <thead><tr>
@@ -16702,6 +16725,78 @@ async function tallerGuardarVehiculo(vehId) {
     if (error) throw error;
     toast('Configuración guardada', 'ok');
     await loadTallerData();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107L1: lista HTML de los vencimientos de un vehículo (dentro del modal).
+function _tallerVencimientosHtml(vehId) {
+  const lista = tallerVencimientos.filter(x => x.vehiculo_id === vehId);
+  if (!lista.length) return '<div style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin vencimientos todavía. Añade abajo (conviene tener al menos 2: ej. revisión y aceite/filtros).</div>';
+  return lista.map(x => {
+    const f = x.fecha_limite ? x.fecha_limite.split('-').reverse().join('/') : '';
+    const km = x.km_limite != null ? x.km_limite.toLocaleString('es-ES') + ' km' : '';
+    const cuando = [f, km].filter(Boolean).join(' · ') || '—';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px">
+      <span style="flex:1;color:var(--tx)">🔧 <b>${esc(x.descripcion || '')}</b></span>
+      <span style="color:var(--in);white-space:nowrap">${cuando}</span>
+      <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarVencimiento('${x.id}','${vehId}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+// v107L1: rellena el campo de fecha del nuevo vencimiento con HOY + N meses (botones rápidos).
+function _tallerFechaRapida(meses) {
+  const inp = document.getElementById('tallerVencFecha');
+  if (!inp) return;
+  const d = new Date(); d.setMonth(d.getMonth() + meses);
+  inp.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// v107L1: recarga SOLO los vencimientos (más ligero que recargar todo el Taller).
+async function _tallerRecargarVencimientos() {
+  const r = await sb.from('taller_vencimientos').select('*').eq('activo', true);
+  if (!r.error) tallerVencimientos = r.data || [];
+}
+
+// v107L1: añade un vencimiento al vehículo. Exige descripción + (fecha o km).
+async function tallerAddVencimiento(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const desc = (document.getElementById('tallerVencDesc')?.value || '').trim();
+  const fecha = document.getElementById('tallerVencFecha')?.value || '';
+  const kmRaw = document.getElementById('tallerVencKm')?.value || '';
+  if (!desc) { toast('Pon qué vence (ej: Filtro y aceite motor)', 'err'); return; }
+  if (!fecha && !kmRaw) { toast('Pon al menos una fecha o unos km', 'err'); return; }
+  const row = {
+    vehiculo_id: vehId, matricula: v.matricula, empresa: v.empresa,
+    descripcion: desc,
+    fecha_limite: fecha || null,
+    km_limite: kmRaw ? parseInt(kmRaw, 10) : null,
+    activo: true,
+    user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null,
+    updated_at: new Date().toISOString()
+  };
+  try {
+    const { error } = await sb.from('taller_vencimientos').insert(row);
+    if (error) throw error;
+    toast('Vencimiento añadido', 'ok');
+    await _tallerRecargarVencimientos();
+    const cont = document.getElementById('tallerVencLista');
+    if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
+    ['tallerVencDesc', 'tallerVencFecha', 'tallerVencKm'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107L1: borra (desactiva) un vencimiento.
+async function tallerBorrarVencimiento(id, vehId) {
+  if (!confirm('¿Borrar este vencimiento?')) return;
+  try {
+    const { error } = await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    toast('Vencimiento borrado', 'ok');
+    await _tallerRecargarVencimientos();
+    const cont = document.getElementById('tallerVencLista');
+    if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
