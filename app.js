@@ -19124,6 +19124,15 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // proveedor (Triturado Rojo / Tierra Abonada Normal, cliente Jardí Pond) — NO es Holcim →
       // fuera del cruce y del Excel de Holcim.
       if (/^TER\/OUT/.test(_albU)) return;
+      // v107L8 (Juan Carlos 18/06/2026): los CEMEX de cemento también traen el número con formato
+      // "NNNNN/NNNN" (ej. 77848/8875, origen SILO BARCELONA MUELLE) — NO es Holcim. Se quitan SOLO si:
+      // (a) el nº es "números/números" con UNA sola barra, (b) NO empieza por 3104 (esos SÍ son Holcim,
+      // ej. 31042169485 "CEM II/A-L" Fábrica Montcada), y (c) NO es materia prima (caliza/arcilla/yeso…
+      // que Holcim sí paga). Sodira (1/01718/…, DOS barras) tampoco se ve afectado por esta regla.
+      {
+        const _matPrimaH = /CALIZA|ARCILLA|YESO|ARENA|LIMONITA|ESCOMBRO|SIDERURGIC|ESCORIA|RECICLAD|TECNOCATALANA|ADEC/.test(_matU);
+        if (/^\d{4,6}\/\d{2,6}$/.test(_albU) && !/^3104/.test(_albU) && !_matPrimaH) return;
+      }
       if (((_esPromsa || _esCemex) && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
     }
     const n = _factNormAlb(r.albaran);
