@@ -16398,67 +16398,61 @@ function _tallerEstadoVehiculo(v) {
     .filter(m => m.matricula === v.matricula)
     .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
   const ultimo = mants[0] || null;
-  const intMeses = v.intervalo_meses || 12;
-  const intKm = v.intervalo_km || 60000;
   const hoy = new Date();
+  const kmActual = v.km_actual || 0;
+  const orden = { vencido: 4, pronto: 3, plan: 2, sinmant: 2, ok: 1 };
 
-  // v107K99 (Juan Carlos 18/06/2026): si el vehículo está marcado "No avisar", no se calcula ningún
-  // aviso (queda al día y no salta nada).
-  if (v.sin_aviso) {
+  // v107L2 (Juan Carlos 18/06/2026): el aviso se basa en los VENCIMIENTOS del vehículo
+  // (tabla taller_vencimientos). Cada vencimiento tiene fecha y/o km; salta lo que llegue PRIMERO.
+  // El vehículo muestra el estado del vencimiento MÁS URGENTE. Sin vencimientos → 'sinmant' (⚪, no
+  // alarma). Umbrales: fecha 15 días (pronto) / 31 días (plan); km 5.000 (pronto) / 10.000 (plan).
+  const vencs = tallerVencimientos.filter(x => x.vehiculo_id === v.id);
+  if (!vencs.length) {
     return {
-      estado: 'ok',
+      estado: 'sinmant',
       ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
       ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
-      proxFecha: 'No avisar', proxKm: '—', numMants: mants.length
+      proxFecha: 'Sin programar', proxKm: '—', numMants: mants.length
     };
   }
 
-  let estadoTiempo = 'ok', proxFechaStr = '—';
-  // v107K99: si hay FECHA manual de próxima revisión, MANDA esa (la pone Juan Carlos a mano con el
-  // calendario); si no, se calcula con el intervalo + la fecha del último mantenimiento.
-  let fProx = null;
-  if (v.prox_fecha_manual) {
-    fProx = new Date(v.prox_fecha_manual + 'T00:00:00');
-  } else if (ultimo && ultimo.fecha) {
-    const fUlt = new Date(ultimo.fecha + 'T00:00:00');
-    fProx = new Date(fUlt); fProx.setMonth(fProx.getMonth() + intMeses);
-  }
-  if (fProx && !isNaN(fProx)) {
-    proxFechaStr = `${String(fProx.getDate()).padStart(2,'0')}/${String(fProx.getMonth()+1).padStart(2,'0')}/${fProx.getFullYear()}`;
-    const diasRest = Math.floor((fProx - hoy) / 86400000);
-    if (diasRest < 0) estadoTiempo = 'vencido';
-    else if (diasRest <= 15) estadoTiempo = 'pronto';
-    else if (diasRest <= 31) estadoTiempo = 'plan';
-  } else {
-    estadoTiempo = 'sinmant';
+  const evalVenc = (x) => {
+    let est = 'ok', urg = Infinity;
+    if (x.fecha_limite) {
+      const f = new Date(x.fecha_limite + 'T00:00:00');
+      if (!isNaN(f)) {
+        const dias = Math.floor((f - hoy) / 86400000);
+        let e = 'ok';
+        if (dias < 0) e = 'vencido'; else if (dias <= 15) e = 'pronto'; else if (dias <= 31) e = 'plan';
+        if (orden[e] > orden[est]) est = e;
+        urg = Math.min(urg, dias);
+      }
+    }
+    if (x.km_limite != null && kmActual > 0) {
+      const kmRest = x.km_limite - kmActual;
+      let e = 'ok';
+      if (kmRest <= 0) e = 'vencido'; else if (kmRest <= 5000) e = 'pronto'; else if (kmRest <= 10000) e = 'plan';
+      if (orden[e] > orden[est]) est = e;
+      urg = Math.min(urg, kmRest / 100); // km → "días aprox" solo para comparar urgencia
+    }
+    return { est, urg };
+  };
+
+  let peor = 'ok', peorRank = 1, masUrg = null, masUrgScore = Infinity;
+  for (const x of vencs) {
+    const r = evalVenc(x);
+    if (orden[r.est] > peorRank) { peorRank = orden[r.est]; peor = r.est; }
+    if (r.urg < masUrgScore) { masUrgScore = r.urg; masUrg = x; }
   }
 
-  let estadoKm = 'ok', proxKmStr = '—';
-  const kmActual = v.km_actual || 0;
-  // v107K99: si hay KM manual de próxima revisión, MANDA ese; si no, se calcula con el intervalo + el
-  // km del último mantenimiento.
-  let kmProx = null;
-  if (v.prox_km_manual) kmProx = v.prox_km_manual;
-  else if (ultimo && ultimo.km != null) kmProx = ultimo.km + intKm;
-  if (kmProx != null && kmActual > 0) {
-    proxKmStr = kmProx.toLocaleString('es-ES') + ' km';
-    const kmRest = kmProx - kmActual;
-    // v107AL: umbrales km según Juan Carlos: 10.000 (plan) / 5.000 (pronto) / 0 (vencido)
-    if (kmRest <= 0) estadoKm = 'vencido';
-    else if (kmRest <= 5000) estadoKm = 'pronto';
-    else if (kmRest <= 10000) estadoKm = 'plan';
-  }
+  const proxFecha = (masUrg && masUrg.fecha_limite) ? masUrg.fecha_limite.split('-').reverse().join('/') : '—';
+  const proxKm = (masUrg && masUrg.km_limite != null) ? masUrg.km_limite.toLocaleString('es-ES') + ' km' : '—';
 
-  // El estado peor manda (vencido > pronto > plan > ok)
-  const orden = { vencido: 4, pronto: 3, plan: 2, sinmant: 2, ok: 1 };
-  const peor = orden[estadoTiempo] >= orden[estadoKm] ? estadoTiempo : estadoKm;
   return {
     estado: peor,
     ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
     ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
-    proxFecha: proxFechaStr,
-    proxKm: proxKmStr,
-    numMants: mants.length
+    proxFecha, proxKm, numMants: mants.length
   };
 }
 
@@ -16577,19 +16571,8 @@ function tallerAbrirModal(vehId) {
       ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
     </div>
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo tiempo</label><br>
-        <select class="fi" id="tallerVintMeses" style="font-size:11px;padding:4px">${_tallerOpcsMeses(v.intervalo_meses || 12)}</select></div>
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Intervalo km</label><br>
-        <select class="fi" id="tallerVintKm" style="font-size:11px;padding:4px">${_tallerOpcsKm(v.intervalo_km || 60000)}</select></div>
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:100px;font-size:11px;padding:4px"></div>
-      <div style="width:100%;height:1px;background:var(--bd);margin:2px 0"></div>
-      <div style="width:100%;font-size:10px;color:var(--mu);font-family:var(--mn)">📌 A MANO (si pones fecha o km aquí, MANDA esto en vez del intervalo de arriba):</div>
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Próxima revisión — FECHA</label><br>
-        <input type="date" class="fi" id="tallerVproxFecha" value="${v.prox_fecha_manual || ''}" style="font-size:11px;padding:4px"></div>
-      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Próxima revisión — KM</label><br>
-        <input type="number" class="fi" id="tallerVproxKm" value="${v.prox_km_manual || ''}" placeholder="km" style="width:110px;font-size:11px;padding:4px"></div>
-      <div style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tallerVsinAviso" ${v.sin_aviso ? 'checked' : ''} style="width:16px;height:16px"><label for="tallerVsinAviso" style="font-size:11px;color:var(--mu);font-family:var(--mn)">No avisar</label></div>
-      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar config</button>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual del vehículo</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:120px;font-size:11px;padding:4px"></div>
+      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar km</button>
       <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
     </div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
