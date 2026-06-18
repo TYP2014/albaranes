@@ -18937,7 +18937,19 @@ function _factProcesarYMostrarHolcim(setEstado) {
     noAbonados.push(r);
   });
 
-  _factHolcimUltimo = { abonados, posibles, noAbonados, sinAlbaran, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
+  // v107K98 (Juan Carlos 18/06/2026): el CRUCE ya se hizo con las 2 autofacturas enteras (mes +
+  // anterior con el K97), así que el marcado abonado/no es correcto. PERO en el INFORME/Excel solo
+  // deben salir los albaranes de la VENTANA (día 20 del mes anterior → día 5 del siguiente).
+  // Filtramos aquí abonados/posibles/sin copia por esa misma ventana (los "no abonados" ya venían
+  // filtrados), para que NO se cuelen los de principios del mes anterior (que pertenecen a la
+  // autofactura anterior). El marcado de "facturado" sí se hace con TODOS los abonados (los de
+  // principios del mes anterior están facturados de verdad, en su autofactura).
+  const _fAbonVent = (a) => _fechaEnVentana((a.rec && a.rec.fecha) || (a.linea && a.linea.fecha));
+  const abonadosVent = abonados.filter(_fAbonVent);
+  const posiblesVent = posibles.filter(_fAbonVent);
+  const sinAlbaranVent = sinAlbaran.filter(L => _fechaEnVentana(L.fecha));
+
+  _factHolcimUltimo = { abonados: abonadosVent, posibles: posiblesVent, noAbonados, sinAlbaran: sinAlbaranVent, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
   window._factHolcimMatSel = null; // v107J40: empezar siempre mostrando TODOS los materiales
   window._factExcelMarcadas = new Set(); // v107J50: empezar sin familias marcadas para el Excel
 
@@ -18954,9 +18966,9 @@ function _factProcesarYMostrarHolcim(setEstado) {
     }
   }
 
-  setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia.');
+  setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia.');
   _factHolcimMostrarInforme();
-  toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonados.length + ' abonados · ' + posibles.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaran.length + ' sin copia', 'ok');
+  toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia', 'ok');
 }
 
 // v107J44 — FAMILIAS DE REPASO HOLCIM. Clasifica cada línea (material + destino) en una
