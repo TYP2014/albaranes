@@ -17731,6 +17731,18 @@ function _factMesBonito(m) {
   return (nom[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
 }
 
+// v107K97 (Juan Carlos 18/06/2026): mes anterior a uno dado en formato 'YYYY-MM'.
+// Lo usa el cruce de Holcim para juntar la autofactura del mes elegido con la del mes anterior,
+// y que los albaranes de finales del mes pasado (que ya están en SU autofactura) salgan ABONADOS.
+function _factMesAnterior(mes) {
+  const p = String(mes || '').split('-');
+  const y = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (!y || !m) return '';
+  const d = new Date(y, m - 1, 1);
+  d.setMonth(d.getMonth() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
 // J31: ¿ya hay una autofactura subida con ESTE nombre de fichero y proveedor?
 // Devuelve cuántas líneas tiene (0 = no está). Rápido: solo cuenta, no trae filas.
 async function _factYaSubida(fichero, proveedor) {
@@ -18014,6 +18026,22 @@ async function factConciliarMesHolcim(mes) {
   try {
     data = await _factTraerLineas(mes, 'HOLCIM', '*');
   } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
+  // v107K97 (Juan Carlos 18/06/2026): juntar la autofactura del MES ANTERIOR (si existe) con la del
+  // mes elegido, para que los albaranes de finales del mes pasado —que ya están en SU autofactura ya
+  // subida— crucen y salgan ABONADOS, en vez de "no abonado". Así al revisar mayo se cruzan abril+mayo
+  // juntos (ventana real Holcim ~día 20 del mes anterior al 5 del siguiente). Es aditivo: solo aporta
+  // más líneas de autofactura al cruce, no cambia la lógica de cómo se cruza.
+  try {
+    const _mesAnt = _factMesAnterior(mes);
+    if (_mesAnt) {
+      const _dataAnt = await _factTraerLineas(_mesAnt, 'HOLCIM', '*');
+      if (_dataAnt && _dataAnt.length) {
+        const _nMes = data.length;
+        data = _dataAnt.concat(data);
+        console.log(`[v107K97] Cruce Holcim: ${_dataAnt.length} líneas de ${_factMesBonito(_mesAnt)} + ${_nMes} de ${_factMesBonito(mes)} = ${data.length} juntas`);
+      }
+    }
+  } catch (e) { console.warn('[v107K97] No se pudo cargar la autofactura del mes anterior (no crítico):', e); }
   if (!data.length) { setEstado('No hay liquidaciones de Holcim guardadas de ' + _factMesBonito(mes) + '. Sube una.'); return; }
   _factHolcimMesActual = mes;
   _factHolcimFicheros = [...new Set(data.map(L => L.fichero).filter(Boolean))];
