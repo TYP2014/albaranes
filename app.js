@@ -19120,6 +19120,16 @@ function _factProcesarYMostrarHolcim(setEstado) {
       const _esPromsa = /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(_provU);
       const _esCemex = /CEMEX/.test(_provU) || /^M\d{8,}$/.test(_albU);
       const _esArido = /^AF[-\s]|^AG[-\s]|ARIDO/.test(_matU) || /^A[FG]\d/.test(_matU);
+      // v107L5 (Juan Carlos 18/06/2026): CEMEX (nº Ref CemexGo "M…########" o proveedor CEMEX) NO es
+      // de Holcim, sea CEMENTO o árido — tiene su propia facturación. FUERA del cruce y del Excel de
+      // Holcim. ANTES solo se quitaba si era árido, y por eso los CEMEX de cemento ("M…" + "CEM …
+      // GRANEL") se colaban como "no abonado". La "Caliza Cemex" (materia prima que Holcim SÍ paga)
+      // NO lleva nº "M…", así que NO se ve afectada por esta regla.
+      if (/^M\d{8,}$/.test(_albU)) return;
+      // v107L6 (Juan Carlos 18/06/2026): los albaranes cuyo nº empieza por "TER/OUT" son de OTRO
+      // proveedor (Triturado Rojo / Tierra Abonada Normal, cliente Jardí Pond) — NO es Holcim →
+      // fuera del cruce y del Excel de Holcim.
+      if (/^TER\/OUT/.test(_albU)) return;
       if (((_esPromsa || _esCemex) && _esArido) || /ZONA\s*FRANCA\s*II/.test(_destU)) return;
     }
     const n = _factNormAlb(r.albaran);
