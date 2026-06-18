@@ -7526,15 +7526,9 @@ function applyGasFilters() {
     return empresaTicket === gasEmpresaActiva;
   });
 
-  // v107AO: avisar de reclasificaciones (solo una vez por sesión y empresa)
-  if (avisosReclasif.length && !window._gasAvisoMostrado?.[gasEmpresaActiva]) {
-    window._gasAvisoMostrado = window._gasAvisoMostrado || {};
-    window._gasAvisoMostrado[gasEmpresaActiva] = true;
-    const ej = avisosReclasif[0];
-    const labels = { 'TYP2014':'TYP2014', 'HISPALIS':'Hispalis', 'TRANSMARGAZ':'Transmargaz' };
-    const extra = avisosReclasif.length > 1 ? ` (y ${avisosReclasif.length - 1} más)` : '';
-    toast(`ℹ️ ${avisosReclasif.length} ticket(s) reubicado(s) por matrícula: ${ej.mat} → ${labels[ej.a] || ej.a}${extra}`, 'warn');
-  }
+  // v107L7 (Juan Carlos 18/06/2026): QUITADO el cartelito "ℹ️ X ticket(s) reubicado(s) por matrícula…".
+  // Salía cada vez que se entraba o se refrescaba la página y molestaba. La reclasificación de tickets
+  // por matrícula SIGUE funcionando exactamente igual; solo se ha quitado el aviso visual.
   renderGasTable();
 }
 
