@@ -322,3 +322,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 
 @media(max-width:900px){.stats{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)};.mfields{grid-template-columns:1fr};.admin-grid{grid-template-columns:1fr}}
+
+/* v107L4 (Juan Carlos 18/06/2026): letra de la tabla de vehículos de Taller más grande y más clara
+   (se confundía con el fondo). Solo afecta a Taller. !important para pisar los font-size en línea. */
+#tallerTablaBody td{font-size:13px !important;color:var(--tx) !important}
+#tallerTablaBody td .small,#tallerTablaBody td div{color:var(--mu)}

@@ -16320,6 +16320,7 @@ function openVacTrabajadorDetalle(trabajadorId) {
 let tallerVehiculos = [];      // filas de taller_vehiculos
 let tallerMantenimientos = []; // filas de taller_mantenimientos
 let tallerVencimientos = [];   // v107L1: filas de taller_vencimientos (lista de avisos por vehículo)
+let tallerVencHistorico = [];  // v107L3: filas de taller_venc_historico (vencimientos ya cumplidos)
 let tallerEmpresaActiva = 'TYP2014';
 
 async function loadTallerData() {
@@ -16334,20 +16335,23 @@ async function loadTallerData() {
     });
     if (!permitidas.includes(tallerEmpresaActiva)) tallerEmpresaActiva = permitidas[0] || 'TYP2014';
 
-    const [vehRes, manRes, vencRes] = await Promise.all([
+    const [vehRes, manRes, vencRes, vencHistRes] = await Promise.all([
       sb.from('taller_vehiculos').select('*').eq('activo', true),
       sb.from('taller_mantenimientos').select('*').order('fecha', { ascending: false }),
-      sb.from('taller_vencimientos').select('*').eq('activo', true)
+      sb.from('taller_vencimientos').select('*').eq('activo', true),
+      sb.from('taller_venc_historico').select('*').order('created_at', { ascending: false })
     ]);
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
     if (vencRes.error) console.warn('[v107L1] vencimientos:', vencRes.error);
+    if (vencHistRes.error) console.warn('[v107L3] histórico vencimientos:', vencHistRes.error);
     // v107AO: filtrar por empresas permitidas (window._empresaTaller).
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
     tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
     tallerMantenimientos = (manRes.data || []).filter(m => permitidas.includes(m.empresa));
     tallerVencimientos = (vencRes.data || []);
+    tallerVencHistorico = (vencHistRes.data || []);
 
     // Badge con total de vehículos de la empresa activa
     const cnt = document.getElementById('tabTallerCount');
@@ -16570,6 +16574,15 @@ function tallerAbrirModal(vehId) {
       <span>KM actual: <b style="color:var(--fg)">${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'}</b></span>
       ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
     </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
+      <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">📄 FICHA TÉCNICA</span>
+      ${v.ficha_tecnica_url
+        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">👁 Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a>`
+        : `<span style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin ficha técnica subida</span>`}
+      <label class="btn bs" style="font-size:11px;cursor:pointer">⬆ ${v.ficha_tecnica_url ? 'Reemplazar' : 'Subir'}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="tallerSubirFicha('${vehId}', this)"></label>
+      <button class="btn bs" style="font-size:11px;margin-left:auto" onclick="tallerVerHistorico('${vehId}')">📋 Histórico</button>
+    </div>
+    <div id="tallerHistBox" style="display:none;margin-bottom:14px;background:rgba(255,255,255,.03);padding:10px;border-radius:6px;border:1px solid var(--bd)"></div>
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual del vehículo</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:120px;font-size:11px;padding:4px"></div>
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar km</button>
@@ -16722,6 +16735,7 @@ function _tallerVencimientosHtml(vehId) {
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px">
       <span style="flex:1;color:var(--tx)">🔧 <b>${esc(x.descripcion || '')}</b></span>
       <span style="color:var(--in);white-space:nowrap">${cuando}</span>
+      <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--ac)" onclick="tallerVencHecho('${x.id}','${vehId}')">✓ Hecho</button>
       <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarVencimiento('${x.id}','${vehId}')">🗑</button>
     </div>`;
   }).join('');
@@ -16781,6 +16795,76 @@ async function tallerBorrarVencimiento(id, vehId) {
     const cont = document.getElementById('tallerVencLista');
     if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107L3: recarga SOLO el histórico de vencimientos.
+async function _tallerRecargarHistorico() {
+  const r = await sb.from('taller_venc_historico').select('*').order('created_at', { ascending: false });
+  if (!r.error) tallerVencHistorico = r.data || [];
+}
+
+// v107L3: marca un vencimiento como HECHO → lo guarda en el histórico (con fecha de hoy y los km
+// reales a los que se hizo), lo quita de la lista de pendientes y deja el formulario preparado para
+// reprogramar el siguiente igual (misma descripción).
+async function tallerVencHecho(id, vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  const venc = tallerVencimientos.find(x => x.id === id);
+  if (!v || !venc) return;
+  const kmReal = prompt(`¿A cuántos KM se ha hecho "${venc.descripcion}"?\n(déjalo vacío si no aplica)`, v.km_actual || '');
+  if (kmReal === null) return; // canceló
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  try {
+    const { error } = await sb.from('taller_venc_historico').insert({
+      vehiculo_id: vehId, matricula: v.matricula, empresa: v.empresa,
+      descripcion: venc.descripcion,
+      fecha_real: hoyISO,
+      km_real: (kmReal && !isNaN(parseInt(kmReal, 10))) ? parseInt(kmReal, 10) : null,
+      user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null
+    });
+    if (error) throw error;
+    await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).eq('id', id);
+    toast('✓ Guardado en histórico. Reprograma el siguiente si toca.', 'ok');
+    await _tallerRecargarVencimientos();
+    await _tallerRecargarHistorico();
+    const cont = document.getElementById('tallerVencLista');
+    if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
+    const d = document.getElementById('tallerVencDesc'); if (d) { d.value = venc.descripcion; d.focus(); }
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107L3: muestra/oculta el histórico de mantenimientos hechos del vehículo (planificado vs real).
+function tallerVerHistorico(vehId) {
+  const box = document.getElementById('tallerHistBox');
+  if (!box) return;
+  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  const lista = tallerVencHistorico.filter(h => h.vehiculo_id === vehId);
+  let html = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px">📋 HISTÓRICO DE MANTENIMIENTOS HECHOS</div>';
+  if (!lista.length) {
+    html += '<div style="font-size:11px;color:var(--mu);font-family:var(--mn)">Aún no hay nada en el histórico. Marca un vencimiento como ✓ Hecho y se guardará aquí.</div>';
+  } else {
+    html += lista.map(h => {
+      const f = h.fecha_real ? h.fecha_real.split('-').reverse().join('/') : '—';
+      const km = h.km_real != null ? h.km_real.toLocaleString('es-ES') + ' km' : '—';
+      return `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px"><span style="flex:1;color:var(--tx)">✓ ${esc(h.descripcion || '')}</span><span style="color:var(--in);white-space:nowrap">${f} · ${km}</span></div>`;
+    }).join('');
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
+// v107L3: sube la ficha técnica del vehículo (un archivo) a Storage y guarda su enlace.
+async function tallerSubirFicha(vehId, input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  toast('Subiendo ficha técnica…', 'ok');
+  try {
+    const url = await uploadFile(file, 'fichas-tecnicas');
+    const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId);
+    if (error) throw error;
+    toast('Ficha técnica subida', 'ok');
+    await loadTallerData();
+    tallerAbrirModal(vehId);
+  } catch (e) { toast('Error subiendo ficha: ' + (e.message || e), 'err'); }
 }
 
 // v107K42: eliminar vehículo (cualquier usuario con acceso a Taller) con DOBLE
