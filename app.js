@@ -16400,51 +16400,56 @@ function _tallerEstadoVehiculo(v) {
   const kmActual = v.km_actual || 0;
   const orden = { vencido: 4, pronto: 3, plan: 2, sinmant: 2, ok: 1 };
 
-  // v107L2 (Juan Carlos 18/06/2026): el aviso se basa en los VENCIMIENTOS del vehículo
-  // (tabla taller_vencimientos). Cada vencimiento tiene fecha y/o km; salta lo que llegue PRIMERO.
-  // El vehículo muestra el estado del vencimiento MÁS URGENTE. Sin vencimientos → 'sinmant' (⚪, no
-  // alarma). Umbrales: fecha 15 días (pronto) / 31 días (plan); km 5.000 (pronto) / 10.000 (plan).
-  const vencs = tallerVencimientos.filter(x => x.vehiculo_id === v.id);
-  if (!vencs.length) {
-    return {
-      estado: 'sinmant',
-      ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
-      ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
-      proxFecha: 'Sin programar', proxKm: '—', numMants: mants.length
-    };
-  }
+  // v107L10 (Juan Carlos 19/06/2026): el aviso combina DOS fuentes y muestra la MÁS URGENTE:
+  //   (A) AUTOMÁTICO — como antes: desde el último mantenimiento registrado + intervalo por defecto
+  //       (12 meses / 60.000 km). Solo si el vehículo tiene algún mantenimiento registrado.
+  //   (B) MANUAL — los vencimientos que se programan a mano (tabla taller_vencimientos).
+  // Umbrales iguales en ambos: fecha ≤15 días = pronto, ≤31 días = plan; km ≤5.000 = pronto,
+  // ≤10.000 = plan; pasado = vencido. Si no hay NI mantenimiento previo NI vencimientos → 'sinmant'.
+  const INT_MESES = 12, INT_KM = 60000;
+  let peor = 'ok', peorRank = 1, masUrgScore = Infinity, proxFecha = '—', proxKm = '—';
 
-  const evalVenc = (x) => {
-    let est = 'ok', urg = Infinity;
-    if (x.fecha_limite) {
-      const f = new Date(x.fecha_limite + 'T00:00:00');
-      if (!isNaN(f)) {
-        const dias = Math.floor((f - hoy) / 86400000);
-        let e = 'ok';
-        if (dias < 0) e = 'vencido'; else if (dias <= 15) e = 'pronto'; else if (dias <= 31) e = 'plan';
-        if (orden[e] > orden[est]) est = e;
-        urg = Math.min(urg, dias);
-      }
-    }
-    if (x.km_limite != null && kmActual > 0) {
-      const kmRest = x.km_limite - kmActual;
-      let e = 'ok';
-      if (kmRest <= 0) e = 'vencido'; else if (kmRest <= 5000) e = 'pronto'; else if (kmRest <= 10000) e = 'plan';
-      if (orden[e] > orden[est]) est = e;
-      urg = Math.min(urg, kmRest / 100); // km → "días aprox" solo para comparar urgencia
-    }
-    return { est, urg };
+  const aplicaFecha = (fechaISO) => {
+    const f = new Date(fechaISO + 'T00:00:00');
+    if (isNaN(f)) return;
+    const dias = Math.floor((f - hoy) / 86400000);
+    let e = 'ok';
+    if (dias < 0) e = 'vencido'; else if (dias <= 15) e = 'pronto'; else if (dias <= 31) e = 'plan';
+    if (orden[e] > peorRank) { peorRank = orden[e]; peor = e; }
+    if (e !== 'ok' && dias < masUrgScore) { masUrgScore = dias; proxFecha = fechaISO.split('-').reverse().join('/'); }
+  };
+  const aplicaKm = (kmLimite) => {
+    if (kmActual <= 0) return;
+    const kmRest = kmLimite - kmActual;
+    let e = 'ok';
+    if (kmRest <= 0) e = 'vencido'; else if (kmRest <= 5000) e = 'pronto'; else if (kmRest <= 10000) e = 'plan';
+    if (orden[e] > peorRank) { peorRank = orden[e]; peor = e; }
+    if (e !== 'ok' && (kmRest / 100) < masUrgScore) { masUrgScore = kmRest / 100; proxKm = kmLimite.toLocaleString('es-ES') + ' km'; }
   };
 
-  let peor = 'ok', peorRank = 1, masUrg = null, masUrgScore = Infinity;
-  for (const x of vencs) {
-    const r = evalVenc(x);
-    if (orden[r.est] > peorRank) { peorRank = orden[r.est]; peor = r.est; }
-    if (r.urg < masUrgScore) { masUrgScore = r.urg; masUrg = x; }
+  // (A) AUTOMÁTICO desde el último mantenimiento
+  if (ultimo) {
+    if (ultimo.fecha) {
+      const f = new Date(ultimo.fecha + 'T00:00:00');
+      if (!isNaN(f)) { const lim = new Date(f); lim.setMonth(lim.getMonth() + INT_MESES); aplicaFecha(lim.toISOString().slice(0, 10)); }
+    }
+    if (ultimo.km != null) aplicaKm(ultimo.km + INT_KM);
   }
 
-  const proxFecha = (masUrg && masUrg.fecha_limite) ? masUrg.fecha_limite.split('-').reverse().join('/') : '—';
-  const proxKm = (masUrg && masUrg.km_limite != null) ? masUrg.km_limite.toLocaleString('es-ES') + ' km' : '—';
+  // (B) MANUAL: vencimientos programados (lo que llegue antes en cada uno)
+  const vencs = tallerVencimientos.filter(x => x.vehiculo_id === v.id);
+  for (const x of vencs) {
+    if (x.fecha_limite) aplicaFecha(x.fecha_limite);
+    if (x.km_limite != null) aplicaKm(x.km_limite);
+  }
+
+  // Sin nada que vigilar → sin alarma
+  if (!ultimo && !vencs.length) {
+    return {
+      estado: 'sinmant', ultimaFecha: '—', ultimoKm: '—',
+      proxFecha: 'Sin programar', proxKm: '—', numMants: 0
+    };
+  }
 
   return {
     estado: peor,
@@ -16832,9 +16837,9 @@ function tallerVerHistorico(vehId) {
   if (!box) return;
   if (box.style.display !== 'none') { box.style.display = 'none'; return; }
   const lista = tallerVencHistorico.filter(h => h.vehiculo_id === vehId);
-  let html = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px">📋 HISTÓRICO DE MANTENIMIENTOS HECHOS</div>';
+  let html = '<div style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700;margin-bottom:8px">📋 HISTÓRICO DE MANTENIMIENTOS HECHOS</div>';
   if (!lista.length) {
-    html += '<div style="font-size:11px;color:var(--mu);font-family:var(--mn)">Aún no hay nada en el histórico. Marca un vencimiento como ✓ Hecho y se guardará aquí.</div>';
+    html += '<div style="font-size:12px;color:var(--tx);font-family:var(--mn)">Aún no hay nada en el histórico. Marca un vencimiento como ✓ Hecho y se guardará aquí.</div>';
   } else {
     html += lista.map(h => {
       const f = h.fecha_real ? h.fecha_real.split('-').reverse().join('/') : '—';
