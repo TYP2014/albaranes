@@ -16565,9 +16565,10 @@ function tallerAbrirModal(vehId) {
       <td style="text-align:center">${m?.id ? `<button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarLinea('${m.id}','${vehId}')">🗑</button>` : ''}</td>
     </tr>`).join('');
 
-  document.getElementById('tallerMantTitulo').textContent = `🔧 MANTENIMIENTOS · ${v.matricula}`;
+  document.getElementById('tallerMantTitulo').innerHTML = `🔧 <span style="font-size:22px;color:var(--ac);letter-spacing:1px">${esc(v.matricula)}</span> <span style="font-size:11px;color:var(--mu);letter-spacing:1px">· MANTENIMIENTOS</span>`;
   document.getElementById('tallerMantBody').innerHTML = `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
+      <span>Matrícula: <b style="color:var(--ac);font-size:14px">${esc(v.matricula)}</b></span>
       <span>Empresa: <b style="color:var(--fg)">${esc(v.empresa)}</b></span>
       <span>Tipo: <b style="color:var(--fg)">${v.tipo_vehiculo === 'semirremolque' ? 'Semirremolque' : 'Tractora'}</b></span>
       <span>KM actual: <b style="color:var(--fg)">${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'}</b></span>
