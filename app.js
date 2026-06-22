@@ -16830,17 +16830,93 @@ async function tallerGuardarVehiculo(vehId) {
 function _tallerVencimientosHtml(vehId) {
   const lista = tallerVencimientos.filter(x => x.vehiculo_id === vehId);
   if (!lista.length) return '<div style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin vencimientos todavía. Añade abajo (conviene tener al menos 2: ej. revisión y aceite/filtros).</div>';
-  return lista.map(x => {
+  // v107K75: barra para actuar sobre VARIOS vencimientos a la vez (seleccionar con las casillas).
+  const barra = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--bd);font-family:var(--mn);font-size:11px">
+      <label style="display:flex;align-items:center;gap:4px;color:var(--mu);cursor:pointer"><input type="checkbox" id="tallerVencSelAll" onclick="tallerVencSelAll('${vehId}')"> Seleccionar todos</label>
+      <button class="btn bs" style="font-size:10px;padding:2px 8px;color:var(--ac);margin-left:auto" onclick="tallerVencBulkHecho('${vehId}')">✓ Marcar hechos (al histórico)</button>
+      <button class="btn bs" style="font-size:10px;padding:2px 8px;color:var(--er)" onclick="tallerVencBulkBorrar('${vehId}')">🗑 Quitar</button>
+    </div>`;
+  const filas = lista.map(x => {
     const f = x.fecha_limite ? x.fecha_limite.split('-').reverse().join('/') : '';
     const km = x.km_limite != null ? x.km_limite.toLocaleString('es-ES') + ' km' : '';
     const cuando = [f, km].filter(Boolean).join(' · ') || '—';
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px">
+      <input type="checkbox" class="tVencChk" value="${x.id}" style="cursor:pointer">
       <span style="flex:1;color:var(--tx)">🔧 <b>${esc(x.descripcion || '')}</b></span>
       <span style="color:var(--in);white-space:nowrap">${cuando}</span>
       <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--ac)" onclick="tallerVencHecho('${x.id}','${vehId}')">✓ Hecho</button>
       <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarVencimiento('${x.id}','${vehId}')">🗑</button>
     </div>`;
   }).join('');
+  return barra + filas;
+}
+
+// v107K75: marca/desmarca todas las casillas de vencimientos a la vez.
+function tallerVencSelAll(vehId) {
+  const master = document.getElementById('tallerVencSelAll');
+  const on = !!(master && master.checked);
+  document.querySelectorAll('#tallerVencLista .tVencChk').forEach(c => { c.checked = on; });
+}
+
+// v107K75: ids de los vencimientos con la casilla marcada.
+function _tallerVencSeleccionados() {
+  return [...document.querySelectorAll('#tallerVencLista .tVencChk:checked')].map(c => c.value);
+}
+
+// v107K75: refresca la lista de vencimientos del modal + los avisos (banner) tras una acción.
+function _tallerRefrescarVencUI(vehId) {
+  const cont = document.getElementById('tallerVencLista');
+  if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
+  try { if (typeof renderTallerAvisos === 'function') renderTallerAvisos(); } catch (e) {}
+  try { if (typeof renderTallerGlobalBanner === 'function') renderTallerGlobalBanner(); } catch (e) {}
+}
+
+// v107K75: marca VARIOS vencimientos como hechos de una vez. Los guarda en el histórico
+// (con la fecha de hoy y unos km que se piden UNA sola vez para todos) y los quita de los
+// avisos. Así dejan de salir caducados pero SÍ se ven en el histórico.
+async function tallerVencBulkHecho(vehId) {
+  const ids = _tallerVencSeleccionados();
+  if (!ids.length) { toast('Marca al menos un vencimiento (casilla de la izquierda)', 'warn'); return; }
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const kmReal = prompt(`¿A cuántos KM se han hecho estos ${ids.length} vencimiento(s)?\n(déjalo vacío para usar los km actuales del vehículo: ${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'})`, v.km_actual || '');
+  if (kmReal === null) return; // canceló
+  const kmVal = (kmReal && !isNaN(parseInt(kmReal, 10))) ? parseInt(kmReal, 10) : (v.km_actual || null);
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  try {
+    const inserts = ids.map(id => {
+      const venc = tallerVencimientos.find(x => x.id === id);
+      return {
+        vehiculo_id: vehId, matricula: v.matricula, empresa: v.empresa,
+        descripcion: venc ? venc.descripcion : '',
+        fecha_real: hoyISO, km_real: kmVal,
+        user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null
+      };
+    });
+    const { error: e1 } = await sb.from('taller_venc_historico').insert(inserts);
+    if (e1) throw e1;
+    const { error: e2 } = await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).in('id', ids);
+    if (e2) throw e2;
+    toast(`✓ ${ids.length} guardado(s) en histórico y quitado(s) de los avisos`, 'ok');
+    await _tallerRecargarVencimientos();
+    await _tallerRecargarHistorico();
+    _tallerRefrescarVencUI(vehId);
+  } catch (e) { console.error('[tallerVencBulkHecho]', e); toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v107K75: quita VARIOS vencimientos de una vez SIN guardarlos en histórico (para los que
+// estaban mal o ya no aplican). Pide confirmación.
+async function tallerVencBulkBorrar(vehId) {
+  const ids = _tallerVencSeleccionados();
+  if (!ids.length) { toast('Marca al menos un vencimiento (casilla de la izquierda)', 'warn'); return; }
+  if (!confirm(`¿Quitar ${ids.length} vencimiento(s)?\n\nNO se guardan en el histórico. Si quieres conservarlos, usa "✓ Marcar hechos".`)) return;
+  try {
+    const { error } = await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).in('id', ids);
+    if (error) throw error;
+    toast(`${ids.length} vencimiento(s) quitado(s)`, 'ok');
+    await _tallerRecargarVencimientos();
+    _tallerRefrescarVencUI(vehId);
+  } catch (e) { console.error('[tallerVencBulkBorrar]', e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
 // v107L1: rellena el campo de fecha del nuevo vencimiento con HOY + N meses (botones rápidos).
