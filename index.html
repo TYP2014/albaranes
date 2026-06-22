@@ -118,7 +118,8 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=5">
+<!-- v107K77 (22/06/2026): LEGIBILIDAD — el gris de textos secundarios (--mu) era demasiado oscuro y casi no se leía (ayudas, etiquetas, "Rellenar fecha rápido"...). Aclarado de #527060 a #7d9e8b en styles.css; afecta a toda la app. Reversible. Sube styles.css + index.html (app.js NO cambia). NO requiere SQL. -->
+<link rel="stylesheet" href="styles.css?v=6">
 <!-- v107J95: nombres de los filtros en blanco suave (antes color oscuro casi igual que el fondo,
      costaba localizarlos). Solo cambia el COLOR del rótulo, no el tamaño. -->
 <style>.fil-label{color:var(--tx)}.tabs .tab{color:#fff!important}</style>

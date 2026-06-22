@@ -1,7 +1,7 @@
 :root{
   --bg:#0c0e0d;--sf:#131716;--s2:#191e1c;--bd:#243030;
   --ac:#00e87a;--wn:#f5a623;--er:#e84040;--in:#7b8ff0;--pu:#c084fc;
-  --tx:#ddeae0;--mu:#527060;--fg:#f2f7f4;
+  --tx:#ddeae0;--mu:#7d9e8b;--fg:#f2f7f4;
   --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'Bebas Neue',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
