@@ -16607,6 +16607,14 @@ function tallerAbrirModal(vehId) {
         <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(12)">+1 año</button>
       </div>
     </div>
+    <div style="margin-bottom:14px;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">🔧 REGISTRAR EL MANTENIMIENTO DE UN DÍA (en bloque)</span>
+        <button class="btn bs" id="tallerBloqueToggle" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="tallerToggleBloque('${vehId}')">➕ Abrir</button>
+      </div>
+      <div id="tallerBloqueBox" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">${_tallerBloqueHtml(v)}</div>
+    </div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:6px">📋 TODAS LAS LÍNEAS (detalle / edición fina)</div>
     <div style="overflow-x:auto">
       <table class="tbl" id="tallerModalTabla">
         <thead><tr>
@@ -16641,6 +16649,100 @@ function tallerAddLinea() {
     <td><input type="text" class="fi tallerMR" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
     <td></td>`;
   body.appendChild(tr);
+}
+
+// v107K74: BLOQUE DEL DÍA. Genera el formulario para registrar de una vez todo lo
+// que se hizo a un vehículo en una fecha (una fecha + unos km + quién lo hizo +
+// varias tareas). Guarda cada tarea como una línea de taller_mantenimientos que
+// comparte fecha/km/realizado_por. NO necesita SQL: usa la tabla de siempre.
+function _tallerBloqueHtml(v) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const km = v.km_actual || '';
+  const tarea = `
+    <div class="tallerBloqueTarea" style="display:flex;gap:6px;margin-bottom:5px">
+      <input type="text" class="fi tBloqueTipo" placeholder="Ej: Cambio de aceite + filtro" style="flex:1;font-size:11px;padding:4px">
+      <input type="text" class="fi tBloqueNotas" placeholder="notas (opcional)" style="flex:1;font-size:11px;padding:4px">
+    </div>`;
+  return `
+    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Fecha</label><br>
+        <input type="date" class="fi" id="tallerBloqueFecha" value="${hoy}" style="font-size:11px;padding:4px"></div>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM</label><br>
+        <input type="number" class="fi" id="tallerBloqueKm" value="${km}" placeholder="km" style="width:100px;font-size:11px;padding:4px"></div>
+      <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Realizado por</label><br>
+        <input type="text" class="fi" id="tallerBloqueReal" placeholder="Taller propio / Casa oficial" style="width:100%;font-size:11px;padding:4px"></div>
+    </div>
+    <div style="font-size:10px;color:var(--mu);font-family:var(--mn);margin-bottom:6px">Tareas hechas ese día (rellena solo las que necesites):</div>
+    <div id="tallerBloqueTareas">${tarea}${tarea}${tarea}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn bs" style="font-size:11px" onclick="tallerBloqueAddTarea()">➕ Añadir tarea</button>
+      <button class="btn bp" style="font-size:11px;margin-left:auto" onclick="tallerGuardarBloque('${v.id}')">💾 Guardar el día completo</button>
+    </div>`;
+}
+
+// v107K74: abre/cierra el formulario del bloque del día.
+function tallerToggleBloque(vehId) {
+  const box = document.getElementById('tallerBloqueBox');
+  const btn = document.getElementById('tallerBloqueToggle');
+  if (!box) return;
+  if (box.style.display === 'none') { box.style.display = 'block'; if (btn) btn.textContent = '▲ Cerrar'; }
+  else { box.style.display = 'none'; if (btn) btn.textContent = '➕ Abrir'; }
+}
+
+// v107K74: añade una fila de tarea más al bloque del día.
+function tallerBloqueAddTarea() {
+  const cont = document.getElementById('tallerBloqueTareas');
+  if (!cont) return;
+  const div = document.createElement('div');
+  div.className = 'tallerBloqueTarea';
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:5px';
+  div.innerHTML = `
+    <input type="text" class="fi tBloqueTipo" placeholder="Ej: Cambio de aceite + filtro" style="flex:1;font-size:11px;padding:4px">
+    <input type="text" class="fi tBloqueNotas" placeholder="notas (opcional)" style="flex:1;font-size:11px;padding:4px">`;
+  cont.appendChild(div);
+}
+
+// v107K74: guarda TODO el día de una vez. Una fecha + unos km + quién + N tareas →
+// inserta una línea por tarea (todas con la misma fecha/km/realizado_por). Si los km
+// del bloque son MAYORES que el km_actual del vehículo, también actualiza el km_actual
+// (nunca lo baja: así registrar un servicio antiguo no estropea los avisos).
+async function tallerGuardarBloque(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  if (!v) return;
+  const fecha = document.getElementById('tallerBloqueFecha')?.value || '';
+  const kmRaw = document.getElementById('tallerBloqueKm')?.value || '';
+  const realizado = (document.getElementById('tallerBloqueReal')?.value || '').trim();
+  if (!fecha) { toast('Pon la fecha del mantenimiento', 'err'); return; }
+  const km = kmRaw ? parseInt(kmRaw, 10) : null;
+  const tareas = [...document.querySelectorAll('#tallerBloqueTareas .tallerBloqueTarea')];
+  const filas = [];
+  for (const t of tareas) {
+    const tipo = (t.querySelector('.tBloqueTipo')?.value || '').trim();
+    const notas = (t.querySelector('.tBloqueNotas')?.value || '').trim();
+    if (!tipo) continue;
+    filas.push({
+      empresa: v.empresa, matricula: v.matricula, fecha,
+      km, tipo, notas: notas || null, realizado_por: realizado || null,
+      user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null
+    });
+  }
+  if (!filas.length) { toast('Añade al menos una tarea (rellena el "Tipo")', 'err'); return; }
+  try {
+    const { error } = await sb.from('taller_mantenimientos').insert(filas);
+    if (error) throw error;
+    if (km && km > (v.km_actual || 0)) {
+      await sb.from('taller_vehiculos').update({
+        km_actual: km, km_actual_fecha: new Date().toISOString().slice(0, 10),
+        updated_at: new Date().toISOString()
+      }).eq('id', vehId);
+    }
+    toast(`✓ Guardado el día ${fecha.split('-').reverse().join('/')}: ${filas.length} tarea(s)`, 'ok');
+    await loadTallerData();
+    tallerAbrirModal(vehId);
+  } catch (e) {
+    console.error('[tallerGuardarBloque]', e);
+    toast('Error guardando el bloque: ' + (e.message || e), 'err');
+  }
 }
 
 async function tallerGuardarMantenimientos(vehId) {

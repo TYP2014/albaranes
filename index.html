@@ -1756,6 +1756,7 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#14161c;border:1px solid #2a2d36;border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.55)"></div>
 </div>
 
-<script src="app.js?v=168"></script>
+<!-- v107K74 (22/06/2026): MANTENIMIENTOS — botón "Registrar el mantenimiento de un día (en bloque)" dentro del modal del vehículo. Pones la fecha (hoy por defecto), los km y quién lo hizo UNA sola vez, listas las tareas (filtro, aceite, retén...) y con UN botón se guardan todas juntas como líneas del mismo día. Si los km del bloque son mayores que el km_actual, también sube el km_actual del vehículo (nunca lo baja). Es ADITIVO: no toca vencimientos, ficha técnica ni la rejilla de detalle (que sigue debajo para editar línea a línea). Solo app.js. NO requiere SQL. -->
+<script src="app.js?v=169"></script>
 </body>
 </html>
