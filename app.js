@@ -16589,7 +16589,8 @@ function tallerAbrirModal(vehId) {
       <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
     </div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
-      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:8px">🔔 VENCIMIENTOS PROGRAMADOS</div>
+      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">🔔 VENCIMIENTOS PROGRAMADOS</div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (te avisa por lo que llegue antes).</div>
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
         <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Qué vence</label><br>
@@ -17011,21 +17012,57 @@ async function tallerVencHecho(id, vehId) {
 }
 
 // v107L3: muestra/oculta el histórico de mantenimientos hechos del vehículo (planificado vs real).
+// v107K76 (PASO 2): el botón "📋 Histórico" muestra ahora DOS secciones:
+//  1) MANTENIMIENTOS HECHOS agrupados POR DÍA (el "libro del camión"): cada día es un
+//     bloque plegable (fecha · km · realizado por · nº tareas) y al abrirlo ves las tareas.
+//  2) VENCIMIENTOS CUMPLIDOS (lo que ya había: los que se marcaron como ✓ Hecho).
+// Es solo VISTA (no borra ni mueve nada). Las líneas siguen editándose abajo en la rejilla.
 function tallerVerHistorico(vehId) {
   const box = document.getElementById('tallerHistBox');
   if (!box) return;
   if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  const v = tallerVehiculos.find(x => x.id === vehId);
+  const esc2 = (typeof esc === 'function') ? esc : (s => String(s == null ? '' : s));
+
+  // --- Sección 1: mantenimientos hechos, agrupados por día ---
+  const mants = v ? tallerMantenimientos.filter(m => m.matricula === v.matricula) : [];
+  const byDay = {};
+  mants.forEach(m => { const k = m.fecha || '0000-00-00'; (byDay[k] = byDay[k] || []).push(m); });
+  const dias = Object.keys(byDay).sort((a, b) => b.localeCompare(a)); // más nuevo primero
+
+  let html = '<div style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700;margin-bottom:8px">🔧 MANTENIMIENTOS HECHOS (por día)</div>';
+  if (!dias.length) {
+    html += '<div style="font-size:12px;color:var(--tx);font-family:var(--mn);margin-bottom:12px">Aún no hay mantenimientos registrados. Usa "🔧 Registrar el mantenimiento de un día".</div>';
+  } else {
+    html += dias.map(d => {
+      const tareas = byDay[d];
+      const fechaDisp = (d && d !== '0000-00-00') ? d.split('-').reverse().join('/') : 'Sin fecha';
+      const conKm = tareas.find(t => t.km != null);
+      const kmDisp = conKm ? conKm.km.toLocaleString('es-ES') + ' km' : '—';
+      const conReal = tareas.find(t => t.realizado_por);
+      const realDisp = conReal ? esc2(conReal.realizado_por) : '';
+      const cab = `📅 <b>${fechaDisp}</b> · ${kmDisp}${realDisp ? ' · ' + realDisp : ''} <span style="color:var(--mu)">— ${tareas.length} tarea(s)</span>`;
+      const lineas = tareas.map(t => `<div style="padding:3px 0;border-bottom:1px solid rgba(36,48,48,.4);font-family:var(--mn);font-size:11px;color:var(--tx)"><span style="color:var(--ac)">•</span> ${esc2(t.tipo || '')}${t.notas ? ` <span style="color:var(--mu)">— ${esc2(t.notas)}</span>` : ''}</div>`).join('');
+      return `<details style="margin-bottom:6px;border:1px solid var(--bd);border-radius:6px;padding:6px 10px;background:rgba(255,255,255,.02)">
+        <summary style="cursor:pointer;font-family:var(--mn);font-size:12px;color:var(--tx)">${cab}</summary>
+        <div style="margin-top:6px">${lineas}</div>
+      </details>`;
+    }).join('');
+  }
+
+  // --- Sección 2: vencimientos cumplidos (lo que ya había) ---
   const lista = tallerVencHistorico.filter(h => h.vehiculo_id === vehId);
-  let html = '<div style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700;margin-bottom:8px">📋 HISTÓRICO DE MANTENIMIENTOS HECHOS</div>';
+  html += '<div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin:14px 0 8px">✓ VENCIMIENTOS CUMPLIDOS</div>';
   if (!lista.length) {
-    html += '<div style="font-size:12px;color:var(--tx);font-family:var(--mn)">Aún no hay nada en el histórico. Marca un vencimiento como ✓ Hecho y se guardará aquí.</div>';
+    html += '<div style="font-size:12px;color:var(--tx);font-family:var(--mn)">Aún no hay vencimientos marcados como hechos.</div>';
   } else {
     html += lista.map(h => {
       const f = h.fecha_real ? h.fecha_real.split('-').reverse().join('/') : '—';
       const km = h.km_real != null ? h.km_real.toLocaleString('es-ES') + ' km' : '—';
-      return `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px"><span style="flex:1;color:var(--tx)">✓ ${esc(h.descripcion || '')}</span><span style="color:var(--in);white-space:nowrap">${f} · ${km}</span></div>`;
+      return `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px"><span style="flex:1;color:var(--tx)">✓ ${esc2(h.descripcion || '')}</span><span style="color:var(--in);white-space:nowrap">${f} · ${km}</span></div>`;
     }).join('');
   }
+
   box.innerHTML = html;
   box.style.display = 'block';
 }
