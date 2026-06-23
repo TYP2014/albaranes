@@ -2828,6 +2828,14 @@ async function processQueue(type) {
     else { _processingGas = false; _processingGasStartTs = 0; }
   }
 
+  // v107K78: REPINTADO PESADO UNA SOLA VEZ, terminado todo el lote. Durante el lote solo se
+  // refrescó la cola y los contadores (ligero). Aquí ya se dibuja la lista completa de
+  // albaranes y el panel de pendientes una única vez (antes se hacía por cada foto → tirones).
+  if (type === 'alb') {
+    try { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
+    catch (e) { console.error('[processQueue] refresco final falló:', e); }
+  }
+
   if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
   else pendingGas = pendingGas.filter(x => x.status !== 'done');
   setTimeout(() => {
@@ -4345,7 +4353,11 @@ async function _processOne(it, type, key, timeoutMs) {
       console.log('[v98] Pendiente procesado vía UPDATE (ID:', targetId, ')');
     }
     renderQueues();
-    if (type === 'alb') { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
+    // v107K78: refresco LIGERO por foto (cola + contadores + dup/calidad). El repintado
+    // PESADO de la lista entera (applyFilters + renderAlerts sobre ~7.950 albaranes) se hace
+    // UNA sola vez al final del lote, en processQueue. Antes se hacía tras CADA foto y daba
+    // tirones / lentitud en lotes grandes. analyzeRecords+updateStats son baratos (hash + contadores).
+    if (type === 'alb') { analyzeRecords(); updateStats(); }
     else { applyGasFilters(); }
     document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length;
     document.getElementById('tabGasCount').textContent = gasoilRecords.length;
