@@ -2776,10 +2776,12 @@ async function processQueue(type) {
   // con el rate limit de Haiku (el correo de Anthropic avisó de 27 excesos en 24h).
   // Juan Carlos prefiere estabilidad sobre velocidad: 3 a la vez es un poco más lento
   // (~100 albaranes en ~7-8 min en vez de ~5) pero deja de saturar la API y fallar.
-  // Además, desde v107I7 los Promsa/Puigfel hacen 2ª llamada a Sonnet, lo que aumenta
-  // el tráfico por lote → con 3 se respeta mejor el límite. Si algún día sobra margen
-  // (más tier), se puede volver a subir este número.
-  const CONCURRENCY = 3;
+  // v107K81 (22/06/2026): SUBIDO de 3 a 4 a la vez (Juan Carlos quiere algo más rápido).
+  // Ahora es más seguro que cuando se bajó a 3, porque: (a) el prompt caching (v107K79)
+  // gasta MENOS tokens por foto → menos probable tocar el rate limit; (b) el reintento
+  // persistente (v107K80) recupera SOLO los que fallen por saturación (espera 30s y reintenta
+  // hasta 3 rondas) en vez de dejarlos atascados. Si aun así satura mucho, basta volver a 3.
+  const CONCURRENCY = 4;
   const TIMEOUT_MS = 120000;
   const PAUSE_BETWEEN_BATCHES_MS = 1500; // pausa entre tandas para respetar rate limit
   let totalDone = 0;
