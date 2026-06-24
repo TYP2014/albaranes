@@ -2800,28 +2800,37 @@ async function processQueue(type) {
         await sleep(PAUSE_BETWEEN_BATCHES_MS);
       }
     }
-    // v83: reintento automático para items que fallaron (status='error') con _retries < 2.
-    // Ayuda mucho en redes inestables (PC con WiFi flojo, servidor congestionado, etc.).
-    // Espera 2 segundos antes de reintentar para dar margen a la red.
-    const retryable = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'error' && (x._retries || 0) < 2);
-    if (retryable.length > 0) {
-      console.log(`[processQueue] Reintentando ${retryable.length} archivos que fallaron`);
+    // v107K80 (22/06/2026): REINTENTO AUTOMÁTICO PERSISTENTE (lotes grandes sin atascos).
+    // ANTES: solo se reintentaba 1 ronda esperando 2s; si el fallo era por SATURACIÓN de la
+    // IA (rate limit) esos 2s no bastaban y el archivo quedaba "atascado" → había que pulsar
+    // "Reiniciar" a mano. AHORA: se reintenta hasta 3 RONDAS solo, y si alguno falló por
+    // rate-limit / saturación / timeout se espera MÁS (30s) antes de reintentar, para darle
+    // tiempo a la IA a recuperarse. Cada archivo se reintenta como mucho 3 veces (luego sí
+    // queda en rojo como último recurso). Bucle ACOTADO: máx 3 rondas, nunca infinito.
+    // Solo cambia la orquestación de reintentos; NO toca la lectura ni la concurrencia.
+    let _ronda = 0;
+    while (_ronda < 3) {
+      const retryable = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'error' && (x._retries || 0) < 3);
+      if (!retryable.length) break;
+      // ¿alguno falló por saturación/rate-limit/timeout? → esperar más antes de reintentar
+      const esperaLarga = retryable.some(x => /rate.?limit|429|satura|timeout|tard[óo] demasiado|demasiadas/i.test(x.error || ''));
+      const pausaPrevia = esperaLarga ? 30000 : 3000;
+      console.log(`[processQueue] Reintento automático ronda ${_ronda + 1}/3: ${retryable.length} archivo(s). Espera previa ${pausaPrevia / 1000}s${esperaLarga ? ' (saturación detectada)' : ''}.`);
+      if (esperaLarga) toast(`⏳ Reintentando ${retryable.length} archivo(s) en ${pausaPrevia / 1000}s (la IA estaba saturada)...`, 'warn');
       retryable.forEach(it => { it.status = 'pending'; it._retries = (it._retries || 0) + 1; });
       renderQueues();
-      await sleep(2000); // pausa de 2s antes de reintentar
-      // Procesa los reintentos en una nueva pasada
+      await sleep(pausaPrevia);
+      // Procesa los reintentos de esta ronda
       while (true) {
-        const pending2 = type === 'alb' ? pendingAlb : pendingGas;
-        const todo2 = pending2.filter(x => x.status === 'pending');
-        if (!todo2.length) break;
-        const batch2 = todo2.slice(0, CONCURRENCY);
-        const results2 = await Promise.all(batch2.map(it => _processOne(it, type, key, TIMEOUT_MS)));
-        totalDone += results2.filter(r => r === true).length;
-        const stillPending2 = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending').length;
-        if (stillPending2 > 0) {
-          await sleep(PAUSE_BETWEEN_BATCHES_MS);
-        }
+        const todoR = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending');
+        if (!todoR.length) break;
+        const batchR = todoR.slice(0, CONCURRENCY);
+        const resR = await Promise.all(batchR.map(it => _processOne(it, type, key, TIMEOUT_MS)));
+        totalDone += resR.filter(r => r === true).length;
+        const spR = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending').length;
+        if (spR > 0) await sleep(PAUSE_BETWEEN_BATCHES_MS);
       }
+      _ronda++;
     }
   } finally {
     if (type === 'alb') { _processingAlb = false; _processingAlbStartTs = 0; }
