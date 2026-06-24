@@ -1833,34 +1833,38 @@ function clearKey() { anthropicKey = ''; localStorage.removeItem('anth_key'); re
 // es mantener un CONTADOR por dropzone: incrementar en dragenter, decrementar en dragleave,
 // y solo quitar la clase visual cuando el contador llega a 0.
 const _dragCounters = new WeakMap();
+let _ovTimer = null; // v107K83: temporizador anti-parpadeo del resaltado de la zona de soltar
 
 function ev(e) {
   // dragover - obligatorio prevenir default para permitir drop.
-  // v107K82: además RE-AFIRMA el resaltado aquí. dragover se dispara de forma CONTINUA
-  // mientras el cursor está encima de la zona (o de su icono/texto interno), así que
-  // mantener la clase 'ov' aquí deja el resaltado ESTABLE, sin el parpadeo de antes.
+  // v107K83: cada dragover (que se dispara de forma CONTINUA mientras el cursor está sobre la
+  // zona o sus hijos) CANCELA cualquier "apagado" pendiente y reafirma el resaltado → queda
+  // ESTABLE. Antes (v107K82) se miraba e.relatedTarget, pero al arrastrar ARCHIVOS del PC el
+  // navegador deja relatedTarget en null por seguridad, y por eso seguía parpadeando.
   e.preventDefault();
+  if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const t = e.currentTarget;
-  if (t && t.classList && !t.classList.contains('ov')) t.classList.add('ov');
+  if (t && t.classList) t.classList.add('ov');
 }
 function dragEnter(e, dz) {
   e.preventDefault();
+  if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const target = dz || e.currentTarget;
   if (target && target.classList) target.classList.add('ov');
 }
 function el(e) {
-  // dragleave - v107K82: SIN parpadeo. Solo quitamos el resaltado si el cursor sale DE VERDAD
-  // de la zona. Si solo se mueve a un hijo de la propia zona (el icono o el texto de dentro),
-  // relatedTarget sigue DENTRO → NO quitamos la clase. Antes se usaba un contador que se
-  // descuadraba al cruzar esos bordes internos y por eso "temblaba".
+  // dragleave - v107K83: NO apagamos al instante. Programamos el apagado para 80ms después.
+  // Si el cursor solo pasó a un hijo (icono/texto) de la zona, el siguiente dragover (a los
+  // pocos ms) cancela ese apagado → no parpadea. Solo cuando SALES de verdad de la zona dejan
+  // de llegar dragover, el temporizador termina y se apaga el resaltado. NO depende de
+  // relatedTarget (que en arrastres de archivos del PC viene vacío), por eso ahora sí va fino.
   const target = e.currentTarget;
-  const rel = e.relatedTarget;
-  if (!rel || !target.contains(rel)) {
-    target.classList.remove('ov');
-  }
+  if (_ovTimer) clearTimeout(_ovTimer);
+  _ovTimer = setTimeout(() => { if (target && target.classList) target.classList.remove('ov'); _ovTimer = null; }, 80);
 }
 function drop(e, type) {
   e.preventDefault();
+  if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
   target.classList.remove('ov');
