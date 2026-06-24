@@ -1835,25 +1835,28 @@ function clearKey() { anthropicKey = ''; localStorage.removeItem('anth_key'); re
 const _dragCounters = new WeakMap();
 
 function ev(e) {
-  // dragover - obligatorio prevenir default para permitir drop
+  // dragover - obligatorio prevenir default para permitir drop.
+  // v107K82: además RE-AFIRMA el resaltado aquí. dragover se dispara de forma CONTINUA
+  // mientras el cursor está encima de la zona (o de su icono/texto interno), así que
+  // mantener la clase 'ov' aquí deja el resaltado ESTABLE, sin el parpadeo de antes.
   e.preventDefault();
+  const t = e.currentTarget;
+  if (t && t.classList && !t.classList.contains('ov')) t.classList.add('ov');
 }
 function dragEnter(e, dz) {
   e.preventDefault();
   const target = dz || e.currentTarget;
-  const count = (_dragCounters.get(target) || 0) + 1;
-  _dragCounters.set(target, count);
-  target.classList.add('ov');
+  if (target && target.classList) target.classList.add('ov');
 }
 function el(e) {
-  // dragleave - decrementar contador, solo quitar clase si llega a 0
+  // dragleave - v107K82: SIN parpadeo. Solo quitamos el resaltado si el cursor sale DE VERDAD
+  // de la zona. Si solo se mueve a un hijo de la propia zona (el icono o el texto de dentro),
+  // relatedTarget sigue DENTRO → NO quitamos la clase. Antes se usaba un contador que se
+  // descuadraba al cruzar esos bordes internos y por eso "temblaba".
   const target = e.currentTarget;
-  const count = (_dragCounters.get(target) || 0) - 1;
-  if (count <= 0) {
-    _dragCounters.set(target, 0);
+  const rel = e.relatedTarget;
+  if (!rel || !target.contains(rel)) {
     target.classList.remove('ov');
-  } else {
-    _dragCounters.set(target, count);
   }
 }
 function drop(e, type) {
