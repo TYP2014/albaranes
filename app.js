@@ -4759,7 +4759,13 @@ SOLO JSON válido, sin markdown.`;
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
   const res = await fetchAnthropicConReintento(
-    { model: 'claude-haiku-4-5', max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] },
+    // v107K79 (22/06/2026): PROMPT CACHING. El "manual" (prompt) ahora va PRIMERO y marcado
+    // con cache_control:ephemeral, para que Anthropic lo cachee y NO lo cobre entero en cada
+    // foto. Como un lote sube muchas fotos seguidas con el MISMO manual, la 1ª lo escribe en
+    // caché y las siguientes lo reusan a 1/10 del precio (ahorro grande, ~hasta 67% según
+    // Anthropic). El manual es estático (sus "arriba" son zonas del albarán en papel, NO el
+    // orden imagen/texto), así que ponerlo antes de la imagen NO cambia la lectura.
+    { model: 'claude-haiku-4-5', max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock] }] },
     key, signal, 'callClaudeAlb'
   );
   if (!res.ok) {
