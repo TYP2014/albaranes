@@ -62,7 +62,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
    - sin transition durante el drag (cambios instantáneos) */
 .dz{border:2px dashed var(--bd);border-radius:9px;padding:28px;text-align:center;cursor:pointer;position:relative;box-sizing:border-box;min-height:140px}
 .dz:hover{border-color:var(--ac);background:rgba(0,232,122,.03)}
-.dz.ov{border-color:var(--ac);background:rgba(0,232,122,.06)}
+.dz.dzover{border-color:var(--ac);background:rgba(0,232,122,.06)}
 /* v83: bloquear pointer-events en hijos para que no disparen dragenter/leave internos.
    v107K84 (23/06/2026): QUITADA la regla ".dz.ov input{pointer-events:none}" — era la CAUSA
    REAL del parpadeo al arrastrar. Esa capa invisible (el input de "clic para seleccionar")

@@ -1844,13 +1844,13 @@ function ev(e) {
   e.preventDefault();
   if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const t = e.currentTarget;
-  if (t && t.classList) t.classList.add('ov');
+  if (t && t.classList) t.classList.add('dzover');
 }
 function dragEnter(e, dz) {
   e.preventDefault();
   if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const target = dz || e.currentTarget;
-  if (target && target.classList) target.classList.add('ov');
+  if (target && target.classList) target.classList.add('dzover');
 }
 function el(e) {
   // dragleave - v107K83: NO apagamos al instante. Programamos el apagado para 80ms después.
@@ -1860,14 +1860,14 @@ function el(e) {
   // relatedTarget (que en arrastres de archivos del PC viene vacío), por eso ahora sí va fino.
   const target = e.currentTarget;
   if (_ovTimer) clearTimeout(_ovTimer);
-  _ovTimer = setTimeout(() => { if (target && target.classList) target.classList.remove('ov'); _ovTimer = null; }, 80);
+  _ovTimer = setTimeout(() => { if (target && target.classList) target.classList.remove('dzover'); _ovTimer = null; }, 80);
 }
 function drop(e, type) {
   e.preventDefault();
   if (_ovTimer) { clearTimeout(_ovTimer); _ovTimer = null; }
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
-  target.classList.remove('ov');
+  target.classList.remove('dzover');
   addFiles(e.dataTransfer.files, type);
 }
 // v107H3 (Juan Carlos 02/06/2026): arrastrar/soltar en ITV. ITV no usa addFiles
@@ -1878,7 +1878,7 @@ function dropItv(e) {
   e.preventDefault();
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
-  target.classList.remove('ov');
+  target.classList.remove('dzover');
   if (window._itvSoloLectura) { toast('No tienes permiso para subir ITV', 'err'); return; }
   handleItvFiles(e.dataTransfer.files);
 }
@@ -1889,7 +1889,7 @@ function dropCita(e) {
   e.preventDefault();
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
-  target.classList.remove('ov');
+  target.classList.remove('dzover');
   if (window._itvSoloLectura) { toast('No tienes permiso para subir citas', 'err'); return; }
   handleCitaFiles(e.dataTransfer.files);
 }
@@ -15290,7 +15290,7 @@ function dropNeumAlb(e) {
   e.preventDefault();
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
-  target.classList.remove('ov');
+  target.classList.remove('dzover');
   handleNeumAlbFiles(e.dataTransfer.files);
 }
 
@@ -15410,7 +15410,7 @@ function dropNeumFactura(e) {
   e.preventDefault();
   const target = e.currentTarget;
   _dragCounters.set(target, 0);
-  target.classList.remove('ov');
+  target.classList.remove('dzover');
   handleNeumFacturaFiles(e.dataTransfer.files);
 }
 
