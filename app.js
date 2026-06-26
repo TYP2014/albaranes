@@ -19274,6 +19274,15 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // arena/yeso/arcilla/limonita — siguen cruzando por fecha+matrícula+TN, en el bloque de abajo.)
       abonados.push({ linea: L, rec: match, difs: difsBloquean, modo: difsBloquean.length ? 'nº albarán ⚠ con diferencias' : (esTecno ? 'nº (Tecno)' : ((esAdec || esGarrafPuerto) ? 'nº + TN' : 'nº albarán')) });
       if (match.db_id) { idsMatched.add(String(match.db_id)); usados.add(String(match.db_id)); }
+      // v107K88 (26/06/2026): MULTIMATERIAL — si tenemos VARIAS filas con este mismo nº de
+      // albarán (albarán de plataforma/sacos con 2-3 materiales), marca TODAS como abonadas.
+      // Holcim factura cada material en su propia línea pero PAGA la entrega ENTERA; si el nº
+      // está en la autofactura, toda la entrega está pagada. Antes, como la IA solo leía 1 de
+      // las 2 líneas de la autofactura, nuestra otra material salía "no abonado" aunque estaba
+      // pagada (confirmado con Holcim). Marcando todas las filas del nº como abonadas, ninguna
+      // vuelve a salir como "no abonado". (Solo afecta a idsMatched — usados sigue con la fila
+      // emparejada, por si la autofactura SÍ trae varias líneas y hay que casarlas una a una.)
+      if (cand.length > 1) cand.forEach(c => { if (c.db_id) idsMatched.add(String(c.db_id)); });
       return;
     }
 
