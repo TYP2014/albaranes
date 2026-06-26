@@ -19242,6 +19242,20 @@ function _factProcesarYMostrarHolcim(setEstado) {
     // 1) POR Nº DE ALBARÁN (cemento, áridos, clinker, palets) → ABONADO directo (el número manda).
     if (numA && porNum.has(numA)) {
       const cand = porNum.get(numA);
+      // v107K89 (26/06/2026): MULTIMATERIAL — albarán de plataforma/sacos con VARIAS filas del
+      // mismo nº (cada material su línea). Holcim escribe el nº UNA sola vez (la 2ª línea va sin
+      // número) y paga la entrega ENTERA. Antes (K88) marcábamos las otras como pagadas pero NO
+      // se VEÍAN en el Excel (desaparecían), y eso NO es lo que quiere Juan Carlos. Ahora añadimos
+      // CADA fila del nº como ABONADA, para que se vea que TODAS las líneas están pagadas. Sin la
+      // nota de "TN no coincide" (esa comparaba con una sola línea de Holcim, aquí no tiene sentido).
+      if (cand.length > 1) {
+        cand.forEach(c => {
+          if (!c.db_id || idsMatched.has(String(c.db_id))) return;
+          idsMatched.add(String(c.db_id)); usados.add(String(c.db_id));
+          abonados.push({ linea: L, rec: c, difs: [], modo: 'nº albarán (multimaterial — entrega pagada entera)' });
+        });
+        return;
+      }
       const match = cand.find(c => !usados.has(String(c.db_id))) || cand[0];
       const difs = [];
       const matR = _factNormMat(match.tractora);
@@ -19274,15 +19288,6 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // arena/yeso/arcilla/limonita — siguen cruzando por fecha+matrícula+TN, en el bloque de abajo.)
       abonados.push({ linea: L, rec: match, difs: difsBloquean, modo: difsBloquean.length ? 'nº albarán ⚠ con diferencias' : (esTecno ? 'nº (Tecno)' : ((esAdec || esGarrafPuerto) ? 'nº + TN' : 'nº albarán')) });
       if (match.db_id) { idsMatched.add(String(match.db_id)); usados.add(String(match.db_id)); }
-      // v107K88 (26/06/2026): MULTIMATERIAL — si tenemos VARIAS filas con este mismo nº de
-      // albarán (albarán de plataforma/sacos con 2-3 materiales), marca TODAS como abonadas.
-      // Holcim factura cada material en su propia línea pero PAGA la entrega ENTERA; si el nº
-      // está en la autofactura, toda la entrega está pagada. Antes, como la IA solo leía 1 de
-      // las 2 líneas de la autofactura, nuestra otra material salía "no abonado" aunque estaba
-      // pagada (confirmado con Holcim). Marcando todas las filas del nº como abonadas, ninguna
-      // vuelve a salir como "no abonado". (Solo afecta a idsMatched — usados sigue con la fila
-      // emparejada, por si la autofactura SÍ trae varias líneas y hay que casarlas una a una.)
-      if (cand.length > 1) cand.forEach(c => { if (c.db_id) idsMatched.add(String(c.db_id)); });
       return;
     }
 
