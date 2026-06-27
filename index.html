@@ -120,7 +120,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- v107K77 (22/06/2026): LEGIBILIDAD — el gris de textos secundarios (--mu) era demasiado oscuro y casi no se leía (ayudas, etiquetas, "Rellenar fecha rápido"...). Aclarado de #527060 a #7d9e8b en styles.css; afecta a toda la app. Reversible. Sube styles.css + index.html (app.js NO cambia). NO requiere SQL. -->
 <!-- v107K84 (23/06/2026): PARPADEO DE LA ZONA DE SOLTAR — CAUSA RAÍZ ENCONTRADA Y ARREGLADA (en el CSS, no en el JS). La zona tiene encima una capa invisible (el input de "clic para seleccionar"). Una regla apagaba esa capa justo al iluminarse la zona, lo que cambiaba el elemento bajo el cursor y hacía oscilar la iluminación → parpadeo continuo. Quitada esa regla (.dz.ov input{pointer-events:none}) en styles.css: ahora la capa se mantiene fija durante el arrastre y NO parpadea. El drop sigue bien (drop() hace preventDefault). Sube styles.css + index.html (app.js NO cambia, sigue v=177). NO requiere SQL. -->
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 <!-- v107J95: nombres de los filtros en blanco suave (antes color oscuro casi igual que el fondo,
      costaba localizarlos). Solo cambia el COLOR del rótulo, no el tamaño. -->
 <style>.fil-label{color:var(--tx)}.tabs .tab{color:#fff!important}</style>
