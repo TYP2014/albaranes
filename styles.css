@@ -17,8 +17,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .login-label{font-family:var(--mn);font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;display:block}
 .login-input{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;font-family:var(--mn);font-size:13px;color:var(--tx);outline:none;transition:border-color .15s}
 .login-input:focus{border-color:var(--ac)}
-.login-btn{width:100%;background:var(--ac);color:#000;border:none;border-radius:8px;padding:13px;font-family:var(--mn);font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s;margin-top:8px}
-.login-btn:hover{background:#1ffb89;transform:translateY(-1px)}
+.login-btn{width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:13px;font-family:var(--mn);font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s;margin-top:8px}
+.login-btn:hover{background:#3a8ad8;transform:translateY(-1px)}
 .login-err{background:rgba(232,64,64,.1);border:1px solid rgba(232,64,64,.3);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:11px;margin-top:12px;display:none}
 
 /* HEADER */
@@ -34,7 +34,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 
 /* BUTTONS */
 .btn{font-family:var(--mn);font-size:11px;font-weight:600;padding:7px 14px;border-radius:6px;border:none;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
-.bp{background:var(--ac);color:#000}.bp:hover{background:#1ffb89;transform:translateY(-1px)}
+.bp{background:var(--ac);color:#fff}.bp:hover{background:#3a8ad8;transform:translateY(-1px)}
 .bs{background:transparent;border:1px solid var(--bd);color:var(--tx)}.bs:hover{border-color:var(--ac);color:var(--ac)}
 .br{background:transparent;border:1px solid var(--er);color:var(--er)}.br:hover{background:var(--er);color:#fff}
 .bw{background:transparent;border:1px solid var(--wn);color:var(--wn)}.bw:hover{background:var(--wn);color:#000}
@@ -46,7 +46,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .tab{font-family:var(--mn);font-size:11px;font-weight:600;padding:14px 20px;cursor:pointer;color:var(--mu);border-bottom:2px solid transparent;transition:all .15s;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px}
 .tab:hover{color:var(--tx)}
 .tab.active{color:var(--ac);border-bottom-color:var(--ac)}
-.tab-badge{background:var(--ac);color:#000;border-radius:10px;padding:1px 6px;font-size:9px}
+.tab-badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px}
 
 /* WRAP */
 .wrap{width:97%;max-width:2400px;margin:0 auto;padding:20px 24px}
@@ -294,7 +294,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
    en lugar del fondo oscuro semi-transparente que pasaba desapercibido.
    v97h: z-index aumentado a 10 + position absoluta de respaldo si sticky no agarra. */
 .pdf-zoom-controls{position:sticky;top:0;display:flex;gap:8px;z-index:10;padding:10px;justify-content:center;background:linear-gradient(to bottom,rgba(0,0,0,.92),rgba(0,0,0,.7));backdrop-filter:blur(6px);flex-shrink:0;align-items:center;border-bottom:2px solid var(--ac);width:100%;box-sizing:border-box}
-.pdf-zoom-btn{background:var(--ac);color:#000;border:2px solid var(--ac);border-radius:8px;height:42px;min-width:50px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:18px;font-weight:700;transition:all .15s;font-family:var(--mn);box-shadow:0 2px 8px rgba(43,123,208,.3)}
+.pdf-zoom-btn{background:var(--ac);color:#fff;border:2px solid var(--ac);border-radius:8px;height:42px;min-width:50px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:18px;font-weight:700;transition:all .15s;font-family:var(--mn);box-shadow:0 2px 8px rgba(43,123,208,.3)}
 .pdf-zoom-btn:hover{background:#fff;border-color:#fff;transform:scale(1.05);box-shadow:0 4px 12px rgba(43,123,208,.5)}
 .pdf-zoom-btn:active{transform:scale(0.95)}
 .pdf-zoom-info{background:#000;color:var(--ac);padding:0 14px;height:42px;display:inline-flex;align-items:center;border-radius:8px;font-family:var(--mn);font-size:14px;font-weight:700;border:2px solid var(--ac);min-width:70px;justify-content:center}
