@@ -333,3 +333,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
    (se confundía con el fondo). Solo afecta a Taller. !important para pisar los font-size en línea. */
 #tallerTablaBody td{font-size:13px !important;color:var(--tx) !important}
 #tallerTablaBody td .small,#tallerTablaBody td div{color:var(--mu)}
+
+/* v107K106: texto algo más grande en Gasoil, ITV, Taller y Neumáticos (aprovechar mejor la página) */
+#tabContentGas,#tabContentItv,#tabContentTaller,#tabContentNeum{font-size:13.5px}
+#tabContentGas td,#tabContentItv td,#tabContentTaller td,#tabContentNeum td{font-size:14px}
+#tabContentGas th,#tabContentItv th,#tabContentTaller th,#tabContentNeum th{font-size:12.5px}
