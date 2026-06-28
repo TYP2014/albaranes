@@ -340,6 +340,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentGas th,#tabContentItv th,#tabContentTaller th,#tabContentNeum th{font-size:12.5px}
 /* SUBIR ALBARANES más grande (solo esta tarjeta) */
 #cardSubirAlb .st{font-size:21px}
+/* Facturación: títulos de apartado más grandes */
+#tabContentFacturacion .st{font-size:20px}
 #cardSubirAlb .dz{padding:42px 28px;min-height:200px}
 #cardSubirAlb .dz-ic{font-size:48px;margin-bottom:10px}
 #cardSubirAlb .dz-t{font-size:15px;margin-bottom:6px}
