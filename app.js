@@ -8171,11 +8171,11 @@ function renderGasTable() {
       <td>${r.fecha || '—'}</td>
       <td class="tag-mat">${r.tractora || '—'}</td>
       <td class="tag-prov">${r.proveedor || '—'}</td>
-      <td style="color:var(--wn)">${r.tipo || '—'}</td>
+      <td style="color:var(--tx)">${r.tipo || '—'}</td>
       <td class="tag-tm">${r.litros != null ? Number(r.litros).toFixed(1) + ' L' : '—'}</td>
       <td><span class="tag-n">${r.num_ticket || '—'}</span></td>
       <td style="opacity:.7">${r.user_email || '—'}</td>
-      <td style="color:var(--mu);font-size:10px">${fmtTS(r.created_at || r._ts)}</td>
+      <td style="color:var(--tx);font-size:14px">${fmtTS(r.created_at || r._ts)}</td>
       <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a>` : '—'}</td>
     </tr>`).join('');
 }
@@ -8595,7 +8595,7 @@ async function gasRenderConsumo() {
         const c = colC(d.cons);
         return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
           <div style="width:78px;font-family:var(--mn);font-size:11px;color:#fff;flex-shrink:0">${d.mat}</div>
-          <div style="flex:1;background:rgba(255,255,255,.06);border-radius:5px;height:20px;overflow:hidden">
+          <div style="flex:1;background:#e2e8f0;border-radius:5px;height:20px;overflow:hidden">
             <div style="width:${w.toFixed(1)}%;background:${c};height:100%;border-radius:5px;min-width:3px"></div>
           </div>
           <div style="width:54px;text-align:right;font-family:var(--mn);font-size:12px;font-weight:700;color:${c};flex-shrink:0">${d.cons.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
@@ -15711,7 +15711,7 @@ function renderVac() {
             <td style="padding:8px;color:var(--mu)">${esc(t.empresa || '—')}</td>
             <td style="padding:8px">
               <div style="display:flex;align-items:center;gap:8px">
-                <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;min-width:80px">
+                <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;min-width:80px">
                   <div style="width:${pctVac}%;height:100%;background:${colorVac};transition:width .3s"></div>
                 </div>
                 <span style="color:${colorVac};font-weight:bold;white-space:nowrap">${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES}</span>

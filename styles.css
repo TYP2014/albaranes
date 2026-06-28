@@ -208,7 +208,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .tag-n{background:rgba(43,123,208,.1);color:var(--ac);padding:2px 8px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid rgba(43,123,208,.2)}
 .tag-tm{color:var(--fg);font-weight:600;font-size:12px}
 .tag-mat{color:var(--tx)}
-.tag-prov{color:var(--in)}
+.tag-prov{color:var(--tx)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--mn);white-space:nowrap}
 .badge-ok{background:rgba(43,123,208,.1);color:var(--ac);border:1px solid rgba(43,123,208,.2)}
 .badge-dup{background:rgba(232,64,64,.1);color:var(--er);border:1px solid rgba(232,64,64,.2)}
