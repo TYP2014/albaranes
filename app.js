@@ -7674,8 +7674,8 @@ function _puedeVerFacturacion() {
 // Albaranes sin estado en BD se tratan como pendientes (📌).
 // v107K22 — iconos uniformes (mismo trazo y tamaño) en lugar de emojis sueltos.
 // Ayudante: dibuja un icono SVG de líneas, 15px, con el color que se le pase.
-function _svgIco(inner, color, title) {
-  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><title>${title || ''}</title>${inner}</svg>`;
+function _svgIco(inner, color, title, sw) {
+  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="${color}" stroke-width="${sw || 2}" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><title>${title || ''}</title>${inner}</svg>`;
 }
 
 // v107K26 — Icono del SEGUNDO sentido de facturación: "¿nos ha facturado a NOSOTROS el transportista?"
@@ -7693,7 +7693,7 @@ function factProvIcon(r) {
 // el render como al marcar en bloque, así los iconos (calidad, facturado-cliente, nos-han-facturado,
 // descarga) quedan SIEMPRE consistentes y no desaparece ninguno al marcar.
 function _celdaEstadoHtml(r) {
-  const dl = hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF')}</span>` : '';
+  const dl = hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF', 2.7)}</span>` : '';
   // v107K44: cada icono va en su propia columna de ancho fijo y centrado, así todas
   // las filas quedan alineadas en columnas rectas aunque el contenido cambie de ancho.
   const _col = (html, w) => html ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:${w}px">${html}</span>` : '';

@@ -89,7 +89,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 
 /* v104: PENDIENTES (chips de tareas del día) */
 .pend-wrap{background:linear-gradient(135deg,rgba(123,143,240,.06),rgba(43,123,208,.03));border:1px solid rgba(123,143,240,.22);border-radius:9px;padding:11px 14px;margin-bottom:14px}
-.pend-hd{font-family:var(--mn);font-size:10px;letter-spacing:1.5px;color:var(--in);font-weight:600;margin-bottom:8px;text-transform:uppercase}
+.pend-hd{font-family:var(--mn);font-size:10px;letter-spacing:1.5px;color:var(--tx);font-weight:700;margin-bottom:8px;text-transform:uppercase}
 .pend-chips{display:flex;flex-wrap:wrap;gap:7px}
 .pend-chip{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:7px 11px;font-family:var(--mn);font-size:11px;color:var(--tx);cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
 .pend-chip:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.25)}
