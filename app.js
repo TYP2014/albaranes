@@ -7693,11 +7693,11 @@ function factProvIcon(r) {
 // el render como al marcar en bloque, así los iconos (calidad, facturado-cliente, nos-han-facturado,
 // descarga) quedan SIEMPRE consistentes y no desaparece ninguno al marcar.
 function _celdaEstadoHtml(r) {
-  const dl = hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF', 2.7)}</span>` : '';
+  const dl = hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF', 3.2)}</span>` : '';
   // v107K44: cada icono va en su propia columna de ancho fijo y centrado, así todas
   // las filas quedan alineadas en columnas rectas aunque el contenido cambie de ancho.
   const _col = (html, w) => html ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:${w}px">${html}</span>` : '';
-  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 58)}${_col(factIcon(r), 84)}${_col(factProvIcon(r), 82)}${_col(dl, 22)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 58)}${_col(factIcon(r), 92)}${_col(factProvIcon(r), 90)}${_col(dl, 22)}</span>`;
 }
 
 // v107K35 — etiqueta de estado (pill de texto). Con color/relleno = hecho; rojo = pendiente.
