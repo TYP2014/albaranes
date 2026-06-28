@@ -8134,10 +8134,10 @@ function renderTable() {
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
       <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
-      <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
-      <td style="color:var(--tx);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
-      <td style="color:var(--tx);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:10px;white-space:nowrap;min-width:125px">${fmtTS(r.created_at || r._ts)}</td>
+      <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
+      <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
+      <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
+      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}</td>
     </tr>`).join('')
     + (totalFil > lim
       ? `<tr class="fila-vermas"><td colspan="15" style="text-align:center;padding:14px;background:var(--s2)">
