@@ -12203,6 +12203,18 @@ function renderFichajes() {
   if (!box) return;
   const esAdmin = _fichajeEsAdmin();
 
+  // Filtro por empleado (solo admin): poblar opciones y mostrar/ocultar
+  const _selEmp = document.getElementById('fichajeFiltroEmpleado');
+  if (_selEmp) {
+    if (esAdmin) {
+      _selEmp.style.display = '';
+      const _prevEmp = _selEmp.value;
+      const _noms = [...new Set(_fichajes.map(f => f.trabajador).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      _selEmp.innerHTML = '<option value="">Todos los empleados</option>' + _noms.map(n => '<option value="' + _fichajeEsc(n) + '">' + _fichajeEsc(n) + '</option>').join('');
+      if (_prevEmp && _noms.indexOf(_prevEmp) !== -1) _selEmp.value = _prevEmp;
+    } else { _selEmp.style.display = 'none'; }
+  }
+
   // Filtros de fecha
   const desde = document.getElementById('fichajeFiltroDesde')?.value || null;
   const hasta = document.getElementById('fichajeFiltroHasta')?.value || null;
@@ -12220,6 +12232,10 @@ function renderFichajes() {
     if (hasta && fISO > hasta) return false;
     return true;
   });
+
+  // Filtro por empleado seleccionado (admin)
+  const _empSel = document.getElementById('fichajeFiltroEmpleado')?.value || '';
+  if (_empSel) filas = filas.filter(f => (f.trabajador || '') === _empSel);
 
   if (filas.length === 0) {
     box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay fichajes en este periodo.</div>';
