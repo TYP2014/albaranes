@@ -14917,15 +14917,15 @@ function renderNeum() {
     box.innerHTML = stock.map(s => {
       const umbral = _neumUmbral(neumEmpresaActiva, s.marca, s.modelo, s.medida);
       const alerta = s.stock <= umbral;
-      const color = alerta ? 'var(--er)' : (s.stock <= umbral * 2 ? '#ffb84d' : 'var(--ok)');
+      const color = alerta ? '#e53935' : (s.stock <= umbral * 2 ? '#e8841a' : 'var(--ok)');
       const icon = alerta ? '⚠️' : '✅';
       const precio = s.precio_neto_unitario_ultimo
         ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">~${parseFloat(s.precio_neto_unitario_ultimo).toFixed(2)} €/ud</div>` : '';
       const usoLabel = s.uso ? `<span style="font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase">${esc(s.uso)}</span>` : '';
       return `
         <div style="border:1px solid ${color};border-radius:8px;padding:12px;background:rgba(0,0,0,.15)">
-          <div style="font-family:var(--mn);font-size:11px;color:var(--mu)">${esc(s.medida || '—')} · ${usoLabel}</div>
-          <div style="font-family:var(--mn);font-size:11px;color:var(--ac);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
+          <div style="font-family:var(--mn);font-size:13px;font-weight:600;color:var(--fg)">${esc(s.medida || '—')} · ${usoLabel}</div>
+          <div style="font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
           <div style="font-size:28px;font-weight:bold;color:${color};margin-top:6px">${icon} ${s.stock} ud</div>
           ${precio}
         </div>`;
@@ -16545,7 +16545,9 @@ function renderTallerTabla() {
   }
   body.innerHTML = vs.map(v => {
     const e = _tallerEstadoVehiculo(v);
-    const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? '🚛' : '🚚';
+    const _icoTractora = '<svg width="26" height="15" viewBox="0 0 64 36" style="vertical-align:-2px"><path d="M5,13 L10,8 H22 V21 H50 V25 H5 Z" fill="#2b7bd0"/><circle cx="14" cy="27" r="5" fill="#1f57c3"/><circle cx="14" cy="27" r="2" fill="#fff"/><circle cx="40" cy="27" r="5" fill="#1f57c3"/><circle cx="40" cy="27" r="2" fill="#fff"/></svg>';
+    const _icoSemi = '<svg width="28" height="15" viewBox="0 0 64 36" style="vertical-align:-2px"><rect x="6" y="6" width="50" height="16" rx="2" fill="#2b7bd0"/><path d="M11,22 h5 l-2.5,4 Z" fill="#1f57c3"/><rect x="18" y="22" width="2" height="7" fill="#1f57c3"/><circle cx="42" cy="26" r="5" fill="#1f57c3"/><circle cx="42" cy="26" r="2" fill="#fff"/><circle cx="50" cy="26" r="5" fill="#1f57c3"/><circle cx="50" cy="26" r="2" fill="#fff"/></svg>';
+    const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? _icoSemi : _icoTractora;
     // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
     let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
     if (v.km_actual_fecha) {
