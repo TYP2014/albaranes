@@ -1,7 +1,7 @@
 :root{
-  --bg:#181d1b;--sf:#222825;--s2:#2a302d;--bd:#353f3b;
+  --bg:#eef2f7;--sf:#ffffff;--s2:#f4f7fb;--bd:#d8e0ea;
   --ac:#2b7bd0;--ok:#2fbf7a;--wn:#e6a23c;--er:#d9534f;--in:#7b8ff0;--pu:#a584cc;
-  --tx:#ddeae0;--mu:#7d9e8b;--fg:#f2f7f4;
+  --tx:#1e2933;--mu:#64748b;--fg:#16202b;
   --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'Bebas Neue',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
