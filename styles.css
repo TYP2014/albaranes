@@ -35,10 +35,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 /* BUTTONS */
 .btn{font-family:var(--mn);font-size:11px;font-weight:600;padding:7px 14px;border-radius:6px;border:none;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
 .bp{background:var(--ac);color:#fff}.bp:hover{background:#3a8ad8;transform:translateY(-1px)}
-.bs{background:transparent;border:1px solid var(--bd);color:var(--tx)}.bs:hover{border-color:var(--ac);color:var(--ac)}
+.bs{background:transparent;border:1.5px solid #b9c4d2;color:var(--tx)}.bs:hover{border-color:var(--ac);color:var(--ac)}
 .br{background:transparent;border:1px solid var(--er);color:var(--er)}.br:hover{background:var(--er);color:#fff}
-.bw{background:transparent;border:1px solid var(--wn);color:var(--wn)}.bw:hover{background:var(--wn);color:#000}
-.bi{background:transparent;border:1px solid var(--in);color:var(--in)}.bi:hover{background:var(--in);color:#fff}
+.bw{background:transparent;border:1.5px solid var(--wn);color:var(--tx)}.bw:hover{background:var(--wn);color:#000}
+.bi{background:transparent;border:1.5px solid var(--in);color:var(--tx)}.bi:hover{background:var(--in);color:#fff}
 .btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important}
 
 /* TABS */
