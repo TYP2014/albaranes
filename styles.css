@@ -204,7 +204,7 @@ tbody tr.row-dup{background:rgba(232,64,64,.05);opacity:.7}
 tbody tr.row-dup:hover{background:rgba(232,64,64,.16)}
 tbody tr.row-warn{background:rgba(245,166,35,.09)}
 tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
-.tag-n{background:rgba(43,123,208,.1);color:#fff;padding:2px 8px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid rgba(43,123,208,.2)}
+.tag-n{background:rgba(43,123,208,.1);color:var(--ac);padding:2px 8px;border-radius:4px;font-size:13px;font-weight:600;border:1px solid rgba(43,123,208,.2)}
 .tag-tm{color:var(--wn);font-weight:600;font-size:12px}
 .tag-mat{color:var(--pu)}
 .tag-prov{color:var(--in)}

@@ -8125,14 +8125,14 @@ function renderTable() {
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
       <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${_celdaEstadoHtml(r)}</td>
-      <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
-      <td style="color:#fff;font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
-      <td style="color:#cfe;font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
+      <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
+      <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
       <td style="max-width:130px;padding-right:14px"><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;font-size:13px;cursor:pointer">📎${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:600;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
-      <td style="color:#fff;font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--ac);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
-      <td style="color:#fff;font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
       <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="opacity:.7;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--in);font-size:10px;max-width:70px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
