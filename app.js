@@ -8757,7 +8757,7 @@ function updateStats() {
       <div class="stat"><div class="stat-l">TN Netas válidas</div><div class="stat-v">${tm.toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3})}</div><div class="stat-s">sin duplicados</div></div>
       <div class="stat"><div class="stat-l">Este mes</div><div class="stat-v">${mes}</div><div class="stat-s">${M[now.getMonth()]} ${now.getFullYear()}</div></div>
       <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
-      <div class="stat" style="--c:var(--er)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--er)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
+      <div class="stat" style="--c:#d32f2f"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:#d32f2f;font-weight:700">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
       <div class="stat" style="--c:var(--wn)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wn)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
     const hdrInfo = document.getElementById('hdrInfo');
     if (hdrInfo) hdrInfo.textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
@@ -10655,7 +10655,7 @@ function renderTallerGlobalBanner() {
     }
     html += `
       <div style="background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
-        <div style="flex:1;color:#fff;line-height:1.5">🔧 ${mensaje}</div>
+        <div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">🔧 ${mensaje}</div>
         <div style="display:flex;gap:6px">
           <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
           <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideTallerBannerToday('${n.key}')" title="Ocultar este aviso hasta mañana">✕</button>
