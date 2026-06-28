@@ -12429,6 +12429,9 @@ function exportFichajesExcel() {
       if (hasta && fISO > hasta) return false;
       return true;
     });
+    // Mismo filtro de empleado que la tabla
+    const _empSelExcel = document.getElementById('fichajeFiltroEmpleado')?.value || '';
+    if (_empSelExcel) filas = filas.filter(f => (f.trabajador || '') === _empSelExcel);
     filas.sort((a, b) => {
       const ta = a.tipo === 'correccion' ? (a.ts_corregido || a.ts) : a.ts;
       const tb = b.tipo === 'correccion' ? (b.ts_corregido || b.ts) : b.ts;
