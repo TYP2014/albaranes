@@ -22,7 +22,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .login-err{background:rgba(232,64,64,.1);border:1px solid rgba(232,64,64,.3);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:11px;margin-top:12px;display:none}
 
 /* HEADER */
-.hdr{position:sticky;top:0;z-index:200;background:rgba(12,14,13,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--bd);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between}
+.hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--bd);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between}
 .logo{font-family:var(--dp);font-size:22px;letter-spacing:3px;color:var(--ac);display:flex;align-items:center;gap:8px}
 .logo-sq{width:26px;height:26px;background:var(--ac);border-radius:5px;display:grid;place-items:center;font-size:13px}
 .hdr-r{display:flex;align-items:center;gap:8px}
