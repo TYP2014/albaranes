@@ -3233,6 +3233,19 @@ async function _processOne(it, type, key, timeoutMs) {
             data.proveedor = _provCanon;
           }
         }
+
+        // v201 (Juan Carlos 29/06/2026): CANTERAS CANRO determinista (la IA se salta la
+        // regla del prompt). Cliente SIEMPRE Ribera; destino vacío o el inventado
+        // "COLAS SANT FOST" → "Obra Coca Cola". Si el destino trae texto real
+        // (El Prat, ADIF Vallbona, etc.) NO se toca.
+        if (/CANTERAS?\s+CANRO|\bCANRO\b/i.test(data.proveedor || '')) {
+          data.cliente = 'TRANSPORTS I EXCAVACIONS RIBERA, S.A.';
+          const _ocanro = String(data.obra || '').trim();
+          if (!_ocanro || /^COLAS\s+SANT\s+FOST$/i.test(_ocanro)) {
+            data.obra = 'Obra Coca Cola';
+            console.log('[v201 Canro] destino vac\u00edo/COLAS SANT FOST \u2192 "Obra Coca Cola"');
+          }
+        }
         // v107AU: regla específica GIRONA RUNES (escombro de hormigón que sale de
         // la planta Holcim de Celra → vertedero/gestor Girona Runes). El nombre
         // "Girona Runes" / "Girona de Runes" SOLO aparece en estos albaranes de
