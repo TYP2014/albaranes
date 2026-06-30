@@ -7513,7 +7513,10 @@ function applyFilters() {
   renderTable();
   const vf = filtered.filter(r => !r._dup), tmf = vf.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   const rc = document.getElementById('resCount');
-  if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
+  if (rc) {
+    const _cnt = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} albaranes`;
+    rc.innerHTML = `<span style="display:inline-flex;align-items:center;gap:10px;padding:5px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-size:12px;color:var(--tx);font-family:var(--mn)">${_cnt}<strong style="font-size:15px;color:var(--ac)">Total: ${tmf.toFixed(3)} TN</strong></span>`;
+  }
   buildDropdowns();
   // v100c: detectar si hay algún filtro activo. Antes (v99c) usaba variables `prov`, `origen`,
   // `dest`, `mat2`, `subidoPor` que YA NO EXISTEN porque las convertí a multi-select. Ese
