@@ -19631,7 +19631,7 @@ function _factHolcimMostrarInforme() {
   h += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
   _materiales.forEach(m => {
     const chk = window._factExcelMarcadas.has(m) ? 'checked' : '';
-    h += '<label style="font-size:11px;color:var(--tx);display:inline-flex;align-items:center;gap:3px;cursor:pointer">'
+    h += '<label style="font-size:11px;color:#000;display:inline-flex;align-items:center;gap:3px;cursor:pointer">'
       + '<input type="checkbox" ' + chk + ' onchange="_factExcelToggle(this.dataset.m)" data-m="' + esc(m) + '" style="cursor:pointer">'
       + esc(m) + '</label>';
   });
