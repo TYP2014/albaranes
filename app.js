@@ -8196,7 +8196,7 @@ function renderGasTable() {
       <td class="tag-mat">${r.tractora || '—'}</td>
       <td class="tag-prov">${r.proveedor || '—'}</td>
       <td style="color:var(--tx)">${r.tipo || '—'}</td>
-      <td class="tag-tm">${r.litros != null ? Number(r.litros).toFixed(1) + ' L' : '—'}</td>
+      <td class="tag-tm">${r.litros != null ? Number(r.litros).toLocaleString('es-ES', { maximumFractionDigits: 2 }) + ' L' : '—'}</td>
       <td><span class="tag-n">${r.num_ticket || '—'}</span></td>
       <td style="opacity:.7">${r.user_email || '—'}</td>
       <td style="color:var(--tx);font-size:14px">${fmtTS(r.created_at || r._ts)}</td>
