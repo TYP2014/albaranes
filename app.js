@@ -7513,10 +7513,7 @@ function applyFilters() {
   renderTable();
   const vf = filtered.filter(r => !r._dup), tmf = vf.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   const rc = document.getElementById('resCount');
-  if (rc) {
-    const _cnt = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} albaranes`;
-    rc.innerHTML = `<span style="display:inline-flex;align-items:center;gap:10px;padding:5px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-size:12px;color:var(--tx);font-family:var(--mn)">${_cnt}<strong style="font-size:15px;color:var(--ac)">Total: ${tmf.toFixed(3)} TN</strong></span>`;
-  }
+  if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
   buildDropdowns();
   // v100c: detectar si hay algún filtro activo. Antes (v99c) usaba variables `prov`, `origen`,
   // `dest`, `mat2`, `subidoPor` que YA NO EXISTEN porque las convertí a multi-select. Ese
@@ -16364,25 +16361,42 @@ async function deleteVacPer() {
   }
 }
 
-// Vista de detalle de un trabajador: lista sus periodos del año
+// Vista de detalle de un trabajador: lista sus periodos del año (EDITABLE)
+let _vacDetalleTrabId = null;
 function openVacTrabajadorDetalle(trabajadorId) {
   const t = vacTrabajadores.find(x => x.id === trabajadorId);
   if (!t) return;
+  _vacDetalleTrabId = trabajadorId;
   const s = _vacSaldoTrabajador(trabajadorId, vacAnioActivo);
+  document.getElementById('vacDetalleTitulo').textContent = `${t.nombre} · ${vacAnioActivo}`;
+  const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada' };
+  let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--tx)">`
+        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES}</strong> (${s.vac_restantes} rest.)</span>`
+        + `<span>🎯 Asuntos propios: <strong>${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS}</strong> (${s.ap_restantes} rest.)</span>`
+        + `</div>`;
   if (!s.periodos.length) {
-    if (confirm(`${t.nombre} no tiene periodos en ${vacAnioActivo}.\n\n¿Registrar uno nuevo?`)) {
-      openVacPeriodoModal(null, trabajadorId);
-    }
-    return;
+    h += `<div style="color:var(--mu);font-size:13px;padding:10px 0">Sin periodos registrados en ${vacAnioActivo}. Pulsa "➕ Nuevo periodo".</div>`;
+  } else {
+    h += `<div style="font-size:11px;color:var(--mu);margin-bottom:8px">Pulsa un periodo para editarlo o borrarlo:</div>`;
+    h += s.periodos.map(p => {
+      const computoIcon = p.computo === 'naturales' ? '⚖️' : '💼';
+      const fIni = p.fecha_inicio.split('-').reverse().join('/');
+      const fFin = p.fecha_fin.split('-').reverse().join('/');
+      return `<div onclick="closeVacDetalle();openVacPeriodoModal('${p.id}')" style="cursor:pointer;padding:10px 12px;margin-bottom:6px;border:1px solid var(--bd);border-radius:8px;background:var(--s2);font-family:var(--mn);font-size:12px;color:var(--tx);display:flex;justify-content:space-between;align-items:center;gap:10px">`
+           + `<span>${labelMap[p.tipo] || p.tipo} · ${computoIcon} ${fIni} → ${fFin} · <strong>${p.dias_contados}d</strong>${p.observaciones ? ' · ' + esc(p.observaciones) : ''}</span>`
+           + `<span style="color:var(--ac);font-size:15px">✏️</span></div>`;
+    }).join('');
   }
-  const lines = s.periodos.map(p => {
-    const icon = p.tipo === 'vacaciones' ? '🏖️' : '🎯';
-    const computoIcon = p.computo === 'naturales' ? '⚖️' : '💼';
-    const fIni = p.fecha_inicio.split('-').reverse().join('/');
-    const fFin = p.fecha_fin.split('-').reverse().join('/');
-    return `${icon} ${computoIcon} ${fIni} → ${fFin} · ${p.dias_contados}d${p.observaciones ? ' · ' + p.observaciones : ''}`;
-  }).join('\n');
-  alert(`${t.nombre} · ${vacAnioActivo}\n\n🏖️ Vacaciones: ${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES} (${s.vac_restantes} rest.)\n🎯 Asuntos propios: ${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} (${s.ap_restantes} rest.)\n\nPERIODOS:\n${lines}\n\nPulsa los días en el calendario o "Registrar vacaciones" para añadir/editar.`);
+  document.getElementById('vacDetalleBody').innerHTML = h;
+  document.getElementById('ovVacDetalle').classList.add('open');
+}
+function closeVacDetalle() {
+  document.getElementById('ovVacDetalle').classList.remove('open');
+}
+function vacDetalleNuevo() {
+  const id = _vacDetalleTrabId;
+  closeVacDetalle();
+  openVacPeriodoModal(null, id);
 }
 
 // ============================================================
