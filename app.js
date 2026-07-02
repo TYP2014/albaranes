@@ -402,6 +402,12 @@ async function loadUserMap() {
         const _tabFact = document.getElementById('tabFacturacion');
         if (_tabFact) _tabFact.style.display = _puedeVerFacturacion() ? 'flex' : 'none';
       } catch (e) { console.warn('[v107FH] visibilidad Facturación:', e); }
+
+      // v212: visibilidad de la pestaña FACTURAS EMITIDAS (Admin + Mª del Mar + Marta).
+      try {
+        const _tabFE = document.getElementById('tabFactemit');
+        if (_tabFE) _tabFE.style.display = _puedeVerFactEmit() ? 'flex' : 'none';
+      } catch (e) { console.warn('[v212] visibilidad Facturas Emitidas:', e); }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
@@ -7714,6 +7720,15 @@ function _puedeVerFacturacion() {
       || e === 'logistica@ttesyportes.2014';
 }
 
+// v212: quién ve/usa el módulo FACTURAS EMITIDAS: Admin + María del Mar + Marta (NO logística).
+function _puedeVerFactEmit() {
+  if (currentRole === 'admin') return true;
+  const e = (currentUser?.email || '').toLowerCase().trim();
+  const id = currentUser?.id || '';
+  if (id === '6f657be7-1edd-4d5d-9895-cc6777ebbca1') return true;  // Marta
+  return e === 'marta@typ2014.local' || e === 'mariadelmar@typ2014.local';
+}
+
 // Icono del estado de facturación para la columna "Est" de la tabla.
 // Si el usuario no tiene permiso, devuelve cadena vacía (no ve nada).
 // 🟢 facturado · 📌 pendiente · 🚫 no_facturable.
@@ -11432,11 +11447,37 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   }
 }
 
+// v212: FACTURAS EMITIDAS — Fase 2 (pestaña + lista). La subida por IA llegará en Fase 3.
+let _factEmit = [];
+async function loadFactEmit() {
+  const cont = document.getElementById('factEmitBody');
+  if (!cont) return;
+  cont.innerHTML = '<div style="color:var(--mu);padding:20px">Cargando\u2026</div>';
+  try {
+    const { data, error } = await sb.from('facturas_emitidas').select('*').order('fecha', { ascending: false });
+    if (error) throw error;
+    _factEmit = data || [];
+    renderFactEmit();
+  } catch (e) {
+    console.error('[factemit] load', e);
+    cont.innerHTML = '<div style="color:var(--er);padding:20px">Error cargando facturas emitidas: ' + esc(e.message || e) + '</div>';
+  }
+}
+function renderFactEmit() {
+  const cont = document.getElementById('factEmitBody');
+  if (!cont) return;
+  if (!_factEmit || !_factEmit.length) {
+    cont.innerHTML = '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">A\u00fan no hay facturas emitidas. En la siguiente fase podr\u00e1s subir el PDF y la IA lo leer\u00e1.</div>';
+    return;
+  }
+  cont.innerHTML = '<div style="color:var(--mu);padding:12px">' + _factEmit.length + ' facturas cargadas (el listado completo se pinta en la Fase 3).</div>';
+}
+
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion'].forEach(t => {
+  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -11472,6 +11513,9 @@ function switchTab(tab) {
   if (tab === 'taller') { loadTallerData(); }
   // v107FA: cargar Fichaje al entrar en su pestaña
   if (tab === 'fichaje') { loadFichajes(); }
+
+  // v212: cargar Facturas Emitidas al entrar en su pestaña
+  if (tab === 'factemit') { loadFactEmit(); }
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:

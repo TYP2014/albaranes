@@ -544,6 +544,7 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- v107FH: NUEVA pestaña Facturación. Junta marcado manual + (futuro) autofacturas.
            Oculta por defecto; se muestra a quien tenga permiso de facturación. -->
       <div class="tab" id="tabFacturacion" onclick="switchTab('facturacion')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M5 3v18l2-1.5L9 21l2-1.5L13 21l2-1.5L17 21l2-1.5V3"/><path d="M9 8h6M9 12h6"/></svg> Facturación</div>
+      <div class="tab" id="tabFactemit" onclick="switchTab('factemit')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#26a69a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M15 2v5h5"/><path d="M9 13h6M9 17h4"/></svg> F. Emitidas</div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffa726" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M6 9h6"/><path d="M14 8l3 3v7a2 2 0 0 0 4 0V9l-3-3"/></svg> Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#42a5f5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> ITV <span class="tab-badge" id="tabItvCount">0</span></div>
@@ -932,6 +933,15 @@ if (typeof pdfjsLib !== 'undefined') {
     </div>
 
     <!-- v107FJ: contenedor tabContentItv que faltaba (causaba que ITV se viera en Albaranes) -->
+    <!-- v212: FACTURAS EMITIDAS (Admin + Mª del Mar + Marta) -->
+    <div id="tabContentFactemit" class="wrap" style="display:none">
+      <div class="card">
+        <div style="font-weight:800;font-size:16px;margin-bottom:4px">🧾 FACTURAS EMITIDAS</div>
+        <div style="color:var(--mu);font-size:12px;margin-bottom:14px">Control de las facturas que emites a tus clientes y si están cobradas.</div>
+        <div id="factEmitBody"><div style="color:var(--mu);padding:20px">Cargando…</div></div>
+      </div>
+    </div>
+
     <div id="tabContentItv" class="wrap" style="display:none">
       <div id="itvStatsBox" class="stats"></div>
       <div id="itvAlertsBox"></div>
@@ -1792,6 +1802,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v107K89 (26/06/2026): HOLCIM multimaterial — ahora se MUESTRAN todas las lineas como ABONADAS. K88 las marcaba pagadas pero desaparecian del Excel; Juan Carlos quiere VER cada material del albaran como abonado. Ahora, cuando un n de albaran tiene varias filas (plataforma/sacos) y el n esta en la autofactura de Holcim, se anade CADA fila como ABONADA (Holcim paga la entrega entera; escribe el n una sola vez). Sin nota de TN. No hace falta re-leer el PDF: basta recalcular el mes. Solo app.js. NO requiere SQL. -->
 <!-- v107K90 (26/06/2026): NEUMATICOS — el albaran Soledad D810006882 (Hispalis, R9238BBZ, MONTA 1NEUM. S/PROP 385/65X22,5 CONTINENTAL HT3 SR) daba 1 con error: la IA no lo leia porque venia en SINGULAR (1NEUM. en vez de NEUMS.) y con lineas extra (PARTE, MATR., EN 2 EJE). Anadida a callClaudeNeumAlb: regla GENERAL de cantidad (MONTA N NEUM/NEUMS = cantidad N, sea 1,2,3,4 y singular o plural) + ejemplo real del D810006882 + orden de ignorar lineas PARTE/MATR/EJE pero usar la matricula tras MATR.:. Solo se anaden instrucciones. Solo app.js. NO requiere SQL. -->
 <!-- v107K91 (26/06/2026): NEUMATICOS — albaran Soledad D810006875 (Hispalis, 9295JJZ, MONTA NEUMS.TRACTORA COMPLETA: 2-315/80X225 CONTI HS5 + 4-315/80X225 CONTI HD5). Formato nuevo: cantidades en lineas N-medida (2-315..., 4-315...), DOS modelos distintos en un albaran, y SIN S/PROP. Anadido a callClaudeNeumAlb: (1) segundo patron de cantidad N-medida modelo, (2) un objeto por cada modelo, (3) regla de propiedad: cubierta SIN precio (solo se cobra mano de obra) = SU_PROPIEDAD (descuenta), (4) ejemplo real D810006875. Solo se anaden instrucciones. Solo app.js. NO requiere SQL. -->
-<script src="app.js?v=211"></script>
+<script src="app.js?v=212"></script>
 </body>
 </html>
