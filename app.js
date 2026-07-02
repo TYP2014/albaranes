@@ -7198,37 +7198,59 @@ function buildDropdowns() {
       }
     });
   }
-  const unique = k => [...new Set(records.filter(r => !r._dup).map(r => r[k]).filter(Boolean))].sort();
-  // v100: TODOS los filtros principales son ahora multi-select. Antes Proveedor/Origen/Destino/
-  // Material/Subido por eran inputs simples con datalist (1 solo valor); ahora son <details> con
-  // checkboxes (varios valores). Los datalists viejos (dlProv, dlOrigen, dlDestino, dlMat2,
-  // dlSubidoPor) ya no existen en el HTML.
-  // Multi-select de proveedores con todos los detectados en albaranes
-  buildMultiSelect('fProvList', 'fProvSum', unique('proveedor'), selectedProveedores, 'Todos', 'proveedores');
-  // Multi-select de orígenes
-  buildMultiSelect('fOrigenList', 'fOrigenSum', unique('planta'), selectedOrigenes, 'Todos', 'orígenes');
-  // Multi-select de destinos
-  buildMultiSelect('fDestinoList', 'fDestinoSum', unique('obra'), selectedDestinos, 'Todos', 'destinos');
-  // Multi-select de materiales — útil para "TN de yeso + arcilla" en una sola consulta
-  buildMultiSelect('fMatMatList', 'fMatMatSum', unique('producto'), selectedMateriales, 'Todos', 'materiales');
-  // v107Z: Multi-select de CLIENTES (antes COMPRADOR). Recopila los clientes únicos detectados
-  // en albaranes y los muestra como filtro. Útil para "facturas pendientes a Control Demeter"
-  // o "ver todos los albaranes facturables a OP Trans Vallés", etc.
-  buildMultiSelect('fClienteList', 'fClienteSum', unique('cliente'), selectedClientes, 'Todos', 'clientes');
-  // Multi-select de "Subido por": recopila los user_id que aparecen en los albaranes y los traduce a nombres
-  const userIdsConAlb = [...new Set(records.filter(r => !r._dup && r.user_id).map(r => r.user_id))];
-  const nombresSubidoPor = userIdsConAlb
-    .map(uid => (userMap[uid]?.name || null))
-    .filter(Boolean)
-    .sort();
-  buildMultiSelect('fSubidoPorList', 'fSubidoPorSum', [...new Set(nombresSubidoPor)], selectedSubidoPor, 'Todos', 'usuarios');
-  // Multi-select de transportistas: lista cerrada con los 13 oficiales (v83).
-  // Antes mostraba todos los detectados en records.transportista (con duplicados raros y
-  // variantes OCR). Ahora solo los oficiales del Excel, ordenados alfabéticamente.
-  buildMultiSelect('fTransList', 'fTransSum', [...TRANSPORTISTAS_OFICIALES].sort(), selectedTransportistas, 'Todos', 'transportistas');
-  // v90: multi-select de matrículas con todas las que aparecen en albaranes (ordenadas).
-  // Antes era input predictivo (1 sola matrícula). Ahora puedes marcar varias para filtrar.
-  buildMultiSelect('fMatList', 'fMatSum', unique('tractora').sort(), selectedMatriculas, 'Todas', 'matrículas');
+  // v211: FILTROS ENCADENADOS (faceted). Cada desplegable solo muestra los valores que EXISTEN
+  // dentro de lo ya filtrado por los OTROS filtros. Así, si filtras por una matrícula o un
+  // transportista, en Origen/Destino/Material solo aparece lo que ESE camión/transportista ha
+  // hecho, no todo el catálogo. NO toca applyFilters: solo acota las OPCIONES de los desplegables.
+  const _nrm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const _mm = (v, set) => { if (!set || set.size === 0) return true; const c = _nrm(v); return [...set].some(s => _nrm(s) === c); };
+  const _fd = document.getElementById('fDesde')?.value, _fh = document.getElementById('fHasta')?.value;
+  const _subset = (excluir) => records.filter(r => {
+    if (r._dup || r.procesado === false) return false;
+    const ts = parseDate(r.fecha || '');
+    if (_fd && ts < new Date(_fd + 'T00:00:00').getTime()) return false;
+    if (_fh && ts > new Date(_fh + 'T00:00:00').getTime() + 86399999) return false;
+    if (excluir !== 'proveedor' && !_mm(r.proveedor, selectedProveedores)) return false;
+    if (excluir !== 'planta' && !_mm(r.planta, selectedOrigenes)) return false;
+    if (excluir !== 'obra' && !_mm(r.obra, selectedDestinos)) return false;
+    if (excluir !== 'producto' && !_mm(r.producto, selectedMateriales)) return false;
+    if (excluir !== 'cliente' && !_mm(r.cliente, selectedClientes)) return false;
+    if (excluir !== 'tractora' && selectedMatriculas.size > 0) {
+      const m = matriculaPrincipal(r.tractora || '');
+      if (![...selectedMatriculas].some(s => matriculaPrincipal(s) === m)) return false;
+    }
+    if (excluir !== 'transportista' && selectedTransportistas.size > 0) {
+      const t = _nrm(r.transportista);
+      if (![...selectedTransportistas].some(s => _nrm(s) === t)) return false;
+    }
+    if (excluir !== 'user_id' && selectedSubidoPor.size > 0) {
+      const n = _nrm(userMap[r.user_id]?.name || '');
+      if (![...selectedSubidoPor].some(s => _nrm(s) === n)) return false;
+    }
+    return true;
+  });
+  // Valores únicos de un campo dentro del subset (excluyendo su propio facet), añadiendo
+  // SIEMPRE los ya seleccionados para que se puedan desmarcar aunque se queden fuera.
+  const _uni = (campo, excluir, selSet) => {
+    const s = new Set(_subset(excluir).map(r => r[campo]).filter(Boolean));
+    if (selSet) selSet.forEach(v => s.add(v));
+    return [...s].sort();
+  };
+  buildMultiSelect('fProvList', 'fProvSum', _uni('proveedor', 'proveedor', selectedProveedores), selectedProveedores, 'Todos', 'proveedores');
+  buildMultiSelect('fOrigenList', 'fOrigenSum', _uni('planta', 'planta', selectedOrigenes), selectedOrigenes, 'Todos', 'orígenes');
+  buildMultiSelect('fDestinoList', 'fDestinoSum', _uni('obra', 'obra', selectedDestinos), selectedDestinos, 'Todos', 'destinos');
+  buildMultiSelect('fMatMatList', 'fMatMatSum', _uni('producto', 'producto', selectedMateriales), selectedMateriales, 'Todos', 'materiales');
+  buildMultiSelect('fClienteList', 'fClienteSum', _uni('cliente', 'cliente', selectedClientes), selectedClientes, 'Todos', 'clientes');
+  const _uidSub = [...new Set(_subset('user_id').filter(r => r.user_id).map(r => r.user_id))];
+  const _nomSub = _uidSub.map(uid => userMap[uid]?.name || null).filter(Boolean);
+  selectedSubidoPor.forEach(n => _nomSub.push(n));
+  buildMultiSelect('fSubidoPorList', 'fSubidoPorSum', [...new Set(_nomSub)].sort(), selectedSubidoPor, 'Todos', 'usuarios');
+  const _transPres = new Set(_subset('transportista').map(r => _nrm(r.transportista)));
+  let _transOpts = [...TRANSPORTISTAS_OFICIALES].filter(t => _transPres.has(_nrm(t)));
+  selectedTransportistas.forEach(t => { if (!_transOpts.some(x => _nrm(x) === _nrm(t))) _transOpts.push(t); });
+  if (_transOpts.length === 0) _transOpts = [...TRANSPORTISTAS_OFICIALES];
+  buildMultiSelect('fTransList', 'fTransSum', _transOpts.sort(), selectedTransportistas, 'Todos', 'transportistas');
+  buildMultiSelect('fMatList', 'fMatSum', _uni('tractora', 'tractora', selectedMatriculas), selectedMatriculas, 'Todas', 'matrículas');
 }
 
 // Construye un panel de checkboxes multi-selección dentro de un <details>
