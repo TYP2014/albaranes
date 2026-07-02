@@ -11463,14 +11463,141 @@ async function loadFactEmit() {
     cont.innerHTML = '<div style="color:var(--er);padding:20px">Error cargando facturas emitidas: ' + esc(e.message || e) + '</div>';
   }
 }
+let _feFiltro = 'todas'; // todas / pendiente / cobrada
+function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
 function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
   if (!cont) return;
-  if (!_factEmit || !_factEmit.length) {
-    cont.innerHTML = '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">A\u00fan no hay facturas emitidas. En la siguiente fase podr\u00e1s subir el PDF y la IA lo leer\u00e1.</div>';
-    return;
+  const arr = (_factEmit || []).filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
+  const pend = (_factEmit || []).filter(f => (f.estado || 'pendiente') === 'pendiente');
+  const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
+  let h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
+  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:12px">Pendiente de cobro: <strong style="color:var(--er);font-size:14px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
+  ['todas', 'pendiente', 'cobrada'].forEach(f => {
+    h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : '\u2705 Cobradas') + '</button>';
+  });
+  h += '</div>';
+  if (!arr.length) {
+    h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
+    cont.innerHTML = h; return;
   }
-  cont.innerHTML = '<div style="color:var(--mu);padding:12px">' + _factEmit.length + ' facturas cargadas (el listado completo se pinta en la Fase 3).</div>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mn)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac)">'
+     + '<th style="padding:8px">N\u00ba</th><th style="padding:8px">FECHA</th><th style="padding:8px">EMPRESA</th><th style="padding:8px">CLIENTE</th>'
+     + '<th style="padding:8px;text-align:right">BASE</th><th style="padding:8px;text-align:right">IVA</th><th style="padding:8px;text-align:right">TOTAL</th>'
+     + '<th style="padding:8px">VENCE</th><th style="padding:8px">ESTADO</th><th style="padding:8px"></th></tr></thead><tbody>';
+  arr.forEach(f => {
+    const cobrada = (f.estado || 'pendiente') === 'cobrada';
+    let vencida = false;
+    if (!cobrada && f.vencimiento && /^\d{4}-\d{2}-\d{2}/.test(f.vencimiento)) vencida = new Date(f.vencimiento + 'T00:00:00') < new Date();
+    const badge = cobrada
+      ? '<span style="background:var(--ok);color:#fff;font-size:9px;padding:2px 8px;border-radius:4px">COBRADA' + (f.fecha_cobro ? ' ' + f.fecha_cobro.split('-').reverse().join('/') : '') + '</span>'
+      : '<span style="background:' + (vencida ? 'var(--er)' : '#ffb84d') + ';color:#fff;font-size:9px;padding:2px 8px;border-radius:4px">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
+    const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
+    h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.65' : '') + '">'
+       + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF">\ud83d\udcce</a>' : '') + '</td>'
+       + '<td style="padding:8px">' + fmtF(f.fecha) + '</td>'
+       + '<td style="padding:8px">' + esc(f.empresa || '\u2014') + '</td>'
+       + '<td style="padding:8px">' + esc(f.cliente || '\u2014') + '</td>'
+       + '<td style="padding:8px;text-align:right">' + _feFmt(f.base) + '</td>'
+       + '<td style="padding:8px;text-align:right">' + _feFmt(f.iva) + '</td>'
+       + '<td style="padding:8px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
+       + '<td style="padding:8px">' + fmtF(f.vencimiento) + '</td>'
+       + '<td style="padding:8px">' + badge + '</td>'
+       + '<td style="padding:8px;text-align:right;white-space:nowrap">'
+       + (cobrada
+          ? '<button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitDesmarcar(\'' + f.id + '\')">\u21a9 Pendiente</button>'
+          : '<button class="btn bp" style="font-size:9px;padding:4px 8px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">\u2705 Cobrada</button>')
+       + ' <button class="btn br" style="font-size:9px;padding:4px 8px" onclick="factEmitBorrar(\'' + f.id + '\')">\ud83d\uddd1</button>'
+       + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  cont.innerHTML = h;
+}
+
+async function factEmitMarcarCobrada(id) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  let f = prompt('Fecha de cobro (AAAA-MM-DD):', hoy);
+  if (f === null) return;
+  f = f.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { alert('Formato de fecha no v\u00e1lido. Usa AAAA-MM-DD, ej: ' + hoy); return; }
+  try {
+    const { error } = await sb.from('facturas_emitidas').update({ estado: 'cobrada', fecha_cobro: f }).eq('id', id);
+    if (error) throw error;
+    toast('\u2713 Marcada como cobrada');
+    await loadFactEmit();
+  } catch (e) { alert('Error: ' + (e.message || e)); }
+}
+async function factEmitDesmarcar(id) {
+  try {
+    const { error } = await sb.from('facturas_emitidas').update({ estado: 'pendiente', fecha_cobro: null }).eq('id', id);
+    if (error) throw error;
+    toast('\u21a9 Vuelve a pendiente');
+    await loadFactEmit();
+  } catch (e) { alert('Error: ' + (e.message || e)); }
+}
+async function factEmitBorrar(id) {
+  const f = _factEmit.find(x => x.id === id);
+  if (!confirm('\u00bfBorrar la factura ' + (f?.numero || '') + '? Esta acci\u00f3n no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('facturas_emitidas').delete().eq('id', id);
+    if (error) throw error;
+    toast('\ud83d\uddd1 Factura borrada');
+    await loadFactEmit();
+  } catch (e) { alert('Error: ' + (e.message || e)); }
+}
+
+// v214 Fase 3: lector IA de facturas emitidas. Soporta 3 formatos: Quipu (propias),
+// autofactura CEMEX y autofactura Holcim. La empresa del grupo se detecta por CIF
+// est\u00e9 donde est\u00e9 (emisor o "Proveedor"), y el cliente es la OTRA parte.
+async function callClaudeFactEmit(b64, key) {
+  const prompt = 'Eres un OCR experto en FACTURAS EMITIDAS por un grupo espa\u00f1ol de transporte. Lee la factura y devuelve UN SOLO objeto JSON.\n\nEMPRESAS DEL GRUPO (por CIF/NIF):\n- B90172735 = "TYP2014"\n- B90286337 = "HISPALIS"\n- B67316752 = "TRANSMARGAZ"\n- B02657435 = "PORTES 2014 IMPORT"\n\nHAY 3 FORMATOS POSIBLES:\n(1) FACTURA PROPIA (Quipu): la empresa del grupo aparece como EMISOR (arriba, con su NIF) y hay una caja "CLIENTE" con la otra empresa. Ej: "Factura n\u00ba 2026-06-4".\n(2) AUTOFACTURA CEMEX: pone "Facturaci\u00f3n por el destinatario". La caja "Cliente" es CEMEX ESPA\u00d1A (\u00a1OJO! CEMEX es quien PAGA) y la caja "Proveedor" es la empresa del grupo (quien COBRA). Ej: "N\u00ba de Factura: 10000317".\n(3) AUTOFACTURA HOLCIM: pone "Facturaci\u00f3n por el destinatario". Arriba dice "CLIENTE: Holcim Espa\u00f1a" (quien PAGA) y la empresa del grupo aparece como destinatario con "N\u00famero CIF Proveedor". Ej: "N\u00famero Factura: 40066".\n\nREGLA DE ORO: "empresa" = la empresa DEL GRUPO cuyo CIF (B90172735/B90286337/B67316752/B02657435) aparezca en el documento, D\u00c9 IGUAL si sale como emisor o como "Proveedor". "cliente" = la OTRA parte (la que paga): en formato 1 la caja CLIENTE; en formatos 2 y 3, CEMEX o HOLCIM.\n\nDevuelve JSON con:\n- numero: n\u00famero de factura tal cual (ej "2026-06-4", "10000317", "40066").\n- fecha: fecha de EMISI\u00d3N de la factura en formato AAAA-MM-DD (convierte 30.06.2026 o 30/06/2026 \u2192 "2026-06-30").\n- empresa: "TYP2014" | "HISPALIS" | "TRANSMARGAZ" | "PORTES 2014 IMPORT" seg\u00fan el CIF del grupo encontrado.\n- cliente: nombre de quien paga tal como aparece (ej "HOLCIM ESPA\u00d1A, S.A.U.", "CEMEX ESPA\u00d1A OPERACIONES, S.L.U.").\n- base: base imponible en n\u00famero con punto decimal (3.071,25 \u2192 3071.25; 167.471,19 \u2192 167471.19).\n- iva: importe del IVA en n\u00famero (644,96 \u2192 644.96).\n- total: total factura en n\u00famero (3.716,21 \u2192 3716.21).\n- vencimiento: fecha de vencimiento en AAAA-MM-DD. Si el documento solo dice un plazo (ej "45 D\u00edas Fecha Factura"), CALCULA: fecha de factura + esos d\u00edas, y devuelve la fecha resultante en AAAA-MM-DD. Si no hay nada, null.\n\nCUIDADO: los importes espa\u00f1oles usan punto de miles y coma decimal (167.471,19 = ciento sesenta y siete mil...). NO los confundas.\nSi un dato no aparece, null. SOLO el JSON, sin markdown ni explicaciones.';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: prompt }] }] })
+  });
+  if (!res.ok) { let e = {}; try { e = await res.json(); } catch (_) {} throw new Error(e.error?.message || ('HTTP ' + res.status)); }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  return JSON.parse(text);
+}
+
+async function factEmitSubir(files) {
+  if (!files || !files.length) return;
+  const key = getKey();
+  if (!key) { alert('No hay clave de IA configurada.'); return; }
+  const est = document.getElementById('factEmitEstado');
+  for (const file of files) {
+    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { alert(file.name + ': solo PDF.'); continue; }
+    try {
+      if (est) { est.style.display = 'block'; est.textContent = '\u23f3 Leyendo ' + file.name + ' con IA\u2026'; }
+      const b64 = await new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => ko(new Error('No se pudo leer el archivo')); r.readAsDataURL(file); });
+      const j = await callClaudeFactEmit(b64, key);
+      // duplicado: mismo n\u00famero + misma empresa
+      if (j.numero && _factEmit.some(x => x.numero === j.numero && x.empresa === j.empresa)) {
+        if (!confirm('\u26a0 Ya existe la factura ' + j.numero + ' de ' + j.empresa + '. \u00bfGuardar igualmente?')) { if (est) est.style.display = 'none'; continue; }
+      }
+      if (est) est.textContent = '\u2601 Guardando PDF de ' + file.name + '\u2026';
+      let url = null;
+      try { url = await uploadFile(file, 'facturas_emitidas'); } catch (e2) { console.warn('[factemit] Storage:', e2); }
+      const payload = {
+        numero: j.numero || null, fecha: j.fecha || null, cliente: j.cliente || null,
+        empresa: j.empresa || null, base: j.base ?? null, iva: j.iva ?? null, total: j.total ?? null,
+        vencimiento: j.vencimiento || null, estado: 'pendiente', file_url: url
+      };
+      const { error } = await sb.from('facturas_emitidas').insert(payload);
+      if (error) throw error;
+      toast('\u2713 Factura ' + (j.numero || '') + ' \u00b7 ' + (j.empresa || '') + ' guardada');
+    } catch (e) {
+      console.error('[factemit] subir', e);
+      alert('Error con ' + file.name + ': ' + (e.message || e));
+    } finally {
+      if (est) est.style.display = 'none';
+    }
+  }
+  const inp = document.getElementById('factEmitFileInput');
+  if (inp) inp.value = '';
+  await loadFactEmit();
 }
 
 function switchTab(tab) {
