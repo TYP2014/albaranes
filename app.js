@@ -15765,9 +15765,40 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
   // pero NO consumen días de vacaciones (son categorías informativas, no descuento).
   const usadasVac = periodos.filter(p => p.tipo === 'vacaciones').reduce((s, p) => s + (p.dias_contados || 0), 0);
   const usadasAP = periodos.filter(p => p.tipo === 'asuntos_propios').reduce((s, p) => s + (p.dias_contados || 0), 0);
+  // v213: BOLSA disponible + GENERADO proporcional (30 días naturales/año, año natural).
+  //  · Veterano (alta de años anteriores o sin fecha) → bolsa 30 completos.
+  //  · Nuevo (alta este mismo año) → bolsa proporcional desde su alta hasta el 31/12.
+  //  · Generado a hoy → proporcional día a día desde el 1/ene (o su alta) hasta hoy.
+  const _MS = 86400000;
+  const _yStart = new Date(anio, 0, 1), _yEnd = new Date(anio, 11, 31);
+  const _diasAnio = Math.round((_yEnd - _yStart) / _MS) + 1; // 365 ó 366
+  const _trab = vacTrabajadores.find(x => x.id === trabajadorId);
+  const _alta = (_trab && _trab.fecha_alta) ? new Date(_trab.fecha_alta + 'T00:00:00') : null;
+  let bolsa, _genStart;
+  if (!_alta || _alta <= _yStart) { bolsa = VAC_DIAS_VACACIONES; _genStart = _yStart; }
+  else if (_alta <= _yEnd) {
+    const _diasRest = Math.round((_yEnd - _alta) / _MS) + 1;
+    bolsa = Math.round((_diasRest / _diasAnio) * VAC_DIAS_VACACIONES * 10) / 10;
+    _genStart = _alta;
+  } else { bolsa = 0; _genStart = null; }
+  let generado = 0;
+  if (_genStart) {
+    const _hoy = new Date(); _hoy.setHours(0, 0, 0, 0);
+    const _yNow = _hoy.getFullYear();
+    let _refEnd = null;
+    if (anio < _yNow) _refEnd = _yEnd;
+    else if (anio === _yNow) _refEnd = (_hoy < _yEnd ? _hoy : _yEnd);
+    if (_refEnd && _refEnd >= _genStart) {
+      const _diasGen = Math.round((_refEnd - _genStart) / _MS) + 1;
+      generado = Math.round((_diasGen / _diasAnio) * VAC_DIAS_VACACIONES * 10) / 10;
+      if (generado > bolsa) generado = bolsa;
+    }
+  }
   return {
     vac_disfrutadas: usadasVac,
-    vac_restantes: VAC_DIAS_VACACIONES - usadasVac,
+    vac_restantes: Math.round((bolsa - usadasVac) * 10) / 10,
+    bolsa,
+    generado,
     ap_disfrutados: usadasAP,
     ap_restantes: VAC_DIAS_ASUNTOS_PROPIOS - usadasAP,
     periodos
@@ -15803,7 +15834,7 @@ function renderVac() {
           <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
             <th style="padding:8px">NOMBRE</th>
             <th style="padding:8px">EMPRESA</th>
-            <th style="padding:8px">🏖️ VACACIONES (uso / total)</th>
+            <th style="padding:8px">🏖️ VACACIONES (usadas / bolsa)</th>
             <th style="padding:8px">🎯 ASUNTOS PROPIOS</th>
             <th style="padding:8px">PERIODOS</th>
             <th style="padding:8px"></th>
@@ -15812,7 +15843,7 @@ function renderVac() {
         <tbody>
         ${trabs.map(t => {
           const s = _vacSaldoTrabajador(t.id, vacAnioActivo);
-          const pctVac = Math.min(100, (s.vac_disfrutadas / VAC_DIAS_VACACIONES) * 100);
+          const pctVac = s.bolsa > 0 ? Math.min(100, (s.vac_disfrutadas / s.bolsa) * 100) : 0;
           const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? '#ffb84d' : 'var(--ok)');
           const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:9px;padding:2px 6px;border-radius:3px;margin-left:6px">ARCHIVADO</span>` : '';
           return `<tr style="border-bottom:1px solid var(--bd)">
@@ -15823,9 +15854,10 @@ function renderVac() {
                 <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;min-width:80px">
                   <div style="width:${pctVac}%;height:100%;background:${colorVac};transition:width .3s"></div>
                 </div>
-                <span style="color:${colorVac};font-weight:bold;white-space:nowrap">${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES}</span>
+                <span style="color:${colorVac};font-weight:bold;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
                 <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
               </div>
+              <div style="font-size:10px;color:var(--mu);margin-top:3px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
             </td>
             <td style="padding:8px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
             <td style="padding:8px">${s.periodos.length}</td>
@@ -16448,7 +16480,7 @@ function openVacTrabajadorDetalle(trabajadorId) {
   document.getElementById('vacDetalleTitulo').textContent = `${t.nombre} · ${vacAnioActivo}`;
   const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada' };
   let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--tx)">`
-        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${VAC_DIAS_VACACIONES}</strong> (${s.vac_restantes} rest.)</span>`
+        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.) · generado a hoy: ${s.generado}</span>`
         + `<span>🎯 Asuntos propios: <strong>${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS}</strong> (${s.ap_restantes} rest.)</span>`
         + `</div>`;
   if (!s.periodos.length) {
