@@ -3592,10 +3592,14 @@ async function _processOne(it, type, key, timeoutMs) {
           const _esPF = _pf.indexOf('puigfel') !== -1
                      || _pf.indexOf('cova solera') !== -1;
           if (_esPF) {
-            // (1) DESTINO siempre "Puigfel"
-            if (data.obra !== 'Puigfel') {
-              console.log('[v107AW Puigfel] forzando DESTINO → "Puigfel" (era "' + (data.obra || '') + '")');
-              data.obra = 'Puigfel';
+            // (1) DESTINO siempre "Puigfel/Rubi"
+            // v224 (03/07/2026): grafía "Puigfel/Rubi". Comprobado en BD por JC: 22
+            // albaranes usan "Puigfel/Rubi" frente a 2 con "Puigfel". Antes esta línea
+            // ponía "Puigfel" y deshacía la red v222 (4R → obra "Puigfel/Rubi"). Ahora
+            // ambas coinciden en "Puigfel/Rubi".
+            if (data.obra !== 'Puigfel/Rubi') {
+              console.log('[v107AW Puigfel] forzando DESTINO → "Puigfel/Rubi" (era "' + (data.obra || '') + '")');
+              data.obra = 'Puigfel/Rubi';
             }
             // (2) CLIENTE siempre "Holcim España, S.A.U." (Holcim es el dueño
             // de la planta de origen). Red de seguridad: el prompt ya lo pide,
@@ -13620,6 +13624,12 @@ const ORIGENES_CANONICOS = [
   // v107BH: orígenes de cisterna de cemento CEMEX (de dónde sale el camión
   // cargado del silo). Necesarios para que NO salgan como "no oficial" en el
   // modal. La canonización v107AY ya los deja con este nombre exacto.
+  // v224 (03/07/2026): "Zona Franca" como ORIGEN canónico. Antes solo existía
+  // como DESTINO, así que en el modal el campo ORIGEN no lo ofrecía como botón y
+  // había que escribirlo a mano → aparecían variantes en mayúsculas ("ZONA FRANCA").
+  // Ahora sale para pinchar y matchExacto normaliza cualquier caps a "Zona Franca".
+  // NO se toca "Planta Hormigones Zona Franca" ni "Zona Franca II" (sitios distintos).
+  { canon: 'Zona Franca', alias: ['ZONA FRANCA', 'zona franca'] },
   { canon: 'SILO BARCELONA MUELLE ADOSADO', alias: [
     'Silo Barcelona Muelle Adosado', 'SILO BARCELONA MUELLE ADOSADO, S/N',
     'Silo Barcelona', 'SILO BARCELONA', 'Silo Barcelona Muelle',
