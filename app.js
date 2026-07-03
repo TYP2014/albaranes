@@ -473,7 +473,7 @@ let _tarifas = [];
 
 async function loadTarifas() {
   try {
-    const { data, error } = await sb.from('tarifas_servicio').select('origen, destino, material, anio, mes, precio_tn');
+    const { data, error } = await sb.from('tarifas_servicio').select('id, origen, destino, material, anio, mes, dia_desde, dia_hasta, precio_tn');
     if (error) {
       if (error.message && /does not exist|relation/i.test(error.message)) {
         console.warn('[tarifas] La tabla tarifas_servicio no existe todavía. Ejecuta el SQL en Supabase.');
@@ -490,13 +490,23 @@ async function loadTarifas() {
 // Normaliza un texto para comparar (minúsculas, sin espacios de más).
 function _tarifaNorm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
-// Precio €/TN de una RUTA (origen+destino) para un año/mes (o null si no hay).
+// Precio €/TN de una RUTA (origen+destino) para un año/mes y (opcional) DÍA.
 // v107K1: el material ya NO entra en el precio (misma ruta = mismo precio).
-function _tarifaDe(origen, destino, anio, mes) {
+// v226: TRAMOS por días. Si se pasa `dia`, se busca el tramo cuyo rango
+// [dia_desde, dia_hasta] contiene ese día. Sin `dia`, se devuelve el tramo del
+// mes entero (1–31) si existe, o el primero (para pantallas de resumen).
+function _tarifaDe(origen, destino, anio, mes, dia) {
   const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
-  const t = _tarifas.find(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+  const cand = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
     && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
-  return t ? Number(t.precio_tn) : null;
+  if (!cand.length) return null;
+  const dd = Number(dia);
+  if (dd >= 1) {
+    const t = cand.find(x => dd >= Number(x.dia_desde || 1) && dd <= Number(x.dia_hasta || 31));
+    return t ? Number(t.precio_tn) : null;
+  }
+  const full = cand.find(x => Number(x.dia_desde || 1) === 1 && Number(x.dia_hasta || 31) === 31);
+  return Number((full || cand[0]).precio_tn);
 }
 
 // Rellena los desplegables de mes/año (la primera vez).
@@ -548,33 +558,73 @@ function renderTarifasEditor() {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
   }
-  const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
-  // v107K79: buscador por Origen y Destino (antes había que mirar de una en una).
-  // v107K80: botón "✕ Recoger" para cerrar la tabla y volver a la pantalla pequeña.
+  // v107K79/K80: buscador + "✕ Recoger".
   let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
     + '<input id="tarifaBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
     + '<input id="tarifaBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
-    + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">✕ Recoger</button>'
+    + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
-  html += '<table style="width:100%;border-collapse:collapse;min-width:560px"><thead><tr>'
-    + th('Origen') + th('Destino') + th('Alb.') + th('€ / Tonelada')
-    + '</tr></thead><tbody>';
+  // v226: cada ruta puede tener VARIOS tramos de días con su precio.
+  html += '<div style="font-size:11px;color:var(--mu);margin-bottom:10px">Cada ruta puede tener varios <b>tramos de días</b> con precios distintos (ej. día 1 a 10 → 1€, día 11 a 18 → 2€). Los días que no estén en ningún tramo se quedan sin tarifa. Deja el precio vacío para quitar un tramo.</div>';
   lista.forEach(s => {
-    const prev = _tarifaDe(s.origen, s.destino, anio, mes);
-    const val = prev != null ? prev : '';
-    const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt || '—') + '</td>';
-    html += '<tr data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '">'
-      + td(s.origen) + td(s.destino)
-      + td(String(s.count), 'color:var(--mu);font-family:var(--mn)')
-      + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd)">'
-      + '<input type="number" step="0.01" min="0" class="fil-sel"'
-      + ' data-orig="' + _fichajeEsc(s.origen) + '"'
-      + ' data-dest="' + _fichajeEsc(s.destino) + '"'
-      + ' value="' + val + '" placeholder="0.00" style="width:120px;font-family:var(--mn);font-size:12px"></td>'
-      + '</tr>';
+    const oe = _fichajeEsc(s.origen), de = _fichajeEsc(s.destino);
+    const tramos = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === _tarifaNorm(s.origen)
+      && _tarifaNorm(x.destino) === _tarifaNorm(s.destino)
+      && Number(x.anio) === anio && Number(x.mes) === mes)
+      .sort((a, b) => Number(a.dia_desde || 1) - Number(b.dia_desde || 1));
+    let filasT = '';
+    if (tramos.length) tramos.forEach(t => { filasT += _tarTramoRow(s.origen, s.destino, t.dia_desde, t.dia_hasta, t.precio_tn); });
+    else filasT = _tarTramoRow(s.origen, s.destino, 1, 31, '');
+    html += '<div class="tar-ruta" data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '"'
+      + ' data-orig="' + oe + '" data-dest="' + de + '"'
+      + ' style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">'
+      + '<div style="font-size:13px;font-weight:bold;color:var(--tx)">' + (oe || '—') + ' <span style="color:var(--mu)">→</span> ' + (de || '—') + '</div>'
+      + '<div style="font-size:11px;color:var(--mu);font-family:var(--mn);white-space:nowrap">' + s.count + ' alb.</div>'
+      + '</div>'
+      + '<div class="tar-tramos">' + filasT + '</div>'
+      + '<button class="btn bs" onclick="_tarAddTramo(this)" style="font-size:11px;padding:4px 10px;margin-top:4px">+ tramo</button>'
+      + '</div>';
   });
-  html += '</tbody></table>';
   cont.innerHTML = html;
+}
+
+// v226: una fila de tramo = [desde día] a [hasta día] → [precio €/TN] + borrar.
+function _tarTramoRow(origen, destino, desde, hasta, precio) {
+  const oe = _fichajeEsc(origen), de = _fichajeEsc(destino);
+  const inp = (cls, val, ph, w) => '<input type="number" min="1" class="fil-sel ' + cls + '"'
+    + ' data-orig="' + oe + '" data-dest="' + de + '"'
+    + ' value="' + (val === '' || val == null ? '' : val) + '" placeholder="' + ph + '"'
+    + ' style="width:' + w + ';font-family:var(--mn);font-size:12px">';
+  return '<div class="tar-tramo" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+    + '<span style="font-size:11px;color:var(--mu)">día</span>'
+    + inp('t-desde', desde == null ? 1 : desde, '1', '52px')
+    + '<span style="font-size:11px;color:var(--mu)">a</span>'
+    + inp('t-hasta', hasta == null ? 31 : hasta, '31', '52px')
+    + '<span style="font-size:12px;color:var(--mu)">→</span>'
+    + '<input type="number" step="0.01" min="0" class="fil-sel t-precio" data-orig="' + oe + '" data-dest="' + de + '"'
+    + ' value="' + (precio === '' || precio == null ? '' : precio) + '" placeholder="0.00 €/TN" style="width:110px;font-family:var(--mn);font-size:12px">'
+    + '<button class="btn br" onclick="_tarDelTramo(this)" style="font-size:11px;padding:3px 8px" title="Quitar tramo">🗑</button>'
+    + '</div>';
+}
+
+// v226: "+ tramo" añade una fila nueva a la ruta, empezando el día siguiente al último "hasta".
+function _tarAddTramo(btn) {
+  const ruta = btn.closest('.tar-ruta'); if (!ruta) return;
+  const cont = ruta.querySelector('.tar-tramos'); if (!cont) return;
+  const origen = ruta.getAttribute('data-orig') || '';
+  const destino = ruta.getAttribute('data-dest') || '';
+  let maxHasta = 0;
+  cont.querySelectorAll('.t-hasta').forEach(i => { const v = parseInt(i.value, 10); if (!isNaN(v) && v > maxHasta) maxHasta = v; });
+  const desde = (maxHasta > 0 && maxHasta < 31) ? maxHasta + 1 : 1;
+  const div = document.createElement('div');
+  div.innerHTML = _tarTramoRow(origen, destino, desde, 31, '');
+  cont.appendChild(div.firstChild);
+}
+
+// v226: 🗑 quita un tramo de la pantalla (no borra de la BD hasta pulsar Guardar).
+function _tarDelTramo(btn) {
+  const row = btn.closest('.tar-tramo'); if (row) row.remove();
 }
 
 // v107K80: cierra la tabla de tarifas y vuelve a la pantalla pequeña (solo mes/año + "Ver servicios").
@@ -587,38 +637,55 @@ function _tarifaCerrar() {
 function _tarifaFiltrar() {
   const fo = _tarifaNorm(document.getElementById('tarifaBuscaOrigen')?.value || '');
   const fd = _tarifaNorm(document.getElementById('tarifaBuscaDestino')?.value || '');
-  document.querySelectorAll('#tarifasCont tbody tr').forEach(tr => {
-    const o = tr.getAttribute('data-fo') || '';
-    const d = tr.getAttribute('data-fd') || '';
+  document.querySelectorAll('#tarifasCont .tar-ruta').forEach(bl => {
+    const o = bl.getAttribute('data-fo') || '';
+    const d = bl.getAttribute('data-fd') || '';
     const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1);
-    tr.style.display = ok ? '' : 'none';
+    bl.style.display = ok ? '' : 'none';
   });
 }
 
-// Guarda (upsert) las tarifas por servicio del mes seleccionado.
+// v226: guarda las tarifas por servicio del mes con TRAMOS de días.
+// Reemplazo limpio POR RUTA: borra los tramos viejos de las rutas mostradas
+// (así desaparecen los que hayas quitado o dejado sin precio) y mete los actuales.
 async function guardarTarifas() {
   const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
   const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
   if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
-  const inputs = document.querySelectorAll('#tarifasCont input[data-orig]');
-  if (!inputs.length) { toast('Primero pulsa "Ver servicios"', 'warn'); return; }
-  const filas = [];
-  inputs.forEach(inp => {
-    const origen = inp.getAttribute('data-orig') || '';
-    const destino = inp.getAttribute('data-dest') || '';
-    const precio = parseFloat(String(inp.value).replace(',', '.'));
-    if (!isNaN(precio) && precio > 0) {
-      // v107K1: material vacío (el precio es por ruta origen+destino).
-      filas.push({ origen, destino, material: '', anio, mes, precio_tn: precio, updated_at: new Date().toISOString() });
-    }
+  const rutas = document.querySelectorAll('#tarifasCont .tar-ruta');
+  if (!rutas.length) { toast('Primero pulsa "Ver servicios"', 'warn'); return; }
+  const rutasSet = [];   // rutas mostradas (para limpiar sus tramos viejos)
+  const porClave = {};   // dedupe por ruta+dia_desde (evita chocar la clave única)
+  rutas.forEach(bl => {
+    const origen = bl.getAttribute('data-orig') || '';
+    const destino = bl.getAttribute('data-dest') || '';
+    rutasSet.push({ origen, destino });
+    bl.querySelectorAll('.tar-tramo').forEach(row => {
+      const desde = parseInt(row.querySelector('.t-desde')?.value, 10);
+      const hasta = parseInt(row.querySelector('.t-hasta')?.value, 10);
+      const precio = parseFloat(String(row.querySelector('.t-precio')?.value || '').replace(',', '.'));
+      if (isNaN(precio) || precio <= 0) return; // sin precio → se ignora (equivale a quitar el tramo)
+      const dd = (!isNaN(desde) && desde >= 1) ? desde : 1;
+      const dh = (!isNaN(hasta) && hasta >= dd) ? hasta : 31;
+      const k = _tarifaNorm(origen) + '|' + _tarifaNorm(destino) + '|' + dd;
+      porClave[k] = { origen, destino, material: '', anio, mes, dia_desde: dd, dia_hasta: dh, precio_tn: precio, updated_at: new Date().toISOString() };
+    });
   });
-  if (!filas.length) { toast('Pon algún precio antes de guardar', 'warn'); return; }
+  const filas = Object.values(porClave);
   toast('💾 Guardando tarifas...');
   try {
-    const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes' });
-    if (error) { console.error('[tarifas] guardar', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    for (const r of rutasSet) {
+      const { error: eDel } = await sb.from('tarifas_servicio').delete()
+        .eq('anio', anio).eq('mes', mes).eq('origen', r.origen).eq('destino', r.destino);
+      if (eDel) { console.error('[tarifas] borrar tramos viejos', eDel); }
+    }
+    if (filas.length) {
+      const { error } = await sb.from('tarifas_servicio').insert(filas);
+      if (error) { console.error('[tarifas] guardar', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    }
     await loadTarifas();
-    toast('✅ Tarifas guardadas (' + filas.length + ')');
+    renderTarifasEditor();
+    toast('✅ Tarifas guardadas (' + filas.length + ' tramos)');
   } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
@@ -6956,7 +7023,7 @@ function _resFactPrecio(r) {
   if (!precio) {
     const d = _resFactParseFecha(r.fecha || '');
     if (d && typeof _tarifaDe === 'function') {
-      const t = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', d.getFullYear(), d.getMonth() + 1);
+      const t = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', d.getFullYear(), d.getMonth() + 1, d.getDate());
       if (t != null) precio = t;
     }
   }
@@ -9188,7 +9255,7 @@ function openModal(id) {
     if (f.k === 'precio') {
       let _pr = null;
       const _tsm = parseDate(r.fecha || '');
-      if (_tsm) { const _dm = new Date(_tsm); _pr = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dm.getFullYear(), _dm.getMonth() + 1); }
+      if (_tsm) { const _dm = new Date(_tsm); _pr = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dm.getFullYear(), _dm.getMonth() + 1, _dm.getDate()); }
       const _tmm = parseFloat(r.tm) || 0;
       let _txt;
       if (_pr != null) {
@@ -9197,7 +9264,7 @@ function openModal(id) {
           + ` &nbsp;·&nbsp; Total: <strong style="color:var(--fg)">${_tot.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})} €</strong>`
           + ` <span style="color:var(--mu)">(${_tmm} TN)</span>`;
       } else {
-        _txt = `<span style="color:var(--mu)">Sin tarifa para esta ruta este mes</span>`;
+        _txt = `<span style="color:var(--mu)">Sin tarifa para esta ruta en esa fecha</span>`;
       }
       return `<div class="fg full"><label class="fl">${f.l} <span style="color:var(--mu);font-weight:400;font-size:11px">(tarifa de la ruta · solo lectura)</span></label>`
         + `<div style="font-family:var(--mn);font-size:13px;padding:8px 10px;background:var(--s2);border-radius:6px;line-height:1.6">${_txt}</div>`
@@ -9844,7 +9911,7 @@ function buildExcel(data) {
       const _tsP = parseDate(r.fecha || '');
       if (_tsP) {
         const _dP = new Date(_tsP);
-        const _tar = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dP.getFullYear(), _dP.getMonth() + 1);
+        const _tar = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dP.getFullYear(), _dP.getMonth() + 1, _dP.getDate());
         if (_tar != null) precio = _tar;
       }
     }
@@ -20200,7 +20267,7 @@ function factHolcimExcelPorMaterial() {
     if (!precio) {
       const m = String(rec.fecha || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       if (m && typeof _tarifaDe === 'function') {
-        const _tar = _tarifaDe(rec.planta || rec.origen || '', rec.obra || rec.destino || '', parseInt(m[3], 10), parseInt(m[2], 10));
+        const _tar = _tarifaDe(rec.planta || rec.origen || '', rec.obra || rec.destino || '', parseInt(m[3], 10), parseInt(m[2], 10), parseInt(m[1], 10));
         if (_tar != null) precio = _tar;
       }
     }
@@ -20280,7 +20347,7 @@ function factHolcimExcel() {
     if (!precio) {
       const m = String(rec.fecha || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       if (m && typeof _tarifaDe === 'function') {
-        const _tar = _tarifaDe(rec.planta || rec.origen || '', rec.obra || rec.destino || '', parseInt(m[3], 10), parseInt(m[2], 10));
+        const _tar = _tarifaDe(rec.planta || rec.origen || '', rec.obra || rec.destino || '', parseInt(m[3], 10), parseInt(m[2], 10), parseInt(m[1], 10));
         if (_tar != null) precio = _tar;
       }
     }
