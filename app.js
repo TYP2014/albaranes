@@ -3191,11 +3191,43 @@ async function _processOne(it, type, key, timeoutMs) {
             if (/LLANTADA/.test(_tpK92)) { data.cliente = 'Llantada e Hijos, S.L.'; console.log(`[v107K92] Cliente Promsa fijado a Llantada (transportista_papel="${data.transportista_papel}")`); }
             else if (/AR[IY]DFLOT/.test(_tpK92)) { data.cliente = 'Aridflot, S.L.'; console.log(`[v107K92] Cliente Promsa fijado a Aridflot (transportista_papel="${data.transportista_papel}")`); }
           }
+          // v218 (03/07/2026, caso real de Marta): en Promsa el CLIENTE nunca puede ser la
+          // propia cantera. Si la IA lee "Promotora Mediterránea-2" como cliente, lo vacía
+          // para revisión manual (el cliente real es Llantada/Aridflot vía transportista_papel).
+          if (_esPromsaK92 && /PROMOTORA\s+MEDITERR|PROMSA|MOLINS/.test(String(data.cliente || '').toUpperCase())) {
+            console.warn('[v218] cliente Promsa leído como la propia cantera → vaciado para revisión');
+            data.cliente = '';
+          }
           // v107K95 (Juan Carlos 17/06/2026): transportista_papel es SOLO un dato auxiliar de
           // lectura; NO es una columna de la tabla 'albaranes'. Hay que quitarlo SIEMPRE antes de
           // guardar, o Supabase rechaza el guardado (PGRST204 "Could not find the
           // 'transportista_papel' column"). Por eso el K92 no guardaba los Promsa.
           delete data.transportista_papel;
+        }
+        // v218 (03/07/2026): RED ANTI-DUPLICADO FALSO del Nº DE ALBARÁN. Caso real: tres
+        // albaranes Promsa DISTINTOS guardados con el mismo nº "repetido" por la IA pese a la
+        // regla v107K14 del prompt. Las reglas de prompt no bastan → filtro determinista:
+        // si el número leído YA existe con OTRA matrícula (en BD o en esta misma tanda),
+        // se vacía el número y se anota en observaciones para completarlo a mano del papel.
+        // (Mismo número + MISMA matrícula se deja pasar: es el duplicado normal de re-subida,
+        // que ya lo pilla el detector de duplicados.)
+        {
+          const _numV218 = String(data.albaran || '').trim();
+          if (_numV218) {
+            window._v218Tanda = window._v218Tanda || {};
+            const _matV218 = matriculaPrincipal(data.tractora || '');
+            const _prevV218 = window._v218Tanda[_numV218];
+            const _choqueBD = (typeof records !== 'undefined' && records || []).some(r =>
+              String(r.albaran || '').trim() === _numV218 && matriculaPrincipal(r.tractora || '') !== _matV218);
+            const _choqueTanda = _prevV218 && _prevV218 !== _matV218;
+            if (_choqueBD || _choqueTanda) {
+              console.warn(`[v218] nº albarán "${_numV218}" ya existe con OTRA matrícula → vaciado para revisión manual`);
+              data.observaciones = ((data.observaciones || '') + ' ⚠ nº repetido leído por IA ("' + _numV218 + '") — comprobar en el papel').trim();
+              data.albaran = '';
+            } else {
+              window._v218Tanda[_numV218] = _matV218;
+            }
+          }
         }
         // Red de seguridad: canonizar el campo CLIENTE/COMPRADOR PRIMERO. Pilla variantes OCR
         // como "Planta Horígenes Zona Franca" o "Planta Hormagones Montcada" y las unifica.
