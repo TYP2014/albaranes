@@ -11514,7 +11514,7 @@ function renderFactEmit() {
   });
   h += '</div>';
   h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
-  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:12px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + ': <strong style="color:var(--er);font-size:14px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
+  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:13px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
   ['todas', 'pendiente', 'cobrada'].forEach(f => {
     h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : '\u2705 Cobradas') + '</button>';
   });
@@ -11523,7 +11523,7 @@ function renderFactEmit() {
     h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
     cont.innerHTML = h; return;
   }
-  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mn)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac)">'
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px;font-family:var(--mn)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac)">'
      + '<th style="padding:8px">N\u00ba</th><th style="padding:8px">FECHA</th><th style="padding:8px">EMPRESA</th><th style="padding:8px">CLIENTE</th>'
      + '<th style="padding:8px;text-align:right">BASE</th><th style="padding:8px;text-align:right">IVA</th><th style="padding:8px;text-align:right">TOTAL</th>'
      + '<th style="padding:8px">VENCE</th><th style="padding:8px">ESTADO</th><th style="padding:8px"></th></tr></thead><tbody>';
@@ -11532,8 +11532,8 @@ function renderFactEmit() {
     let vencida = false;
     if (!cobrada && f.vencimiento && /^\d{4}-\d{2}-\d{2}/.test(f.vencimiento)) vencida = new Date(f.vencimiento + 'T00:00:00') < new Date();
     const badge = cobrada
-      ? '<span style="background:var(--ok);color:#fff;font-size:9px;padding:2px 8px;border-radius:4px">COBRADA' + (f.fecha_cobro ? ' ' + f.fecha_cobro.split('-').reverse().join('/') : '') + '</span>'
-      : '<span style="background:' + (vencida ? 'var(--er)' : '#ffb84d') + ';color:#fff;font-size:9px;padding:2px 8px;border-radius:4px">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
+      ? '<span style="background:var(--ok);color:#fff;font-size:11px;font-weight:bold;padding:4px 10px;border-radius:5px;white-space:nowrap">COBRADA' + (f.fecha_cobro ? ' ' + f.fecha_cobro.split('-').reverse().join('/') : '') + '</span>'
+      : '<span style="background:' + (vencida ? 'var(--er)' : '#e8960c') + ';color:#fff;font-size:11px;font-weight:bold;padding:4px 10px;border-radius:5px;white-space:nowrap">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
     const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
     h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.65' : '') + '">'
        + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF">\ud83d\udcce</a>' : '') + '</td>'
@@ -11543,7 +11543,7 @@ function renderFactEmit() {
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.base) + '</td>'
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.iva) + '</td>'
        + '<td style="padding:8px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
-       + '<td style="padding:8px;cursor:pointer" title="Pincha para editar el vencimiento real" onclick="factEmitEditarVenc(\'' + f.id + '\')">' + fmtF(f.vencimiento) + ' <span style="color:var(--mu);font-size:10px">\u270f</span></td>'
+       + '<td style="padding:8px;cursor:pointer" title="Pincha para editar el vencimiento real" onclick="factEmitEditarVenc(\'' + f.id + '\')">' + fmtF(f.vencimiento) + ' <span style="color:var(--mu);font-size:12px">\u270f\ufe0f</span></td>'
        + '<td style="padding:8px">' + badge + '</td>'
        + '<td style="padding:8px;text-align:right;white-space:nowrap">'
        + (cobrada
