@@ -509,6 +509,21 @@ function _tarifaDe(origen, destino, anio, mes, dia) {
   return Number((full || cand[0]).precio_tn);
 }
 
+// v228: TRAMO de días aplicado (texto, ej. "1–16") para una ruta/fecha. '' si no hay tarifa.
+// Usa la misma lógica de búsqueda que _tarifaDe pero devuelve el rango de días, para el Excel.
+function _tarifaTramoDe(origen, destino, anio, mes, dia) {
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
+  const cand = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+    && Number(x.anio) === Number(anio) && Number(x.mes) === Number(mes));
+  if (!cand.length) return '';
+  const dd = Number(dia);
+  let t = null;
+  if (dd >= 1) t = cand.find(x => dd >= Number(x.dia_desde || 1) && dd <= Number(x.dia_hasta || 31));
+  else t = cand.find(x => Number(x.dia_desde || 1) === 1 && Number(x.dia_hasta || 31) === 31) || cand[0];
+  if (!t) return '';
+  return Number(t.dia_desde || 1) + '\u2013' + Number(t.dia_hasta || 31);
+}
+
 // Rellena los desplegables de mes/año (la primera vez).
 function _tarifasInitSelects() {
   const selM = document.getElementById('tarifaMes'), selA = document.getElementById('tarifaAnio');
@@ -7190,7 +7205,7 @@ function _resFactSheetData(transportista) {
     lineas.push({
       fecha: r.fecha || '', mat: r.tractora || '', alb: r.albaran || '', tm: parseFloat(r.tm) || 0,
       eurtn: _resFactPrecio(r), eur: _resFactImporte(r),
-      origen: r.planta || '', destino: r.obra || '', material: r.producto || '',
+      origen: r.planta || '', destino: r.obra || '', material: r.producto || '', tramo: _tarifaTramoDe(r.planta || '', r.obra || '', f.getFullYear(), f.getMonth() + 1, f.getDate()),
       rec: (r.estado_factura_recibida || 'pendiente') === 'recibida' ? 'S\u00ed' : 'Pendiente'
     });
   }
@@ -7199,14 +7214,14 @@ function _resFactSheetData(transportista) {
     ['Transportista:', transportista],
     ['Periodo:', (window._resFactDesde || '') + ' \u2192 ' + (window._resFactHasta || '')],
     [],
-    ['Fecha', 'Matr\u00edcula', 'N\u00ba Albar\u00e1n', 'TN', '\u20ac/TN', 'Importe \u20ac', 'Origen', 'Destino', 'Material', '\u00bfNos han facturado?']
+    ['Fecha', 'Matr\u00edcula', 'N\u00ba Albar\u00e1n', 'TN', '\u20ac/TN', 'Tramo', 'Importe \u20ac', 'Origen', 'Destino', 'Material', '\u00bfNos han facturado?']
   ];
   let sum = 0, sumE = 0;
-  lineas.forEach(l => { aoa.push([l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, Math.round(l.eurtn * 100) / 100, Math.round(l.eur * 100) / 100, l.origen, l.destino, l.material, l.rec]); sum += l.tm; sumE += l.eur; });
-  aoa.push(['TOTAL', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, (sum > 0 ? Math.round(sumE / sum * 100) / 100 : ''), Math.round(sumE * 100) / 100, '', '', '', '']);
+  lineas.forEach(l => { aoa.push([l.fecha, l.mat, l.alb, Math.round(l.tm * 1000) / 1000, Math.round(l.eurtn * 100) / 100, l.tramo || '', Math.round(l.eur * 100) / 100, l.origen, l.destino, l.material, l.rec]); sum += l.tm; sumE += l.eur; });
+  aoa.push(['TOTAL', '', lineas.length + ' alb.', Math.round(sum * 1000) / 1000, (sum > 0 ? Math.round(sumE / sum * 100) / 100 : ''), '', Math.round(sumE * 100) / 100, '', '', '', '']);
   return { aoa, n: lineas.length };
 }
-const _RESFACT_COLS = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 9 }, { wch: 11 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
+const _RESFACT_COLS = [{ wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 11 }, { wch: 20 }, { wch: 22 }, { wch: 26 }, { wch: 18 }];
 
 function _resFactExcelTransportista(idx) {
   const f = (window._resFactFilas || [])[idx]; if (!f) return;
