@@ -11637,7 +11637,7 @@ function renderFactEmit() {
       : '<span style="display:inline-block;background:' + (vencida ? 'var(--er)' : '#e8960c') + ';color:#fff;font-size:13px;font-weight:bold;padding:6px 16px;border-radius:8px;white-space:nowrap">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
     const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
     h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.85' : '') + '">'
-       + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF">\ud83d\udcce</a>' : '') + '</td>'
+       + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle;margin-left:2px">' + _svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver PDF', 2) + '</a>' : '') + '</td>'
        + '<td style="padding:8px">' + fmtF(f.fecha) + '</td>'
        + '<td style="padding:8px">' + esc(f.empresa || '\u2014') + '</td>'
        + '<td style="padding:8px">' + esc(f.cliente || '\u2014') + '</td>'
