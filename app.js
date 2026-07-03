@@ -11501,12 +11501,13 @@ function renderFactEmit() {
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.base) + '</td>'
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.iva) + '</td>'
        + '<td style="padding:8px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
-       + '<td style="padding:8px">' + fmtF(f.vencimiento) + '</td>'
+       + '<td style="padding:8px;cursor:pointer" title="Pincha para editar el vencimiento real" onclick="factEmitEditarVenc(\'' + f.id + '\')">' + fmtF(f.vencimiento) + ' <span style="color:var(--mu);font-size:10px">\u270f</span></td>'
        + '<td style="padding:8px">' + badge + '</td>'
        + '<td style="padding:8px;text-align:right;white-space:nowrap">'
        + (cobrada
           ? '<button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitDesmarcar(\'' + f.id + '\')">\u21a9 Pendiente</button>'
           : '<button class="btn bp" style="font-size:9px;padding:4px 8px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">\u2705 Cobrada</button>')
+       + ' <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitEditar(\'' + f.id + '\')">\u270f Editar</button>'
        + ' <button class="btn br" style="font-size:9px;padding:4px 8px" onclick="factEmitBorrar(\'' + f.id + '\')">\ud83d\uddd1</button>'
        + '</td></tr>';
   });
@@ -11532,6 +11533,84 @@ async function factEmitDesmarcar(id) {
     const { error } = await sb.from('facturas_emitidas').update({ estado: 'pendiente', fecha_cobro: null }).eq('id', id);
     if (error) throw error;
     toast('\u21a9 Vuelve a pendiente');
+    await loadFactEmit();
+  } catch (e) { alert('Error: ' + (e.message || e)); }
+}
+// v217: EDICION MANUAL completa de una factura emitida (la IA puede leer algo mal,
+// o Quipu pone un dato distinto al real). Modal inyectado por JS.
+function factEmitEditar(id) {
+  const f = _factEmit.find(x => x.id === id);
+  if (!f) return;
+  let ov = document.getElementById('ovFactEmitEdit');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.className = 'ov';
+    ov.id = 'ovFactEmitEdit';
+    document.body.appendChild(ov);
+  }
+  const EMPS = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES 2014 IMPORT'];
+  const _inp = (lab, idc, val, tipo) => '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mu);margin-bottom:3px">' + lab + '</div>'
+    + '<input id="' + idc + '" type="' + (tipo || 'text') + '" value="' + esc(val == null ? '' : String(val)) + '" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:12px"></div>';
+  ov.innerHTML = '<div class="modal" style="max-width:560px">'
+    + '<div class="modal-hd"><div class="modal-title">\u270f EDITAR FACTURA ' + esc(f.numero || '') + '</div>'
+    + '<button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById(\'ovFactEmitEdit\').classList.remove(\'open\')">\u2715</button></div>'
+    + '<div class="modal-bd">'
+    + _inp('N\u00ba FACTURA', 'feEdNumero', f.numero)
+    + _inp('FECHA EMISI\u00d3N', 'feEdFecha', f.fecha, 'date')
+    + '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mu);margin-bottom:3px">EMPRESA EMISORA</div>'
+    + '<select id="feEdEmpresa" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:12px">'
+    + EMPS.map(e => '<option value="' + e + '"' + (f.empresa === e ? ' selected' : '') + '>' + e + '</option>').join('')
+    + '</select></div>'
+    + _inp('CLIENTE', 'feEdCliente', f.cliente)
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+    + _inp('BASE (\u20ac)', 'feEdBase', f.base, 'number')
+    + _inp('IVA (\u20ac)', 'feEdIva', f.iva, 'number')
+    + _inp('TOTAL (\u20ac)', 'feEdTotal', f.total, 'number')
+    + '</div>'
+    + _inp('VENCIMIENTO REAL', 'feEdVenc', f.vencimiento, 'date')
+    + _inp('OBSERVACIONES', 'feEdObs', f.observaciones)
+    + '</div>'
+    + '<div class="modal-ft">'
+    + '<button class="btn bs" onclick="document.getElementById(\'ovFactEmitEdit\').classList.remove(\'open\')">Cancelar</button>'
+    + '<button class="btn bp" onclick="factEmitGuardarEdicion(\'' + f.id + '\')">Guardar</button>'
+    + '</div></div>';
+  ov.classList.add('open');
+}
+async function factEmitGuardarEdicion(id) {
+  const v = idc => { const el = document.getElementById(idc); return el ? el.value.trim() : ''; };
+  const num = idc => { const x = v(idc).replace(',', '.'); return x === '' ? null : (isNaN(parseFloat(x)) ? null : parseFloat(x)); };
+  const payload = {
+    numero: v('feEdNumero') || null,
+    fecha: v('feEdFecha') || null,
+    empresa: v('feEdEmpresa') || null,
+    cliente: v('feEdCliente') || null,
+    base: num('feEdBase'),
+    iva: num('feEdIva'),
+    total: num('feEdTotal'),
+    vencimiento: v('feEdVenc') || null,
+    observaciones: v('feEdObs') || null
+  };
+  try {
+    const { error } = await sb.from('facturas_emitidas').update(payload).eq('id', id);
+    if (error) throw error;
+    document.getElementById('ovFactEmitEdit').classList.remove('open');
+    toast('\u2713 Factura actualizada');
+    await loadFactEmit();
+  } catch (e) { alert('Error: ' + (e.message || e)); }
+}
+
+// v217: editar el VENCIMIENTO real (Quipu limita el vencimiento y no siempre coincide con el pactado).
+async function factEmitEditarVenc(id) {
+  const f = _factEmit.find(x => x.id === id);
+  if (!f) return;
+  let v = prompt('Vencimiento REAL de la factura ' + (f.numero || '') + ' (AAAA-MM-DD):', f.vencimiento || '');
+  if (v === null) return;
+  v = v.trim();
+  if (v !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { alert('Formato no v\u00e1lido. Usa AAAA-MM-DD, ej: 2026-08-20'); return; }
+  try {
+    const { error } = await sb.from('facturas_emitidas').update({ vencimiento: v || null }).eq('id', id);
+    if (error) throw error;
+    toast('\u2713 Vencimiento actualizado');
     await loadFactEmit();
   } catch (e) { alert('Error: ' + (e.message || e)); }
 }
