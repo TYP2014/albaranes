@@ -9884,8 +9884,8 @@ async function deleteGasRecord() {
 // ============================================================
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
 // v95b: Total movido al lado de Precio (columna E). Antes estaba al final como col S.
-// Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | Nº ALBARAN | ...
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
+// Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | TRAMO | Nº ALBARAN | ...
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
 
 function buildExcel(data) {
   // v84: ordenar SIEMPRE por:
@@ -9936,8 +9936,11 @@ function buildExcel(data) {
     const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
     const totalFormula = Math.round(tm * precio * 100) / 100;
     _sumEuros += totalFormula;
+    // v230: TRAMO de días aplicado (columna nueva), según la fecha del albarán.
+    let _tramo = '';
+    { const _tsT = parseDate(r.fecha || ''); if (_tsT) { const _dT = new Date(_tsT); _tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', _dT.getFullYear(), _dT.getMonth() + 1, _dT.getDate()); } }
     // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
-    // FECHA, MATRICULA, TN, PRECIO, TOTAL, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
+    // FECHA, MATRICULA, TN, PRECIO, TOTAL, TRAMO, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
     // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO
     return [
       r.fecha != null ? r.fecha : '',
@@ -9945,6 +9948,7 @@ function buildExcel(data) {
       tm,
       precio,
       totalFormula,
+      _tramo,
       r.albaran != null ? r.albaran : '',
       r.proveedor != null ? r.proveedor : '',
       r.planta != null ? r.planta : '',
@@ -9966,11 +9970,11 @@ function buildExcel(data) {
   // v107K9: fila TOTAL con la SUMA ya calculada como NÚMERO (antes eran fórmulas =SUM(...) que el
   // Excel generado no calculaba y salían vacías). TN sumadas en C, € sumados en E.
   const filaUltimaDato = rows.length;
-  const filaSuma = ['', 'TOTAL', Math.round(tmTot * 1000) / 1000, '', Math.round(_sumEuros * 100) / 100, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+  const filaSuma = ['', 'TOTAL', Math.round(tmTot * 1000) / 1000, '', Math.round(_sumEuros * 100) / 100, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   // v107CP: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
-  ws['!cols'] = [10,10,9,12,12,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
+  ws['!cols'] = [10,10,9,12,12,9,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
   // v107K10: el TOTAL (col E) es FÓRMULA =C*D pero con el VALOR ya calculado en caché. Así se ve el
   // número al abrir el Excel Y, si editas el PRECIO a mano, el Total se recalcula solo. La fila de
   // TOTALES igual: SUM con su valor en caché (antes salían en blanco porque no llevaban valor).
