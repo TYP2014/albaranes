@@ -11496,15 +11496,25 @@ async function loadFactEmit() {
   }
 }
 let _feFiltro = 'todas'; // todas / pendiente / cobrada
+let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
 function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
 function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
   if (!cont) return;
-  const arr = (_factEmit || []).filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
-  const pend = (_factEmit || []).filter(f => (f.estado || 'pendiente') === 'pendiente');
+  // v220: primero se filtra por EMPRESA; el "Pendiente de cobro" es el de la empresa elegida.
+  const EMPS220 = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES 2014 IMPORT'];
+  const base220 = (_factEmit || []).filter(f => _feEmpresa === 'TODAS' ? true : (f.empresa || '') === _feEmpresa);
+  const arr = base220.filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
+  const pend = base220.filter(f => (f.estado || 'pendiente') === 'pendiente');
   const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
-  let h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
-  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:12px">Pendiente de cobro: <strong style="color:var(--er);font-size:14px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
+  let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+  ['TODAS'].concat(EMPS220).forEach(e => {
+    const n = e === 'TODAS' ? (_factEmit || []).length : (_factEmit || []).filter(f => (f.empresa || '') === e).length;
+    h += '<button class="btn ' + (_feEmpresa === e ? 'bp' : 'bs') + '" style="font-size:10px;padding:6px 12px" onclick="_feEmpresa=\'' + e + '\';renderFactEmit()">' + (e === 'TODAS' ? '\ud83c\udfe2 TODAS' : e) + ' (' + n + ')</button>';
+  });
+  h += '</div>';
+  h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
+  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:12px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + ': <strong style="color:var(--er);font-size:14px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
   ['todas', 'pendiente', 'cobrada'].forEach(f => {
     h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : '\u2705 Cobradas') + '</button>';
   });
