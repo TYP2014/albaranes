@@ -7104,14 +7104,14 @@ function _resFactRender() {
   const totRec = filas.reduce((s, f) => s + f.rec, 0);
   const totTn = filas.reduce((s, f) => s + f.tn, 0);
   const totEur = filas.reduce((s, f) => s + (f.eur || 0), 0);
-  const _inpFecha = 'background:#1e2129;color:#fff;border:1px solid #2a2d36;border-radius:6px;padding:5px 8px;font-size:12px;margin-left:4px';
+  const _inpFecha = 'background:#fff;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font-size:12px;margin-left:4px';
   const pbtn = (d, t) => `<button class="btn bs" onclick="_resFactPeriodo(${d})" style="padding:4px 10px">${t}</button>`;
   let html = `<div class="m-bd" style="padding:0;max-width:1000px">
     <div class="m-hdr"><div class="m-tit">📋 Nos han facturado · por transportista</div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn bs" onclick="exportDesgloseSeleccionados()" title="Excel con el DESGLOSE de albaranes de los transportistas marcados">📥 Desglose marcados</button>
         <button class="btn bs" onclick="exportResumenFacturasExcel()" title="Excel del resumen (totales por transportista)">📊 Excel resumen</button>
-        <button class="m-cls" onclick="_cerrarResFact()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+        <button class="m-cls" onclick="_cerrarResFact()" style="background:none;border:none;color:var(--mu);font-size:18px;cursor:pointer">✕</button>
       </div></div>
     <div style="padding:14px;max-height:75vh;overflow:auto">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -7140,7 +7140,7 @@ function _resFactRender() {
           <th style="padding:8px;border-bottom:1px solid rgba(0,232,122,.3)"></th>
         </tr></thead><tbody>`;
   filas.forEach((f, i) => {
-    html += `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+    html += `<tr style="border-bottom:1px solid var(--bd)">
       <td style="padding:7px 8px;text-align:center"><input type="checkbox" class="resfact-chk" value="${i}"></td>
       <td style="padding:7px 8px">${esc(f.transportista)}</td>
       <td style="padding:7px 8px;text-align:right">${f.alb}</td>
