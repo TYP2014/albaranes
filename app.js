@@ -11551,10 +11551,10 @@ function renderFactEmit() {
     let vencida = false;
     if (!cobrada && f.vencimiento && /^\d{4}-\d{2}-\d{2}/.test(f.vencimiento)) vencida = new Date(f.vencimiento + 'T00:00:00') < new Date();
     const badge = cobrada
-      ? '<span style="background:var(--ok);color:#fff;font-size:11px;font-weight:bold;padding:4px 10px;border-radius:5px;white-space:nowrap">COBRADA' + (f.fecha_cobro ? ' ' + f.fecha_cobro.split('-').reverse().join('/') : '') + '</span>'
-      : '<span style="background:' + (vencida ? 'var(--er)' : '#e8960c') + ';color:#fff;font-size:11px;font-weight:bold;padding:4px 10px;border-radius:5px;white-space:nowrap">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
+      ? '<span style="display:inline-block;background:var(--ok);color:#fff;font-size:13px;font-weight:bold;padding:6px 16px;border-radius:8px;white-space:nowrap">\u2713 COBRADA</span>' + (f.fecha_cobro ? '<div style="font-size:15px;font-weight:bold;color:#178a54;margin-top:6px;letter-spacing:.02em">' + f.fecha_cobro.split('-').reverse().join('/') + '</div>' : '')
+      : '<span style="display:inline-block;background:' + (vencida ? 'var(--er)' : '#e8960c') + ';color:#fff;font-size:13px;font-weight:bold;padding:6px 16px;border-radius:8px;white-space:nowrap">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
     const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
-    h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.65' : '') + '">'
+    h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.85' : '') + '">'
        + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF">\ud83d\udcce</a>' : '') + '</td>'
        + '<td style="padding:8px">' + fmtF(f.fecha) + '</td>'
        + '<td style="padding:8px">' + esc(f.empresa || '\u2014') + '</td>'
