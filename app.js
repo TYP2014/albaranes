@@ -5999,7 +5999,7 @@ async function callClaudeFacturaSolred(b64, mediaType, key, isPdf, signal) {
 Busca la página titulada "Resumen tarjetas". Es una tabla con columnas: Nº TARJETA, MATRÍCULA, CONCEPTO (que alterna filas IMPORTE y CANTIDAD), ADBLUE, ADBLUE REPSOL (L), AUTOPISTAS, DIESEL E+ NEOTECH (L), DieselNexa Origen100%R(L).
 Para CADA tarjeta/matrícula necesito los LITROS (la fila CANTIDAD, NO la de IMPORTE) sumando productos del mismo grupo:
 - litros_gasoil = CANTIDAD de "DIESEL E+ NEOTECH (L)" + CANTIDAD de "DieselNexa Origen100%R(L)" (los dos son gasoil).
-- litros_adblue = CANTIDAD de "ADBLUE" + CANTIDAD de "ADBLUE REPSOL (L)".
+- litros_adblue = SOLO la columna CANTIDAD (litros) de las líneas "ADBLUE" y "ADBLUE REPSOL (L)". NUNCA uses la columna Importe ni ningún valor en € como litros. Si una línea de ADBLUE NO trae CANTIDAD en litros (solo trae un importe en €), esa línea suma 0 litros: no conviertas euros en litros. EJEMPLO (cifras FICTICIAS): "ADBLUE REPSOL (L)" CANTIDAD 50,00 + una línea "ADBLUE" SIN cantidad (solo 20,00 € de importe) → litros_adblue = 50,00. NUNCA 70,00 (eso sería sumar los 20 € como si fueran litros: MAL).
 - importe_gasoil / importe_adblue = la fila IMPORTE correspondiente (suma igual).
 Ignora la columna AUTOPISTAS (peajes, no es combustible). Ignora la fila TOTAL del final.
 Devuelve SOLO un objeto JSON con esta forma exacta (sin markdown):
