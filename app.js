@@ -625,7 +625,7 @@ function renderTarifasEditor() {
 // v226: una fila de tramo = [desde día] a [hasta día] → [precio €/TN] + borrar.
 function _tarTramoRow(origen, destino, desde, hasta, precio) {
   const oe = _fichajeEsc(origen), de = _fichajeEsc(destino);
-  const inp = (cls, val, ph, w) => '<input type="number" min="1" class="fil-sel ' + cls + '"'
+  const inp = (cls, val, ph, w) => '<input type="number" min="1" max="31" oninput="_tarClampDia(this)" class="fil-sel ' + cls + '"'
     + ' data-orig="' + oe + '" data-dest="' + de + '"'
     + ' value="' + (val === '' || val == null ? '' : val) + '" placeholder="' + ph + '"'
     + ' style="width:' + w + ';font-family:var(--mn);font-size:12px">';
@@ -654,6 +654,15 @@ function _tarAddTramo(btn) {
   const div = document.createElement('div');
   div.innerHTML = _tarTramoRow(origen, destino, desde, 31, '');
   cont.appendChild(div.firstChild);
+}
+
+// v238: los días del tramo no pueden pasar de 31 (ni bajar de 1). Se corrige al escribir.
+function _tarClampDia(el) {
+  if (el.value === '') return;
+  const v = parseInt(el.value, 10);
+  if (isNaN(v)) { el.value = ''; return; }
+  if (v > 31) el.value = 31;
+  else if (v < 1) el.value = 1;
 }
 
 // v237: 🗑 quita ESE tramo. Si tenía precio guardado, lo borra solo a ÉL de la BD (con
@@ -709,10 +718,16 @@ async function _tarGuardarRuta(btn) {
     const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes,dia_desde' });
     if (error) { console.error('[tarifas] guardar ruta', error); toast('Error al guardar: ' + error.message, 'err'); return; }
     await loadTarifas();
-    // Parpadeo verde de confirmación (sin re-dibujar, para no mover el bloque).
+    // v238: sube ESTA ruta arriba del todo automáticamente (moviendo solo su bloque, SIN
+    // recargar el editor, para no perder lo escrito en otras rutas). Así ya no hace falta refrescar.
+    const _cont = document.getElementById('tarifasCont');
+    const _first = _cont ? _cont.querySelector('.tar-ruta') : null;
+    if (_cont && _first && _first !== ruta) _cont.insertBefore(ruta, _first);
+    // Parpadeo verde de confirmación.
     const _bg = ruta.style.background;
     ruta.style.transition = 'background .3s'; ruta.style.background = '#eafaf1';
-    setTimeout(() => { ruta.style.background = _bg || ''; }, 900);
+    setTimeout(() => { ruta.style.background = _bg || ''; }, 1000);
+    ruta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     toast('✅ Guardado (' + filas.length + ' tramo' + (filas.length === 1 ? '' : 's') + ')');
   } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
