@@ -1901,6 +1901,77 @@ async function uploadFile(file, folder) {
 function getKey() { return anthropicKey || localStorage.getItem('anth_key') || ''; }
 function saveKey(k) { anthropicKey = k; localStorage.setItem('anth_key', k); }
 
+// ====== v232: BOT DE AYUDA FLOTANTE (responde dudas de uso de la app) ======
+let _helpBotHist = [];
+const _HELPBOT_SYS = `Eres el asistente de ayuda de una app para subir y gestionar albaranes de transporte (empresa española). Ayudas SOBRE TODO a los conductores y transportistas subcontratados, que son los que SUBEN y EDITAN albaranes. Responde SIEMPRE en español, con frases muy cortas y sencillas, tono cercano y amable (gente no técnica). Cuando expliques algo, da pasos numerados y claros.
+
+Céntrate SOLO en estas tareas (es lo que hace esta gente). Si preguntan por gasoil, neumáticos, taller, facturación o datos de otras empresas, NO entres en detalle: di con amabilidad que de eso se encarga la oficina/administración, y que tú les ayudas a subir y editar sus albaranes. No inventes. No hables de código.
+
+1) SUBIR UN ALBARÁN: ve a la pestaña SUBIR (o al recuadro "Arrastra o pincha para subir el PDF"). Arrastra ahí el PDF o la foto del albarán, o pincha para elegirlo del móvil/ordenador. La IA lo lee sola y saca fecha, matrícula, nº de albarán, origen, destino, material y toneladas. Aparece en la pestaña ALBARANES. Puedes soltar varios a la vez.
+
+2) MUY IMPORTANTE — QUE SE VEA BIEN: la foto o el escáner del albarán tiene que verse CLARO y COMPLETO, sin sombras, sin dedos tapando y sin que salga borroso o cortado. Si el papel se ve mal, la IA no puede leerlo bien y el albarán saldrá "a revisar" o con datos mal. Consejo: haz la foto con buena luz, de frente, que se lean todos los números (sobre todo la fecha, el nº de albarán y las toneladas). Un escaneo malo se evita cuidando la foto.
+
+3) SI SALE GIRADO / DE LADO: abre el albarán y, en el visor del PDF (arriba), hay un botón para GIRARLO (icono de flecha en círculo). Púlsalo hasta que se vea derecho.
+
+4) SI SALE "A REVISAR" o con datos mal: la IA no leyó bien (normalmente por foto borrosa o de lado). Abre ese albarán pinchándolo en la lista y CORRIGE a mano lo que falte o esté mal, mirando el papel: fecha, matrícula, nº de albarán y toneladas. Luego dale a Guardar. Sabiendo los datos, cualquier albarán se deja bien aunque la foto no fuera perfecta.
+
+5) EDITAR / CAMBIAR un albarán: pincha el albarán en la lista de ALBARANES para abrirlo, cambia lo que necesites y dale a Guardar. Lo corregido a mano queda protegido.
+
+6) "DUPLICADO": ese albarán ya estaba subido (mismo número). No pasa nada, no se cuenta dos veces.
+
+7) BUSCAR / FILTRAR: en ALBARANES, arriba, hay filtros por fecha (Desde/Hasta), matrícula, origen, destino y transportista, más un buscador. Eliges lo que quieras y la lista se reduce.
+
+8) SACAR EL EXCEL: "Excel Completo" descarga TODOS los albaranes; "Excel Filtrado" descarga SOLO los que estás viendo con los filtros puestos. Si quieres solo unos pocos (una matrícula, un mes…), primero pon el filtro y luego dale a "Excel Filtrado".
+
+Si un albarán NO es vuestro (no lo transportáis vosotros), puede salir sin transportista ni precio: es normal.`;
+
+function helpBotToggle() {
+  const p = document.getElementById('helpBotPanel'); if (!p) return;
+  const open = p.style.display === 'flex';
+  p.style.display = open ? 'none' : 'flex';
+  if (!open) {
+    if (!_helpBotHist.length) _helpBotAdd('bot', '\u00a1Hola! \ud83d\udc4b Soy el asistente de la app. Te ayudo con tus albaranes: c\u00f3mo subirlos, c\u00f3mo girarlos si salen de lado, c\u00f3mo editarlos cuando algo sale mal, y c\u00f3mo buscarlos o sacar el Excel. Preg\u00fantame lo que necesites \ud83d\ude0a');
+    setTimeout(() => { const i = document.getElementById('helpBotInput'); if (i) i.focus(); }, 100);
+  }
+}
+function _helpBotAdd(who, text) {
+  const m = document.getElementById('helpBotMsgs'); if (!m) return null;
+  const div = document.createElement('div');
+  const mine = who === 'user';
+  div.style.cssText = 'max-width:85%;padding:8px 11px;border-radius:10px;white-space:pre-wrap;line-height:1.4;font-size:13px;' + (mine
+    ? 'align-self:flex-end;background:var(--ac);color:#fff'
+    : 'align-self:flex-start;background:var(--s2);color:var(--tx);border:1px solid var(--bd)');
+  div.textContent = text;
+  m.appendChild(div);
+  m.scrollTop = m.scrollHeight;
+  return div;
+}
+async function helpBotSend() {
+  const inp = document.getElementById('helpBotInput'); if (!inp) return;
+  const q = inp.value.trim(); if (!q) return;
+  inp.value = '';
+  _helpBotAdd('user', q);
+  _helpBotHist.push({ role: 'user', content: q });
+  const key = getKey();
+  if (!key) { _helpBotAdd('bot', 'Falta configurar la clave de la IA. Ve a la pesta\u00f1a SUBIR, ponla, y vuelve a preguntarme.'); return; }
+  const loading = _helpBotAdd('bot', '\u2026');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 600, system: _HELPBOT_SYS, messages: _helpBotHist.slice(-8) })
+    });
+    const data = await res.json();
+    const txt = (data && data.content && data.content.map(b => b.text || '').join('').trim()) || 'No he podido responder ahora mismo. Prueba otra vez en un momento.';
+    if (loading) loading.textContent = txt;
+    _helpBotHist.push({ role: 'assistant', content: txt });
+    const m = document.getElementById('helpBotMsgs'); if (m) m.scrollTop = m.scrollHeight;
+  } catch (e) {
+    console.error('[helpBot]', e);
+    if (loading) loading.textContent = 'Ups, no he podido conectar. Revisa la conexi\u00f3n y prueba otra vez.';
+  }
+}
+
 function renderSetup() {
   const k = getKey();
   const html = k
