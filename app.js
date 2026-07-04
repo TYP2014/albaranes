@@ -9230,7 +9230,7 @@ function nuevoAlbaranManual() {
     tara_kg: null, bruto_kg: null, hora_entrada: '', hora_salida: '',
     observaciones: 'CREADO A MANO — pendiente recibir albarán del cliente',
     creado_manual: true, _manual: true,
-    editado_por: (currentUser?.email || 'manual'),
+    editado_por: (currentUser?.id || null),
     created_at: new Date().toISOString()
   });
   openModal(tempId);
