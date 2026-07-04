@@ -579,6 +579,8 @@ function renderTarifasEditor() {
     if (pa !== pb) return pa - pb;
     return (a.origen + a.destino).localeCompare(b.origen + b.destino);
   });
+  // v240: guardamos las rutas (con sus materiales) para las sugerencias en cascada.
+  _tarRutas = lista.map(s => ({ origen: s.origen, destino: s.destino, materiales: [...(s.materiales || new Set())] }));
   if (!lista.length) {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
@@ -589,9 +591,9 @@ function renderTarifasEditor() {
   lista.forEach(s => { if (s.origen) _setO.add(s.origen); if (s.destino) _setD.add(s.destino); (s.materiales || new Set()).forEach(m => _setM.add(m)); });
   const _dl = (id, items) => '<datalist id="' + id + '">' + [...items].sort((a, b) => a.localeCompare(b)).map(v => '<option value="' + _fichajeEsc(v) + '"></option>').join('') + '</datalist>';
   let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
-    + '<input id="tarifaBuscaOrigen" type="text" list="tarOrigenList" placeholder="🔎 Origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="🔎 Destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="🔎 Material…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaOrigen" type="text" list="tarOrigenList" placeholder="🔎 Origen…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="🔎 Destino…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="🔎 Material…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
     + _dl('tarOrigenList', _setO) + _dl('tarDestinoList', _setD) + _dl('tarMaterialList', _setM)
     + '<label style="font-size:12px;color:var(--tx);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer" title="Ver solo las rutas que aún NO tienen precio"><input type="checkbox" id="tarifaSoloFaltan" onchange="_tarifaFiltrar()" style="cursor:pointer"> Solo sin precio</label>'
     + '<button class="btn bp" onclick="_tarCopiarMesAnterior()" style="font-size:12px;white-space:nowrap" title="Traer los precios del mes anterior (no pisa lo que ya tengas puesto)">📋 Copiar del mes anterior</button>'
@@ -762,6 +764,31 @@ function _tarifaFiltrarLimpiar() {
   ['tarifaBuscaOrigen', 'tarifaBuscaDestino', 'tarifaBuscaMaterial'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   const chk = document.getElementById('tarifaSoloFaltan'); if (chk) chk.checked = false;
   _tarifaFiltrar();
+}
+
+// v240: filtros de tarifas EN CASCADA (como Albaranes). Al escribir en un filtro, las
+// sugerencias de los otros dos se estrechan a lo que de verdad combina (origen↔destino↔material).
+let _tarRutas = []; // se rellena en renderTarifasEditor: {origen, destino, materiales:[]}
+function _tarFiltroInput() { _tarActualizarSugerencias(); _tarifaFiltrar(); }
+function _tarSetDatalist(id, items) {
+  const dl = document.getElementById(id); if (!dl) return;
+  dl.innerHTML = [...items].sort((a, b) => a.localeCompare(b)).map(v => '<option value="' + _fichajeEsc(v) + '"></option>').join('');
+}
+function _tarActualizarSugerencias() {
+  const fo = _tarifaNorm(document.getElementById('tarifaBuscaOrigen')?.value || '');
+  const fd = _tarifaNorm(document.getElementById('tarifaBuscaDestino')?.value || '');
+  const fm = _tarifaNorm(document.getElementById('tarifaBuscaMaterial')?.value || '');
+  const oOpts = new Set(), dOpts = new Set(), mOpts = new Set();
+  (_tarRutas || []).forEach(r => {
+    const on = _tarifaNorm(r.origen), dn = _tarifaNorm(r.destino);
+    const matchMat = !fm || (r.materiales || []).some(m => _tarifaNorm(m).indexOf(fm) !== -1);
+    if ((!fd || dn.indexOf(fd) !== -1) && matchMat && r.origen) oOpts.add(r.origen);
+    if ((!fo || on.indexOf(fo) !== -1) && matchMat && r.destino) dOpts.add(r.destino);
+    if ((!fo || on.indexOf(fo) !== -1) && (!fd || dn.indexOf(fd) !== -1)) (r.materiales || []).forEach(m => mOpts.add(m));
+  });
+  _tarSetDatalist('tarOrigenList', oOpts);
+  _tarSetDatalist('tarDestinoList', dOpts);
+  _tarSetDatalist('tarMaterialList', mOpts);
 }
 
 // v239: copia los precios del MES ANTERIOR al mes elegido. Solo rellena rutas que aún NO
