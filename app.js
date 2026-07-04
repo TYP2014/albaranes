@@ -569,8 +569,16 @@ function renderTarifasEditor() {
       if (_mat) serv[key].materiales.add(_mat);
     }
   });
-  const lista = Object.values(serv).sort((a, b) =>
-    (a.origen + a.destino).localeCompare(b.origen + b.destino));
+  // v236: las rutas que YA tienen precio (algún tramo con precio > 0 ese mes) salen
+  // ARRIBA; las que no tienen precio, debajo. Alfabético dentro de cada grupo.
+  const _tienePrecio = s => (_tarifas || []).some(x =>
+    _tarifaNorm(x.origen) === _tarifaNorm(s.origen) && _tarifaNorm(x.destino) === _tarifaNorm(s.destino)
+    && Number(x.anio) === anio && Number(x.mes) === mes && Number(x.precio_tn) > 0);
+  const lista = Object.values(serv).sort((a, b) => {
+    const pa = _tienePrecio(a) ? 0 : 1, pb = _tienePrecio(b) ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (a.origen + a.destino).localeCompare(b.origen + b.destino);
+  });
   if (!lista.length) {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
@@ -589,7 +597,7 @@ function renderTarifasEditor() {
     + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
   // v226: cada ruta puede tener VARIOS tramos de días con su precio.
-  html += '<div style="font-size:11px;color:var(--mu);margin-bottom:10px">Cada ruta puede tener varios <b>tramos de días</b> con precios distintos (ej. día 1 a 10 → 1€, día 11 a 18 → 2€). Los días que no estén en ningún tramo se quedan sin tarifa. Deja el precio vacío para quitar un tramo.</div>';
+  html += '<div style="font-size:11px;color:var(--mu);margin-bottom:10px">Cada ruta puede tener varios <b>tramos de días</b> con precios distintos (ej. día 1 a 10 → 1€, día 11 a 18 → 2€). Los días que no estén en ningún tramo se quedan sin tarifa. Deja el precio vacío para quitar un tramo. <b>Las rutas que ya tienen precio salen arriba</b> (se reordena al abrir y al guardar).</div>';
   lista.forEach(s => {
     const oe = _fichajeEsc(s.origen), de = _fichajeEsc(s.destino);
     const tramos = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === _tarifaNorm(s.origen)
