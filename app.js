@@ -593,6 +593,8 @@ function renderTarifasEditor() {
     + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="🔎 Destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
     + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="🔎 Material…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
     + _dl('tarOrigenList', _setO) + _dl('tarDestinoList', _setD) + _dl('tarMaterialList', _setM)
+    + '<label style="font-size:12px;color:var(--tx);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer" title="Ver solo las rutas que aún NO tienen precio"><input type="checkbox" id="tarifaSoloFaltan" onchange="_tarifaFiltrar()" style="cursor:pointer"> Solo sin precio</label>'
+    + '<button class="btn bp" onclick="_tarCopiarMesAnterior()" style="font-size:12px;white-space:nowrap" title="Traer los precios del mes anterior (no pisa lo que ya tengas puesto)">📋 Copiar del mes anterior</button>'
     + '<button class="btn bs" onclick="_tarifaFiltrarLimpiar()" style="font-size:12px;white-space:nowrap" title="Quitar los filtros">✕ Limpiar</button>'
     + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
@@ -607,7 +609,7 @@ function renderTarifasEditor() {
     let filasT = '';
     if (tramos.length) tramos.forEach(t => { filasT += _tarTramoRow(s.origen, s.destino, t.dia_desde, t.dia_hasta, t.precio_tn); });
     else filasT = _tarTramoRow(s.origen, s.destino, 1, 31, '');
-    html += '<div class="tar-ruta" data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '"'
+    html += '<div class="tar-ruta" data-tienep="' + (_tienePrecio(s) ? '1' : '0') + '" data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '"'
       + ' data-mats="' + _fichajeEsc([...(s.materiales || new Set())].map(m => _tarifaNorm(m)).join('|')) + '"'
       + ' data-orig="' + oe + '" data-dest="' + de + '"'
       + ' style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
@@ -718,6 +720,7 @@ async function _tarGuardarRuta(btn) {
     const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes,dia_desde' });
     if (error) { console.error('[tarifas] guardar ruta', error); toast('Error al guardar: ' + error.message, 'err'); return; }
     await loadTarifas();
+    ruta.setAttribute('data-tienep', '1'); // v239: ya tiene precio (sale de "solo sin precio")
     // v238: sube ESTA ruta arriba del todo automáticamente (moviendo solo su bloque, SIN
     // recargar el editor, para no perder lo escrito en otras rutas). Así ya no hace falta refrescar.
     const _cont = document.getElementById('tarifasCont');
@@ -728,6 +731,7 @@ async function _tarGuardarRuta(btn) {
     ruta.style.transition = 'background .3s'; ruta.style.background = '#eafaf1';
     setTimeout(() => { ruta.style.background = _bg || ''; }, 1000);
     ruta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    _tarifaFiltrar(); // v239: si "solo sin precio" está activo, esta ya se oculta
     toast('✅ Guardado (' + filas.length + ' tramo' + (filas.length === 1 ? '' : 's') + ')');
   } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
@@ -738,23 +742,55 @@ function _tarifaCerrar() {
   if (c) c.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Pulsa “Ver servicios” para ver y poner los precios.</div>';
 }
 
-// v235: filtra las rutas por Origen, Destino y/o MATERIAL (sin perder los precios escritos).
+// v235/v239: filtra las rutas por Origen, Destino, MATERIAL y/o "solo sin precio".
 function _tarifaFiltrar() {
   const fo = _tarifaNorm(document.getElementById('tarifaBuscaOrigen')?.value || '');
   const fd = _tarifaNorm(document.getElementById('tarifaBuscaDestino')?.value || '');
   const fm = _tarifaNorm(document.getElementById('tarifaBuscaMaterial')?.value || '');
+  const soloFaltan = !!document.getElementById('tarifaSoloFaltan')?.checked;
   document.querySelectorAll('#tarifasCont .tar-ruta').forEach(bl => {
     const o = bl.getAttribute('data-fo') || '';
     const d = bl.getAttribute('data-fd') || '';
     const m = bl.getAttribute('data-mats') || '';
-    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1) && (!fm || m.indexOf(fm) !== -1);
+    const tp = (bl.getAttribute('data-tienep') || '0') === '1';
+    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1) && (!fm || m.indexOf(fm) !== -1) && (!soloFaltan || !tp);
     bl.style.display = ok ? '' : 'none';
   });
 }
-// v235: limpia los tres filtros y vuelve a mostrar todas las rutas.
+// v235/v239: limpia los filtros (incluida la casilla "solo sin precio") y muestra todas.
 function _tarifaFiltrarLimpiar() {
   ['tarifaBuscaOrigen', 'tarifaBuscaDestino', 'tarifaBuscaMaterial'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const chk = document.getElementById('tarifaSoloFaltan'); if (chk) chk.checked = false;
   _tarifaFiltrar();
+}
+
+// v239: copia los precios del MES ANTERIOR al mes elegido. Solo rellena rutas que aún NO
+// tienen precio este mes (no pisa lo ya puesto). Hace upsert, no borra nada. Con confirmación.
+async function _tarCopiarMesAnterior() {
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
+  let pMes = mes - 1, pAnio = anio;
+  if (pMes < 1) { pMes = 12; pAnio = anio - 1; }
+  const prev = (_tarifas || []).filter(x => Number(x.anio) === pAnio && Number(x.mes) === pMes && Number(x.precio_tn) > 0);
+  if (!prev.length) { toast('No hay tarifas en el mes anterior (' + pMes + '/' + pAnio + ')', 'warn'); return; }
+  const yaEsteMes = new Set();
+  (_tarifas || []).forEach(x => { if (Number(x.anio) === anio && Number(x.mes) === mes && Number(x.precio_tn) > 0) yaEsteMes.add(_tarifaNorm(x.origen) + '||' + _tarifaNorm(x.destino)); });
+  const filas = [];
+  prev.forEach(x => {
+    if (yaEsteMes.has(_tarifaNorm(x.origen) + '||' + _tarifaNorm(x.destino))) return; // ya tiene precio este mes → no pisar
+    filas.push({ origen: x.origen, destino: x.destino, material: '', anio, mes, dia_desde: x.dia_desde, dia_hasta: x.dia_hasta, precio_tn: x.precio_tn, updated_at: new Date().toISOString() });
+  });
+  if (!filas.length) { toast('Las rutas del mes anterior ya tienen precio este mes', 'ok'); return; }
+  if (!confirm('¿Copiar ' + filas.length + ' precios del mes ' + pMes + '/' + pAnio + ' a ' + mes + '/' + anio + '?\nNo se pisa lo que ya tengas puesto este mes.')) return;
+  toast('📋 Copiando del mes anterior…');
+  try {
+    const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes,dia_desde' });
+    if (error) { console.error('[tarifas] copiar mes', error); toast('Error al copiar: ' + error.message, 'err'); return; }
+    await loadTarifas();
+    renderTarifasEditor();
+    toast('✅ Copiados ' + filas.length + ' precios del mes anterior');
+  } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
 // v226: guarda las tarifas por servicio del mes con TRAMOS de días.
