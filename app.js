@@ -637,7 +637,8 @@ function _tarTramoRow(origen, destino, desde, hasta, precio) {
     + '<span style="font-size:12px;color:var(--mu)">→</span>'
     + '<input type="number" step="0.01" min="0" class="fil-sel t-precio" data-orig="' + oe + '" data-dest="' + de + '"'
     + ' value="' + (precio === '' || precio == null ? '' : precio) + '" placeholder="0.00 €/TN" style="width:110px;font-family:var(--mn);font-size:12px">'
-    + '<button class="btn br" onclick="_tarDelTramo(this)" style="font-size:11px;padding:3px 8px" title="Quitar tramo">🗑</button>'
+    + '<button onclick="_tarGuardarRuta(this)" style="font-size:11px;padding:4px 10px;border:none;border-radius:6px;background:var(--ok);color:#fff;font-weight:700;cursor:pointer" title="Guardar el precio de esta ruta ahora (no borra nada)">💾 Guardar</button>'
+    + '<button onclick="_tarDelTramo(this)" style="font-size:11px;padding:4px 10px;border:none;border-radius:6px;background:var(--er);color:#fff;font-weight:700;cursor:pointer" title="Quitar este tramo">🗑 Quitar</button>'
     + '</div>';
 }
 
@@ -655,9 +656,65 @@ function _tarAddTramo(btn) {
   cont.appendChild(div.firstChild);
 }
 
-// v226: 🗑 quita un tramo de la pantalla (no borra de la BD hasta pulsar Guardar).
-function _tarDelTramo(btn) {
-  const row = btn.closest('.tar-tramo'); if (row) row.remove();
+// v237: 🗑 quita ESE tramo. Si tenía precio guardado, lo borra solo a ÉL de la BD (con
+// aviso); si era nuevo/vacío, solo lo quita de la pantalla. Nunca toca los demás tramos.
+async function _tarDelTramo(btn) {
+  const row = btn.closest('.tar-tramo'); if (!row) return;
+  const ruta = btn.closest('.tar-ruta');
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  const origen = ruta ? (ruta.getAttribute('data-orig') || '') : '';
+  const destino = ruta ? (ruta.getAttribute('data-dest') || '') : '';
+  const desde = parseInt(row.querySelector('.t-desde')?.value, 10);
+  const precio = parseFloat(String(row.querySelector('.t-precio')?.value || '').replace(',', '.'));
+  if (anio && mes && origen && !isNaN(desde) && !isNaN(precio) && precio > 0) {
+    if (!confirm('¿Quitar el tramo del día ' + desde + ' de esta ruta? Se borra SOLO este tramo.')) return;
+    try {
+      const { error } = await sb.from('tarifas_servicio').delete()
+        .eq('anio', anio).eq('mes', mes).eq('origen', origen).eq('destino', destino).eq('dia_desde', desde);
+      if (error) { console.error('[tarifas] borrar tramo', error); toast('Error al borrar: ' + error.message, 'err'); return; }
+      await loadTarifas();
+      toast('🗑 Tramo quitado');
+    } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); return; }
+  }
+  row.remove();
+}
+
+// v237: 💾 guarda AL MOMENTO solo los tramos de ESA ruta (el botón está en cada fila,
+// al lado del 🗑). Mismo guardado que el botón grande, pero acotado a una ruta, para no
+// tener que ir arriba a "Guardar tarifas". No re-dibuja el editor (así no pierdes el sitio);
+// deja un parpadeo verde de confirmación.
+async function _tarGuardarRuta(btn) {
+  const ruta = btn.closest('.tar-ruta'); if (!ruta) return;
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
+  const origen = ruta.getAttribute('data-orig') || '';
+  const destino = ruta.getAttribute('data-dest') || '';
+  const porClave = {};
+  ruta.querySelectorAll('.tar-tramo').forEach(row => {
+    const desde = parseInt(row.querySelector('.t-desde')?.value, 10);
+    const hasta = parseInt(row.querySelector('.t-hasta')?.value, 10);
+    const precio = parseFloat(String(row.querySelector('.t-precio')?.value || '').replace(',', '.'));
+    if (isNaN(precio) || precio <= 0) return; // sin precio → se ignora (equivale a quitar el tramo)
+    const dd = (!isNaN(desde) && desde >= 1) ? desde : 1;
+    const dh = (!isNaN(hasta) && hasta >= dd) ? hasta : 31;
+    porClave[dd] = { origen, destino, material: '', anio, mes, dia_desde: dd, dia_hasta: dh, precio_tn: precio, updated_at: new Date().toISOString() };
+  });
+  const filas = Object.values(porClave);
+  if (!filas.length) { toast('Pon un precio antes de guardar', 'warn'); return; }
+  toast('💾 Guardando…');
+  try {
+    // v237: UPSERT (guardar/actualizar), NO borrar. Así nunca se pierden precios ya puestos.
+    const { error } = await sb.from('tarifas_servicio').upsert(filas, { onConflict: 'origen,destino,material,anio,mes,dia_desde' });
+    if (error) { console.error('[tarifas] guardar ruta', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    await loadTarifas();
+    // Parpadeo verde de confirmación (sin re-dibujar, para no mover el bloque).
+    const _bg = ruta.style.background;
+    ruta.style.transition = 'background .3s'; ruta.style.background = '#eafaf1';
+    setTimeout(() => { ruta.style.background = _bg || ''; }, 900);
+    toast('✅ Guardado (' + filas.length + ' tramo' + (filas.length === 1 ? '' : 's') + ')');
+  } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
 // v107K80: cierra la tabla de tarifas y vuelve a la pantalla pequeña (solo mes/año + "Ver servicios").
