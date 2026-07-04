@@ -17829,6 +17829,15 @@ async function tallerImportarKmExcel(file) {
   const inp = document.getElementById('tallerExcelInput'); if (inp) inp.value = '';
 }
 
+// v233: aceptar el Excel de km del tacógrafo ARRASTRADO y soltado sobre el botón
+// (además del buscador de archivos al pinchar). Coge el primer .xls/.xlsx soltado.
+function gasKmDrop(ev) {
+  const f = ev && ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (!f) return;
+  if (!/\.(xls|xlsx)$/i.test(f.name || '')) { toast('Arrastra un Excel (.xls o .xlsx) del tacógrafo', 'warn'); return; }
+  gasImportarKmExcel(f);
+}
+
 // FASE 4a: leer el Excel de KM del tacógrafo ("Gasóleo Profesional") y
 // guardarlo en la tabla km_periodos. Formato fijo (lectura directa, sin
 // IA): arriba DATOS EMPRESA + CIF + Período (2 fechas); luego filas con

@@ -694,7 +694,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <span style="margin-left:auto"></span>
         <button class="btn bp" onclick="document.getElementById('gasFacUploadInline').click()" style="font-size:11px" title="La factura va sola a su empresa por el CIF (SOLRED / Petromiralles / Soledad)">📄 Subir factura</button>
         <input type="file" id="gasFacUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gasfac'); this.value='';">
-        <button class="btn bp" onclick="document.getElementById('gasKmUploadInline').click()" style="font-size:11px" title="El Excel de km va solo a su empresa por el CIF">📊 Subir km (tacógrafo)</button>
+        <button class="btn bp" id="gasKmBtn" onclick="document.getElementById('gasKmUploadInline').click()" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; gasKmDrop(event);" style="font-size:11px" title="Pincha para buscar el Excel del tacógrafo, o arrástralo aquí encima">📊 Subir km (tacógrafo)</button>
         <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
       </div>
 
@@ -1834,6 +1834,7 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=232"></script>
+<!-- v233 (04/07/2026): SUBIR KM (tacógrafo) por ARRASTRAR Y SOLTAR. El botón "📊 Subir km (tacógrafo)" del módulo Gasoil antes solo abría el buscador de archivos al pinchar; ahora TAMBIÉN acepta arrastrar el Excel (.xls/.xlsx) y soltarlo encima (con resaltado al pasar por encima). Nuevo helper gasKmDrop() en app.js que coge el primer Excel soltado y llama a gasImportarKmExcel (la misma función de siempre); si sueltas algo que no es Excel, avisa. El pinchar-para-buscar sigue funcionando igual. Solo app.js + index.html. NO requiere SQL. -->
+<script src="app.js?v=233"></script>
 </body>
 </html>
