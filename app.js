@@ -563,8 +563,10 @@ function renderTarifasEditor() {
       const destino = String(r.obra || r.destino || '').trim();
       if (!origen && !destino) return;
       const key = _tarifaNorm(origen) + '||' + _tarifaNorm(destino);
-      if (!serv[key]) serv[key] = { origen, destino, count: 0 };
+      if (!serv[key]) serv[key] = { origen, destino, count: 0, materiales: new Set() };
       serv[key].count++;
+      const _mat = String(r.producto || '').trim();
+      if (_mat) serv[key].materiales.add(_mat);
     }
   });
   const lista = Object.values(serv).sort((a, b) =>
@@ -573,10 +575,17 @@ function renderTarifasEditor() {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
   }
-  // v107K79/K80: buscador + "✕ Recoger".
+  // v235: filtros de Origen, Destino y MATERIAL con sugerencias (datalist): salen
+  // los que ya existen para pinchar, y escribiendo letras te ayuda a encontrarlos.
+  const _setO = new Set(), _setD = new Set(), _setM = new Set();
+  lista.forEach(s => { if (s.origen) _setO.add(s.origen); if (s.destino) _setD.add(s.destino); (s.materiales || new Set()).forEach(m => _setM.add(m)); });
+  const _dl = (id, items) => '<datalist id="' + id + '">' + [...items].sort((a, b) => a.localeCompare(b)).map(v => '<option value="' + _fichajeEsc(v) + '"></option>').join('') + '</datalist>';
   let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
-    + '<input id="tarifaBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaOrigen" type="text" list="tarOrigenList" placeholder="🔎 Origen…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="🔎 Destino…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="🔎 Material…" oninput="_tarifaFiltrar()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + _dl('tarOrigenList', _setO) + _dl('tarDestinoList', _setD) + _dl('tarMaterialList', _setM)
+    + '<button class="btn bs" onclick="_tarifaFiltrarLimpiar()" style="font-size:12px;white-space:nowrap" title="Quitar los filtros">✕ Limpiar</button>'
     + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
   // v226: cada ruta puede tener VARIOS tramos de días con su precio.
@@ -591,6 +600,7 @@ function renderTarifasEditor() {
     if (tramos.length) tramos.forEach(t => { filasT += _tarTramoRow(s.origen, s.destino, t.dia_desde, t.dia_hasta, t.precio_tn); });
     else filasT = _tarTramoRow(s.origen, s.destino, 1, 31, '');
     html += '<div class="tar-ruta" data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '"'
+      + ' data-mats="' + _fichajeEsc([...(s.materiales || new Set())].map(m => _tarifaNorm(m)).join('|')) + '"'
       + ' data-orig="' + oe + '" data-dest="' + de + '"'
       + ' style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">'
@@ -648,16 +658,23 @@ function _tarifaCerrar() {
   if (c) c.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Pulsa “Ver servicios” para ver y poner los precios.</div>';
 }
 
-// v107K79: filtra las filas de la tabla de tarifas por Origen y/o Destino (sin perder los precios escritos).
+// v235: filtra las rutas por Origen, Destino y/o MATERIAL (sin perder los precios escritos).
 function _tarifaFiltrar() {
   const fo = _tarifaNorm(document.getElementById('tarifaBuscaOrigen')?.value || '');
   const fd = _tarifaNorm(document.getElementById('tarifaBuscaDestino')?.value || '');
+  const fm = _tarifaNorm(document.getElementById('tarifaBuscaMaterial')?.value || '');
   document.querySelectorAll('#tarifasCont .tar-ruta').forEach(bl => {
     const o = bl.getAttribute('data-fo') || '';
     const d = bl.getAttribute('data-fd') || '';
-    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1);
+    const m = bl.getAttribute('data-mats') || '';
+    const ok = (!fo || o.indexOf(fo) !== -1) && (!fd || d.indexOf(fd) !== -1) && (!fm || m.indexOf(fm) !== -1);
     bl.style.display = ok ? '' : 'none';
   });
+}
+// v235: limpia los tres filtros y vuelve a mostrar todas las rutas.
+function _tarifaFiltrarLimpiar() {
+  ['tarifaBuscaOrigen', 'tarifaBuscaDestino', 'tarifaBuscaMaterial'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  _tarifaFiltrar();
 }
 
 // v226: guarda las tarifas por servicio del mes con TRAMOS de días.
