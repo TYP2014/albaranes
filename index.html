@@ -694,7 +694,10 @@ if (typeof pdfjsLib !== 'undefined') {
         <span style="margin-left:auto"></span>
         <button class="btn bp" onclick="document.getElementById('gasFacUploadInline').click()" style="font-size:11px" title="La factura va sola a su empresa por el CIF (SOLRED / Petromiralles / Soledad)">📄 Subir factura</button>
         <input type="file" id="gasFacUploadInline" accept="image/*,.pdf" multiple style="display:none" onchange="addFiles(this.files,'gasfac'); this.value='';">
-        <button class="btn bp" id="gasKmBtn" onclick="document.getElementById('gasKmUploadInline').click()" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; gasKmDrop(event);" style="font-size:11px" title="Pincha para buscar el Excel del tacógrafo, o arrástralo aquí encima">📊 Subir km (tacógrafo)</button>
+        <div id="gasKmBtn" onclick="document.getElementById('gasKmUploadInline').click()" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; gasKmDrop(event);" title="Arrastra aquí el Excel del tacógrafo, o pincha para buscarlo" style="margin-left:14px;cursor:pointer;border:1.5px dashed var(--bd);border-radius:8px;padding:6px 14px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15;background:#fff">
+          <span style="font-size:12px;font-weight:600;color:var(--tx)">📊 Subir km (tacógrafo)</span>
+          <span style="font-size:10px;color:var(--mu)">Arrastra el Excel aquí o pincha</span>
+        </div>
         <input type="file" id="gasKmUploadInline" accept=".xls,.xlsx" style="display:none" onchange="gasImportarKmExcel(this.files[0]); this.value='';">
       </div>
 
@@ -1835,6 +1838,7 @@ if (typeof pdfjsLib !== 'undefined') {
   </div>
 </div>
 <!-- v233 (04/07/2026): SUBIR KM (tacógrafo) por ARRASTRAR Y SOLTAR. El botón "📊 Subir km (tacógrafo)" del módulo Gasoil antes solo abría el buscador de archivos al pinchar; ahora TAMBIÉN acepta arrastrar el Excel (.xls/.xlsx) y soltarlo encima (con resaltado al pasar por encima). Nuevo helper gasKmDrop() en app.js que coge el primer Excel soltado y llama a gasImportarKmExcel (la misma función de siempre); si sueltas algo que no es Excel, avisa. El pinchar-para-buscar sigue funcionando igual. Solo app.js + index.html. NO requiere SQL. -->
-<script src="app.js?v=233"></script>
+<!-- v234 (04/07/2026): "Subir km (tacógrafo)" ahora es una ZONA DE SOLTAR visible. Antes era un botón igual que los demás, sin pista de que se pudiera arrastrar (solo lo sabía JC). Ahora es un recuadro con borde punteado, un poco más grande, con dos líneas: "📊 Subir km (tacógrafo)" + aviso "Arrastra el Excel aquí o pincha". Se resalta al pasar el archivo por encima. Separado del botón "Subir factura" con margen. Sigue funcionando igual (arrastrar-soltar de la v233 + pinchar para buscar). Solo index.html. NO requiere SQL. -->
+<script src="app.js?v=234"></script>
 </body>
 </html>
