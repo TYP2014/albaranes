@@ -312,6 +312,8 @@ async function loadUserMap() {
       const _esMarta       = (_emailFinal === 'marta@typ2014.local');
       const _esLogistica   = (_emailFinal === 'logistica@ttesyportes.2014');
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esMarta || _esLogistica;
+      // v241: el botón "➕ Albarán a mano" solo lo ven/usan esos 4 (oficina). Nadie más.
+      try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = _veTodo ? 'flex' : 'none'; } catch (e) {}
 
       // v107GA: la tarjeta "Autofactura HOLCIM" SOLO la ve/usa el admin (Juan Carlos),
       // aunque la pestaña Facturación la vean también MdM/Marta/Logística. El de CEMEX
@@ -8547,7 +8549,7 @@ function renderTable() {
   const lim = Math.min(window._limVisible, totalFil);
   const visibles = filtered.slice(0, lim);
   tbody.innerHTML = visibles.map(r => `
-    <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}" onclick="openModal('${r.db_id || r._id}')">
+    <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}"${r.creado_manual ? ' style="background:#e6f0ff;box-shadow:inset 4px 0 0 #2b6fff"' : ''} onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
       <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${_celdaEstadoHtml(r)}</td>
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
@@ -9206,6 +9208,34 @@ const FIELDS = [
   {k:'tara_kg',l:'Tara (kg)'},{k:'bruto_kg',l:'Bruto (kg)'},
   {k:'hora_entrada',l:'H. Entrada'},{k:'hora_salida',l:'H. Salida'},{k:'observaciones',l:'Observaciones',full:true},
 ];
+
+// v241: ¿puede este usuario crear albaranes a mano? (admin + Mª del Mar + Marta + Logística)
+function _puedeCrearManual() {
+  const email = (currentUser?.email || '').toLowerCase().trim();
+  return (currentRole === 'admin') || email === 'mariadelmar@typ2014.local'
+    || email === 'marta@typ2014.local' || email === 'logistica@ttesyportes.2014';
+}
+// v241: crea un albarán A MANO (para viajes cuyo albarán aún no ha llegado del cliente).
+// Abre el formulario de editar EN BLANCO (fecha de hoy). Al guardar queda marcado como
+// creado_manual=true → sale con un color distinto en la lista, para localizarlo y reclamarlo.
+function nuevoAlbaranManual() {
+  if (!_puedeCrearManual()) { toast('No tienes permiso para crear albaranes a mano', 'warn'); return; }
+  const h = new Date();
+  const fechaHoy = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+  const tempId = 'manual_' + Date.now();
+  records.unshift({
+    _id: tempId, db_id: null, fecha: fechaHoy,
+    tractora: '', remolque: '', tm: null, albaran: '', proveedor: '',
+    planta: '', obra: '', producto: '', cliente: '', transportista: '',
+    tara_kg: null, bruto_kg: null, hora_entrada: '', hora_salida: '',
+    observaciones: 'CREADO A MANO — pendiente recibir albarán del cliente',
+    creado_manual: true, _manual: true,
+    editado_por: (currentUser?.email || 'manual'),
+    created_at: new Date().toISOString()
+  });
+  openModal(tempId);
+  toast('Rellena lo que sepas y dale a Guardar. Quedará marcado como creado a mano.');
+}
 
 function openModal(id) {
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
