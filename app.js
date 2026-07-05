@@ -14297,8 +14297,9 @@ const ORIGENES_CANONICOS = [
     'Cantera de Begues', 'CANTERA DE BEGUES', 'Cantera-Begues',
     'CANTERA DE BUGUES', 'Cantera de Bugues',   // typo OCR común
     'CANTERA BAGUES', 'Cantera Bagues',          // typo OCR común
-    'Cemex/Begues', 'CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES',
-    'Cemex Begues', 'CEMEX BEGUES',
+    // v247: 'Cemex/Begues' y sus variantes se han MOVIDO a su propio canon 'Cemex/Begues'
+    // (más abajo), para DIFERENCIAR la Caliza Cemex de los áridos. Decisión JC: caliza =
+    // "Cemex/Begues" (para filtrar mejor). "Cemex" a secas SÍ sigue yendo a Begues (áridos).
     'Cemex', 'CEMEX',                             // Cemex a secas → siempre Begues según Juan Carlos
     // v107S: añadidas variantes con el orden invertido "Begues/Cantera Cemex"
     'BEGUES/CANTERA CEMEX', 'Begues/Cantera Cemex', 'begues/cantera cemex',
@@ -14363,7 +14364,7 @@ const ORIGENES_CANONICOS = [
   { canon: 'Garraf/Promsa', alias: [] },
   { canon: 'PROMSA GARRAF', alias: [] },
   { canon: 'Foj/Vallirana', alias: [] },
-  { canon: 'Cemex/Begues', alias: [] },
+  { canon: 'Cemex/Begues', alias: ['CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES', 'Cemex Begues', 'CEMEX BEGUES', 'cemex/begues', 'CEMEX BEGUES CALIZA'] },
   // v99c: Adec/Vallirana — origen para albaranes Holcim de RECEPCIÓN de "Árido siderúrgico blanco"
   // (proveedor: ADEC GLOBAL, S.L.). Antes era alias de "Vallirana" pero se canonizaba mal:
   // se convertía a "Vallirana" perdiendo la información del proveedor. Ahora es un canónico
