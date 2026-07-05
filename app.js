@@ -18028,6 +18028,16 @@ function gasKmDrop(ev) {
   gasImportarKmExcel(f);
 }
 
+// v243: aceptar la FACTURA de gasoil ARRASTRADA y soltada (PDF o imagen), además del
+// buscador al pinchar. Acepta varios a la vez. Va sola a su empresa por el CIF, como siempre.
+function gasFacDrop(ev) {
+  const files = ev && ev.dataTransfer && ev.dataTransfer.files;
+  if (!files || !files.length) return;
+  const ok = Array.from(files).filter(f => /\.(pdf|png|jpe?g|webp|gif|bmp)$/i.test(f.name || '') || /^image\//.test(f.type || '') || (f.type || '') === 'application/pdf');
+  if (!ok.length) { toast('Arrastra la factura en PDF o imagen', 'warn'); return; }
+  addFiles(ok, 'gasfac');
+}
+
 // FASE 4a: leer el Excel de KM del tacógrafo ("Gasóleo Profesional") y
 // guardarlo en la tabla km_periodos. Formato fijo (lectura directa, sin
 // IA): arriba DATOS EMPRESA + CIF + Período (2 fechas); luego filas con
