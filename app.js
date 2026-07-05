@@ -9245,12 +9245,26 @@ async function abrirHistoricoPrecios() {
   try {
     let todas = [], desde = 0; const LOTE = 1000;
     for (let i = 0; i < 60; i++) {
-      const r = await sb.from('autofacturas_lineas').select('proveedor,mes,origen,destino,tn,importe,es_ajuste').order('mes', { ascending: true }).range(desde, desde + LOTE - 1);
+      const r = await sb.from('autofacturas_lineas').select('proveedor,mes,origen,destino,tn,importe,es_ajuste,numero_albaran').order('mes', { ascending: true }).range(desde, desde + LOTE - 1);
       if (r.error) throw r.error;
       const d = r.data || [];
       todas = todas.concat(d);
       if (d.length < LOTE) break;
       desde += LOTE;
+    }
+    // v246: mapa nº albarán → ruta REAL (planta→obra del albarán, la que ves en el modal).
+    // Holcim no guarda "origen" en la autofactura (solo el cliente/destino), así que la ruta
+    // buena la sacamos del ALBARÁN enlazando por el nº. Vale igual para CEMEX y HOLCIM.
+    cont.innerHTML = '<div style="color:var(--mu);font-size:13px;padding:10px">Cruzando con los albaranes…</div>';
+    const mapaRuta = {};
+    let d2 = 0;
+    for (let i = 0; i < 60; i++) {
+      const r2 = await sb.from('albaranes').select('albaran,planta,obra').range(d2, d2 + 1000 - 1);
+      if (r2.error) break;
+      const rows = r2.data || [];
+      rows.forEach(a => { const k = _factNormAlb(a.albaran); if (k) mapaRuta[k] = { origen: String(a.planta || '').trim(), destino: String(a.obra || '').trim() }; });
+      if (rows.length < 1000) break;
+      d2 += 1000;
     }
     const agg = { CEMEX: {}, HOLCIM: {} };
     const mesesSet = new Set();
@@ -9261,7 +9275,9 @@ async function abrirHistoricoPrecios() {
       if (!(tn > 0) || isNaN(imp)) return;
       const prov = String(L.proveedor || '').toUpperCase();
       if (prov !== 'CEMEX' && prov !== 'HOLCIM') return;
-      const o = String(L.origen || '').trim(), de = String(L.destino || '').trim();
+      const alb = mapaRuta[_factNormAlb(L.numero_albaran)];
+      const o = (alb && alb.origen) ? alb.origen : String(L.origen || '').trim();
+      const de = (alb && alb.destino) ? alb.destino : String(L.destino || '').trim();
       if (!o && !de) return;
       const ruta = (o || '?') + ' → ' + (de || '?');
       const mes = String(L.mes || ''); if (!mes) return;
@@ -9284,29 +9300,61 @@ function _renderHistPreciosUI() {
   if (!meses.length) { cont.innerHTML = '<div style="color:var(--mu);padding:10px">No hay autofacturas guardadas todavía. Sube alguna en Facturas Emitidas.</div>'; return; }
   const btn = (p) => '<button class="btn ' + (_histProv === p ? 'bp' : 'bs') + '" onclick="_histSetProv(\'' + p + '\')" style="font-size:12px">' + p + ' (' + _histPrecios.rutas[p].length + ' rutas)</button>';
   const opts = meses.map(m => '<option value="' + m + '">' + _histMesNombre(m) + '</option>').join('');
-  const rutasDl = _histPrecios.rutas[_histProv].map(r => '<option value="' + _fichajeEsc(r) + '"></option>').join('');
   cont.innerHTML =
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
     + btn('CEMEX') + btn('HOLCIM')
-    + '<input id="histBuscaRuta" type="text" list="histRutasDl" placeholder="🔎 Filtrar ruta…" oninput="_histPreciosTabla()" class="fi" style="min-width:200px;font-size:12px">'
-    + '<datalist id="histRutasDl">' + rutasDl + '</datalist>'
+    + '<input id="histOrigen" type="text" list="histOrigList" placeholder="🔎 Origen…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
+    + '<input id="histDestino" type="text" list="histDestList" placeholder="🔎 Destino…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
+    + '<datalist id="histOrigList"></datalist><datalist id="histDestList"></datalist>'
     + '<span style="font-size:12px;color:var(--mu)">Desde</span><select id="histDesde" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
     + '<span style="font-size:12px;color:var(--mu)">Hasta</span><select id="histHasta" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
+    + '<button class="btn bs" onclick="_histLimpiar()" style="font-size:12px" title="Quitar los filtros">✕ Limpiar</button>'
     + '</div>'
     + '<div id="histPreciosTablaCont" style="overflow-x:auto"></div>';
   document.getElementById('histDesde').value = meses[0];
   document.getElementById('histHasta').value = meses[meses.length - 1];
+  _histActualizarSugerencias();
   _histPreciosTabla();
+}
+// v246: partir la ruta "Origen → Destino" en sus dos partes.
+function _histRutaPartes(ruta) {
+  const i = String(ruta || '').indexOf(' → ');
+  if (i < 0) return [String(ruta || ''), ''];
+  return [ruta.slice(0, i), ruta.slice(i + 3)];
+}
+function _histFiltroInput() { _histActualizarSugerencias(); _histPreciosTabla(); }
+function _histLimpiar() {
+  ['histOrigen', 'histDestino'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  _histActualizarSugerencias(); _histPreciosTabla();
+}
+// v246: sugerencias de Origen y Destino EN CASCADA (se estrechan entre sí).
+function _histActualizarSugerencias() {
+  if (!_histPrecios) return;
+  const fo = _tarifaNorm(document.getElementById('histOrigen')?.value || '');
+  const fd = _tarifaNorm(document.getElementById('histDestino')?.value || '');
+  const oSet = new Set(), dSet = new Set();
+  (_histPrecios.rutas[_histProv] || []).forEach(ruta => {
+    const partes = _histRutaPartes(ruta), ro = partes[0], rd = partes[1];
+    const on = _tarifaNorm(ro), dn = _tarifaNorm(rd);
+    if ((!fd || dn.indexOf(fd) !== -1) && ro) oSet.add(ro);
+    if ((!fo || on.indexOf(fo) !== -1) && rd) dSet.add(rd);
+  });
+  const set = (id, items) => { const dl = document.getElementById(id); if (dl) dl.innerHTML = [...items].sort((a, b) => a.localeCompare(b)).map(v => '<option value="' + _fichajeEsc(v) + '"></option>').join(''); };
+  set('histOrigList', oSet); set('histDestList', dSet);
 }
 function _histPreciosTabla() {
   const tc = document.getElementById('histPreciosTablaCont'); if (!tc || !_histPrecios) return;
   const prov = _histProv;
-  const filtro = _tarifaNorm(document.getElementById('histBuscaRuta')?.value || '');
+  const fo = _tarifaNorm(document.getElementById('histOrigen')?.value || '');
+  const fd = _tarifaNorm(document.getElementById('histDestino')?.value || '');
   const dMes = document.getElementById('histDesde')?.value || _histPrecios.meses[0];
   const hMes = document.getElementById('histHasta')?.value || _histPrecios.meses[_histPrecios.meses.length - 1];
   const lo = dMes <= hMes ? dMes : hMes, hi = dMes <= hMes ? hMes : dMes;
   const meses = _histPrecios.meses.filter(m => m >= lo && m <= hi);
-  const rutas = _histPrecios.rutas[prov].filter(r => !filtro || _tarifaNorm(r).indexOf(filtro) !== -1);
+  const rutas = _histPrecios.rutas[prov].filter(r => {
+    const partes = _histRutaPartes(r);
+    return (!fo || _tarifaNorm(partes[0]).indexOf(fo) !== -1) && (!fd || _tarifaNorm(partes[1]).indexOf(fd) !== -1);
+  });
   if (!meses.length || !rutas.length) { tc.innerHTML = '<div style="color:var(--mu);padding:10px">Sin datos para ese filtro.</div>'; return; }
   const th = t => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu);white-space:nowrap">' + t + '</th>';
   let html = '<table style="border-collapse:collapse;min-width:100%;font-size:12px"><thead><tr>'
