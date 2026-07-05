@@ -8794,6 +8794,20 @@ async function gasToggleConsumo() {
 
 // Calcula y pinta la tabla de consumo para la empresa de la
 // subpestana activa (gasEmpresaActiva).
+// v245: convertir YYYYMMDD (de _gasFechaNum) a Date, y contar días entre dos (inclusive).
+// Sirve para PRORRATEAR los km de un bloque del tacógrafo cuando se sale del mes filtrado.
+function _gasNumToDate(n) {
+  const s = String(n || '');
+  if (s.length !== 8) return null;
+  const d = new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
+  return isNaN(d.getTime()) ? null : d;
+}
+function _gasDiasEntre(a, b) {
+  const da = _gasNumToDate(a), db = _gasNumToDate(b);
+  if (!da || !db || db < da) return 0;
+  return Math.round((db - da) / 86400000) + 1;
+}
+
 async function gasRenderConsumo() {
   const tbody = document.getElementById('tbodyGasConsumo');
   const empty = document.getElementById('emptyGasConsumo');
@@ -8915,10 +8929,17 @@ async function gasRenderConsumo() {
       });
       let km = 0, encajeExacto = true;
       bloques.forEach(p => {
-        km += parseInt(p.km_diferencia, 10) || 0;
         const bi = _gasFechaNum(p.fecha_inicio);
         const bf = _gasFechaNum(p.fecha_fin);
-        // Si el bloque se sale del rango pedido, los km no son 100% del periodo
+        const kmBloque = parseInt(p.km_diferencia, 10) || 0;
+        // v245 FIX: PRORRATEAR. Antes se sumaba el km_diferencia COMPLETO del bloque aunque
+        // abarcara varios meses → al filtrar un mes salían km irreales (ej. 91.489 km "en junio")
+        // y el L/100km absurdo. Ahora se suman solo los km de la parte del bloque que cae DENTRO
+        // del rango filtrado, repartidos por días (aproximación uniforme).
+        const diasBloque = _gasDiasEntre(bi, bf);
+        const diasSol = _gasDiasEntre(Math.max(bi, rIni), Math.min(bf, rFin));
+        if (diasBloque > 0 && diasSol > 0) km += Math.round(kmBloque * (diasSol / diasBloque));
+        // Si el bloque se sale del rango pedido, los km son un prorrateo aproximado (marca *)
         if (bi < rIni || bf > rFin) encajeExacto = false;
       });
       // Litros de gasoil de esa matricula DENTRO del rango pedido (exacto)
