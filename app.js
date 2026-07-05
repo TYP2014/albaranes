@@ -9209,6 +9209,111 @@ const FIELDS = [
   {k:'hora_entrada',l:'H. Entrada'},{k:'hora_salida',l:'H. Salida'},{k:'observaciones',l:'Observaciones',full:true},
 ];
 
+// ===== v244: HISTÓRICO DE PRECIOS POR RUTA (desde autofacturas Holcim/CEMEX) — solo Panel/admin =====
+let _histPrecios = null;
+let _histProv = 'CEMEX';
+const _HIST_MESES_ABR = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function _histMesNombre(m) {
+  const p = String(m || '').match(/^(\d{4})-(\d{2})/);
+  if (p) return (_HIST_MESES_ABR[parseInt(p[2], 10) - 1] || p[2]) + ' ' + p[1];
+  return String(m || '');
+}
+async function abrirHistoricoPrecios() {
+  const cont = document.getElementById('histPreciosCont'); if (!cont) return;
+  cont.innerHTML = '<div style="color:var(--mu);font-size:13px;padding:10px">Cargando autofacturas…</div>';
+  try {
+    let todas = [], desde = 0; const LOTE = 1000;
+    for (let i = 0; i < 60; i++) {
+      const r = await sb.from('autofacturas_lineas').select('proveedor,mes,origen,destino,tn,importe,es_ajuste').order('mes', { ascending: true }).range(desde, desde + LOTE - 1);
+      if (r.error) throw r.error;
+      const d = r.data || [];
+      todas = todas.concat(d);
+      if (d.length < LOTE) break;
+      desde += LOTE;
+    }
+    const agg = { CEMEX: {}, HOLCIM: {} };
+    const mesesSet = new Set();
+    const rutasSet = { CEMEX: new Set(), HOLCIM: new Set() };
+    todas.forEach(L => {
+      if (L.es_ajuste) return;
+      const tn = Number(L.tn), imp = Number(L.importe);
+      if (!(tn > 0) || isNaN(imp)) return;
+      const prov = String(L.proveedor || '').toUpperCase();
+      if (prov !== 'CEMEX' && prov !== 'HOLCIM') return;
+      const o = String(L.origen || '').trim(), de = String(L.destino || '').trim();
+      if (!o && !de) return;
+      const ruta = (o || '?') + ' → ' + (de || '?');
+      const mes = String(L.mes || ''); if (!mes) return;
+      mesesSet.add(mes); rutasSet[prov].add(ruta);
+      agg[prov][ruta] = agg[prov][ruta] || {};
+      agg[prov][ruta][mes] = agg[prov][ruta][mes] || { tn: 0, imp: 0, viajes: 0 };
+      agg[prov][ruta][mes].tn += tn;
+      agg[prov][ruta][mes].imp += imp;
+      agg[prov][ruta][mes].viajes += 1;
+    });
+    _histPrecios = { agg, meses: [...mesesSet].sort(), rutas: { CEMEX: [...rutasSet.CEMEX].sort(), HOLCIM: [...rutasSet.HOLCIM].sort() } };
+    if (!_histPrecios.rutas.CEMEX.length && _histPrecios.rutas.HOLCIM.length) _histProv = 'HOLCIM';
+    _renderHistPreciosUI();
+  } catch (e) { console.error('[histPrecios]', e); cont.innerHTML = '<div style="color:var(--er);padding:10px">No se pudo cargar: ' + (e.message || e) + '</div>'; }
+}
+function _histSetProv(p) { _histProv = p; _renderHistPreciosUI(); }
+function _renderHistPreciosUI() {
+  const cont = document.getElementById('histPreciosCont'); if (!cont || !_histPrecios) return;
+  const meses = _histPrecios.meses;
+  if (!meses.length) { cont.innerHTML = '<div style="color:var(--mu);padding:10px">No hay autofacturas guardadas todavía. Sube alguna en Facturas Emitidas.</div>'; return; }
+  const btn = (p) => '<button class="btn ' + (_histProv === p ? 'bp' : 'bs') + '" onclick="_histSetProv(\'' + p + '\')" style="font-size:12px">' + p + ' (' + _histPrecios.rutas[p].length + ' rutas)</button>';
+  const opts = meses.map(m => '<option value="' + m + '">' + _histMesNombre(m) + '</option>').join('');
+  const rutasDl = _histPrecios.rutas[_histProv].map(r => '<option value="' + _fichajeEsc(r) + '"></option>').join('');
+  cont.innerHTML =
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + btn('CEMEX') + btn('HOLCIM')
+    + '<input id="histBuscaRuta" type="text" list="histRutasDl" placeholder="🔎 Filtrar ruta…" oninput="_histPreciosTabla()" class="fi" style="min-width:200px;font-size:12px">'
+    + '<datalist id="histRutasDl">' + rutasDl + '</datalist>'
+    + '<span style="font-size:12px;color:var(--mu)">Desde</span><select id="histDesde" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
+    + '<span style="font-size:12px;color:var(--mu)">Hasta</span><select id="histHasta" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
+    + '</div>'
+    + '<div id="histPreciosTablaCont" style="overflow-x:auto"></div>';
+  document.getElementById('histDesde').value = meses[0];
+  document.getElementById('histHasta').value = meses[meses.length - 1];
+  _histPreciosTabla();
+}
+function _histPreciosTabla() {
+  const tc = document.getElementById('histPreciosTablaCont'); if (!tc || !_histPrecios) return;
+  const prov = _histProv;
+  const filtro = _tarifaNorm(document.getElementById('histBuscaRuta')?.value || '');
+  const dMes = document.getElementById('histDesde')?.value || _histPrecios.meses[0];
+  const hMes = document.getElementById('histHasta')?.value || _histPrecios.meses[_histPrecios.meses.length - 1];
+  const lo = dMes <= hMes ? dMes : hMes, hi = dMes <= hMes ? hMes : dMes;
+  const meses = _histPrecios.meses.filter(m => m >= lo && m <= hi);
+  const rutas = _histPrecios.rutas[prov].filter(r => !filtro || _tarifaNorm(r).indexOf(filtro) !== -1);
+  if (!meses.length || !rutas.length) { tc.innerHTML = '<div style="color:var(--mu);padding:10px">Sin datos para ese filtro.</div>'; return; }
+  const th = t => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu);white-space:nowrap">' + t + '</th>';
+  let html = '<table style="border-collapse:collapse;min-width:100%;font-size:12px"><thead><tr>'
+    + '<th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu);position:sticky;left:0;background:var(--sf)">RUTA (' + prov + ')</th>'
+    + meses.map(m => th(_histMesNombre(m))).join('') + '</tr></thead><tbody>';
+  rutas.forEach(ruta => {
+    html += '<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bd);color:var(--tx);font-weight:600;position:sticky;left:0;background:var(--sf);white-space:nowrap">' + _fichajeEsc(ruta) + '</td>';
+    let prev = null;
+    meses.forEach(m => {
+      const d = _histPrecios.agg[prov][ruta] && _histPrecios.agg[prov][ruta][m];
+      if (!d || !(d.tn > 0)) { html += '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);text-align:right;color:var(--mu)">—</td>'; prev = null; return; }
+      const eur = d.imp / d.tn;
+      let pct = '';
+      if (prev != null && prev > 0) {
+        const p = (eur - prev) / prev * 100;
+        const col = p > 0.05 ? '#1f9d55' : (p < -0.05 ? '#d9534f' : 'var(--mu)');
+        const arr = p > 0.05 ? '▲' : (p < -0.05 ? '▼' : '');
+        pct = '<div style="font-size:10px;color:' + col + ';font-weight:600">' + arr + ' ' + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</div>';
+      }
+      html += '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap"><b>' + eur.toFixed(2) + ' €</b>' + pct + '<div style="font-size:9px;color:var(--mu)">' + d.viajes + ' v · ' + Math.round(d.tn) + ' TN</div></td>';
+      prev = eur;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  tc.innerHTML = html;
+}
+
 // v241: ¿puede este usuario crear albaranes a mano? (admin + Mª del Mar + Marta + Logística)
 function _puedeCrearManual() {
   const email = (currentUser?.email || '').toLowerCase().trim();
