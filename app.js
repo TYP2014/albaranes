@@ -18473,6 +18473,19 @@ async function loadRecambiosData() {
   }
 }
 
+// v250: estado de la vista de Recambios (chips de proveedor, meses abiertos, ver conciliados)
+let _recProvChip = '';        // proveedor activo en los chips ('' = todos)
+let _recMesAbierto = {};      // 'YYYY-MM' → true/false (abierto/plegado)
+let _recVerConc = {};         // 'YYYY-MM' → true (mostrar conciliados de ese mes)
+function _recSetProvChip(p) { _recProvChip = p; renderRecambios(); }
+function _recToggleMes(m) { _recMesAbierto[m] = !_recMesAbierto[m]; renderRecambios(); }
+function _recToggleConc(m) { _recVerConc[m] = !_recVerConc[m]; renderRecambios(); }
+function _recMesTitulo(m) {
+  if (!/^\d{4}-\d{2}$/.test(m)) return 'SIN FECHA';
+  const MES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  return (MES[parseInt(m.slice(5), 10) - 1] || m.slice(5)) + ' ' + m.slice(0, 4);
+}
+
 function renderRecambios() {
   const body = document.getElementById('recambiosTablaBody');
   if (!body) return;
@@ -18480,9 +18493,21 @@ function renderRecambios() {
   const fProv = document.getElementById('recambiosFiltroProv')?.value || '';
   const fBuscar = (document.getElementById('recambiosFiltroBuscar')?.value || '').toLowerCase().trim();
 
+  // v250: CHIPS de proveedor (se generan de TODOS los docs de la empresa, no de los filtrados)
+  const chipsCont = document.getElementById('recambiosChipsProv');
+  if (chipsCont) {
+    const provs = [...new Set(recambiosDocs.map(d => (d.proveedor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const chip = (label, val) => {
+      const act = _recProvChip === val;
+      return '<button onclick="_recSetProvChip(\'' + esc(val).replace(/'/g, "\\'") + '\')" style="font-size:11px;padding:4px 12px;border-radius:14px;border:1px solid ' + (act ? 'var(--ac)' : 'var(--bd)') + ';background:' + (act ? 'var(--ac)' : '#fff') + ';color:' + (act ? '#fff' : 'var(--tx)') + ';cursor:pointer;font-weight:' + (act ? '700' : '400') + '">' + esc(label) + '</button>';
+    };
+    chipsCont.innerHTML = chip('TODOS', '') + provs.map(p => chip(p, p)).join('');
+  }
+
   let docs = [...recambiosDocs];
   if (fTipo) docs = docs.filter(d => d.tipo_doc === fTipo);
   if (fProv) docs = docs.filter(d => d.proveedor === fProv);
+  if (_recProvChip) docs = docs.filter(d => (d.proveedor || '').trim() === _recProvChip);
   if (fBuscar) docs = docs.filter(d => {
     const enCab = `${d.num_documento || ''} ${d.proveedor || ''}`.toLowerCase().includes(fBuscar);
     const enLin = (d.lineas || []).some(l => `${l.codigo || ''} ${l.descripcion || ''}`.toLowerCase().includes(fBuscar));
@@ -18493,7 +18518,8 @@ function renderRecambios() {
   if (resumen) {
     const nAlb = docs.filter(d => d.tipo_doc === 'albaran').length;
     const nFac = docs.filter(d => d.tipo_doc === 'factura').length;
-    resumen.textContent = `${docs.length} doc · ${nAlb} albaranes · ${nFac} facturas`;
+    const nPend = docs.filter(d => !d.conciliado).length;
+    resumen.textContent = `${docs.length} doc · ${nAlb} albaranes · ${nFac} facturas · ${nPend} pendientes`;
   }
 
   if (!docs.length) {
@@ -18501,7 +18527,6 @@ function renderRecambios() {
     return;
   }
   // v107AL: detectar duplicados (mismo tipo+empresa+proveedor+nº doc).
-  // Se marca en rojo cualquier documento que aparezca 2+ veces.
   const _claveDup = x => `${x.tipo_doc}|${x.empresa}|${_recambNorm(x.proveedor)}|${_recambNorm(x.num_documento)}`;
   const _conteo = {};
   recambiosDocs.forEach(x => {
@@ -18511,7 +18536,6 @@ function renderRecambios() {
   });
   const esDuplicado = d => d.num_documento && d.proveedor && _conteo[_claveDup(d)] > 1;
   const nDup = docs.filter(esDuplicado).length;
-
   const resumenDup = document.getElementById('recambiosResumen');
   if (resumenDup && nDup) {
     resumenDup.innerHTML += ` · <span style="color:#ff5050">⚠️ ${nDup} duplicado(s)</span>`;
@@ -18522,14 +18546,14 @@ function renderRecambios() {
     : t === 'abono'
     ? '<span style="background:rgba(255,80,80,.15);color:#ff5050;padding:2px 7px;border-radius:4px;font-size:10px">↩️ Abono</span>'
     : '<span style="background:rgba(0,232,122,.12);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px">📦 Albarán</span>';
-  body.innerHTML = docs.map(d => {
+
+  // v250: fila de un documento (misma fila de siempre, extraída para reutilizar)
+  const filaDoc = (d) => {
     const est = d.conciliado
       ? '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>'
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    // v107AO: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
-    // Transmargaz concilia SOLO sus facturas (empresa TRANSMARGAZ). TALLER nunca.
     const puedeConciliar = d.tipo_doc === 'factura' && (
       _recambiosEsOficina() ||
       (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
@@ -18537,7 +18561,6 @@ function renderRecambios() {
     const btnConciliar = puedeConciliar
       ? `<button class="btn bp" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">🔍 Conciliar</button>`
       : '';
-    // v107AL: marca de duplicado
     const dup = esDuplicado(d);
     const trStyle = dup
       ? 'cursor:pointer;background:rgba(255,80,80,.08);border-left:3px solid #ff5050'
@@ -18556,7 +18579,48 @@ function renderRecambios() {
       <td>${est}</td>
       <td style="white-space:nowrap">${btnConciliar}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
     </tr>`;
-  }).join('');
+  };
+
+  // v250: AGRUPACIÓN POR MES (fecha del documento), mes más reciente arriba.
+  const grupos = {};
+  docs.forEach(d => {
+    const m = (d.fecha && /^\d{4}-\d{2}/.test(d.fecha)) ? d.fecha.slice(0, 7) : 'sin-fecha';
+    (grupos[m] = grupos[m] || []).push(d);
+  });
+  const mesesOrden = Object.keys(grupos).sort((a, b) => (b === 'sin-fecha' ? -1 : a === 'sin-fecha' ? 1 : b.localeCompare(a)));
+  // Por defecto: el mes más reciente abierto, el resto plegado (si no se ha tocado).
+  mesesOrden.forEach((m, i) => { if (_recMesAbierto[m] === undefined) _recMesAbierto[m] = (i === 0); });
+
+  let html = '';
+  mesesOrden.forEach(m => {
+    const del = grupos[m];
+    const pend = del.filter(d => !d.conciliado);
+    const conc = del.filter(d => d.conciliado);
+    const nAlbM = del.filter(d => d.tipo_doc === 'albaran').length;
+    const hayFac = del.some(d => d.tipo_doc === 'factura');
+    const abierto = !!_recMesAbierto[m];
+    const facTag = hayFac
+      ? '<span style="color:var(--ac);font-weight:600">🧾 factura ✓</span>'
+      : '<span style="color:#ffb400;font-weight:600">⚠️ SIN factura</span>';
+    html += `<tr style="cursor:pointer;background:var(--s2)" onclick="_recToggleMes('${m}')">
+      <td colspan="9" style="padding:9px 10px;font-weight:700;font-size:12px;color:var(--tx);border-top:2px solid var(--bd)">
+        ${abierto ? '▼' : '▶'} ${_recMesTitulo(m)}
+        <span style="font-weight:400;color:var(--mu);font-size:11px;margin-left:10px">📦 ${nAlbM} alb · 🟢 ${conc.length} conciliados · ⚪ ${pend.length} pendientes · ${facTag}</span>
+      </td></tr>`;
+    if (abierto) {
+      html += pend.map(filaDoc).join('');
+      if (conc.length) {
+        const ver = !!_recVerConc[m];
+        html += `<tr style="cursor:pointer" onclick="_recToggleConc('${m}')">
+          <td colspan="9" style="padding:6px 10px;font-size:11px;color:var(--mu);text-align:center;background:rgba(0,0,0,.02)">
+            👁 ${ver ? 'Ocultar' : 'Ver'} ${conc.length} conciliado${conc.length === 1 ? '' : 's'} ${ver ? '▲' : '▼'}
+          </td></tr>`;
+        if (ver) html += conc.map(filaDoc).join('');
+      }
+      if (!pend.length && !conc.length) html += `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-size:11px;padding:10px">Nada este mes.</td></tr>`;
+    }
+  });
+  body.innerHTML = html;
 }
 
 // Sube uno o varios documentos (albarán o factura) y los lee con IA
@@ -18881,6 +18945,7 @@ async function recambiosConciliar(facturaId) {
 
   // Para cada albarán que tengo subido, buscar su correspondencia en la factura
   const albCruzados = new Set();
+  const _idsAlbCruzados = []; // v250: ids de albaranes que casan con la factura
   for (const alb of albProv) {
     const numAlb = _recambNorm(alb.num_documento);
     // Líneas de la factura que pertenecen a este albarán (por nº)
@@ -18896,6 +18961,7 @@ async function recambiosConciliar(facturaId) {
       continue;
     }
     albCruzados.add(numAlb);
+    if (alb.id) _idsAlbCruzados.push(alb.id); // v250: para marcarlos como conciliados al final
 
     // Comparar cada línea del albarán con las de la factura
     for (const lAlb of (alb.lineas || [])) {
@@ -18973,6 +19039,13 @@ async function recambiosConciliar(facturaId) {
     await sb.from('recambios_albaranes')
       .update({ conciliado: true, updated_at: new Date().toISOString() })
       .eq('id', facturaId);
+    // v250: marcar TAMBIÉN los albaranes que casaron con esta factura → salen de
+    // "pendientes" en la vista por meses (compulsados). Los que no casaron se quedan.
+    if (_idsAlbCruzados.length) {
+      await sb.from('recambios_albaranes')
+        .update({ conciliado: true, updated_at: new Date().toISOString() })
+        .in('id', _idsAlbCruzados);
+    }
     await loadRecambiosData();
   } catch (e) { console.warn('[recambiosConciliar] no se pudo marcar conciliado:', e); }
 }
