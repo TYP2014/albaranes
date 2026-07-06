@@ -18568,10 +18568,14 @@ function renderRecambios() {
     const dupTag = dup
       ? ' <span style="background:rgba(255,80,80,.2);color:#ff5050;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:bold" title="Este documento está duplicado (mismo proveedor y nº)">⚠️ DUPLICADO</span>'
       : '';
+    // v251: icono si tiene anotación (pasa el ratón para leerla; ábrelo para editarla)
+    const notaTag = d.notas
+      ? ` <span style="background:#fffbe8;border:1px solid #f0e4b0;border-radius:4px;padding:1px 5px;font-size:10px;cursor:help" title="${esc(d.notas)}">📝</span>`
+      : '';
     return `<tr style="${trStyle}" onclick="recambiosVerDetalle('${d.id}')">
       <td>${tipoBadge(d.tipo_doc)}</td>
       <td style="font-size:11px">${esc(d.proveedor || '—')}</td>
-      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}${dupTag}</td>
+      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}${dupTag}${notaTag}</td>
       <td style="font-size:11px">${fecha}</td>
       <td style="font-family:var(--mn);font-size:11px">${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</td>
       <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
@@ -18833,6 +18837,20 @@ IMPORTANTE:
 }
 
 // Modal de detalle de un documento de recambios
+// v251: guarda la anotación (notas) del documento de recambios.
+async function recambiosGuardarNota(id) {
+  const txt = (document.getElementById('recambiosNotaTxt')?.value || '').trim();
+  try {
+    const { error } = await sb.from('recambios_albaranes')
+      .update({ notas: txt || null, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    const d = recambiosDocs.find(x => x.id === id); if (d) d.notas = txt || null;
+    toast('📝 Anotación guardada');
+    renderRecambios();
+  } catch (e) { console.error('[recambiosGuardarNota]', e); toast('Error al guardar la anotación: ' + (e.message || e), 'err'); }
+}
+
 function recambiosVerDetalle(id) {
   const d = recambiosDocs.find(x => x.id === id);
   if (!d) return;
@@ -18865,6 +18883,13 @@ function recambiosVerDetalle(id) {
       <span>Total: <b style="color:var(--ac)">${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></span>
     </div>
     ${d.observaciones ? `<div style="font-size:11px;color:var(--mu);margin-bottom:10px">📝 ${esc(d.observaciones)}</div>` : ''}
+    <div style="margin-bottom:14px;background:#fffbe8;border:1px solid #f0e4b0;border-radius:8px;padding:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:6px">📝 ANOTACIONES <span style="font-weight:400;color:var(--mu)">(ej. "nos cobraron de más", "falta abono", "reclamado el día X")</span></div>
+      ${(_recambiosEsOficina() || _recambiosEsTransmargaz())
+        ? `<textarea id="recambiosNotaTxt" style="width:100%;min-height:54px;border:1px solid var(--bd);border-radius:6px;padding:7px;font-size:12px;color:var(--tx);background:#fff;resize:vertical">${esc(d.notas || '')}</textarea>
+           <div style="text-align:right;margin-top:6px"><button class="btn bp" style="font-size:11px;padding:5px 14px" onclick="recambiosGuardarNota('${d.id}')">💾 Guardar anotación</button></div>`
+        : `<div style="font-size:12px;color:var(--tx)">${d.notas ? esc(d.notas) : '<span style="color:var(--mu)">Sin anotaciones.</span>'}</div>`}
+    </div>
     ${d.file_url ? `<div style="margin-bottom:14px">
       <a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="btn bp" style="padding:7px 14px;font-size:11px;text-decoration:none;display:inline-block">📄 Ver / descargar albarán</a>
     </div>` : `<div style="font-size:11px;color:var(--mu);margin-bottom:14px">📄 (Sin archivo guardado — documento subido antes de la v107BA)</div>`}
