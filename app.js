@@ -18402,7 +18402,9 @@ function switchTallerVista(v) {
 
 // ¿Es el usuario TALLER (rol no admin con permiso taller)? → no ve facturas, no concilia
 function _recambiosEsTaller() {
-  return !!window._tieneTaller && (userMap[currentUser?.id]?.role || '').toLowerCase() !== 'admin';
+  // v248: Marta y María del Mar (oficina) NO cuentan como "taller": pueden subir facturas
+  // y conciliar. El usuario Taller de verdad (que solo sube albaranes) sigue igual.
+  return !!window._tieneTaller && !_recambiosEsOficina();
 }
 function _recambiosEsAdmin() {
   return (userMap[currentUser?.id]?.role || '').toLowerCase() === 'admin';
@@ -18412,6 +18414,13 @@ function _recambiosEsAdmin() {
 function _recambiosEsTransmargaz() {
   const emp = (window._empresaTaller || '').split(',').map(s => s.trim());
   return !_recambiosEsAdmin() && emp.length === 1 && emp[0] === 'TRANSMARGAZ';
+}
+// v248: OFICINA = admin + Marta + María del Mar. Pueden SUBIR facturas de recambios y
+// CONCILIAR (para compulsar los albaranes), igual que el admin. Se detectan por email.
+function _recambiosEsOficina() {
+  if (_recambiosEsAdmin()) return true;
+  const email = (currentUser?.email || '').toLowerCase().trim();
+  return email === 'marta@typ2014.local' || email === 'mariadelmar@typ2014.local';
 }
 
 async function loadRecambiosData() {
@@ -18519,7 +18528,7 @@ function renderRecambios() {
     // v107AO: botón Conciliar en facturas. Admin concilia TYP2014+Hispalis;
     // Transmargaz concilia SOLO sus facturas (empresa TRANSMARGAZ). TALLER nunca.
     const puedeConciliar = d.tipo_doc === 'factura' && (
-      _recambiosEsAdmin() ||
+      _recambiosEsOficina() ||
       (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
     );
     const btnConciliar = puedeConciliar
