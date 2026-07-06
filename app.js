@@ -8218,7 +8218,41 @@ function _facturacionModalHtml(r) {
       ${btn('facturado',     '✓ Facturado',   est === 'facturado',     '#16a34a')}
       ${btn('no_facturable', 'No facturable', est === 'no_facturable', '#6b7280')}
     </div>
-    ${fechaTxt}`;
+    ${fechaTxt}
+    <div style="margin-top:8px">
+      <button onclick="event.stopPropagation();marcarRevisarPago('${id}')"
+        style="width:100%;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;
+               border:1px solid ${r.revisar_pago ? '#ff9800' : 'var(--bd)'};
+               background:${r.revisar_pago ? '#ff9800' : 'var(--bg2)'};
+               color:${r.revisar_pago ? '#fff' : 'var(--tx)'}"
+        title="Para albaranes SUSTITUTOS ya pagados al transportista: marca naranja para revisar antes de abonar (se ve en la tabla y en el Excel)">
+        🟠 ${r.revisar_pago ? 'REVISAR ANTES DE ABONAR — MARCADO (pulsa para quitar)' : 'Marcar: revisar antes de abonar'}
+      </button>
+    </div>`;
+}
+
+// v252: alterna la marca naranja "revisar antes de abonar" (albaranes sustitutos
+// ya pagados al transportista). Guardado instantáneo, mismo patrón que facturación.
+async function marcarRevisarPago(id) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  if (!r.db_id) { toast('Este albarán aún no está guardado en la base de datos', 'err'); return; }
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso', 'err'); return; }
+  const nuevo = !r.revisar_pago;
+  r.revisar_pago = nuevo;
+  // Refrescar el recuadro del modal si está abierto este albarán.
+  if (editId && (String(editId) === String(id))) {
+    const cont = document.getElementById('mFacturacion');
+    if (cont) cont.innerHTML = _facturacionModalHtml(r);
+  }
+  renderTable();
+  toast(nuevo ? '🟠 Marcado: revisar antes de abonar' : 'Marca naranja quitada', 'ok');
+  try {
+    const { error } = await sb.from('albaranes').update({ revisar_pago: nuevo }).eq('id', r.db_id);
+    if (error) throw error;
+  } catch (e) {
+    toast('⚠️ No se pudo guardar la marca: ' + (e.message || e) + '. Vuelve a marcarlo.', 'err');
+  }
 }
 // v107CU (20/05/2026): formato fijo DD/MM/AA HH:MM sin depender de
 // toLocaleDateString. Algunos navegadores devolvían '5' en vez de '05'
@@ -8559,7 +8593,7 @@ function renderTable() {
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
-      <td style="max-width:130px;padding-right:14px"><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:1px;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver anexo', 2)}${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:700;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
+      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : ''}" ${r.revisar_pago ? 'title="🟠 REVISAR ANTES DE ABONAR (sustituto ya pagado)"' : ''}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:1px;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver anexo', 2)}${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:700;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
@@ -10353,6 +10387,7 @@ function buildExcel(data) {
   // v95b: Total ahora va al lado de Precio (columna E). TN=C, Precio=D, Total=E.
   // Fórmula =C*D para que al editar el precio se calcule solo.
   let _sumEuros = 0; // v107K9: acumula el TOTAL en € para la fila de TOTALES (como número, no fórmula)
+  const _filasRevisar = []; // v252: índices (0-based en ordered) de albaranes con marca naranja
   const rows = [EHEAD, ...ordered.map((r, idx) => {
     const tm = parseFloat(r.tm) || 0;
     // Precio siempre numérico (0 por defecto si no hay valor) — facilita edición posterior.
@@ -10374,6 +10409,7 @@ function buildExcel(data) {
     const filaExcel = idx + 2; // +1 header, +1 base 1 Excel
     const totalFormula = Math.round(tm * precio * 100) / 100;
     _sumEuros += totalFormula;
+    if (r.revisar_pago) _filasRevisar.push(idx); // v252: para pintarla naranja en el Excel
     // v230: TRAMO de días aplicado (columna nueva), según la fecha del albarán.
     let _tramo = '';
     { const _tsT = parseDate(r.fecha || ''); if (_tsT) { const _dT = new Date(_tsT); _tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', _dT.getFullYear(), _dT.getMonth() + 1, _dT.getDate()); } }
@@ -10443,6 +10479,16 @@ function buildExcel(data) {
       if (R === 0 || R === range.e.r) ws[addr].s.font = { bold: true, sz: 13 };
     }
   }
+  // v252: relleno NARANJA en la celda del Nº DE ALBARÁN de los marcados "revisar antes
+  // de abonar" (sustitutos ya pagados). Va DESPUÉS del bucle de estilos para no ser pisado.
+  // Fila en el ws: cabecera r=0, datos empiezan en r=1 → idx+1. Columna Nº ALBARAN = 6 (G).
+  _filasRevisar.forEach(i => {
+    const addr = XLSX.utils.encode_cell({ r: i + 1, c: 6 });
+    if (!ws[addr]) return;
+    if (!ws[addr].s) ws[addr].s = {};
+    ws[addr].s.fill = { patternType: 'solid', fgColor: { rgb: 'FF9800' } };
+    ws[addr].s.font = { bold: true, sz: 12, color: { rgb: 'FFFFFF' } };
+  });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Albaranes');
   const agg = key => valid.reduce((acc, r) => { const k = r[key] || 'Sin dato'; if (!acc[k]) acc[k] = {n:0,tm:0}; acc[k].n++; acc[k].tm += parseFloat(r.tm) || 0; return acc; }, {});
