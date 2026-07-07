@@ -18539,21 +18539,32 @@ function renderRecambios() {
   const fProv = document.getElementById('recambiosFiltroProv')?.value || '';
   const fBuscar = (document.getElementById('recambiosFiltroBuscar')?.value || '').toLowerCase().trim();
 
-  // v250: CHIPS de proveedor (se generan de TODOS los docs de la empresa, no de los filtrados)
+  // v253: CHIPS de proveedor AGRUPADOS — un solo chip por proveedor real, aunque la IA
+  // lo haya escrito con variantes (LARAUTO / LARAUTO, S.A. / Larauto, S.A. → "LARAUTO").
+  // Etiqueta del chip: la variante más frecuente (en empate, la más corta). Filtra por clave.
   const chipsCont = document.getElementById('recambiosChipsProv');
   if (chipsCont) {
-    const provs = [...new Set(recambiosDocs.map(d => (d.proveedor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const gruposProv = {};
+    recambiosDocs.forEach(d => {
+      const p = (d.proveedor || '').trim(); if (!p) return;
+      const k = _recProvKey(p); if (!k) return;
+      (gruposProv[k] = gruposProv[k] || {})[p] = (gruposProv[k][p] || 0) + 1;
+    });
+    const provChips = Object.keys(gruposProv).map(k => {
+      const vars = Object.entries(gruposProv[k]).sort((a, b) => b[1] - a[1] || a[0].length - b[0].length);
+      return { k, label: vars[0][0] };
+    }).sort((a, b) => a.label.localeCompare(b.label));
     const chip = (label, val) => {
       const act = _recProvChip === val;
-      return '<button onclick="_recSetProvChip(\'' + esc(val).replace(/'/g, "\\'") + '\')" style="font-size:11px;padding:4px 12px;border-radius:14px;border:1px solid ' + (act ? 'var(--ac)' : 'var(--bd)') + ';background:' + (act ? 'var(--ac)' : '#fff') + ';color:' + (act ? '#fff' : 'var(--tx)') + ';cursor:pointer;font-weight:' + (act ? '700' : '400') + '">' + esc(label) + '</button>';
+      return '<button onclick="_recSetProvChip(\'' + val + '\')" style="font-size:11px;padding:4px 12px;border-radius:14px;border:1px solid ' + (act ? 'var(--ac)' : 'var(--bd)') + ';background:' + (act ? 'var(--ac)' : '#fff') + ';color:' + (act ? '#fff' : 'var(--tx)') + ';cursor:pointer;font-weight:' + (act ? '700' : '400') + '">' + esc(label) + '</button>';
     };
-    chipsCont.innerHTML = chip('TODOS', '') + provs.map(p => chip(p, p)).join('');
+    chipsCont.innerHTML = chip('TODOS', '') + provChips.map(p => chip(p.label, p.k)).join('');
   }
 
   let docs = [...recambiosDocs];
   if (fTipo) docs = docs.filter(d => d.tipo_doc === fTipo);
   if (fProv) docs = docs.filter(d => d.proveedor === fProv);
-  if (_recProvChip) docs = docs.filter(d => (d.proveedor || '').trim() === _recProvChip);
+  if (_recProvChip) docs = docs.filter(d => _recProvKey(d.proveedor || '') === _recProvChip);
   if (fBuscar) docs = docs.filter(d => {
     const enCab = `${d.num_documento || ''} ${d.proveedor || ''}`.toLowerCase().includes(fBuscar);
     const enLin = (d.lineas || []).some(l => `${l.codigo || ''} ${l.descripcion || ''}`.toLowerCase().includes(fBuscar));
@@ -18572,8 +18583,9 @@ function renderRecambios() {
     body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">Sin documentos. Sube un albarán con el botón de arriba.</td></tr>`;
     return;
   }
-  // v107AL: detectar duplicados (mismo tipo+empresa+proveedor+nº doc).
-  const _claveDup = x => `${x.tipo_doc}|${x.empresa}|${_recambNorm(x.proveedor)}|${_recambNorm(x.num_documento)}`;
+  // v107AL/v253: detectar duplicados (mismo tipo+empresa+proveedor+nº doc). v253: usa la
+  // clave AGRUPADA de proveedor → "LARAUTO" y "LARAUTO, S.A." con el mismo nº ya se detectan.
+  const _claveDup = x => `${x.tipo_doc}|${x.empresa}|${_recProvKey(x.proveedor)}|${_recambNorm(x.num_documento)}`;
   const _conteo = {};
   recambiosDocs.forEach(x => {
     if (!x.num_documento || !x.proveedor) return;
@@ -18644,6 +18656,9 @@ function renderRecambios() {
   let html = '';
   mesesOrden.forEach(m => {
     const del = grupos[m];
+    // v253: dentro del mes, ordenados por PROVEEDOR (variantes agrupadas) y fecha →
+    // los documentos de la misma casa salen juntos, no mezclados.
+    del.sort((a, b) => _recProvKey(a.proveedor || '').localeCompare(_recProvKey(b.proveedor || '')) || String(a.fecha || '').localeCompare(String(b.fecha || '')));
     const pend = del.filter(d => !d.conciliado);
     const conc = del.filter(d => d.conciliado);
     const nAlbM = del.filter(d => d.tipo_doc === 'albaran').length;
@@ -18979,6 +18994,19 @@ const RECAMB_MARGEN = 0.02;
 
 function _recambNorm(s) {
   return String(s || '').toUpperCase().replace(/[\s.\-_/]/g, '').trim();
+}
+
+// v253: CLAVE DE PROVEEDOR — agrupa las variantes del mismo proveedor bajo una sola clave:
+// mayúsculas, sin tildes, sin puntuación, sin espacios, quitando sufijos societarios
+// (S.A., S.L., S.L.U., S.A.U., unipersonal, "España") y cortando en "DELEGACIÓN …".
+// Ej.: "LARAUTO" = "LARAUTO, S.A." · "TOT FRENS, S.L. DELEGACIÓN BARBERA" = "TOTFRENS"
+//      "Würth España, S.A." = "WÜRTH" · "IVECO Auto Distribución" = "IVECO AUTO DISTRIBUCION"
+function _recProvKey(s) {
+  let t = String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  t = t.split(/DELEGACION/)[0];                 // fuera "DELEGACIÓN BARBERA/IGUALADA…"
+  t = t.replace(/[^A-Z0-9 ]/g, ' ');            // fuera puntuación (comas, puntos, &…)
+  const STOP = new Set(['SA', 'SL', 'SLU', 'SAU', 'S', 'A', 'L', 'U', 'UNIPERSONAL', 'ESPANA', 'SOCIEDAD', 'ANONIMA', 'LIMITADA']);
+  return t.split(/\s+/).filter(w => w && !STOP.has(w)).join('');
 }
 
 async function recambiosConciliar(facturaId) {
