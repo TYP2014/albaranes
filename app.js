@@ -19099,6 +19099,19 @@ async function recambiosConciliar(facturaId) {
       lineasDeEste = lineasFac;  // factura sin desglose por albarán → comparar todo
       modoCruce = 'proveedor+fecha';
     }
+    // v258: RESCATE POR IMPORTE — la factura trae números pero NO el de este albarán (o la
+    // IA no los leyó bien). Si el TOTAL del albarán (que va SIN IVA) coincide con la BASE
+    // de la factura (±0,05€), es su factura → se cruza igual. Caso típico: proveedor pequeño
+    // con factura mensual de un solo albarán (ej. Casals Nadal: albarán total 263,86€ =
+    // base factura 263,86€; el total de la factura 319,27€ lleva el IVA y NO se compara).
+    if (!lineasDeEste.length) {
+      const tA = Number(alb.total), bF = Number(factura.base_imponible);
+      if (!isNaN(tA) && !isNaN(bF) && bF > 0 && Math.abs(tA - bF) <= 0.05) {
+        lineasDeEste = lineasFac;
+        modoCruce = 'importe (total albarán = base de la factura, sin IVA)';
+        informe.ok.push(`🔗 ${alb.num_documento || '?'} cruzado por IMPORTE: total albarán ${tA.toFixed(2)}€ = base factura ${bF.toFixed(2)}€ (el IVA no se compara)`);
+      }
+    }
     if (!lineasDeEste.length) {
       informe.albNoEnFactura.push({ alb, motivo: `Albarán ${alb.num_documento || '?'} no aparece en la factura` });
       continue;
@@ -19223,7 +19236,7 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
     ${seccion('⚠️ Albaranes subidos que NO están en la factura', inf.albNoEnFactura, '#ff9500')}
     ${!inf.ok.length && !hayProblemas ? '<div style="font-size:12px;color:var(--mu)">No se encontraron albaranes de este proveedor para cruzar. Sube primero los albaranes del mes.</div>' : ''}
     <div style="margin-top:14px;font-size:11px;color:var(--mu);line-height:1.5;border-top:1px solid var(--bd);padding-top:10px">
-      ℹ️ La IA señala posibles diferencias para que las revises tú. Margen de ±0,02€ aplicado (ignora redondeos). Verifica siempre el documento original antes de reclamar.
+      ℹ️ La IA señala posibles diferencias para que las revises tú. Margen de ±0,02€ aplicado (ignora redondeos). OJO con el IVA: el total del albarán va SIN IVA, así que se compara con la BASE de la factura (no con su total). Verifica siempre el documento original antes de reclamar.
     </div>`;
   document.getElementById('ovRecambiosInf').classList.add('open');
 }
