@@ -20199,40 +20199,46 @@ function _factAutoMostrarInforme() {
   document.getElementById('ovFactAuto').classList.add('open');
 }
 
-// --- Excel resumen (3 hojas) ---
+// --- Excel del cruce (v255): UNA SOLA HOJA con columnas ESTADO y EMPRESA para filtrar ---
+// Antes salía en 3 hojas separadas (Abonados / No abonados / Sin copia) y costaba revisarlo.
+// Ahora todo junto (como pidió JC, al estilo del repaso Holcim): filtras por la columna
+// ESTADO (🟢 Abonado / ⚠️ NO abonado / 📋 Sin copia) o por EMPRESA (TYP2014, Hispalis…).
+// Los AJUSTES (extracostes, otras columnas) siguen en su hoja aparte.
 function factAutoExcel() {
   const u = _factAutoUltimo;
   if (!u) { toast('No hay datos que exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
 
   const wb = XLSX.utils.book_new();
+  const _empresaDe = (mat, rec) => {
+    if (rec && rec.transportista) return rec.transportista;
+    const m = String(mat || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return TRANSPORTISTAS[m] || '—';
+  };
 
-  // Hoja 1: ABONADOS
-  const aoaAb = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino', 'Observación']];
+  const aoa = [['ESTADO', 'EMPRESA', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino', 'Observación']];
   u.abonados.forEach(a => {
-    aoaAb.push([
+    aoa.push(['🟢 Abonado', _empresaDe(a.linea.matricula, a.rec),
       a.linea.numero_albaran || '', a.linea.matricula || '', a.linea.fecha || '',
       a.linea.tn || '', a.linea.importe || '', a.linea.origen || '', a.linea.destino || '',
       a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK'
     ]);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaAb), 'Abonados');
-
-  // Hoja 2: NO ABONADOS
-  const aoaNo = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Origen', 'Destino']];
   u.noAbonados.forEach(r => {
-    aoaNo.push([r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', r.planta || r.origen || '', r.obra || r.destino || '']);
+    aoa.push(['⚠️ NO abonado', _empresaDe(r.tractora, r),
+      r.albaran || '', r.tractora || '', r.fecha || '', r.tm || '', '',
+      r.planta || r.origen || '', r.obra || r.destino || '', '']);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaNo), 'No abonados');
-
-  // Hoja 3: ABONADOS SIN ALBARÁN
-  const aoaSin = [['Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino']];
   u.sinAlbaran.forEach(L => {
-    aoaSin.push([L.numero_albaran || '', L.matricula || '', L.fecha || '', L.tn || '', L.importe || '', L.origen || '', L.destino || '']);
+    aoa.push(['📋 Sin copia', _empresaDe(L.matricula, null),
+      L.numero_albaran || '', L.matricula || '', L.fecha || '', L.tn || '', L.importe || '',
+      L.origen || '', L.destino || '', 'Pagado sin albarán nuestro — revisar']);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaSin), 'Sin copia');
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [14, 22, 15, 11, 11, 8, 10, 18, 20, 34].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Cruce');
 
-  // Hoja 4 (J23): AJUSTES
+  // Hoja 2 (J23): AJUSTES (extracostes; columnas distintas, mejor aparte)
   const aoaAj = [['Matrícula', 'Fecha', 'Concepto', 'Importe €', 'SCD']];
   let totAj = 0;
   (u.ajustes || []).forEach(L => {
@@ -20244,7 +20250,7 @@ function factAutoExcel() {
 
   const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
-  toast('Excel descargado', 'ok');
+  toast('Excel descargado (todo en una hoja, filtra por ESTADO o EMPRESA)', 'ok');
 }
 // ============================================================
 // v107GA — AUTOFACTURA HOLCIM (solo admin). Mismo patrón que CEMEX.
