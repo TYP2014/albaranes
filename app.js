@@ -19477,10 +19477,27 @@ async function factVerSubidas(mes, proveedor) {
     const nom = a.url
       ? '<a href="' + a.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">' + esc(a.fichero) + '</a> 🔗'
       : esc(a.fichero);
-    h += '<div>• ' + nom + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span></div>';
+    // v257: 🗑 Borrar una autofactura mal subida (borra SOLO las líneas de ese fichero de ese mes)
+    h += '<div>• ' + nom + ' <span style="color:var(--mu)">(' + a.n + ' líneas)</span>'
+      + ' <button onclick="factBorrarSubida(\'' + esc(mes) + '\',\'' + esc(proveedor || 'CEMEX') + '\',decodeURIComponent(\'' + encodeURIComponent(a.fichero) + '\'),' + a.n + ')"'
+      + ' style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid #d9534f;background:#fff;color:#d9534f;cursor:pointer;font-weight:700" title="Borrar esta autofactura mal subida (solo sus ' + a.n + ' líneas de este mes)">🗑 Borrar</button></div>';
   });
   h += '</div>';
   setEstado(h);
+}
+
+// v257: borra las líneas de UNA autofactura mal subida. MUY acotado: solo las líneas de
+// ese proveedor + ese mes + ese fichero (nada más). Con doble confirmación. Tras borrar,
+// recarga la lista de subidas para verlo desaparecer.
+async function factBorrarSubida(mes, proveedor, fichero, nLineas) {
+  if (!confirm('¿Borrar la autofactura mal subida?\n\n' + fichero + '\n(' + nLineas + ' líneas de ' + _factMesBonito(mes) + ' · ' + proveedor + ')\n\nSolo se borran las líneas de ESTE fichero. Los demás no se tocan.')) return;
+  try {
+    const { error } = await sb.from('autofacturas_lineas').delete()
+      .eq('proveedor', proveedor).eq('mes', mes).eq('fichero', fichero);
+    if (error) throw error;
+    toast('🗑 Borrada: ' + fichero + ' (' + nLineas + ' líneas)', 'ok');
+    factVerSubidas(mes, proveedor); // refrescar la lista
+  } catch (e) { console.error('[factBorrarSubida]', e); toast('Error al borrar: ' + (e.message || e), 'err'); }
 }
 
 // J28: bloque HTML con la lista de PDF cargados del mes (para el informe).
