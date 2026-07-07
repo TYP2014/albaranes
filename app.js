@@ -3376,13 +3376,14 @@ async function _processOne(it, type, key, timeoutMs) {
         const _sinNadaUtil = _vac(data.tractora) && _vac(data.albaran)
           && _vac(data.fecha) && _vac(data.producto) && _vac(data.tm)
           && _vac(data.obra) && _vac(data.planta) && _vac(data.cliente);
-        if (_sinNadaUtil && results.length > 1) {
-          // v249: SOLO se descarta la página vacía si el documento tiene VARIAS páginas
-          // (típico PDF con hoja de condiciones legales al final). Si es una FOTO/imagen
-          // suelta (una sola página) que sale vacía, NO se tira: se crea igual como
-          // "a revisar" para corregirla a mano (es un albarán de verdad que salió ilegible,
-          // p.ej. un ticket térmico desvaído). Antes se perdía y no subía nada.
-          console.warn('[v107BW] Página vacía de documento MULTIPÁGINA — DESCARTADA (probable hoja de condiciones legales).');
+        if (_sinNadaUtil && (results.length > 1 || (it.pageNum && it.pageNum >= 2))) {
+          // v249/v256: se descarta la página vacía si el documento tiene VARIAS páginas.
+          // v256: los PDF se trocean por páginas y cada una llega SOLA (results.length=1),
+          // así que además miramos it.pageNum: si la página vacía es la 2ª o posterior de
+          // un PDF (ej. "Condicions generals" de Promotora en la pág. 2), se DESCARTA.
+          // Una FOTO/imagen suelta o la página única/primera vacía se sigue creando como
+          // "a revisar" (fix v249: no perder albaranes ilegibles de verdad).
+          console.warn('[v107BW] Página vacía de documento MULTIPÁGINA (pág. ' + (it.pageNum || '?') + ') — DESCARTADA (probable hoja de condiciones legales).');
           continue;
         }
         // v89: validar formato matrícula. Si la IA devolvió algo que NO es 4D+3L (ej: leyó
