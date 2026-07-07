@@ -18263,6 +18263,17 @@ function gasFacDrop(ev) {
   addFiles(ok, 'gasfac');
 }
 
+// v259: aceptar la LIQUIDACIÓN (CEMEX u HOLCIM) ARRASTRADA y soltada. Solo PDF.
+// Llama a la misma subida de siempre (lee, guarda por mes y cruza igual).
+function factLiqDrop(ev, proveedor) {
+  const files = ev && ev.dataTransfer && ev.dataTransfer.files;
+  if (!files || !files.length) return;
+  const pdfs = Array.from(files).filter(f => /\.pdf$/i.test(f.name || '') || (f.type || '') === 'application/pdf');
+  if (!pdfs.length) { toast('Arrastra la liquidación en PDF', 'warn'); return; }
+  if (proveedor === 'HOLCIM') factSubirAutofacturaHolcim(pdfs);
+  else factSubirAutofactura(pdfs);
+}
+
 // FASE 4a: leer el Excel de KM del tacógrafo ("Gasóleo Profesional") y
 // guardarlo en la tabla km_periodos. Formato fijo (lectura directa, sin
 // IA): arriba DATOS EMPRESA + CIF + Período (2 fechas); luego filas con

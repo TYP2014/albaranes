@@ -891,9 +891,12 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- v107FI: AUTOFACTURA CEMEX -->
       <div class="card" style="margin-top:18px">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ok)"></div>AUTOFACTURA CEMEX</div>
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>LIQUIDACIÓN CEMEX <span style="font-size:10px;color:var(--mu);font-weight:400">(detalle por albarán)</span></div>
           <div class="tbl-acts">
-            <button class="btn bs" onclick="document.getElementById('factAutoFileInput').click()">📤 Subir autofactura CEMEX (PDF)</button>
+            <div id="factAutoDropZone" onclick="document.getElementById('factAutoFileInput').click()" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; factLiqDrop(event,'CEMEX');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:1.5px dashed var(--bd);border-radius:8px;padding:6px 14px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15;background:#fff">
+              <span style="font-size:12px;font-weight:600;color:var(--tx)">📤 Subir liquidación CEMEX</span>
+              <span style="font-size:10px;color:var(--mu)">Arrastra el PDF con el detalle de cada albarán, o pincha</span>
+            </div>
             <input type="file" id="factAutoFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofactura(this.files)">
           </div>
         </div>
@@ -909,9 +912,12 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- v107GA: AUTOFACTURA HOLCIM (SOLO ADMIN — oculta por defecto, loadUserMap la muestra solo si admin) -->
       <div class="card" id="factHolcimCard" style="margin-top:18px;display:none">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>AUTOFACTURA HOLCIM&nbsp;<span style="font-size:10px;color:var(--mu);font-weight:400">· solo admin</span></div>
+          <div class="st"><div class="dot" style="--c:#7cc4ff"></div>LIQUIDACIÓN HOLCIM <span style="font-size:10px;color:var(--mu);font-weight:400">(detalle por albarán) · solo admin</span></div>
           <div class="tbl-acts">
-            <button class="btn bs" onclick="document.getElementById('factHolcimFileInput').click()">📤 Subir autofactura HOLCIM (PDF)</button>
+            <div id="factHolcimDropZone" onclick="document.getElementById('factHolcimFileInput').click()" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; factLiqDrop(event,'HOLCIM');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:1.5px dashed var(--bd);border-radius:8px;padding:6px 14px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15;background:#fff">
+              <span style="font-size:12px;font-weight:600;color:var(--tx)">📤 Subir liquidación HOLCIM</span>
+              <span style="font-size:10px;color:var(--mu)">Arrastra el PDF con el detalle de cada albarán, o pincha</span>
+            </div>
             <input type="file" id="factHolcimFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofacturaHolcim(this.files)">
           </div>
         </div>
@@ -1751,7 +1757,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <div class="ov" id="ovFactAuto">
   <div class="modal" style="max-width:1200px;width:92vw">
     <div class="modal-hd">
-      <div class="modal-title" id="factAutoTitulo">AUTOFACTURA CEMEX</div>
+      <div class="modal-title" id="factAutoTitulo">LIQUIDACIÓN CEMEX (detalle por albarán)</div>
       <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById('ovFactAuto').classList.remove('open')">✕</button>
     </div>
     <div class="modal-bd">
@@ -1769,7 +1775,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <div class="ov" id="ovFactHolcim">
   <div class="modal" style="max-width:1200px;width:92vw">
     <div class="modal-hd">
-      <div class="modal-title" id="factHolcimTitulo">AUTOFACTURA HOLCIM</div>
+      <div class="modal-title" id="factHolcimTitulo">LIQUIDACIÓN HOLCIM (detalle por albarán)</div>
       <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById('ovFactHolcim').classList.remove('open')">✕</button>
     </div>
     <div class="modal-bd">
@@ -1878,6 +1884,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v256 (07/07/2026): FIX del descarte de páginas legales (rebote de la v249). La v249 solo descartaba páginas vacías si results.length > 1, pero los PDF se TROCEAN por páginas y cada una llega sola (results.length=1) → la pág. 2 de Promotora ("Condicions generals de Contractació") se colaba como registro Ileg vacío. Ahora también se mira it.pageNum: página vacía Y (results.length>1 O pageNum>=2) → DESCARTADA. Una foto suelta o página única/primera vacía SIGUE creándose como "a revisar" (se mantiene el fix v249 de no perder tickets ilegibles). Es decir: Promotora 2 págs → pág.1 albarán bien + pág.2 descartada; foto térmica ilegible → se sube "a revisar". Solo app.js + index.html. NO requiere SQL. -->
 <!-- v257 (07/07/2026): BORRAR AUTOFACTURAS MAL SUBIDAS (CEMEX y Holcim). Se subió por error en el cruce CEMEX un documento que no era la liquidación con detalle y sus líneas quedaron ensuciando el mes. En "Ver subidas" (la lista de PDF cargados del mes), cada fichero lleva ahora un botón "🗑 Borrar" (factBorrarSubida): borra SOLO las líneas de ese proveedor + mes + fichero (delete triple-acotado, nada más), con confirmación que muestra fichero/nº de líneas/mes, y recarga la lista al terminar. Vale igual para CEMEX y HOLCIM (factVerSubidas es común). Solo app.js + index.html. NO requiere SQL. -->
 <!-- v258 (07/07/2026): CONCILIACIÓN DE RECAMBIOS — rescate por IMPORTE (no se lía con el IVA). Caso Casals Nadal: la factura no traía (o la IA no leyó) el nº del albarán en sus líneas → el albarán quedaba PENDIENTE aunque la factura se conciliara. Ahora, si un albarán no casa por nº, se comprueba el IMPORTE: el TOTAL del albarán (que va SIN IVA) contra la BASE IMPONIBLE de la factura (±0,05€) — si coinciden, se cruza (y se marca conciliado como los demás). El total de la factura (con IVA) NO se usa para comparar. Se añade línea "🔗 cruzado por IMPORTE…" al informe y nota del IVA en el pie ("el total del albarán va sin IVA, se compara con la BASE"). Solo app.js + index.html. NO requiere SQL. -->
-<script src="app.js?v=258"></script>
+<!-- v259 (07/07/2026): RENOMBRADO "AUTOFACTURA" → "LIQUIDACIÓN (detalle por albarán)" en CEMEX y HOLCIM. El nombre "Autofactura" llevó a error (el socio subió la autofactura contable; lo que hay que subir es la LIQUIDACIÓN con el desglose albarán a albarán). Cambiados SOLO textos visibles: títulos de las 2 tarjetas ("LIQUIDACIÓN CEMEX (detalle por albarán)" / "LIQUIDACIÓN HOLCIM (detalle por albarán) · solo admin"), los 2 botones de subir pasan a ZONAS DE SOLTAR (arrastrar el PDF o pinchar, mismo patrón que Gasoil; helper factLiqDrop en app.js, solo PDF) con el texto "Subir liquidación … / Arrastra el PDF con el detalle de cada albarán, o pincha", y los títulos de los 2 modales. NO se toca nada interno (funciones, columna proveedor, tabla autofacturas_lineas siguen igual). RECORDATORIO: el 🗑 Borrar subidas de la v257 YA funciona en Holcim (está dentro de "📎 Ver subidas" de cada mes, igual que en CEMEX). Solo index.html (+app.js sin cambios de lógica). NO requiere SQL. -->
+<script src="app.js?v=259"></script>
 </body>
 </html>
