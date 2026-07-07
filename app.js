@@ -18930,7 +18930,23 @@ function recambiosVerDetalle(id) {
     </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--mu);font-size:11px;padding:14px">Sin líneas leídas</td></tr>';
 
   document.getElementById('recambiosDetTitulo').textContent = `${tipoTxt} · ${d.proveedor || ''} · ${d.num_documento || ''}`;
-  document.getElementById('recambiosDetBody').innerHTML = `
+  const _puedeEditarDoc = _recambiosEsOficina() || (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ');
+  const _cab = _puedeEditarDoc
+    ? `
+    <div style="margin-bottom:14px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:8px">✏️ DATOS DEL DOCUMENTO <span style="font-weight:400;color:var(--mu)">(corrige lo que la IA leyera mal y guarda)</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+        <label style="font-size:10px;color:var(--mu)">Proveedor<br><input id="recEdProv" type="text" value="${esc(d.proveedor || '')}" style="border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:12px;min-width:200px;background:#fff;color:var(--tx)"></label>
+        <label style="font-size:10px;color:var(--mu)">Nº documento<br><input id="recEdNum" type="text" value="${esc(d.num_documento || '')}" style="border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:12px;min-width:130px;background:#fff;color:var(--tx)"></label>
+        <label style="font-size:10px;color:var(--mu)">Fecha<br><input id="recEdFecha" type="date" value="${esc((d.fecha || '').slice(0, 10))}" style="border:1px solid var(--bd);border-radius:6px;padding:5px;font-size:12px;background:#fff;color:var(--tx)"></label>
+        <label style="font-size:10px;color:var(--mu)">Base €<br><input id="recEdBase" type="number" step="0.01" value="${d.base_imponible != null ? d.base_imponible : ''}" style="border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:12px;width:90px;background:#fff;color:var(--tx)"></label>
+        <label style="font-size:10px;color:var(--mu)">IVA €<br><input id="recEdIva" type="number" step="0.01" value="${d.iva != null ? d.iva : ''}" style="border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:12px;width:80px;background:#fff;color:var(--tx)"></label>
+        <label style="font-size:10px;color:var(--mu)">Total €<br><input id="recEdTotal" type="number" step="0.01" value="${d.total != null ? d.total : ''}" style="border:1px solid var(--bd);border-radius:6px;padding:6px;font-size:12px;width:90px;background:#fff;color:var(--tx)"></label>
+        <button class="btn bp" style="font-size:11px;padding:7px 14px" onclick="recambiosGuardarEdicion('${d.id}')">💾 Guardar cambios</button>
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">NIF: ${esc(d.proveedor_nif || '—')} · Empresa: ${esc(d.empresa || '—')}</div>
+    </div>`
+    : `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
       <span>Proveedor: <b style="color:var(--fg)">${esc(d.proveedor || '—')}</b></span>
       <span>NIF: <b style="color:var(--fg)">${esc(d.proveedor_nif || '—')}</b></span>
@@ -18942,7 +18958,9 @@ function recambiosVerDetalle(id) {
       <span>Base: <b>${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</b></span>
       <span>IVA: <b>${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</b></span>
       <span>Total: <b style="color:var(--ac)">${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></span>
-    </div>
+    </div>`;
+  document.getElementById('recambiosDetBody').innerHTML = `
+    ${_cab}
     ${d.observaciones ? `<div style="font-size:11px;color:var(--mu);margin-bottom:10px">📝 ${esc(d.observaciones)}</div>` : ''}
     <div style="margin-bottom:14px;background:#fffbe8;border:1px solid #f0e4b0;border-radius:8px;padding:10px">
       <div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:6px">📝 ANOTACIONES <span style="font-weight:400;color:var(--mu)">(ej. "nos cobraron de más", "falta abono", "reclamado el día X")</span></div>
@@ -18971,6 +18989,31 @@ function recambiosVerDetalle(id) {
   document.getElementById('ovRecambiosDet').classList.add('open');
 }
 function closeRecambiosDet() { document.getElementById('ovRecambiosDet').classList.remove('open'); }
+
+// v254: guarda la EDICIÓN del documento (fecha/nº/proveedor/importes mal leídos por la IA).
+// Solo oficina (admin+Marta+MdM) y Transmargaz para lo suyo — mismo criterio que el bloque editable.
+async function recambiosGuardarEdicion(id) {
+  const d = recambiosDocs.find(x => x.id === id); if (!d) return;
+  const v = id2 => document.getElementById(id2)?.value;
+  const num = s => { const n = parseFloat(String(s ?? '').replace(',', '.')); return isNaN(n) ? null : n; };
+  const upd = {
+    proveedor: (v('recEdProv') || '').trim() || null,
+    num_documento: (v('recEdNum') || '').trim() || null,
+    fecha: v('recEdFecha') || null,
+    base_imponible: num(v('recEdBase')),
+    iva: num(v('recEdIva')),
+    total: num(v('recEdTotal')),
+    updated_at: new Date().toISOString()
+  };
+  try {
+    const { error } = await sb.from('recambios_albaranes').update(upd).eq('id', id);
+    if (error) throw error;
+    Object.assign(d, upd);
+    toast('💾 Documento actualizado');
+    renderRecambios();
+    recambiosVerDetalle(id); // refresca el modal con lo guardado
+  } catch (e) { console.error('[recambiosGuardarEdicion]', e); toast('Error al guardar: ' + (e.message || e), 'err'); }
+}
 
 async function recambiosEliminar(id) {
   if (!confirm('¿Eliminar este documento de recambios?')) return;
@@ -19005,7 +19048,7 @@ function _recProvKey(s) {
   let t = String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   t = t.split(/DELEGACION/)[0];                 // fuera "DELEGACIÓN BARBERA/IGUALADA…"
   t = t.replace(/[^A-Z0-9 ]/g, ' ');            // fuera puntuación (comas, puntos, &…)
-  const STOP = new Set(['SA', 'SL', 'SLU', 'SAU', 'S', 'A', 'L', 'U', 'UNIPERSONAL', 'ESPANA', 'SOCIEDAD', 'ANONIMA', 'LIMITADA']);
+  const STOP = new Set(['SA', 'SL', 'SLU', 'SAU', 'S', 'A', 'L', 'U', 'UNIPERSONAL', 'ESPANA', 'SOCIEDAD', 'ANONIMA', 'LIMITADA', 'TRUCKS']);
   return t.split(/\s+/).filter(w => w && !STOP.has(w)).join('');
 }
 
@@ -19153,8 +19196,8 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
   const fantasma = inf.fantasma || [];
   const hayProblemas = inf.avisos.length || inf.albNoEnFactura.length || inf.albNoSubidos.length || fantasma.length;
   const cab = hayProblemas
-    ? `<div style="background:rgba(255,140,0,.10);border:1px solid #ff9500;border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:#fff">⚠️ <b>Hay diferencias que revisar</b> entre la factura y tus albaranes.</div>`
-    : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:#fff">✅ <b>Todo cuadra.</b> La factura coincide con los albaranes subidos.</div>`;
+    ? `<div style="background:rgba(255,140,0,.10);border:1px solid #ff9500;border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--tx)">⚠️ <b>Hay diferencias que revisar</b> entre la factura y tus albaranes.</div>`
+    : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--tx)">✅ <b>Todo cuadra.</b> La factura coincide con los albaranes subidos.</div>`;
 
   const seccion = (titulo, items, color) => items.length ? `
     <div style="margin-bottom:14px">
