@@ -10402,7 +10402,7 @@ async function deleteGasRecord() {
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
 // v95b: Total movido al lado de Precio (columna E). Antes estaba al final como col S.
 // Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | TRAMO | Nº ALBARAN | ...
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','CLIENTE','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
 
 function buildExcel(data, opts) {
   // v262 — modo PRECIO CLIENTE (solo lo activa el admin desde el Excel Filtrado): la columna
