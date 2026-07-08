@@ -20723,7 +20723,10 @@ function _factFamiliaHolcim(material, destino) {
   // valga. Holcim lo factura como "Servicios de Transporte", pero NUESTRO albarán (Sodira) lo trae como
   // árido "AG-…" → antes caía en "Otros" y no cuadraba con la línea de Holcim. Así ambos van a la misma
   // familia. (La Roca / Zona Franca / Montcada NO contienen "Puerto de Barcelona" → no se ven afectados.)
-  if (/PUERTO\s+DE\s+BARCELONA|BARCELONA\s*S1|NUCLEO\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
+  // v260 — Holcim ahora escribe el destino "Nueclo Garraf a Puerto Barcelona S2" (errata NUECLO, sin
+  // "DE", y fase S2 en vez de S1) → esos viajes caían mezclados en "Cisternas / Sacos / Palets".
+  // Se amplía el patrón: PUERTO (DE)? BARCELONA, BARCELONA S+dígito (S1, S2, S3…) y NUCLEO/NUECLO.
+  if (/PUERTO\s+(DE\s+)?BARCELONA|BARCELONA\s*S\d|(NUCLEO|NUECLO)\s+GARRAF/.test(d)) return 'Núcleo Garraf → Puerto Barcelona';
   // v107J56 — Escoria/siderúrgico y árido reciclado son MATERIA PRIMA que entra en Fábrica Montcada.
   // Se clasifican ANTES que los áridos de Garraf, porque su nombre contiene "ÁRIDO" y antes se
   // colaban en "Áridos Garraf → Montcada" (el destino "Fábrica Montcada" contiene "Montcada").
