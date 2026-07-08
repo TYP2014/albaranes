@@ -10360,7 +10360,12 @@ const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','
 // Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | TRAMO | Nº ALBARAN | ...
 const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','NOMBRE COMPRADOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
 
-function buildExcel(data) {
+function buildExcel(data, opts) {
+  // v262 — modo PRECIO CLIENTE (solo lo activa el admin desde el Excel Filtrado): la columna
+  // PRECIO sale del apartado "Precio cliente y beneficio" (tarifas_cliente, por ruta y mes),
+  // ignorando el precio propio del albarán y las tarifas de subcontratados. Ruta sin precio
+  // cliente puesto → 0 (así se ve enseguida qué falta por poner). El TRAMO no aplica (vacío).
+  const _precioCliente = !!(opts && opts.precioCliente);
   // v84: ordenar SIEMPRE por:
   //   1) Fecha del albarán ASCENDENTE (más antiguo arriba)
   //   2) Matrícula numérica (0742 antes que 5360, gracias a localeCompare con numeric:true)
@@ -10395,7 +10400,18 @@ function buildExcel(data) {
     // v107K2 (Paso 2): si el albarán no trae precio propio, usar la TARIFA de su RUTA
     // (origen → destino) del MES del albarán. Así el precio que pusiste una vez en
     // "Tarifas por servicio" sale solo en todos los albaranes de esa ruta. Total = TN × precio.
-    let precio = (r.precio != null && r.precio !== '' && parseFloat(r.precio) > 0) ? parseFloat(r.precio) : 0;
+    let precio;
+    if (_precioCliente) {
+      // v262 — PRECIO CLIENTE: siempre el de la ruta+mes (tarifas_cliente). Sin tramos.
+      precio = 0;
+      const _tsC = parseDate(r.fecha || '');
+      if (_tsC) {
+        const _dC = new Date(_tsC);
+        const _tc = _tarifaClienteDe(r.planta || r.origen || '', r.obra || r.destino || '', _dC.getFullYear(), _dC.getMonth() + 1);
+        if (_tc != null) precio = _tc;
+      }
+    } else {
+    precio = (r.precio != null && r.precio !== '' && parseFloat(r.precio) > 0) ? parseFloat(r.precio) : 0;
     if (!precio) {
       const _tsP = parseDate(r.fecha || '');
       if (_tsP) {
@@ -10403,6 +10419,7 @@ function buildExcel(data) {
         const _tar = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', _dP.getFullYear(), _dP.getMonth() + 1, _dP.getDate());
         if (_tar != null) precio = _tar;
       }
+    }
     }
     // v107K5: Total ya CALCULADO (TN × precio). Antes era una fórmula =C*D que a veces no se
     // calculaba y la columna Total salía VACÍA. Como el precio viene de la tarifa, ponemos el
@@ -10413,7 +10430,7 @@ function buildExcel(data) {
     if (r.revisar_pago) _filasRevisar.push(idx); // v252: para pintarla naranja en el Excel
     // v230: TRAMO de días aplicado (columna nueva), según la fecha del albarán.
     let _tramo = '';
-    { const _tsT = parseDate(r.fecha || ''); if (_tsT) { const _dT = new Date(_tsT); _tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', _dT.getFullYear(), _dT.getMonth() + 1, _dT.getDate()); } }
+    if (!_precioCliente) { const _tsT = parseDate(r.fecha || ''); if (_tsT) { const _dT = new Date(_tsT); _tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', _dT.getFullYear(), _dT.getMonth() + 1, _dT.getDate()); } }
     // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
     // FECHA, MATRICULA, TN, PRECIO, TOTAL, TRAMO, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
     // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO
@@ -10503,7 +10520,22 @@ function buildExcel(data) {
 }
 
 async function exportExcel() { if (!records.length) { toast('No hay albaranes', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(records); XLSX.writeFile(wb, `albaranes_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel — ${records.filter(r=>!r._dup).length} válidos · ${tm.toFixed(3)} TN`); }
-async function exportExcelFiltrado() { if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; } await loadTarifas(); const {wb,tm} = buildExcel(filtered); XLSX.writeFile(wb, `albaranes_filtrado_${new Date().toISOString().slice(0,10)}.xlsx`); toast(`✓ Excel filtrado · ${tm.toFixed(3)} TN`); }
+async function exportExcelFiltrado() {
+  if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
+  await loadTarifas();
+  // v262 — SOLO ADMIN: al descargar el Excel Filtrado se puede elegir el PRECIO CLIENTE (lo que
+  // TÚ facturas a tus clientes, puesto en Tarifas → "Precio cliente y beneficio") en vez del
+  // precio subcontratado de siempre. Aceptar = precio CLIENTE. Cancelar = como siempre.
+  // Los demás usuarios NO ven la pregunta y les sale el Excel de siempre.
+  let _pc = false;
+  if (currentRole === 'admin') {
+    _pc = confirm('¿Sacar el Excel con el PRECIO CLIENTE (lo que TÚ facturas)?\n\nAceptar = precio CLIENTE (para facturar a tus clientes)\nCancelar = precio subcontratado (como siempre)');
+    if (_pc) await loadTarifasCliente();
+  }
+  const {wb,tm} = buildExcel(filtered, { precioCliente: _pc });
+  XLSX.writeFile(wb, `albaranes_filtrado_${_pc ? 'CLIENTE_' : ''}${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`✓ Excel filtrado${_pc ? ' (precio CLIENTE)' : ''} · ${tm.toFixed(3)} TN`);
+}
 
 // v107K25 — Excel SOLO de los albaranes marcados con las casillas (modo selección). Antes solo había
 // "Excel filtrado" (todo lo filtrado). Recoge los seleccionados igual que _facturarSeleccionados.
