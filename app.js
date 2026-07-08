@@ -19559,6 +19559,20 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
       (data || []).forEach(r => existentes.add(_claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto)));
     } catch (e) { console.warn('[J67] no pude leer existentes:', e); }
     lineas = (lineas || []).filter(L => !existentes.has(_claveLinea(L.numero_albaran, L.fecha, L.matricula, L.tn, L.concepto)));
+    // v261 — DEDUPE dentro del PROPIO LOTE: el PDF se lee por trozos (chunking) y la línea que cae
+    // en el borde entre dos trozos se lee DOS veces. El filtro de arriba solo mira lo YA guardado en
+    // BD, no las repeticiones internas del lote → se insertaban las 2 copias (confirmado 08/07/2026:
+    // ~893 líneas sobrantes entre abril y junio; la copia extra salía como "Sin copia" en el repaso
+    // aunque el albarán estuviera abonado). Ahora, misma clave de contenido dentro del lote → se
+    // guarda UNA sola vez. Las líneas de ajuste (sin nº) NO se tocan: pueden repetirse legítimamente.
+    const _vistasLote = new Set();
+    lineas = lineas.filter(L => {
+      if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: no deduplicar
+      const k = _claveLinea(L.numero_albaran, L.fecha, L.matricula, L.tn, L.concepto);
+      if (_vistasLote.has(k)) return false;
+      _vistasLote.add(k);
+      return true;
+    });
   } else {
     await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
   }
