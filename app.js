@@ -14858,6 +14858,15 @@ function inferDestino(data) {
 
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
+  // v264 (08/07/2026): Obra Coca Cola — obra de Canteras Canro (cliente Ribera). El código v208 la
+  // pone automáticamente cuando el albarán Canro trae destino vacío, pero al editarla a mano se
+  // colaron variantes de mayúsculas ("Obra coca cola", "Obra Coca cola") que salían como destinos
+  // DISTINTOS en el filtro. El histórico se unificó por SQL (229 albaranes, 08/07/2026); esta
+  // entrada evita que vuelvan a crearse variantes al escribirla a mano o leerla del papel.
+  { canon: 'Obra Coca Cola', alias: [
+    'OBRA COCA COLA', 'obra coca cola', 'Obra coca cola', 'Obra Coca cola',
+    'Obra coca Cola', 'OBRA COCACOLA', 'Obra CocaCola', 'obra cocacola'
+  ] },
   // v107Q: vertederos / gestores de residuos. Albaranes con código LER 17xxxx (residuos de construcción).
   // Cliente típico HOLCIM ESPAÑA SAU. Salen de obras u plantas Holcim hacia el gestor de residuos.
   // PUIGFEL/RUBI: planta Cova Solera en Rubí (Compositor Shumann S/N, Pol. Can Jardi). El albarán
