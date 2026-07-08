@@ -940,7 +940,15 @@ function renderTarifasClienteEditor() {
       serv[key].count++;
     }
   });
-  const lista = Object.values(serv).sort((a, b) => (a.origen + a.destino).localeCompare(b.origen + b.destino));
+  // v263 — las rutas que YA tienen precio cliente puesto salen ARRIBA (como en Tarifas por
+  // servicio): así no hay que buscarlas entre las 40-50 rutas sin precio (autofactura/no aplica).
+  // Dentro de cada grupo (con precio / sin precio) se mantiene el orden alfabético.
+  const lista = Object.values(serv).sort((a, b) => {
+    const pa = _tarifaClienteDe(a.origen, a.destino, anio, mes) != null ? 0 : 1;
+    const pb = _tarifaClienteDe(b.origen, b.destino, anio, mes) != null ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (a.origen + a.destino).localeCompare(b.origen + b.destino);
+  });
   if (!lista.length) {
     cont.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay albaranes de ese mes cargados. Si es un mes antiguo, carga el histórico en la pestaña Albaranes.</div>';
     return;
@@ -954,7 +962,7 @@ function renderTarifasClienteEditor() {
     + '<button class="btn bs" onclick="_tarifaCliCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">✕ Recoger</button>'
     + '</div>';
   html += '<table style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
-    + th('Origen') + th('Destino') + th('Alb.') + th('Coste subcontratado') + th('Precio cliente (€/TN)') + th('Beneficio €/TN')
+    + th('Origen') + th('Destino') + th('Alb.') + th('Coste subcontratado') + th('Precio cliente (€/TN)') + th('') + th('Beneficio €/TN')
     + '</tr></thead><tbody>';
   lista.forEach(s => {
     const coste = _tarifaDe(s.origen, s.destino, anio, mes);
@@ -970,6 +978,8 @@ function renderTarifasClienteEditor() {
       + '<input type="number" step="0.01" min="0" class="fil-sel"'
       + ' data-orig="' + _fichajeEsc(s.origen) + '" data-dest="' + _fichajeEsc(s.destino) + '"'
       + ' value="' + (cliente != null ? cliente : '') + '" placeholder="0.00" style="width:110px;font-family:var(--mn);font-size:12px"></td>'
+      + '<td style="padding:6px 6px;border-bottom:1px solid var(--bd);text-align:center">'
+      + '<button class="btn bs" onclick="_tarifaCliGuardarUna(this)" title="Guardar SOLO esta ruta (no toca las demás)" style="font-size:12px;padding:4px 8px">💾</button></td>'
       + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;font-weight:600;color:' + benColor + '">' + (benef != null ? fmt(benef) : '—') + '</td>'
       + '</tr>';
   });
@@ -991,6 +1001,40 @@ function _tarifaCliFiltrar() {
 function _tarifaCliCerrar() {
   const c = document.getElementById('tarifasCliCont');
   if (c) c.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">Pulsa el botón de arriba para ver y poner los precios cliente.</div>';
+}
+
+// v263 — 💾 Guardar UNA sola ruta del editor de precio cliente (como en Tarifas por servicio).
+// Hace upsert SOLO de esa ruta (nunca borra ni toca las demás), actualiza el beneficio de la
+// fila en el sitio (sin recargar la tabla → no se pierde el scroll) y avisa con un toast.
+// La ruta subirá a la parte de arriba la PRÓXIMA vez que se abra el editor (orden v263).
+async function _tarifaCliGuardarUna(btn) {
+  if (currentRole !== 'admin') { toast('Solo el admin', 'err'); return; }
+  const anio = parseInt(document.getElementById('tarifaCliAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaCliMes')?.value, 10);
+  if (!anio || !mes) { toast('Elige mes y año', 'warn'); return; }
+  const tr = btn && btn.closest ? btn.closest('tr') : null;
+  const inp = tr ? tr.querySelector('input[data-orig]') : null;
+  if (!inp) { toast('No encuentro el precio de esta fila', 'err'); return; }
+  const origen = inp.getAttribute('data-orig') || '';
+  const destino = inp.getAttribute('data-dest') || '';
+  const precio = parseFloat(String(inp.value).replace(',', '.'));
+  if (isNaN(precio) || precio <= 0) { toast('Pon un precio válido (> 0) en esta fila', 'warn'); return; }
+  try {
+    const { error } = await sb.from('tarifas_cliente').upsert(
+      [{ origen, destino, anio, mes, precio_tn: precio, updated_at: new Date().toISOString() }],
+      { onConflict: 'origen,destino,anio,mes' });
+    if (error) { console.error('[tarifas-cliente] guardar una', error); toast('Error al guardar: ' + error.message, 'err'); return; }
+    await loadTarifasCliente(); // refresca la memoria (la tabla NO se recarga: no pierdes el sitio)
+    // Beneficio de ESTA fila, actualizado en el sitio (última celda de la fila).
+    const coste = _tarifaDe(origen, destino, anio, mes);
+    const benef = (coste != null) ? (precio - coste) : null;
+    const cel = tr.lastElementChild;
+    if (cel) {
+      cel.textContent = benef != null ? (benef.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €') : '—';
+      cel.style.color = benef == null ? 'var(--mu)' : (benef >= 0 ? 'var(--ac)' : 'var(--er)');
+    }
+    toast('✅ Precio cliente guardado: ' + (origen || '—') + ' → ' + (destino || '—'));
+  } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
 async function guardarTarifasCliente() {
