@@ -7765,6 +7765,21 @@ function msFilter(listId, q) {
   if (nores) nores.style.display = (needle && visibles === 0) ? 'block' : 'none';
 }
 
+// v269 — filtro "✍️ Solo a mano": muestra SOLO los albaranes creados con "➕ Albarán a mano"
+// (creado_manual=true, los de fondo azul). Se COMBINA con la fecha y el resto de filtros.
+// El botón se pone azul cuando está activo; "✕ Limpiar" también lo quita.
+let filtroManual = false;
+function toggleFiltroManual() {
+  filtroManual = !filtroManual;
+  const b = document.getElementById('btnFilManual');
+  if (b) {
+    b.style.background = filtroManual ? '#2b6fff' : '';
+    b.style.color = filtroManual ? '#fff' : '';
+    b.style.borderColor = filtroManual ? '#2b6fff' : '';
+  }
+  applyFilters();
+}
+
 function applyFilters() {
   window._limVisible = 200; // v107J43: al filtrar u ordenar, volver a mostrar las primeras 200 (rendimiento)
   // v107J94: el desplegable de Facturación (arriba) solo lo ven admin + Marta + Mª del Mar + Logística.
@@ -7816,6 +7831,8 @@ function applyFilters() {
   filtered = records.filter(r => {
     // Excluir pendientes de procesar (aparecen en el banner separadamente, no en la tabla)
     if (r.procesado === false) return false;
+    // v269 — filtro "Solo a mano" activo → solo los creados con "➕ Albarán a mano"
+    if (filtroManual && !r.creado_manual) return false;
     const ts = parseDate(r.fecha || '');
     // v94: bug de zona horaria. Antes hacíamos new Date(desde).getTime() que JS interpreta
     // como UTC 00:00, mientras que parseDate(r.fecha) devuelve hora LOCAL. En España en verano
@@ -8071,6 +8088,9 @@ function switchGasEmpresa(emp) {
 
 function resetFilters() { 
   ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fRecibida','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  // v269 — "Limpiar" también quita el filtro "✍️ Solo a mano" y devuelve el botón a su color.
+  filtroManual = false;
+  { const b = document.getElementById('btnFilManual'); if (b) { b.style.background = ''; b.style.color = ''; b.style.borderColor = ''; } }
   // v100: limpiar TODOS los multi-select. Antes solo Matrícula y Transportista; ahora también
   // Proveedor, Origen, Destino, Material y Subido por.
   selectedMatriculas.clear();
