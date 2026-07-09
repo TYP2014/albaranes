@@ -9802,6 +9802,26 @@ function openModal(id) {
         + `<div style="font-family:var(--mn);font-size:13px;padding:8px 10px;background:var(--s2);border-radius:6px;line-height:1.6">${_txt}</div>`
         + `<div style="font-size:11px;color:var(--mu);margin-top:3px">Se cambia en Facturación → Tarifas por servicio.</div></div>`;
     }
+    if (f.k === 'fecha') {
+      // v267 — FECHA con CALENDARIO (pedido por Juan Carlos): antes era un campo de texto libre
+      // donde había que escribir "01/06/2026" a mano (formato que no gustaba y daba errores).
+      // Ahora es un input de fecha nativo: se pincha y sale el calendario del navegador. Al lado,
+      // el botón "📅 Hoy" pone la fecha del día con un clic. Sirve igual para corregir una fecha
+      // mal leída por la IA que para el albarán creado a mano (usa este mismo modal).
+      // El valor guardado (texto DD/MM/YYYY, o ISO en los creados a mano) se convierte a
+      // YYYY-MM-DD para el input; si la fecha guardada es ilegible, el campo sale vacío
+      // (mejor elegirla en el calendario que arrastrar un texto roto).
+      let _iso = '';
+      const _mF = String(val || '').trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+      const _mI = String(val || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (_mI) _iso = `${_mI[1]}-${_mI[2]}-${_mI[3]}`;
+      else if (_mF) { let _y = _mF[3]; if (_y.length === 2) _y = '20' + _y; _iso = `${_y}-${_mF[2].padStart(2, '0')}-${_mF[1].padStart(2, '0')}`; }
+      return `<div class="fg"><label class="fl">${f.l}</label>`
+        + `<div style="display:flex;gap:6px;align-items:center">`
+        + `<input type="date" class="fi" id="mf_fecha" value="${_iso}" style="flex:1;min-width:0">`
+        + `<button type="button" class="btn bs" style="font-size:11px;padding:6px 10px;white-space:nowrap" title="Poner la fecha de hoy" onclick="document.getElementById('mf_fecha').value=new Date().toISOString().slice(0,10)">📅 Hoy</button>`
+        + `</div></div>`;
+    }
     return `<div class="fg${f.full?' full':''}"><label class="fl">${f.l}</label><input class="fi" id="mf_${f.k}" value="${val}"></div>`;
   }).join('');
 
@@ -10038,6 +10058,12 @@ async function saveModal() {
       // escribe el usuario manda SIEMPRE. La normalización mínima (mayúsculas, sin espacios)
       // sí la mantenemos.
       else if (f.k === 'tractora') newVal = String(newVal).toUpperCase().replace(/\s+/g, '').replace(/-/g, '');
+      // v267 — el campo fecha ahora es un calendario (input type=date) que devuelve YYYY-MM-DD:
+      // se guarda como DD/MM/YYYY, el formato que ya usan los albaranes y muestra la tabla.
+      else if (f.k === 'fecha') {
+        const _mIso = String(newVal).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (_mIso) newVal = `${_mIso[3]}/${_mIso[2]}/${_mIso[1]}`;
+      }
       else if (f.k === 'remolque') newVal = String(newVal).toUpperCase().replace(/\s+/g, '').replace(/-/g, '');
     }
     if (String(r[f.k] || '') !== String(newVal || '')) {
