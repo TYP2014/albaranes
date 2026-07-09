@@ -14956,6 +14956,13 @@ const DESTINOS_CANONICOS = [
     'Planta Hormigón Montcada', 'Planta Hormigon Montcada',
     'Planta de Montcada (Hormig)', 'CE44K'
   ] },
+  // v268 (09/07/2026, Juan Carlos): "Montcada" A SECAS como destino canónico PROPIO. Los albaranes
+  // de Promotora Mediterránea-2 (calizas desde Llinars del Vallès / Olesa de Bonesvalls) traen el
+  // destino escrito así, tal cual, y Juan Carlos quiere que se LEA y se quede "Montcada" (no estaba
+  // en la lista y salía como no oficial). OJO: NO confundir con "Fábrica Montcada" (recepción,
+  // CE104) ni con "Montcada (Hormig)" (hormigonera, CE44K) — esas tienen sus propios canon y alias
+  // específicos que ganan SIEMPRE por match exacto; esta entrada solo recoge el "Montcada" genérico.
+  { canon: 'Montcada', alias: [] },
   // v107K84: CEMEX hormigonera Montcada — destino propio, tal cual viene en el albarán CEMEX.
   { canon: 'HORMIGON MONTCADA', alias: [
     'Hormigon Montcada', 'Hormigón Montcada', 'HORMIGÓN MONTCADA',
