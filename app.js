@@ -6889,7 +6889,7 @@ function renderPendientes() {
   if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
   if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
   if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
-  if (itvAvi) chips.push({ic:'🟧', n:itvAvi, tx:`ITVs <${ITV_AVISO_DIAS}d`, cls:'pend-wn', click:`switchTab('itv')`});
+  if (itvAvi) chips.push({ic:'⚠️', n:itvAvi, tx:`ITVs <${ITV_AVISO_DIAS}d`, cls:'pend-wn', click:`switchTab('itv')`});
 
   box.innerHTML = `
     <div class="pend-wrap">
@@ -11250,8 +11250,8 @@ function _itvEstado(rec) {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const cad = new Date(rec.fecha_caducidad + 'T00:00:00');
   const dias = Math.round((cad - hoy) / 86400000);
-  if (dias < 0) return { tipo: 'caducada', dias, label: 'Caducada', icon: '🔴' };
-  if (dias <= ITV_AVISO_DIAS) return { tipo: 'aviso', dias, label: 'Aviso', icon: '🟧' };
+  if (dias < 0) return { tipo: 'caducada', dias, label: 'Caducada', icon: '⛔' };
+  if (dias <= ITV_AVISO_DIAS) return { tipo: 'aviso', dias, label: 'Aviso', icon: '⚠️' };
   return { tipo: 'vigente', dias, label: 'Vigente', icon: '🟢' };
 }
 
@@ -11787,7 +11787,7 @@ function updateItvStats() {
   if (!box) return;
   box.innerHTML = `
     <div class="stat" style="--c:var(--er)"><div class="stat-l">Caducadas</div><div class="stat-v" style="color:var(--er)">${cad}</div><div class="stat-s">no aptas</div></div>
-    <div class="stat" style="--c:var(--wn)"><div class="stat-l">Caducan en ${ITV_AVISO_DIAS} días</div><div class="stat-v" style="color:var(--wn)">${avi}</div><div class="stat-s">aviso</div></div>
+    <div class="stat" style="--c:#ff7a00"><div class="stat-l">Caducan en ${ITV_AVISO_DIAS} días</div><div class="stat-v" style="color:#ff7a00">${avi}</div><div class="stat-s" style="color:#ff7a00;font-weight:600">aviso</div></div>
     <div class="stat"><div class="stat-l">Vigentes</div><div class="stat-v">${vig}</div><div class="stat-s">en regla</div></div>
     <div class="stat"><div class="stat-l">Total ITVs</div><div class="stat-v">${itvRecords.length}</div><div class="stat-s">vehículos registrados</div></div>`;
 }
@@ -11797,7 +11797,7 @@ function renderItvAlerts() {
   const avi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso');
   let html = '';
   if (cad.length) html += `<div class="alert-banner alert-dup"><div class="alert-txt">🔴 <strong>${cad.length} ITV(s) CADUCADA(s)</strong> — pasar inspección urgente.</div><div><button class="btn br" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='caducada';applyItvFilters()">Ver</button></div></div>`;
-  if (avi.length) html += `<div class="alert-banner alert-warn"><div class="alert-txt">🟧 <strong>${avi.length} ITV(s) caducan en ${ITV_AVISO_DIAS} días o menos</strong> — preparar próxima inspección.</div><div><button class="btn bw" style="font-size:10px;padding:5px 11px" onclick="document.getElementById('fItvEstado').value='aviso';applyItvFilters()">Ver</button></div></div>`;
+  if (avi.length) html += `<div class="alert-banner alert-warn" style="background:#fff3e0;border:2px solid #ff8c00;border-left:8px solid #ff8c00;padding:12px 14px"><div class="alert-txt" style="font-size:13px"><span style="font-size:16px">⚠️</span> <strong style="color:#e65100">${avi.length} ITV(s) caducan en ${ITV_AVISO_DIAS} días o menos</strong> <span style="color:#b45309">— preparar próxima inspección.</span></div><div><button class="btn bw" style="font-size:10px;padding:5px 11px;background:#ff8c00;border-color:#ff8c00;color:#fff" onclick="document.getElementById('fItvEstado').value='aviso';applyItvFilters()">Ver</button></div></div>`;
   document.getElementById('itvAlertsBox').innerHTML = html;
 }
 
@@ -11836,7 +11836,7 @@ function renderItvTable() {
   const fmtTSItv = ts => ts ? new Date(ts).toLocaleDateString('es-ES') : '—';
   tb.innerHTML = filteredItv.map(r => {
     const est = _itvEstado(r);
-    const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
+    const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:#ff7a00;font-weight:800">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
     const subPor = userMap[r.user_id]?.name || '—';
     const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
     return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
