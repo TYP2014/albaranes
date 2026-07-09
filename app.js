@@ -19491,7 +19491,13 @@ async function _leerAutofacturaGrande(file, key, lector, setEstado) {
         }
       }
       if (leido === null) fallidos.push(parte);
-      else todas = todas.concat(leido);
+      else {
+        // v270 — cada línea recuerda de qué TROZO del PDF salió (_parte). Sirve para distinguir el
+        // duplicado MALO (misma línea leída dos veces en el borde entre dos trozos consecutivos) del
+        // duplicado BUENO (dos viajes reales idénticos, que van seguidos en el MISMO trozo).
+        (leido || []).forEach(x => { if (x && typeof x === 'object') x._parte = parte; });
+        todas = todas.concat(leido);
+      }
     }
     window._factPartesFallidas = fallidos;
     // v107J37: separar el objeto de control (_control) de las líneas reales.
@@ -19690,26 +19696,59 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
     [String(numero || ''), String(fecha || ''), String(mat || ''),
      (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)), String(concepto || '')].join('|');
   if ((proveedor || '') === 'HOLCIM') {
-    const existentes = new Set();
-    try {
-      const { data } = await sb.from('autofacturas_lineas')
-        .select('numero_albaran,fecha,matricula,tn,concepto').eq('proveedor', 'HOLCIM').eq('mes', mes);
-      (data || []).forEach(r => existentes.add(_claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto)));
-    } catch (e) { console.warn('[J67] no pude leer existentes:', e); }
-    lineas = (lineas || []).filter(L => !existentes.has(_claveLinea(L.numero_albaran, L.fecha, L.matricula, L.tn, L.concepto)));
-    // v261 — DEDUPE dentro del PROPIO LOTE: el PDF se lee por trozos (chunking) y la línea que cae
-    // en el borde entre dos trozos se lee DOS veces. El filtro de arriba solo mira lo YA guardado en
-    // BD, no las repeticiones internas del lote → se insertaban las 2 copias (confirmado 08/07/2026:
-    // ~893 líneas sobrantes entre abril y junio; la copia extra salía como "Sin copia" en el repaso
-    // aunque el albarán estuviera abonado). Ahora, misma clave de contenido dentro del lote → se
-    // guarda UNA sola vez. Las líneas de ajuste (sin nº) NO se tocan: pueden repetirse legítimamente.
-    const _vistasLote = new Set();
-    lineas = lineas.filter(L => {
+    // v270 — ARREGLO del exceso de v261 (confirmado con la autofactura de julio 2026): Holcim REPITE
+    // líneas idénticas LEGÍTIMAS (dos viajes reales del mismo camión, mismo día, mismas TN redondas;
+    // ej. real: 8515NGP 29/06 con dos líneas "29 T" iguales). El dedupe v261 por clave dejaba UNA sola
+    // y el cruce marcaba el otro viaje como "NO ABONADO" en falso. Ahora, en dos pasos:
+    //   PASO 1 (artefacto de borde): solo se quita una copia si la MISMA clave aparece en TROZOS
+    //     CONSECUTIVOS del PDF (la línea del borde entre trozos se lee dos veces). Si la repetición
+    //     está dentro del MISMO trozo = viajes reales que van seguidos en el papel → se guardan TODAS.
+    //     Un PDF pequeño leído entero no tiene trozos (sin _parte) → no se quita nada.
+    //   PASO 2 (contra lo YA guardado): se compara por CONTEOS — si el PDF trae N copias de una clave
+    //     y en BD hay M, se insertan solo las (N−M) que FALTAN. Re-subir el mismo PDF sigue sin
+    //     duplicar nada (N=M → 0 nuevas), y re-subir el PDF de un mes "capado" por v261 REPONE las
+    //     líneas que faltaban — sin SQL.
+    // Las líneas de ajuste (sin nº) no se tocan: pueden repetirse legítimamente.
+    // La clave usa la matrícula CORREGIDA (_corregirMatAutof), igual que se guarda en BD, para que
+    // el conteo lote↔BD compare manzanas con manzanas.
+    const _claveL = (L) => _claveLinea(L.numero_albaran, L.fecha, _corregirMatAutof(L.matricula), L.tn, L.concepto);
+    // PASO 1 — quitar SOLO la copia del borde entre trozos consecutivos.
+    const _ultimoTrozo = new Map(); // clave → nº del último trozo donde se vio
+    lineas = (lineas || []).filter(L => {
       if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: no deduplicar
-      const k = _claveLinea(L.numero_albaran, L.fecha, L.matricula, L.tn, L.concepto);
-      if (_vistasLote.has(k)) return false;
-      _vistasLote.add(k);
+      const k = _claveL(L);
+      const p = (typeof L._parte === 'number') ? L._parte : null;
+      const prev = _ultimoTrozo.has(k) ? _ultimoTrozo.get(k) : null;
+      if (p !== null) _ultimoTrozo.set(k, p);
+      if (prev !== null && p !== null && p === prev + 1) {
+        console.warn('[v270] copia de borde entre trozos ' + prev + '→' + p + ' OMITIDA: ' + k);
+        return false;
+      }
       return true;
+    });
+    // PASO 2 — conteo de lo ya guardado este mes (paginado de 1000 en 1000: Supabase corta en 1000).
+    const enBD = new Map(); // clave → cuántas copias hay ya en BD
+    try {
+      const LOTE = 1000;
+      for (let desde = 0; ; desde += LOTE) {
+        const { data, error } = await sb.from('autofacturas_lineas')
+          .select('numero_albaran,fecha,matricula,tn,concepto')
+          .eq('proveedor', 'HOLCIM').eq('mes', mes).range(desde, desde + LOTE - 1);
+        if (error) throw error;
+        (data || []).forEach(r => {
+          const k = _claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto);
+          enBD.set(k, (enBD.get(k) || 0) + 1);
+        });
+        if (!data || data.length < LOTE) break;
+      }
+    } catch (e) { console.warn('[J67/v270] no pude leer existentes:', e); }
+    const _vistasLote = new Map(); // clave → cuántas copias del lote llevamos contadas
+    lineas = lineas.filter(L => {
+      if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: siempre pasan
+      const k = _claveL(L);
+      const v = (_vistasLote.get(k) || 0) + 1;
+      _vistasLote.set(k, v);
+      return v > (enBD.get(k) || 0); // solo se insertan las copias que EXCEDAN lo ya guardado
     });
   } else {
     await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
