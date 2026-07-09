@@ -19684,6 +19684,16 @@ function _factBloqueArchivos(arr, esc) {
   return h;
 }
 
+// v272 — GUARDIA DE FECHA EN CÓDIGO (la causa de meses de "Sin copia"/duplicados): Holcim escribe
+// las fechas con PUNTOS (23.06.2026). El prompt pide convertirlas a barras, pero la IA unas veces
+// obedece y otras copia el punto tal cual — y normFecha() solo entiende barras/guiones, así que la
+// línea con puntos NUNCA cruzaba con el albarán (salía "Sin copia" y el albarán "No abonado") y en
+// las re-subidas parecía una línea distinta (duplicados). Regla aprendida: la lógica determinista
+// va en CÓDIGO, no en el prompt. Puntos → barras y normalizar a DD/MM/AAAA, siempre.
+function _factFechaBarra(s) {
+  return normFecha(String(s || '').trim().replace(/\./g, '/'));
+}
+
 // Guardar las líneas de UNA autofactura en la tabla. Re-subir el mismo PDF (mismo
 // fichero) reemplaza sus líneas, para no duplicar.
 async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) {
@@ -19697,7 +19707,7 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
   // formato distinto ("23.06.2026" vs "23/06/2026") y el filtro no reconocía que era LA MISMA línea →
   // cada re-subida metía copias nuevas (yeso de junio acabó con líneas ×4, todas "Sin copia" en el cruce).
   const _claveLinea = (numero, fecha, mat, tn, concepto) =>
-    [_factNormAlb(numero), normFecha(fecha), _factNormMat(mat),
+    [_factNormAlb(numero), _factFechaBarra(fecha), _factNormMat(mat),
      (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)),
      String(concepto || '').toUpperCase().trim()].join('|');
   if ((proveedor || '') === 'HOLCIM') {
@@ -19731,30 +19741,64 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
       }
       return true;
     });
-    // PASO 2 — conteo de lo ya guardado este mes (paginado de 1000 en 1000: Supabase corta en 1000).
-    const enBD = new Map(); // clave → cuántas copias hay ya en BD
+    // PASO 2 (v272) — REEMPLAZO POR CONTENIDO: antes de insertar, se BORRAN del mes las copias
+    // viejas de ESTAS MISMAS líneas (misma clave normalizada), tengan el nombre de fichero que
+    // tengan y estén escritas como estén (fecha con puntos o con barras). Así re-subir un PDF deja
+    // la BD EXACTAMENTE como dice el papel: ni copias de más (subidas repetidas, formatos distintos
+    // de la IA), ni líneas de menos (las que se comió v261). Método seguro: SELECT primero (ids
+    // concretos), DELETE solo esos ids por lotes, y luego INSERT del lote completo. Si el borrado
+    // falla por lo que sea, PLAN B = solo añadir lo que falte (conteo, como v271): nunca se pierde nada.
+    const clavesLote = new Set();
+    lineas.forEach(L => clavesLote.add(_claveL(L)));
+    let reemplazoOK = false;
     try {
       const LOTE = 1000;
+      const idsBorrar = [];
       for (let desde = 0; ; desde += LOTE) {
         const { data, error } = await sb.from('autofacturas_lineas')
-          .select('numero_albaran,fecha,matricula,tn,concepto')
-          .eq('proveedor', 'HOLCIM').eq('mes', mes).range(desde, desde + LOTE - 1);
+          .select('id,numero_albaran,fecha,matricula,tn,concepto')
+          .eq('proveedor', 'HOLCIM').eq('mes', mes)
+          .order('id', { ascending: true }).range(desde, desde + LOTE - 1);
         if (error) throw error;
         (data || []).forEach(r => {
           const k = _claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto);
-          enBD.set(k, (enBD.get(k) || 0) + 1);
+          if (clavesLote.has(k)) idsBorrar.push(r.id);
         });
         if (!data || data.length < LOTE) break;
       }
-    } catch (e) { console.warn('[J67/v270] no pude leer existentes:', e); }
-    const _vistasLote = new Map(); // clave → cuántas copias del lote llevamos contadas
-    lineas = lineas.filter(L => {
-      if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: siempre pasan
-      const k = _claveL(L);
-      const v = (_vistasLote.get(k) || 0) + 1;
-      _vistasLote.set(k, v);
-      return v > (enBD.get(k) || 0); // solo se insertan las copias que EXCEDAN lo ya guardado
-    });
+      for (let i = 0; i < idsBorrar.length; i += 100) {
+        const { error } = await sb.from('autofacturas_lineas').delete().in('id', idsBorrar.slice(i, i + 100));
+        if (error) throw error;
+      }
+      console.log('[v272] reemplazo por contenido: ' + idsBorrar.length + ' copias viejas quitadas del mes ' + mes + '; se insertan ' + lineas.length + ' líneas frescas del PDF.');
+      reemplazoOK = true;
+    } catch (e) { console.warn('[v272] no pude reemplazar por contenido (PLAN B: solo añadir lo que falte):', e); }
+    if (!reemplazoOK) {
+      // PLAN B (v271) — conteo de lo ya guardado este mes (paginado de 1000 en 1000).
+      const enBD = new Map(); // clave → cuántas copias hay ya en BD
+      try {
+        const LOTE = 1000;
+        for (let desde = 0; ; desde += LOTE) {
+          const { data, error } = await sb.from('autofacturas_lineas')
+            .select('numero_albaran,fecha,matricula,tn,concepto')
+            .eq('proveedor', 'HOLCIM').eq('mes', mes).range(desde, desde + LOTE - 1);
+          if (error) throw error;
+          (data || []).forEach(r => {
+            const k = _claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto);
+            enBD.set(k, (enBD.get(k) || 0) + 1);
+          });
+          if (!data || data.length < LOTE) break;
+        }
+      } catch (e) { console.warn('[J67/v270] no pude leer existentes:', e); }
+      const _vistasLote = new Map(); // clave → cuántas copias del lote llevamos contadas
+      lineas = lineas.filter(L => {
+        if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: siempre pasan
+        const k = _claveL(L);
+        const v = (_vistasLote.get(k) || 0) + 1;
+        _vistasLote.set(k, v);
+        return v > (enBD.get(k) || 0); // solo se insertan las copias que EXCEDAN lo ya guardado
+      });
+    }
   } else {
     await sb.from('autofacturas_lineas').delete().eq('fichero', fichero);
   }
@@ -19765,7 +19809,7 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
     return {
       mes: mes, fichero: fichero, proveedor: proveedor || 'CEMEX', fichero_url: ficheroUrl || null,
       numero_albaran: L.numero_albaran || null,
-      fecha: L.fecha || null,
+      fecha: _factFechaBarra(L.fecha) || null, // v272: guardia de fecha — puntos Holcim → barras, SIEMPRE
       // v107J76 — corrige matrícula mal leída SOLO en Holcim (encaja la inválida con la conocida por 4 dígitos)
       matricula: (proveedor === 'HOLCIM' ? _corregirMatAutof(L.matricula) : L.matricula) || null,
       origen: L.origen || null,
@@ -19944,7 +19988,7 @@ async function factConciliarMesHolcim(mes) {
   _factHolcimArchivos = _factContarArchivos(data);
   // Restaurar los nombres de campo que usa el cruce/informe de Holcim.
   _factHolcimLineasAcum = data.map(r => ({
-    num_entrega: r.numero_albaran, fecha: r.fecha, matricula: r.matricula,
+    num_entrega: r.numero_albaran, fecha: _factFechaBarra(r.fecha), matricula: r.matricula, // v272: guardia de fecha también al LEER (líneas viejas guardadas con puntos ahora cruzan)
     material: r.concepto, tn: r.tn, valor_neto: r.importe, transportista: r.destino,
     destino: r.origen || null // v107J42: destino/cliente de la línea (La Roca, Zona Franca, Montcada, Molienda Tarragona, Grao Castellón…)
   }));
