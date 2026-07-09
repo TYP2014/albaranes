@@ -19692,9 +19692,14 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
   // SIN RIESGO (no se borra nada): se traen las líneas ya guardadas del mes y solo se insertan las que
   // NO existan ya (misma CLAVE DE CONTENIDO: nº+fecha+matrícula+TN+concepto). Re-subir un PDF deja de
   // crear copias y nunca se pierde una línea buena. CEMEX se queda EXACTAMENTE igual (borra por archivo).
+  // v271 — la clave se NORMALIZA (nº sin espacios, fecha a DD/MM/AAAA, matrícula limpia, concepto en
+  // mayúsculas). Motivo REAL (09/07/2026): al leer el mismo PDF dos veces, la IA escribe los campos con
+  // formato distinto ("23.06.2026" vs "23/06/2026") y el filtro no reconocía que era LA MISMA línea →
+  // cada re-subida metía copias nuevas (yeso de junio acabó con líneas ×4, todas "Sin copia" en el cruce).
   const _claveLinea = (numero, fecha, mat, tn, concepto) =>
-    [String(numero || ''), String(fecha || ''), String(mat || ''),
-     (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)), String(concepto || '')].join('|');
+    [_factNormAlb(numero), normFecha(fecha), _factNormMat(mat),
+     (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)),
+     String(concepto || '').toUpperCase().trim()].join('|');
   if ((proveedor || '') === 'HOLCIM') {
     // v270 — ARREGLO del exceso de v261 (confirmado con la autofactura de julio 2026): Holcim REPITE
     // líneas idénticas LEGÍTIMAS (dos viajes reales del mismo camión, mismo día, mismas TN redondas;
@@ -20556,6 +20561,18 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
 }
 
 async function factSubirAutofacturaHolcim(files) {
+  // v271 — CANDADO anti doble subida: si se suelta el PDF dos veces (o dos PDFs a la vez) mientras
+  // la IA aún está leyendo, corrían DOS lecturas del mismo papel en paralelo y las dos guardaban →
+  // líneas repetidas en la BD. Ahora solo puede haber UNA lectura de Holcim en marcha a la vez.
+  if (window._factSubiendoHolcim) {
+    toast('⏳ Ya hay una liquidación de Holcim leyéndose. Espera a que termine antes de subir otra.', 'err');
+    return;
+  }
+  window._factSubiendoHolcim = true;
+  try { return await _factSubirAutofacturaHolcim0(files); }
+  finally { window._factSubiendoHolcim = false; }
+}
+async function _factSubirAutofacturaHolcim0(files) {
   const file = files && files[0];
   const inp = document.getElementById('factHolcimFileInput');
   if (inp) inp.value = '';
@@ -20620,7 +20637,8 @@ async function factSubirAutofacturaHolcim(files) {
   const lineasGen = lineas.map(L => ({
     numero_albaran: L.num_entrega || null, fecha: L.fecha || null, matricula: L.matricula || null,
     origen: L.destino || null, destino: L.transportista || null, tn: L.tn, importe: L.valor_neto, scd: null,
-    es_ajuste: false, concepto: L.material || null
+    es_ajuste: false, concepto: L.material || null,
+    _parte: (typeof L._parte === 'number') ? L._parte : null // v271: sin esto, el filtro de borde de v270 no veía de qué trozo salió cada línea
   }));
   const mesDoc = _factMesDeLineas(lineas) || _factMesDeFichero(file && file.name) || 'sin-mes';
   setEstado('⏳ Guardando la liquidación de Holcim de ' + _factMesBonito(mesDoc) + '…');
