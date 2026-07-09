@@ -20964,6 +20964,22 @@ function _factProcesarYMostrarHolcim(setEstado) {
     }
   }
 
+  // v276 — EL CRUCE MANDA EN LOS DOS SENTIDOS (orden de Juan Carlos 09/07/2026): si un albarán del
+  // repaso sale NO ABONADO pero está marcado "facturado" (marca pegada de cruces antiguos hechos con
+  // datos fantasma/duplicados), se DESMARCA a pendiente, en memoria + Supabase. Así la app y el Excel
+  // dicen SIEMPRE lo mismo: cruza (fecha+matrícula+TN exactas o nº) → abonado; no cruza → no abonado.
+  // Solo toca albaranes del repaso Holcim y dentro de la ventana del mes (noAbonados ya viene filtrado).
+  for (const r of noAbonados) {
+    if (r.db_id && r.estado_facturacion === 'facturado') {
+      r.estado_facturacion = 'pendiente';
+      r.factura_fecha = null;
+      const celda = document.querySelector(`td[data-fact="${r.db_id}"]`);
+      if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+      sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null }).eq('id', r.db_id)
+        .then(({ error }) => { if (error) console.warn('[v276] desmarcar no abonado:', error); });
+    }
+  }
+
   setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia.');
   _factHolcimMostrarInforme();
   toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia', 'ok');
