@@ -20808,7 +20808,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // v107J75 — La FECHA puede bailar hasta 2 días en arena/materia prima (mismo viaje; Holcim a veces
       // pone la fecha de la liquidación, no la del día real — confirmado por Juan Carlos). Antes se exigía
       // EXACTA y generaba mucho "sin copia"/"no abonado" del mismo viaje. Seguimos exigiendo matrícula y TN
-      // exactas (±0,05 T); solo la fecha tiene margen de ±2 días, ni uno más (para no reabrir falsos
+      // exactas (±0,05 T); y la FECHA también EXACTA (v275, regla de Juan Carlos: cero margen; los bailes
       // positivos). La fecha exacta SIEMPRE gana: solo se usa el margen si no hay coincidencia el mismo día.
       const _diaNum = (s) => { const f = normFecha(s); const m = f.match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10)).getTime() : null; };
       const tL = _diaNum(L.fecha);
@@ -20836,7 +20836,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
         let diasDif;
         if (tL !== null && tR !== null) diasDif = Math.round(Math.abs(tL - tR) / 86400000);
         else { if (normFecha(r.fecha) !== fL) continue; diasDif = 0; } // sin fecha medible → exige exacta
-        if (diasDif > 2) continue;                          // ventana ±2 días, ni uno más
+        if (diasDif !== 0) continue;                        // v275 — ORDEN DE JUAN CARLOS (09/07/2026): fecha EXACTA obligatoria, CERO margen de días (ni ±2 ni ±5). Si Holcim liquida con días de baile, ÉL corrige la fecha del albarán a mano (calendario v267) y entonces cruza. La app NUNCA casa por fechas cercanas.
         const score = diasDif * 1000 + d;                   // fecha más cercana primero, luego TN más cercana
         if (score < mejorScore) { exacto = r; mejorScore = score; exDias = diasDif; }
       }
