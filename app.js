@@ -19748,31 +19748,36 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
     // de la IA), ni líneas de menos (las que se comió v261). Método seguro: SELECT primero (ids
     // concretos), DELETE solo esos ids por lotes, y luego INSERT del lote completo. Si el borrado
     // falla por lo que sea, PLAN B = solo añadir lo que falte (conteo, como v271): nunca se pierde nada.
-    const clavesLote = new Set();
-    lineas.forEach(L => clavesLote.add(_claveL(L)));
+    // v273 — REEMPLAZO POR MATERIAL (definitivo): v272 borraba las copias viejas que COINCIDEN con
+    // el papel, pero las líneas viejas MAL LEÍDAS por la IA (ej. real 09/07: "16W2026-0000296" que no
+    // existe — era "25W..." leído mal) no coinciden con nada y se quedaban como fantasmas ("Sin copia").
+    // Ahora, al subir un PDF, se borra TODO su MATERIAL de ese mes (todo el YESO de junio, se llame el
+    // fichero como se llame y esté escrito como esté) y se inserta el papel fresco. Borrón y cuenta
+    // nueva: la BD queda EXACTAMENTE como dice el PDF. SELECT de ids primero, DELETE solo esos ids.
+    // Nota: si algún mes Holcim mandara DOS liquidaciones del MISMO material, re-subir las dos y listo.
+    const _concNorm = (c) => String(c || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    const conceptosLote = new Set();
+    lineas.forEach(L => { const c = _concNorm(L.concepto); if (c) conceptosLote.add(c); });
     let reemplazoOK = false;
     try {
       const LOTE = 1000;
       const idsBorrar = [];
       for (let desde = 0; ; desde += LOTE) {
         const { data, error } = await sb.from('autofacturas_lineas')
-          .select('id,numero_albaran,fecha,matricula,tn,concepto')
+          .select('id,concepto')
           .eq('proveedor', 'HOLCIM').eq('mes', mes)
           .order('id', { ascending: true }).range(desde, desde + LOTE - 1);
         if (error) throw error;
-        (data || []).forEach(r => {
-          const k = _claveLinea(r.numero_albaran, r.fecha, r.matricula, r.tn, r.concepto);
-          if (clavesLote.has(k)) idsBorrar.push(r.id);
-        });
+        (data || []).forEach(r => { if (conceptosLote.has(_concNorm(r.concepto))) idsBorrar.push(r.id); });
         if (!data || data.length < LOTE) break;
       }
       for (let i = 0; i < idsBorrar.length; i += 100) {
         const { error } = await sb.from('autofacturas_lineas').delete().in('id', idsBorrar.slice(i, i + 100));
         if (error) throw error;
       }
-      console.log('[v272] reemplazo por contenido: ' + idsBorrar.length + ' copias viejas quitadas del mes ' + mes + '; se insertan ' + lineas.length + ' líneas frescas del PDF.');
+      console.log('[v273] reemplazo por material (' + [...conceptosLote].join(', ') + '): ' + idsBorrar.length + ' líneas viejas quitadas del mes ' + mes + '; se insertan ' + lineas.length + ' frescas del PDF.');
       reemplazoOK = true;
-    } catch (e) { console.warn('[v272] no pude reemplazar por contenido (PLAN B: solo añadir lo que falte):', e); }
+    } catch (e) { console.warn('[v273] no pude reemplazar por material (PLAN B: solo añadir lo que falte):', e); }
     if (!reemplazoOK) {
       // PLAN B (v271) — conteo de lo ya guardado este mes (paginado de 1000 en 1000).
       const enBD = new Map(); // clave → cuántas copias hay ya en BD
