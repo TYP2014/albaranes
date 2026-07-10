@@ -21447,6 +21447,25 @@ function _factHolcimMostrarInforme() {
   });
   h += '</div>';
   h += '<button class="btn bs" onclick="factHolcimExcelPorMaterial()" style="font-size:11px">📊 DESCARGAR EXCEL</button>';
+  // v285 — CUADRANTE POR TRANSPORTISTA: desplegable con los transportistas presentes en el cruce
+  // + botón que saca el Excel completo de ESE transportista (todas sus familias, una por pestaña,
+  // con los precios de las tarifas). Sustituye el montaje a mano familia a familia.
+  {
+    const _tset = new Set();
+    const _add = (t) => { const v = String(t || '').toUpperCase().trim(); if (v) _tset.add(v); };
+    (u.abonados || []).forEach(a => _add((a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula)));
+    (u.posibles || []).forEach(a => _add((a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula)));
+    (u.noAbonados || []).forEach(r => _add(r.transportista || getTransportista(r.tractora)));
+    (u.sinAlbaran || []).forEach(L => _add(getTransportista(L.matricula)));
+    const _tlist = [..._tset].sort();
+    if (_tlist.length) {
+      h += ' <select id="factHolTransSel" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;background:var(--s2);color:var(--tx);max-width:220px">'
+        + '<option value="">— transportista —</option>'
+        + _tlist.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('')
+        + '</select>';
+      h += ' <button class="btn bs" style="font-size:11px" title="Excel mensual completo de ese transportista: una pestaña por familia, con los precios de las tarifas" onclick="(function(){var s=document.getElementById(\'factHolTransSel\');if(!s||!s.value){toast(\'Elige un transportista\',\'err\');return;}window._factHolcimTransFiltro=s.value;try{factHolcimExcelPorMaterial();}finally{window._factHolcimTransFiltro=null;}})()">📑 EXCEL DEL TRANSPORTISTA</button>';
+    }
+  }
   h += '</div>';
   h += '</div>';
 
@@ -21644,10 +21663,23 @@ function factHolcimExcelPorMaterial() {
   const _cmpTMF = (tA, mA, fA, tB, mB, fB) => { const TA = _transKey(tA), TB = _transKey(tB); if (TA < TB) return -1; if (TA > TB) return 1; return _cmpMatFecha(mA, fA, mB, fB); };
 
   materialesFinal.forEach(mat => {
-    const ab = (u.abonados || []).filter(a => _famPar(a) === mat);
-    const po = (u.posibles || []).filter(a => _famPar(a) === mat);
-    const no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
-    const sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
+    let ab = (u.abonados || []).filter(a => _famPar(a) === mat);
+    let po = (u.posibles || []).filter(a => _famPar(a) === mat);
+    let no = (u.noAbonados || []).filter(r => _famAlb(r) === mat);
+    let sin = (u.sinAlbaran || []).filter(L => _famLinea(L) === mat);
+    // v285 — CUADRANTE POR TRANSPORTISTA (pedido JC 10/07/2026): si hay un transportista elegido,
+    // cada pestaña lleva SOLO sus filas (con los precios de las tarifas, como siempre). Las familias
+    // sin filas suyas no sacan pestaña. Así sale de una vez el Excel mensual de Híspalis/Aridflot/…
+    // que antes montaban a mano familia a familia.
+    const _trF = window._factHolcimTransFiltro || null;
+    if (_trF) {
+      const _n = s => String(s || '').toUpperCase().trim();
+      ab = ab.filter(a => _n(_trAb(a)) === _trF);
+      po = po.filter(a => _n(_trAb(a)) === _trF);
+      no = no.filter(r => _n(_trNo(r)) === _trF);
+      sin = sin.filter(L => _n(_trSin(L)) === _trF);
+      if (!ab.length && !po.length && !no.length && !sin.length) return; // (forEach: return = saltar esta familia)
+    }
     // Orden: TRANSPORTISTA primero, luego matrícula, luego fecha (para diferenciar por transportista).
     ab.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
     po.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
@@ -21674,7 +21706,8 @@ function factHolcimExcelPorMaterial() {
   const _nomFich = (materialesFinal.length === 1)
     ? ('Holcim_' + materialesFinal[0].replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30))
     : 'Holcim_por_familia';
-  XLSX.writeFile(wb, _nomFich + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  const _sufTr = window._factHolcimTransFiltro ? ('_' + String(window._factHolcimTransFiltro).replace(/[^A-Z0-9]+/gi, '_').slice(0, 24)) : ''; // v285
+  XLSX.writeFile(wb, _nomFich + _sufTr + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)'), 'ok');
 }
 
