@@ -20834,12 +20834,14 @@ async function factExcelAyuda908(files) {
   }
 
   // Excel de repaso: primero lo que NO casa, luego el resto.
+  let _repasoGuardar = []; // v282: copia del repaso para guardarla en el registro (re-descargable)
   try {
     const orden = v => (v === 'CAMBIADO ✔' ? 2 : v === 'YA ESTABA' ? 1 : 0);
     const filasRep = items.slice().sort((a, b) => orden(a.res) - orden(b.res)).map(i => ({
       'RESULTADO': i.res, 'Nº SAP (908)': i.sap, 'Nº cantera (Excel)': i.albX, 'Matrícula': i.mat,
       'Fecha Excel': i.fechaX, 'Nº en app (antes)': i.antes, 'Fecha app': i.fechaApp, 'Detalle': i.det
     }));
+    _repasoGuardar = filasRep; // v282
     const wb2 = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb2, XLSX.utils.json_to_sheet(filasRep), 'Ayuda 908');
     XLSX.writeFile(wb2, 'ayuda_908_repaso_' + new Date().toISOString().slice(0, 10) + '.xlsx');
@@ -20855,7 +20857,8 @@ async function factExcelAyuda908(files) {
     await sb.from('excel_ayuda_908').insert({
       fichero: file.name || 'excel_ayuda.xlsx', mes: mesLog || null,
       subido_por: (currentUser && currentUser.email) || '',
-      filas: items.length, cambiados: hechos, ya_estaban: nYa, a_repasar: nMal
+      filas: items.length, cambiados: hechos, ya_estaban: nYa, a_repasar: nMal,
+      repaso: _repasoGuardar // v282: re-descargable desde "Ayudas subidas"
     });
   } catch (e) { console.warn('[v280] registro ayuda:', e); }
 
@@ -20881,7 +20884,7 @@ async function factVerAyudas908() {
     let html = '<table style="border-collapse:collapse;font-family:var(--mn);font-size:11px;width:100%"><tr style="text-align:left;color:var(--mu)">'
       + '<th style="padding:3px 8px">Subido el</th><th style="padding:3px 8px">Fichero</th><th style="padding:3px 8px">Mes</th>'
       + '<th style="padding:3px 8px">Filas</th><th style="padding:3px 8px">Cambiados</th><th style="padding:3px 8px">Ya estaban</th>'
-      + '<th style="padding:3px 8px">A repasar</th><th style="padding:3px 8px">Por</th></tr>';
+      + '<th style="padding:3px 8px">A repasar</th><th style="padding:3px 8px">Por</th><th style="padding:3px 8px">Excel</th></tr>';
     for (const r of data) {
       html += '<tr style="border-top:1px solid var(--bd)">'
         + '<td style="padding:3px 8px;white-space:nowrap">' + fmtF(r.subido_el) + '</td>'
@@ -20891,13 +20894,27 @@ async function factVerAyudas908() {
         + '<td style="padding:3px 8px;color:#15803d;font-weight:700">' + (r.cambiados ?? '') + '</td>'
         + '<td style="padding:3px 8px">' + (r.ya_estaban ?? '') + '</td>'
         + '<td style="padding:3px 8px;color:#b45309;font-weight:700">' + (r.a_repasar ?? '') + '</td>'
-        + '<td style="padding:3px 8px">' + String(r.subido_por || '').split('@')[0] + '</td></tr>';
+        + '<td style="padding:3px 8px">' + String(r.subido_por || '').split('@')[0] + '</td>'
+        + '<td style="padding:3px 8px">' + (r.repaso ? '<button class="btn bs" style="font-size:10px;padding:2px 8px" onclick="factDescargarRepaso908(' + r.id + ')">⬇ Repaso</button>' : '—') + '</td></tr>';
     }
     div.innerHTML = html + '</table>';
   } catch (e) {
     console.error('[v280] ver ayudas:', e);
     div.innerHTML = '<span style="color:var(--er)">No pude cargar la lista: ' + (e.message || e) + '</span>';
   }
+}
+
+// v282 — ⬇ re-descargar el Excel de repaso de una pasada del Excel de ayuda ("Ayudas subidas").
+async function factDescargarRepaso908(id) {
+  try {
+    const { data, error } = await sb.from('excel_ayuda_908').select('repaso,subido_el').eq('id', id).single();
+    if (error) throw error;
+    if (!data || !data.repaso || !data.repaso.length) { toast('Esa pasada no tiene repaso guardado (es de antes de v282).', 'err'); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.repaso), 'Ayuda 908');
+    const f = String(data.subido_el || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, 'ayuda_908_repaso_' + f + '.xlsx');
+  } catch (e) { console.error('[v282] descargar repaso:', e); toast('No pude descargar el repaso: ' + (e.message || e), 'err'); }
 }
 
 async function factSubirAutofacturaHolcim(files) {
