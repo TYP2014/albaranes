@@ -20709,6 +20709,10 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
 //   4) Los que NO casan (o son ambiguos): NO se toca nada y salen en un Excel de repaso aparte.
 // Idempotente: re-subir el mismo Excel no rompe nada (los que ya tienen su 908 salen "YA ESTABA").
 async function factExcelAyuda908(files) {
+  // v281 — setEstado es un ayudante LOCAL en cada función de esta app (no global); aquí el suyo,
+  // pintando en el panel de estado de la tarjeta Holcim (#factHolcimEstado).
+  const estado = document.getElementById('factHolcimEstado');
+  const setEstado = (h) => { if (estado) { estado.style.display = h ? 'block' : 'none'; estado.innerHTML = h || ''; } };
   if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturación', 'err'); return; }
   const file = files && files[0];
   const inp = document.getElementById('factExcel908Input'); if (inp) inp.value = '';
