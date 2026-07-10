@@ -20697,6 +20697,151 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
+// v278 — 📗 EXCEL DE AYUDA HOLCIM (números 908). Pedido por Juan Carlos (10/07/2026): Holcim/SAP
+// renombra los albaranes de cantera (Sodira/Garraf, escorias, árido reciclado, cáscaras…) con un
+// nº 908… para pagarlos, y manda un Excel de ayuda (Albarán | Ship-To | Operador | Ref. Chófer |
+// Estado) donde "Ref. Chófer" trae fecha + "ALB. nº-de-cantera" + matrícula(s). Hasta hoy la
+// oficina cambiaba los números A MANO uno a uno (16-18 páginas al mes). Este botón lo hace solo:
+//   1) Lee el Excel con SheetJS (sin IA: es texto, lectura determinista).
+//   2) Casa cada fila con UN albarán de la app por Nº (completo o último tramo) + MATRÍCULA.
+//      La fecha NO es requisito (Holcim la pone días después): solo desempata si hay varios.
+//   3) Los que casan: albaran → nº 908 y el nº de cantera queda en observaciones ("Nº cantera: …").
+//   4) Los que NO casan (o son ambiguos): NO se toca nada y salen en un Excel de repaso aparte.
+// Idempotente: re-subir el mismo Excel no rompe nada (los que ya tienen su 908 salen "YA ESTABA").
+async function factExcelAyuda908(files) {
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturación', 'err'); return; }
+  const file = files && files[0];
+  const inp = document.getElementById('factExcel908Input'); if (inp) inp.value = '';
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Recarga la página.', 'err'); return; }
+  setEstado('📗 Leyendo el Excel de ayuda…');
+  let filas = [];
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  } catch (e) { console.error('[v278] leer excel:', e); toast('No pude leer el Excel: ' + (e.message || e), 'err'); setEstado(''); return; }
+  if (!filas.length) { toast('El Excel está vacío.', 'err'); setEstado(''); return; }
+
+  // Cabecera: buscar la fila con "Albarán" y "Ref"/"Chófer"; si no, posiciones 0 y 3 (formato Holcim).
+  let hIdx = 0, colSap = 0, colRef = 3;
+  for (let i = 0; i < Math.min(5, filas.length); i++) {
+    const f = (filas[i] || []).map(c => String(c || '').toLowerCase());
+    const iS = f.findIndex(c => c.includes('albar'));
+    const iR = f.findIndex(c => c.includes('chofer') || c.includes('chófer') || c.includes('ref'));
+    if (iS >= 0 && iR >= 0) { hIdx = i; colSap = iS; colRef = iR; break; }
+  }
+
+  const normNum = s => String(s || '').toUpperCase().replace(/\s+/g, '');
+  const strip0 = s => /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s;
+  const coincideNum = (appNum, exNum) => {
+    const A = normNum(appNum), E = strip0(normNum(exNum));
+    if (!A || !E || E.length < 3) return false;
+    if (strip0(A) === E) return true;
+    const segs = A.split(/[\/\-\.]/).filter(Boolean);
+    return segs.some(s => strip0(s) === E);
+  };
+
+  // Parsear filas del Excel.
+  const items = [];
+  for (let i = hIdx + 1; i < filas.length; i++) {
+    const f = filas[i] || [];
+    const sap = String(f[colSap] || '').trim();
+    if (!/^\d{6,}$/.test(sap)) continue; // sin nº SAP no hay nada que hacer
+    const ref = String(f[colRef] || '').toUpperCase();
+    const mF = ref.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+    const mA = ref.match(/ALB[\.:]?\s*([A-Z0-9\/\-\.]+)/);
+    const mats = ref.match(/\b\d{4}[A-Z]{3}\b/g) || [];
+    items.push({ sap, albX: mA ? mA[1] : '', mat: mats[0] || '', fechaX: mF ? normFecha(mF[1]) : '', res: '', det: '', antes: '', fechaApp: '', transpApp: '' });
+  }
+  if (!items.length) { toast('No encontré filas con nº SAP en el Excel.', 'err'); setEstado(''); return; }
+
+  // Índices de los albaranes de la app.
+  const sapExistentes = new Set(records.map(r => normNum(r.albaran)).filter(Boolean));
+  const porMat = new Map(); // matrícula → [records]
+  for (const r of records) {
+    if (!r.db_id) continue;
+    const m = (typeof matriculaPrincipal === 'function' ? matriculaPrincipal(r.tractora || '') : String(r.tractora || '')).toUpperCase();
+    if (!m) continue;
+    if (!porMat.has(m)) porMat.set(m, []);
+    porMat.get(m).push(r);
+  }
+
+  const cambios = [];
+  for (const it of items) {
+    if (sapExistentes.has(normNum(it.sap))) { it.res = 'YA ESTABA'; it.det = 'Un albarán de la app ya tiene este nº 908'; continue; }
+    if (!it.albX || !it.mat) { it.res = 'SIN DATOS'; it.det = 'La Ref. Chófer no trae nº ALB o matrícula legibles'; continue; }
+    const esNo908 = r => !/^908\d+$/.test(normNum(r.albaran));
+    const cands = (porMat.get(it.mat) || []).filter(r => esNo908(r) && coincideNum(r.albaran, it.albX));
+    if (cands.length === 0) {
+      const sinMat = records.filter(r => r.db_id && esNo908(r) && coincideNum(r.albaran, it.albX));
+      if (sinMat.length === 1) { it.res = 'NO CAMBIADO — MATRÍCULA DISTINTA'; it.det = 'En la app ese nº está con la matrícula ' + (sinMat[0].tractora || '?'); it.antes = sinMat[0].albaran; }
+      else if (sinMat.length > 1) { it.res = 'NO CAMBIADO — Nº REPETIDO'; it.det = 'Ese nº aparece en ' + sinMat.length + ' albaranes de otras matrículas'; }
+      else { it.res = 'NO ENCONTRADO'; it.det = 'Ningún albarán en la app con ese nº'; }
+      continue;
+    }
+    let eleg = cands;
+    if (eleg.length > 1 && it.fechaX) {
+      const exactas = eleg.filter(r => normFecha(r.fecha) === it.fechaX);
+      if (exactas.length) eleg = exactas;
+      if (eleg.length > 1) {
+        const fx = fechaSortNum(it.fechaX);
+        let best = null, bestD = Infinity, empate = false;
+        for (const r of eleg) { const d = Math.abs(fechaSortNum(normFecha(r.fecha)) - fx); if (d < bestD) { bestD = d; best = r; empate = false; } else if (d === bestD) empate = true; }
+        if (!empate && best) eleg = [best];
+      }
+    }
+    if (eleg.length !== 1) { it.res = 'AMBIGUO'; it.det = eleg.length + ' albaranes posibles (mismo nº y matrícula): revisar a mano'; continue; }
+    const r = eleg[0];
+    it.res = 'CAMBIAR'; it.antes = r.albaran; it.fechaApp = r.fecha || ''; it.transpApp = r.transportista || r.tractora || '';
+    cambios.push({ it, r });
+  }
+
+  const nOK = cambios.length;
+  const nYa = items.filter(i => i.res === 'YA ESTABA').length;
+  const nMal = items.length - nOK - nYa;
+  const ok = confirm('📗 Excel de ayuda 908 — ' + items.length + ' filas leídas.\n\n' +
+    '✔ Se cambiarán ' + nOK + ' números (cantera → 908, el nº de cantera queda en observaciones)\n' +
+    '• Ya estaban hechos: ' + nYa + '\n' +
+    '⚠ No casan / a repasar: ' + nMal + ' (NO se tocan; salen en el Excel de repaso)\n\n' +
+    '¿Aplicar los ' + nOK + ' cambios?');
+  if (!ok) { setEstado(''); toast('Cancelado. No se ha cambiado nada.', 'err'); return; }
+
+  // Aplicar en tandas de 10 (memoria + Supabase).
+  let hechos = 0, errs = 0;
+  for (let i = 0; i < cambios.length; i += 10) {
+    const tanda = cambios.slice(i, i + 10);
+    await Promise.all(tanda.map(async c => {
+      try {
+        const marca = 'Nº cantera: ' + String(c.it.antes || '').trim();
+        const obs = String(c.r.observaciones || '');
+        const nuevaObs = obs.includes(marca) ? obs : (obs ? obs + ' | ' : '') + marca;
+        const { error } = await sb.from('albaranes').update({ albaran: c.it.sap, observaciones: nuevaObs }).eq('id', c.r.db_id);
+        if (error) throw error;
+        c.r.albaran = c.it.sap; c.r.observaciones = nuevaObs; c.it.res = 'CAMBIADO ✔'; hechos++;
+      } catch (e) { console.error('[v278] cambio', c.it.sap, e); c.it.res = 'ERROR AL GUARDAR'; c.it.det = String(e.message || e); errs++; }
+    }));
+    setEstado('📗 Cambiando números… ' + Math.min(i + 10, cambios.length) + ' / ' + cambios.length);
+  }
+
+  // Excel de repaso: primero lo que NO casa, luego el resto.
+  try {
+    const orden = v => (v === 'CAMBIADO ✔' ? 2 : v === 'YA ESTABA' ? 1 : 0);
+    const filasRep = items.slice().sort((a, b) => orden(a.res) - orden(b.res)).map(i => ({
+      'RESULTADO': i.res, 'Nº SAP (908)': i.sap, 'Nº cantera (Excel)': i.albX, 'Matrícula': i.mat,
+      'Fecha Excel': i.fechaX, 'Nº en app (antes)': i.antes, 'Fecha app': i.fechaApp, 'Detalle': i.det
+    }));
+    const wb2 = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb2, XLSX.utils.json_to_sheet(filasRep), 'Ayuda 908');
+    XLSX.writeFile(wb2, 'ayuda_908_repaso_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  } catch (e) { console.warn('[v278] excel repaso:', e); }
+
+  if (typeof applyFilters === 'function') applyFilters();
+  setEstado('');
+  toast('📗 Hecho: ' + hechos + ' números cambiados a 908 · ' + nYa + ' ya estaban · ' + nMal + ' a repasar (Excel descargado)' + (errs ? ' · ⚠ ' + errs + ' errores' : ''), errs ? 'err' : 'ok');
+}
+
 async function factSubirAutofacturaHolcim(files) {
   // v271 — CANDADO anti doble subida: si se suelta el PDF dos veces (o dos PDFs a la vez) mientras
   // la IA aún está leyendo, corrían DOS lecturas del mismo papel en paralelo y las dos guardaban →
