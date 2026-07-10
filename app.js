@@ -1874,6 +1874,11 @@ function _toggleModoSel() {
   if (btnFac) btnFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
   const btnNoFac = document.getElementById('btnNoFacturarSel');
   if (btnNoFac) btnNoFac.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
+  // v277 — candado 🔒: mismos permisos que facturar
+  const btnFija = document.getElementById('btnFijarSel');
+  if (btnFija) btnFija.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
+  const btnQFija = document.getElementById('btnQuitarFijaSel');
+  if (btnQFija) btnQFija.style.display = (window._modoSel && _puedeFac) ? 'flex' : 'none';
   // Excel de lo seleccionado: disponible para cualquiera que esté en modo selección.
   const btnExSel = document.getElementById('btnExcelSel');
   if (btnExSel) btnExSel.style.display = window._modoSel ? 'flex' : 'none';
@@ -1914,6 +1919,10 @@ function _selUno() {
   if (spanRec) spanRec.textContent = n;
   const spanNoRec = document.getElementById('selCountNoRec');
   if (spanNoRec) spanNoRec.textContent = n;
+  const spanFija = document.getElementById('selCountFija');   // v277
+  if (spanFija) spanFija.textContent = n;
+  const spanQFija = document.getElementById('selCountQFija'); // v277
+  if (spanQFija) spanQFija.textContent = n;
 }
 
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
@@ -1985,6 +1994,7 @@ async function _noFacturarSeleccionados() {
   for (const r of recs) {
     r.estado_facturacion = 'pendiente';
     r.factura_fecha = null;
+    r.fact_fija = false; // v277: desmarcar a mano también suelta el candado 🔒
     dbIds.push(r.db_id);
     const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
     if (celda) celda.innerHTML = _celdaEstadoHtml(r);
@@ -1994,13 +2004,89 @@ async function _noFacturarSeleccionados() {
   let errN = 0;
   for (const grupo of _chunk(dbIds, 100)) {
     try {
-      const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null }).in('id', grupo);
+      const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, fact_fija: false }).in('id', grupo);
       if (error) throw error;
     } catch (e) { console.error('[v107K11] no facturar lote:', e); errN++; }
   }
   if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron en la base de datos. Vuelve a intentarlo.', 'err');
   else toast('📌 ' + dbIds.length + ' albaranes marcados como NO facturados', 'ok');
 
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
+}
+
+// v277 — 🔒 FIJAR FACTURADOS. Pedido por la oficina (10/07/2026, Marta/Miguel/Mario): lo que
+// ellos fijen queda facturado CON CANDADO (fact_fija=true) y el cruce de Holcim (v276) NO lo puede
+// devolver a pendiente. El candado se quita con 🔓 "Quitar candado" o marcando "No facturados".
+async function _fijarSeleccionados() {
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturar', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const recs = [];
+  for (const id of ids) {
+    const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+    if (r && r.db_id) recs.push(r);
+  }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+  const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como FACTURADOS CON CANDADO 🔒.\n\nEl cruce de Holcim NO les quitará la marca aunque no crucen.\n\n¿Continuar?');
+  if (!ok) return;
+  const fecha = new Date().toISOString();
+  const dbIds = [];
+  for (const r of recs) {
+    r.estado_facturacion = 'facturado';
+    r.factura_fecha = fecha;
+    r.fact_fija = true;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+  }
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try {
+      const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, fact_fija: true }).in('id', grupo);
+      if (error) throw error;
+    } catch (e) { console.error('[v277] fijar lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Marcados en pantalla, pero ' + errN + ' lote(s) no se guardaron. Vuelve a intentarlo.', 'err');
+  else toast('🔒 ' + dbIds.length + ' albaranes facturados y FIJADOS (el cruce no los tocará)', 'ok');
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  if (window._modoSel) _toggleModoSel();
+}
+
+// v277 — 🔓 QUITAR CANDADO: los seleccionados vuelven a obedecer al cruce (sigue facturado
+// si lo estaba, pero el próximo cruce ya puede confirmarlo o devolverlo a pendiente).
+async function _quitarFijaSeleccionados() {
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturar', 'err'); return; }
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const recs = [];
+  for (const id of ids) {
+    const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+    if (r && r.db_id) recs.push(r);
+  }
+  if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
+  const dbIds = [];
+  for (const r of recs) {
+    r.fact_fija = false;
+    dbIds.push(r.db_id);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+  }
+  const _chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  let errN = 0;
+  for (const grupo of _chunk(dbIds, 100)) {
+    try {
+      const { error } = await sb.from('albaranes').update({ fact_fija: false }).in('id', grupo);
+      if (error) throw error;
+    } catch (e) { console.error('[v277] quitar candado lote:', e); errN++; }
+  }
+  if (errN) toast('⚠️ Hecho en pantalla, pero ' + errN + ' lote(s) no se guardaron. Vuelve a intentarlo.', 'err');
+  else toast('🔓 Candado quitado a ' + dbIds.length + ' albaranes (vuelven a obedecer al cruce)', 'ok');
   document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
   const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
   if (window._modoSel) _toggleModoSel();
@@ -8206,7 +8292,9 @@ function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
   const est = r.estado_facturacion || 'pendiente';
   // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
-  if (est === 'facturado')      return _pill('✓ Facturado', '#16a34a', 'Facturado a cliente');
+  if (est === 'facturado')      return r.fact_fija
+    ? _pill('🔒 Facturado', '#0e7490', 'Facturado FIJADO a mano: el cruce de Holcim no lo puede devolver a pendiente')
+    : _pill('✓ Facturado', '#16a34a', 'Facturado a cliente');
   if (est === 'no_facturable')  return _pill('No facturable', '#6b7280', 'No facturable');
   return _pill('Pendiente', '#dc2626', 'Pendiente de facturar al cliente');
 }
@@ -20970,6 +21058,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
   // dicen SIEMPRE lo mismo: cruza (fecha+matrícula+TN exactas o nº) → abonado; no cruza → no abonado.
   // Solo toca albaranes del repaso Holcim y dentro de la ventana del mes (noAbonados ya viene filtrado).
   for (const r of noAbonados) {
+    if (r.fact_fija) continue; // v277 — candado 🔒: fijado a mano por la oficina, el cruce NO lo toca
     if (r.db_id && r.estado_facturacion === 'facturado') {
       r.estado_facturacion = 'pendiente';
       r.factura_fecha = null;
