@@ -20715,14 +20715,18 @@ async function factExcelAyuda908(files) {
   if (!file) return;
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Recarga la página.', 'err'); return; }
   setEstado('📗 Leyendo el Excel de ayuda…');
+  toast('📗 Leyendo el Excel de ayuda… en un momento te pido confirmación', 'ok'); // v279: que se vea que está trabajando
+  const _z908 = document.getElementById('factExcel908Txt');
+  if (_z908) _z908.textContent = '⏳ Leyendo Excel…';
+  const _z908fin = () => { if (_z908) _z908.textContent = '📗 Excel de ayuda (908)'; };
   let filas = [];
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-  } catch (e) { console.error('[v278] leer excel:', e); toast('No pude leer el Excel: ' + (e.message || e), 'err'); setEstado(''); return; }
-  if (!filas.length) { toast('El Excel está vacío.', 'err'); setEstado(''); return; }
+  } catch (e) { console.error('[v278] leer excel:', e); toast('No pude leer el Excel: ' + (e.message || e), 'err'); setEstado(''); _z908fin(); return; }
+  if (!filas.length) { toast('El Excel está vacío.', 'err'); setEstado(''); _z908fin(); return; }
 
   // Cabecera: buscar la fila con "Albarán" y "Ref"/"Chófer"; si no, posiciones 0 y 3 (formato Holcim).
   let hIdx = 0, colSap = 0, colRef = 3;
@@ -20755,7 +20759,7 @@ async function factExcelAyuda908(files) {
     const mats = ref.match(/\b\d{4}[A-Z]{3}\b/g) || [];
     items.push({ sap, albX: mA ? mA[1] : '', mat: mats[0] || '', fechaX: mF ? normFecha(mF[1]) : '', res: '', det: '', antes: '', fechaApp: '', transpApp: '' });
   }
-  if (!items.length) { toast('No encontré filas con nº SAP en el Excel.', 'err'); setEstado(''); return; }
+  if (!items.length) { toast('No encontré filas con nº SAP en el Excel.', 'err'); setEstado(''); _z908fin(); return; }
 
   // Índices de los albaranes de la app.
   const sapExistentes = new Set(records.map(r => normNum(r.albaran)).filter(Boolean));
@@ -20806,7 +20810,7 @@ async function factExcelAyuda908(files) {
     '• Ya estaban hechos: ' + nYa + '\n' +
     '⚠ No casan / a repasar: ' + nMal + ' (NO se tocan; salen en el Excel de repaso)\n\n' +
     '¿Aplicar los ' + nOK + ' cambios?');
-  if (!ok) { setEstado(''); toast('Cancelado. No se ha cambiado nada.', 'err'); return; }
+  if (!ok) { setEstado(''); _z908fin(); toast('Cancelado. No se ha cambiado nada.', 'err'); return; }
 
   // Aplicar en tandas de 10 (memoria + Supabase).
   let hechos = 0, errs = 0;
@@ -20837,9 +20841,59 @@ async function factExcelAyuda908(files) {
     XLSX.writeFile(wb2, 'ayuda_908_repaso_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   } catch (e) { console.warn('[v278] excel repaso:', e); }
 
+  // v280 — dejar constancia del Excel de ayuda pasado (para la lista "AYUDAS SUBIDAS").
+  try {
+    const cnt = {};
+    items.forEach(i => { const m = (i.fechaX || '').slice(3); if (m) cnt[m] = (cnt[m] || 0) + 1; });
+    let mesTop = ''; let mx = 0;
+    Object.keys(cnt).forEach(m => { if (cnt[m] > mx) { mx = cnt[m]; mesTop = m; } });
+    const mesLog = mesTop ? (mesTop.slice(3) + '-' + mesTop.slice(0, 2)) : ''; // MM/AAAA → AAAA-MM
+    await sb.from('excel_ayuda_908').insert({
+      fichero: file.name || 'excel_ayuda.xlsx', mes: mesLog || null,
+      subido_por: (currentUser && currentUser.email) || '',
+      filas: items.length, cambiados: hechos, ya_estaban: nYa, a_repasar: nMal
+    });
+  } catch (e) { console.warn('[v280] registro ayuda:', e); }
+
   if (typeof applyFilters === 'function') applyFilters();
   setEstado('');
+  _z908fin();
   toast('📗 Hecho: ' + hechos + ' números cambiados a 908 · ' + nYa + ' ya estaban · ' + nMal + ' a repasar (Excel descargado)' + (errs ? ' · ⚠ ' + errs + ' errores' : ''), errs ? 'err' : 'ok');
+}
+
+// v280 — 📗 AYUDAS SUBIDAS: lista de los Excels de ayuda (908) ya pasados, con sus cuentas.
+async function factVerAyudas908() {
+  const div = document.getElementById('factAyudas908Lista');
+  if (!div) return;
+  if (div.style.display !== 'none') { div.style.display = 'none'; return; }
+  div.style.display = 'block';
+  div.innerHTML = '<span style="color:var(--mu)">Cargando…</span>';
+  try {
+    const { data, error } = await sb.from('excel_ayuda_908')
+      .select('*').order('subido_el', { ascending: false }).limit(50);
+    if (error) throw error;
+    if (!data || !data.length) { div.innerHTML = '<span style="color:var(--mu)">Todavía no se ha pasado ningún Excel de ayuda.</span>'; return; }
+    const fmtF = s => { try { const d = new Date(s); return d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return s || ''; } };
+    let html = '<table style="border-collapse:collapse;font-family:var(--mn);font-size:11px;width:100%"><tr style="text-align:left;color:var(--mu)">'
+      + '<th style="padding:3px 8px">Subido el</th><th style="padding:3px 8px">Fichero</th><th style="padding:3px 8px">Mes</th>'
+      + '<th style="padding:3px 8px">Filas</th><th style="padding:3px 8px">Cambiados</th><th style="padding:3px 8px">Ya estaban</th>'
+      + '<th style="padding:3px 8px">A repasar</th><th style="padding:3px 8px">Por</th></tr>';
+    for (const r of data) {
+      html += '<tr style="border-top:1px solid var(--bd)">'
+        + '<td style="padding:3px 8px;white-space:nowrap">' + fmtF(r.subido_el) + '</td>'
+        + '<td style="padding:3px 8px">' + (r.fichero || '') + '</td>'
+        + '<td style="padding:3px 8px;white-space:nowrap">' + (r.mes ? _factMesBonito(r.mes) : '—') + '</td>'
+        + '<td style="padding:3px 8px">' + (r.filas ?? '') + '</td>'
+        + '<td style="padding:3px 8px;color:#15803d;font-weight:700">' + (r.cambiados ?? '') + '</td>'
+        + '<td style="padding:3px 8px">' + (r.ya_estaban ?? '') + '</td>'
+        + '<td style="padding:3px 8px;color:#b45309;font-weight:700">' + (r.a_repasar ?? '') + '</td>'
+        + '<td style="padding:3px 8px">' + String(r.subido_por || '').split('@')[0] + '</td></tr>';
+    }
+    div.innerHTML = html + '</table>';
+  } catch (e) {
+    console.error('[v280] ver ayudas:', e);
+    div.innerHTML = '<span style="color:var(--er)">No pude cargar la lista: ' + (e.message || e) + '</span>';
+  }
 }
 
 async function factSubirAutofacturaHolcim(files) {
