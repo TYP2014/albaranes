@@ -21025,6 +21025,11 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const sinAlbaran = [];
   const idsMatched = new Set(); // abonados + posibles (para no marcarlos "no abonados")
   const usados = new Set();
+  const dupPago = [];    // v283 — CASUÍSTICA ADEC (JC 10/07/2026): el MISMO nº viene en DOS liquidaciones
+                         // (ej. 908000044750/49: pagados en mayo y repetidos en la preliquidación de junio con
+                         // fecha administrativa 01/06). Antes la 2ª línea se casaba OTRA VEZ con el mismo
+                         // albarán (o se tragaba en silencio) → riesgo de duplicar el cobro (~327€). Ahora la
+                         // 2ª línea NO se incorpora: va a este aviso de POSIBLE DUPLICIDAD para revisión manual.
 
   // v107GC — clasificación de cada línea de Holcim en 3 destinos:
   //   ABONADOS (verde solo): cuadra por nº de albarán, O materia prima con fecha+matrícula+TN EXACTAS.
@@ -21068,14 +21073,18 @@ function _factProcesarYMostrarHolcim(setEstado) {
       // CADA fila del nº como ABONADA, para que se vea que TODAS las líneas están pagadas. Sin la
       // nota de "TN no coincide" (esa comparaba con una sola línea de Holcim, aquí no tiene sentido).
       if (cand.length > 1) {
+        let alguno = false; // v283
         cand.forEach(c => {
           if (!c.db_id || idsMatched.has(String(c.db_id))) return;
           idsMatched.add(String(c.db_id)); usados.add(String(c.db_id));
           abonados.push({ linea: L, rec: c, difs: [], modo: 'nº albarán (multimaterial — entrega pagada entera)' });
+          alguno = true;
         });
+        if (!alguno) dupPago.push({ linea: L, rec: cand[0] }); // v283: nº ya consumido por otra línea → posible duplicidad
         return;
       }
-      const match = cand.find(c => !usados.has(String(c.db_id))) || cand[0];
+      const match = cand.find(c => !usados.has(String(c.db_id)));
+      if (!match) { dupPago.push({ linea: L, rec: cand[0] }); return; } // v283: este nº YA lo pagó otra línea de la ventana → aviso, NO se casa dos veces
       const difs = [];
       const matR = _factNormMat(match.tractora);
       if (matL && matR && matL !== matR) difs.push('matrícula (tú: ' + (match.tractora || '—') + ' / Holcim: ' + (L.matricula || '—') + ')');
@@ -21255,7 +21264,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
   const posiblesVent = posibles.filter(_fAbonVent);
   const sinAlbaranVent = sinAlbaran.filter(L => _fechaEnVentana(L.fecha));
 
-  _factHolcimUltimo = { abonados: abonadosVent, posibles: posiblesVent, noAbonados, sinAlbaran: sinAlbaranVent, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
+  _factHolcimUltimo = { abonados: abonadosVent, posibles: posiblesVent, noAbonados, sinAlbaran: sinAlbaranVent, dupPago, fichero: _factMesBonito(_factHolcimMesActual) + ' — ' + _factHolcimFicheros.join('  +  '), fecha: new Date() };
   window._factHolcimMatSel = null; // v107J40: empezar siempre mostrando TODOS los materiales
   window._factExcelMarcadas = new Set(); // v107J50: empezar sin familias marcadas para el Excel
 
@@ -21289,7 +21298,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
     }
   }
 
-  setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia.');
+  setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia.' + (dupPago.length ? ' · 🔁 ' + dupPago.length + ' POSIBLE(S) DUPLICIDAD(ES) — mira el informe' : ''));
   _factHolcimMostrarInforme();
   toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia', 'ok');
 }
@@ -21494,6 +21503,27 @@ function _factHolcimMostrarInforme() {
     h += '</div>';
   }
   h += '</div>';
+
+  // v283 — CASUÍSTICA ADEC (JC 10/07/2026): líneas cuyo nº YA fue pagado por OTRA línea de la
+  // ventana (ej. pagado en mayo y repetido en la preliquidación de junio con fecha administrativa).
+  // NO se incorporan al ciclo: solo aviso para revisión manual. La fecha mostrada del albarán es
+  // SIEMPRE la de la app (la del documento físico); la de la línea es la administrativa de Holcim.
+  const _dups = (u.dupPago || []);
+  if (_dups.length) {
+    h += '<div style="margin-bottom:14px;border:1px solid #b45309;border-radius:8px;padding:8px;background:rgba(180,83,9,.08)">';
+    h += '<div style="font-weight:700;color:#f59e0b;margin-bottom:8px">🔁 POSIBLE DUPLICIDAD — Holcim repite el nº en DOS liquidaciones (' + _dups.length + ')</div>';
+    h += '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Estas líneas NO se han incorporado al ciclo (el albarán ya quedó pagado por otra línea). Revisa a mano si Holcim está pagando dos veces el mismo porte.</div>';
+    h += '<div style="font-size:12px;line-height:1.6">';
+    _dups.forEach(d => {
+      const r = d.rec || {}; const L = d.linea || {};
+      h += '<div style="padding:4px 0;border-bottom:1px solid var(--bd)">'
+        + '<b>' + esc(L.num_entrega || r.albaran) + '</b> · ' + esc(r.tractora || L.matricula || '') 
+        + ' · fecha app: <b>' + esc(r.fecha || '—') + '</b> · fecha liquidación: ' + esc(L.fecha || '—')
+        + ' · ' + esc(L.tn || r.tm || '') + ' TN · ' + esc(L.valor_neto || '') + '€'
+        + ' · estado: ' + esc(r.estado_facturacion === 'facturado' ? (r.fact_fija ? '🔒 Facturado' : '✓ Facturado') : (r.estado_facturacion || 'pendiente')) + '</div>';
+    });
+    h += '</div></div>';
+  }
 
   h += '<div style="margin-bottom:6px">';
   h += '<div style="font-weight:700;color:#7cc4ff;margin-bottom:8px">📋 ABONADOS SIN COPIA DE ALBARÁN (' + _fSin.length + ')</div>';
