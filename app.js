@@ -21089,6 +21089,30 @@ async function _factSubirAutofacturaHolcim0(files) {
     toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de esta liquidación. Vuelve a subirla para completarla.', 'err');
   }
 
+  // v294 — FILTRO DEFENSIVO: tirar las líneas de PORTE SIN MATERIAL (concepto vacío) antes de contar
+  // y guardar. En los Garraf (PDF súper uniforme) la IA tartamudea y suelta copias que pierden el
+  // material; el reemplazo v273 borra por material, así que esas vacías NUNCA se limpiaban y se
+  // acumulaban (caso 11/07: 154 líneas vacías coladas en el Garraf de junio). Una línea de porte de
+  // verdad SIEMPRE trae material. Se respetan los AJUSTES (sin nº de albarán): esos sí pueden no
+  // llevar material. Solo Holcim (esta función es solo Holcim; CEMEX no se toca).
+  {
+    const antes = lineas.length;
+    lineas = lineas.filter(L => {
+      if (!L) return false;
+      const sinMaterial = !String(L.concepto || '').trim();
+      const tieneAlbaran = !!String(L.numero_albaran || '').trim();
+      const esAjuste = (L.es_ajuste === true);
+      // porte (con nº de albarán) SIN material y que no es ajuste = basura del OCR → fuera.
+      return !(sinMaterial && tieneAlbaran && !esAjuste);
+    });
+    const fuera = antes - lineas.length;
+    if (fuera > 0) console.log('[v294] ' + fuera + ' línea(s) de porte SIN material (basura del OCR) descartadas antes de guardar.');
+  }
+  if (!lineas.length) {
+    setEstado('⚠️ Tras descartar las líneas sin material no queda nada que guardar. Revisa el PDF.');
+    return;
+  }
+
   // v107J37: comprobar contra el TOTAL declarado en el PDF ("NNN Envíos").
   // Lo importante es NO dejarse líneas. Si leemos MENOS que el total, avisar fuerte.
   // v288: el total declarado se lee AHORA DEL PROPIO PDF con pdf.js (determinista, sin IA).
