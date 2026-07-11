@@ -20958,20 +20958,26 @@ async function _factEnviosDeclaradosPdf(file) {
     for (let p = desde; p <= pdf.numPages; p++) {
       const pg = await pdf.getPage(p);
       const tc = await pg.getTextContent();
-      const txt = tc.items.map(i => i.str).join(' ');
+      // v290 — los PDF de SAP sacan los acentos SUELTOS ("Espa ñ a", "n º 20" — visto en la
+      // muestra real del 11/07): "Envíos" puede venir como "Env í os" y no se reconocía.
+      // Se APLANA el texto: acentos fuera (NFD) y solo letras/números/espacios, antes de buscar.
+      const txt = tc.items.map(i => i.str).join(' ')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       if (!muestra && txt.trim()) muestra = txt.slice(0, 160);
-      // v289 — los PDF de SAP/Holcim a veces salen de pdf.js TROCEADOS letra a letra
-      // ("1 7 8  E n v í o s"), y el regex normal no los ve. Éste tolera espacios entre
-      // letras y dígitos; el número se limpia quedándose solo con las cifras.
-      const re = /([\d][\d\s.,]*)E\s*n\s*v\s*[íi]?\s*o\s*s/gi;
+      const re = /([\d][\d\s.,]*)E\s*n\s*v\s*i?\s*o\s*s/gi;
       let m;
       while ((m = re.exec(txt)) !== null) {
         const n = parseInt(String(m[1]).replace(/[^\d]/g, ''), 10);
         if (!isNaN(n) && n > 0 && n < 100000 && (mejor === null || n > mejor)) mejor = n;
       }
+      // chivato fino: si en esta página aparece "Env" pero no cazamos número, enseñar el trozo exacto
+      if (mejor === null) {
+        const pos = txt.search(/E\s*n\s*v/i);
+        if (pos >= 0 && !muestra.includes('__ENV__')) muestra = '__ENV__ pág ' + p + ': ' + JSON.stringify(txt.slice(Math.max(0, pos - 40), pos + 30));
+      }
     }
     if (mejor !== null) console.log('[v288] envíos declarados leídos del PDF (sin IA):', mejor);
-    else console.warn('[v288] el PDF no dice cuántos envíos son (¿escaneo o formato nuevo?). Muestra del texto: ' + JSON.stringify(muestra));
+    else console.warn('[v288] el PDF no dice cuántos envíos son (¿escaneo o formato nuevo?). Muestra: ' + muestra);
     return mejor;
   } catch (e) { console.warn('[v288] no pude leer los envíos del PDF:', e); return null; }
 }
