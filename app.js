@@ -20990,6 +20990,46 @@ async function _factSubirAutofacturaHolcim0(files) {
       if (leidas < declaradas) {
         const faltan = declaradas - leidas;
         toast('⚠️ ATENCIÓN: el PDF dice ' + declaradas + ' envíos y solo he leído ' + leidas + '. FALTAN ' + faltan + ' líneas. Vuelve a subirla para que las lea todas.', 'err');
+      } else if (leidas > declaradas) {
+        // v287 (la "v274-bis" pendiente) — RECORTE POR ENVÍOS DECLARADOS. Si la IA lee MÁS líneas
+        // de las que el propio PDF declara ("NNN Envíos"), el exceso es tartamudeo del OCR: copias
+        // repetidas de líneas reales (caso real 09/07/2026: yeso de junio leído con 206 líneas cuando
+        // el PDF declara 178 → 28 fantasmas que hubo que limpiar con SQL). Regla determinista:
+        //   - Solo se recortan COPIAS (la 1ª aparición de cada línea nunca se toca).
+        //   - Se quita primero de las líneas MÁS repetidas (una ×4 es más sospechosa que una ×2,
+        //     que puede ser un viaje doble real), quitando siempre la ÚLTIMA copia leída.
+        //   - Se recorta hasta cuadrar con el total declarado; si no hay copias suficientes, se
+        //     recorta lo que haya y se avisa (algo raro pasó: mejor humano al mando).
+        const exceso0 = leidas - declaradas;
+        const _kL = (L) => [_factNormAlb(L.num_entrega), _factFechaBarra(L.fecha), _factNormMat(L.matricula),
+          (isNaN(_factNum(L.tn)) ? '' : _factNum(L.tn).toFixed(2)), String(L.material || '').toUpperCase().trim()].join('|');
+        const grupos = new Map(); // clave → [índices en orden de lectura]
+        lineas.forEach((L, i) => {
+          if (!L || L._control) return;
+          if (!String(L.num_entrega || '').trim()) return; // ajustes/sin nº: no se recortan
+          const k = _kL(L);
+          if (!grupos.has(k)) grupos.set(k, []);
+          grupos.get(k).push(i);
+        });
+        const quitar = new Set();
+        let exceso = exceso0;
+        while (exceso > 0) {
+          let mejorK = null, mejorN = 1;
+          grupos.forEach((idxs, k) => { const n = idxs.length - [...idxs].filter(i => quitar.has(i)).length; if (n > mejorN) { mejorN = n; mejorK = k; } });
+          if (!mejorK) break; // no quedan copias que quitar
+          const vivos = grupos.get(mejorK).filter(i => !quitar.has(i));
+          quitar.add(vivos[vivos.length - 1]); // la ÚLTIMA copia leída
+          exceso--;
+        }
+        if (quitar.size) {
+          console.warn('[v287] recorte por envíos declarados: ' + quitar.size + ' copia(s) sobrante(s) quitada(s) de ' + exceso0 + ' de exceso (PDF declara ' + declaradas + ').');
+          lineas = lineas.filter((L, i) => !quitar.has(i));
+        }
+        if (exceso > 0) {
+          toast('⚠️ El PDF declara ' + declaradas + ' envíos y he leído ' + leidas + '. He recortado ' + quitar.size + ' copia(s) repetida(s) pero sobran ' + exceso + ' que no son copias — revisa el cruce de este material.', 'err');
+        } else {
+          toast('✂️ Leí ' + leidas + ' líneas pero el PDF declara ' + declaradas + ' envíos: he quitado ' + quitar.size + ' copia(s) repetida(s) del OCR. Guardadas ' + lineas.length + ', clavadas al papel.', 'ok');
+        }
       } else {
         toast('✅ Leídas ' + leidas + ' líneas (el PDF declara ' + declaradas + ' envíos). No falta ninguna.', 'ok');
       }
