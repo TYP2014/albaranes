@@ -8069,7 +8069,16 @@ function applyFilters() {
   renderTable();
   const vf = filtered.filter(r => !r._dup), tmf = vf.reduce((s, r) => s + (parseFloat(r.tm) || 0), 0);
   const rc = document.getElementById('resCount');
-  if (rc) rc.textContent = filtered.length === records.length ? `${records.length} albaranes` : `${filtered.length} de ${records.length} · ${tmf.toFixed(3)} TN`;
+  // v286 — pedido JC (11/07/2026): con filtros activos, el contador sale GRANDE, en negrita y negro,
+  // con etiqueta corta encima ("TN FILTRADAS"), para leer el total de un vistazo durante el repaso.
+  if (rc) {
+    if (filtered.length === records.length) {
+      rc.textContent = `${records.length} albaranes`;
+    } else {
+      rc.innerHTML = '<span style="display:block;font-size:9px;letter-spacing:.6px;color:var(--mu);text-align:right;line-height:1.2">TN FILTRADAS</span>'
+        + '<b style="font-size:15px;color:#111;line-height:1.2">' + filtered.length + ' de ' + records.length + ' · ' + tmf.toFixed(3) + ' TN</b>';
+    }
+  }
   buildDropdowns();
   // v100c: detectar si hay algún filtro activo. Antes (v99c) usaba variables `prov`, `origen`,
   // `dest`, `mat2`, `subidoPor` que YA NO EXISTEN porque las convertí a multi-select. Ese
