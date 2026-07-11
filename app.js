@@ -20947,25 +20947,31 @@ async function factSubirAutofacturaHolcim(files) {
 // queda el control de la IA como respaldo.
 async function _factEnviosDeclaradosPdf(file) {
   try {
-    if (typeof pdfjsLib === 'undefined' || !file) return null;
+    if (typeof pdfjsLib === 'undefined' || !file) { console.warn('[v288] sin pdf.js o sin fichero — no puedo leer los envíos declarados'); return null; }
     const ab = await file.arrayBuffer();
     const work = pdfjsLib.getDocument({ data: ab }).promise;
     const to = new Promise((_, rej) => setTimeout(() => rej(new Error('pdf.js no respondió')), 20000));
     const pdf = await Promise.race([work, to]);
     let mejor = null;
+    let muestra = '';
     const desde = Math.max(1, pdf.numPages - 5); // últimas 6 páginas (ahí viven los totales)
     for (let p = desde; p <= pdf.numPages; p++) {
       const pg = await pdf.getPage(p);
       const tc = await pg.getTextContent();
       const txt = tc.items.map(i => i.str).join(' ');
-      const re = /([\d.,]+)\s*Env[íi]os/gi;
+      if (!muestra && txt.trim()) muestra = txt.slice(0, 160);
+      // v289 — los PDF de SAP/Holcim a veces salen de pdf.js TROCEADOS letra a letra
+      // ("1 7 8  E n v í o s"), y el regex normal no los ve. Éste tolera espacios entre
+      // letras y dígitos; el número se limpia quedándose solo con las cifras.
+      const re = /([\d][\d\s.,]*)E\s*n\s*v\s*[íi]?\s*o\s*s/gi;
       let m;
       while ((m = re.exec(txt)) !== null) {
-        const n = parseInt(String(m[1]).replace(/[.,]/g, ''), 10);
-        if (!isNaN(n) && n > 0 && (mejor === null || n > mejor)) mejor = n;
+        const n = parseInt(String(m[1]).replace(/[^\d]/g, ''), 10);
+        if (!isNaN(n) && n > 0 && n < 100000 && (mejor === null || n > mejor)) mejor = n;
       }
     }
     if (mejor !== null) console.log('[v288] envíos declarados leídos del PDF (sin IA):', mejor);
+    else console.warn('[v288] el PDF no dice cuántos envíos son (¿escaneo o formato nuevo?). Muestra del texto: ' + JSON.stringify(muestra));
     return mejor;
   } catch (e) { console.warn('[v288] no pude leer los envíos del PDF:', e); return null; }
 }
