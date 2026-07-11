@@ -21079,6 +21079,13 @@ async function _factSubirAutofacturaHolcim0(files) {
   {
     const leidas = lineas.length;
     const declaradas = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
+    // v292 — si NADIE encontró el total (ni pdf.js, ni mini-consulta, ni control de la IA), casi
+    // seguro que el PDF está RECORTADO sin la hoja de totales (caso real 11/07: YESO-JUNIO26.pdf
+    // tenía 7 páginas de las 13 del INVOIC original). Sin esa hoja no se puede comprobar que no
+    // falten ni sobren líneas → avisar claro para que suban el PDF COMPLETO tal cual llega de Holcim.
+    if (isNaN(declaradas) || declaradas <= 0) {
+      toast('⚠️ Este PDF NO trae la hoja de totales ("NNN Envíos") — parece RECORTADO. He guardado las ' + leidas + ' líneas leídas, pero sin esa hoja no puedo comprobar que no falten ni sobren. Sube mejor el PDF COMPLETO tal cual llega de Holcim (INVOIC…).', 'err');
+    }
     if (!isNaN(declaradas) && declaradas > 0) {
       if (leidas < declaradas) {
         const faltan = declaradas - leidas;
