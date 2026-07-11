@@ -21089,27 +21089,41 @@ async function _factSubirAutofacturaHolcim0(files) {
     toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de esta liquidación. Vuelve a subirla para completarla.', 'err');
   }
 
-  // v294 — FILTRO DEFENSIVO: tirar las líneas de PORTE SIN MATERIAL (concepto vacío) antes de contar
-  // y guardar. En los Garraf (PDF súper uniforme) la IA tartamudea y suelta copias que pierden el
-  // material; el reemplazo v273 borra por material, así que esas vacías NUNCA se limpiaban y se
-  // acumulaban (caso 11/07: 154 líneas vacías coladas en el Garraf de junio). Una línea de porte de
-  // verdad SIEMPRE trae material. Se respetan los AJUSTES (sin nº de albarán): esos sí pueden no
-  // llevar material. Solo Holcim (esta función es solo Holcim; CEMEX no se toca).
+  // v294/v295 — FILTRO DEFENSIVO contra líneas que NO son portes. El Garraf del 11/07 destapó QUÉ
+  // eran las vacías que se colaban: la IA lee las páginas de RESUMEN del PDF ("Subtotal por vehiculo
+  // 0444MYX/R0626BBX  238,515 T  1.577,04 EUR  9 Envíos") como si fueran portes → llegan SIN nº de
+  // albarán, SIN fecha y SIN material, pero CON matrícula + TN + importe (76 coladas, calcadas a los
+  // subtotales por camión). El v294 solo tiraba las que traían nº de albarán → se escaparon. Ahora:
+  //   a) porte con nº de albarán y SIN material → basura del OCR (v294, se mantiene);
+  //   b) sin albarán, sin fecha y sin material, pero CON matrícula y TN → subtotal por camión, fuera;
+  //   c) la fila de total del PDF leída como línea ("TRANSPORTE SIN IMPUESTOS" / "TOTAL TRANSPORTE").
+  // Los AJUSTES de verdad (abonos: sin albarán, con importe, sin matrícula ni TN) SIGUEN PASANDO.
+  // Solo Holcim (esta función es solo Holcim; CEMEX no se toca).
   {
     const antes = lineas.length;
+    const _t = (x) => String(x == null ? '' : x).trim();
     lineas = lineas.filter(L => {
       if (!L) return false;
-      const sinMaterial = !String(L.concepto || '').trim();
-      const tieneAlbaran = !!String(L.numero_albaran || '').trim();
-      const esAjuste = (L.es_ajuste === true);
-      // porte (con nº de albarán) SIN material y que no es ajuste = basura del OCR → fuera.
-      return !(sinMaterial && tieneAlbaran && !esAjuste);
+      if (L._control) return true; // objeto de control de la IA: se procesa aparte, no tocarlo
+      const mat = _t(L.concepto);
+      const alb = _t(L.numero_albaran);
+      const fec = _t(L.fecha);
+      const matricula = _t(L.matricula);
+      const tn = _factNum(L.tn);
+      // c) fila de total del PDF disfrazada de línea
+      const matU = mat.toUpperCase();
+      if (!alb && (matU.indexOf('TRANSPORTE SIN IMPUESTOS') >= 0 || matU.indexOf('TOTAL TRANSPORTE') >= 0)) return false;
+      if (mat) return true; // con material y no es fila de total: porte normal, pasa
+      // sin material:
+      if (alb) return false; // a) porte sin material = basura del OCR
+      if (!fec && matricula && !isNaN(tn) && tn > 0) return false; // b) subtotal por camión
+      return true; // ajuste/abono de verdad: pasa
     });
     const fuera = antes - lineas.length;
-    if (fuera > 0) console.log('[v294] ' + fuera + ' línea(s) de porte SIN material (basura del OCR) descartadas antes de guardar.');
+    if (fuera > 0) console.log('[v295] ' + fuera + ' línea(s) descartadas antes de guardar (subtotales por camión, filas de total o portes sin material — no son portes).');
   }
   if (!lineas.length) {
-    setEstado('⚠️ Tras descartar las líneas sin material no queda nada que guardar. Revisa el PDF.');
+    setEstado('⚠️ Tras descartar las líneas de resumen/sin material no queda nada que guardar. Revisa el PDF.');
     return;
   }
 
