@@ -20938,6 +20938,38 @@ async function factSubirAutofacturaHolcim(files) {
   try { return await _factSubirAutofacturaHolcim0(files); }
   finally { window._factSubiendoHolcim = false; }
 }
+// v288 — TOTAL DE ENVÍOS LEÍDO DEL PROPIO PDF, SIN IA (determinista). El recorte v287 dependía
+// de que la IA devolviera la fila de control ("178 Envíos")… y a veces no la devuelve (comprobado
+// 11/07/2026: lectura del yeso con 234 líneas guardadas porque faltó el control). Regla de la casa:
+// lo determinista va en CÓDIGO. Aquí se extrae el texto de las ÚLTIMAS páginas con pdf.js y se
+// toma el MAYOR "NNN Envíos" que aparezca (los subtotales por camión son pequeños; el mayor es el
+// "Total transporte" global). Si pdf.js no está o el PDF es una imagen escaneada, devuelve null y
+// queda el control de la IA como respaldo.
+async function _factEnviosDeclaradosPdf(file) {
+  try {
+    if (typeof pdfjsLib === 'undefined' || !file) return null;
+    const ab = await file.arrayBuffer();
+    const work = pdfjsLib.getDocument({ data: ab }).promise;
+    const to = new Promise((_, rej) => setTimeout(() => rej(new Error('pdf.js no respondió')), 20000));
+    const pdf = await Promise.race([work, to]);
+    let mejor = null;
+    const desde = Math.max(1, pdf.numPages - 5); // últimas 6 páginas (ahí viven los totales)
+    for (let p = desde; p <= pdf.numPages; p++) {
+      const pg = await pdf.getPage(p);
+      const tc = await pg.getTextContent();
+      const txt = tc.items.map(i => i.str).join(' ');
+      const re = /([\d.,]+)\s*Env[íi]os/gi;
+      let m;
+      while ((m = re.exec(txt)) !== null) {
+        const n = parseInt(String(m[1]).replace(/[.,]/g, ''), 10);
+        if (!isNaN(n) && n > 0 && (mejor === null || n > mejor)) mejor = n;
+      }
+    }
+    if (mejor !== null) console.log('[v288] envíos declarados leídos del PDF (sin IA):', mejor);
+    return mejor;
+  } catch (e) { console.warn('[v288] no pude leer los envíos del PDF:', e); return null; }
+}
+
 async function _factSubirAutofacturaHolcim0(files) {
   const file = files && files[0];
   const inp = document.getElementById('factHolcimFileInput');
@@ -20982,10 +21014,14 @@ async function _factSubirAutofacturaHolcim0(files) {
 
   // v107J37: comprobar contra el TOTAL declarado en el PDF ("NNN Envíos").
   // Lo importante es NO dejarse líneas. Si leemos MENOS que el total, avisar fuerte.
+  // v288: el total declarado se lee AHORA DEL PROPIO PDF con pdf.js (determinista, sin IA).
+  // El objeto de control de la IA queda solo como RESPALDO por si el PDF fuera un escaneo.
   const _ctrl = window._factControl;
-  if (_ctrl && _ctrl.envios) {
+  const _envPdf = await _factEnviosDeclaradosPdf(file);
+  const _envCtrl = (_ctrl && _ctrl.envios) ? parseInt(_ctrl.envios, 10) : NaN;
+  {
     const leidas = lineas.length;
-    const declaradas = parseInt(_ctrl.envios, 10);
+    const declaradas = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
     if (!isNaN(declaradas) && declaradas > 0) {
       if (leidas < declaradas) {
         const faltan = declaradas - leidas;
