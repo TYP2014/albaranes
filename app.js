@@ -20938,48 +20938,69 @@ async function factSubirAutofacturaHolcim(files) {
   try { return await _factSubirAutofacturaHolcim0(files); }
   finally { window._factSubiendoHolcim = false; }
 }
-// v288 — TOTAL DE ENVÍOS LEÍDO DEL PROPIO PDF, SIN IA (determinista). El recorte v287 dependía
-// de que la IA devolviera la fila de control ("178 Envíos")… y a veces no la devuelve (comprobado
-// 11/07/2026: lectura del yeso con 234 líneas guardadas porque faltó el control). Regla de la casa:
-// lo determinista va en CÓDIGO. Aquí se extrae el texto de las ÚLTIMAS páginas con pdf.js y se
-// toma el MAYOR "NNN Envíos" que aparezca (los subtotales por camión son pequeños; el mayor es el
-// "Total transporte" global). Si pdf.js no está o el PDF es una imagen escaneada, devuelve null y
-// queda el control de la IA como respaldo.
+// v288/v293 — TOTAL DE ENVÍOS LEÍDO DEL PROPIO PDF, SIN IA (determinista). El recorte v287 dependía
+// de que la IA devolviera la fila de control ("178 Envíos")… y a veces no la devuelve. Regla de la
+// casa: lo determinista va en CÓDIGO.
+// v293 (bug Garraf 11/07): una autofactura de Holcim puede traer VARIAS liquidaciones pegadas en un
+// mismo PDF (varios "Subtotal por PO ... N Envíos", cada uno con su "Total transporte"). El total
+// GLOBAL NO aparece como una sola cifra: hay que SUMAR los subtotales por PO. El código viejo (v288)
+// solo miraba las ÚLTIMAS 6 páginas y cogía el MAYOR "N Envíos" -> en el Garraf de junio cogió 190
+// (el total de la 2ª liquidación) en vez de 690 (500 + 190) -> la tijera recortó contra un objetivo
+// falso. Ahora: se lee TODO el PDF y se SUMAN los "Subtotal por PO" (o, si no hay, los "Subtotal
+// por destino"); como último recurso, el mayor "N Envíos" (formato antiguo de una sola liquidación).
 async function _factEnviosDeclaradosPdf(file) {
   try {
-    if (typeof pdfjsLib === 'undefined' || !file) { console.warn('[v288] sin pdf.js o sin fichero — no puedo leer los envíos declarados'); return null; }
+    if (typeof pdfjsLib === 'undefined' || !file) { console.warn('[v293] sin pdf.js o sin fichero — no puedo leer los envíos declarados'); return null; }
     const ab = await file.arrayBuffer();
     const work = pdfjsLib.getDocument({ data: ab }).promise;
     const to = new Promise((_, rej) => setTimeout(() => rej(new Error('pdf.js no respondió')), 20000));
     const pdf = await Promise.race([work, to]);
-    let mejor = null;
-    let muestra = '';
-    const desde = Math.max(1, pdf.numPages - 5); // últimas 6 páginas (ahí viven los totales)
-    for (let p = desde; p <= pdf.numPages; p++) {
+    // Se concatena el texto de TODAS las páginas y se aplana (acentos SUELTOS del SAP: "Env i os").
+    let full = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
       const pg = await pdf.getPage(p);
       const tc = await pg.getTextContent();
-      // v290 — los PDF de SAP sacan los acentos SUELTOS ("Espa ñ a", "n º 20" — visto en la
-      // muestra real del 11/07): "Envíos" puede venir como "Env í os" y no se reconocía.
-      // Se APLANA el texto: acentos fuera (NFD) y solo letras/números/espacios, antes de buscar.
-      const txt = tc.items.map(i => i.str).join(' ')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      if (!muestra && txt.trim()) muestra = txt.slice(0, 160);
-      const re = /([\d][\d\s.,]*)E\s*n\s*v\s*i?\s*o\s*s/gi;
-      let m;
-      while ((m = re.exec(txt)) !== null) {
-        const n = parseInt(String(m[1]).replace(/[^\d]/g, ''), 10);
-        if (!isNaN(n) && n > 0 && n < 100000 && (mejor === null || n > mejor)) mejor = n;
-      }
-      // chivato fino: si en esta página aparece "Env" pero no cazamos número, enseñar el trozo exacto
-      if (mejor === null) {
-        const pos = txt.search(/E\s*n\s*v/i);
-        if (pos >= 0 && !muestra.includes('__ENV__')) muestra = '__ENV__ pág ' + p + ': ' + JSON.stringify(txt.slice(Math.max(0, pos - 40), pos + 30));
-      }
+      full += ' ' + tc.items.map(i => i.str).join(' ');
     }
-    if (mejor !== null) console.log('[v288] envíos declarados leídos del PDF (sin IA):', mejor);
-    else console.warn('[v288] el PDF no dice cuántos envíos son con pdf.js. Muestra: ' + muestra);
+    full = full.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    // Dada una etiqueta ("Subtotal por PO"…), coge el número justo ANTES del PRIMER "Envíos" que la
+    // sigue (la fila de total cabe de sobra en 400 caracteres). Devuelve la lista de números hallados.
+    const _envsTras = (reEtiqueta) => {
+      const nums = []; let m;
+      while ((m = reEtiqueta.exec(full)) !== null) {
+        const resto = full.slice(m.index, m.index + 400);
+        const mm = resto.match(/([\d][\d\s.,]*?)\s*E\s*n\s*v\s*i?\s*o\s*s/i);
+        if (mm) { const n = parseInt(String(mm[1]).replace(/[^\d]/g, ''), 10); if (!isNaN(n) && n > 0 && n < 100000) nums.push(n); }
+      }
+      return nums;
+    };
+    // 1º — SUMA de los "Subtotal por PO ... N Envíos" (uno por liquidación). Es el marcador fiable del
+    //      total GLOBAL cuando vienen varias liquidaciones pegadas (Garraf junio: 500 + 190 = 690).
+    const porPO = _envsTras(/Subtotal\s+por\s+PO/gi);
+    if (porPO.length) {
+      const suma = porPO.reduce((a, b) => a + b, 0);
+      console.log('[v293] envíos declarados = SUMA de ' + porPO.length + ' "Subtotal por PO": [' + porPO.join(' + ') + '] = ' + suma);
+      return suma;
+    }
+    // 2º — respaldo: SUMA de "Subtotal por destino ... N Envíos" (también uno por bloque).
+    const porDest = _envsTras(/Subtotal\s+por\s+destino/gi);
+    if (porDest.length) {
+      const suma = porDest.reduce((a, b) => a + b, 0);
+      console.log('[v293] envíos declarados = SUMA de ' + porDest.length + ' "Subtotal por destino": [' + porDest.join(' + ') + '] = ' + suma);
+      return suma;
+    }
+    // 3º — último recurso (formato antiguo / una sola liquidación sin subtotales por PO): el MAYOR
+    //      "NNN Envíos" de todo el PDF (los subtotales por camión son pequeños; el mayor es el global).
+    let mejor = null, m2;
+    const re2 = /([\d][\d\s.,]*)E\s*n\s*v\s*i?\s*o\s*s/gi;
+    while ((m2 = re2.exec(full)) !== null) {
+      const n = parseInt(String(m2[1]).replace(/[^\d]/g, ''), 10);
+      if (!isNaN(n) && n > 0 && n < 100000 && (mejor === null || n > mejor)) mejor = n;
+    }
+    if (mejor !== null) console.log('[v293] envíos declarados (respaldo, mayor "N Envíos" del PDF):', mejor);
+    else console.warn('[v293] el PDF no dice cuántos envíos son con pdf.js (¿escaneo o PDF recortado?).');
     return mejor;
-  } catch (e) { console.warn('[v288] no pude leer los envíos del PDF:', e); return null; }
+  } catch (e) { console.warn('[v293] no pude leer los envíos del PDF:', e); return null; }
 }
 
 // v291 — PLAN B para el total de envíos: MINI-CONSULTA a la IA, dedicada y validada. Solo se usa
@@ -21101,6 +21122,16 @@ async function _factSubirAutofacturaHolcim0(files) {
         //   - Se recorta hasta cuadrar con el total declarado; si no hay copias suficientes, se
         //     recorta lo que haya y se avisa (algo raro pasó: mejor humano al mando).
         const exceso0 = leidas - declaradas;
+        // v293 — RED DE SEGURIDAD antes de recortar. Si he leído MÁS DEL DOBLE de lo declarado, el
+        // exceso es DESCOMUNAL y casi seguro el TOTAL se leyó mal (p.ej. multi-liquidación con el
+        // contador cogiendo el subtotal de UN solo PO en vez del total global — caso Garraf 11/07:
+        // 1.079 leídas contra 190 mal leídos). Recortar contra un objetivo falso podría llevarse
+        // viajes buenos: NO recorto, guardo tal cual y aviso FUERTE para revisión humana.
+        // (Un exceso normal de tartamudeo del OCR —yeso: 206 vs 178— sí se recorta como siempre.)
+        if (exceso0 > declaradas) {
+          console.warn('[v293] RECORTE ABORTADO: leídas ' + leidas + ' > doble de lo declarado (' + declaradas + '); exceso ' + exceso0 + '. Guardado SIN recortar.');
+          toast('🚨 REVISIÓN HUMANA: el PDF declara ' + declaradas + ' envíos pero he leído ' + leidas + ' (exceso descomunal de ' + exceso0 + ', más del doble). NO he recortado NADA para no llevarme viajes buenos — casi seguro el total está mal leído (¿varias liquidaciones/PO?). Guardadas las ' + leidas + ' líneas tal cual: revisa el cruce a mano.', 'err');
+        } else {
         const _kL = (L) => [_factNormAlb(L.num_entrega), _factFechaBarra(L.fecha), _factNormMat(L.matricula),
           (isNaN(_factNum(L.tn)) ? '' : _factNum(L.tn).toFixed(2)), String(L.material || '').toUpperCase().trim()].join('|');
         const grupos = new Map(); // clave → [índices en orden de lectura]
@@ -21130,6 +21161,7 @@ async function _factSubirAutofacturaHolcim0(files) {
         } else {
           toast('✂️ Leí ' + leidas + ' líneas pero el PDF declara ' + declaradas + ' envíos: he quitado ' + quitar.size + ' copia(s) repetida(s) del OCR. Guardadas ' + lineas.length + ', clavadas al papel.', 'ok');
         }
+        } // fin del else de la red de seguridad v293
       } else {
         toast('✅ Leídas ' + leidas + ' líneas (el PDF declara ' + declaradas + ' envíos). No falta ninguna.', 'ok');
       }
