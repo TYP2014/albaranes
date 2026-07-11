@@ -20977,9 +20977,53 @@ async function _factEnviosDeclaradosPdf(file) {
       }
     }
     if (mejor !== null) console.log('[v288] envíos declarados leídos del PDF (sin IA):', mejor);
-    else console.warn('[v288] el PDF no dice cuántos envíos son (¿escaneo o formato nuevo?). Muestra: ' + muestra);
+    else console.warn('[v288] el PDF no dice cuántos envíos son con pdf.js. Muestra: ' + muestra);
     return mejor;
   } catch (e) { console.warn('[v288] no pude leer los envíos del PDF:', e); return null; }
+}
+
+// v291 — PLAN B para el total de envíos: MINI-CONSULTA a la IA, dedicada y validada. Solo se usa
+// si pdf.js no pudo sacar el número (algunos PDF llegan re-guardados y su texto no se deja leer).
+// A diferencia de la fila de control dentro del prompt gigante (que la IA a veces olvida), esto es
+// UNA tarea única sobre SOLO las últimas 2 páginas: foco máximo + respuesta validada (entero
+// 1-99999) + 2 intentos. Determinista donde se puede (pdf.js), enfocado donde no (esto).
+async function _factEnviosDeclaradosIA(file) {
+  try {
+    const key = getKey();
+    if (!key || !file || typeof window.PDFLib === 'undefined') return null;
+    const ab = await file.arrayBuffer();
+    const srcPdf = await window.PDFLib.PDFDocument.load(ab, { ignoreEncryption: true });
+    const total = srcPdf.getPageCount();
+    const out = await window.PDFLib.PDFDocument.create();
+    const idx = []; for (let p = Math.max(0, total - 2); p < total; p++) idx.push(p);
+    const pgs = await out.copyPages(srcPdf, idx);
+    pgs.forEach(pg => out.addPage(pg));
+    const b64 = _uint8ToBase64(await out.save());
+    for (let intento = 1; intento <= 2; intento++) {
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5', max_tokens: 60,
+            messages: [{ role: 'user', content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+              { type: 'text', text: 'Estas son las últimas páginas de una autofactura de Holcim. Busca la fila del TOTAL GLOBAL (pone "Total transporte" o "Total Transportista") y dime cuántos ENVÍOS declara en total. Responde SOLO con el JSON {"envios": NUMERO} y nada más. Si no aparece, responde {"envios": null}.' }
+            ] }]
+          })
+        });
+        const data = await res.json();
+        const txt = (data && data.content && data.content.map(b => b.text || '').join('')) || '';
+        const m = txt.match(/"envios"\s*:\s*(\d{1,5})/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > 0 && n < 100000) { console.log('[v291] envíos declarados (mini-consulta IA sobre las 2 últimas páginas):', n); return n; }
+        }
+      } catch (e) { console.warn('[v291] mini-consulta intento ' + intento + ':', e); }
+    }
+    console.warn('[v291] la mini-consulta tampoco sacó el total de envíos.');
+    return null;
+  } catch (e) { console.warn('[v291] no pude preparar la mini-consulta:', e); return null; }
 }
 
 async function _factSubirAutofacturaHolcim0(files) {
@@ -21029,7 +21073,8 @@ async function _factSubirAutofacturaHolcim0(files) {
   // v288: el total declarado se lee AHORA DEL PROPIO PDF con pdf.js (determinista, sin IA).
   // El objeto de control de la IA queda solo como RESPALDO por si el PDF fuera un escaneo.
   const _ctrl = window._factControl;
-  const _envPdf = await _factEnviosDeclaradosPdf(file);
+  let _envPdf = await _factEnviosDeclaradosPdf(file);
+  if (_envPdf == null) _envPdf = await _factEnviosDeclaradosIA(file); // v291: plan B enfocado
   const _envCtrl = (_ctrl && _ctrl.envios) ? parseInt(_ctrl.envios, 10) : NaN;
   {
     const leidas = lineas.length;
