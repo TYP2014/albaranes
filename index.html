@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v108 (12/07/2026): NUEVA pestaña 📌 Incidencias (temas pendientes con clientes: diferencias de precio, viajes/albaranes sin pagar, etc.). Compartida entre Admin, Marta y Mª del Mar (flag puede_ver_incidencias en profiles, mismo patrón que ITV). Cada incidencia: cliente, descripción libre, importe opcional, estado (Pendiente/Hablado con cliente/Resuelto), notas de seguimiento fechadas (con autor) y archivos adjuntos descargables — todo guardado en la misma fila (campos JSONB seguimientos y adjuntos, adjuntos al bucket 'documentos'). Vista con pendientes arriba, buscador por cliente, filtro por estado, color por estado, importe y contador/aviso de pendientes. NO toca ninguna otra pestaña ni la lectura de PDFs. REQUIERE SQL (tabla incidencias + columna profiles.puede_ver_incidencias + columna adjuntos jsonb). cache app.js?v=297. -->
 <!-- v107GW (02/06/2026): PROMSA/Molins — lectura de albaranes de VENTA corregida. (1) ORIGEN recuadro CENTRAL "PROMSA GARRAF"/"GARRAF" → "Garraf/Promsa" (antes la IA ponía "Cantera de Garraf", nombre reservado a Sodira/Holcim áridos). (2) DESTINO recuadro OBRA: ahora la IA entiende el formato SIN guion "[código] POBLACIÓN ([código])" (ej. "9 IGUALADA (9)" → "Igualada", "65 CONSTANTI (65)" → "Constantí") — antes solo entendía el formato con guion y dejaba el destino VACÍO. (3) PROVEEDOR: aviso explícito de que CENTRAL es el origen, nunca el proveedor (siempre "Promotora Mediterránea-2 S.A.U."), corrige el caso 94658 donde puso "PROMSA GARRAF" como proveedor. Red de seguridad Molins ampliada para reconocer también origen "Garraf/Promsa". Solo cambia el PROMPT de lectura de PROMSA; ningún otro proveedor ni la tabla de canonización se tocan. NO requiere SQL. -->
 <!-- v107GX (02/06/2026): PROMSA/Molins — DESTINO refuerzo anti-ADREÇA. Error real confirmado por consola (albarán 94907-N "65 CONSTANTI"): la IA leía el recuadro ADREÇA ("Sant Vicenç dels Horts", dirección fiscal) en vez del recuadro OBRA. La red de seguridad v107EÑ2 lo detectaba y dejaba el destino vacío (correcto, pero no resolvía la raíz). Ahora el prompt avisa CLARAMENTE: OBRA (arriba, con nº de obra) = destino; ADREÇA (debajo, "Sant Vicenç dels Horts") = dirección fiscal, NUNCA destino. Prohibido devolver "Sant Vicenç dels Horts" como destino. Solo toca el PROMPT de PROMSA. NO requiere SQL. -->
 <!-- v107GY (02/06/2026): EDICIÓN Marta + Mª del Mar. El botón "✏️ Escribir" (que cambia el desplegable de Origen/Destino/Proveedor/Cliente por texto libre para teclear a mano) estaba SOLO para admin (v107BR). Ahora aparece también para Marta (6f657be7-...) y Mª del Mar (5059731a-...) por id de usuario, para que editen igual que el admin. El resto de gestores siguen sin él. Complementa el ALTER POLICY albaranes_update (Supabase) que ya les permite GUARDAR cualquier albarán. NO requiere SQL adicional. -->
@@ -549,6 +550,8 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="tab" id="tabGas" onclick="switchTab('gas')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffa726" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M6 9h6"/><path d="M14 8l3 3v7a2 2 0 0 0 4 0V9l-3-3"/></svg> Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
       <!-- v101: pestaña ITV oculta por defecto. Solo se muestra para usuarios con puede_ver_itv=TRUE -->
       <div class="tab" id="tabItv" onclick="switchTab('itv')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#42a5f5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> ITV <span class="tab-badge" id="tabItvCount">0</span></div>
+      <!-- v108: pestaña Incidencias oculta por defecto. Se muestra a usuarios con puede_ver_incidencias=TRUE (Admin, Marta, Mª del Mar). -->
+      <div class="tab" id="tabIncidencias" onclick="switchTab('incidencias')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffa726" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg> Incidencias <span class="tab-badge" id="tabIncidenciasCount">0</span></div>
       <!-- v107j: pestaña Neumáticos oculta por defecto. Se muestra a usuarios con puede_ver_neumaticos=TRUE.
            Para Transmargaz, además, el campo empresa_neumaticos='TRANSMARGAZ' los limita a su subpestaña. -->
       <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78909c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg> Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
@@ -1076,6 +1079,69 @@ if (typeof pdfjsLib !== 'undefined') {
             <div style="display:flex;gap:8px;margin-left:auto">
               <button class="btn bs" onclick="closeCitaModal()">Cancelar</button>
               <button class="btn bp" onclick="saveCitaModal()">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- v108: TAB INCIDENCIAS (temas pendientes con clientes) -->
+    <div id="tabContentIncidencias" class="wrap" style="display:none">
+      <div class="card">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:var(--wn)"></div>INCIDENCIAS CON CLIENTES</div>
+          <div class="tbl-acts">
+            <button class="btn bp" onclick="nuevaIncidencia()" style="display:flex;align-items:center;gap:5px">➕ Nueva incidencia</button>
+            <button class="btn bs" onclick="loadIncidenciasData()" style="display:flex;align-items:center;gap:5px" title="Actualizar la lista">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card-bd">
+          <div id="incAviso" style="margin-bottom:14px"></div>
+          <div class="filters" id="filtersInc">
+            <div class="fil-group"><label class="fil-label">Buscar cliente</label><input class="fil-sel" id="incBuscar" oninput="applyIncidenciasFilters()" placeholder="Todos" autocomplete="off"></div>
+            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="incFiltroEstado" onchange="applyIncidenciasFilters()"><option value="">Todos</option><option value="Pendiente">🔴 Pendiente</option><option value="Hablado con cliente">🟠 Hablado con cliente</option><option value="Resuelto">🟢 Resuelto</option></select></div>
+            <div class="filter-actions"><button class="btn bs" onclick="_incResetFilters()">✕ Limpiar</button></div>
+          </div>
+          <div id="incTableBox" style="overflow-x:auto;margin-top:14px">
+            <table class="t" id="incTable"><thead><tr><th>ESTADO</th><th>CLIENTE</th><th style="text-align:right">IMPORTE</th><th>DESCRIPCIÓN</th><th>ACTUALIZADA</th></tr></thead><tbody id="incTableBody"><tr><td colspan="5" style="color:var(--mu);font-family:var(--mn);font-size:12px;padding:16px">Cargando...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal INCIDENCIA (nueva/editar) -->
+      <div class="ov" id="incOv" onclick="if(event.target===this)closeIncidenciaModal()">
+        <div class="modal" style="max-width:680px">
+          <div class="modal-hd"><div class="st"><div class="dot" style="--c:var(--wn)"></div><span id="incModalTitulo">NUEVA INCIDENCIA</span></div><div style="display:flex;gap:8px"><button class="btn bs" onclick="closeIncidenciaModal()">✕</button></div></div>
+          <div class="modal-bd">
+            <div class="mfields">
+              <div class="fg full"><label class="fl">Cliente</label><input class="fi" id="incCliente" placeholder="Nombre del cliente" autocomplete="off"></div>
+              <div class="fg"><label class="fl">Importe en juego (€) · opcional</label><input class="fi" id="incImporte" type="number" step="0.01" inputmode="decimal" placeholder="Ej. 350.00"></div>
+              <div class="fg"><label class="fl">Estado</label><select class="fi" id="incEstado"><option value="Pendiente">🔴 Pendiente</option><option value="Hablado con cliente">🟠 Hablado con cliente</option><option value="Resuelto">🟢 Resuelto</option></select></div>
+              <div class="fg full"><label class="fl">Descripción</label><textarea class="fi" id="incDescripcion" rows="5" placeholder="Escribe aquí toda la explicación que haga falta..." style="resize:vertical;min-height:110px"></textarea></div>
+            </div>
+
+            <!-- Seguimiento -->
+            <div style="margin-top:18px;border-top:1px solid var(--bd);padding-top:14px">
+              <div class="st" style="margin-bottom:10px"><div class="dot" style="--c:var(--in)"></div>SEGUIMIENTO (notas fechadas)</div>
+              <div id="incSeguimientos" style="margin-bottom:10px"></div>
+              <textarea class="fi" id="incNotaNueva" rows="2" placeholder="Escribe una nota nueva (qué se ha hablado) y pulsa Añadir nota..." style="resize:vertical"></textarea>
+              <button class="btn bp" onclick="addSeguimientoInc()" style="margin-top:8px">➕ Añadir nota</button>
+            </div>
+
+            <!-- Adjuntos -->
+            <div style="margin-top:18px;border-top:1px solid var(--bd);padding-top:14px">
+              <div class="st" style="margin-bottom:10px"><div class="dot" style="--c:var(--pu)"></div>ARCHIVOS ADJUNTOS</div>
+              <div id="incAdjuntos" style="margin-bottom:10px"></div>
+              <button class="btn bs" onclick="document.getElementById('incFileInput').click()">📎 Subir archivo</button>
+              <input type="file" id="incFileInput" multiple style="display:none" onchange="_incSubirAdjunto(this.files)">
+              <span id="incAdjSpin" style="display:none;font-size:11px;color:var(--mu);margin-left:8px">Subiendo...</span>
+            </div>
+          </div>
+          <div class="modal-ft">
+            <button class="btn br" id="incBtnDel" onclick="deleteIncidencia()" style="display:none">Eliminar</button>
+            <div style="display:flex;gap:8px;margin-left:auto">
+              <button class="btn bs" onclick="closeIncidenciaModal()">Cancelar</button>
+              <button class="btn bp" onclick="saveIncidenciaModal()">Guardar</button>
             </div>
           </div>
         </div>
@@ -1907,6 +1973,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v267: FECHA CON CALENDARIO en el modal de albarán (pedido por Juan Carlos). El campo FECHA del modal de detalle era un texto libre donde había que escribir "01/06/2026" a mano (formato que no gustaba). Ahora es un selector de fecha nativo: se pincha y sale el CALENDARIO del navegador, y al lado hay un botón "📅 Hoy" que pone la fecha del día con un clic. Sirve para los DOS casos: corregir una fecha mal leída por la IA y el "➕ Albarán a mano" (usa el mismo modal, y ya se abre con la fecha de hoy puesta). La fecha guardada (texto DD/MM/YYYY o ISO) se convierte al abrir; si estaba ilegible, el campo sale vacío para elegirla en el calendario. Al GUARDAR se convierte de vuelta a DD/MM/YYYY, el formato de siempre de los albaranes — nada cambia en la BD ni en los Excel. Solo cambia app.js. NO requiere SQL. -->
 <!-- v268: DESTINO CANÓNICO "Montcada" (a secas). Los albaranes de Promotora Mediterránea-2 (calizas desde Llinars del Vallès / Olesa de Bonesvalls) traen el destino escrito "Montcada" tal cual, y no estaba en la lista de destinos canónicos (salía como no oficial y no aparecía en las sugerencias). Se crea como entrada PROPIA, separada de "Fábrica Montcada" (recepción, CE104) y de "Montcada (Hormig)" (hormigonera, CE44K), que siguen ganando SIEMPRE por sus nombres y códigos exactos — probado con el matcher: "Montcada"→Montcada, "Fábrica Montcada"→Fábrica Montcada, "Planta Hormigones Montcada"→Montcada (Hormig), CE44K/CE104 a los suyos. Estos albaranes de Promsa se seguirán leyendo y quedando como "Montcada", como pidió Juan Carlos. Solo cambia app.js. NO requiere SQL. -->
 <!-- v269: FILTRO "✍️ SOLO A MANO" en el registro de albaranes (pedido por Juan Carlos). Botón nuevo en la barra de filtros (al lado de ✕ Limpiar) que muestra SOLO los albaranes creados con "➕ Albarán a mano" (creado_manual=true, los de fondo azul). Es un interruptor: se pulsa y se pone AZUL (activo), se vuelve a pulsar y se quita. Se COMBINA con todos los demás filtros (fecha desde/hasta, proveedor, origen, destino, matrícula, cliente, estado…), así que se puede ver, por ejemplo, "los creados a mano de junio de tal proveedor". El botón "✕ Limpiar" también lo desactiva. Los Excel Filtrado/Seleccionados respetan este filtro como cualquier otro (usan la lista filtrada). Cambian app.js e index.html (el botón). NO requiere SQL. -->
-<script src="app.js?v=296"></script>
+<script src="app.js?v=297"></script>
 </body>
 </html>

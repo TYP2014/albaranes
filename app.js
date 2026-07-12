@@ -121,7 +121,8 @@ async function loadUserMap() {
     // v107M: añadir puede_ver_vacaciones para la pestaña Vacaciones.
     // v107N: añadir empresa_vacaciones para filtrar subpestañas (igual que neumáticos pero admin NO ve Transmargaz).
     // v107AE: añadir puede_ver_taller + empresa_taller para la pestaña Taller (mismo patrón que vacaciones).
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
+    // v108: añadir puede_ver_incidencias para la pestaña Incidencias (temas pendientes con clientes).
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     userMap = {};
     (data || []).forEach(p => { userMap[p.id] = {
@@ -134,6 +135,7 @@ async function loadUserMap() {
       empresa_vacaciones: p.empresa_vacaciones || null,
       puede_ver_taller: !!p.puede_ver_taller,
       empresa_taller: p.empresa_taller || null,
+      puede_ver_incidencias: !!p.puede_ver_incidencias,
       puede_fichar: !!p.puede_fichar,
       fichaje_dni: p.fichaje_dni || null,
       fichaje_empresa: p.fichaje_empresa || null,
@@ -191,6 +193,14 @@ async function loadUserMap() {
       // entrar en la pestaña ITV. Así, desde el momento en que se loguea, ve los avisos.
       if (tienePermisoITV) {
         _cargaConTimeout('ITV', () => loadItvData());
+      }
+      // v108: pestaña Incidencias (temas pendientes con clientes). Mismo patrón que ITV.
+      const tienePermisoInc = !!userMap[currentUser.id]?.puede_ver_incidencias;
+      const tabInc = document.getElementById('tabIncidencias');
+      if (tabInc) tabInc.style.display = tienePermisoInc ? '' : 'none';
+      window._tieneInc = tienePermisoInc;
+      if (tienePermisoInc) {
+        _cargaConTimeout('Incidencias', () => loadIncidenciasData());
       }
       // v107j: lo mismo para Neumáticos
       const tienePermisoNeum = !!userMap[currentUser.id]?.puede_ver_neumaticos;
@@ -12530,11 +12540,336 @@ async function factEmitSubir(files) {
   await loadFactEmit();
 }
 
+// ============================================================
+// v108: INCIDENCIAS (temas pendientes con clientes)
+// ------------------------------------------------------------
+// Tabla compartida entre Admin, Marta y Mª del Mar (flag
+// puede_ver_incidencias en profiles, mismo patrón que ITV).
+// Las notas de seguimiento (fecha + autor + texto) y los
+// archivos adjuntos se guardan en la MISMA fila, en dos
+// campos JSONB (seguimientos y adjuntos). Sin segundas tablas.
+// ============================================================
+let _incidencias = [];      // todas las incidencias cargadas
+let _incEditId = null;      // id de la incidencia abierta (null = nueva)
+let _incBuf = null;         // copia de trabajo de la incidencia abierta
+
+const INC_ESTADOS = ['Pendiente', 'Hablado con cliente', 'Resuelto'];
+
+// Color + emoji por estado (para pintar de un vistazo)
+function _incEstadoMeta(estado) {
+  if (estado === 'Resuelto')            return { color: 'var(--ac)', emoji: '🟢' };
+  if (estado === 'Hablado con cliente') return { color: 'var(--wn)', emoji: '🟠' };
+  return { color: 'var(--er)', emoji: '🔴' }; // Pendiente (por defecto)
+}
+function _incOrden(estado) {
+  const i = INC_ESTADOS.indexOf(estado);
+  return i === -1 ? 0 : i; // Pendiente(0) → Hablado(1) → Resuelto(2)
+}
+function _incE(s) { return esc(s == null ? '' : s); }
+function _incHoy() { const d = new Date(); return d.toISOString().slice(0, 10); } // YYYY-MM-DD
+function _incFmtFecha(iso) {
+  if (!iso) return '';
+  const s = String(iso).slice(0, 10);
+  const p = s.split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s; // DD/MM/YYYY
+}
+function _incFmtImporte(v) {
+  if (v == null || v === '' || isNaN(Number(v))) return '—';
+  return Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function _incMiNombre() {
+  return (userMap[currentUser?.id]?.name) || currentUser?.email || 'Usuario';
+}
+
+// Cargar todas las incidencias desde Supabase (RLS filtra por permiso)
+async function loadIncidenciasData() {
+  try {
+    const { data, error } = await sb.from('incidencias').select('*');
+    if (error) throw error;
+    _incidencias = data || [];
+    renderIncidencias();
+  } catch (e) {
+    console.error('[loadIncidenciasData] Error:', e);
+    const box = document.getElementById('incTableBody');
+    if (box) box.innerHTML = `<tr><td colspan="5" style="color:var(--er);font-family:var(--mn);font-size:11px;padding:14px">Error al cargar: ${_incE(e.message || e)}</td></tr>`;
+  }
+}
+
+// Pintar la lista (pendientes arriba), aplicando buscador + filtro de estado
+function renderIncidencias() {
+  const body = document.getElementById('incTableBody');
+  if (!body) return;
+  const q = (document.getElementById('incBuscar')?.value || '').trim().toLowerCase();
+  const fEst = document.getElementById('incFiltroEstado')?.value || '';
+
+  // Contador de pendientes (para badge de pestaña y aviso)
+  const nPend = _incidencias.filter(i => (i.estado || 'Pendiente') === 'Pendiente').length;
+  const badge = document.getElementById('tabIncidenciasCount');
+  if (badge) badge.textContent = nPend;
+  const aviso = document.getElementById('incAviso');
+  if (aviso) {
+    aviso.innerHTML = nPend > 0
+      ? `<div style="background:rgba(244,67,54,.12);border:1px solid var(--er);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">🔴 Tienes ${nPend} incidencia${nPend === 1 ? '' : 's'} PENDIENTE${nPend === 1 ? '' : 'S'}</div>`
+      : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);color:var(--ac);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">✅ No hay incidencias pendientes</div>`;
+  }
+
+  // Filtrar + ordenar (pendientes arriba; dentro de cada estado, la más reciente primero)
+  let lista = _incidencias.filter(i => {
+    if (fEst && (i.estado || 'Pendiente') !== fEst) return false;
+    if (q && !String(i.cliente || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  lista.sort((a, b) => {
+    const d = _incOrden(a.estado || 'Pendiente') - _incOrden(b.estado || 'Pendiente');
+    if (d !== 0) return d;
+    return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+  });
+
+  if (!lista.length) {
+    body.innerHTML = `<tr><td colspan="5" style="color:var(--mu);font-family:var(--mn);font-size:12px;padding:16px">No hay incidencias${q || fEst ? ' con ese filtro' : ' todavía'}.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = lista.map(i => {
+    const m = _incEstadoMeta(i.estado || 'Pendiente');
+    const nSeg = Array.isArray(i.seguimientos) ? i.seguimientos.length : 0;
+    const nAdj = Array.isArray(i.adjuntos) ? i.adjuntos.length : 0;
+    const desc = String(i.descripcion || '').replace(/\s+/g, ' ').trim();
+    const corto = desc.length > 70 ? desc.slice(0, 70) + '…' : desc;
+    const extras = [];
+    if (nSeg) extras.push(`💬 ${nSeg}`);
+    if (nAdj) extras.push(`📎 ${nAdj}`);
+    return `
+    <tr onclick="openIncidencia('${i.id}')" style="cursor:pointer">
+      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px;color:${m.color};font-weight:600;font-size:11px"><span style="width:9px;height:9px;border-radius:50%;background:${m.color};display:inline-block"></span>${_incE(i.estado || 'Pendiente')}</span></td>
+      <td style="font-weight:600">${_incE(i.cliente || '—')}</td>
+      <td style="white-space:nowrap;font-family:var(--mn);text-align:right">${_incFmtImporte(i.importe)}</td>
+      <td style="color:var(--mu);font-size:12px">${_incE(corto)} ${extras.length ? `<span style="color:var(--mu);font-family:var(--mn);font-size:10px;margin-left:4px">${extras.join(' · ')}</span>` : ''}</td>
+      <td style="white-space:nowrap;color:var(--mu);font-family:var(--mn);font-size:11px">${_incFmtFecha(i.updated_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function applyIncidenciasFilters() { renderIncidencias(); }
+function _incResetFilters() {
+  const b = document.getElementById('incBuscar'); if (b) b.value = '';
+  const e = document.getElementById('incFiltroEstado'); if (e) e.value = '';
+  renderIncidencias();
+}
+
+// Abrir modal en blanco (nueva incidencia)
+function nuevaIncidencia() {
+  _incEditId = null;
+  _incBuf = { cliente: '', importe: null, estado: 'Pendiente', descripcion: '', seguimientos: [], adjuntos: [] };
+  _incRenderModal('NUEVA INCIDENCIA', false);
+  document.getElementById('incOv').classList.add('open');
+}
+
+// Abrir una incidencia existente
+function openIncidencia(id) {
+  const inc = _incidencias.find(x => String(x.id) === String(id));
+  if (!inc) { toast('No se encontró la incidencia', 'err'); return; }
+  _incEditId = inc.id;
+  _incBuf = {
+    cliente: inc.cliente || '',
+    importe: inc.importe,
+    estado: inc.estado || 'Pendiente',
+    descripcion: inc.descripcion || '',
+    seguimientos: Array.isArray(inc.seguimientos) ? inc.seguimientos.slice() : [],
+    adjuntos: Array.isArray(inc.adjuntos) ? inc.adjuntos.slice() : []
+  };
+  _incRenderModal('INCIDENCIA · ' + (inc.cliente || ''), true);
+  document.getElementById('incOv').classList.add('open');
+}
+
+// Rellenar el modal con los datos del buffer
+function _incRenderModal(titulo, esEdicion) {
+  document.getElementById('incModalTitulo').textContent = titulo;
+  document.getElementById('incCliente').value = _incBuf.cliente || '';
+  document.getElementById('incImporte').value = (_incBuf.importe == null ? '' : _incBuf.importe);
+  document.getElementById('incEstado').value = _incBuf.estado || 'Pendiente';
+  document.getElementById('incDescripcion').value = _incBuf.descripcion || '';
+  document.getElementById('incNotaNueva').value = '';
+  document.getElementById('incBtnDel').style.display = esEdicion ? '' : 'none';
+  _incRenderSeguimientos();
+  _incRenderAdjuntos();
+}
+
+function _incRenderSeguimientos() {
+  const box = document.getElementById('incSeguimientos');
+  if (!box) return;
+  const segs = _incBuf.seguimientos || [];
+  if (!segs.length) { box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px">Sin notas todavía.</div>`; return; }
+  // Más recientes arriba
+  box.innerHTML = segs.map((s, idx) => `
+    <div style="border-left:3px solid var(--in);background:var(--s2);border-radius:0 6px 6px 0;padding:8px 10px;margin-bottom:6px">
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:3px">${_incFmtFecha(s.fecha)} · ${_incE(s.autor || '')}</div>
+      <div style="font-size:13px;color:var(--tx);white-space:pre-wrap">${_incE(s.nota || '')}</div>
+    </div>`).reverse().join('');
+}
+
+function _incRenderAdjuntos() {
+  const box = document.getElementById('incAdjuntos');
+  if (!box) return;
+  const adj = _incBuf.adjuntos || [];
+  if (!adj.length) { box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px">Sin archivos adjuntos.</div>`; return; }
+  box.innerHTML = adj.map((a, idx) => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;margin-bottom:6px">
+      <span style="flex:1;min-width:0;font-family:var(--mn);font-size:12px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_incE(a.nombre || '')}">📎 ${_incE(a.nombre || 'archivo')}</span>
+      <a class="btn bs" href="${_incE(a.url || '#')}" target="_blank" rel="noopener" style="font-size:10px;padding:5px 9px;text-decoration:none" title="Abrir/descargar">⬇ Descargar</a>
+      <button class="btn br" onclick="_incQuitarAdjunto(${idx})" style="font-size:10px;padding:5px 8px" title="Quitar este adjunto">🗑</button>
+    </div>`).join('');
+}
+
+// Añadir una nota fechada. Si la incidencia ya existe, la guarda al momento.
+async function addSeguimientoInc() {
+  const ta = document.getElementById('incNotaNueva');
+  const texto = (ta?.value || '').trim();
+  if (!texto) { toast('Escribe la nota antes de añadirla', 'warn'); return; }
+  const nota = { fecha: _incHoy(), autor: _incMiNombre(), nota: texto };
+  _incBuf.seguimientos = _incBuf.seguimientos || [];
+  _incBuf.seguimientos.push(nota);
+  if (ta) ta.value = '';
+  _incRenderSeguimientos();
+  if (_incEditId) {
+    try {
+      const { error } = await sb.from('incidencias')
+        .update({ seguimientos: _incBuf.seguimientos, updated_at: new Date().toISOString() })
+        .eq('id', _incEditId);
+      if (error) throw error;
+      toast('✓ Nota añadida');
+      const local = _incidencias.find(x => x.id === _incEditId);
+      if (local) { local.seguimientos = _incBuf.seguimientos.slice(); local.updated_at = new Date().toISOString(); }
+    } catch (e) {
+      console.error('[addSeguimientoInc] Error:', e);
+      toast('Error al guardar la nota: ' + (e.message || e), 'err');
+    }
+  }
+}
+
+// Subir uno o varios archivos adjuntos al bucket 'documentos'
+async function _incSubirAdjunto(files) {
+  if (!files || !files.length) return;
+  const spin = document.getElementById('incAdjSpin');
+  if (spin) spin.style.display = '';
+  try {
+    _incBuf.adjuntos = _incBuf.adjuntos || [];
+    for (const f of Array.from(files)) {
+      const url = await uploadFile(f, 'incidencias');
+      _incBuf.adjuntos.push({ nombre: f.name, url, fecha: _incHoy(), autor: _incMiNombre() });
+    }
+    _incRenderAdjuntos();
+    if (_incEditId) {
+      const { error } = await sb.from('incidencias')
+        .update({ adjuntos: _incBuf.adjuntos, updated_at: new Date().toISOString() })
+        .eq('id', _incEditId);
+      if (error) throw error;
+      const local = _incidencias.find(x => x.id === _incEditId);
+      if (local) { local.adjuntos = _incBuf.adjuntos.slice(); local.updated_at = new Date().toISOString(); }
+    }
+    toast('✓ Archivo(s) subido(s)');
+  } catch (e) {
+    console.error('[_incSubirAdjunto] Error:', e);
+    toast('Error al subir: ' + (e.message || e), 'err');
+  } finally {
+    if (spin) spin.style.display = 'none';
+    const inp = document.getElementById('incFileInput'); if (inp) inp.value = '';
+  }
+}
+
+// Quitar un adjunto de la lista (no borra el archivo del Storage, solo lo desvincula)
+async function _incQuitarAdjunto(idx) {
+  if (!_incBuf.adjuntos || idx < 0 || idx >= _incBuf.adjuntos.length) return;
+  _incBuf.adjuntos.splice(idx, 1);
+  _incRenderAdjuntos();
+  if (_incEditId) {
+    try {
+      const { error } = await sb.from('incidencias')
+        .update({ adjuntos: _incBuf.adjuntos, updated_at: new Date().toISOString() })
+        .eq('id', _incEditId);
+      if (error) throw error;
+      const local = _incidencias.find(x => x.id === _incEditId);
+      if (local) { local.adjuntos = _incBuf.adjuntos.slice(); local.updated_at = new Date().toISOString(); }
+      toast('✓ Adjunto quitado');
+    } catch (e) {
+      console.error('[_incQuitarAdjunto] Error:', e);
+      toast('Error: ' + (e.message || e), 'err');
+    }
+  }
+}
+
+function closeIncidenciaModal() {
+  document.getElementById('incOv').classList.remove('open');
+  _incEditId = null;
+  _incBuf = null;
+}
+
+// Guardar la incidencia (cliente/importe/estado/descripción + notas + adjuntos)
+async function saveIncidenciaModal() {
+  const cliente = (document.getElementById('incCliente')?.value || '').trim();
+  if (!cliente) { toast('Pon al menos el cliente', 'warn'); return; }
+  const impRaw = (document.getElementById('incImporte')?.value || '').trim();
+  const importe = impRaw === '' ? null : Number(impRaw.replace(',', '.'));
+  if (importe != null && isNaN(importe)) { toast('El importe no es un número válido', 'warn'); return; }
+  const estado = document.getElementById('incEstado')?.value || 'Pendiente';
+  const descripcion = document.getElementById('incDescripcion')?.value || '';
+  const ahora = new Date().toISOString();
+
+  const payload = {
+    cliente, importe, estado, descripcion,
+    seguimientos: _incBuf.seguimientos || [],
+    adjuntos: _incBuf.adjuntos || [],
+    updated_at: ahora
+  };
+
+  try {
+    if (_incEditId) {
+      const { error } = await sb.from('incidencias').update(payload).eq('id', _incEditId);
+      if (error) throw error;
+    } else {
+      payload.creado_por = currentUser?.id || null;
+      payload.creado_por_nombre = _incMiNombre();
+      const { error } = await sb.from('incidencias').insert(payload);
+      if (error) throw error;
+    }
+    toast('✓ Incidencia guardada');
+    closeIncidenciaModal();
+    await loadIncidenciasData();
+  } catch (e) {
+    console.error('[saveIncidenciaModal] Error:', e);
+    toast('Error al guardar: ' + (e.message || e), 'err');
+  }
+}
+
+// Borrar la incidencia abierta (doble clic de confirmación, patrón de la app)
+async function deleteIncidencia() {
+  if (!_incEditId) return;
+  const btn = document.getElementById('incBtnDel');
+  if (btn && !btn.dataset.confirming) {
+    btn.dataset.confirming = '1';
+    const txt = btn.textContent;
+    btn.textContent = '¿Seguro? Pulsa otra vez';
+    setTimeout(() => { if (btn) { btn.dataset.confirming = ''; btn.textContent = txt; } }, 8000);
+    return;
+  }
+  try {
+    const { error } = await sb.from('incidencias').delete().eq('id', _incEditId);
+    if (error) throw error;
+    toast('✓ Incidencia eliminada');
+    if (btn) { btn.dataset.confirming = ''; btn.textContent = 'Eliminar'; }
+    closeIncidenciaModal();
+    await loadIncidenciasData();
+  } catch (e) {
+    console.error('[deleteIncidencia] Error:', e);
+    toast('Error al eliminar: ' + (e.message || e), 'err');
+  }
+}
+
 function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit'].forEach(t => {
+  ['alb','preli','gas','itv','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -12556,6 +12891,8 @@ function switchTab(tab) {
   if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
+  // v108: cargar Incidencias al entrar en su pestaña
+  if (tab === 'incidencias') { loadIncidenciasData(); }
   // v105: cargar tabla de producción al entrar en su pestaña
   if (tab === 'produccion') { loadProduccion(); }
   // v107K56: cargar el Panel al entrar en su pestaña
@@ -13731,6 +14068,10 @@ async function loadUsers() {
     const itvCheck = `<label style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mn);font-size:10px;color:var(--mu);cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña ITV">
       <input type="checkbox" ${u.puede_ver_itv ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleItvAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}">🛡️ ITV
     </label>`;
+    // v108: checkbox para gestionar acceso a Incidencias (mismo patrón que ITV).
+    const incCheck = `<label style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mn);font-size:10px;color:var(--mu);cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña Incidencias">
+      <input type="checkbox" ${u.puede_ver_incidencias ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleIncidenciasAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}">📌 Incid.
+    </label>`;
     return `
     <div class="user-row">
       <div class="user-info">
@@ -13744,6 +14085,7 @@ async function loadUsers() {
           <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
         </select>
         ${itvCheck}
+        ${incCheck}
         ${delBtn}
       </div>
     </div>`;
@@ -13762,6 +14104,20 @@ async function toggleItvAccess(userId, checked) {
     console.error('[toggleItvAccess] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
     // Revertir el checkbox visualmente si falló
+    loadUsers();
+  }
+}
+
+// v108: actualizar el flag puede_ver_incidencias en BD desde el checkbox de Usuarios
+async function toggleIncidenciasAccess(userId, checked) {
+  try {
+    const { error } = await sb.from('profiles').update({ puede_ver_incidencias: checked }).eq('id', userId);
+    if (error) throw error;
+    if (userMap[userId]) userMap[userId].puede_ver_incidencias = checked;
+    toast(checked ? '✓ Acceso Incidencias concedido' : '✓ Acceso Incidencias retirado');
+  } catch (e) {
+    console.error('[toggleIncidenciasAccess] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
     loadUsers();
   }
 }
