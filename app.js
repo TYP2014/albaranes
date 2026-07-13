@@ -6618,7 +6618,7 @@ async function callClaudeFacturaGasoil(b64, mediaType, key, isPdf, signal) {
 //  · marca: CONT./CONTI/CONTINEN... → CONTINENTAL (Barum/Michelin se respetan).
 //  · empresa se decide fuera por el CIF del cliente.
 //  · medida 19.5/19,5 → marcar avisa19_5=true (no se procesa, se avisa).
-async function callClaudeNeumAlb(b64, mediaType, key, isPdf, signal) {
+async function callClaudeNeumAlb(b64, mediaType, key, isPdf, signal, model) {
   const prompt = `Eres un OCR experto en albaranes de NEUMÁTICOS del Grupo Soledad (Neumáticos Soledad, Polinya, Taller Santa Perpetua, etc.) emitidos a empresas de transporte en España.
 
 Devuelve SIEMPRE un ARRAY JSON. Un objeto por cada LÍNEA REAL DE NEUMÁTICO del albarán. Si no hay ninguna línea de neumático, devuelve [].
@@ -6664,7 +6664,7 @@ Devuelve SOLO el array JSON, sin texto adicional, sin markdown, sin explicación
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: model || 'claude-haiku-4-5-20251001', max_tokens: 2000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
   if (!res.ok) {
@@ -16735,8 +16735,21 @@ async function _neumProcesarAlbaranSoledad(file, key) {
     fr.readAsDataURL(file);
   });
 
-  // 2) Leer con la IA
-  const lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, null);
+  // 2) Leer con la IA (Haiku principal)
+  let lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, null);
+  // v298: RED DE SEGURIDAD. Cuando el neumático solo está en la nota de texto
+  // ("SE MONTAN 4 315/80X22.5 HD5 DE SU STOCK") y no en la tabla, Haiku a veces
+  // devuelve [] y el albarán no se lee ni descuenta. Antes de rendirnos, reintentar
+  // UNA vez con Sonnet (lee mejor las notas). Solo se activa cuando Haiku falla.
+  if (!lineas || !lineas.length) {
+    console.warn('[v298] Haiku no detectó neumáticos, reintentando con Sonnet...');
+    toast(`🔁 ${file.name}: reintentando lectura con IA avanzada...`, 'ok');
+    try {
+      lineas = await callClaudeNeumAlb(b64, mediaType, key, isPdf, null, 'claude-sonnet-4-6');
+    } catch (e) {
+      console.error('[v298] Fallback Sonnet falló:', e);
+    }
+  }
   if (!lineas || !lineas.length) {
     toast(`⚠️ ${file.name}: no se detectaron neumáticos en el albarán`, 'err');
     return { ok: false, movimientos: 0, sinStock: 0 };
