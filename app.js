@@ -12541,6 +12541,153 @@ async function factEmitSubir(files) {
 }
 
 // ============================================================
+// v301: COBROS POR CONFIRMING BBVA
+// Lee el justificante de liquidación de BBVA (factoring), casa las facturas
+// por NÚMERO + IMPORTE y las marca COBRADAS solas (fecha de cobro = fecha de
+// liquidación, forma "Confirming BBVA"). Las que NO casan no se tocan y se
+// avisan. Candado anti-duplicados por Nº de cesión. Mismo canal para CEMEX,
+// Holcim o cualquier deudor que pague por este confirming (casa por CIF+número,
+// no por el nombre del deudor).
+// ------------------------------------------------------------
+// CIF del proveedor (empresa del grupo) → nombre de empresa TAL CUAL se guarda
+// en facturas_emitidas. OJO: aquí Portes 2014 Import es su PROPIA empresa
+// (a diferencia de gasoil/neumáticos, donde cae bajo TYP2014).
+const _CIF_EMP_FACT = {
+  'B90172735': 'TYP2014',
+  'B90286337': 'HISPALIS',
+  'B67316752': 'TRANSMARGAZ',
+  'B02657435': 'PORTES 2014 IMPORT'
+};
+
+async function callClaudeLiquidacion(b64, key) {
+  const prompt = 'Eres un OCR experto en JUSTIFICANTES DE LIQUIDACIÓN DE CONFIRMING (factoring) de BBVA. '
+    + 'El documento se titula "CONFIRMING-BBVA LIQUIDACIÓN POR FACTORIZACIÓN DE CRÉDITOS". Devuelve UN SOLO objeto JSON.\n\n'
+    + 'Lee la cabecera y la tabla "Detalle de los créditos". Devuelve JSON con:\n'
+    + '- cif_proveedor: el "N.I.F. PROVEEDOR" (B + 8 caracteres, ej "B90172735"). Sin espacios, en mayúsculas.\n'
+    + '- deudor: el "DEUDOR" tal cual (ej "CEMEX ESPAÑA OPERACIONES S.L.U.", "HOLCIM ESPAÑA, S.A.U.").\n'
+    + '- cesion: el "Nº DE CESIÓN" (solo dígitos, ej "10743365").\n'
+    + '- fecha_liquidacion: la "FECHA LIQUIDACIÓN" en formato AAAA-MM-DD (13-07-2026 → "2026-07-13").\n'
+    + '- importe_nominal: el "IMPORTE NOMINAL" total en número con punto decimal (29.343,94 → 29343.94).\n'
+    + '- liquido: el "LÍQUIDO A SU FAVOR" en número (29.152,19 → 29152.19).\n'
+    + '- deducido: el "IMPORTE A DEDUCIR" en número (191,75 → 191.75).\n'
+    + '- facturas: ARRAY con una entrada por CADA fila de la tabla "Detalle de los créditos". Cada entrada: '
+    + '{ "numero": el valor de la columna "N.º FACTURA" tal cual (ej "10000317"), '
+    + '"importe": el de la columna "IMPORTE" en número con punto decimal (13.638,93 → 13638.93) }.\n'
+    + '  NUNCA uses la columna "REFERENCIA" como número de factura. NUNCA uses la "FECHA PAGO" para nada '
+    + '(esa es cuando el deudor paga a BBVA, no cuando cobramos nosotros).\n\n'
+    + 'CUIDADO: los importes españoles usan punto de miles y coma decimal (13.638,93 = trece mil seiscientos treinta y ocho con noventa y tres). '
+    + 'Si un dato no aparece, null. SOLO el JSON, sin markdown ni explicaciones.';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: prompt }] }] })
+  });
+  if (!res.ok) { let e = {}; try { e = await res.json(); } catch (_) {} throw new Error(e.error?.message || ('HTTP ' + res.status)); }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  return JSON.parse(text);
+}
+
+async function liqConfirmSubir(files) {
+  if (!files || !files.length) return;
+  const key = getKey();
+  if (!key) { alert('No hay clave de IA configurada.'); return; }
+  const est = document.getElementById('liqConfirmEstado');
+  const box = document.getElementById('liqConfirmResultado');
+  for (const file of files) {
+    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { alert(file.name + ': solo PDF.'); continue; }
+    try {
+      if (est) { est.style.display = 'block'; est.textContent = '⏳ Leyendo la liquidación ' + file.name + ' con IA…'; }
+      const b64 = await new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => ko(new Error('No se pudo leer el archivo')); r.readAsDataURL(file); });
+      const j = await callClaudeLiquidacion(b64, key);
+
+      if (!j || !j.cesion) { alert(file.name + ': no he podido leer el Nº de cesión. Revisa que sea un justificante de liquidación de BBVA.'); if (est) est.style.display = 'none'; continue; }
+      if (!Array.isArray(j.facturas) || !j.facturas.length) { alert(file.name + ': no he encontrado la tabla de facturas de la liquidación.'); if (est) est.style.display = 'none'; continue; }
+
+      const cesion = String(j.cesion).trim();
+      const empresa = _CIF_EMP_FACT[(j.cif_proveedor || '').toUpperCase().trim()] || null;
+      const fCobro = j.fecha_liquidacion || null;
+
+      // Candado anti-duplicados por Nº de cesión (SELECT antes de tocar nada)
+      const { data: yaLiq } = await sb.from('liquidaciones_confirming').select('id,created_at').eq('cesion', cesion).limit(1);
+      if (yaLiq && yaLiq.length) {
+        if (est) est.style.display = 'none';
+        if (box) {
+          box.style.display = 'block';
+          box.innerHTML = '<div style="border:2px solid #d97706;background:#fffbeb;border-radius:10px;padding:14px;font-family:var(--mn);font-size:13px;color:#92400e">'
+            + '⚠ La liquidación con <strong>Nº de cesión ' + cesion + '</strong> ya se había procesado antes. No he vuelto a tocar ninguna factura (candado anti-duplicados).</div>';
+        }
+        continue;
+      }
+
+      if (est) est.textContent = '🔎 Casando ' + j.facturas.length + ' factura(s)…';
+
+      const marcadas = [], yaCobradas = [], noCasan = [];
+      for (const row of j.facturas) {
+        const num = (row.numero == null ? '' : String(row.numero)).trim();
+        const imp = Number(row.importe);
+        if (!num) { noCasan.push({ numero: '(sin número)', motivo: 'fila sin número de factura' }); continue; }
+
+        let q = sb.from('facturas_emitidas').select('id,numero,empresa,total,estado').eq('numero', num);
+        if (empresa) q = q.eq('empresa', empresa);
+        const { data: hits, error: qerr } = await q;
+        if (qerr) throw qerr;
+
+        if (!hits || !hits.length) { noCasan.push({ numero: num, motivo: 'no está en Facturas Emitidas' + (empresa ? ' (' + empresa + ')' : '') }); continue; }
+        if (hits.length > 1) { noCasan.push({ numero: num, motivo: 'hay ' + hits.length + ' facturas con ese número, no sé cuál marcar' }); continue; }
+
+        const f = hits[0];
+        // DOBLE COMPROBACIÓN por importe (tolerancia 2 céntimos)
+        if (Number.isFinite(imp) && f.total != null && Math.abs(Number(f.total) - imp) > 0.02) {
+          noCasan.push({ numero: num, motivo: 'el importe no cuadra (liquidación ' + imp.toFixed(2) + ' € · factura ' + Number(f.total).toFixed(2) + ' €)' });
+          continue;
+        }
+        if (f.estado === 'cobrada') { yaCobradas.push(num); continue; }
+
+        const { error: uerr } = await sb.from('facturas_emitidas')
+          .update({ estado: 'cobrada', fecha_cobro: fCobro, forma_cobro: 'Confirming BBVA' }).eq('id', f.id);
+        if (uerr) throw uerr;
+        marcadas.push(num);
+      }
+
+      // Registrar la liquidación (candado + histórico + coste financiero)
+      await sb.from('liquidaciones_confirming').insert({
+        cesion, banco: 'BBVA', empresa, cif_proveedor: (j.cif_proveedor || null),
+        deudor: (j.deudor || null), fecha_liquidacion: fCobro,
+        importe_nominal: (j.importe_nominal ?? null), liquido: (j.liquido ?? null),
+        deducido: (j.deducido ?? null),
+        facturas: { marcadas, yaCobradas, noCasan, filas: j.facturas }
+      });
+
+      // Informe en pantalla
+      if (box) {
+        box.style.display = 'block';
+        const li = (arr, color) => arr.map(x => '<span style="display:inline-block;background:' + color + ';color:#fff;border-radius:6px;padding:2px 8px;margin:2px;font-size:12px">' + x + '</span>').join('');
+        let html = '<div style="border:2px solid #16a34a;background:#f0fdf4;border-radius:10px;padding:14px;font-family:var(--mn);font-size:13px">';
+        html += '<div style="font-weight:800;margin-bottom:6px">Liquidación ' + cesion + (empresa ? ' · ' + empresa : '') + ' · cobro ' + (fCobro || '?') + '</div>';
+        html += '<div style="margin:4px 0"><strong>✅ Marcadas cobradas (' + marcadas.length + '):</strong> ' + (marcadas.length ? li(marcadas, '#16a34a') : '<span style="color:var(--mu)">ninguna</span>') + '</div>';
+        if (yaCobradas.length) html += '<div style="margin:4px 0"><strong>ℹ️ Ya estaban cobradas (' + yaCobradas.length + '):</strong> ' + li(yaCobradas, '#6b7280') + '</div>';
+        if (noCasan.length) {
+          html += '<div style="margin:8px 0 4px;color:#b91c1c"><strong>⚠ NO tocadas — míralas tú (' + noCasan.length + '):</strong></div>';
+          html += '<ul style="margin:0;padding-left:18px;color:#b91c1c">' + noCasan.map(x => '<li><strong>' + x.numero + '</strong> — ' + x.motivo + '</li>').join('') + '</ul>';
+        }
+        html += '</div>';
+        box.innerHTML = html;
+      }
+      toast('✓ Liquidación ' + cesion + ': ' + marcadas.length + ' cobrada(s)' + (noCasan.length ? ', ' + noCasan.length + ' sin casar' : ''));
+    } catch (e) {
+      console.error('[liqconfirm] subir', e);
+      alert('Error con ' + file.name + ': ' + (e.message || e));
+    } finally {
+      if (est) est.style.display = 'none';
+    }
+  }
+  const inp = document.getElementById('liqConfirmFileInput');
+  if (inp) inp.value = '';
+  await loadFactEmit();
+}
+
+// ============================================================
 // v108: INCIDENCIAS (temas pendientes con clientes)
 // ------------------------------------------------------------
 // Tabla compartida entre Admin, Marta y Mª del Mar (flag
