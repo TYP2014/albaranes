@@ -19306,6 +19306,19 @@ function renderRecambios() {
 }
 
 // Sube uno o varios documentos (albarán o factura) y los lee con IA
+// v299: RECAMBIOS — permitir SUBIR arrastrando y soltando el albarán o la factura
+// sobre su botón (además del clic de siempre). Es lo mismo que ya hace Gasoil con
+// "Subir factura". Filtra a PDF/imagen y llama a la misma subida de siempre
+// (recambiosSubir), que ya detecta sola con la IA si es albarán, factura o abono.
+// No cambia nada de lo que ya funciona: solo añade el arrastrar-soltar.
+function recambiosDrop(ev, tipo) {
+  const files = ev && ev.dataTransfer && ev.dataTransfer.files;
+  if (!files || !files.length) return;
+  const ok = Array.from(files).filter(f => /\.(pdf|png|jpe?g|webp|gif|bmp)$/i.test(f.name || '') || /^image\//.test(f.type || '') || (f.type || '') === 'application/pdf');
+  if (!ok.length) { toast('Arrastra el albarán o la factura en PDF o imagen', 'warn'); return; }
+  recambiosSubir(ok, tipo);
+}
+
 async function recambiosSubir(files, tipoForzado) {
   if (!files || !files.length) return;
   const key = getKey();
