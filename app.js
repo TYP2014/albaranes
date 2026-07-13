@@ -12588,6 +12588,9 @@ async function callClaudeLiquidacion(b64, key) {
   return JSON.parse(text);
 }
 
+// v302: cierra el aviso verde/ámbar del confirming cuando ya lo has leído.
+function _liqCerrar() { const b = document.getElementById('liqConfirmResultado'); if (b) { b.style.display = 'none'; b.innerHTML = ''; } }
+
 async function liqConfirmSubir(files) {
   if (!files || !files.length) return;
   const key = getKey();
@@ -12615,7 +12618,8 @@ async function liqConfirmSubir(files) {
         if (box) {
           box.style.display = 'block';
           box.innerHTML = '<div style="border:2px solid #d97706;background:#fffbeb;border-radius:10px;padding:14px;font-family:var(--mn);font-size:13px;color:#92400e">'
-            + '⚠ La liquidación con <strong>Nº de cesión ' + cesion + '</strong> ya se había procesado antes. No he vuelto a tocar ninguna factura (candado anti-duplicados).</div>';
+            + '⚠ La liquidación con <strong>Nº de cesión ' + cesion + '</strong> ya se había procesado antes. No he vuelto a tocar ninguna factura (candado anti-duplicados).'
+            + '<div style="text-align:right;margin-top:8px"><button onclick="_liqCerrar()" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:bold">✓ Visto, cerrar</button></div></div>';
         }
         continue;
       }
@@ -12628,7 +12632,7 @@ async function liqConfirmSubir(files) {
         const imp = Number(row.importe);
         if (!num) { noCasan.push({ numero: '(sin número)', motivo: 'fila sin número de factura' }); continue; }
 
-        let q = sb.from('facturas_emitidas').select('id,numero,empresa,total,estado').eq('numero', num);
+        let q = sb.from('facturas_emitidas').select('id,numero,empresa,total,estado,observaciones').eq('numero', num);
         if (empresa) q = q.eq('empresa', empresa);
         const { data: hits, error: qerr } = await q;
         if (qerr) throw qerr;
@@ -12644,8 +12648,13 @@ async function liqConfirmSubir(files) {
         }
         if (f.estado === 'cobrada') { yaCobradas.push(num); continue; }
 
+        // v302: rellena Observaciones con el detalle de la liquidación, sin pisar lo que ya hubiera
+        const notaObs = 'Confirming BBVA · Liquidación ' + cesion + ' · cobrado ' + (fCobro ? fCobro.split('-').reverse().join('/') : '?');
+        const obsPrev = (f.observaciones || '').trim();
+        const obsNueva = obsPrev.includes(notaObs) ? obsPrev : (obsPrev ? obsPrev + ' · ' + notaObs : notaObs);
+
         const { error: uerr } = await sb.from('facturas_emitidas')
-          .update({ estado: 'cobrada', fecha_cobro: fCobro, forma_cobro: 'Confirming BBVA' }).eq('id', f.id);
+          .update({ estado: 'cobrada', fecha_cobro: fCobro, forma_cobro: 'Confirming BBVA', observaciones: obsNueva }).eq('id', f.id);
         if (uerr) throw uerr;
         marcadas.push(num);
       }
@@ -12664,6 +12673,7 @@ async function liqConfirmSubir(files) {
         box.style.display = 'block';
         const li = (arr, color) => arr.map(x => '<span style="display:inline-block;background:' + color + ';color:#fff;border-radius:6px;padding:2px 8px;margin:2px;font-size:12px">' + x + '</span>').join('');
         let html = '<div style="border:2px solid #16a34a;background:#f0fdf4;border-radius:10px;padding:14px;font-family:var(--mn);font-size:13px">';
+        html += '<div style="text-align:right;margin-bottom:4px"><button onclick="_liqCerrar()" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:bold">✓ Visto, cerrar</button></div>';
         html += '<div style="font-weight:800;margin-bottom:6px">Liquidación ' + cesion + (empresa ? ' · ' + empresa : '') + ' · cobro ' + (fCobro || '?') + '</div>';
         html += '<div style="margin:4px 0"><strong>✅ Marcadas cobradas (' + marcadas.length + '):</strong> ' + (marcadas.length ? li(marcadas, '#16a34a') : '<span style="color:var(--mu)">ninguna</span>') + '</div>';
         if (yaCobradas.length) html += '<div style="margin:4px 0"><strong>ℹ️ Ya estaban cobradas (' + yaCobradas.length + '):</strong> ' + li(yaCobradas, '#6b7280') + '</div>';
