@@ -4656,19 +4656,31 @@ async function _processOne(it, type, key, timeoutMs) {
           const _esSuplementoMolins = (m) => {
             const prod = String(m.producto || '').toUpperCase();
             const cod = String(m.codigo || m.cod || '').toUpperCase();
+            // v303 (14/07/2026) ARREGLO — caso real N-23087 (Promotora/Molins):
+            // se coló una fila "RD118G DESPLAZAMIENTO" (el DESPLAZAMIENTO es un
+            // cargo de facturación, NO una carga física) y el albarán salió
+            // DUPLICADO. Causa: la IA a veces pega el CÓDIGO delante del nombre
+            // (producto = "RD118G DESPLAZAMIENTO RD118G") y no rellena el campo
+            // `codigo` aparte. Los filtros viejos estaban anclados a ^
+            // (/^DESPLAZAMIENTO/) → con el código delante ya no casaban.
+            // SOLUCIÓN: 1) buscar el código de suplemento (RD.. / EA-TE) TAMBIÉN
+            // dentro del nombre del producto, no solo en el campo codigo;
+            // 2) buscar las palabras clave EN CUALQUIER POSICIÓN (sin ^), porque
+            // ninguna carga real se llama DESPLAZAMIENTO/EXTRA TEMPORAL/RECARGO/
+            // SUPLEMENTO (es seguro, no da falsos positivos con áridos/cemento).
+            const codYprod = cod + ' ' + prod;
             // Códigos confirmados de suplementos Molins:
-            //   RD117G = DESPLAZAMIENTO
+            //   RD117G / RD118G / RD1xxx = DESPLAZAMIENTO
             //   EA-TE-IRAN = EXTRA TEMPORAL IMPACTOS GUERRA IRAN
-            //   RD117x (otros desplazamientos)
-            if (/^RD\d+/.test(cod)) return true;
-            if (/^EA-TE/.test(cod)) return true;
-            // Palabras clave en el nombre del producto que indican suplemento
-            // de coste (NO carga física real):
-            if (/^DESPLAZAMIENTO/.test(prod)) return true;
-            if (/^EXTRA\s+TEMPORAL/.test(prod)) return true;
+            if (/\bRD\d+/.test(codYprod)) return true;
+            if (/\bEA-TE/.test(codYprod)) return true;
+            // Palabras clave (EN CUALQUIER POSICIÓN) que indican suplemento de
+            // coste (NO carga física real):
+            if (/DESPLAZAMIENTO/.test(prod)) return true;
+            if (/EXTRA\s+TEMPORAL/.test(prod)) return true;
             if (/IMPACTOS\s+GUERRA/.test(prod)) return true;
-            if (/^RECARGO/.test(prod)) return true;
-            if (/^SUPLEMENTO/.test(prod)) return true;
+            if (/RECARGO/.test(prod)) return true;
+            if (/SUPLEMENTO/.test(prod)) return true;
             // Si no coincide ninguna regla, NO es suplemento (es material real)
             return false;
           };
