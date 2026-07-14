@@ -19552,6 +19552,46 @@ async function recambiosSubir(files, tipoForzado) {
               + '⚠️ REVISAR PROVEEDOR: la IA leyó "' + reg.proveedor + '" (somos nosotros, el cliente). El proveedor real es la marca del logo.';
           }
         }
+        // v304: COMPROBACIÓN DE NUESTRO CIF (paso 1 del plan "recambios por email").
+        // Hoy la empresa NO se lee del documento: se coge de la sub-pestaña donde JC
+        // arrastra (const emp = tallerEmpresaActiva). Eso funciona a mano, pero por
+        // correo NO hay pestaña. Ahora la IA lee TAMBIÉN nuestro CIF (cif_cliente) y
+        // aquí SOLO lo COMPARAMOS con la pestaña:
+        //   - CIF de otra empresa del grupo → aviso claro (NO cambia la empresa: decide JC)
+        //   - CIF que no es de ninguna de las 4 → aviso
+        //   - CIF no leído → aviso suave
+        // NO toca la empresa ni ningún otro dato: solo avisa y deja nota en Observaciones
+        // (columna que YA existe → este cambio NO requiere SQL).
+        // Objetivo: comprobar en producción, con los proveedores reales, si la IA lee
+        // bien el CIF ANTES de automatizar la entrada por correo.
+        {
+          const _cifEmp = {
+            'B90172735': 'TYP2014',
+            'B90286337': 'HISPALIS',
+            'B67316752': 'TRANSMARGAZ',
+            'B02657435': 'PORTES 2014 IMPORT'
+          };
+          const _cifDoc = String(doc.cif_cliente || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const _empCif = _cifDoc ? (_cifEmp[_cifDoc] || null) : null;
+          let _notaCif = null;
+          if (!_cifDoc) {
+            _notaCif = 'ℹ️ CIF de cliente NO leído: no se ha podido comprobar a qué empresa pertenece.';
+            console.warn('[v304 recambios] sin cif_cliente en "' + f.name + '"');
+          } else if (!_empCif) {
+            _notaCif = 'ℹ️ CIF de cliente leído (' + _cifDoc + ') pero NO es de ninguna de nuestras empresas — revisar.';
+            console.warn('[v304 recambios] cif_cliente desconocido: ' + _cifDoc);
+          } else if (_empCif !== reg.empresa) {
+            _notaCif = '⚠️ REVISAR EMPRESA: el CIF de este documento (' + _cifDoc + ') es de ' + _empCif
+              + ', pero se ha subido en la pestaña de ' + reg.empresa + '.';
+            console.warn('[v304 recambios] CIF ' + _cifDoc + ' = ' + _empCif + ' pero pestaña = ' + reg.empresa);
+            toast('⚠️ ' + (reg.num_documento || f.name) + ': el CIF dice ' + _empCif + ', no ' + reg.empresa, 'warn');
+          } else {
+            console.log('[v304 recambios] CIF ' + _cifDoc + ' ✓ coincide con la pestaña (' + reg.empresa + ')');
+          }
+          if (_notaCif) {
+            reg.observaciones = (reg.observaciones ? reg.observaciones + ' · ' : '') + _notaCif;
+          }
+        }
         // v107AL: detectar duplicado (mismo proveedor + nº documento + empresa + tipo).
         // Avisa y deja decidir; si el usuario cancela, se salta este documento.
         if (reg.num_documento && reg.proveedor) {
@@ -19650,6 +19690,7 @@ Campos a extraer (JSON):
   "tipo_detectado": "albaran" | "factura" | "abono",
   "proveedor": "nombre del proveedor que EMITE el documento (ej: LARAUTO S.A., RS TURIA, Zona Franca Alari Sepauto S.A., Autosur de Levante S.A., IVECO Auto Distribución)",
   "proveedor_nif": "CIF del proveedor emisor (ej: A58685892). NO el del cliente B90172735/B90286337",
+  "cif_cliente": "NUESTRO CIF: el del CLIENTE que RECIBE el recambio (el del recuadro del destinatario / 'facturar a'). Es SIEMPRE uno de estos cuatro: B90172735, B90286337, B67316752 o B02657435. Devuélvelo en MAYÚSCULAS y SIN espacios ni guiones (ej: B90172735). Si NO lo ves impreso en el documento, pon null — NO lo deduzcas del nombre ni lo inventes",
   "num_documento": "nº de la factura o del albarán (ej: F/000603, R12600399, FB01224, 2026006075)",
   "fecha": "DD/MM/YYYY del documento",
   "base_imponible": número (base imponible / suma sin IVA). Punto decimal con coma española.,
@@ -19671,6 +19712,7 @@ Campos a extraer (JSON):
 
 IMPORTANTE:
 - ⚠️ PROVEEDOR (CRÍTICO, error real detectado): el proveedor es SIEMPRE quien EMITE y FACTURA el documento — es el del LOGO/CABECERA de arriba (ej. "RS TURIA", "LARAUTO", "Autosur de Levante", "IVECO Auto Distribución", "Zona Franca Alari Sepauto"). NUNCA es "TRANSPORTES Y PORTES 2014, S.L." ni "TRANSPORTES HISPALIS 2016" ni "TRANSMARGAZ" — esas SOMOS NOSOTROS, el CLIENTE que recibe el recambio, aunque aparezcan en un recuadro grande en la zona del destinatario. Señal infalible: si el CIF junto a ese nombre es B90172735, B90286337 o B67316752, ESE es el cliente (nosotros), NO el proveedor. El proveedor es el OTRO nombre, el del logo de la marca de recambios. Ejemplo real: en un albarán onde el logo pone "RS TURIA - RECAMBIOS Y ACCESORIOS" y a la derecha hay un recuadro con "TRANSPORTES Y PORTES 2014, S.L. ... CIF B90172735", el proveedor es "RS TURIA" (NUNCA "Transportes y Portes 2014").
+- ⚠️ NO CONFUNDAS los dos CIF, son CONTRARIOS: "proveedor_nif" es el del EMISOR (el del logo de arriba, quien nos factura); "cif_cliente" es el NUESTRO (el del destinatario, quien paga). Ejemplo real: logo "RS TURIA" + recuadro "TRANSPORTES Y PORTES 2014, S.L. ... CIF B90172735" → proveedor_nif = el de RS TURIA, cif_cliente = "B90172735". Si en el documento aparece nuestro nombre pero su CIF NO está impreso, pon cif_cliente=null (NUNCA lo deduzcas del nombre).
 - Lee CADA línea con su cantidad, precio y descuento. La cantidad es CRÍTICA (es lo que el usuario quiere verificar).
 - Para facturas que agrupan albaranes (como Zona Franca/IVECO o IVECO Auto Distribución): asocia cada línea a su nº de albarán (campo "albaran" de cada línea). El nº de albarán aparece como "Nº Albaran C12603354" o "ALBARÁN Nº. 01141" o "Albarán AR 445865" antes de su grupo de líneas.
 - Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90. DEVUELVE los números como NÚMERO JSON con punto decimal (ej: 320.37, 1126.47, 33.90), NUNCA como texto con coma ni con separador de miles. El total de "320,37 €" debe devolverse como 320.37 (NO 32037).
