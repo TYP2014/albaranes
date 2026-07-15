@@ -16686,7 +16686,7 @@ function renderNeum() {
             <th style="padding:6px">TIPO</th>
             <th style="padding:6px">MEDIDA · MODELO</th>
             <th style="padding:6px;text-align:right">UDS</th>
-            <th style="padding:6px">VEH./MATRÍCULA</th>
+            <th style="padding:6px">MATRÍCULA</th>
             <th style="padding:6px">FACTURA / OBS</th>
             <th style="padding:6px"></th>
           </tr>
