@@ -13143,17 +13143,21 @@ function _fichajeSiguienteEvento(eventosHoy) {
   return 'salida';
 }
 
-// ¿Soy admin? (vista completa). Si no, soy trabajadora (mi propio fichaje).
-// v305: Marta y María del Mar (gestoras de oficina) gestionan Fichaje IGUAL que
-// el admin: ven todos los fichajes, filtran por empleado, CORRIGEN y marcan
-// ausencias. Se identifican por su id de usuario (mismo patrón que ITV y la
-// selección múltiple). NO afecta a nadie más: el resto de gestores/conductores
-// siguen viendo solo su propio fichaje.
+// v305/v306: ids de las gestoras de oficina (Marta y Mª del Mar). Son a la vez
+// EMPLEADAS (fichan su jornada) y GESTORAS del fichaje (ven/corrigen a todos).
+function _fichajeIdsOficina() {
+  return ['6f657be7-1edd-4d5d-9895-cc6777ebbca1',   // Marta
+          '5059731a-3e41-4578-b61e-96f20b6d8cc8'];  // María del Mar
+}
+function _esFichajeOficina() {
+  return _fichajeIdsOficina().indexOf(currentUser && currentUser.id) !== -1;
+}
+
+// ¿Tengo la vista de GESTIÓN? (ver todos, filtrar por empleado, CORREGIR,
+// marcar ausencias de cualquiera, Excel). La tiene el admin real (Juan Carlos)
+// y, desde v305, Marta y Mª del Mar por su id.
 function _fichajeEsAdmin() {
-  if (currentRole === 'admin') return true;
-  const _IDS_FICHAJE_OFICINA = ['6f657be7-1edd-4d5d-9895-cc6777ebbca1',   // Marta
-                                '5059731a-3e41-4578-b61e-96f20b6d8cc8'];  // María del Mar
-  return _IDS_FICHAJE_OFICINA.indexOf(currentUser && currentUser.id) !== -1;
+  return currentRole === 'admin' || _esFichajeOficina();
 }
 
 // Datos del trabajador actual (para grabar DNI/empresa/CIF correctos)
@@ -13386,12 +13390,23 @@ function renderFichaje() {
   const hoyISO = _fichajeFechaLocal(new Date());
 
   if (_fichajeEsAdmin()) {
-    // ADMIN: sin botonera (el jefe no ficha), tabla con TODAS, botón Excel
-    if (botonera) botonera.style.display = 'none';
+    // GESTIÓN: tabla con TODAS, botón Excel, botón ausencia de cualquiera.
     if (titulo) titulo.textContent = 'TODOS LOS FICHAJES';
     if (btnExcel) btnExcel.style.display = '';
     const btnAusAdm = document.getElementById('fichajeBtnAusenciaAdmin');
     if (btnAusAdm) btnAusAdm.style.display = '';
+    // v306: Marta y Mª del Mar son TAMBIÉN empleadas → además de gestionar,
+    // fichan su propia jornada. Se les muestra su botonera ARRIBA (sección
+    // "Fichar") y debajo la tabla de gestión de todos. El admin real (Juan
+    // Carlos) NO ficha: para él la botonera sigue oculta.
+    if (botonera) {
+      if (_esFichajeOficina()) {
+        botonera.style.display = '';
+        _fichajeRenderBotonera();
+      } else {
+        botonera.style.display = 'none';
+      }
+    }
   } else {
     // TRABAJADORA: botonera grande + su histórico
     if (botonera) botonera.style.display = '';
