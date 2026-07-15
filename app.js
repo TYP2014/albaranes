@@ -400,7 +400,9 @@ async function loadUserMap() {
       try {
         const _miPerfil = userMap[currentUser.id] || {};
         const _puedeFichar = !!_miPerfil.puede_fichar;
-        const _esAdminFichaje = (currentRole === 'admin');
+        // v305: además del admin, Marta y Mª del Mar ven la pestaña Fichaje
+        // (gestión completa). _fichajeEsAdmin() ya las incluye por su id.
+        const _esAdminFichaje = _fichajeEsAdmin();
         const _tabFichaje = document.getElementById('tabFichaje');
         if (_tabFichaje) {
           _tabFichaje.style.display = (_puedeFichar || _esAdminFichaje) ? 'flex' : 'none';
@@ -13142,7 +13144,17 @@ function _fichajeSiguienteEvento(eventosHoy) {
 }
 
 // ¿Soy admin? (vista completa). Si no, soy trabajadora (mi propio fichaje).
-function _fichajeEsAdmin() { return currentRole === 'admin'; }
+// v305: Marta y María del Mar (gestoras de oficina) gestionan Fichaje IGUAL que
+// el admin: ven todos los fichajes, filtran por empleado, CORRIGEN y marcan
+// ausencias. Se identifican por su id de usuario (mismo patrón que ITV y la
+// selección múltiple). NO afecta a nadie más: el resto de gestores/conductores
+// siguen viendo solo su propio fichaje.
+function _fichajeEsAdmin() {
+  if (currentRole === 'admin') return true;
+  const _IDS_FICHAJE_OFICINA = ['6f657be7-1edd-4d5d-9895-cc6777ebbca1',   // Marta
+                                '5059731a-3e41-4578-b61e-96f20b6d8cc8'];  // María del Mar
+  return _IDS_FICHAJE_OFICINA.indexOf(currentUser && currentUser.id) !== -1;
+}
 
 // Datos del trabajador actual (para grabar DNI/empresa/CIF correctos)
 function _fichajeMisDatos() {
