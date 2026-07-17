@@ -4606,7 +4606,13 @@ async function _processOne(it, type, key, timeoutMs) {
             const _tmV311 = parseFloat(data.tm);
             let _colaV311;
             if (!isNaN(_tmV311) && _tmV311 > 0) {
-              _colaV311 = String(Math.round(_tmV311 * 1000)); // 28.74 TN → "28740"
+              // v316 (17/07/2026): kilos REDONDEADOS A CENTENAS. Caso real: el mismo ticket
+              // de 28.740 kg se leyó un día como 28,74 TN y otro como 28,7 TN → colas 28740
+              // vs 28700 → números distintos → ese duplicado se habría escapado. Redondeando
+              // a centenas de kilo, ambas lecturas dan 28700 y el duplicado se caza igual.
+              // (Dos viajes reales del mismo mes tendrían que pesar a <100 kg de diferencia
+              // para chocar — rarísimo, y aun así solo sería un aviso a revisar.)
+              _colaV311 = String(Math.round(_tmV311 * 10) * 100); // 28.74 → 28700
             } else if (String(data.tractora || '').trim()) {
               _colaV311 = String(data.tractora).trim().toUpperCase().replace(/\s+/g, '');
             } else {
