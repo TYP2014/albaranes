@@ -3605,6 +3605,38 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+        // v312 (17/07/2026, Juan Carlos): PLANTILLA TICKET TÉRMICO HOLCIM GARRAF.
+        // Estos tickets de báscula (casi ilegibles) SOLO existen para un trayecto:
+        // Cantera de Garraf → Fábrica Montcada, material CALIZA GARRAF ZAHORRA, de Holcim.
+        // Si la IA reconoce el ticket por CUALQUIER pista (material zahorra, u origen Garraf
+        // + destino Montcada), rellenamos por defecto SOLO LOS CAMPOS VACÍOS con los valores
+        // canónicos. Nunca se pisa nada que la IA sí leyera (regla de oro de Juan Carlos).
+        // Exclusión: los albaranes de VENTA de Promsa/Molins también van Garraf→Montcada,
+        // pero llevan proveedor Promotora/Molins y material propio (RZO Calcari...) — si el
+        // proveedor apunta a Promsa/Molins/Promotora, esta plantilla NO actúa.
+        {
+          const _prodG = String(data.producto || '');
+          const _plG = String(data.planta || '');
+          const _obG = String(data.obra || '');
+          const _quienG = String(data.proveedor || '') + ' ' + String(data.cliente || '');
+          const _esPromsaG = /promsa|promotora|molins/i.test(_quienG);
+          const _holcimOk = !_quienG.trim() || /holcim|lafarge/i.test(_quienG);
+          const _esTicketGarraf = !_esPromsaG && _holcimOk
+            && (/zahorra/i.test(_prodG)
+                || (/garraf/i.test(_plG) && /montcada/i.test(_obG)));
+          if (_esTicketGarraf) {
+            const _rellenosG = [];
+            if (!_prodG.trim()) { data.producto = 'CALIZA GARRAF ZAHORRA'; _rellenosG.push('material'); }
+            if (!_plG.trim()) { data.planta = 'Cantera de Garraf'; _rellenosG.push('origen'); }
+            if (!_obG.trim()) { data.obra = 'Fábrica Montcada'; _rellenosG.push('destino'); }
+            if (!String(data.cliente || '').trim()) { data.cliente = 'Holcim España, S.A.U.'; _rellenosG.push('cliente'); }
+            if (!String(data.proveedor || '').trim()) { data.proveedor = 'Holcim España, S.A.U.'; _rellenosG.push('proveedor'); }
+            if (_rellenosG.length) {
+              data.observaciones = ((data.observaciones || '') + ' 🏭 Ticket Garraf: ' + _rellenosG.join('/') + ' puestos por defecto (Cantera de Garraf → Fábrica Montcada)').trim();
+              console.log('[v312 ticket Garraf] rellenados por defecto:', _rellenosG.join(', '));
+            }
+          }
+        }
         // Red de seguridad: normalizar grafía del origen (planta)
         if (data.planta) {
           const fixedOri = fixOrigen(data.planta);
@@ -5184,6 +5216,19 @@ Si el albarán NO es de BENSEC, ignora esta regla y sigue con las de abajo.
   · ALBARÁN SOLO DE RETORNO (sin material): si NO hay NINGUNA línea "BB ..." ni "Sac ..." y lo único que hay es "Retorn Palet Estàndard" (negativo) y/o "Contribució SCRAP", es un albarán de SOLO retorno: son palets vacíos que VUELVEN desde Montcada hacia IDM. En este caso el origen y el destino van AL REVÉS que en un albarán normal: planta (ORIGEN) = "Fábrica Montcada" (de donde vuelven los palets) y obra (DESTINO) = "Pontils" (a donde se devuelven). producto = "Retorno palets", tm = el número de palets devueltos (el valor ABSOLUTO del negativo de "Retorn Palet Estàndard"; ej. -27 → tm 27), observaciones = "Retorno NN palets". 🔴 OJO: el campo "Destino:" del papel pone "SP HOLCIM MONTCADA", pero en un albarán de solo retorno eso es el ORIGEN (de donde vuelven los palets), NO el destino. Ejemplo real albarán GV/942 (línea "Retorn Palet Estàndard -27", el papel pone "Destino: 5500119787 SP HOLCIM MONTCADA") → producto="Retorno palets", tm=27, planta="Fábrica Montcada", obra="Pontils", observaciones="Retorno 27 palets".
   · tractora = la matrícula ANOTADA A MANO (formato 4 dígitos + 3 letras, ej. 9499LHT). El campo impreso pone "TTE PROPIO" (transporte propio): NUNCA pongas "TTE PROPIO" como matrícula. Si la matrícula manuscrita no se lee con seguridad, deja tractora vacía (null). El remolque manuscrito empieza por R (ej. R8672BCN) y NO va como tractora.
 Si el albarán NO es de IDM/SECTRES, ignora esta regla y sigue con las de abajo.
+
+🔴🔴 TICKET TÉRMICO DE BÁSCULA HOLCIM GARRAF — COMPRUÉBALO ANTES QUE NADA (v312, Juan Carlos 17/07/2026): es un TICKET estrecho de papel térmico (impresión de báscula, tinta muy tenue, a menudo CASI ILEGIBLE), con esta estructura en columna: "Cargador:" LafargeHolcim España (Madrid, NIF ESA08000424) → "Matrícula tractora:" y "Remolque:" → "Operador de Transporte:" → "Transportista efectivo:" → "Origen:" LafargeHolcim España, S.A.U. (Garraf), Ctra. C-31, Garraf-Sitges → "Destinación:" LafargeHolcim España, S.A.U. (Montcada), Ctra. C-17, Montcada i Reixac → "Material:" Caliza Garraf Zahorra → "Cantidad: XXXXXkg" + pesos de entrada/salida y fechas de tara/carga. A veces lleva un sello azul de "Fábrica de Montcada" y cifras repasadas a bolígrafo. Si reconoces esta estructura (aunque solo leas partes sueltas), aplica SIEMPRE estos valores fijos — este ticket SOLO existe para llevar caliza de la cantera de Garraf a la fábrica de Montcada, no hay otra combinación posible:
+  · planta (ORIGEN) = "Cantera de Garraf"
+  · obra (DESTINO) = "Fábrica Montcada"
+  · producto (MATERIAL) = "CALIZA GARRAF ZAHORRA"
+  · cliente = "Holcim España, S.A.U."
+  · proveedor = "Holcim España, S.A.U."
+  · tm = el número de "Cantidad: XXXXXkg" dividido entre 1000 (ej. "Cantidad: 29700kg" → tm = 29.7). Si hay una cifra repasada a BOLÍGRAFO junto a la cantidad, esa manda (es la corrección del básculista). NUNCA uses el "Peso de entrada" (es la tara) ni el "Peso de salida" (es el bruto) como tm.
+  · fecha = la de "Fecha de carga" (formato DD/MM/AAAA; ignora la hora).
+  · tractora = la "Matrícula tractora:" (4 dígitos + 3 letras). El "Remolque:" empieza por R y NO va como tractora. Si no la lees con seguridad, déjala vacía — NUNCA la inventes.
+  · albaran = NO existe en este ticket (no lleva número impreso): devuélvelo vacío/null y el sistema le genera uno automático. NUNCA te inventes un número.
+  · Lee con máximo esfuerzo la matrícula, los kg y la fecha aunque la tinta esté casi borrada — son los únicos datos variables del ticket; el resto es siempre igual.
+Si el documento NO es este ticket térmico, ignora esta regla y sigue con las de abajo.
 
 🔴 PRIORIDAD ABSOLUTA — HOLCIM ALBARÁN DE SALIDA (v107D3, leer ANTES que ninguna otra regla):
 
