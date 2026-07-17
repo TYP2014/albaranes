@@ -19953,9 +19953,21 @@ async function recambiosConciliar(facturaId) {
   }
 
   // Filtrar albaranes del MISMO proveedor (comparación flexible)
-  const provFac = _recambNorm(factura.proveedor);
+  // v310: caso real de Marta (Radiadors Ibañez): el MISMO proveedor estaba guardado
+  // con variantes del nombre ("RADIADORS IBAÑEZ" / "RADIADORES IBÁÑEZ", con/sin
+  // acento) y sus albaranes NI ENTRABAN en el cruce → todo salía "sin subir" o
+  // "cargo fantasma". Arreglo doble: (1) el CIF del proveedor MANDA (si factura y
+  // albarán tienen el mismo proveedor_nif, son el mismo proveedor, se llame como se
+  // llame); (2) el nombre se compara SIN acentos (IBÁÑEZ = IBAÑEZ).
+  const _provNorm310 = s => String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // fuera acentos
+    .toUpperCase().replace(/[\s.\-_/,]/g, '').trim();
+  const provFac = _provNorm310(factura.proveedor);
+  const nifFac = _provNorm310(factura.proveedor_nif);
   const albProv = albaranes.filter(a => {
-    const p = _recambNorm(a.proveedor);
+    const nifA = _provNorm310(a.proveedor_nif);
+    if (nifFac && nifA && nifFac === nifA) return true;   // mismo CIF → mismo proveedor, seguro
+    const p = _provNorm310(a.proveedor);
     return p && provFac && (p.includes(provFac) || provFac.includes(p) || p === provFac);
   });
 
