@@ -3621,13 +3621,29 @@ async function _processOne(it, type, key, timeoutMs) {
           const _quienG = String(data.proveedor || '') + ' ' + String(data.cliente || '');
           const _esPromsaG = /promsa|promotora|molins/i.test(_quienG);
           const _holcimOk = !_quienG.trim() || /holcim|lafarge/i.test(_quienG);
+          // v313 (17/07/2026, caso real de la prueba de la v312): Haiku a veces SOLO consigue
+          // leer el SELLO azul "Fábrica de Montcada" del ticket... y lo pone como ORIGEN
+          // (planta="Fábrica Montcada", obra/producto/nº vacíos). Ese patrón —Holcim con solo
+          // Montcada leído, SIN nº de albarán, SIN destino y SIN material— no puede ser otra
+          // cosa que este ticket (los albaranes A4 de verdad de Holcim traen su nº 31... y se
+          // leen). Se añade como TERCER disparador. Además, dentro del ticket se corrige el
+          // cruce: el origen es SIEMPRE "Cantera de Garraf" (regla de Juan Carlos: ese ticket
+          // solo existe para el trayecto Garraf → Montcada); si la IA puso Montcada como
+          // origen, era el sello del DESTINO y se recoloca.
+          const _soloSelloG = /montcada/i.test(_plG) && !_obG.trim() && !_prodG.trim()
+            && !String(data.albaran || '').trim();
           const _esTicketGarraf = !_esPromsaG && _holcimOk
             && (/zahorra/i.test(_prodG)
-                || (/garraf/i.test(_plG) && /montcada/i.test(_obG)));
+                || (/garraf/i.test(_plG) && /montcada/i.test(_obG))
+                || _soloSelloG);
           if (_esTicketGarraf) {
             const _rellenosG = [];
+            // v313: origen invertido (el sello como origen) → recolocar SIEMPRE.
+            if (/montcada/i.test(_plG)) {
+              data.planta = 'Cantera de Garraf';
+              _rellenosG.push('origen (era el sello del destino)');
+            } else if (!_plG.trim()) { data.planta = 'Cantera de Garraf'; _rellenosG.push('origen'); }
             if (!_prodG.trim()) { data.producto = 'CALIZA GARRAF ZAHORRA'; _rellenosG.push('material'); }
-            if (!_plG.trim()) { data.planta = 'Cantera de Garraf'; _rellenosG.push('origen'); }
             if (!_obG.trim()) { data.obra = 'Fábrica Montcada'; _rellenosG.push('destino'); }
             if (!String(data.cliente || '').trim()) { data.cliente = 'Holcim España, S.A.U.'; _rellenosG.push('cliente'); }
             if (!String(data.proveedor || '').trim()) { data.proveedor = 'Holcim España, S.A.U.'; _rellenosG.push('proveedor'); }
@@ -5228,6 +5244,7 @@ Si el albarán NO es de IDM/SECTRES, ignora esta regla y sigue con las de abajo.
   · tractora = la "Matrícula tractora:" (4 dígitos + 3 letras). El "Remolque:" empieza por R y NO va como tractora. Si no la lees con seguridad, déjala vacía — NUNCA la inventes.
   · albaran = NO existe en este ticket (no lleva número impreso): devuélvelo vacío/null y el sistema le genera uno automático. NUNCA te inventes un número.
   · Lee con máximo esfuerzo la matrícula, los kg y la fecha aunque la tinta esté casi borrada — son los únicos datos variables del ticket; el resto es siempre igual.
+  · 🔴 ANTI-EJEMPLO REAL (v313, error detectado en producción): el sello AZUL "Fábrica de Montcada" que llevan muchos de estos tickets NO es el origen — es el sello que ponen al DESCARGAR en el destino. NUNCA pongas "Fábrica Montcada" como planta/origen en este ticket: el origen es SIEMPRE "Cantera de Garraf" (el camión SALE de la cantera y ENTREGA en la fábrica). Si lo único que consigues leer es ese sello, devuelve igualmente planta="Cantera de Garraf", obra="Fábrica Montcada", producto="CALIZA GARRAF ZAHORRA", cliente y proveedor "Holcim España, S.A.U.".
 Si el documento NO es este ticket térmico, ignora esta regla y sigue con las de abajo.
 
 🔴 PRIORIDAD ABSOLUTA — HOLCIM ALBARÁN DE SALIDA (v107D3, leer ANTES que ninguna otra regla):
