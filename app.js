@@ -4489,6 +4489,58 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         }
         const t = getTransportista(data.tractora); if (t) data.transportista = t;
+        // v311 (17/07/2026, Juan Carlos): NÚMERO AUTOMÁTICO para tickets SIN nº de albarán.
+        // Caso real: los tickets térmicos de báscula (ej. Holcim Cantera Garraf) NO llevan
+        // nº de albarán impreso — literalmente no existe en el papel. Hasta ahora cada
+        // persona escribía un texto a mano ("albarán cantera", "foto sin sellar"...), lo
+        // que causaba DOS problemas de duplicados en direcciones opuestas:
+        //   (a) el MISMO ticket subido 2 veces con textos distintos → NO saltaba el aviso;
+        //   (b) DOS viajes DISTINTOS con el mismo texto → saltaba duplicado FALSO y se
+        //       borraba un albarán bueno.
+        // Solución: si tras toda la limpieza el nº sigue vacío, la app genera uno
+        // DETERMINISTA a partir del propio ticket: "SN-MMAA-KILOS" (SN = sin número,
+        // MMAA = mes+año de la fecha, KILOS = tm en kg). El mismo ticket produce SIEMPRE
+        // el mismo número (lo suba quien lo suba y cuando sea) → el detector de duplicados
+        // A/B/C de analyzeRecords funciona solo. Viajes distintos pesan distinto → números
+        // distintos → sin falsos duplicados. Buscar "SN-0726" saca todos los de julio 2026.
+        // Si no hay kilos legibles, se usa la matrícula; si tampoco, un sufijo aleatorio
+        // (marcado en observaciones, quedará "a revisar" por pocos campos).
+        // Además: si la FECHA no se leyó, se pone la fecha DE HOY (día de subida) — pedido
+        // expreso de Juan Carlos — con nota en observaciones para poder corregirla.
+        {
+          const _numV311 = String(data.albaran || '').trim();
+          if (!_numV311) {
+            // 1) Fecha por defecto = hoy, si la IA no leyó ninguna.
+            if (!String(data.fecha || '').trim()) {
+              const _hoy = new Date();
+              data.fecha = String(_hoy.getDate()).padStart(2, '0') + '/'
+                + String(_hoy.getMonth() + 1).padStart(2, '0') + '/' + _hoy.getFullYear();
+              data.observaciones = ((data.observaciones || '') + ' 📅 Fecha = día de subida (no legible en el papel — corregir si el viaje fue otro día)').trim();
+              console.log('[v311] fecha vacía → puesta la de hoy:', data.fecha);
+            }
+            // 2) MMAA del número, sacado de la fecha (leída o de hoy).
+            const _fV311 = normFecha(data.fecha);
+            const _mV311 = String(_fV311).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            const _hoyV311 = new Date();
+            const _mmaa = _mV311
+              ? (_mV311[2] + _mV311[3].slice(2))
+              : (String(_hoyV311.getMonth() + 1).padStart(2, '0') + String(_hoyV311.getFullYear()).slice(2));
+            // 3) Cola del número: kilos (tm×1000) > matrícula > aleatorio (último recurso).
+            const _tmV311 = parseFloat(data.tm);
+            let _colaV311;
+            if (!isNaN(_tmV311) && _tmV311 > 0) {
+              _colaV311 = String(Math.round(_tmV311 * 1000)); // 28.74 TN → "28740"
+            } else if (String(data.tractora || '').trim()) {
+              _colaV311 = String(data.tractora).trim().toUpperCase().replace(/\s+/g, '');
+            } else {
+              _colaV311 = 'R' + String(Math.floor(1000 + Math.random() * 9000));
+              data.observaciones = ((data.observaciones || '') + ' ⚠️ Ni kilos ni matrícula legibles — nº con sufijo aleatorio, completar a mano del papel').trim();
+            }
+            data.albaran = 'SN-' + _mmaa + '-' + _colaV311;
+            data.observaciones = ((data.observaciones || '') + ' 🔢 Nº ' + data.albaran + ' generado automáticamente (ticket sin nº de albarán)').trim();
+            console.log('[v311] nº automático generado:', data.albaran);
+          }
+        }
         // v98: FIX BUG BANNER PENDIENTE NO DESAPARECE.
         // Antes: INSERT nuevo registro + DELETE registro pendiente. El DELETE fallaba por RLS
         // (el admin no tenía permiso para borrar registros del conductor en algunas configs)
