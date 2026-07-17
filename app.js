@@ -5221,6 +5221,33 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
   throw errFinal;
 }
 
+// v315 (17/07/2026): EXTRACTOR ROBUSTO DE JSON de las respuestas de la IA.
+// Caso real de hoy: Sonnet 4.6 a veces contesta con texto delante ("Analizando el
+// albarán..." / "I need to...") ANTES del JSON, y JSON.parse petaba con "Unexpected
+// token" → se tiraba a la basura una lectura BUENA (falló así el reintento v314 del
+// ticket Garraf y el reintento de TN). En vez de rogarle al modelo que no hable
+// (poco fiable), la app RECORTA ella misma el bloque JSON: primero intenta el parse
+// directo (caso normal, coste cero) y si falla busca del primer '{' o '[' al último
+// '}' o ']' y parsea ese tramo. Se usa en TODO el circuito de lectura de ALBARANES
+// (callClaudeAlb + los 9 reintentos focalizados con Sonnet). Gasoil/neumáticos/etc.
+// no se tocan en esta versión.
+function _jsonRespuestaIA(text) {
+  try { return JSON.parse(text); } catch (e0) {
+    const _iL = text.indexOf('['), _iO = text.indexOf('{');
+    let ini = -1;
+    if (_iL >= 0 && (_iO < 0 || _iL < _iO)) ini = _iL;
+    else if (_iO >= 0) ini = _iO;
+    const fin = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
+    if (ini >= 0 && fin > ini) {
+      const recorte = text.slice(ini, fin + 1);
+      const parsed = JSON.parse(recorte); // si también falla, lanza (igual que antes)
+      console.warn('[v315] La IA contestó con texto delante del JSON — recortado y recuperado (' + text.slice(0, 40).replace(/\s+/g, ' ') + '...)');
+      return parsed;
+    }
+    throw e0;
+  }
+}
+
 async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-4-5') {
   // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
   // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
@@ -5491,7 +5518,7 @@ SOLO JSON válido, sin markdown.`;
   }
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(text);
+  const parsed = _jsonRespuestaIA(text);
   const results = Array.isArray(parsed) ? parsed : [parsed];
 
   // v107FY — MODO MANUAL (lectura ligera). Cuando el usuario pulsa "Guardar como manual"
@@ -6076,7 +6103,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107K85] Sonnet no devolvió JSON válido (Ref CemexGo):', text.substring(0, 200));
@@ -6124,7 +6151,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107K83] Sonnet no devolvió JSON válido (nº Holcim):', text.substring(0, 200));
@@ -6172,7 +6199,7 @@ Devuelve UN objeto JSON: {"tm":NN.NNN,"bruto_kg":NNNNN,"tara_kg":NNNNN}. Sin tex
     if (!res.ok) return null;
     const d = await res.json();
     const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(text);
+    const parsed = _jsonRespuestaIA(text);
     if (isPdf) {
       return Array.isArray(parsed) ? parsed : [parsed];
     } else {
@@ -6223,7 +6250,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v93] Sonnet no devolvió JSON válido:', text.substring(0, 200));
@@ -6275,7 +6302,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107EN3] Sonnet no devolvió JSON válido:', text.substring(0, 200));
@@ -6325,7 +6352,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107FN] Sonnet no devolvió JSON válido (destino):', text.substring(0, 200));
@@ -6374,7 +6401,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107H7] Sonnet no devolvió JSON válido (origen Puigfel):', text.substring(0, 200));
@@ -6422,7 +6449,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107H9] Sonnet no devolvió JSON válido (destino Promsa):', text.substring(0, 200));
@@ -6476,7 +6503,7 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   try {
-    const arr = JSON.parse(text);
+    const arr = _jsonRespuestaIA(text);
     return Array.isArray(arr) ? arr : [arr];
   } catch (e) {
     console.warn('[v107I7] Sonnet no devolvió JSON válido (Promsa origen+destino):', text.substring(0, 200));
