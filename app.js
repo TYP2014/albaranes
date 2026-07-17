@@ -19420,8 +19420,17 @@ function renderRecambios() {
 
   // v250: fila de un documento (misma fila de siempre, extraída para reutilizar)
   const filaDoc = (d) => {
+    // v309: los albaranes/abonos se pueden conciliar (o des-conciliar) A MANO — caso
+    // de Marta: ella VE que el albarán pertenece a la factura pero el cruce automático
+    // no lo casó y no había forma de arreglarlo desde la app.
+    const _puedeMano = d.tipo_doc !== 'factura' && (
+      _recambiosEsOficina() ||
+      (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
+    );
     const est = d.conciliado
-      ? '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>'
+      ? (_puedeMano
+        ? `<span style="color:var(--ac);font-size:11px;cursor:pointer" title="Pincha para QUITAR el conciliado (si se marcó por error)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', true)">🟢 Conciliado</span>`
+        : '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>')
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
@@ -19431,7 +19440,9 @@ function renderRecambios() {
     );
     const btnConciliar = puedeConciliar
       ? `<button class="btn bp" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">🔍 Conciliar</button>`
-      : '';
+      : (_puedeMano && !d.conciliado
+        ? `<button class="btn bs" style="font-size:10px;padding:3px 8px;margin-right:4px" title="Marcarlo conciliado a mano (cuando ves claro que pertenece a una factura)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', false)">✓ A mano</button>`
+        : '');
     const dup = esDuplicado(d);
     const trStyle = dup
       ? 'cursor:pointer;background:rgba(255,80,80,.08);border-left:3px solid #ff5050'
@@ -19742,6 +19753,7 @@ IMPORTANTE:
 - ⚠️ NO CONFUNDAS los dos CIF, son CONTRARIOS: "proveedor_nif" es el del EMISOR (el del logo de arriba, quien nos factura); "cif_cliente" es el NUESTRO (el del destinatario, quien paga). Ejemplo real: logo "RS TURIA" + recuadro "TRANSPORTES Y PORTES 2014, S.L. ... CIF B90172735" → proveedor_nif = el de RS TURIA, cif_cliente = "B90172735". Si en el documento aparece nuestro nombre pero su CIF NO está impreso, pon cif_cliente=null (NUNCA lo deduzcas del nombre).
 - Lee CADA línea con su cantidad, precio y descuento. La cantidad es CRÍTICA (es lo que el usuario quiere verificar).
 - Para facturas que agrupan albaranes (como Zona Franca/IVECO o IVECO Auto Distribución): asocia cada línea a su nº de albarán (campo "albaran" de cada línea). El nº de albarán aparece como "Nº Albaran C12603354" o "ALBARÁN Nº. 01141" o "Albarán AR 445865" antes de su grupo de líneas.
+- ⚠️ FACTURAS DE VARIAS PÁGINAS (error real detectado en la factura FV2603968 de Radiadors Ibañez): CADA PÁGINA puede llevar SU PROPIO "Nº Albarán:" como cabecera de su grupo de líneas. Asigna a cada línea el nº de albarán de SU página/grupo — NUNCA repitas el nº de la primera página en las líneas de las páginas siguientes, y NUNCA dejes "albaran" en null si en esa página hay un "Nº Albarán:" impreso. Ejemplo real: página 1 "Nº Albarán: AV026234" con 2 líneas y página 2 "Nº Albarán: AV026236" con 1 línea → las 2 primeras líneas llevan albaran="AV026234" y la tercera albaran="AV026236".
 - Números en formato español: "1.126,47" = 1126.47. "33,900" = 33.90. DEVUELVE los números como NÚMERO JSON con punto decimal (ej: 320.37, 1126.47, 33.90), NUNCA como texto con coma ni con separador de miles. El total de "320,37 €" debe devolverse como 320.37 (NO 32037).
 - Si un dato no aparece, pon null. NO inventes.
 - Devuelve SOLO el JSON, sin texto adicional ni markdown.`;
@@ -20015,6 +20027,51 @@ async function recambiosConciliar(facturaId) {
     }
   }
 
+  // v309: RESCATE POR RESTO DE BASE — caso real de Marta (factura Radiadors Ibañez
+  // FV2603968, 2 páginas): la IA no asoció el nº de albarán de la 2ª página (AV026236)
+  // y ese albarán se quedaba "no aparece en la factura" aunque por importes era evidente
+  // (base factura 415 = albarán casado 330 + albarán suelto 85). Regla: si la BASE de la
+  // factura menos la base de lo YA casado coincide (±0,05€) con la base de UN albarán
+  // aún sin casar, ese albarán pertenece a esta factura → se casa "por importe".
+  // Se repite mientras encaje alguno (por si hay más de un albarán suelto).
+  {
+    const _baseAlb = a => {
+      const b = Number(a.base_imponible);
+      if (!isNaN(b) && b > 0) return b;
+      const t = Number(a.total);
+      return isNaN(t) ? NaN : t;
+    };
+    const bF = Number(factura.base_imponible);
+    if (!isNaN(bF) && bF > 0 && informe.albNoEnFactura.length) {
+      let sumaCasados = 0;
+      albProv.forEach(a => {
+        if (a.id && _idsAlbCruzados.indexOf(a.id) !== -1) {
+          const v = _baseAlb(a);
+          if (!isNaN(v)) sumaCasados += v;
+        }
+      });
+      let resto = bF - sumaCasados;
+      let cambio = true;
+      while (cambio && resto > 0.05) {
+        cambio = false;
+        for (let i = 0; i < informe.albNoEnFactura.length; i++) {
+          const albR = informe.albNoEnFactura[i].alb;
+          const v = _baseAlb(albR);
+          if (!isNaN(v) && v > 0 && Math.abs(v - resto) <= 0.05) {
+            informe.albNoEnFactura.splice(i, 1);
+            albCruzados.add(_recambNorm(albR.num_documento));
+            if (albR.id) _idsAlbCruzados.push(albR.id);
+            informe.ok.push(`🔗 ${albR.num_documento || '?'} cruzado por IMPORTE: su base ${v.toFixed(2)}€ completa la base de la factura (${bF.toFixed(2)}€). La IA no leyó su nº dentro de la factura — revisa que sea correcto.`);
+            console.log(`[v309 conciliar] rescate por resto: albarán ${albR.num_documento} (${v.toFixed(2)}€) casado con ${factura.num_documento} (resto era ${resto.toFixed(2)}€)`);
+            resto -= v;
+            cambio = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // Albaranes que están en la factura pero NO los subí
   for (const numF of numsAlbEnFactura) {
     const subido = albProv.some(a => {
@@ -20073,6 +20130,29 @@ async function recambiosConciliar(facturaId) {
   } catch (e) { console.warn('[recambiosConciliar] no se pudo marcar conciliado:', e); }
 }
 
+// v309: conciliar / des-conciliar un albarán o abono A MANO. Para cuando el cruce
+// automático no casa un documento pero el usuario VE que pertenece a una factura
+// (o al revés: se marcó por error y hay que quitarlo). Solo cambia el flag
+// 'conciliado' de ESE documento — no toca nada más.
+async function recambiosConciliarMano(id, quitar) {
+  const d = recambiosDocs.find(x => x.id === id);
+  if (!d) { toast('Documento no encontrado', 'err'); return; }
+  const nom = `${d.tipo_doc || 'documento'} ${d.num_documento || ''} de ${d.proveedor || '?'}`.trim();
+  const msg = quitar
+    ? `¿QUITAR el conciliado de ${nom}?\n\nVolverá a salir como Pendiente.`
+    : `¿Marcar ${nom} como CONCILIADO a mano?\n\nÚsalo solo cuando veas claro que pertenece a una factura aunque el cruce automático no lo haya casado.`;
+  if (!confirm(msg)) return;
+  try {
+    const { error } = await sb.from('recambios_albaranes')
+      .update({ conciliado: !quitar, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    toast(quitar ? 'Conciliado quitado — vuelve a Pendiente' : '✓ Conciliado a mano', 'ok');
+    console.log(`[v309 recambios] ${quitar ? 'des-conciliado' : 'conciliado A MANO'}: ${nom}`);
+    await loadRecambiosData();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
 function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
   const fantasma = inf.fantasma || [];
   const hayProblemas = inf.avisos.length || inf.albNoEnFactura.length || inf.albNoSubidos.length || fantasma.length;
@@ -20095,6 +20175,12 @@ function _recambiosMostrarInforme(factura, inf, totalAlbProv) {
       <span>Factura total: <b style="color:var(--ac)">${factura.total != null ? factura.total.toFixed(2) + '€' : '—'}</b></span>
       <span>Albaranes del proveedor cruzados: <b style="color:var(--fg)">${totalAlbProv}</b></span>
       ${inf.totalCuadra === true ? '<span style="color:var(--ac)">✅ Total factura cuadra</span>' : inf.totalCuadra === false ? '<span style="color:#ff5050">⚠️ Total factura NO cuadra</span>' : ''}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px">
+      <span style="background:rgba(0,232,122,.10);border:1px solid var(--ac);border-radius:6px;padding:4px 10px;color:var(--tx)">✅ Casados: <b>${inf.ok.length}</b></span>
+      <span style="background:rgba(255,149,0,.10);border:1px solid #ff9500;border-radius:6px;padding:4px 10px;color:var(--tx)">❓ Tuyos sin casar: <b>${inf.albNoEnFactura.length}</b></span>
+      <span style="background:rgba(255,149,0,.10);border:1px solid #ff9500;border-radius:6px;padding:4px 10px;color:var(--tx)">❌ En la factura y SIN subir: <b>${inf.albNoSubidos.length}</b></span>
+      <span style="background:rgba(255,80,80,.10);border:1px solid #ff5050;border-radius:6px;padding:4px 10px;color:var(--tx)">💸 Cargos sin albarán: <b>${(inf.fantasma || []).length}</b></span>
     </div>
     ${seccion('✅ Albaranes que cuadran', inf.ok, 'var(--ac)')}
     ${seccion('💸 Cargos en la factura SIN albarán (revisar bien)', fantasma, '#ff5050')}
