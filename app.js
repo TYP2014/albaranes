@@ -3425,6 +3425,35 @@ async function _processOne(it, type, key, timeoutMs) {
       try {
         if (type === 'alb') {
           results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          // v314 (17/07/2026, Juan Carlos): RED "CASI VACÍO" → RELEER TODO CON SONNET.
+          // Caso real: tickets térmicos de báscula (Holcim Garraf) con tinta casi borrada.
+          // Haiku a veces devuelve el albarán con 0-2 campos (ni el sello) y entonces ni la
+          // plantilla Garraf (v312/v313) ni nada puede actuar: no hay ninguna pista. Sonnet
+          // ve mucho mejor las fotos malas. Ya existían reintentos PARCIALES con Sonnet
+          // (matrícula v107D0, TN, destinos v107FN); esto añade el reintento COMPLETO:
+          // si la mejor página de la lectura de Haiku tiene ≤2 de los 9 campos útiles, se
+          // relee el archivo ENTERO con Sonnet y se usa la lectura que traiga MÁS campos.
+          // Solo se dispara en lecturas casi vacías (raro) → coste extra mínimo. Si el
+          // reintento falla por red/saturación, se sigue con lo de Haiku (nunca se pierde).
+          try {
+            const _cposV314 = ['albaran', 'fecha', 'tractora', 'tm', 'proveedor', 'planta', 'obra', 'producto', 'cliente'];
+            const _cuentaV314 = (r) => _cposV314.filter(k => r && r[k] != null && String(r[k]).trim() !== '').length;
+            const _mejorHaiku = results.length ? Math.max.apply(null, results.map(_cuentaV314)) : 0;
+            if (_mejorHaiku <= 2) {
+              console.warn(`[v314] Haiku leyó casi nada (${_mejorHaiku}/9 campos útiles). Releyendo TODO con Sonnet 4.6...`);
+              const _resSonnet = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-sonnet-4-6');
+              const _mejorSonnet = _resSonnet.length ? Math.max.apply(null, _resSonnet.map(_cuentaV314)) : 0;
+              if (_mejorSonnet > _mejorHaiku) {
+                console.log(`[v314] Sonnet recuperó ${_mejorSonnet}/9 campos (Haiku tenía ${_mejorHaiku}/9) → uso la lectura de Sonnet`);
+                results = _resSonnet;
+              } else {
+                console.log(`[v314] Sonnet tampoco sacó más (${_mejorSonnet}/9) → me quedo con la lectura de Haiku`);
+              }
+            }
+          } catch (eV314) {
+            if (eV314 && eV314.name === 'AbortError') throw eV314;
+            console.warn('[v314] El reintento con Sonnet falló — sigo con la lectura de Haiku:', eV314.message || eV314);
+          }
         } else if (it._esFactura) {
           // J15: factura mensual de gasoil. Detectar proveedor por el texto del
           // PDF y enrutar al lector correcto. Soledad (u otros/desconocido) usa
@@ -5192,7 +5221,7 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
   throw errFinal;
 }
 
-async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false) {
+async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-4-5') {
   // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
   // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
   // a valid string". Esto pasa típicamente si en algún reintento se perdió el b64 (bug
@@ -5451,8 +5480,8 @@ SOLO JSON válido, sin markdown.`;
     // caché y las siguientes lo reusan a 1/10 del precio (ahorro grande, ~hasta 67% según
     // Anthropic). El manual es estático (sus "arriba" son zonas del albarán en papel, NO el
     // orden imagen/texto), así que ponerlo antes de la imagen NO cambia la lectura.
-    { model: 'claude-haiku-4-5', max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock] }] },
-    key, signal, 'callClaudeAlb'
+    { model: modelo, max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock] }] },
+    key, signal, 'callClaudeAlb ' + modelo
   );
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
