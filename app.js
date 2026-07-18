@@ -3470,7 +3470,21 @@ async function _processOne(it, type, key, timeoutMs) {
           } else if (it._provGasoil === 'MOEVE') {
             results = await callClaudeFacturaMoeve(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
           } else {
-            results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+            // v308: factura SOLEDAD (o desconocida) → primero el LECTOR EXACTO
+            // sin IA (parser del texto del PDF, con autocomprobación contra el
+            // importe bruto). Solo si no valida, cae al lector de IA de siempre.
+            let _detSoledad = null;
+            if (it.isPdf) {
+              try {
+                const _txtCompleto = await _textoPdfGasoil(it.b64, true);
+                _detSoledad = _parsearFacturaSoledadTexto(_txtCompleto);
+              } catch (eDet) { console.warn('[v308] error en el lector exacto → plan B (IA):', eDet && eDet.message || eDet); }
+            }
+            if (_detSoledad) {
+              results = _detSoledad;
+            } else {
+              results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+            }
           }
         } else {
           results = await callClaudeGas(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
@@ -6590,13 +6604,15 @@ const _CIF_EMP_GAS = {
 };
 // Extrae el texto de las primeras páginas de un PDF (base64) con pdf.js, para
 // detectar de qué proveedor es la factura ANTES de elegir el lector.
-async function _textoPdfGasoil(b64) {
+async function _textoPdfGasoil(b64, todasLasPaginas) {
   try {
     if (typeof pdfjsLib === 'undefined' || !b64) return '';
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-    let txt = ''; const maxP = Math.min(pdf.numPages, 4);
+    // v308: para DETECTAR proveedor bastan 4 páginas; para el LECTOR EXACTO
+    // de Soledad hace falta el texto ENTERO (los repostajes van en todas).
+    let txt = ''; const maxP = todasLasPaginas ? pdf.numPages : Math.min(pdf.numPages, 4);
     for (let p = 1; p <= maxP; p++) {
       const page = await pdf.getPage(p);
       const tc = await page.getTextContent();
@@ -6757,6 +6773,71 @@ async function _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
   return JSON.parse(text);
+}
+
+// v308 (18/07/2026): LECTOR EXACTO (SIN IA) de facturas mensuales de gasoil
+// de Neumáticos Soledad. Estas facturas llevan el TEXTO dentro del PDF (no son
+// escaneos), y su estructura es siempre igual: bloques "ALB:num FECHA:fecha",
+// debajo la MATRÍCULA, y las líneas GAS-OIL A DIESEL / ADBLUE con cantidad,
+// precio unitario e importe. Un parser con reglas fijas lo saca TODO sin
+// posibilidad de inventos: matrícula y fecha REAL de cada repostaje (adiós a
+// las matrículas vacías y a la fecha de factura colada como fecha de repostaje,
+// que era lo que hacía a veces la IA con las líneas partidas entre páginas).
+// AUTOCOMPROBACIÓN: la suma de los importes de todas las líneas debe clavar el
+// IMPORTE BRUTO de la factura (±5 céntimos) y ningún repostaje puede quedar sin
+// matrícula/fecha/litros. Si algo no cuadra devuelve null y el flujo cae al
+// lector de IA de siempre (plan B). Probado con la factura real I0000012934
+// (mayo 2026): 22/22 repostajes, suma 7.128,63 € = bruto exacto.
+function _parsearFacturaSoledadTexto(txt) {
+  try {
+    if (!txt) return null;
+    const t = String(txt).replace(/\s+/g, ' ');
+    const NUM = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2,5})';
+    const f = (x) => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+    const mNF = t.match(/\b(I\d{7,12})\b/);
+    const numFactura = mNF ? mNF[1] : null;
+    const mCif = t.match(/N\.?I\.?F\.?\s*:?\s*(B\d{8})/i);
+    const cif = mCif ? mCif[1].toUpperCase() : null;
+    const empresa = cif ? (_CIF_EMP_GAS[cif] || null) : null;
+    // Importe bruto para la autocomprobación (aparece tras la cabecera de totales)
+    let bruto = null;
+    let mB = t.match(/TOTAL FACTURA\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
+    if (mB) bruto = f(mB[1]);
+    if (bruto == null) { mB = t.match(/IMPORTE BRUTO[^0-9]{0,160}(\d{1,3}(?:\.\d{3})*,\d{2})/); if (mB) bruto = f(mB[1]); }
+    // Trocear por bloques ALB. Al concatenar TODO el texto, un bloque partido
+    // entre páginas queda entero (cabeceras/pies en medio no molestan): la
+    // matrícula del bloque es la primera matrícula española de su cuerpo.
+    const partes = t.split(/(ALB:\d+\s+FECHA:\d{2}\/\d{2}\/\d{4})/);
+    const regs = [];
+    const reProd = new RegExp('(GAS-?OIL A DIESEL|ADBLUE)\\s+' + NUM + '\\s+' + NUM + '\\s+' + NUM, 'g');
+    for (let i = 1; i < partes.length; i += 2) {
+      const hdr = partes[i], cuerpo = partes[i + 1] || '';
+      const alb = (hdr.match(/ALB:(\d+)/) || [])[1] || null;
+      const fecha = (hdr.match(/FECHA:(\d{2}\/\d{2}\/\d{4})/) || [])[1] || null;
+      const mMat = cuerpo.match(/\b(\d{4}[A-Z]{3})\b/);
+      const matricula = mMat ? mMat[1] : null;
+      const mKm = cuerpo.match(/Kms:\s*(\d{4,7})\b/);
+      const km = mKm ? mKm[1] : null;
+      let mp; reProd.lastIndex = 0;
+      while ((mp = reProd.exec(cuerpo)) !== null) {
+        regs.push({
+          albaran_interno: alb, fecha: fecha, tractora: matricula,
+          tipo: /GAS/.test(mp[1]) ? 'gasoil' : 'adblue',
+          litros: f(mp[2]), precio_litro: f(mp[3]), importe: f(mp[4]),
+          km: km, num_factura: numFactura, proveedor: 'Neumáticos Soledad',
+          empresa_ticket: empresa, _origenFactura: true
+        });
+      }
+    }
+    if (!regs.length) { console.warn('[v308] lector exacto: 0 repostajes encontrados'); return null; }
+    const incompletos = regs.filter(r => !r.tractora || !r.fecha || !(r.litros > 0));
+    if (incompletos.length) { console.warn('[v308] lector exacto: ' + incompletos.length + ' repostajes sin matrícula/fecha/litros → plan B (IA)'); return null; }
+    if (bruto == null) { console.warn('[v308] lector exacto: no encuentro el IMPORTE BRUTO para autocomprobar → plan B (IA)'); return null; }
+    const suma = Math.round(regs.reduce((a, r) => a + (r.importe || 0), 0) * 100) / 100;
+    if (Math.abs(suma - bruto) > 0.05) { console.warn('[v308] lector exacto: la suma de líneas (' + suma + ' €) NO clava el importe bruto (' + bruto + ' €) → plan B (IA)'); return null; }
+    console.log('[v308] LECTOR EXACTO Soledad OK: ' + regs.length + ' repostajes · suma ' + suma.toFixed(2) + ' € = importe bruto · factura ' + (numFactura || '?') + ' · empresa ' + (empresa || '?'));
+    return regs;
+  } catch (e) { console.warn('[v308] lector exacto falló:', e); return null; }
 }
 
 // FASE 1: lector de FACTURAS MENSUALES de gasoil de Neumáticos Soledad
