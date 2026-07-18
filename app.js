@@ -9002,8 +9002,35 @@ function renderGasTable() {
       <td><span class="tag-n">${r.num_ticket || '—'}</span></td>
       <td style="opacity:.7">${r.user_email || '—'}</td>
       <td style="color:var(--tx);font-size:14px">${fmtTS(r.created_at || r._ts)}</td>
-      <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a>` : '—'}</td>
+      <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a> <span onclick="event.stopPropagation();_descargarGas(event,'${r.db_id || r._id}')" title="Descargar factura/ticket" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar', 3.2)}</span>` : '—'}</td>
     </tr>`).join('');
+}
+
+// v307 (18/07/2026): descarga directa del archivo original (factura mensual o ticket)
+// desde la fila de Gasoil, igual que _descargarAlb en Albaranes. Descarga el PDF/imagen
+// COMPLETO (si el registro viene de una factura mensual multi-repostaje, baja la factura
+// entera, no solo una página). Plan B si falla: abrir en pestaña nueva.
+async function _descargarGas(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = gasoilRecords.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r || !hasValidUrl(r.file_url)) { toast('Este registro no tiene archivo para descargar', 'err'); return; }
+  const urlLimpia = String(r.file_url).split('#')[0]; // sin #page=N → archivo completo
+  const nombre = _nombreArchivoDeUrl(urlLimpia)
+    || ('gasoil_' + String(r.num_factura || r.num_ticket || r.tractora || id).replace(/[^\w.-]+/g, '_') + (/\.pdf(\?|$)/i.test(urlLimpia) ? '.pdf' : (/\.(jpe?g|png|gif|webp)(\?|$)/i.test(urlLimpia) ? '.jpg' : '')));
+  try {
+    const resp = await fetch(urlLimpia);
+    if (!resp.ok) throw new Error('descarga ' + resp.status);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    toast('⬇️ Descargando ' + nombre, 'ok');
+  } catch (e) {
+    try { window.open(urlLimpia, '_blank'); } catch (e2) {}
+    toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
+  }
 }
 
 // v107K20 — descarga directa del PDF del albarán desde la fila, SIN abrir el modal.
@@ -10644,7 +10671,7 @@ function openGasModal(id) {
         </div>
         <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
-          <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a>
+          <span><a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a> <a href="#" onclick="_descargarGas(event,'${r.db_id || r._id}');return false" class="preview-btn">⬇ Descargar</a></span>
         </div>`;
     } else if (isPdf) {
       previewHtml = `
@@ -10660,10 +10687,10 @@ function openGasModal(id) {
         </div>
         <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
-          <a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a>
+          <span><a href="${r.file_url}" target="_blank" class="preview-btn">📄 Abrir ticket original</a> <a href="#" onclick="_descargarGas(event,'${r.db_id || r._id}');return false" class="preview-btn">⬇ Descargar</a></span>
         </div>`;
     } else {
-      previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a>`;
+      previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver ticket original</a> <a href="#" onclick="_descargarGas(event,'${r.db_id || r._id}');return false" class="preview-btn">⬇ Descargar</a>`;
     }
   }
   document.getElementById('mgPreview').innerHTML = previewHtml;
