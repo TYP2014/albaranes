@@ -98,6 +98,21 @@ async function initApp() {
   });
 }
 
+// v320: ojito para ver/ocultar la contraseña en el login. Solo cambia el tipo
+// del campo (password <-> text) mientras el usuario lo pinche; no guarda nada.
+function togglePassVisible() {
+  const inp = document.getElementById('loginPass');
+  const btn = document.getElementById('loginPassToggle');
+  if (!inp) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    if (btn) btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    if (btn) btn.textContent = '👁';
+  }
+}
+
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
