@@ -122,11 +122,26 @@ async function loadUserMap() {
     // v107N: añadir empresa_vacaciones para filtrar subpestañas (igual que neumáticos pero admin NO ve Transmargaz).
     // v107AE: añadir puede_ver_taller + empresa_taller para la pestaña Taller (mismo patrón que vacaciones).
     // v108: añadir puede_ver_incidencias para la pestaña Incidencias (temas pendientes con clientes).
+    // v319 (21/07/2026, seguridad profiles_select): userMap se llena en DOS pasos.
+    // 1) NOMBRES de todos desde la vista perfiles_publicos (solo id + name, sin
+    //    datos sensibles) → sirven para "quién subió cada albarán" y el filtro
+    //    "Subido por". 2) FILA COMPLETA desde profiles; la RLS decide el alcance
+    //    sola: conductor/gestor → solo la suya · admin → todas. Este código
+    //    funciona IGUAL con la política vieja (abierta) y con la nueva (apretada),
+    //    por eso se despliega ANTES de tocar la política.
+    userMap = {};
+    const { data: nombres, error: errN } = await sb
+      .from('perfiles_publicos')
+      .select('id, name');
+    if (errN) console.warn('No se pudieron cargar los nombres:', errN.message);
+    (nombres || []).forEach(p => {
+      userMap[p.id] = { name: p.name || '(sin nombre)' };
+    });
+
     const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
-    userMap = {};
-    (data || []).forEach(p => { userMap[p.id] = {
-      name: p.name || '(sin nombre)',
+    (data || []).forEach(p => { userMap[p.id] = Object.assign(userMap[p.id] || {}, {
+      name: p.name || userMap[p.id]?.name || '(sin nombre)',
       role: p.role || '',
       puede_ver_itv: !!p.puede_ver_itv,
       puede_ver_neumaticos: !!p.puede_ver_neumaticos,
@@ -140,7 +155,7 @@ async function loadUserMap() {
       fichaje_dni: p.fichaje_dni || null,
       fichaje_empresa: p.fichaje_empresa || null,
       fichaje_cif: p.fichaje_cif || null
-    }; });
+    }); });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
       // v107FF (28/05/2026): si es FICHADOR PURO (empleado de taller que solo
