@@ -9152,8 +9152,18 @@ async function _descargarAlb(ev, id) {
   if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
   if (!r || !hasValidUrl(r.file_url)) { toast('Este albarán no tiene archivo para descargar', 'err'); return; }
-  const nombre = _nombreArchivoDeUrl(r.file_url)
-    || ('albaran_' + String(r.albaran || id).replace(/[^\w.-]+/g, '_') + (/\.pdf(\?|#|$)/i.test(r.file_url) ? '.pdf' : (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(r.file_url) ? '.jpg' : '')));
+  // v321: nombre SIEMPRE identificable: ALBARAN_MATRICULA_FECHA.ext (antes salía el nombre
+  // original del escáner tipo "scan0001.pdf" y no había forma de saber qué albarán era).
+  const _lmp = s => String(s || '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
+  const _extAlb = /\.pdf(\?|#|$)/i.test(r.file_url) ? '.pdf'
+    : (/\.(jpe?g)(\?|#|$)/i.test(r.file_url) ? '.jpg'
+    : (/\.png(\?|#|$)/i.test(r.file_url) ? '.png'
+    : (/\.(gif|webp)(\?|#|$)/i.test(r.file_url) ? '.' + r.file_url.match(/\.(gif|webp)(\?|#|$)/i)[1].toLowerCase() : '.pdf')));
+  const nombre = [
+    _lmp(r.albaran || 'sinNum'),
+    _lmp(r.tractora || ''),
+    _lmp(String(r.fecha || '').replace(/\//g, '-'))
+  ].filter(Boolean).join('_') + _extAlb;
   try {
     const resp = await fetch(r.file_url);
     if (!resp.ok) throw new Error('descarga ' + resp.status);
@@ -11303,7 +11313,9 @@ async function descargarArchivosFiltrados() {
       const provSafe = nombreSafe(r.proveedor || '', 20);
       const pageMatch = (r.file_url || '').match(/#page=(\d+)/);
       const pageSuffix = pageMatch ? `_pag${pageMatch[1]}` : '';
-      return `${fechaSafe}_${albSafe}_${matSafe}${provSafe ? '_' + provSafe : ''}${pageSuffix}.${ext}`;
+      // v321: ALBARÁN primero → en la carpeta salen ordenados por nº de albarán,
+      // que es como los busca el cliente (antes iba la fecha delante y salían revueltos).
+      return `${albSafe}_${matSafe}_${fechaSafe}${provSafe ? '_' + provSafe : ''}${pageSuffix}.${ext}`;
     }
 
     // Procesar en lotes de 4 paralelos
