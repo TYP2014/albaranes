@@ -1235,21 +1235,44 @@ async function onLogin(user) {
       if (btnReanalizar) btnReanalizar.style.display = 'none';
     }
     renderSetup();
-    await loadUserMap();
-    await loadMatriculasAprendidas();
-    await loadTarjetasRepsol();
-    loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
-    await loadData();
-    // v107EQ5 (27/05/2026): marcar la app como LISTA para aceptar subidas.
-    // Causa raíz del bug histórico "falla siempre la 1ª vez que entra":
-    // un usuario abre la app en móvil con 4G/5G, ve el botón "Subir" antes
-    // de que loadUserMap/loadMatriculasAprendidas/loadTarjetasRepsol/loadData
-    // hayan terminado (en su móvil tardan 3-6s; en PC con fibra ~0.8s). Si
-    // pulsa Subir antes, addFiles llama a IA con piezas que faltan
-    // (_userMap vacío, MATRICULAS_APRENDIDAS vacío…) y se queda colgado.
-    // Esta bandera la usaremos en addFiles para encolar el archivo y
-    // procesarlo cuando la app esté lista, en vez de fallar en silencio.
-    window._appLista = true;
+    // v326: las cuatro cargas van dentro de un try/catch. ANTES estaban sueltas,
+    // y si una fallaba (Supabase lento, 4G que se cae a mitad, un error dentro
+    // de loadData) la línea `window._appLista = true` de abajo NUNCA se
+    // ejecutaba. Entonces addFiles encolaba cada archivo en _colaPreArranque
+    // en silencio y para siempre: el usuario pulsaba Subir, no pasaba nada, y
+    // la única salida era RECARGAR LA PÁGINA. Ese era el bug de "a veces hay
+    // que refrescar para poder empezar a subir".
+    //
+    // Ahora la bandera se pone en el `finally`, así que un fallo al cargar
+    // datos deja la app con menos información en pantalla, pero PERMITE SUBIR.
+    //
+    // OJO — lo que esto NO cubre: una carga que se quede colgada para siempre
+    // (promesa que nunca resuelve). El `finally` solo salta si la promesa
+    // termina, bien o mal. Acotar cada carga con un timeout va en la fase
+    // siguiente; aquí se mantiene el cambio al mínimo a propósito.
+    try {
+      await loadUserMap();
+      await loadMatriculasAprendidas();
+      await loadTarjetasRepsol();
+      loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
+      await loadData();
+    } catch (e) {
+      console.error('[v326] Falló una carga inicial. La app queda utilizable para SUBIR:', e);
+      try {
+        toast('⚠️ No se pudieron cargar todos los datos. Puedes subir igualmente; recarga la página para reintentar la carga.', 'warn');
+      } catch (e2) {}
+    } finally {
+      // v107EQ5 (27/05/2026): marcar la app como LISTA para aceptar subidas.
+      // Causa raíz del bug histórico "falla siempre la 1ª vez que entra":
+      // un usuario abre la app en móvil con 4G/5G, ve el botón "Subir" antes
+      // de que loadUserMap/loadMatriculasAprendidas/loadTarjetasRepsol/loadData
+      // hayan terminado (en su móvil tardan 3-6s; en PC con fibra ~0.8s). Si
+      // pulsa Subir antes, addFiles llama a IA con piezas que faltan
+      // (_userMap vacío, MATRICULAS_APRENDIDAS vacío…) y se queda colgado.
+      // Esta bandera la usaremos en addFiles para encolar el archivo y
+      // procesarlo cuando la app esté lista, en vez de fallar en silencio.
+      window._appLista = true;
+    }
     // Si había archivos en la cola pre-arranque, los procesamos ahora.
     if (window._colaPreArranque && window._colaPreArranque.length > 0) {
       console.log('[v107EQ5] App lista. Procesando ' + window._colaPreArranque.length + ' archivos en cola pre-arranque…');
