@@ -1554,15 +1554,21 @@ async function loadData() {
   }
   gasoilRecords = allGas.map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
 
-  // v322: firmar los documentos ANTES del primer pintado. Un solo viaje para
-  // albaranes + gasoil + anexos (deduplicado por ruta dentro de firmarDocs).
-  try {
-    await Promise.all([
-      firmarCampo(records, 'file_url'),
-      firmarCampo(gasoilRecords, 'file_url'),
-      firmarAdjuntos(records, 'anexos')
-    ]);
-  } catch (e) { console.warn('[v322] firmado albaranes/gasoil:', e); }
+  // v324: el firmado YA NO bloquea el arranque (en v322/v323 la pantalla se
+  // quedaba en blanco unos segundos esperando a firmar ~13.000 documentos).
+  // Ahora la app pinta PRIMERO (como siempre) y firma POR DETRÁS. Mientras el
+  // bucket siga público (Fase 5 pendiente) no hay ninguna pega: si alguien
+  // pincha un documento en esos primeros segundos, la URL pública funciona
+  // igual. Las descargas masivas (ZIP/⬇) esperan al firmado por seguridad
+  // (window._docFirmadoInicial). Los botones leen r.file_url al pinchar, así
+  // que cogen la firmada en cuanto está, sin re-pintar nada.
+  window._docFirmadoInicial = Promise.all([
+    firmarCampo(records, 'file_url'),
+    firmarCampo(gasoilRecords, 'file_url'),
+    firmarAdjuntos(records, 'anexos')
+  ]).then(() => {
+    console.log('[v324] Firmado en segundo plano completado');
+  }).catch(e => { console.warn('[v324] firmado albaranes/gasoil:', e); });
 
   // v107Y: ajustar subpestañas visibles de Gasoil según permisos (misma lógica que Vacaciones).
   // window._empresaVac viene de loadUserMap, contiene la lista de empresas permitidas.
@@ -9341,6 +9347,8 @@ function renderGasTable() {
 // entera, no solo una página). Plan B si falla: abrir en pestaña nueva.
 async function _descargarGas(ev, id) {
   if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  // v324: si el firmado en segundo plano aún corre, esperarlo (para descargar con URL firmada)
+  try { await window._docFirmadoInicial; } catch (e) {}
   const r = gasoilRecords.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
   if (!r || !hasValidUrl(r.file_url)) { toast('Este registro no tiene archivo para descargar', 'err'); return; }
   const urlLimpia = String(r.file_url).split('#')[0]; // sin #page=N → archivo completo
@@ -9368,6 +9376,8 @@ async function _descargarGas(ev, id) {
 // como plan B lo abre en una pestaña nueva.
 async function _descargarAlb(ev, id) {
   if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  // v324: si el firmado en segundo plano aún corre, esperarlo (para descargar con URL firmada)
+  try { await window._docFirmadoInicial; } catch (e) {}
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
   if (!r || !hasValidUrl(r.file_url)) { toast('Este albarán no tiene archivo para descargar', 'err'); return; }
   // v321: nombre SIEMPRE identificable: ALBARAN_MATRICULA_FECHA.ext (antes salía el nombre
@@ -11479,6 +11489,8 @@ function exportarResumenExcel() {
 async function descargarArchivosFiltrados() {
   if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
   if (typeof JSZip === 'undefined') { toast('Librería ZIP no cargada. Recarga la página.', 'err'); return; }
+  // v324: si el firmado en segundo plano aún corre, esperarlo (para bajar todo con URL firmada)
+  try { await window._docFirmadoInicial; } catch (e) {}
 
   const conArchivo = filtered.filter(r => hasValidUrl(r.file_url));
   if (!conArchivo.length) {
