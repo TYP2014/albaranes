@@ -1554,6 +1554,16 @@ async function loadData() {
   }
   gasoilRecords = allGas.map(r => ({ ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()) }));
 
+  // v322: firmar los documentos ANTES del primer pintado. Un solo viaje para
+  // albaranes + gasoil + anexos (deduplicado por ruta dentro de firmarDocs).
+  try {
+    await Promise.all([
+      firmarCampo(records, 'file_url'),
+      firmarCampo(gasoilRecords, 'file_url'),
+      firmarAdjuntos(records, 'anexos')
+    ]);
+  } catch (e) { console.warn('[v322] firmado albaranes/gasoil:', e); }
+
   // v107Y: ajustar subpestañas visibles de Gasoil según permisos (misma lógica que Vacaciones).
   // window._empresaVac viene de loadUserMap, contiene la lista de empresas permitidas.
   try {
@@ -1749,6 +1759,17 @@ async function saveRecord(data) {
   // pero la BD rechazaba el UPDATE entero por no ser un uuid válido, así que el cambio NO
   // se guardaba y al refrescar volvía atrás. Aquí normalizamos: si db_id no es un id válido,
   // lo tratamos como vacío (→ no intentamos UPDATE con basura).
+  // v322 — ANTIFUGA (auditoría C). saveRecord() se llama desde el modal con una
+  // fila de records[], cuyo file_url YA viene firmado. file_url está en la lista
+  // blanca _COLUMNAS_ALBARANES, así que pasaría el filtro y se escribiría el
+  // token en BD. Un token caducado guardado como dirección del archivo dejaría
+  // el registro inservible. En un UPDATE el file_url nunca cambia (el modal no
+  // toca el archivo), así que lo quitamos del payload. En el INSERT no aplica:
+  // ahí viene recién salido de uploadFile(), público y sin firmar.
+  if (rec.file_url && /\/object\/sign\/|[?&]token=/.test(String(rec.file_url))) {
+    delete rec.file_url;
+  }
+
   let _idValido = data.db_id;
   if (_idValido === undefined || _idValido === null) _idValido = null;
   else {
@@ -2227,6 +2248,186 @@ async function uploadFile(file, folder) {
   if (error) throw error;
   const { data } = sb.storage.from('documentos').getPublicUrl(path);
   return data.publicUrl;
+}
+
+// ============================================================
+// STORAGE — FIRMADO DE DOCUMENTOS (v322)
+//
+// El bucket 'documentos' es público: cualquiera con la URL se descarga el
+// archivo sin login. Estas funciones convierten las URLs públicas guardadas
+// en BD en URLs firmadas temporales, en lote y deduplicando por ruta.
+//
+// Se aplican SOBRE LOS DATOS EN MEMORIA justo después de cargarlos. La BD
+// sigue guardando la URL pública, que a partir de que el bucket pase a
+// privado solo sirve como identificador de la ruta.
+//
+// REGLA INNEGOCIABLE: ningún token firmado puede acabar escrito en BD.
+// ============================================================
+
+const DOC_TTL_SEG = 8 * 60 * 60;   // 8 h: cubre una jornada sin re-firmar
+const DOC_MARGEN_SEG = 300;        // damos por caducado 5 min antes de tiempo
+const DOC_LOTE = 100;              // createSignedUrls por trozos
+const _docCache = new Map();       // ruta -> { url, exp }
+
+// Mismo criterio que hasValidUrl(): filtra null/undefined y los literales
+// "null"/"undefined" que quedaron grabados en BD por el bug antiguo de subida.
+function _docEsVacio(u) {
+  if (!u || typeof u !== 'string') return true;
+  if (u === 'null' || u === 'undefined') return true;
+  if (u.startsWith('null#') || u.startsWith('undefined#')) return true;
+  return false;
+}
+
+// Parte una URL guardada en { ruta, frag }:
+//   ".../public/documentos/alb/UUID/1700_x.pdf#page=3"
+//     -> { ruta: "alb/UUID/1700_x.pdf", frag: "#page=3" }
+//
+// OJO al cierre ([?#]|$): el regex de _guardarGiroImagen usa (\?|$), que NO
+// corta en '#' y se traga el fragmento dentro de la ruta. Hay 941 albaranes
+// con #page=N y con ese regex createSignedUrl daría "Object not found".
+//
+// Funciona igual sobre una URL YA firmada (corta en el '?' del token), así
+// que volver a firmar algo firmado es idempotente.
+function _docPartir(u) {
+  if (_docEsVacio(u)) return null;
+  const s = String(u);
+  const m = s.match(/\/documentos\/(.+?)([?#]|$)/);
+  if (!m || !m[1]) return null;
+  let ruta;
+  try {
+    ruta = decodeURIComponent(m[1]);
+  } catch (e) {
+    // URIError por un '%' suelto (itv y neumáticos construyen la extensión
+    // sin sanear). Nos quedamos con la forma cruda.
+    console.warn('[v322] ruta no decodificable, uso la cruda:', m[1]);
+    ruta = m[1];
+  }
+  if (!ruta) return null;
+  const i = s.indexOf('#');
+  return { ruta, frag: i >= 0 ? s.slice(i) : '' };
+}
+
+function _docAbsoluta(signed) {
+  if (!signed) return null;
+  if (/^https?:\/\//i.test(signed)) return signed;
+  return SUPA_URL + '/storage/v1' + (signed.startsWith('/') ? '' : '/') + signed;
+}
+
+// Rellena _docCache con las rutas que falten o estén caducadas.
+async function _docFirmarRutas(rutas, ttl) {
+  const ahora = Date.now();
+  const faltan = rutas.filter(r => {
+    const c = _docCache.get(r);
+    return !c || c.exp <= ahora;
+  });
+  if (!faltan.length) return;
+  for (let i = 0; i < faltan.length; i += DOC_LOTE) {
+    const trozo = faltan.slice(i, i + DOC_LOTE);
+    let data, error;
+    try {
+      ({ data, error } = await sb.storage.from('documentos').createSignedUrls(trozo, ttl));
+    } catch (e) {
+      console.warn('[v322] createSignedUrls falló en el lote', i, e);
+      continue;
+    }
+    if (error) { console.warn('[v322] createSignedUrls error:', error.message); continue; }
+    (data || []).forEach(it => {
+      if (!it || it.error || !it.signedUrl || !it.path) return;
+      const url = _docAbsoluta(it.signedUrl);
+      if (url) _docCache.set(it.path, { url, exp: ahora + (ttl - DOC_MARGEN_SEG) * 1000 });
+    });
+  }
+}
+
+// API principal: array de URLs guardadas -> Map<urlOriginal, urlFirmada>.
+// Las que no se puedan firmar no aparecen en el Map (quien llama conserva
+// la original). Deduplica por RUTA: todas las páginas del mismo PDF
+// comparten token, que es lo que mantiene vivos el agrupado de facturas de
+// gasoil y la caché del ZIP.
+async function firmarDocs(urls, ttl) {
+  ttl = ttl || DOC_TTL_SEG;
+  const partes = new Map();
+  const rutas = new Set();
+  (urls || []).forEach(u => {
+    if (partes.has(u)) return;
+    const p = _docPartir(u);
+    if (!p) return;
+    partes.set(u, p);
+    rutas.add(p.ruta);
+  });
+  const salida = new Map();
+  if (!rutas.size) return salida;
+  await _docFirmarRutas([...rutas], ttl);
+  partes.forEach((p, u) => {
+    const c = _docCache.get(p.ruta);
+    if (c) salida.set(u, c.url + p.frag);   // aquí se reengancha el #page=N
+  });
+  return salida;
+}
+
+// Una sola URL. Devuelve la original si no se pudo firmar.
+async function firmarUno(url, ttl) {
+  if (_docEsVacio(url)) return url;
+  const m = await firmarDocs([url], ttl);
+  return m.get(url) || url;
+}
+
+// Para columnas de texto (file_url, ficha_tecnica_url, fichero_url).
+// MUTA filas[i][campo]. Seguro llamarla dos veces sobre el mismo array.
+async function firmarCampo(filas, campo) {
+  const urls = [];
+  (filas || []).forEach(f => { if (f && !_docEsVacio(f[campo])) urls.push(f[campo]); });
+  if (!urls.length) return 0;
+  const mapa = await firmarDocs(urls);
+  let n = 0;
+  (filas || []).forEach(f => {
+    if (!f) return;
+    const nueva = mapa.get(f[campo]);
+    if (nueva) { f[campo] = nueva; n++; }
+  });
+  return n;
+}
+
+// Para los DOS campos JSONB (albaranes.anexos, incidencias.adjuntos).
+// NO toca a.url: escribe en a._urlFirmada.
+//
+// MOTIVO: esos arrays se reescriben ENTEROS en BD (subirAnexo, eliminarAnexo
+// y los dos update de incidencias) usando .slice()/.filter(), que son copias
+// SUPERFICIALES y reutilizan los mismos objetos. Si machacáramos a.url, al
+// añadir o quitar un anexo se escribiría un token en la base de datos.
+// El sidecar tampoco debe llegar a BD: lo limpia _docLimpiar() (ver abajo).
+async function firmarAdjuntos(filas, campo) {
+  const urls = [];
+  (filas || []).forEach(f => {
+    const arr = (f && Array.isArray(f[campo])) ? f[campo] : null;
+    if (arr) arr.forEach(a => { if (a && !_docEsVacio(a.url)) urls.push(a.url); });
+  });
+  if (!urls.length) return 0;
+  const mapa = await firmarDocs(urls);
+  let n = 0;
+  (filas || []).forEach(f => {
+    const arr = (f && Array.isArray(f[campo])) ? f[campo] : null;
+    if (!arr) return;
+    arr.forEach(a => {
+      if (!a) return;
+      const nueva = mapa.get(a.url);
+      if (nueva) { a._urlFirmada = nueva; n++; }
+    });
+  });
+  return n;
+}
+
+// C-bis — ANTIFUGA. Devuelve una copia del array JSONB sin el sidecar
+// _urlFirmada. OBLIGATORIO en todo update() que guarde anexos/adjuntos:
+// si no, el token acabaría escrito dentro del JSONB como basura caducada.
+function _docLimpiar(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(a => {
+    if (!a || typeof a !== 'object') return a;
+    const copia = { ...a };
+    delete copia._urlFirmada;
+    return copia;
+  });
 }
 
 // ============================================================
@@ -2959,7 +3160,10 @@ async function procesarPendientes(type) {
       continue;
     }
     try {
-      const resp = await fetch(reg.file_url);
+      // v322: este registro viene de una consulta directa a BD, no del array
+      // en memoria, así que trae la URL pública sin firmar.
+      const _urlPend = await firmarUno(reg.file_url);
+      const resp = await fetch(_urlPend);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const blob = await resp.blob();
       const fname = decodeURIComponent((reg.file_url.split('/').pop() || 'pendiente').split('?')[0].split('#')[0]) || 'pendiente.pdf';
@@ -8857,15 +9061,21 @@ async function _guardarGiroImagen(img) {
     const { error: upErr } = await sb.storage.from('documentos').upload(nuevoPath, blob, { contentType: 'image/jpeg' });
     if (upErr) throw upErr;
     const { data: pub } = sb.storage.from('documentos').getPublicUrl(nuevoPath);
-    const nuevaUrl = (pub && pub.publicUrl) ? pub.publicUrl : (src.split('?')[0] + '?t=' + Date.now());
+    // v322 ANTIFUGA: el fallback derivaba de src, que ahora viene FIRMADO;
+    // split('?')[0] le arrancaría el token y guardaría en BD una URL /sign/
+    // muerta. Si getPublicUrl no devuelve nada, mejor no tocar la BD.
+    const nuevaUrl = (pub && pub.publicUrl) ? pub.publicUrl : null;
+    if (!nuevaUrl) throw new Error('No se pudo obtener la URL pública de la imagen girada');
     // 4) Actualizar el albarán en la BD para que apunte a la foto enderezada.
     // v107GR: la tabla albaranes NO tiene columna 'storage_path' (daba PGRST204).
     // Solo actualizamos file_url, que es lo que apunta a la imagen mostrada.
     const { error: dbErr } = await sb.from('albaranes').update({ file_url: nuevaUrl }).eq('id', r.db_id);
     if (dbErr) throw dbErr;
-    // 5) Refrescar la vista.
-    r.file_url = nuevaUrl;
-    img.src = nuevaUrl;
+    // 5) Refrescar la vista. v322: en BD queda la URL pública (identificador),
+    // pero en memoria y en el <img> va la firmada, que es la que se ve.
+    const _urlVista = await firmarUno(nuevaUrl);
+    r.file_url = _urlVista;
+    img.src = _urlVista;
     img.style.transform = 'rotate(0deg)';
     img.style.margin = '0 auto';
     window._rotState[img.id] = 0;
@@ -10306,7 +10516,7 @@ function openModal(id) {
           : '';
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--s2);border-radius:6px;margin-bottom:4px">
           <span style="flex:1;color:var(--fg);font-size:13px;display:flex;align-items:center;gap:6px">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Anexo', 2)}<span>${nombre} ${fecha ? `<span style="color:var(--mu);font-size:11px">(${fecha})</span>` : ''}</span></span>
-          <a href="${esc(a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
+          <a href="${esc(a._urlFirmada || a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
           ${btnDel}
         </div>`;
       }).join('');
@@ -10415,11 +10625,14 @@ async function subirAnexo(files) {
     });
     // Guardar en BD
     const { error: dbErr } = await sb.from('albaranes')
-      .update({ anexos: anexosActuales })
+      .update({ anexos: _docLimpiar(anexosActuales) })   // v322 C-bis: sin sidecar
       .eq('id', r.db_id);
     if (dbErr) throw dbErr;
     // Actualizar en memoria y re-renderizar la sección de anexos
     r.anexos = anexosActuales;
+    // v322: firmar el anexo recién subido o su botón "Ver" nace muerto
+    // (la URL pública dejará de servir cuando el bucket pase a privado).
+    try { await firmarAdjuntos([r], 'anexos'); } catch (e) { console.warn('[v322] firmado anexo nuevo:', e); }
     _renderAnexosEnModal(r);
     toast(`✓ Anexo añadido: ${f.name}`);
     console.log('[v107EN6 subirAnexo] OK:', f.name, '→', path);
@@ -10448,7 +10661,7 @@ async function eliminarAnexo(idx) {
     // 2) Quitar del array en BD
     const nuevosAnexos = anexos.filter((_, i) => i !== idx);
     const { error: dbErr } = await sb.from('albaranes')
-      .update({ anexos: nuevosAnexos })
+      .update({ anexos: _docLimpiar(nuevosAnexos) })   // v322 C-bis: sin sidecar
       .eq('id', r.db_id);
     if (dbErr) throw dbErr;
     // 3) Actualizar memoria y re-renderizar
@@ -10486,7 +10699,7 @@ function _renderAnexosEnModal(r) {
       : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--s2);border-radius:6px;margin-bottom:4px">
       <span style="flex:1;color:var(--fg);font-size:13px">📎 ${nombre} ${fecha ? `<span style="color:var(--mu);font-size:11px">(${fecha})</span>` : ''}</span>
-      <a href="${esc(a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
+      <a href="${esc(a._urlFirmada || a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
       ${btnDel}
     </div>`;
   }).join('');
@@ -11325,7 +11538,10 @@ async function descargarArchivosFiltrados() {
       const lote = conArchivo.slice(i, i + LOTE);
       await Promise.all(lote.map(async (r) => {
         const cleanUrl = r.file_url.split('#')[0];
-        const extRaw = (cleanUrl.split('.').pop() || 'pdf').toLowerCase().split('?')[0];
+        // v322: quitar la query ANTES de partir por '.'. El token firmado es un
+        // JWT y lleva puntos: al revés, split('.').pop() devolvía un trozo de la
+        // firma y TODO el ZIP salía nombrado .pdf, también las fotos.
+        const extRaw = (cleanUrl.split('?')[0].split('.').pop() || 'pdf').toLowerCase();
         const ext = ['pdf','jpg','jpeg','png','gif','webp'].includes(extRaw) ? extRaw : 'pdf';
         try {
           const blob = await descargarUno(cleanUrl);
@@ -11940,6 +12156,7 @@ async function loadItvData() {
     const { data, error } = await sb.from('itv').select('*').order('fecha_caducidad', { ascending: true, nullsFirst: false });
     if (error) throw error;
     itvRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    try { await firmarCampo(itvRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado itv:', e); }
     applyItvFilters();
     updateItvStats();
     renderItvAlerts();
@@ -11964,6 +12181,7 @@ async function loadItvCitas() {
     const { data, error } = await sb.from('itv_citas').select('*').order('fecha_cita', { ascending: true, nullsFirst: false });
     if (error) throw error;
     itvCitasRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    try { await firmarCampo(itvCitasRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado citas:', e); }
     applyCitasFilters();
   } catch (e) {
     console.error('[loadItvCitas] Error:', e);
@@ -12648,6 +12866,7 @@ async function loadFactEmit() {
     const { data, error } = await sb.from('facturas_emitidas').select('*').order('fecha', { ascending: false });
     if (error) throw error;
     _factEmit = data || [];
+    try { await firmarCampo(_factEmit, 'file_url'); } catch (e) { console.warn('[v322] firmado facturas emitidas:', e); }
     renderFactEmit();
   } catch (e) {
     console.error('[factemit] load', e);
@@ -13084,6 +13303,7 @@ async function loadIncidenciasData() {
     const { data, error } = await sb.from('incidencias').select('*');
     if (error) throw error;
     _incidencias = data || [];
+    try { await firmarAdjuntos(_incidencias, 'adjuntos'); } catch (e) { console.warn('[v322] firmado adjuntos incidencias:', e); }
     renderIncidencias();
   } catch (e) {
     console.error('[loadIncidenciasData] Error:', e);
@@ -13213,7 +13433,7 @@ function _incRenderAdjuntos() {
   box.innerHTML = adj.map((a, idx) => `
     <div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;margin-bottom:6px">
       <span style="flex:1;min-width:0;font-family:var(--mn);font-size:12px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_incE(a.nombre || '')}">📎 ${_incE(a.nombre || 'archivo')}</span>
-      <a class="btn bs" href="${_incE(a.url || '#')}" target="_blank" rel="noopener" style="font-size:10px;padding:5px 9px;text-decoration:none" title="Abrir/descargar">⬇ Descargar</a>
+      <a class="btn bs" href="${_incE(a._urlFirmada || a.url || '#')}" target="_blank" rel="noopener" style="font-size:10px;padding:5px 9px;text-decoration:none" title="Abrir/descargar">⬇ Descargar</a>
       <button class="btn br" onclick="_incQuitarAdjunto(${idx})" style="font-size:10px;padding:5px 8px" title="Quitar este adjunto">🗑</button>
     </div>`).join('');
 }
@@ -13255,10 +13475,13 @@ async function _incSubirAdjunto(files) {
       const url = await uploadFile(f, 'incidencias');
       _incBuf.adjuntos.push({ nombre: f.name, url, fecha: _incHoy(), autor: _incMiNombre() });
     }
+    // v322: firmar los recién subidos o su botón "Descargar" nace muerto
+    // (la URL pública dejará de servir cuando el bucket pase a privado).
+    try { await firmarAdjuntos([{ adjuntos: _incBuf.adjuntos }], 'adjuntos'); } catch (e) { console.warn('[v322] firmado adjunto nuevo:', e); }
     _incRenderAdjuntos();
     if (_incEditId) {
       const { error } = await sb.from('incidencias')
-        .update({ adjuntos: _incBuf.adjuntos, updated_at: new Date().toISOString() })
+        .update({ adjuntos: _docLimpiar(_incBuf.adjuntos), updated_at: new Date().toISOString() })   // v322 C-bis
         .eq('id', _incEditId);
       if (error) throw error;
       const local = _incidencias.find(x => x.id === _incEditId);
@@ -13282,7 +13505,7 @@ async function _incQuitarAdjunto(idx) {
   if (_incEditId) {
     try {
       const { error } = await sb.from('incidencias')
-        .update({ adjuntos: _incBuf.adjuntos, updated_at: new Date().toISOString() })
+        .update({ adjuntos: _docLimpiar(_incBuf.adjuntos), updated_at: new Date().toISOString() })   // v322 C-bis
         .eq('id', _incEditId);
       if (error) throw error;
       const local = _incidencias.find(x => x.id === _incEditId);
@@ -13315,7 +13538,7 @@ async function saveIncidenciaModal() {
   const payload = {
     cliente, importe, estado, descripcion,
     seguimientos: _incBuf.seguimientos || [],
-    adjuntos: _incBuf.adjuntos || [],
+    adjuntos: _docLimpiar(_incBuf.adjuntos || []),   // v322 C-bis: sin sidecar
     updated_at: ahora
   };
 
@@ -16894,6 +17117,7 @@ async function loadNeumData() {
     const { data: dMov, error: eMov } = await sb.from('neumaticos_movimientos').select('*').order('fecha', { ascending: false });
     if (eMov) throw eMov;
     neumMovimientos = dMov || [];
+    try { await firmarCampo(neumMovimientos, 'file_url'); } catch (e) { console.warn('[v322] firmado neumáticos:', e); }
     // Badge: nº de avisos activos (stock bajo) de la empresa actual
     const avisos = _neumCalcularAvisos(neumEmpresaActiva).length;
     const badge = document.getElementById('tabNeumCount');
@@ -18514,6 +18738,7 @@ async function loadTallerData() {
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
     tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
+    try { await firmarCampo(tallerVehiculos, 'ficha_tecnica_url'); } catch (e) { console.warn('[v322] firmado fichas técnicas:', e); }
     tallerMantenimientos = (manRes.data || []).filter(m => permitidas.includes(m.empresa));
     tallerVencimientos = (vencRes.data || []);
     tallerVencHistorico = (vencHistRes.data || []);
@@ -19630,6 +19855,7 @@ async function loadRecambiosData() {
     // (Admin y Transmargaz ven todo lo de su empresa; Transmargaz ya está
     //  limitado porque solo puede entrar a su subpestaña TRANSMARGAZ.)
     recambiosDocs = docs;
+    try { await firmarCampo(recambiosDocs, 'file_url'); } catch (e) { console.warn('[v322] firmado recambios:', e); }
 
     // Botones según rol: el botón de factura solo lo ve admin o Transmargaz (no TALLER)
     const btnFac = document.getElementById('recambiosBtnSubirFac');
@@ -20779,6 +21005,8 @@ async function factVerSubidas(mes, proveedor) {
     data = await _factTraerLineas(mes, proveedor, 'fichero, fichero_url');
   } catch (e) { setEstado('❌ No pude cargar la lista: ' + (e.message || e)); return; }
   const arr = _factContarArchivos(data);
+  // v322: firmar los PDF de autofactura antes de pintar los enlaces 🔗
+  try { await firmarCampo(arr, 'url'); } catch (e) { console.warn('[v322] firmado autofacturas:', e); }
   if (!arr.length) { setEstado('No hay autofacturas guardadas de ' + _factMesBonito(mes) + '.'); return; }
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let h = '<div style="font-family:var(--mn);font-size:12px;line-height:1.7;margin-top:4px">';
