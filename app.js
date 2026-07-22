@@ -18066,9 +18066,20 @@ function _vacContarDias(inicio, fin, computo) {
 function _vacSaldoTrabajador(trabajadorId, anio) {
   const periodos = vacPeriodos.filter(p => p.trabajador_id === trabajadorId && p.anio === anio);
   // v107Z: solo se cuentan vacaciones / asuntos propios para los saldos del trabajador.
-  // Bajas médicas, permisos retribuidos y faltas injustificadas se MUESTRAN en el calendario
-  // pero NO consumen días de vacaciones (son categorías informativas, no descuento).
-  const usadasVac = periodos.filter(p => p.tipo === 'vacaciones').reduce((s, p) => s + (p.dias_contados || 0), 0);
+  // Bajas médicas y permisos retribuidos se MUESTRAN en el calendario pero NO consumen
+  // días (son categorías informativas, no descuento).
+  //
+  // v329 (Juan Carlos, 22/07/2026) — CORRECCIÓN DE REGLA DE NEGOCIO: la FALTA
+  // INJUSTIFICADA SÍ descuenta de la bolsa de VACACIONES mientras no se justifique.
+  // Antes estaba metida en el saco de "informativas" y no descontaba nada.
+  // Los dos tipos que siguen SIN descontar son exactamente estos dos:
+  //   · baja_medica         (🏥 Baja médica)
+  //   · permiso_retribuido  (📋 Permiso retribuido)
+  // OJO: al aplicar esto, el saldo de los trabajadores que YA tengan faltas
+  // injustificadas registradas baja de golpe — es el efecto buscado, no un fallo.
+  const usadasVac = periodos
+    .filter(p => p.tipo === 'vacaciones' || p.tipo === 'falta_injustificada')
+    .reduce((s, p) => s + (p.dias_contados || 0), 0);
   const usadasAP = periodos.filter(p => p.tipo === 'asuntos_propios').reduce((s, p) => s + (p.dias_contados || 0), 0);
   // v213: BOLSA disponible + GENERADO proporcional (30 días naturales/año, año natural).
   //  · Veterano (alta de años anteriores o sin fecha) → bolsa 30 completos.
@@ -18724,20 +18735,27 @@ async function saveVacPerModal() {
   const anio = parseInt(fecha_inicio.slice(0, 4));
   const observaciones = (document.getElementById('vacPerF_observaciones').value || '').trim() || null;
   // Validar saldo disponible (avisar pero no bloquear).
-  // v107AB: solo validar contra saldo si el tipo es vacaciones o asuntos_propios.
-  // Los tipos informativos (baja médica, permiso retribuido, falta injustificada) NO
-  // consumen saldo de los 30+2 días, así que no tiene sentido avisar de saldo agotado.
-  if (tipo === 'vacaciones' || tipo === 'asuntos_propios') {
+  // v107AB: solo validar contra saldo si el tipo consume días.
+  // v329: la FALTA INJUSTIFICADA pasa a descontar de la bolsa de VACACIONES, así que
+  // para ella el aviso de saldo SÍ es correcto y debe salir. Los únicos tipos que
+  // siguen sin validar saldo —porque no consumen días— son baja_medica y
+  // permiso_retribuido. Debe ir en línea con el filtro de _vacSaldoTrabajador.
+  const _descuentaDeVac = (tipo === 'vacaciones' || tipo === 'falta_injustificada');
+  if (_descuentaDeVac || tipo === 'asuntos_propios') {
     const saldo = _vacSaldoTrabajador(trabajador_id, anio);
     const yaEnEste = editVacPerId
       ? (vacPeriodos.find(p => p.id === editVacPerId)?.dias_contados || 0)
       : 0;
-    const restantes = tipo === 'vacaciones'
+    const restantes = _descuentaDeVac
       ? saldo.vac_restantes + yaEnEste
       : saldo.ap_restantes + yaEnEste;
     if (dias_contados > restantes) {
       const t = vacTrabajadores.find(x => x.id === trabajador_id);
-      if (!confirm(`⚠️ ${t?.nombre || ''} solo tiene ${restantes} día(s) ${tipo === 'vacaciones' ? 'de vacaciones' : 'de asuntos propios'} restantes en ${anio}. Vas a registrar ${dias_contados}. ¿Continuar?`)) return;
+      // v329: aclarar por qué una falta mira el saldo de vacaciones, que si no despista.
+      const _nota = (tipo === 'falta_injustificada')
+        ? '\n\nLa falta injustificada descuenta de la bolsa de vacaciones mientras no se justifique.'
+        : '';
+      if (!confirm(`⚠️ ${t?.nombre || ''} solo tiene ${restantes} día(s) ${_descuentaDeVac ? 'de vacaciones' : 'de asuntos propios'} restantes en ${anio}. Vas a registrar ${dias_contados}.${_nota}\n\n¿Continuar?`)) return;
     }
   }
   const payload = { trabajador_id, tipo, computo, fecha_inicio, fecha_fin, dias_contados, anio, observaciones, updated_at: new Date().toISOString() };
