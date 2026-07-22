@@ -479,35 +479,8 @@ async function loadMatriculasAprendidas() {
   } catch (e) { console.warn('[v87] Error en loadMatriculasAprendidas:', e); }
 }
 
-// Carga la tabla tarjetas_repsol (tarjeta → matrícula → empresa). Igual patrón
-// que loadMatriculasAprendidas. Se usa en gasoil para tickets Repsol/SOLRED
-// que solo traen el nº de tarjeta y no la matrícula directa.
-async function loadTarjetasRepsol() {
-  try {
-    const { data, error } = await sb.from('tarjetas_repsol').select('tarjeta, matricula, empresa');
-    if (error) {
-      if (error.message && /does not exist|relation/i.test(error.message)) {
-        console.warn('[tarjetas] Tabla tarjetas_repsol no existe todavía. Crea la tabla en Supabase cuando tengas los datos.');
-        return;
-      }
-      console.warn('[tarjetas] Error cargando tarjetas_repsol:', error.message);
-      return;
-    }
-    TARJETAS_REPSOL = {};
-    (data || []).forEach(r => {
-      // Normalizar la tarjeta: quitar asteriscos, espacios y guiones, mayúsculas.
-      // Guardamos por los últimos dígitos (lo que aparece en el ticket: ***0321).
-      const tj = String(r.tarjeta || '').replace(/[\s*\-]/g, '').toUpperCase();
-      if (tj && r.matricula) {
-        TARJETAS_REPSOL[tj] = {
-          matricula: String(r.matricula).trim().toUpperCase().replace(/\s+/g, ''),
-          empresa: String(r.empresa || '').trim().toUpperCase()
-        };
-      }
-    });
-    console.log(`[tarjetas] ${Object.keys(TARJETAS_REPSOL).length} tarjetas Repsol cargadas`);
-  } catch (e) { console.warn('[tarjetas] Error en loadTarjetasRepsol:', e); }
-}
+// v330 (22/07/2026): aquí vivía loadTarjetasRepsol(). Eliminada — ver el
+// comentario largo junto a MATRICULAS_APRENDIDAS, donde estaba el mapa.
 
 // ============ TARIFAS POR SERVICIO (Fase 1, v107K0) ============
 // Servicio = ORIGEN + DESTINO + MATERIAL (tal como sale en el Excel).
@@ -1106,21 +1079,8 @@ async function guardarTarifasCliente() {
   } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); }
 }
 
-// Dada una cadena de tarjeta del ticket (ej "***0321" o "************0321"),
-// busca su matrícula/empresa. Compara por terminación porque el ticket suele
-// ocultar los primeros dígitos con asteriscos.
-function buscarTarjetaRepsol(tarjetaTicket) {
-  if (!tarjetaTicket) return null;
-  const limpia = String(tarjetaTicket).replace(/[\s*\-]/g, '').toUpperCase();
-  if (!limpia) return null;
-  // 1) Coincidencia exacta
-  if (TARJETAS_REPSOL[limpia]) return TARJETAS_REPSOL[limpia];
-  // 2) Coincidencia por terminación (el ticket trae solo los últimos dígitos)
-  for (const k of Object.keys(TARJETAS_REPSOL)) {
-    if (k.endsWith(limpia) || limpia.endsWith(k)) return TARJETAS_REPSOL[k];
-  }
-  return null;
-}
+// v330 (22/07/2026): aquí vivía buscarTarjetaRepsol(). Eliminada — ver el
+// comentario largo junto a MATRICULAS_APRENDIDAS.
 
 // v87: aprender una matrícula nueva. Inserta o actualiza en Supabase y refresca el diccionario
 // en memoria. Se llama desde _processOne cuando un subcontratista identificable sube un
@@ -1266,13 +1226,14 @@ async function onLogin(user) {
     // bajarlos. El coste de pasarse es ver menos datos hasta recargar; el de
     // quedarse corto es cortar una carga que iba bien.
     //
-    // v328: las TRES pequeñas van en PARALELO; antes se esperaban una a otra
-    // sin necesidad. Comprobado que son independientes de verdad:
+    // v328: las pequeñas van en PARALELO; antes se esperaban una a otra sin
+    // necesidad. Comprobado que son independientes de verdad:
     //   · loadUserMap             escribe userMap + banderas window._tiene*/_empresa*
     //   · loadMatriculasAprendidas escribe MATRICULAS_APRENDIDAS
-    //   · loadTarjetasRepsol       escribe TARJETAS_REPSOL
     // Ninguna lee lo que otra escribe, así que el orden entre ellas da igual.
     // loadData sigue DESPUÉS, igual que siempre.
+    // v330: eran TRES; loadTarjetasRepsol se eliminó (ver el comentario largo
+    // junto a MATRICULAS_APRENDIDAS). Una consulta menos en cada arranque.
     //
     // Efecto secundario bueno: con Promise.all, si una falla las otras dos
     // terminan igualmente (Promise.all rechaza pero no cancela). Antes, si
@@ -1284,8 +1245,7 @@ async function onLogin(user) {
     try {
       await Promise.all([
         withTimeout(loadUserMap(), 20000, 'cargando usuarios'),
-        withTimeout(loadMatriculasAprendidas(), 20000, 'cargando matrículas aprendidas'),
-        withTimeout(loadTarjetasRepsol(), 20000, 'cargando tarjetas Repsol')
+        withTimeout(loadMatriculasAprendidas(), 20000, 'cargando matrículas aprendidas')
       ]);
       loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
       await withTimeout(loadData(), 60000, 'cargando albaranes');
@@ -5274,24 +5234,11 @@ async function _processOne(it, type, key, timeoutMs) {
         if (data.empresa_ticket && ['TYP2014','HISPALIS','TRANSMARGAZ'].includes(data.empresa_ticket)) {
           data.empresa_subida = data.empresa_ticket;
         }
-        // Tabla tarjetas_repsol: si el ticket trae nº de tarjeta SOLRED,
-        // buscar a qué camión/empresa pertenece. Útil cuando el ticket NO
-        // trae matrícula clara. La tarjeta manda sobre lo demás (es el dato
-        // más fiable: cada tarjeta está asignada a un camión concreto).
-        const numTj = data.num_tarjeta || data.tarjeta || null;
-        if (numTj && Object.keys(TARJETAS_REPSOL).length) {
-          const hit = buscarTarjetaRepsol(numTj);
-          if (hit) {
-            // Si la matrícula leída por la IA no coincide o falta, usar la de la tarjeta
-            if (!data.tractora || data.tractora.toUpperCase().replace(/[\s-]/g,'') !== hit.matricula) {
-              console.log(`[tarjetas] Ticket tarjeta ${numTj} → ${hit.matricula} (${hit.empresa})`);
-              data.tractora = hit.matricula;
-            }
-            if (['TYP2014','HISPALIS','TRANSMARGAZ'].includes(hit.empresa)) {
-              data.empresa_subida = hit.empresa;
-            }
-          }
-        }
+        // v330 (22/07/2026): aquí se cruzaba el nº de tarjeta del ticket contra
+        // la tabla tarjetas_repsol para deducir camión y empresa. Eliminado —
+        // ver el comentario largo junto a MATRICULAS_APRENDIDAS.
+        // La IA puede seguir extrayendo num_tarjeta del ticket (es un dato
+        // informativo del documento); lo que desaparece es el CRUCE con el mapa.
         // FASE 1: si este repostaje viene de una FACTURA mensual Soledad
         // (lo marcó callClaudeFacturaGasoil con _origenFactura), rellenar
         // los campos nuevos para distinguirlo de un ticket suelto y poder
@@ -15124,9 +15071,33 @@ const USUARIO_A_TRANSPORTISTA = {
 // v87: matrículas aprendidas dinámicamente. Se cargan de Supabase al inicio y se mezclan
 // con TRANSPORTISTAS al consultar. Cuando se aprende una nueva, se inserta en BD.
 let MATRICULAS_APRENDIDAS = {};
-// Tarjetas Repsol/SOLRED → {matricula, empresa}. Se carga de tabla tarjetas_repsol.
-// Para tickets Repsol que solo traen nº de tarjeta y no matrícula directa.
-let TARJETAS_REPSOL = {};
+// ============================================================
+// v330 (22/07/2026) — TARJETAS REPSOL: CÓDIGO ELIMINADO
+//
+// Aquí vivía TARJETAS_REPSOL, un mapa tarjeta → {matrícula, empresa} que se
+// cargaba de la tabla `tarjetas_repsol` al arrancar la app. Servía para los
+// TICKETS SUELTOS de gasoil: un ticket de Repsol/SOLRED muchas veces no trae
+// la matrícula del camión, solo el nº de tarjeta enmascarado ("***0321"), así
+// que se cruzaba contra el mapa para deducir a qué camión y empresa iba.
+//
+// DECISIÓN DE JUAN CARLOS (22/07/2026): ya NO se sube ningún ticket suelto de
+// gasoil. Todo entra por FACTURA MENSUAL (Solred / Petromiralles / Soledad /
+// Moeve), y la factura YA trae la matrícula. El mapa estaba de adorno: se
+// cargaba en cada arranque, gastaba una consulta y no decidía nada.
+//
+// Eliminado en v330: el mapa, loadTarjetasRepsol(), buscarTarjetaRepsol(), su
+// llamada en onLogin y el bloque de cruce dentro del procesado de gasoil.
+//
+// LO QUE NO SE TOCÓ, a propósito:
+//   · La tabla `tarjetas_repsol` de Supabase SIGUE AHÍ con sus datos. Solo se
+//     dejó de leer. Volver atrás es recuperar este código, no re-cargar datos.
+//   · Los lectores de facturas (Soledad, SOLRED, Petromiralles, Moeve) — intactos.
+//   · El prompt de gasoil sigue extrayendo `num_tarjeta` del ticket: es un dato
+//     informativo del documento. Lo que desapareció es el CRUCE con el mapa.
+//   · La limpieza de `num_tarjeta` antes del INSERT (_AUX_CAMPOS y el delete de
+//     saveRecord) SE QUEDA: el campo sigue llegando de la IA y no es columna de
+//     BD, así que si se quitara volverían los errores PGRST204.
+// ============================================================
 
 // v83: diccionario MATRICULA → TRANSPORTISTA oficial (autocorrección por matrícula).
 // 116 matrículas mapeadas a los 13 transportistas oficiales. Cuando la IA procesa un albarán,
