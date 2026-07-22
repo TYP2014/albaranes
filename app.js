@@ -2266,7 +2266,8 @@ async function uploadFile(file, folder) {
 
 const DOC_TTL_SEG = 8 * 60 * 60;   // 8 h: cubre una jornada sin re-firmar
 const DOC_MARGEN_SEG = 300;        // damos por caducado 5 min antes de tiempo
-const DOC_LOTE = 100;              // createSignedUrls por trozos
+const DOC_LOTE = 200;              // createSignedUrls por trozos (v323: 100→200)
+const DOC_PARALELO = 6;            // v323: lotes simultáneos (antes iban de 1 en 1)
 const _docCache = new Map();       // ruta -> { url, exp }
 
 // Mismo criterio que hasValidUrl(): filtra null/undefined y los literales
@@ -2321,21 +2322,28 @@ async function _docFirmarRutas(rutas, ttl) {
     return !c || c.exp <= ahora;
   });
   if (!faltan.length) return;
-  for (let i = 0; i < faltan.length; i += DOC_LOTE) {
-    const trozo = faltan.slice(i, i + DOC_LOTE);
+  // v323 — VELOCIDAD: antes los lotes iban de uno en uno (fila india); con
+  // miles de albaranes eran 60-70 viajes seguidos al servidor y la carga
+  // tardaba muchísimo. Ahora se lanzan DOC_PARALELO lotes a la vez.
+  const trozos = [];
+  for (let i = 0; i < faltan.length; i += DOC_LOTE) trozos.push(faltan.slice(i, i + DOC_LOTE));
+  const firmarTrozo = async (trozo, idx) => {
     let data, error;
     try {
       ({ data, error } = await sb.storage.from('documentos').createSignedUrls(trozo, ttl));
     } catch (e) {
-      console.warn('[v322] createSignedUrls falló en el lote', i, e);
-      continue;
+      console.warn('[v323] createSignedUrls falló en el lote', idx, e);
+      return;
     }
-    if (error) { console.warn('[v322] createSignedUrls error:', error.message); continue; }
+    if (error) { console.warn('[v323] createSignedUrls error:', error.message); return; }
     (data || []).forEach(it => {
       if (!it || it.error || !it.signedUrl || !it.path) return;
       const url = _docAbsoluta(it.signedUrl);
       if (url) _docCache.set(it.path, { url, exp: ahora + (ttl - DOC_MARGEN_SEG) * 1000 });
     });
+  };
+  for (let i = 0; i < trozos.length; i += DOC_PARALELO) {
+    await Promise.all(trozos.slice(i, i + DOC_PARALELO).map((t, j) => firmarTrozo(t, i + j)));
   }
 }
 
