@@ -1266,14 +1266,27 @@ async function onLogin(user) {
     // bajarlos. El coste de pasarse es ver menos datos hasta recargar; el de
     // quedarse corto es cortar una carga que iba bien.
     //
-    // Peor caso si se colgaran las cuatro: 20+20+20+60 = 120 s hasta poder
-    // subir. Escenario improbable (sin red, fetch falla rápido en vez de
-    // colgarse). Paralelizar las tres pequeñas lo bajaría a ~80 s, pero eso es
-    // otro cambio y no toca aquí.
+    // v328: las TRES pequeñas van en PARALELO; antes se esperaban una a otra
+    // sin necesidad. Comprobado que son independientes de verdad:
+    //   · loadUserMap             escribe userMap + banderas window._tiene*/_empresa*
+    //   · loadMatriculasAprendidas escribe MATRICULAS_APRENDIDAS
+    //   · loadTarjetasRepsol       escribe TARJETAS_REPSOL
+    // Ninguna lee lo que otra escribe, así que el orden entre ellas da igual.
+    // loadData sigue DESPUÉS, igual que siempre.
+    //
+    // Efecto secundario bueno: con Promise.all, si una falla las otras dos
+    // terminan igualmente (Promise.all rechaza pero no cancela). Antes, si
+    // fallaba la primera, las otras dos ni se lanzaban.
+    //
+    // Peor caso si se colgaran todas: max(20,20,20) + 60 = 80 s hasta poder
+    // subir (antes 20+20+20+60 = 120 s). Escenario improbable de todas formas:
+    // sin red, fetch falla rápido en vez de colgarse.
     try {
-      await withTimeout(loadUserMap(), 20000, 'cargando usuarios');
-      await withTimeout(loadMatriculasAprendidas(), 20000, 'cargando matrículas aprendidas');
-      await withTimeout(loadTarjetasRepsol(), 20000, 'cargando tarjetas Repsol');
+      await Promise.all([
+        withTimeout(loadUserMap(), 20000, 'cargando usuarios'),
+        withTimeout(loadMatriculasAprendidas(), 20000, 'cargando matrículas aprendidas'),
+        withTimeout(loadTarjetasRepsol(), 20000, 'cargando tarjetas Repsol')
+      ]);
       loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
       await withTimeout(loadData(), 60000, 'cargando albaranes');
     } catch (e) {
