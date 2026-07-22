@@ -1556,18 +1556,40 @@ async function loadData() {
 
   // v324: el firmado YA NO bloquea el arranque (en v322/v323 la pantalla se
   // quedaba en blanco unos segundos esperando a firmar ~13.000 documentos).
-  // Ahora la app pinta PRIMERO (como siempre) y firma POR DETRÁS. Mientras el
-  // bucket siga público (Fase 5 pendiente) no hay ninguna pega: si alguien
-  // pincha un documento en esos primeros segundos, la URL pública funciona
-  // igual. Las descargas masivas (ZIP/⬇) esperan al firmado por seguridad
-  // (window._docFirmadoInicial). Los botones leen r.file_url al pinchar, así
-  // que cogen la firmada en cuanto está, sin re-pintar nada.
+  // Ahora la app pinta PRIMERO (como siempre) y firma POR DETRÁS. Las descargas
+  // masivas (ZIP/⬇) esperan al firmado por seguridad (window._docFirmadoInicial).
+  //
+  // v325 (PREPARACIÓN FASE 5): el razonamiento de v324 decía que no hacía falta
+  // re-pintar porque "los botones leen r.file_url al pinchar". Eso es cierto para
+  // los iconos ⬇ (son onclick y leen la variable fresca), pero NO para los
+  // enlaces que se HORNEAN dentro del HTML al pintar la tabla. El caso claro es
+  // el "👁 Ver" de Gasoil en renderGasTable():
+  //
+  //     <a href="${r.file_url}" ...>👁 Ver</a>
+  //
+  // Ese href se congela con el valor que hubiera al pintar — es decir, la URL
+  // pública SIN firmar, porque la tabla se pinta antes de que termine el firmado.
+  // Mientras el bucket es público da igual (funciona igual). En cuanto pase a
+  // privado (Fase 5), ese enlace da 400 y SIGUE roto hasta que la tabla se
+  // repinte por otra razón (ordenar, filtrar...).
+  //
+  // Arreglo: al terminar el firmado, repintar las dos tablas que se pintaron
+  // antes de tiempo, para que sus href se re-horneen ya firmados. Las demás
+  // pestañas (ITV, neumáticos, taller, recambios...) firman con await dentro de
+  // su propia función de carga, así que ya salen bien y no hay que tocarlas.
   window._docFirmadoInicial = Promise.all([
     firmarCampo(records, 'file_url'),
     firmarCampo(gasoilRecords, 'file_url'),
     firmarAdjuntos(records, 'anexos')
   ]).then(() => {
     console.log('[v324] Firmado en segundo plano completado');
+    // v325: re-hornear los enlaces ya firmados. Ambas leen el estado actual de
+    // los filtros del DOM, así que no se pierde lo que el usuario tuviera puesto.
+    try {
+      if (typeof applyFilters === 'function') applyFilters();
+      if (typeof applyGasFilters === 'function') applyGasFilters();
+      console.log('[v325] Tablas repintadas con los enlaces firmados');
+    } catch (e) { console.warn('[v325] repintado tras firmar:', e); }
   }).catch(e => { console.warn('[v324] firmado albaranes/gasoil:', e); });
 
   // v107Y: ajustar subpestañas visibles de Gasoil según permisos (misma lógica que Vacaciones).
