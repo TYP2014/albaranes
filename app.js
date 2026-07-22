@@ -1246,16 +1246,36 @@ async function onLogin(user) {
     // Ahora la bandera se pone en el `finally`, así que un fallo al cargar
     // datos deja la app con menos información en pantalla, pero PERMITE SUBIR.
     //
-    // OJO — lo que esto NO cubre: una carga que se quede colgada para siempre
-    // (promesa que nunca resuelve). El `finally` solo salta si la promesa
-    // termina, bien o mal. Acotar cada carga con un timeout va en la fase
-    // siguiente; aquí se mantiene el cambio al mínimo a propósito.
+    // v327: cada carga va acotada con withTimeout, que es lo que la v326 dejó
+    // pendiente. Un cuelgue (promesa que NUNCA resuelve — típico del móvil
+    // cuando la radio se cae y el socket no llega ni a dar error) se convierte
+    // así en un fallo normal, y el catch/finally de abajo ya sabe gestionarlo.
+    //
+    // Los tiempos son RED DE SEGURIDAD, no un objetivo de rendimiento: están
+    // puestos generosos a propósito para no matar cargas sanas pero lentas.
+    //   · 20 s para las tres pequeñas — son una consulta a una tabla de
+    //     decenas de filas. En 4G con conexión fría tardan 1-3 s; 20 s es ~7
+    //     veces de margen. Más de 20 s ahí no es lentitud, es un cuelgue.
+    //   · 60 s para loadData — es la única que puede tardar de verdad. Ojo:
+    //     al entrar SIEMPRE carga solo los últimos 3 meses, no los 13.000+
+    //     del histórico (window._cargarTodo únicamente se pone a true desde el
+    //     botón "ver todo", y no se guarda entre sesiones). Eso son ~1-2 MB,
+    //     que incluso en un 4G malo (~1 Mbps) baja en 15-20 s: 60 s deja 3-4
+    //     veces de margen.
+    // Si alguna vez saltan con conexiones sanas, SUBIR estos números — no
+    // bajarlos. El coste de pasarse es ver menos datos hasta recargar; el de
+    // quedarse corto es cortar una carga que iba bien.
+    //
+    // Peor caso si se colgaran las cuatro: 20+20+20+60 = 120 s hasta poder
+    // subir. Escenario improbable (sin red, fetch falla rápido en vez de
+    // colgarse). Paralelizar las tres pequeñas lo bajaría a ~80 s, pero eso es
+    // otro cambio y no toca aquí.
     try {
-      await loadUserMap();
-      await loadMatriculasAprendidas();
-      await loadTarjetasRepsol();
+      await withTimeout(loadUserMap(), 20000, 'cargando usuarios');
+      await withTimeout(loadMatriculasAprendidas(), 20000, 'cargando matrículas aprendidas');
+      await withTimeout(loadTarjetasRepsol(), 20000, 'cargando tarjetas Repsol');
       loadTarifas(); // v107K4: tarifas por ruta listas para el modal y el Excel (no bloquea)
-      await loadData();
+      await withTimeout(loadData(), 60000, 'cargando albaranes');
     } catch (e) {
       console.error('[v326] Falló una carga inicial. La app queda utilizable para SUBIR:', e);
       try {
@@ -5502,8 +5522,20 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       // 529 = Overloaded, 429 = Rate limit, 500/503 = errores temporales del servidor
       const esTemporal = res.status === 529 || res.status === 429 || res.status === 500 || res.status === 503;
       if (esTemporal && intento < esperasBase.length) {
-        const espera = jitter(esperasBase[intento]);
-        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación, modelo ${modeloActual || '?'}). Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s...`);
+        // v327: si la API dice CUÁNTO esperar, esa cifra manda sobre nuestra
+        // tabla de esperas. En los 429 (y a veces en los 529) manda la cabecera
+        // `retry-after` con los segundos exactos que quedan hasta que se libere
+        // el cupo. Antes esperábamos a ciegas: de más (parecía colgado) o de
+        // menos (volvíamos a chocar). Se le suma el jitter de siempre para que
+        // varios archivos que reciben el MISMO retry-after no vuelvan todos a
+        // la vez, y se topa a 60 s para que un valor raro no congele la subida.
+        // OJO: en navegador solo se puede leer la cabecera si el servidor la
+        // expone por CORS; si no llega, `ra` sale NaN y se usa el backoff de
+        // siempre — por eso el log dice de dónde salió la espera.
+        const ra = parseInt(res.headers.get('retry-after') || '', 10);
+        const usaCabecera = Number.isFinite(ra) && ra > 0;
+        const espera = usaCabecera ? jitter(Math.min(ra * 1000, 60000)) : jitter(esperasBase[intento]);
+        console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación, modelo ${modeloActual || '?'}). Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s ${usaCabecera ? '(retry-after de la API)' : '(backoff propio)'}...`);
         await sleep(espera);
         continue; // reintentar
       }
