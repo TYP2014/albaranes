@@ -1917,9 +1917,22 @@ async function saveGasRecord(data) {
   return await _gasGuardar(false);
 }
 
+// v331 (22/07/2026): el DELETE se VERIFICA con .select(), igual que hace
+// saveRecord con el UPDATE desde v107GZ.
+//
+// POR QUÉ: sin .select(), esta llamada no distingue "borré una fila" de "no
+// borré ninguna". Bajo RLS, un DELETE denegado por la política —o cuyo id no
+// existe— devuelve error=null y 0 filas afectadas. La app lo daba por bueno,
+// quitaba el albarán de la pantalla, decía "✓ Eliminado"… y el registro
+// reaparecía en la siguiente carga de datos. Esa era la causa real del bug que
+// la v83c tapó recargando TODA la base tras cada borrado (mismo diagnóstico que
+// v107GZ hizo para el UPDATE un mes después; el DELETE se quedó sin arreglar).
 async function deleteRecordDB(dbId) {
-  const { error } = await sb.from('albaranes').delete().eq('id', dbId);
+  const { data: borrado, error } = await sb.from('albaranes').delete().eq('id', dbId).select();
   if (error) throw error;
+  if (!borrado || borrado.length === 0) {
+    throw new Error('El borrado no eliminó ninguna fila (id=' + dbId + '). Puede ser un problema de permisos o que el albarán ya no exista — refresca la página y vuelve a intentarlo.');
+  }
 }
 
 // ============================================================
@@ -10989,6 +11002,21 @@ function markAsValid() {
   analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); closeModal(); toast('✓ Marcado válido');
 }
 
+// v331: quita un albarán de la memoria y repinta. Es exactamente lo que hacía
+// el código anterior a la v83c —y que ya era correcto—: `filtered` se
+// reconstruye desde `records` dentro de applyFilters (no hay copia que se quede
+// desfasada), y los cuatro repintados dejan lista, contadores y avisos al día.
+// Se usa desde los dos caminos de deleteRecord (éxito y "error pero sí borró").
+function _quitarAlbaranDeMemoria(r) {
+  records = records.filter(x => x !== r
+    && !(r.db_id && String(x.db_id) === String(r.db_id))
+    && !(r._id && String(x._id) === String(r._id)));
+  analyzeRecords();
+  applyFilters();
+  updateStats();
+  renderAlerts();
+}
+
 async function deleteRecord() {
   // v83c: confirmación nativa del navegador. Antes el patrón "doble clic" hacía que mucha
   // gente pinchara una vez, viera "¿Confirmar?" y pensara que no funcionaba. Ahora aparece
@@ -11002,24 +11030,32 @@ async function deleteRecord() {
   if (btn) { btn.disabled = true; btn.textContent = 'Eliminando...'; }
   try {
     if (r.db_id) await deleteRecordDB(r.db_id);
-    // v83c: recargar TODO desde BD (fuente de verdad) en lugar de solo filtrar memoria.
-    // Garantiza que el registro eliminado no reaparece tras un refresh ni queda inconsistencia.
-    await loadData();
+    // v331: FUERA el `await loadData()` que puso la v83c. Recargar los 13.000+
+    // albaranes tras CADA borrado era lo que hacía lento el botón Eliminar.
+    // Ya no hace falta: deleteRecordDB confirma con .select() que la fila se
+    // borró de verdad, así que si llegamos hasta aquí el borrado está
+    // garantizado y basta con quitarlo de memoria y repintar.
+    _quitarAlbaranDeMemoria(r);
     closeModal();
     toast('✓ Eliminado');
   } catch (e) {
     console.error('[deleteRecord] Error:', e);
     // v100b: tolerancia a errores. A veces Supabase devuelve error en el delete pero la
-    // operación SÍ se completó (típico con RLS). Recargamos y verificamos si el registro
-    // sigue existiendo. Si NO existe, fue un éxito a pesar del error → silenciamos el aviso.
+    // operación SÍ se completó (típico con RLS). Verificamos si el registro sigue
+    // existiendo. Si NO existe, fue un éxito a pesar del error → silenciamos el aviso.
+    // v331: antes esta comprobación recargaba TODOS los albaranes solo para mirar uno.
+    // Ahora pregunta por ese id concreto: mismo resultado, coste ridículo.
     try {
-      await loadData();
-      const stillExists = records.some(x => String(x.db_id) === String(r.db_id));
-      if (!stillExists) {
-        // El registro ya no está → el borrado funcionó realmente. Ignorar el error.
-        closeModal();
-        toast('✓ Eliminado');
-        return;
+      if (r.db_id) {
+        const { data: sigue, error: eVerif } = await sb.from('albaranes')
+          .select('id').eq('id', r.db_id).maybeSingle();
+        if (!eVerif && !sigue) {
+          // El registro ya no está → el borrado funcionó realmente. Ignorar el error.
+          _quitarAlbaranDeMemoria(r);
+          closeModal();
+          toast('✓ Eliminado');
+          return;
+        }
       }
     } catch (e2) { /* ignorar fallo en la verificación */ }
     toast('Error eliminando: ' + (e.message || e), 'err');
