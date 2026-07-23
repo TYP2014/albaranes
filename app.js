@@ -4888,8 +4888,8 @@ async function _processOne(it, type, key, timeoutMs) {
         //   (b) DOS viajes DISTINTOS con el mismo texto → saltaba duplicado FALSO y se
         //       borraba un albarán bueno.
         // Solución: si tras toda la limpieza el nº sigue vacío, la app genera uno
-        // DETERMINISTA a partir del propio ticket: "SN-MMAA-KILOS" (SN = sin número,
-        // MMAA = mes+año de la fecha, KILOS = tm en kg). El mismo ticket produce SIEMPRE
+        // DETERMINISTA a partir del propio ticket: "SN-DDMMAA-KILOS" (SN = sin número,
+        // DDMMAA = día+mes+año de la fecha — el día desde v333 —, KILOS = tm en kg). El mismo ticket produce SIEMPRE
         // el mismo número (lo suba quien lo suba y cuando sea) → el detector de duplicados
         // A/B/C de analyzeRecords funciona solo. Viajes distintos pesan distinto → números
         // distintos → sin falsos duplicados. Buscar "SN-0726" saca todos los de julio 2026.
@@ -4908,13 +4908,20 @@ async function _processOne(it, type, key, timeoutMs) {
               data.observaciones = ((data.observaciones || '') + ' 📅 Fecha = día de subida (no legible en el papel — corregir si el viaje fue otro día)').trim();
               console.log('[v311] fecha vacía → puesta la de hoy:', data.fecha);
             }
-            // 2) MMAA del número, sacado de la fecha (leída o de hoy).
+            // 2) DDMMAA del número, sacado de la fecha (leída o de hoy).
+            // v333 (23/07/2026, Juan Carlos): el número lleva también el DÍA
+            // (antes SN-MMAA-KILOS, ahora SN-DDMMAA-KILOS, ej. SN-230726-28700).
+            // Así dos viajes de días distintos ya no chocan nunca y salen muchas
+            // menos letras A/B. Bonus: buscar "0726" sigue sacando todo el mes,
+            // porque DDMMAA termina justo en MMAA. Los SN viejos NO cambian.
             const _fV311 = normFecha(data.fecha);
             const _mV311 = String(_fV311).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
             const _hoyV311 = new Date();
             const _mmaa = _mV311
-              ? (_mV311[2] + _mV311[3].slice(2))
-              : (String(_hoyV311.getMonth() + 1).padStart(2, '0') + String(_hoyV311.getFullYear()).slice(2));
+              ? (_mV311[1] + _mV311[2] + _mV311[3].slice(2))
+              : (String(_hoyV311.getDate()).padStart(2, '0')
+                 + String(_hoyV311.getMonth() + 1).padStart(2, '0')
+                 + String(_hoyV311.getFullYear()).slice(2));
             // 3) Cola del número: kilos (tm×1000) > matrícula > aleatorio (último recurso).
             const _tmV311 = parseFloat(data.tm);
             let _colaV311;
