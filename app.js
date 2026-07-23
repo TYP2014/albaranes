@@ -4932,7 +4932,40 @@ async function _processOne(it, type, key, timeoutMs) {
               _colaV311 = 'R' + String(Math.floor(1000 + Math.random() * 9000));
               data.observaciones = ((data.observaciones || '') + ' ⚠️ Ni kilos ni matrícula legibles — nº con sufijo aleatorio, completar a mano del papel').trim();
             }
-            data.albaran = 'SN-' + _mmaa + '-' + _colaV311;
+            // v332 (23/07/2026, Juan Carlos): SUFIJO A/B/C PARA VIAJES REALES QUE CHOCAN.
+            // Caso real (pantallazo 20-21/07/2026): dos viajes DISTINTOS del mismo mes con
+            // las mismas TN redondeadas producen el MISMO número SN (ej. 29,28 y 29,34 TN
+            // → los dos SN-0726-29300) y el mismo camión puede hacer varios viajes iguales
+            // el mismo día. Ahora, si el número ya existe (en BD o en esta misma tanda de
+            // subida), al nuevo se le añade una letra: SN-0726-29300 → SN-0726-29300A →
+            // ...B → ...C. SIN avisos ni marca "a revisar" — decisión expresa de Juan
+            // Carlos ("ponerle la A sin avisar nada"); asume que el mismo ticket subido
+            // dos veces también entraría con letra y lo controla con el papel.
+            let _numSN = 'SN-' + _mmaa + '-' + _colaV311;
+            try {
+              // Números ya usados = los de la BD (consulta) + los asignados en ESTA tanda.
+              // OJO: los archivos de una tanda se procesan EN PARALELO (Promise.all) y la
+              // BD aún no los tiene cuando el siguiente pregunta — sin esta memoria de
+              // sesión, dos tickets de la misma subida se llevarían el mismo número.
+              window._snSesionV332 = window._snSesionV332 || new Set();
+              const { data: _exSN, error: _errSN } = await sb.from('albaranes')
+                .select('albaran').ilike('albaran', _numSN + '%');
+              const _reSN = new RegExp('^' + _numSN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[A-Z]?$', 'i');
+              const _tomadosSN = new Set();
+              if (!_errSN && Array.isArray(_exSN)) {
+                _exSN.forEach(r => { const _a = String(r.albaran || '').trim().toUpperCase(); if (_reSN.test(_a)) _tomadosSN.add(_a); });
+              }
+              window._snSesionV332.forEach(_a => { if (_reSN.test(_a)) _tomadosSN.add(_a); });
+              if (_tomadosSN.has(_numSN.toUpperCase())) {
+                const _letrasSN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                for (const _L of _letrasSN) {
+                  if (!_tomadosSN.has((_numSN + _L).toUpperCase())) { _numSN = _numSN + _L; break; }
+                }
+                console.log('[v332] nº SN ya existía → letra añadida:', _numSN);
+              }
+              window._snSesionV332.add(_numSN.toUpperCase());
+            } catch (_eSN) { console.warn('[v332] no se pudo comprobar choque de nº SN (se deja el número base):', _eSN); }
+            data.albaran = _numSN;
             data.observaciones = ((data.observaciones || '') + ' 🔢 Nº ' + data.albaran + ' generado automáticamente (ticket sin nº de albarán)').trim();
             console.log('[v311] nº automático generado:', data.albaran);
           }
