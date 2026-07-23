@@ -1780,7 +1780,12 @@ async function saveRecord(data) {
   const _COLUMNAS_ALBARANES = new Set([
     'id', 'user_id', 'albaran', 'fecha', 'proveedor', 'cliente', 'obra', 'planta',
     'tractora', 'remolque', 'tm', 'producto', 'observaciones', 'created_at',
-    'updated_at', 'transportista', 'file_url', 'storage_path', 'editado_por',
+    'updated_at', 'transportista', 'file_url', 'editado_por',
+    // v332 (23/07/2026): FUERA 'storage_path' de esta lista. Verificado contra
+    // information_schema: la columna NO existe en la tabla albaranes (el
+    // comentario de _guardarGiroImagen/v107GR tenía razón; esta lista mentía).
+    // Si un registro llegara con ese campo, pasaba el filtro y el update
+    // fallaba con PGRST204. Cierra la contradicción anotada en la Fase 4.
     'editado_en', 'linea_albaran', 'tanda_subida', 'pagina_subida', 'origen',
     'destino', 'cantidad', 'unidad', 'numero_albaran'
   ]);
@@ -4888,8 +4893,8 @@ async function _processOne(it, type, key, timeoutMs) {
         //   (b) DOS viajes DISTINTOS con el mismo texto → saltaba duplicado FALSO y se
         //       borraba un albarán bueno.
         // Solución: si tras toda la limpieza el nº sigue vacío, la app genera uno
-        // DETERMINISTA a partir del propio ticket: "SN-DDMMAA-KILOS" (SN = sin número,
-        // DDMMAA = día+mes+año de la fecha — el día desde v333 —, KILOS = tm en kg). El mismo ticket produce SIEMPRE
+        // DETERMINISTA a partir del propio ticket: "SN-MMAA-KILOS" (SN = sin número,
+        // MMAA = mes+año de la fecha, KILOS = tm en kg). El mismo ticket produce SIEMPRE
         // el mismo número (lo suba quien lo suba y cuando sea) → el detector de duplicados
         // A/B/C de analyzeRecords funciona solo. Viajes distintos pesan distinto → números
         // distintos → sin falsos duplicados. Buscar "SN-0726" saca todos los de julio 2026.
@@ -4908,20 +4913,13 @@ async function _processOne(it, type, key, timeoutMs) {
               data.observaciones = ((data.observaciones || '') + ' 📅 Fecha = día de subida (no legible en el papel — corregir si el viaje fue otro día)').trim();
               console.log('[v311] fecha vacía → puesta la de hoy:', data.fecha);
             }
-            // 2) DDMMAA del número, sacado de la fecha (leída o de hoy).
-            // v333 (23/07/2026, Juan Carlos): el número lleva también el DÍA
-            // (antes SN-MMAA-KILOS, ahora SN-DDMMAA-KILOS, ej. SN-230726-28700).
-            // Así dos viajes de días distintos ya no chocan nunca y salen muchas
-            // menos letras A/B. Bonus: buscar "0726" sigue sacando todo el mes,
-            // porque DDMMAA termina justo en MMAA. Los SN viejos NO cambian.
+            // 2) MMAA del número, sacado de la fecha (leída o de hoy).
             const _fV311 = normFecha(data.fecha);
             const _mV311 = String(_fV311).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
             const _hoyV311 = new Date();
             const _mmaa = _mV311
-              ? (_mV311[1] + _mV311[2] + _mV311[3].slice(2))
-              : (String(_hoyV311.getDate()).padStart(2, '0')
-                 + String(_hoyV311.getMonth() + 1).padStart(2, '0')
-                 + String(_hoyV311.getFullYear()).slice(2));
+              ? (_mV311[2] + _mV311[3].slice(2))
+              : (String(_hoyV311.getMonth() + 1).padStart(2, '0') + String(_hoyV311.getFullYear()).slice(2));
             // 3) Cola del número: kilos (tm×1000) > matrícula > aleatorio (último recurso).
             const _tmV311 = parseFloat(data.tm);
             let _colaV311;
@@ -4939,40 +4937,7 @@ async function _processOne(it, type, key, timeoutMs) {
               _colaV311 = 'R' + String(Math.floor(1000 + Math.random() * 9000));
               data.observaciones = ((data.observaciones || '') + ' ⚠️ Ni kilos ni matrícula legibles — nº con sufijo aleatorio, completar a mano del papel').trim();
             }
-            // v332 (23/07/2026, Juan Carlos): SUFIJO A/B/C PARA VIAJES REALES QUE CHOCAN.
-            // Caso real (pantallazo 20-21/07/2026): dos viajes DISTINTOS del mismo mes con
-            // las mismas TN redondeadas producen el MISMO número SN (ej. 29,28 y 29,34 TN
-            // → los dos SN-0726-29300) y el mismo camión puede hacer varios viajes iguales
-            // el mismo día. Ahora, si el número ya existe (en BD o en esta misma tanda de
-            // subida), al nuevo se le añade una letra: SN-0726-29300 → SN-0726-29300A →
-            // ...B → ...C. SIN avisos ni marca "a revisar" — decisión expresa de Juan
-            // Carlos ("ponerle la A sin avisar nada"); asume que el mismo ticket subido
-            // dos veces también entraría con letra y lo controla con el papel.
-            let _numSN = 'SN-' + _mmaa + '-' + _colaV311;
-            try {
-              // Números ya usados = los de la BD (consulta) + los asignados en ESTA tanda.
-              // OJO: los archivos de una tanda se procesan EN PARALELO (Promise.all) y la
-              // BD aún no los tiene cuando el siguiente pregunta — sin esta memoria de
-              // sesión, dos tickets de la misma subida se llevarían el mismo número.
-              window._snSesionV332 = window._snSesionV332 || new Set();
-              const { data: _exSN, error: _errSN } = await sb.from('albaranes')
-                .select('albaran').ilike('albaran', _numSN + '%');
-              const _reSN = new RegExp('^' + _numSN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[A-Z]?$', 'i');
-              const _tomadosSN = new Set();
-              if (!_errSN && Array.isArray(_exSN)) {
-                _exSN.forEach(r => { const _a = String(r.albaran || '').trim().toUpperCase(); if (_reSN.test(_a)) _tomadosSN.add(_a); });
-              }
-              window._snSesionV332.forEach(_a => { if (_reSN.test(_a)) _tomadosSN.add(_a); });
-              if (_tomadosSN.has(_numSN.toUpperCase())) {
-                const _letrasSN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                for (const _L of _letrasSN) {
-                  if (!_tomadosSN.has((_numSN + _L).toUpperCase())) { _numSN = _numSN + _L; break; }
-                }
-                console.log('[v332] nº SN ya existía → letra añadida:', _numSN);
-              }
-              window._snSesionV332.add(_numSN.toUpperCase());
-            } catch (_eSN) { console.warn('[v332] no se pudo comprobar choque de nº SN (se deja el número base):', _eSN); }
-            data.albaran = _numSN;
+            data.albaran = 'SN-' + _mmaa + '-' + _colaV311;
             data.observaciones = ((data.observaciones || '') + ' 🔢 Nº ' + data.albaran + ' generado automáticamente (ticket sin nº de albarán)').trim();
             console.log('[v311] nº automático generado:', data.albaran);
           }
