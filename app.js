@@ -1780,7 +1780,12 @@ async function saveRecord(data) {
   const _COLUMNAS_ALBARANES = new Set([
     'id', 'user_id', 'albaran', 'fecha', 'proveedor', 'cliente', 'obra', 'planta',
     'tractora', 'remolque', 'tm', 'producto', 'observaciones', 'created_at',
-    'updated_at', 'transportista', 'file_url', 'storage_path', 'editado_por',
+    'updated_at', 'transportista', 'file_url', 'editado_por',
+    // v334 (24/07/2026): FUERA 'storage_path' (reaplica la v332, que se perdió al
+    // construirse la v333 desde una copia local v331 en vez del live de GitHub).
+    // Verificado contra information_schema el 23/07: la columna NO existe en la
+    // tabla albaranes; si un registro llegara con ese campo, el update fallaría
+    // con PGRST204. Lección: partir SIEMPRE del live desplegado.
     'editado_en', 'linea_albaran', 'tanda_subida', 'pagina_subida', 'origen',
     'destino', 'cantidad', 'unidad', 'numero_albaran'
   ]);
