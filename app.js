@@ -20759,9 +20759,11 @@ async function callClaudeRecambio(b64, mediaType, key, isPdf) {
 ${isPdf ? 'El PDF puede tener VARIAS PÁGINAS. Si es UN único documento de varias páginas (una factura larga), devuelve UN SOLO objeto JSON juntando TODAS las líneas de todas las páginas. Si hay documentos DISTINTOS, devuelve un ARRAY con un objeto por documento.' : 'Devuelve UN objeto JSON (no array).'}
 
 Determina primero el TIPO de documento:
-- "factura": pone la palabra FACTURA, tiene Nº Factura, base imponible, IVA y TOTAL FACTURA. Suele agrupar varios albaranes dentro.
-- "albaran": es un albarán/nota de entrega individual (puede o no traer precios), no tiene IVA desglosado.
+- "factura": pone la palabra FACTURA o "Tipo/Serie/Nº Factura", tiene Nº Factura, base imponible, IVA y TOTAL FACTURA. Suele agrupar varios albaranes dentro.
+- "albaran": es un albarán/nota de entrega individual. OJO: puede traer precios e incluso IVA y total (albarán VALORADO) — ver la regla de TOT FRENS más abajo.
 - "abono": es un abono/nota de crédito/devolución (importes en negativo o pone ABONO).
+- ⚠️ ALBARANES VALORADOS (error real detectado 24/07/2026, TOT FRENS): algunos proveedores emiten albaranes CON base imponible, IVA y "Import Total" — eso NO los convierte en factura. EL RÓTULO MANDA: si el recuadro del documento pone "Albarà" o "Albarán" con su número (ej: B260100015547), es tipo_detectado="albaran" AUNQUE lleve IVA y total. Las facturas de verdad de TOT FRENS ponen "Tipo/Serie/Nº Factura" (ej: FC I26 0100003659) y agrupan varios albaranes. Error real: el albarán B260100015547 (rótulo "Albarà", con IVA y total 432,48) se guardó mal como factura.
+- ⚠️ CÓDIGO DE CLIENTE ≠ Nº DE DOCUMENTO (mismo error real): el número corto que aparece ENCIMA del nombre del destinatario (en TOT FRENS "01731" o "01732", rótulo "Client") es su CÓDIGO DE CLIENTE — NUNCA lo uses como num_documento. El num_documento es el del recuadro "Albarà"/"Nº Factura". Error real: el mismo albarán B260100015547 se guardó otra vez con num_documento "01732" (el código de cliente) y creó un duplicado.
 
 Campos a extraer (JSON):
 {
