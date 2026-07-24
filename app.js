@@ -12403,6 +12403,182 @@ function hideTallerBannerToday(nivel) {
   toast('Aviso Taller ocultado hasta mañana');
 }
 
+// ============================================================================
+// v337: AVISO DÍA 10 — CUADRE MENSUAL DE RECAMBIOS (pedido por JC 14/07/2026).
+// A partir del día 10, todas las facturas de recambios del mes anterior ya han
+// llegado. Este barrido GLOBAL repasa el MES ANTERIOR y avisa en un banner
+// (mismo patrón que ITV/Taller, ✕ = ocultar hasta mañana) de lo que NO cuadra,
+// en los TRES sentidos: (1) albaranes nuestros que no aparecen en ninguna
+// factura → llamar al proveedor; (2) números de albarán que vienen en una
+// factura pero NO están subidos → culpa nuestra, subir el papel; (3) abonos
+// sin aplicar en ninguna factura (dinero pendiente, de cualquier antigüedad).
+// NO relee ningún PDF: usa el flag `conciliado` y las líneas ya guardadas de
+// las facturas. Privacidad: solo empresas permitidas en Taller (_empresaTaller)
+// y solo para quien tiene la pestaña Taller (_tieneTaller). Es SOLO consulta:
+// no marca, no cambia y no guarda nada. La conciliación una a una sigue igual
+// (botón Conciliar). 1 consulta al día (caché en memoria).
+// ============================================================================
+const RECAMB_D10_HIDE_KEY = 'recambDia10Hide';
+let _recambD10Cache = null;   // { dia:'YYYY-MM-DD', html:string }
+
+async function recambiosAvisoDia10() {
+  const banner = document.getElementById('recambDia10Banner');
+  if (!banner) return;
+  try {
+    if (!window._tieneTaller) { banner.style.display = 'none'; return; }
+    const hoy = new Date();
+    if (hoy.getDate() < 10) { banner.style.display = 'none'; return; }
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(RECAMB_D10_HIDE_KEY) === today) { banner.style.display = 'none'; return; }
+
+    // Caché diaria: si ya se calculó hoy, solo repintar (loadTallerData se llama mucho)
+    if (_recambD10Cache && _recambD10Cache.dia === today) {
+      banner.innerHTML = _recambD10Cache.html;
+      banner.style.display = _recambD10Cache.html ? 'block' : 'none';
+      return;
+    }
+
+    const pad = n => String(n).padStart(2, '0');
+    const y = hoy.getFullYear(), m0 = hoy.getMonth();
+    const dPrev = new Date(y, m0 - 1, 1);   // día 1 del mes ANTERIOR
+    const dCur  = new Date(y, m0, 1);       // día 1 del mes ACTUAL (tope exclusivo)
+    const dWin  = new Date(y, m0 - 3, 1);   // ventana de cruce: 3 meses (por si una
+                                            // factura de junio trae un albarán de mayo)
+    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const prevIni = fmt(dPrev), curIni = fmt(dCur), winIni = fmt(dWin);
+    const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const mesNombre = MESES[dPrev.getMonth()] + ' ' + dPrev.getFullYear();
+
+    const permitidas = window._empresaTaller
+      ? window._empresaTaller.split(',').map(s => s.trim())
+      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+
+    // OJO: la columna `fecha` es DATE → nunca comparar con días inventados (31);
+    // siempre "menor que el día 1 del mes siguiente".
+    const campos = 'id,tipo_doc,empresa,proveedor,proveedor_nif,num_documento,fecha,conciliado,lineas';
+    const [rWin, rAbo] = await Promise.all([
+      sb.from('recambios_albaranes').select(campos).in('empresa', permitidas).gte('fecha', winIni),
+      sb.from('recambios_albaranes').select(campos).in('empresa', permitidas)
+        .eq('tipo_doc', 'abono').eq('conciliado', false).lt('fecha', curIni)
+    ]);
+    if (rWin.error) throw rWin.error;
+    if (rAbo.error) throw rAbo.error;
+    const vistos = new Set();
+    const docs = [];
+    for (const d of [...(rWin.data || []), ...(rAbo.data || [])]) {
+      if (d.id && vistos.has(d.id)) continue;
+      if (d.id) vistos.add(d.id);
+      docs.push(d);
+    }
+
+    // Mismo criterio de proveedor que la conciliación (v310): el CIF MANDA;
+    // el nombre se compara sin acentos ni signos.
+    const _n310 = s => String(s || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().replace(/[\s.\-_/,]/g, '').trim();
+    const _fEs = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || ''); };
+
+    let cuerpo = '';
+    let hayProblemas = false;
+    let hayAlgo = false;
+    const TOPE = 6;   // líneas por apartado; el resto se resume con "+N más"
+
+    for (const emp of permitidas) {
+      const de = docs.filter(d => d.empresa === emp);
+      const albs = de.filter(d => d.tipo_doc === 'albaran');
+      const albsPrev = albs.filter(d => d.fecha && d.fecha >= prevIni && d.fecha < curIni);
+      const facts = de.filter(d => d.tipo_doc === 'factura' && d.fecha && d.fecha >= prevIni);
+
+      // (1) Albaranes del mes anterior que NO están casados con ninguna factura
+      const sinFactura = albsPrev.filter(d => !d.conciliado);
+
+      // (3) Abonos pendientes de aplicar (hasta fin del mes anterior, cualquier antigüedad)
+      const abonosPend = de.filter(d => d.tipo_doc === 'abono' && !d.conciliado && d.fecha && d.fecha < curIni);
+
+      // (2) Números de albarán que vienen en facturas recibidas pero NO tenemos subidos
+      const noSubidos = [];
+      const yaVisto = new Set();
+      for (const fac of facts) {
+        const nifF = _n310(fac.proveedor_nif), provF = _n310(fac.proveedor);
+        const albsProv = albs.filter(a => {
+          const nifA = _n310(a.proveedor_nif);
+          if (nifF && nifA && nifF === nifA) return true;
+          const p = _n310(a.proveedor);
+          return p && provF && (p.includes(provF) || provF.includes(p));
+        });
+        const numsSub = albsProv.map(a => _recambNorm(a.num_documento)).filter(Boolean);
+        const numsFac = [...new Set((fac.lineas || []).map(l => _recambNorm(l.albaran)).filter(Boolean))];
+        for (const n of numsFac) {
+          const hay = numsSub.some(s2 => s2 === n || s2.includes(n) || n.includes(s2));
+          if (!hay) {
+            const k = n + '|' + provF;
+            if (!yaVisto.has(k)) { yaVisto.add(k); noSubidos.push({ num: n, prov: fac.proveedor, fac: fac.num_documento }); }
+          }
+        }
+      }
+
+      // Empresa sin movimiento de recambios en la ventana → no molestar
+      if (!albsPrev.length && !facts.length && !abonosPend.length) continue;
+      hayAlgo = true;
+
+      const fila = t => `<div style="margin:2px 0 2px 14px;line-height:1.5">${t}</div>`;
+      const nProb = sinFactura.length + noSubidos.length + abonosPend.length;
+      if (!nProb) {
+        cuerpo += `<div style="margin:6px 0"><strong style="color:#2ecc71">✅ ${esc(emp)}</strong> · los ${albsPrev.length} albaranes de ${mesNombre} están casados con factura.</div>`;
+        continue;
+      }
+      hayProblemas = true;
+      cuerpo += `<div style="margin:8px 0 2px"><strong>⚠️ ${esc(emp)}</strong> · ${nProb} cosa${nProb === 1 ? '' : 's'} que no cuadra${nProb === 1 ? '' : 'n'} en ${mesNombre}:</div>`;
+      if (sinFactura.length) {
+        sinFactura.slice(0, TOPE).forEach(a =>
+          cuerpo += fila(`📞 Albarán <strong>${esc(a.num_documento || '?')}</strong> de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)}): no viene en ninguna factura — preguntar al proveedor si lo facturó o lo abonó`));
+        if (sinFactura.length > TOPE) cuerpo += fila(`… +${sinFactura.length - TOPE} albaranes más sin factura`);
+      }
+      if (noSubidos.length) {
+        noSubidos.slice(0, TOPE).forEach(x =>
+          cuerpo += fila(`📄 Albarán <strong>${esc(x.num)}</strong> de ${esc(x.prov || 'proveedor ?')}: viene en la factura ${esc(x.fac || '?')} pero NO está subido — buscar el papel y subirlo`));
+        if (noSubidos.length > TOPE) cuerpo += fila(`… +${noSubidos.length - TOPE} albaranes más sin subir`);
+      }
+      if (abonosPend.length) {
+        abonosPend.slice(0, TOPE).forEach(a =>
+          cuerpo += fila(`💶 Abono <strong>${esc(a.num_documento || '?')}</strong> de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)}): sin aplicar en ninguna factura`));
+        if (abonosPend.length > TOPE) cuerpo += fila(`… +${abonosPend.length - TOPE} abonos más pendientes`);
+      }
+    }
+
+    let html = '';
+    if (hayAlgo) {
+      const color = hayProblemas ? '#ff9500' : '#2ecc71';
+      const bg = hayProblemas ? 'rgba(255,149,0,.10)' : 'rgba(46,204,113,.10)';
+      html = `
+      <div style="background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:8px 0;font-family:var(--mn);font-size:12px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Recambios</button>
+            <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideRecambDia10Banner()" title="Ocultar hasta mañana">✕</button>
+          </div>
+        </div>
+        <div style="color:var(--tx);margin-top:4px">${cuerpo}</div>
+      </div>`;
+    }
+    _recambD10Cache = { dia: today, html };
+    banner.innerHTML = html;
+    banner.style.display = html ? 'block' : 'none';
+  } catch (e) {
+    console.warn('[v337 recambios día10]', e);
+    banner.style.display = 'none';
+  }
+}
+
+function hideRecambDia10Banner() {
+  const today = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(RECAMB_D10_HIDE_KEY, today);
+  const b = document.getElementById('recambDia10Banner');
+  if (b) b.style.display = 'none';
+  toast('Cuadre de recambios ocultado hasta mañana');
+}
+
 async function loadItvData() {
   if (!window._tieneITV) return;  // doble check de seguridad
   try {
@@ -19046,6 +19222,9 @@ async function loadTallerData() {
     renderTallerTabla();
     renderTallerAvisos();
     renderTallerGlobalBanner();  // v107AL: banner global visible en todas las pestañas
+    // v337: cuadre mensual de recambios (día 10). Sin await a propósito: no debe
+    // retrasar la carga de Taller; con caché diaria, solo consulta 1 vez al día.
+    try { recambiosAvisoDia10(); } catch (e) { console.warn('[v337]', e); }
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
