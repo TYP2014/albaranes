@@ -8801,8 +8801,17 @@ function applyGasFilters() {
   const empresaCanonica = GRUPO[gasEmpresaActiva] || 'TYP2014';
   const avisosReclasif = [];
 
+  // v336: FILTRO POR MATRÍCULA (solo la tabla de registros). Texto libre, subcadena,
+  // sin espacios/guiones y en mayúsculas (mismo criterio que ITV/Citas). Filtra DENTRO
+  // de la empresa activa porque se aplica sobre el mismo predicado que el filtro de empresa.
+  // No toca la vista de CONSUMO (esa usa gasRenderConsumo con sus propios filtros).
+  const _elMat = document.getElementById('fGasMat');
+  const _fMat = _elMat ? String(_elMat.value || '').toUpperCase().replace(/[\s-]/g, '').trim() : '';
+
   filteredGas = gasoilRecords.filter(r => {
     const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
+    // v336: filtro de matrícula (subcadena). Si no hay texto, no filtra nada.
+    if (_fMat && !mat.includes(_fMat)) return false;
     const transp = mat ? (TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora]) : null;
     // Empresa "dueña real" según la matrícula (solo si está en el grupo).
     // v335: el mapa propio de gasoil (_MAT_EMP_GAS, Portes) MANDA sobre TRANSPORTISTAS,
@@ -8838,7 +8847,33 @@ function applyGasFilters() {
   // v107L7 (Juan Carlos 18/06/2026): QUITADO el cartelito "ℹ️ X ticket(s) reubicado(s) por matrícula…".
   // Salía cada vez que se entraba o se refrescaba la página y molestaba. La reclasificación de tickets
   // por matrícula SIGUE funcionando exactamente igual; solo se ha quitado el aviso visual.
+
+  // v336: sugerencias (datalist) = matrículas de la empresa ACTIVA (sin aplicar el filtro
+  // de texto, para poder elegir cualquiera). Usa el mismo criterio de empresa que la tabla.
+  try {
+    const dl = document.getElementById('fGasMatList');
+    if (dl) {
+      const mats = [...new Set(gasoilRecords
+        .filter(r => _gasEmpresaDeRegistro(r) === gasEmpresaActiva)
+        .map(r => String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '').trim())
+        .filter(Boolean))].sort();
+      dl.innerHTML = mats.map(m => '<option value="' + m + '"></option>').join('');
+    }
+  } catch (e) {}
+  // v336: contador — solo cuando hay filtro de matrícula activo, para que se vea cuántos salen.
+  try {
+    const cnt = document.getElementById('gasFiltroCount');
+    if (cnt) cnt.textContent = _fMat ? (filteredGas.length + ' repostaje(s) de "' + _fMat + '"') : '';
+  } catch (e) {}
+
   renderGasTable();
+}
+
+// v336: limpiar el filtro de matrícula de Gasoil y repintar la tabla.
+function gasLimpiarMatricula() {
+  const el = document.getElementById('fGasMat');
+  if (el) el.value = '';
+  applyGasFilters();
 }
 
 // v107Y: cambiar de subpestaña de empresa en Gasoil
@@ -9485,7 +9520,20 @@ function _verMasFilas() {
 function renderGasTable() {
   const tbody = document.getElementById('tbodyGas'), empty = document.getElementById('emptyGas');
   if (!tbody) return;
-  if (!filteredGas.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  if (!filteredGas.length) {
+    tbody.innerHTML = '';
+    if (empty) {
+      // v336: mensaje consciente del filtro de matrícula (no confundir "sin coincidencias"
+      // con "sin tickets"). Si el filtro está activo, lo decimos y ofrecemos limpiarlo.
+      const _elM = document.getElementById('fGasMat');
+      const _m = _elM ? String(_elM.value || '').trim() : '';
+      empty.innerHTML = _m
+        ? 'Ningún repostaje con matrícula "' + _m.toUpperCase().replace(/</g, '&lt;') + '". <a href="#" onclick="gasLimpiarMatricula();return false" style="color:var(--in)">Quitar filtro</a>'
+        : 'No hay tickets de gasoil.';
+      empty.style.display = 'block';
+    }
+    return;
+  }
   if (empty) empty.style.display = 'none';
   tbody.innerHTML = filteredGas.map(r => `
     <tr onclick="openGasModal('${r.db_id || r._id}')">
