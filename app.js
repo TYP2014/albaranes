@@ -1780,12 +1780,7 @@ async function saveRecord(data) {
   const _COLUMNAS_ALBARANES = new Set([
     'id', 'user_id', 'albaran', 'fecha', 'proveedor', 'cliente', 'obra', 'planta',
     'tractora', 'remolque', 'tm', 'producto', 'observaciones', 'created_at',
-    'updated_at', 'transportista', 'file_url', 'editado_por',
-    // v332 (23/07/2026): FUERA 'storage_path' de esta lista. Verificado contra
-    // information_schema: la columna NO existe en la tabla albaranes (el
-    // comentario de _guardarGiroImagen/v107GR tenía razón; esta lista mentía).
-    // Si un registro llegara con ese campo, pasaba el filtro y el update
-    // fallaba con PGRST204. Cierra la contradicción anotada en la Fase 4.
+    'updated_at', 'transportista', 'file_url', 'storage_path', 'editado_por',
     'editado_en', 'linea_albaran', 'tanda_subida', 'pagina_subida', 'origen',
     'destino', 'cantidad', 'unidad', 'numero_albaran'
   ]);
@@ -3273,6 +3268,59 @@ async function procesarPendientes(type) {
   }
 }
 
+// ============================================================
+// v333 (24/07/2026): VISIBILIDAD del procesado de subidas (Fase E de la auditoría).
+// SOLO MUESTRA información — no cambia ni el procesado, ni la concurrencia, ni los
+// reintentos, ni los prompts. Cuando un archivo está esperando a reintentar por
+// saturación de la API, aprovechamos que la v327 (fetchAnthropicConReintento) YA
+// calcula esa espera y la registramos aquí para pintarla como cuenta atrás en la
+// tarjeta del archivo ("⏳ Reintentando en 8s (IA saturada)"), en vez de dejarlo en
+// "Leyendo…" y que parezca colgado. Registro clave→espera:
+//   - clave = el AbortSignal del intento en curso (único por archivo/intento); así
+//     casamos la espera con SU tarjeta (it._ctrl.signal) sin tocar el flujo.
+//   - también admite it._espera (lo pone _processOne en su propia espera por 429).
+// Un ticker de 1s solo REPINTA la cola mientras haya esperas vivas y se apaga solo.
+// Sobrevive al cambio de pestaña: renderQueues ya protege cada getElementById.
+let _esperasIA = new Map(); // signal -> { hasta:ms, motivo:'saturación' }
+let _tickEsperas = null;
+
+function _marcarEsperaIA(signal, ms, motivo) {
+  if (!signal) return; // llamadas sin señal (lecturas sueltas) no se muestran en cola
+  _esperasIA.set(signal, { hasta: Date.now() + ms, motivo: motivo || 'saturación' });
+  _arrancarTickEsperas();
+  try { renderQueues(); } catch (e) {}
+}
+function _limpiarEsperaIA(signal) {
+  if (!signal) return;
+  if (_esperasIA.delete(signal)) { try { renderQueues(); } catch (e) {} }
+}
+// Devuelve la espera VIVA de un archivo (o null): primero la suya propia, luego la
+// registrada por la v327 con su AbortSignal. Solo lectura, no muta nada.
+function _esperaDeItem(it) {
+  const ahora = Date.now();
+  if (it && it._espera && it._espera.hasta > ahora) return it._espera;
+  const s = it && it._ctrl && it._ctrl.signal;
+  if (s && _esperasIA.has(s)) { const e = _esperasIA.get(s); if (e.hasta > ahora) return e; }
+  return null;
+}
+function _hayEsperasVivas() {
+  const ahora = Date.now();
+  for (const e of _esperasIA.values()) if (e.hasta > ahora) return true;
+  const conProp = (arr) => arr.some(it => it._espera && it._espera.hasta > ahora);
+  try { if (conProp(pendingAlb) || conProp(pendingGas)) return true; } catch (e) {}
+  return false;
+}
+function _arrancarTickEsperas() {
+  if (_tickEsperas) return;
+  _tickEsperas = setInterval(() => {
+    // Podar entradas caducadas para no acumular claves muertas (una señal por intento).
+    const ahora = Date.now();
+    for (const [k, v] of _esperasIA) if (v.hasta <= ahora) _esperasIA.delete(k);
+    if (!_hayEsperasVivas()) { clearInterval(_tickEsperas); _tickEsperas = null; }
+    try { renderQueues(); } catch (e) {}
+  }, 1000);
+}
+
 function renderQueues() {
   ['alb', 'gas'].forEach(type => {
     const pending = type === 'alb' ? pendingAlb : pendingGas;
@@ -3285,6 +3333,9 @@ function renderQueues() {
     const nDone = pending.filter(x => x.status === 'done').length;
     const nErr = pending.filter(x => x.status === 'error').length;
     const total = pending.length;
+    // v333: de los que están "processing", cuántos están en realidad ESPERANDO a
+    // reintentar por saturación (los distinguimos para el resumen). Solo lectura.
+    const nWait = pending.filter(x => x.status === 'processing' && _esperaDeItem(x)).length;
 
     // Detectar bloqueo: flag activo más de 2 minutos
     const isProcessing = type === 'alb' ? _processingAlb : _processingGas;
@@ -3320,22 +3371,41 @@ function renderQueues() {
       </div>`;
     }
 
-    const html = stuckBanner + pending.map(it => `
+    const html = stuckBanner + pending.map(it => {
+      // v333: si el archivo está esperando a reintentar (saturación de la IA),
+      // pintamos la cuenta atrás en lugar de "Leyendo…" para que se vea que
+      // trabaja y no está colgado. Solo muestra; no toca el reintento.
+      const esp = it.status === 'processing' ? _esperaDeItem(it) : null;
+      const seg = esp ? Math.max(0, Math.ceil((esp.hasta - Date.now()) / 1000)) : 0;
+      const motivoTxt = esp && esp.motivo === 'red' ? 'reconectando' : 'IA saturada';
+      const stHtml = esp
+        ? `<div class="qi-st s-processing" style="color:var(--wn)">⏳ Reintentando en ${seg}s (${motivoTxt})</div>`
+        : `<div class="qi-st s-${it.status}">${stLbl(it.status)}</div>`;
+      return `
       <div class="qi">
         <div class="qi-ic">${it.isPdf ? '📄' : '🖼'}</div>
         <div class="qi-info">
           <div class="qi-nm">${it.name}</div>
-          <div class="qi-st s-${it.status}">${stLbl(it.status)}</div>
+          ${stHtml}
           ${it.status==='error' && it.error ? `<div style="font-size:10px;color:var(--er);margin-top:3px;word-break:break-word;line-height:1.35">⚠️ ${String(it.error).replace(/</g,'&lt;')}</div>` : ''}
         </div>
         <div class="pb"><div class="pf" style="width:${it.status==='done'?100:it.status==='processing'?65:0}%"></div></div>
         ${it.status==='pending'?`<button class="qi-rm" onclick="rmPending(${it.id},'${type}')" style="background:none;border:none;color:var(--er);font-size:14px;cursor:pointer;padding:4px;opacity:.4" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.4">✕</button>`:''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
     pbarIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = pending.length ? 'flex' : 'none'; });
-    // Mostrar progreso detallado: X de Y procesados, errores, etc.
+    // Mostrar progreso detallado: X de Y hechos, procesando ahora, reintentando por
+    // saturación, en cola y con error. v333: separamos "procesando" de "reintentando"
+    // (los que están en espera por saturación) para que se vea que la cola trabaja y
+    // no está colgada. nProc incluye a los que esperan, así que restamos nWait.
+    const nProcActivo = Math.max(0, nProc - nWait);
     const progressTxt = total > 0
-      ? `${nDone}/${total} procesados${nProc > 0 ? ` · ${nProc} en curso` : ''}${nErr > 0 ? ` · ${nErr} error` : ''}${np > 0 ? ` · ${np} pendientes` : ''}`
+      ? `${nDone}/${total} hechos`
+        + (nProcActivo > 0 ? ` · ${nProcActivo} procesando` : '')
+        + (nWait > 0 ? ` · ${nWait} reintentando` : '')
+        + (np > 0 ? ` · ${np} en cola` : '')
+        + (nErr > 0 ? ` · ${nErr} con error` : '')
       : `${np} pendiente(s)`;
     qcIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = progressTxt; });
     // Habilitar botón si hay pendientes O si hay huérfanos (rescatables)
@@ -3808,7 +3878,12 @@ async function _processOne(it, type, key, timeoutMs) {
           }
           const waitSec = 30 + (attempts * 15); // 30s, 45s, 60s...
           toast(`⏸ Rate limit alcanzado. Esperando ${waitSec}s antes de reintentar ${it.name}...`, 'warn');
+          // v333: cuenta atrás visible en la tarjeta de ESTE archivo mientras espera.
+          // Solo muestra; el tiempo de espera y el flujo no cambian.
+          it._espera = { hasta: Date.now() + waitSec * 1000, motivo: 'saturación' };
+          try { _arrancarTickEsperas(); renderQueues(); } catch (e) {}
           await sleep(waitSec * 1000);
+          it._espera = null;
           continue;
         }
         // Otros errores: 2 intentos máximo
@@ -5514,7 +5589,11 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
         const usaCabecera = Number.isFinite(ra) && ra > 0;
         const espera = usaCabecera ? jitter(Math.min(ra * 1000, 60000)) : jitter(esperasBase[intento]);
         console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación, modelo ${modeloActual || '?'}). Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s ${usaCabecera ? '(retry-after de la API)' : '(backoff propio)'}...`);
+        // v333: registrar la espera para pintar la cuenta atrás en la tarjeta del
+        // archivo (solo muestra; el tiempo `espera` y el flujo NO cambian).
+        try { _marcarEsperaIA(signal, espera, 'saturación'); } catch (e) {}
         await sleep(espera);
+        try { _limpiarEsperaIA(signal); } catch (e) {}
         continue; // reintentar
       }
       // Error no temporal, o se agotaron los reintentos → lanzar
@@ -5533,7 +5612,10 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       if (intento < esperasBase.length) {
         const espera = jitter(esperasBase[intento]);
         console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] Error de red. Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s...`, e.message || e);
+        // v333: registrar la espera para la cuenta atrás visible (solo muestra).
+        try { _marcarEsperaIA(signal, espera, 'red'); } catch (er) {}
         await sleep(espera);
+        try { _limpiarEsperaIA(signal); } catch (er) {}
         continue;
       }
       throw e;
