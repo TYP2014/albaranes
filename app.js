@@ -9817,7 +9817,15 @@ async function gasRenderConsumo() {
   const emp = gasEmpresaActiva || 'TYP2014';
 
   // 2) Periodos de km de ESTA empresa
-  const periodosEmp = (_kmPeriodos || []).filter(p => (p.empresa || 'TYP2014') === emp);
+  // 2) Periodos de km de ESTA empresa. v338 (paso 2 Portes): la MATRÍCULA MANDA
+  // con el mismo mapa _MAT_EMP_GAS que ya usa el registro de litros (v335) — así
+  // los km de las tractoras de Portes caen en SU pestaña aunque alguna fila vieja
+  // siguiera guardada como TYP2014, y desaparece de TYP2014 el "km sin litros".
+  const periodosEmp = (_kmPeriodos || []).filter(p => {
+    const _m = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+    const _own = _MAT_EMP_GAS[_m];
+    return (_own || p.empresa || 'TYP2014') === emp;
+  });
 
   // 3) Repostajes de GASOIL (no adblue) de ESTA empresa, indexados
   //    por matricula -> lista de {fechaNum, litros}
@@ -20114,14 +20122,16 @@ async function gasImportarKmExcel(file) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
 
-    // 1) Empresa por CIF (mismo mapeo que las facturas). J19: Portes 2014 Import
-    // (B02657435) se trata como TYP2014 (sus 2 tractoras operan en TYP2014), para que
-    // sus km caigan en TYP2014 igual que sus litros y el consumo salga junto.
+    // 1) Empresa por CIF (mismo mapeo que las facturas). v338 (paso 2 Portes):
+    // B02657435 pasa de TYP2014 a PORTES — desde la v335 Portes tiene sub-pestaña
+    // propia de gasoil y sus litros van allí; ahora sus km también, para que el
+    // consumo l/100km cuadre. REQUIERE el SQL km_portes_paso2.sql (candado de la
+    // tabla abierto a 'PORTES' + históricos recolocados, ejecutado 24/07/2026).
     const CIF_EMP = {
       'B90172735': 'TYP2014',
       'B90286337': 'HISPALIS',
       'B67316752': 'TRANSMARGAZ',
-      'B02657435': 'TYP2014'
+      'B02657435': 'PORTES'
     };
     let cifDoc = '', empresaDoc = '';
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
@@ -20199,8 +20209,12 @@ async function gasImportarKmExcel(file) {
       if (!dif || dif <= 0) { sinDatos++; continue; }
       const clave = mat + '|' + (fIni || '') + '|' + (fFin || '');
       if (claveExiste.has(clave)) { dupOmitidos++; continue; }
+      // v338: la MATRÍCULA MANDA por fila (mismo mapa _MAT_EMP_GAS de la v335):
+      // si una tractora de Portes viene dentro del Excel de otra empresa del
+      // grupo, su fila se guarda igualmente como PORTES.
+      const empFila = (_MAT_EMP_GAS[mat]) ? _MAT_EMP_GAS[mat] : (empresaDoc || null);
       const { error } = await sb.from('km_periodos').insert({
-        matricula: mat, empresa: empresaDoc || null,
+        matricula: mat, empresa: empFila,
         fecha_inicio: fIni, fecha_fin: fFin,
         km_inicio: kIni || null, km_fin: kFin || null, km_diferencia: dif,
         cif: cifDoc || null,
