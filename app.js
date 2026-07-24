@@ -1611,10 +1611,12 @@ async function loadData() {
   // v107Y: ajustar subpestañas visibles de Gasoil según permisos (misma lógica que Vacaciones).
   // window._empresaVac viene de loadUserMap, contiene la lista de empresas permitidas.
   try {
+    // v335: PORTES 2014 IMPORT añadido como sub-pestaña. Misma privacidad que el resto:
+    // quien no tenga _empresaVac (admin/JC) las ve todas; quien lo tenga solo ve las suyas.
     const empresasGasPermitidas = window._empresaVac
       ? window._empresaVac.split(',').map(s => s.trim())
-      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
-    ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+      : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'];
+    ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'].forEach(emp => {
       const btn = document.getElementById('gasSub' + emp);
       if (btn) btn.style.display = empresasGasPermitidas.includes(emp) ? '' : 'none';
     });
@@ -1632,7 +1634,7 @@ async function loadData() {
     // Título inicial
     const tit = document.getElementById('gasEmpresaTitulo');
     if (tit) {
-      const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+      const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018','PORTES':'PORTES 2014 IMPORT'};
       tit.textContent = labels[gasEmpresaActiva] || gasEmpresaActiva;
     }
   } catch (e) { console.warn('[loadData] No se pudieron ajustar subpestañas Gasoil:', e); }
@@ -6984,13 +6986,25 @@ SOLO JSON válido, sin markdown.`;
 
 // ===================== J15: LECTOR MULTI-PROVEEDOR DE FACTURAS DE GASOIL =====================
 // Mapa CIF → empresa del grupo (igual que en el lector de km).
-// J19: Portes 2014 Import (B02657435) se trata como TYP2014 en gasoil (sus 2 tractoras
-// operan dentro de TYP2014), igual que ya se hace en Neumáticos (mismo holding). Así los
-// litros de sus facturas y los km de su tacógrafo caen en TYP2014 y el consumo de esas
-// tractoras sale junto al resto de TYP2014.
+// J19 (histórico): Portes 2014 Import (B02657435) caía bajo TYP2014 en gasoil.
+// v335 (24/07/2026): Portes 2014 Import tiene YA su propia sub-pestaña de Gasoil, así que
+// su CIF pasa a 'PORTES' y sus facturas mensuales de gasoil caen en su pestaña (no en
+// TYP2014). ALCANCE SOLO GASOIL: Neumáticos y el mapa de km NO se tocan (allí Portes sigue
+// bajo TYP2014, mismo holding) — por eso el gráfico de CONSUMO de Portes queda pendiente de
+// un paso 2 (cruzar litros con sus km); el registro de litros sí sale completo.
 const _CIF_EMP_GAS = {
   'B90172735': 'TYP2014', 'B90286337': 'HISPALIS',
-  'B67316752': 'TRANSMARGAZ', 'B02657435': 'TYP2014'
+  'B67316752': 'TRANSMARGAZ', 'B02657435': 'PORTES'
+};
+// v335: MAPA PROPIO del circuito de GASOIL, matrícula → sub-pestaña. Existe SOLO para poder
+// enrutar las tractoras de Portes 2014 Import a su sub-pestaña de gasoil SIN tocar el mapa
+// TRANSPORTISTAS (que es COMPARTIDO con Albaranes/Facturación: allí getTransportista() escribe
+// data.transportista, app.js:4966, y estas matrículas deben seguir EXACTAMENTE como están —
+// Portes NO es transportista oficial). Este mapa MANDA sobre TRANSPORTISTAS solo dentro de la
+// clasificación de gasoil. Matrículas confirmadas por JC/revisor: 1479JDM (con histórico) y
+// 0755KMB (0 registros hoy, camión que suele estar parado; NO confundir con 0742KMB de Híspalis).
+const _MAT_EMP_GAS = {
+  '1479JDM': 'PORTES', '0755KMB': 'PORTES'
 };
 // Extrae el texto de las primeras páginas de un PDF (base64) con pdf.js, para
 // detectar de qué proveedor es la factura ANTES de elegir el lector.
@@ -8782,16 +8796,20 @@ function applyGasFilters() {
   //    (según mapa TRANSPORTISTAS), se reclasifica al dueño real y se anota
   //    para avisar al usuario ("este ticket era de Hispalis, lo moví").
   // 3) Tickets antiguos sin empresa_subida → lógica anterior (por matrícula).
-  const GRUPO = { 'TYP2014':'TYP2014', 'HISPALIS':'TTES HISPALIS 2016', 'TRANSMARGAZ':'TRANSMARGAZ 2018' };
-  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ' };
+  const GRUPO = { 'TYP2014':'TYP2014', 'HISPALIS':'TTES HISPALIS 2016', 'TRANSMARGAZ':'TRANSMARGAZ 2018', 'PORTES':'PORTES 2014 IMPORT' };
+  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ', 'PORTES 2014 IMPORT':'PORTES' };
   const empresaCanonica = GRUPO[gasEmpresaActiva] || 'TYP2014';
   const avisosReclasif = [];
 
   filteredGas = gasoilRecords.filter(r => {
     const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
     const transp = mat ? (TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora]) : null;
-    // Empresa "dueña real" según la matrícula (solo si está en el grupo)
-    const tabDueño = transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null;
+    // Empresa "dueña real" según la matrícula (solo si está en el grupo).
+    // v335: el mapa propio de gasoil (_MAT_EMP_GAS, Portes) MANDA sobre TRANSPORTISTAS,
+    // que NO se toca. Así las tractoras de Portes van a su sub-pestaña y los históricos
+    // guardados bajo TYP2014 se recolocan solos aquí al repintar (sin SQL).
+    const tabDueño = (mat && _MAT_EMP_GAS[mat]) ? _MAT_EMP_GAS[mat]
+      : (transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null);
 
     // ¿A qué empresa pertenece este ticket?
     let empresaTicket;
@@ -8811,7 +8829,7 @@ function applyGasFilters() {
     } else {
       // Tickets antiguos sin empresa_subida → lógica anterior (por matrícula)
       if (!mat) empresaTicket = 'TYP2014';
-      else if (transp) empresaTicket = tabDueño || 'TYP2014';
+      else if (tabDueño) empresaTicket = tabDueño;
       else empresaTicket = 'TYP2014';
     }
     return empresaTicket === gasEmpresaActiva;
@@ -8827,13 +8845,13 @@ function applyGasFilters() {
 function switchGasEmpresa(emp) {
   const empresasPermitidas = window._empresaVac
     ? window._empresaVac.split(',').map(s => s.trim())
-    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+    : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES']; // v335: + Portes 2014 Import
   if (!empresasPermitidas.includes(emp)) {
     toast('No tienes permiso para esa empresa', 'err');
     return;
   }
   gasEmpresaActiva = emp;
-  ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(e => {
+  ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'].forEach(e => {
     const btn = document.getElementById('gasSub' + e);
     if (!btn) return;
     btn.classList.remove('bp','bs');
@@ -8841,7 +8859,7 @@ function switchGasEmpresa(emp) {
   });
   const tit = document.getElementById('gasEmpresaTitulo');
   if (tit) {
-    const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+    const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018','PORTES':'PORTES 2014 IMPORT'};
     tit.textContent = labels[emp] || emp;
   }
   applyGasFilters();
@@ -9630,16 +9648,18 @@ let _kmPeriodos = null;
 // se reasigna al dueno real). Devuelve la subpestana destino
 // ('TYP2014' | 'HISPALIS' | 'TRANSMARGAZ').
 function _gasEmpresaDeRegistro(r) {
-  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ' };
+  const CANON_A_TAB = { 'TYP2014':'TYP2014', 'TTES HISPALIS 2016':'HISPALIS', 'TRANSMARGAZ 2018':'TRANSMARGAZ', 'PORTES 2014 IMPORT':'PORTES' };
   const mat = String(r.tractora || '').toUpperCase().replace(/[\s-]/g, '');
   const transp = mat ? (TRANSPORTISTAS[mat] || TRANSPORTISTAS[r.tractora]) : null;
-  const tabDueño = transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null;
+  // v335: mapa propio de gasoil (_MAT_EMP_GAS, Portes) MANDA sobre TRANSPORTISTAS (intacto).
+  const tabDueño = (mat && _MAT_EMP_GAS[mat]) ? _MAT_EMP_GAS[mat]
+    : (transp && CANON_A_TAB[transp] ? CANON_A_TAB[transp] : null);
   if (r.empresa_subida) {
     if (tabDueño && tabDueño !== r.empresa_subida) return tabDueño;
     return r.empresa_subida;
   }
   if (!mat) return 'TYP2014';
-  if (transp) return tabDueño || 'TYP2014';
+  if (tabDueño) return tabDueño;
   return 'TYP2014';
 }
 
