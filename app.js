@@ -20536,7 +20536,7 @@ function renderRecambios() {
       <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
       <td style="font-family:var(--mn);font-size:12px;color:var(--fg)"><b>${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
       <td>${est}</td>
-      <td style="white-space:nowrap">${btnConciliar}${d.file_url ? `<button class="btn bs" style="font-size:10px;padding:3px 8px;margin-right:4px" title="Descargar el documento con un clic" onclick="event.stopPropagation();recambiosDescargarDoc('${d.id}')">⬇</button>` : ''}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
+      <td style="white-space:nowrap">${btnConciliar}${d.file_url ? `<button class="btn bs" style="font-size:10px;padding:3px 10px;margin-right:4px" title="Descargar el PDF/foto de este documento con un clic" onclick="event.stopPropagation();recambiosDescargarDoc('${d.id}')">⬇ Descargar</button>` : ''}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
     </tr>`;
   };
 
