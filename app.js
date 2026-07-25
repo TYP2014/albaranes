@@ -20385,6 +20385,39 @@ function _recMesTitulo(m) {
   return (MES[parseInt(m.slice(5), 10) - 1] || m.slice(5)) + ' ' + m.slice(0, 4);
 }
 
+// v341: descarga con UN CLIC del documento de una fila de Recambios (pedido JC
+// 25/07/2026), calcada al ⬇ de los albaranes de viajes: baja el archivo con un
+// nombre útil (tipo_número_proveedor_fecha) y, si algo falla, plan B de abrir
+// en pestaña nueva para guardarlo a mano. file_url ya viene firmada en memoria
+// por v322 (firmarCampo), así que funciona con el bucket privado.
+async function recambiosDescargarDoc(id) {
+  const d = (recambiosDocs || []).find(x => String(x.id) === String(id));
+  if (!d || _docEsVacio(d.file_url)) { toast('Este documento no tiene archivo adjunto', 'err'); return; }
+  const _lmp = s => String(s || '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
+  const ext = /\.(jpe?g)(\?|#|$)/i.test(d.file_url) ? '.jpg'
+    : (/\.png(\?|#|$)/i.test(d.file_url) ? '.png' : '.pdf');
+  const nombre = [
+    _lmp(d.tipo_doc || 'doc'),
+    _lmp(d.num_documento || 'sinNum'),
+    _lmp(d.proveedor || ''),
+    _lmp(String(d.fecha || '').replace(/\//g, '-'))
+  ].filter(Boolean).join('_') + ext;
+  try {
+    const resp = await fetch(d.file_url);
+    if (!resp.ok) throw new Error('descarga ' + resp.status);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    toast('⬇️ Descargando ' + nombre, 'ok');
+  } catch (e) {
+    console.warn('[v341] descarga recambios:', e);
+    try { window.open(d.file_url, '_blank'); } catch (e2) {}
+  }
+}
+
 function renderRecambios() {
   const body = document.getElementById('recambiosTablaBody');
   if (!body) return;
@@ -20503,7 +20536,7 @@ function renderRecambios() {
       <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
       <td style="font-family:var(--mn);font-size:12px;color:var(--fg)"><b>${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
       <td>${est}</td>
-      <td style="white-space:nowrap">${btnConciliar}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
+      <td style="white-space:nowrap">${btnConciliar}${d.file_url ? `<button class="btn bs" style="font-size:10px;padding:3px 8px;margin-right:4px" title="Descargar el documento con un clic" onclick="event.stopPropagation();recambiosDescargarDoc('${d.id}')">⬇</button>` : ''}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
     </tr>`;
   };
 
