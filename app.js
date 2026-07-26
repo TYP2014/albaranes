@@ -3643,14 +3643,21 @@ async function processQueue(type) {
       const pending = type === 'alb' ? pendingAlb : pendingGas;
       const todo = pending.filter(x => x.status === 'pending');
       if (!todo.length) break;
-      const batch = todo.slice(0, CONCURRENCY);
+      // v343: tamaño de tanda ADAPTATIVO — con el freno puesto se baja de 4 a 2
+      // (nivel 2) o de 1 en 1 (nivel 3); sin freno, la CONCURRENCY de siempre.
+      const _nf = _frenoNivel();
+      const _conc = _nf >= 3 ? 1 : (_nf >= 2 ? 2 : CONCURRENCY);
+      const batch = todo.slice(0, _conc);
       const results = await Promise.all(batch.map(it => _processOne(it, type, key, TIMEOUT_MS)));
       totalDone += results.filter(r => r === true).length;
       batchCount++;
       // Pausa entre lotes para no saturar la API (excepto el primer lote)
       const stillPending = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending').length;
       if (stillPending > 0) {
-        await sleep(PAUSE_BETWEEN_BATCHES_MS);
+        // v343: si el freno está puesto, pausa EXTRA entre tandas (además de la fija)
+        const _extra = _frenoPausaExtra();
+        if (_extra) console.log(`[v343 freno] Pausa extra entre tandas: ${Math.round(_extra / 1000)}s (nivel ${_frenoIA.nivel})`);
+        await sleep(PAUSE_BETWEEN_BATCHES_MS + _extra);
       }
     }
     // v107K80 (22/06/2026): REINTENTO AUTOMÁTICO PERSISTENTE (lotes grandes sin atascos).
@@ -3677,7 +3684,10 @@ async function processQueue(type) {
       while (true) {
         const todoR = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending');
         if (!todoR.length) break;
-        const batchR = todoR.slice(0, CONCURRENCY);
+        // v343: mismo freno adaptativo en los reintentos
+        const _nfR = _frenoNivel();
+        const _concR = _nfR >= 3 ? 1 : (_nfR >= 2 ? 2 : CONCURRENCY);
+        const batchR = todoR.slice(0, _concR);
         const resR = await Promise.all(batchR.map(it => _processOne(it, type, key, TIMEOUT_MS)));
         totalDone += resR.filter(r => r === true).length;
         const spR = (type === 'alb' ? pendingAlb : pendingGas).filter(x => x.status === 'pending').length;
@@ -5544,6 +5554,45 @@ const MATRICULAS_VALIDAS = [
 //      cuelgue por 529 SIN COSTAR DINERO extra de plan.
 //  (3) Si TODO falla igualmente, lanza un error con .status para que quien
 //      llama pueda avisar claramente al usuario (no quedarse mudo).
+// ============================================================================
+// v343: FRENO ADAPTATIVO (Fase C del rendimiento). Antes cada archivo se
+// defendía SOLO de la saturación (reintentos con retry-after, v327), pero los
+// demás trabajadores del lote seguían empujando a ciegas y chocaban también.
+// Ahora un aviso de saturación (HTTP 429/529) levanta un FRENO GLOBAL de 3
+// niveles que ven todos: nivel 1 = pausa extra entre tandas; nivel 2 = además
+// bajar de 4 a 2 en paralelo; nivel 3 = ir de 1 en 1. El freno usa el tiempo
+// que dicta la propia API (retry-after) cuando llega, y se suelta SOLO cuando
+// pasa el temporal (vuelve a 4 a la vez). Todo queda anotado en la consola
+// ("[v343 freno] ...") — de paso captura el dato del retry-after pendiente.
+// NO toca la lectura de la IA ni los reintentos por archivo: solo coordina.
+// ============================================================================
+const _frenoIA = { nivel: 0, hasta: 0 };
+
+function _frenoSubir(esperaMs, motivo) {
+  _frenoIA.nivel = Math.min(3, _frenoIA.nivel + 1);
+  // el freno dura lo que diga la API (topado a 90s) y nunca se acorta
+  _frenoIA.hasta = Math.max(_frenoIA.hasta, Date.now() + Math.min(Math.max(esperaMs || 15000, 5000), 90000));
+  console.warn(`[v343 freno] Saturación (${motivo}) → nivel ${_frenoIA.nivel} hasta ${new Date(_frenoIA.hasta).toLocaleTimeString()}`);
+}
+
+// Si el temporal ya pasó, soltar el freno. Devuelve el nivel vigente.
+function _frenoNivel() {
+  if (_frenoIA.nivel > 0 && Date.now() >= _frenoIA.hasta) {
+    console.log('[v343 freno] Temporal pasado → velocidad normal (4 a la vez)');
+    _frenoIA.nivel = 0; _frenoIA.hasta = 0;
+  }
+  return _frenoIA.nivel;
+}
+
+// Pausa EXTRA entre tandas según el nivel del freno (0 si no hay freno).
+function _frenoPausaExtra() {
+  const nivel = _frenoNivel();
+  if (!nivel) return 0;
+  const restante = Math.max(0, _frenoIA.hasta - Date.now());
+  const porNivel = [0, 5000, 12000, 25000][nivel];
+  return Math.min(Math.max(porNivel, 0), restante || porNivel, 30000);
+}
+
 async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
   // 6 esperas (ms). Total ~3 minutos repartido, que cubre la mayoría de
   // saturaciones (suelen durar de segundos a 1-2 minutos).
@@ -5595,6 +5644,11 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
         const ra = parseInt(res.headers.get('retry-after') || '', 10);
         const usaCabecera = Number.isFinite(ra) && ra > 0;
         const espera = usaCabecera ? jitter(Math.min(ra * 1000, 60000)) : jitter(esperasBase[intento]);
+        // v343: los avisos de cupo/saturación (429/529) levantan el FRENO GLOBAL
+        // para que el resto de trabajadores del lote levanten el pie también.
+        if (res.status === 429 || res.status === 529) {
+          try { _frenoSubir(usaCabecera ? ra * 1000 : espera, `HTTP ${res.status}${usaCabecera ? ' retry-after=' + ra + 's' : ''}`); } catch (e2) {}
+        }
         console.warn(`[fetchAnthropic${etiqueta ? ' ' + etiqueta : ''}] HTTP ${res.status} (saturación, modelo ${modeloActual || '?'}). Reintento ${intento + 1}/${esperasBase.length} en ${Math.round(espera / 1000)}s ${usaCabecera ? '(retry-after de la API)' : '(backoff propio)'}...`);
         // v333: registrar la espera para pintar la cuenta atrás en la tarjeta del
         // archivo (solo muestra; el tiempo `espera` y el flujo NO cambian).
