@@ -6,6 +6,22 @@ const SUPA_KEY = 'sb_publishable_ldl9nG0nyigExV5vmWKMPg_wsqKc5pI';
 const { createClient } = supabase;
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
+// ============================================================================
+// v344: EL PORTERO (Parte 2 de "la gorda" de seguridad, 26/07/2026).
+// TODAS las llamadas a la IA pasan por la función Edge `ia-proxy` de Supabase.
+// El navegador ya NO lleva ninguna clave de la IA: se identifica con la sesión
+// del usuario logueado, y el portero (que guarda la clave como secreto del
+// servidor) reenvía la petición a Anthropic. El portero devuelve también la
+// cabecera retry-after, así que el freno adaptativo (v343) sigue funcionando.
+// getKey() queda como constante para que los antiguos "¿hay clave?" pasen.
+// ============================================================================
+const IA_PROXY_URL = SUPA_URL + '/functions/v1/ia-proxy';
+async function _iaCabeceras() {
+  let t = '';
+  try { t = (await sb.auth.getSession()).data.session?.access_token || ''; } catch (e) {}
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + t, 'apikey': SUPA_KEY };
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -2505,7 +2521,7 @@ function _docLimpiar(arr) {
 // ============================================================
 // API KEY
 // ============================================================
-function getKey() { return anthropicKey || localStorage.getItem('anth_key') || ''; }
+function getKey() { return 'portero'; } // v344: la clave vive en el SERVIDOR (ia-proxy); los antiguos "¿hay clave?" pasan siempre
 function saveKey(k) { anthropicKey = k; localStorage.setItem('anth_key', k); }
 
 // ====== v232: BOT DE AYUDA FLOTANTE (responde dudas de uso de la app) ======
@@ -2563,9 +2579,9 @@ async function helpBotSend() {
   if (!key) { _helpBotAdd('bot', 'Falta configurar la clave de la IA. Ve a la pesta\u00f1a SUBIR, ponla, y vuelve a preguntarme.'); return; }
   const loading = _helpBotAdd('bot', '\u2026');
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(IA_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
       body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 600, system: _HELPBOT_SYS, messages: _helpBotHist.slice(-8) })
     });
     const data = await res.json();
@@ -2580,10 +2596,11 @@ async function helpBotSend() {
 }
 
 function renderSetup() {
-  const k = getKey();
-  const html = k
-    ? `<div class="setup"><div class="ks">✓ Clave activa — IA lista <button class="btn bs" style="padding:3px 8px;font-size:10px;margin-left:8px" onclick="clearKey()">Cambiar</button></div></div>`
-    : `<div class="setup"><h3>⚙ CONFIGURAR API KEY</h3><p>Necesitas una clave de Anthropic para procesar con IA. <a href="https://platform.anthropic.com" target="_blank">Obtener clave</a></p><div class="setup-row"><input class="ki" id="apiKeyInput" type="password" placeholder="sk-ant-api03-..."><button class="btn bp" onclick="doSaveKey()">Guardar clave</button></div></div>`;
+  // v344: ya no hay clave que configurar ni cambiar — la IA va por el portero
+  // del servidor (ia-proxy). El recuadro solo informa. De paso se limpia la
+  // clave vieja que pudiera quedar guardada en este navegador.
+  try { localStorage.removeItem('anth_key'); } catch (e) {}
+  const html = `<div class="setup"><div class="ks">🔒 IA por servidor seguro — sin clave en este navegador</div></div>`;
   document.getElementById('setupBox').innerHTML = html;
   if (document.getElementById('setupBoxSubir')) document.getElementById('setupBoxSubir').innerHTML = html;
 }
@@ -5621,9 +5638,9 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       : body;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(IA_PROXY_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
         body: JSON.stringify(bodyEsteIntento),
         signal: signal
       });
@@ -6556,9 +6573,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6604,9 +6621,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6703,9 +6720,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6755,9 +6772,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6805,9 +6822,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6854,9 +6871,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6902,9 +6919,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -6956,9 +6973,9 @@ SOLO el array JSON, sin texto adicional, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -7020,9 +7037,9 @@ SOLO JSON válido, sin markdown.`;
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -7218,9 +7235,9 @@ async function _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt
   const contentBlock = isPdf
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -7309,9 +7326,9 @@ async function callClaudeFacturaGasoil(b64, mediaType, key, isPdf, signal) {
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -7390,9 +7407,9 @@ Devuelve SOLO el array JSON, sin texto adicional, sin markdown, sin explicación
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: model || 'claude-haiku-4-5-20251001', max_tokens: 2000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -7466,9 +7483,9 @@ Devuelve SOLO el array JSON, sin texto adicional, sin markdown.`;
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
 
   // Factura = documento financiero denso → usamos Sonnet (más fiable que Haiku aquí).
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
     signal: signal
   });
@@ -12943,14 +12960,9 @@ Devuelve EXCLUSIVAMENTE un JSON con esta estructura, sin texto adicional, sin ma
 
 Si algún campo NO se ve claramente en la imagen, devuelve "" (string vacío) para ese campo, NUNCA lo inventes.`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
       max_tokens: 500,
@@ -13326,9 +13338,9 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
       ]
     }]
   };
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify(body)
   });
   if (!resp.ok) {
@@ -13541,9 +13553,9 @@ async function factEmitBorrar(id) {
 // est\u00e9 donde est\u00e9 (emisor o "Proveedor"), y el cliente es la OTRA parte.
 async function callClaudeFactEmit(b64, key) {
   const prompt = 'Eres un OCR experto en FACTURAS EMITIDAS por un grupo espa\u00f1ol de transporte. Lee la factura y devuelve UN SOLO objeto JSON.\n\nEMPRESAS DEL GRUPO (por CIF/NIF):\n- B90172735 = "TYP2014"\n- B90286337 = "HISPALIS"\n- B67316752 = "TRANSMARGAZ"\n- B02657435 = "PORTES 2014 IMPORT"\n\nHAY 3 FORMATOS POSIBLES:\n(1) FACTURA PROPIA (Quipu): la empresa del grupo aparece como EMISOR (arriba, con su NIF) y hay una caja "CLIENTE" con la otra empresa. Ej: "Factura n\u00ba 2026-06-4".\n(2) AUTOFACTURA CEMEX: pone "Facturaci\u00f3n por el destinatario". La caja "Cliente" es CEMEX ESPA\u00d1A (\u00a1OJO! CEMEX es quien PAGA) y la caja "Proveedor" es la empresa del grupo (quien COBRA). Ej: "N\u00ba de Factura: 10000317".\n(3) AUTOFACTURA HOLCIM: pone "Facturaci\u00f3n por el destinatario". Arriba dice "CLIENTE: Holcim Espa\u00f1a" (quien PAGA) y la empresa del grupo aparece como destinatario con "N\u00famero CIF Proveedor". Ej: "N\u00famero Factura: 40066".\n\nREGLA DE ORO: "empresa" = la empresa DEL GRUPO cuyo CIF (B90172735/B90286337/B67316752/B02657435) aparezca en el documento, D\u00c9 IGUAL si sale como emisor o como "Proveedor". "cliente" = la OTRA parte (la que paga): en formato 1 la caja CLIENTE; en formatos 2 y 3, CEMEX o HOLCIM.\n\nDevuelve JSON con:\n- numero: n\u00famero de factura tal cual (ej "2026-06-4", "10000317", "40066").\n- fecha: fecha de EMISI\u00d3N de la factura en formato AAAA-MM-DD (convierte 30.06.2026 o 30/06/2026 \u2192 "2026-06-30").\n- empresa: "TYP2014" | "HISPALIS" | "TRANSMARGAZ" | "PORTES 2014 IMPORT" seg\u00fan el CIF del grupo encontrado.\n- cliente: nombre de quien paga tal como aparece (ej "HOLCIM ESPA\u00d1A, S.A.U.", "CEMEX ESPA\u00d1A OPERACIONES, S.L.U.").\n- base: base imponible en n\u00famero con punto decimal (3.071,25 \u2192 3071.25; 167.471,19 \u2192 167471.19).\n- iva: importe del IVA en n\u00famero (644,96 \u2192 644.96).\n- total: total factura en n\u00famero (3.716,21 \u2192 3716.21).\n- vencimiento: fecha de vencimiento en AAAA-MM-DD. Si el documento solo dice un plazo (ej "45 D\u00edas Fecha Factura"), CALCULA: fecha de factura + esos d\u00edas, y devuelve la fecha resultante en AAAA-MM-DD. Si no hay nada, null.\n\nCUIDADO: los importes espa\u00f1oles usan punto de miles y coma decimal (167.471,19 = ciento sesenta y siete mil...). NO los confundas.\nSi un dato no aparece, null. SOLO el JSON, sin markdown ni explicaciones.';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: prompt }] }] })
   });
   if (!res.ok) { let e = {}; try { e = await res.json(); } catch (_) {} throw new Error(e.error?.message || ('HTTP ' + res.status)); }
@@ -13627,9 +13639,9 @@ async function callClaudeLiquidacion(b64, key) {
     + '(esa es cuando el deudor paga a BBVA, no cuando cobramos nosotros).\n\n'
     + 'CUIDADO: los importes españoles usan punto de miles y coma decimal (13.638,93 = trece mil seiscientos treinta y ocho con noventa y tres). '
     + 'Si un dato no aparece, null. SOLO el JSON, sin markdown ni explicaciones.';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }, { type: 'text', text: prompt }] }] })
   });
   if (!res.ok) { let e = {}; try { e = await res.json(); } catch (_) {} throw new Error(e.error?.message || ('HTTP ' + res.status)); }
@@ -17309,9 +17321,9 @@ SOLO JSON válido, sin markdown, sin explicaciones.`;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 180000);
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(IA_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 16000,
@@ -21990,9 +22002,9 @@ async function callClaudeAutofacturaCemex(b64, key, signal) {
     + '- NO te inventes números ni matrículas. Si un dato no se ve, ponlo null. En los PORTES, numero_albaran y matricula deben verse; en los AJUSTES puede no haber numero_albaran (déjalo null) pero debe haber importe.\n\n'
     + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
       max_tokens: 32000,
@@ -22518,9 +22530,9 @@ async function callClaudeAutofacturaHolcim(b64, key, signal) {
     + '- 🔴 TOTAL DE CONTROL: si en ESTE PDF ves la fila final de totales (textos como "Total transporte", "Subtotal por PO" o "NNN Envíos"), añade al final del array UN objeto especial: {"_control": true, "envios": NÚMERO_DE_ENVÍOS, "total_tn": TONELADAS_TOTALES}. Ejemplo: si pone "7.257,270 T ... 245 Envíos" añade {"_control":true,"envios":245,"total_tn":7257.270}. Si en este PDF NO aparece esa fila de totales, NO añadas el objeto de control.\n\n'
     + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
       max_tokens: 32000,
@@ -22872,9 +22884,9 @@ async function _factEnviosDeclaradosIA(file) {
     const b64 = _uint8ToBase64(await out.save());
     for (let intento = 1; intento <= 2; intento++) {
       try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const res = await fetch(IA_PROXY_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
           body: JSON.stringify({
             model: 'claude-haiku-4-5', max_tokens: 60,
             messages: [{ role: 'user', content: [
