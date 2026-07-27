@@ -346,3 +346,21 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #cardSubirAlb .dz-ic{font-size:48px;margin-bottom:10px}
 #cardSubirAlb .dz-t{font-size:15px;margin-bottom:6px}
 #cardSubirAlb .dz-s{font-size:13px}
+
+/* ============================================================
+   v346 (27/07/2026): MÓVIL / TABLET — LA BARRA DE PESTAÑAS SE DESLIZA
+   Problema: .tabs es una fila (flex) de 10-12 pestañas que mide ~1.700px
+   y NO se deslizaba ni se partía → estiraba el ANCHO DE TODA LA PÁGINA;
+   iOS/Android alejan el zoom para que quepa y todo se veía diminuto en
+   una columna a la izquierda (captura JC 27/07).
+   Arreglo SOLO VISUAL y SOLO en pantallas estrechas (<=1200px): la barra
+   se desliza de lado dentro de su propio carril (como un carrusel) y la
+   página vuelve a medir lo que mide la pantalla.
+   NO toca ninguna otra regla, ni el HTML, ni app.js, ni la BD.
+   En ordenador (>1200px) esta regla NI SIQUIERA SE CARGA: todo igual.
+   ============================================================ */
+@media (max-width:1200px){
+  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;white-space:nowrap}
+}
