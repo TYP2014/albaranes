@@ -364,3 +364,28 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
   .tabs::-webkit-scrollbar{display:none}
   .tab{flex:0 0 auto;white-space:nowrap}
 }
+
+/* ============================================================
+   v347 (27/07/2026): MÓVIL / TABLET — QUE LA APP OCUPE TODO EL ANCHO
+   Con la v346 las pestañas ya no estiraban la página, pero seguía
+   estirándola LA CABECERA: logo + "N alb · N TN" + rol + usuario +
+   Salir en una sola fila miden ~630px. En un móvil de 393px, el
+   navegador ALEJA EL ZOOM para que quepan esos 630 → la app (que solo
+   ocupa 393 de ellos) se veía como un rectángulo estrecho con banda
+   muerta al lado. También se salía la fila "Facturación / Nos han
+   facturado" (llevan white-space:nowrap en línea).
+   Arreglo SOLO VISUAL y SOLO hasta 1200px:
+     1. la cabecera se parte en dos líneas en vez de estirar la página
+     2. el logo, más pequeño en móvil
+     3. se oculta el texto "N alb · N TN" de la cabecera — ese dato está
+        justo debajo en las tarjetas ALBARANES VÁLIDOS / TN NETAS
+     4. los filtros de encima de la tabla parten línea en vez de salirse
+   NO toca ninguna regla existente, ni el HTML, ni app.js, ni la BD.
+   En ordenador (>1200px) esta regla NI SE CARGA: todo igual.
+   ============================================================ */
+@media (max-width:1200px){
+  .hdr{flex-wrap:wrap;height:auto;min-height:56px;padding:6px 12px;row-gap:6px}
+  .hdr .logo svg{height:28px!important}
+  #hdrInfo{display:none}
+  .tbl-top>span{white-space:normal!important}
+}
