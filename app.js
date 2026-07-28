@@ -14447,6 +14447,9 @@ function renderFichaje() {
     if (btnExcel) btnExcel.style.display = '';
     const btnAusAdm = document.getElementById('fichajeBtnAusenciaAdmin');
     if (btnAusAdm) btnAusAdm.style.display = '';
+    // v348: botón de apuntar un fichaje olvidado de otra persona (solo gestión)
+    const btnOlvAdm = document.getElementById('fichajeBtnOlvidoAdmin');
+    if (btnOlvAdm) btnOlvAdm.style.display = '';
     // v306: Marta y Mª del Mar son TAMBIÉN empleadas → además de gestionar,
     // fichan su propia jornada. Se les muestra su botonera ARRIBA (sección
     // "Fichar") y debajo la tabla de gestión de todos. El admin real (Juan
@@ -14466,6 +14469,9 @@ function renderFichaje() {
     if (btnExcel) btnExcel.style.display = 'none';
     const btnAusAdm = document.getElementById('fichajeBtnAusenciaAdmin');
     if (btnAusAdm) btnAusAdm.style.display = 'none';
+    // v348
+    const btnOlvAdm = document.getElementById('fichajeBtnOlvidoAdmin');
+    if (btnOlvAdm) btnOlvAdm.style.display = 'none';
     _fichajeRenderBotonera();
   }
   _fichajeRenderAdminResumen();
@@ -14737,6 +14743,70 @@ function abrirFichajeCorreccion(id) {
   document.getElementById('ovFichaje').classList.add('open');
 }
 
+// v348: GESTIÓN apunta un fichaje QUE FALTA a nombre de OTRA persona.
+// Caso real (27/07/2026): a Carlos García se le olvidó fichar la SALIDA. El
+// botón CORREGIR solo sabe arreglar un fichaje que YA existe, y "Apuntar hora
+// a mano" apunta siempre a nombre de quien lo pulsa → no había forma de meter
+// la salida que falta. Esto es el hermano de "Marcar ausencia": mismo modal,
+// mismo selector de trabajador, misma inserción (fila normal con metodo
+// 'manual', motivo obligatorio y registrado_por = quien lo apunta).
+// Solo lo ve la gestión (admin + Marta + Mª del Mar) por _fichajeEsAdmin().
+function abrirFichajeOlvido() {
+  if (!_fichajeEsAdmin()) return;
+  _fichajeModalModo = 'olvido';
+  _fichajeCorrigeId = null;
+  const titulo = document.getElementById('fichajeModalTitulo');
+  if (titulo) titulo.textContent = 'APUNTAR FICHAJE OLVIDADO';
+
+  // Si la tabla está filtrada por un empleado, viene ya elegido (comodidad).
+  const nomFiltro = document.getElementById('fichajeFiltroEmpleado')?.value || '';
+  const lista = _fichajeListaTrabajadores();
+  const opciones = lista.map(t =>
+    `<option value="${t.id}"${t.nombre === nomFiltro ? ' selected' : ''}>${_fichajeEsc(t.nombre)}${t.empresa ? ' · ' + _fichajeEsc(t.empresa) : ''}</option>`
+  ).join('');
+
+  const hoy = _fichajeFechaLocal(new Date());
+  const fields = document.getElementById('fichajeModalFields');
+  if (fields) {
+    fields.innerHTML = `
+      <div class="login-field">
+        <label class="login-label">Trabajador/a</label>
+        <select class="login-input" id="foTrabajador">${opciones}</select>
+      </div>
+      <div class="login-field">
+        <label class="login-label">¿Qué fichaje le falta?</label>
+        <select class="login-input" id="fmTipo">
+          <option value="salida" selected>🔴 Salida</option>
+          <option value="entrada">🟢 Entrada</option>
+          <option value="salida_comida">🍽️ Salida a comer</option>
+          <option value="vuelta_comida">↩️ Vuelta de comer</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Día</label>
+          <input type="date" class="login-input" id="fmFecha" value="${hoy}">
+        </div>
+        <div class="login-field" style="flex:1">
+          <label class="login-label">Hora</label>
+          <input type="time" class="login-input" id="fmHora" value="17:00">
+        </div>
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:2px">
+        Viene puesto Salida a las 17:00 (cierre de taller). Cambia el día si fue ayer.
+      </div>
+      <div class="login-field" style="margin-top:10px">
+        <label class="login-label">Motivo (obligatorio)</label>
+        <input type="text" class="login-input" id="fmNota" placeholder="Ej: se le olvidó fichar la salida">
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">
+        Queda registrado como fichaje "a mano" y con tu nombre como quien lo apunta.
+        No borra ni cambia ningún fichaje anterior.
+      </div>`;
+  }
+  document.getElementById('ovFichaje').classList.add('open');
+}
+
 function cerrarFichajeModal() {
   document.getElementById('ovFichaje').classList.remove('open');
 }
@@ -14758,7 +14828,33 @@ async function guardarFichajeManual() {
     const tsLocal = new Date(`${fecha}T${hora}:00`);
     if (isNaN(tsLocal.getTime())) { toast('Fecha u hora no válidas', 'err'); return; }
 
-    if (_fichajeModalModo === 'correccion') {
+    if (_fichajeModalModo === 'olvido') {
+      // v348: fichaje que FALTA, apuntado por la gestión a nombre de otra
+      // persona. Fila NORMAL (no 'correccion': no corrige a nadie, es el
+      // evento que nunca llegó a existir), igual que las ausencias.
+      if (!_fichajeEsAdmin()) { toast('No tienes permiso', 'err'); return; }
+      if (!nota) { toast('Pon el motivo (por qué lo apuntas tú)', 'warn'); return; }
+      const idSel = document.getElementById('foTrabajador')?.value;
+      const t = _fichajeListaTrabajadores().find(x => x.id === idSel);
+      if (!t) { toast('Selecciona un trabajador', 'warn'); return; }
+      // Aviso si esa persona YA tiene ese fichaje ese día (evitar duplicar).
+      const yaTiene = _fichajeEventosValidosDia(t.id, fecha).indexOf(tipo) !== -1;
+      if (yaTiene && !confirm(t.nombre + ' YA tiene un fichaje de "' + (_FICHAJE_LABELS[tipo] || tipo) + '" ese día.\n\n¿Lo apunto igualmente?')) return;
+      const { error } = await sb.from('fichajes').insert({
+        user_id: t.id,
+        trabajador: t.nombre,
+        dni: t.dni,
+        empresa: t.empresa,
+        cif: t.cif,
+        tipo: tipo,
+        ts: tsLocal.toISOString(),
+        metodo: 'manual',
+        nota: nota,
+        registrado_por: currentUser.id
+      });
+      if (error) throw error;
+      toast('✅ Apuntado: ' + (_FICHAJE_LABELS[tipo] || tipo) + ' de ' + t.nombre);
+    } else if (_fichajeModalModo === 'correccion') {
       // El admin crea una fila 'correccion' que apunta al original
       const anular = document.getElementById('fmAnular')?.checked;
       const orig = _fichajes.find(f => String(f.id) === String(_fichajeCorrigeId));
