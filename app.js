@@ -1812,7 +1812,7 @@ async function saveRecord(data) {
   // para borrar específicamente los conocidos como auxiliares:
   const _AUX_CAMPOS = ['materiales', 'matricula', 'devolucion_palets', 'unidad_palet',
                        'num_tarjeta', 'empresa_ticket', '_esFactura', '_quality',
-                       '_dup', '_dupOf', '_matDesconocida', '_manual',
+                       '_dup', '_dupOf', '_posDup', '_posDupOf', '_matDesconocida', '_manual',
                        '_fromPending', '_id',
                        // v350: campo auxiliar de lectura (hora del ticket para el nº SN).
                        'hora_carga'];
@@ -7614,7 +7614,7 @@ function qualityScore(r) { return ['albaran','fecha','tractora','tm','proveedor'
 // B) albarán + fecha + mismo TM ±0.05 (mismo albarán y peso = casi seguro duplicado)
 // C) albarán + TM ±0.05 (mismo albarán y peso aunque la fecha esté mal leída)
 function analyzeRecords() {
-  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; });
+  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; r._posDup = false; r._posDupOf = null; });
   const seenA = {}, seenB = {}, seenC = {};
 
   records.forEach((r, idx) => {
@@ -7652,6 +7652,28 @@ function analyzeRecords() {
       seenB[keyB] = uniqueId;
       seenC[keyC] = uniqueId;
     }
+  });
+
+  // v351 (29/07/2026, Juan Carlos): POSIBLE DUPLICADO 🔁 REV DUP.
+  // Los tickets de báscula SIN número impreso reciben un número inventado por nosotros
+  // (SN-DDMMAA-KILOS). Desde la v350 lleva también la hora al final cuando se lee, y con
+  // hora dos viajes del mismo día YA no chocan. Pero cuando la tinta está borrada y la hora
+  // NO se lee, dos viajes distintos del mismo día con pesos parecidos vuelven a dar el mismo
+  // número. Hasta ahora el segundo se marcaba ⛔ Dup y sus TN NO se contaban — y si eran dos
+  // viajes de verdad, Juan Carlos perdía esas toneladas sin enterarse.
+  // Ahora ese caso concreto se rebaja a "posible duplicado": las TN SÍ cuentan (decisión
+  // expresa de JC 29/07: prefiere revisarlo a perder toneladas) y la fila se pinta en fucsia
+  // con la marca 🔁 REV DUP para que la mire en el papel y decida.
+  // OJO al alcance, a propósito muy estrecho: SOLO números SN SIN cola de hora
+  // (SN-170726-29200 o el formato viejo SN-0726-29200). Un SN CON hora que choque
+  // (SN-170726-29200-1453) sigue siendo ⛔ Dup de verdad: misma fecha, mismo peso y misma
+  // hora impresa = es el mismo papel subido dos veces. Y los albaranes con número real
+  // impreso (Holcim 11 dígitos, Cemex, etc.) NO se tocan en absoluto.
+  records.forEach(r => {
+    if (!r._dup) return;
+    if (!/^\s*SN-\d{4,6}-\d+\s*$/i.test(String(r.albaran || ''))) return;
+    r._posDup = true; r._posDupOf = r._dupOf;
+    r._dup = false; r._dupOf = null;
   });
 
   // Log a consola del navegador (F12) para verificar que está funcionando
@@ -7743,6 +7765,7 @@ function renderPendientes() {
   const matDes = records.filter(r => !r._dup && r._matDesconocida).length;
   const warns  = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible')).length;
   const dups   = records.filter(r => r._dup).length;
+  const posDups = records.filter(r => r._posDup).length; // v351
 
   // ITVs solo cuentan si el usuario tiene permiso para verlas (puede_ver_itv=TRUE)
   let itvCad = 0, itvAvi = 0;
@@ -7752,7 +7775,7 @@ function renderPendientes() {
     itvAvi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso').length;
   }
 
-  const total = pendIA + matDes + warns + dups + itvCad + itvAvi;
+  const total = pendIA + matDes + warns + dups + posDups + itvCad + itvAvi;
   if (total === 0) {
     box.innerHTML = `<div class="pend-ok">✓ Todo al día — sin pendientes</div>`;
     return;
@@ -7762,6 +7785,7 @@ function renderPendientes() {
   const chips = [];
   if (pendIA) chips.push({ic:'📥', n:pendIA, tx:'pendientes IA',    cls:'pend-in', click:`procesarPendientes('alb')`});
   if (dups)   chips.push({ic:'⛔', n:dups,   tx:'duplicados',        cls:'pend-er', click:`filterByStatus('dup')`});
+  if (posDups) chips.push({ic:'🔁', n:posDups, tx:'posibles duplicados', cls:'pend-wn', click:`filterByStatus('posdup')`}); // v351
   if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
   if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
   if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
@@ -8753,6 +8777,7 @@ function applyFilters() {
     }
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
+    if (estado === 'posdup' && !r._posDup) return false; // v351
     if (estado === 'warn' && (r._dup || (r._quality !== 'warn' && r._quality !== 'ilegible'))) return false;
     // v91: filtro para ver solo los albaranes con matrícula desconocida (rellena pero
     // no en TRANSPORTISTAS oficiales ni aprendidas). Pensado para que el admin revise y
@@ -9047,7 +9072,7 @@ function filterByStatus(st) {
   } 
 }
 
-function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
+function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._posDup) return `<span class="badge" style="${st};background:rgba(214,51,140,.12);color:#d6338c;border:1px solid rgba(214,51,140,.35);font-weight:700" title="Posible duplicado: hay otro albarán con este mismo número y el ticket no traía hora legible. Míralo en el papel.">🔁 REV DUP</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
 
 // ============================================================
 // v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual).
@@ -9583,7 +9608,7 @@ function renderTable() {
   const lim = Math.min(window._limVisible, totalFil);
   const visibles = filtered.slice(0, lim);
   tbody.innerHTML = visibles.map(r => `
-    <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}"${r.creado_manual ? ' style="background:#e6f0ff;box-shadow:inset 4px 0 0 #2b6fff"' : ''} onclick="openModal('${r.db_id || r._id}')">
+    <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}"${r._posDup ? ' style="background:rgba(214,51,140,.10);box-shadow:inset 4px 0 0 #d6338c"' : r.creado_manual ? ' style="background:#e6f0ff;box-shadow:inset 4px 0 0 #2b6fff"' : ''} onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
       <td style="white-space:nowrap" data-fact="${r.db_id || r._id}">${_celdaEstadoHtml(r)}</td>
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:0.5px;white-space:nowrap">${r.fecha || '—'}</td>
@@ -10522,6 +10547,7 @@ function openModal(id) {
   document.getElementById('mBadge').innerHTML = rowBadge(r);
   let alertHtml = '';
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
+  else if (r._posDup) alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado — revísalo en el papel.</strong> Hay otro albarán con este mismo número. Como el ticket no traía hora legible, no se puede saber si es el MISMO papel subido dos veces o DOS viajes distintos del mismo día. Si son dos viajes, no toques nada. Si está repetido, borra este. Mientras tanto sus TN SÍ se cuentan.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
   else if (r._quality === 'warn') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong></div>`;
   // v91: aviso especial cuando la matrícula es desconocida. Muestra dropdown con los 13
@@ -11568,7 +11594,7 @@ function buildExcel(data, opts) {
       r.observaciones != null ? r.observaciones : '',
       userName(r.user_id),
       r.editado_por ? userName(r.editado_por) : '',
-      r._dup ? 'DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'
+      r._dup ? 'DUPLICADO' : r._posDup ? 'POSIBLE-DUPLICADO' : r._quality === 'ilegible' ? 'REVISAR-ILEGIBLE' : r._quality === 'warn' ? 'REVISAR' : 'OK'
     ];
   })];
   // v107K9: fila TOTAL con la SUMA ya calculada como NÚMERO (antes eran fórmulas =SUM(...) que el
