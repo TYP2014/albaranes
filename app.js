@@ -16418,6 +16418,19 @@ const ORIGENES_CANONICOS = [
   { canon: 'PROMSA GARRAF', alias: [] },
   { canon: 'Foj/Vallirana', alias: [] },
   { canon: 'Cemex/Begues', alias: ['CEMEX/BEGUES', 'Cemex / Begues', 'CEMEX / BEGUES', 'Cemex Begues', 'CEMEX BEGUES', 'cemex/begues', 'CEMEX BEGUES CALIZA'] },
+  // v353 (29/07/2026, Juan Carlos): Charly/Begues — cantera de PAVIMENT-SPORT, SA en Begues,
+  // de donde entra la ARENA CRUDA (ARENISCA) a Fábrica Montcada. En el pueblo la llaman
+  // "Charly". Canónico PROPIO a propósito, para NO mezclarla con los otros tres Begues que ya
+  // existen: 'Begues' a secas (33 albaranes viejos, genérico), 'CANTERA BEGUES/CEMEX' y
+  // 'Cemex/Begues'. Sigue el estilo proveedor/sitio de las recepciones (Cemex/Begues,
+  // Adec/Vallirana, Foj/Vallirana). En la v352 estos albaranes se pusieron como 'Begues' a
+  // secas; se corrigen con UPDATE aparte SOLO los de Paviment-Sport.
+  { canon: 'Charly/Begues', alias: [
+    'CHARLY/BEGUES', 'charly/begues', 'Charly / Begues', 'CHARLY / BEGUES',
+    'Charly Begues', 'CHARLY BEGUES',
+    'Begues/Charly', 'BEGUES/CHARLY', 'Begues Charly', 'BEGUES CHARLY',
+    'Charly', 'CHARLY', 'charly', 'Charlie', 'CHARLIE'
+  ] },
   // v99c: Adec/Vallirana — origen para albaranes Holcim de RECEPCIÓN de "Árido siderúrgico blanco"
   // (proveedor: ADEC GLOBAL, S.L.). Antes era alias de "Vallirana" pero se canonizaba mal:
   // se convertía a "Vallirana" perdiendo la información del proveedor. Ahora es un canónico
@@ -16618,7 +16631,8 @@ const PROVEEDOR_A_ORIGEN = [
   // "PAVIMENT-SPORT", y con guion, espacio o nada en medio.
   // 'Begues' YA es un origen canónico de la app (existe desde antes, 33 albaranes en BD),
   // así que no hace falta tocar la lista de canónicos ni los filtros.
-  { match: /PAV[IE]MENT[\s.\-]*SPORT/i, origen: 'Begues' }
+  // v353: pasa de 'Begues' a secas a su canónico propio 'Charly/Begues' (ver ORIGENES_CANONICOS).
+  { match: /PAV[IE]MENT[\s.\-]*SPORT/i, origen: 'Charly/Begues' }
 ];
 
 // Función consolidada: prueba primero material, luego proveedor.
