@@ -16605,7 +16605,20 @@ function inferOrigenFromProducto(producto) {
 // (es la única cantera de Sodira que usamos). Si en el futuro Sodira tuviera otra
 // cantera, Juan Carlos avisará para añadir más reglas.
 const PROVEEDOR_A_ORIGEN = [
-  { match: /SODIRA|S[ÔÓÒ]DIRA/i, origen: 'Cantera de Garraf' }
+  { match: /SODIRA|S[ÔÓÒ]DIRA/i, origen: 'Cantera de Garraf' },
+  // v352 (29/07/2026, Juan Carlos): PAVIMENT-SPORT, SA → origen siempre 'Begues'.
+  // Son albaranes Holcim de RECEPCIÓN ("ALBARÁN DE RECEPCIÓN", nº en DOCUMENTO DE ENVIO)
+  // de ARENA CRUDA (ARENISCA) que entra en Fábrica Montcada. Ni el material ni el proveedor
+  // estaban en ninguna tabla, así que el origen se quedaba con lo que pone el recuadro
+  // "PLANTA:" del papel — que en las recepciones es la fábrica que RECIBE, no la cantera de
+  // donde sale. Resultado: origen y destino salían los dos 'Fábrica Montcada'.
+  // Decisión de JC (29/07): la regla va por PROVEEDOR, no por material — todo lo de
+  // Paviment-Sport sale de Begues. Si algún día tuvieran otra cantera, avisará.
+  // La grafía cubre PAVIMENT y PAVEMENT: la IA leyó "PAVEMENT-SPORT" cuando el papel pone
+  // "PAVIMENT-SPORT", y con guion, espacio o nada en medio.
+  // 'Begues' YA es un origen canónico de la app (existe desde antes, 33 albaranes en BD),
+  // así que no hace falta tocar la lista de canónicos ni los filtros.
+  { match: /PAV[IE]MENT[\s.\-]*SPORT/i, origen: 'Begues' }
 ];
 
 // Función consolidada: prueba primero material, luego proveedor.
