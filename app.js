@@ -13882,14 +13882,17 @@ function renderIncidencias() {
   const q = (document.getElementById('incBuscar')?.value || '').trim().toLowerCase();
   const fEst = document.getElementById('incFiltroEstado')?.value || '';
 
-  // Contador de pendientes (para badge de pestaña y aviso)
-  const nPend = _incidencias.filter(i => (i.estado || 'Pendiente') === 'Pendiente').length;
+  // Contador de pendientes (para badge de pestaña y aviso).
+  // v354 (pedido JC): "hablado no es resuelto" — cuentan TODAS las que no
+  // están Resuelto (Pendiente + Hablado con cliente). Antes solo 'Pendiente'
+  // exacto, y con 5 habladas abiertas el contador marcaba 0.
+  const nPend = _incidencias.filter(i => (i.estado || 'Pendiente') !== 'Resuelto').length;
   const badge = document.getElementById('tabIncidenciasCount');
   if (badge) badge.textContent = nPend;
   const aviso = document.getElementById('incAviso');
   if (aviso) {
     aviso.innerHTML = nPend > 0
-      ? `<div style="background:rgba(244,67,54,.12);border:1px solid var(--er);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">🔴 Tienes ${nPend} incidencia${nPend === 1 ? '' : 's'} PENDIENTE${nPend === 1 ? '' : 'S'}</div>`
+      ? `<div style="background:rgba(244,67,54,.12);border:1px solid var(--er);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">🔴 Tienes ${nPend} incidencia${nPend === 1 ? '' : 's'} SIN RESOLVER</div>`
       : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);color:var(--ac);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">✅ No hay incidencias pendientes</div>`;
   }
 
