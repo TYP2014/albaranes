@@ -5022,13 +5022,20 @@ async function _processOne(it, type, key, timeoutMs) {
               data.observaciones = ((data.observaciones || '') + ' 📅 Fecha = día de subida (no legible en el papel — corregir si el viaje fue otro día)').trim();
               console.log('[v311] fecha vacía → puesta la de hoy:', data.fecha);
             }
-            // 2) MMAA del número, sacado de la fecha (leída o de hoy).
+            // 2) DDMMAA del número, sacado de la fecha (leída o de hoy).
+            // v349 (29/07/2026, Juan Carlos): antes la cola de fecha era solo MMAA (mes+año)
+            // → SN-0726-29200. Ahora lleva también el DÍA delante → SN-170726-29200. Motivo:
+            // (a) el número dice de un vistazo de qué día es el ticket; (b) con solo mes+año,
+            // dos viajes DISTINTOS del mismo mes que pesaran casi igual (<100 kg) chocaban;
+            // con el día solo pueden chocar dos viajes del MISMO día. Buscar "0726" sigue
+            // sacando todos los de julio 2026 (está dentro de "SN-170726"). Los SN ya
+            // guardados NO cambian solos.
             const _fV311 = normFecha(data.fecha);
             const _mV311 = String(_fV311).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
             const _hoyV311 = new Date();
-            const _mmaa = _mV311
-              ? (_mV311[2] + _mV311[3].slice(2))
-              : (String(_hoyV311.getMonth() + 1).padStart(2, '0') + String(_hoyV311.getFullYear()).slice(2));
+            const _ddmmaa = _mV311
+              ? (_mV311[1] + _mV311[2] + _mV311[3].slice(2))
+              : (String(_hoyV311.getDate()).padStart(2, '0') + String(_hoyV311.getMonth() + 1).padStart(2, '0') + String(_hoyV311.getFullYear()).slice(2));
             // 3) Cola del número: kilos (tm×1000) > matrícula > aleatorio (último recurso).
             const _tmV311 = parseFloat(data.tm);
             let _colaV311;
@@ -5046,7 +5053,7 @@ async function _processOne(it, type, key, timeoutMs) {
               _colaV311 = 'R' + String(Math.floor(1000 + Math.random() * 9000));
               data.observaciones = ((data.observaciones || '') + ' ⚠️ Ni kilos ni matrícula legibles — nº con sufijo aleatorio, completar a mano del papel').trim();
             }
-            data.albaran = 'SN-' + _mmaa + '-' + _colaV311;
+            data.albaran = 'SN-' + _ddmmaa + '-' + _colaV311;
             data.observaciones = ((data.observaciones || '') + ' 🔢 Nº ' + data.albaran + ' generado automáticamente (ticket sin nº de albarán)').trim();
             console.log('[v311] nº automático generado:', data.albaran);
           }
