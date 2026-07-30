@@ -2602,7 +2602,7 @@ function renderSetup() {
   // del servidor (ia-proxy). El recuadro solo informa. De paso se limpia la
   // clave vieja que pudiera quedar guardada en este navegador.
   try { localStorage.removeItem('anth_key'); } catch (e) {}
-  const html = `<div class="setup"><div class="ks">🔒 IA por servidor seguro — sin clave en este navegador</div></div>`;
+  const html = `<div style="margin:0 0 12px"><span class="ks">🔒 IA por servidor seguro — sin clave en este navegador</span></div>`;
   document.getElementById('setupBox').innerHTML = html;
   if (document.getElementById('setupBoxSubir')) document.getElementById('setupBoxSubir').innerHTML = html;
 }
