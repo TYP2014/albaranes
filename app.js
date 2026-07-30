@@ -17799,6 +17799,7 @@ function exportPreliExcel() {
 let neumMovimientos = [];      // todos los movimientos cargados de BD
 let neumModelos = [];          // catálogo de modelos (marca+modelo+medida → uso)
 let neumAlertasConfig = [];    // umbrales configurables
+let neumOcultos = [];          // v356: fichas de stock ocultas (modelos descatalogados)
 let neumEmpresaActiva = 'TYP2014';   // qué subpestaña se ve
 let editNeumMovId = null;      // ID del movimiento que se está editando
 
@@ -17826,6 +17827,13 @@ async function loadNeumData() {
     const { data: dA, error: eA } = await sb.from('neumaticos_alertas_config').select('*');
     if (eA) throw eA;
     neumAlertasConfig = dA || [];
+    // 2b) v356: fichas ocultas (modelos descatalogados que ya no se compran).
+    // Tolerante a que la tabla todavia no exista: si falla, no se oculta nada.
+    try {
+      const { data: dOc, error: eOc } = await sb.from('neumaticos_ocultos').select('*');
+      neumOcultos = eOc ? [] : (dOc || []);
+      if (eOc) console.warn('[v356] neumaticos_ocultos no disponible:', eOc.message || eOc);
+    } catch (e) { neumOcultos = []; console.warn('[v356] neumaticos_ocultos:', e); }
     // 3) Movimientos
     const { data: dMov, error: eMov } = await sb.from('neumaticos_movimientos').select('*').order('fecha', { ascending: false });
     if (eMov) throw eMov;
@@ -17903,6 +17911,20 @@ function _neumUmbral(empresa, marca, modelo, medida) {
 }
 
 // Devuelve la lista de combinaciones con stock por debajo del umbral
+// v356: ¿esta ficha de stock esta marcada como descatalogada?
+// CANDADO DE SEGURIDAD: solo se oculta si el stock es EXACTAMENTE 0. Si algun dia
+// vuelve a entrar una compra de ese modelo, la ficha reaparece sola.
+function _neumTxtCmp(v) { return (v || '').toString().trim().toUpperCase().replace(/\s+/g, ' '); }
+function _neumEstaOculto(empresa, s) {
+  if (!s || s.stock !== 0) return false;
+  return neumOcultos.some(o =>
+    _neumTxtCmp(o.empresa) === _neumTxtCmp(empresa) &&
+    _neumTxtCmp(o.medida)  === _neumTxtCmp(s.medida) &&
+    _neumTxtCmp(o.marca)   === _neumTxtCmp(s.marca) &&
+    _neumTxtCmp(o.modelo)  === _neumTxtCmp(s.modelo)
+  );
+}
+
 function _neumCalcularAvisos(empresa) {
   return _neumCalcularStock(empresa).filter(s => {
     const u = _neumUmbral(empresa, s.marca, s.modelo, s.medida);
@@ -17913,9 +17935,13 @@ function _neumCalcularAvisos(empresa) {
 // Pinta la pestaña: stock + histórico
 function renderNeum() {
   document.getElementById('neumEmpresaTitulo').textContent = neumEmpresaActiva;
-  const stock = _neumCalcularStock(neumEmpresaActiva);
+  const stockTodo = _neumCalcularStock(neumEmpresaActiva);
+  // v356: quitar de la vista las fichas marcadas como descatalogadas (solo las que estan a 0).
+  const stock = stockTodo.filter(s => !_neumEstaOculto(neumEmpresaActiva, s));
   const box = document.getElementById('neumStockBox');
-  if (!stock.length) {
+  if (stockTodo.length && !stock.length) {
+    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px;text-align:center">Todas las fichas de <strong>${esc(neumEmpresaActiva)}</strong> estan ocultas (modelos descatalogados a 0). El historico de movimientos sigue completo abajo.</div>`;
+  } else if (!stock.length) {
     box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px;text-align:center">Sin movimientos para <strong>${esc(neumEmpresaActiva)}</strong>. Pulsa <strong>📥 Inventario inicial</strong> para empezar.</div>`;
   } else {
     box.innerHTML = stock.map(s => {
