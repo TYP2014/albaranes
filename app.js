@@ -19544,6 +19544,8 @@ function switchTallerEmpresa(emp) {
   renderTallerAvisos();
   // v107AL: si está activa la vista Recambios, recargar los de la nueva empresa
   if (tallerVistaActiva === 'recambios') loadRecambiosData();
+  // v357: la vista de Citas se repinta con la empresa nueva
+  if (tallerVistaActiva === 'citas') renderTallerCitas();
 }
 
 // Calcula el estado de mantenimiento de un vehículo: devuelve
@@ -20564,19 +20566,239 @@ function switchTallerVista(v) {
   tallerVistaActiva = v;
   const mb = document.getElementById('tallerVistaMantBox');
   const rb = document.getElementById('tallerVistaRecambiosBox');
+  const cb = document.getElementById('tallerVistaCitasBox');   // v357
   const bm = document.getElementById('tallerVistaMant');
   const br = document.getElementById('tallerVistaRecambios');
+  const bc = document.getElementById('tallerVistaCitas');      // v357
+  // v357: apagar las tres y encender solo la elegida
+  [[mb,bm],[rb,br],[cb,bc]].forEach(([caja,boton]) => {
+    if (caja) caja.style.display = 'none';
+    if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
+  });
   if (v === 'recambios') {
-    if (mb) mb.style.display = 'none';
     if (rb) rb.style.display = '';
-    if (bm) { bm.classList.remove('bp'); bm.classList.add('bs'); }
     if (br) { br.classList.remove('bs'); br.classList.add('bp'); }
     loadRecambiosData();
+  } else if (v === 'citas') {
+    if (cb) cb.style.display = '';
+    if (bc) { bc.classList.remove('bs'); bc.classList.add('bp'); }
+    loadTallerCitas();
   } else {
     if (mb) mb.style.display = '';
-    if (rb) rb.style.display = 'none';
     if (bm) { bm.classList.remove('bs'); bm.classList.add('bp'); }
-    if (br) { br.classList.remove('bp'); br.classList.add('bs'); }
+  }
+}
+
+// ============================================================
+// v357 · TALLER > CITAS EN SERVICIO OFICIAL (DAF, MAN, IVECO...)
+// Vista nueva dentro de Taller. Se apunta a mano. Colores por
+// cercania: 5 dias / 3 dias / 1 dia / HOY, y aviso de las pasadas
+// que nadie ha cerrado. Hereda la empresa activa de Taller.
+// ============================================================
+let tallerCitas = [];      // citas cargadas de BD
+let editTCitaId = null;    // id de la cita abierta en el modal
+
+// Marcas habituales para el desplegable (se puede escribir otra)
+const _TCITA_MARCAS = ['DAF','MAN','IVECO','MERCEDES','SCANIA','VOLVO','RENAULT','FORD','SCHMITZ','LECITRAILER','OTRO'];
+
+async function loadTallerCitas() {
+  if (!window._tieneTaller) return;
+  try {
+    const { data, error } = await sb.from('taller_citas')
+      .select('*')
+      .order('fecha_cita', { ascending: true });
+    if (error) throw error;
+    tallerCitas = data || [];
+    renderTallerCitas();
+  } catch (e) {
+    console.error('[loadTallerCitas] Error:', e);
+    toast('Error cargando citas de servicio oficial: ' + (e.message || e), 'err');
+  }
+}
+
+// Dias que faltan para una fecha YYYY-MM-DD (0 = hoy, negativo = ya paso)
+function _tcitaDias(fechaStr) {
+  if (!fechaStr) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const f = new Date(fechaStr + 'T00:00:00');
+  if (isNaN(f)) return null;
+  return Math.round((f - hoy) / 86400000);
+}
+
+// Color y etiqueta segun lo que falte. UN SOLO SITIO donde se decide
+// el color, para que la tabla y el aviso global no puedan discrepar.
+function _tcitaSemaforo(c) {
+  if (c.estado === 'hecha')   return { clave:'hecha',   color:'#2e7d32', fondo:'rgba(46,125,50,.12)',  txt:'✓ HECHA',    orden: 9 };
+  if (c.estado === 'anulada') return { clave:'anulada', color:'#78909c', fondo:'rgba(120,144,156,.10)', txt:'✕ ANULADA',  orden: 9 };
+  const d = _tcitaDias(c.fecha_cita);
+  if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',          orden: 8 };
+  if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
+  if (d === 0)                return { clave:'hoy',     color:'#ffffff', fondo:'#b71c1c',               txt:'🔴 HOY',     orden: 1 };
+  if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.16)',   txt:'MAÑANA',     orden: 2 };
+  if (d <= 3)                 return { clave:'d3',      color:'#e8841a', fondo:'rgba(232,132,26,.16)',  txt:'En ' + d + ' días', orden: 3 };
+  if (d <= 5)                 return { clave:'d5',      color:'#b58900', fondo:'rgba(245,197,24,.20)',  txt:'En ' + d + ' días', orden: 4 };
+  return { clave:'lejos', color:'var(--mu)', fondo:'transparent', txt:'En ' + d + ' días', orden: 5 };
+}
+
+// Citas de la empresa activa, ordenadas: lo urgente arriba
+function _tcitaDeEmpresa() {
+  return tallerCitas
+    .filter(c => c.empresa === tallerEmpresaActiva)
+    .sort((a, b) => {
+      const sa = _tcitaSemaforo(a), sb2 = _tcitaSemaforo(b);
+      if (sa.orden !== sb2.orden) return sa.orden - sb2.orden;
+      return (a.fecha_cita || '').localeCompare(b.fecha_cita || '');
+    });
+}
+
+function renderTallerCitas() {
+  const tit = document.getElementById('tcitaEmpresaTitulo');
+  if (tit) tit.textContent = tallerEmpresaActiva;
+  const box = document.getElementById('tcitaBox');
+  if (!box) return;
+  const citas = _tcitaDeEmpresa();
+  if (!citas.length) {
+    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">No hay citas apuntadas en <strong>' + esc(tallerEmpresaActiva) + '</strong>. Pulsa <strong>➕ Nueva cita</strong>.</div>';
+    return;
+  }
+  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
+      '<th style="padding:7px">CUÁNDO</th><th style="padding:7px">FECHA</th><th style="padding:7px">HORA</th>' +
+      '<th style="padding:7px">MATRÍCULA</th><th style="padding:7px">MARCA</th><th style="padding:7px">TALLER</th>' +
+      '<th style="padding:7px">MOTIVO</th><th style="padding:7px"></th></tr></thead><tbody>' +
+    citas.map(c => {
+      const s = _tcitaSemaforo(c);
+      const pend = (c.estado !== 'hecha' && c.estado !== 'anulada');
+      const fechaTxt = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '—';
+      return '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
+        '<td style="padding:7px;font-weight:700;color:' + s.color + ';white-space:nowrap">' + s.txt + '</td>' +
+        '<td style="padding:7px;white-space:nowrap">' + fechaTxt + '</td>' +
+        '<td style="padding:7px">' + esc(c.hora_cita || '—') + '</td>' +
+        '<td style="padding:7px;font-weight:600">' + esc(c.matricula || '—') + '</td>' +
+        '<td style="padding:7px">' + esc(c.marca || '—') + '</td>' +
+        '<td style="padding:7px">' + esc(c.taller || '—') + '</td>' +
+        '<td style="padding:7px">' + esc(c.motivo || '—') + '</td>' +
+        '<td style="padding:7px;text-align:right;white-space:nowrap">' +
+          (pend ? '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="tcitaMarcarHecha(\'' + c.id + '\')" title="Marcar que ya se ha hecho">✓ Hecha</button> ' : '') +
+          '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="openTCitaModal(\'' + c.id + '\')">Editar</button>' +
+        '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+// === Modal de cita ===
+function openTCitaModalNew() {
+  editTCitaId = null;
+  _tcitaPintarCampos({ matricula:'', fecha_cita:'', hora_cita:'', marca:'', taller:'', direccion:'', motivo:'', estado:'pendiente', observaciones:'' });
+  document.getElementById('tcitaModalTitulo').textContent = 'NUEVA CITA · ' + tallerEmpresaActiva;
+  document.getElementById('tcitaBtnDel').style.display = 'none';
+  document.getElementById('tcitaOv').classList.add('open');
+}
+
+function openTCitaModal(id) {
+  const c = tallerCitas.find(x => x.id === id);
+  if (!c) { toast('No encuentro esa cita', 'err'); return; }
+  editTCitaId = id;
+  _tcitaPintarCampos(c);
+  document.getElementById('tcitaModalTitulo').textContent = 'EDITAR CITA · ' + esc(c.matricula || '');
+  document.getElementById('tcitaBtnDel').style.display = '';
+  document.getElementById('tcitaOv').classList.add('open');
+}
+
+function _tcitaPintarCampos(c) {
+  const opts = _TCITA_MARCAS.map(m => '<option value="' + m + '"></option>').join('');
+  document.getElementById('tcitaFields').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+      '<div class="fg"><label class="fl">Matrícula</label><input class="fi" id="tcitaF_matricula" value="' + esc(c.matricula || '') + '" style="text-transform:uppercase" placeholder="Ej: 0000AAA"></div>' +
+      '<div class="fg"><label class="fl">Marca</label><input class="fi" id="tcitaF_marca" list="tcitaMarcasList" value="' + esc(c.marca || '') + '" placeholder="DAF, MAN, IVECO..."><datalist id="tcitaMarcasList">' + opts + '</datalist></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+      '<div class="fg"><label class="fl">Fecha de la cita</label><input class="fi" type="date" id="tcitaF_fecha" value="' + (c.fecha_cita || '') + '"></div>' +
+      '<div class="fg"><label class="fl">Hora</label><input class="fi" type="time" id="tcitaF_hora" value="' + esc(c.hora_cita || '') + '"></div>' +
+    '</div>' +
+    '<div class="fg full" style="margin-bottom:10px"><label class="fl">Taller (servicio oficial)</label><input class="fi" id="tcitaF_taller" value="' + esc(c.taller || '') + '" placeholder="Ej: Iveco Barcelona - Zona Franca"></div>' +
+    '<div class="fg full" style="margin-bottom:10px"><label class="fl">Dirección</label><input class="fi" id="tcitaF_direccion" value="' + esc(c.direccion || '') + '" placeholder="opcional"></div>' +
+    '<div class="fg full" style="margin-bottom:10px"><label class="fl">Motivo</label><input class="fi" id="tcitaF_motivo" value="' + esc(c.motivo || '') + '" placeholder="Revisión, avería, garantía, campaña..."></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px">' +
+      '<div class="fg"><label class="fl">Estado</label><select class="fi" id="tcitaF_estado">' +
+        '<option value="pendiente"' + (c.estado === 'pendiente' || !c.estado ? ' selected' : '') + '>Pendiente</option>' +
+        '<option value="hecha"' + (c.estado === 'hecha' ? ' selected' : '') + '>Hecha</option>' +
+        '<option value="anulada"' + (c.estado === 'anulada' ? ' selected' : '') + '>Anulada</option>' +
+      '</select></div>' +
+      '<div class="fg"><label class="fl">Observaciones</label><input class="fi" id="tcitaF_observaciones" value="' + esc(c.observaciones || '') + '" placeholder="opcional"></div>' +
+    '</div>';
+}
+
+function closeTCitaModal() {
+  document.getElementById('tcitaOv').classList.remove('open');
+  editTCitaId = null;
+}
+
+async function saveTCitaModal() {
+  const matricula = (document.getElementById('tcitaF_matricula').value || '').trim().toUpperCase().replace(/\s+/g, '');
+  const fecha_cita = document.getElementById('tcitaF_fecha').value || null;
+  if (!matricula)  { toast('La matrícula es obligatoria', 'err'); return; }
+  if (!fecha_cita) { toast('La fecha de la cita es obligatoria', 'err'); return; }
+  const payload = {
+    empresa: tallerEmpresaActiva,
+    matricula,
+    fecha_cita,
+    hora_cita:     (document.getElementById('tcitaF_hora').value || '').trim() || null,
+    marca:         (document.getElementById('tcitaF_marca').value || '').trim().toUpperCase() || null,
+    taller:        (document.getElementById('tcitaF_taller').value || '').trim() || null,
+    direccion:     (document.getElementById('tcitaF_direccion').value || '').trim() || null,
+    motivo:        (document.getElementById('tcitaF_motivo').value || '').trim() || null,
+    estado:        document.getElementById('tcitaF_estado').value || 'pendiente',
+    observaciones: (document.getElementById('tcitaF_observaciones').value || '').trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  try {
+    if (editTCitaId) {
+      const { error } = await sb.from('taller_citas').update(payload).eq('id', editTCitaId);
+      if (error) throw error;
+      toast('✓ Cita actualizada');
+    } else {
+      payload.user_id = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null;
+      const { error } = await sb.from('taller_citas').insert(payload);
+      if (error) throw error;
+      toast('✓ Cita guardada');
+    }
+    closeTCitaModal();
+    await loadTallerCitas();
+  } catch (e) {
+    console.error('[saveTCitaModal] Error:', e);
+    toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
+  }
+}
+
+async function deleteTCita() {
+  if (!editTCitaId) return;
+  const c = tallerCitas.find(x => x.id === editTCitaId);
+  if (!confirm('¿Eliminar la cita de ' + (c ? c.matricula : '') + '?\n\nEsto la borra del todo. Si solo quieres cerrarla, usa el botón "✓ Hecha".')) return;
+  try {
+    const { error } = await sb.from('taller_citas').delete().eq('id', editTCitaId);
+    if (error) throw error;
+    toast('✓ Cita eliminada');
+    closeTCitaModal();
+    await loadTallerCitas();
+  } catch (e) {
+    console.error('[deleteTCita] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+async function tcitaMarcarHecha(id) {
+  const c = tallerCitas.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm('¿Marcar como HECHA la cita de ' + c.matricula + '?')) return;
+  try {
+    const { error } = await sb.from('taller_citas')
+      .update({ estado: 'hecha', updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    toast('✓ Cita marcada como hecha');
+    await loadTallerCitas();
+  } catch (e) {
+    console.error('[tcitaMarcarHecha] Error:', e);
+    toast('Error: ' + (e.message || e), 'err');
   }
 }
 

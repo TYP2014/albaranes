@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v357 (30/07/2026): TALLER · NUEVA VISTA "CITAS SERVICIO OFICIAL" (pedido JC: citas en los talleres de marca DAF, MAN, IVECO...). Tercer boton dentro de Taller, al lado de Mantenimientos y Recambios, asi HEREDA las sub-pestanas de empresa de arriba y la privacidad sale gratis (Transmargaz caja cerrada). Se apunta TODO A MANO: matricula, fecha, hora, marca (con sugerencias), taller, direccion, motivo, estado y observaciones. SEMAFORO por cercania decidido en UNA sola funcion (_tcitaSemaforo) para que tabla y aviso global no puedan discrepar nunca: 5 dias amarillo, 3 dias naranja, 1 dia rojo, HOY rojo fuerte con fondo, y PASADA SIN CERRAR en morado (una cita que ya paso y nadie marco NO desaparece: sigue arriba del todo hasta que alguien le da a "Hecha"). Lo urgente se ordena arriba. Botones por fila: "Hecha" (cierra sin borrar) y "Editar"; Eliminar solo dentro del modal y con confirmacion. Quien lo ve = quien ya ve Taller (admin, Marta, Ma del Mar, TALLER), no se toca ningun permiso. switchTallerVista pasa de 2 vistas a 3 con un bucle, y switchTallerEmpresa repinta las citas al cambiar de empresa. NO se toca Mantenimientos, ni Recambios, ni el aviso dia 10, ni ninguna otra pestana. REQUIERE SQL PREVIO: taller_citas_v357.sql (tabla nueva + RLS por empresa_taller; el candado de empresa ya incluye PORTES por si algun dia entra en Taller). PENDIENTE v358: el aviso GLOBAL visible desde cualquier pestana. Sube app.js + index.html. node --check OK. cache app.js?v=357. VUELTA ATRAS: resubir app.js+index.html de la v356. -->
 <!-- v356 (30/07/2026): NEUMATICOS · OCULTAR FICHAS DE MODELOS DESCATALOGADOS SIN BORRAR NADA (pedido JC: el CONTINENTAL HS3+ 315/80X22,5 esta a 0 y Soledad confirma que ya no se fabrica). Tabla NUEVA neumaticos_ocultos (empresa+medida+marca+modelo): la ficha marcada deja de pintarse en STOCK ACTUAL. NO se borra ni un movimiento — el historico de abajo sigue intacto y los cuadres pasados no cambian. CANDADO DE SEGURIDAD: solo se oculta si el stock es EXACTAMENTE 0; si algun dia entra una compra de ese modelo la ficha REAPARECE SOLA (asi nunca se esconde un neumatico que si tienes). El filtro va SOLO en renderNeum (el pintado): _neumCalcularStock NO se toca, por lo que el aviso de "stock insuficiente" al registrar un montaje sigue funcionando igual, y la badge de la pestana tampoco cambia (los 0 ya no contaban como aviso). La carga de la tabla es tolerante a fallo: si la tabla aun no existe, no se oculta nada y la pestana funciona igual. Piezas: variable neumOcultos + carga 2b en loadNeumData + helpers _neumTxtCmp/_neumEstaOculto + filtro y mensaje en renderNeum. REQUIERE SQL PREVIO: neumaticos_ocultos_v356.sql (crear tabla + RLS + marcar el HS3+). Para ocultar otro modelo en el futuro: una linea INSERT (plantilla al final del SQL); para que vuelva, un DELETE. Sube app.js + index.html. node --check OK. cache app.js?v=356. VUELTA ATRAS: resubir app.js+index.html de la v355. -->
 <!-- v355 (30/07/2026): VACACIONES · SUB-PESTAÑA PROPIA PARA PORTES 2014 IMPORT (pedido JC: la empresa faltaba y tiene 4 trabajadores). Replica exacta del patron TYP2014/HISPALIS/TRANSMARGAZ y del que ya tiene Gasoil desde la v335: mismo clave interna 'PORTES', misma privacidad por window._empresaVac. CUATRO cambios minimos: (1) boton vacSubPORTES en el index; (2) loadVacData incluye PORTES en la lista por defecto y en el bucle que muestra/oculta botones; (3) switchVacEmpresa incluye PORTES en la lista por defecto; (4) el desplegable Empresa del modal de trabajador gana la opcion PORTES 2014 IMPORT. NO se toca el calculo de dias, ni el calendario, ni los tipos de ausencia, ni Taller/Gasoil/Fichaje. La tabla trabajadores.empresa es TEXTO LIBRE (sin CHECK), asi que no hace falta SQL de estructura. REQUIERE SQL DE PERMISO si el perfil de JC no tiene ya PORTES en profiles.empresa_vacaciones (la RLS de trabajadores/vacaciones_periodos filtra con LIKE sobre esa columna): SELECT primero, UPDATE despues. Sube app.js + index.html. node --check OK. cache app.js?v=355. VUELTA ATRAS: resubir app.js+index.html de la v354. -->
 <!-- v354 (29/07/2026): INCIDENCIAS · el contador de la pestaña y el aviso contaban SOLO el estado "Pendiente" exacto → con 5 incidencias "Hablado con cliente" abiertas marcaba 0 y decía "No hay incidencias pendientes" (cazado por JC). Regla nueva pedida por JC: "hablado no es resuelto" — cuentan TODAS las no-Resuelto (Pendiente + Hablado con cliente) y el aviso rojo pasa a decir "SIN RESOLVER". Dos retoques en renderIncidencias (filtro del contador + texto). Nada más tocado. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=354. -->
@@ -1162,6 +1163,24 @@ if (typeof pdfjsLib !== 'undefined') {
       </div>
     </div>
 
+    <!-- v357: modal de cita en servicio oficial -->
+    <div class="ov" id="tcitaOv" onclick="if(event.target===this)closeTCitaModal()">
+      <div class="modal" style="max-width:640px">
+        <div class="modal-hd">
+          <div class="st"><div class="dot" style="--c:var(--wn)"></div><span id="tcitaModalTitulo">NUEVA CITA</span></div>
+          <div style="display:flex;gap:8px"><button class="btn bs" onclick="closeTCitaModal()">✕</button></div>
+        </div>
+        <div class="modal-bd"><div id="tcitaFields"></div></div>
+        <div class="modal-ft">
+          <button class="btn br" id="tcitaBtnDel" onclick="deleteTCita()" style="display:none">Eliminar</button>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="btn bs" onclick="closeTCitaModal()">Cancelar</button>
+            <button class="btn bp" onclick="saveTCitaModal()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- v108: TAB INCIDENCIAS (temas pendientes con clientes) -->
     <div id="tabContentIncidencias" class="wrap" style="display:none">
       <div class="card">
@@ -1485,6 +1504,7 @@ if (typeof pdfjsLib !== 'undefined') {
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:10px" id="tallerVistaSel">
         <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:11px">🔧 Mantenimientos</button>
         <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:11px">📦 Recambios</button>
+        <button class="btn bs" id="tallerVistaCitas" onclick="switchTallerVista('citas')" style="font-size:11px">📅 Citas Servicio Oficial</button>
       </div>
 
       <!-- ===== VISTA MANTENIMIENTOS (la de siempre) ===== -->
@@ -1568,6 +1588,29 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
       </div><!-- fin vista recambios -->
+
+      <!-- ===== v357: VISTA CITAS EN SERVICIO OFICIAL (DAF, MAN, IVECO...) ===== -->
+      <div id="tallerVistaCitasBox" style="display:none">
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot" style="--c:var(--wn)"></div>CITAS SERVICIO OFICIAL · <span id="tcitaEmpresaTitulo">TYP2014</span></div>
+            <div class="tbl-acts">
+              <button class="btn bp" onclick="openTCitaModalNew()" style="font-size:11px">➕ Nueva cita</button>
+              <button class="btn bs" onclick="loadTallerCitas()" style="font-size:11px" title="Actualizar la lista">🔄 Actualizar</button>
+            </div>
+          </div>
+          <div class="card-bd">
+            <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">
+              Colores según lo que falte: <strong style="color:#b58900">5 días</strong> ·
+              <strong style="color:#e8841a">3 días</strong> ·
+              <strong style="color:#c62828">1 día</strong> ·
+              <strong style="color:#b71c1c">HOY</strong> ·
+              <strong style="color:#6a1b9a">pasada sin cerrar</strong>
+            </div>
+            <div id="tcitaBox"></div>
+          </div>
+        </div>
+      </div><!-- fin vista citas -->
     </div>
 
     <!-- TAB SUBIR -->
@@ -2062,6 +2105,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v314 (17/07/2026): ALBARANES — RED "CASI VACÍO": si Haiku devuelve una lectura con ≤2 de los 9 campos útiles (albarán/fecha/matrícula/tm/proveedor/origen/destino/material/cliente), se RELEE el archivo ENTERO con Sonnet 4.6 y se usa la lectura que traiga MÁS campos. Motivo (caso real de hoy): tickets térmicos de báscula Holcim Garraf con tinta casi borrada donde Haiku no sacaba NI el sello → sin ninguna pista, la plantilla Garraf (v312/v313) no podía saltar y el albarán quedaba vacío del todo. Sonnet ve mucho mejor las fotos malas: con que saque una pista (Garraf/zahorra/Montcada), la plantilla rellena el resto. Ya existían reintentos PARCIALES con Sonnet (matrícula, TN, destinos); este es el COMPLETO y solo se dispara en lecturas casi vacías (raro) → coste extra mínimo. Si el reintento falla (red/saturación) se sigue con lo de Haiku, nunca se pierde nada. Cambios: callClaudeAlb acepta parámetro de modelo (Haiku por defecto) + bloque de reintento en _processOne. NO toca gasoil, facturas ni el modo manual. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=314. -->
 <!-- v315 (17/07/2026): ALBARANES — ARREGLO DEL FALLO visto probando la v314 (captura de consola de Juan Carlos): el reintento con Sonnet SÍ saltaba ("Haiku leyó casi nada 0/9... Releyendo TODO con Sonnet") pero la respuesta se TIRABA porque Sonnet a veces contesta con texto delante del JSON ("Analizando el albarán...", "I need to...") y JSON.parse petaba con "Unexpected token" — el mismo fallo tumbaba también el reintento de TN (v107D0). Arreglo: nueva función _jsonRespuestaIA(text) que primero intenta el parse directo (caso normal, coste cero) y si falla RECORTA el bloque JSON (del primer { o [ al último } o ]) y lo parsea — con aviso [v315] en consola. Se aplica a TODO el circuito de lectura de albaranes: callClaudeAlb + los 9 reintentos focalizados con Sonnet (TN, matrícula, nº Cemex, nº Holcim, cliente Canro, destino Holcim, origen Puigfel, destino Promsa, Promsa). Gasoil, neumáticos y facturas NO se tocan (sus parseos siguen igual, se harán aparte si hiciera falta). Con esto el circuito del ticket Garraf queda completo: Haiku casi vacío → Sonnet relee → plantilla v313 rellena → nº SN v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=315. -->
 <!-- v316 (17/07/2026): ALBARANES — SN más robusto: la cola de KILOS del número automático (v311) se redondea a CENTENAS de kilo. Caso real de hoy: el mismo ticket de 28.740 kg se leyó una vez como 28,74 TN y otra como 28,7 TN → SN-0726-28740 vs SN-0726-28700 → números distintos → ese duplicado se habría escapado. Con el redondeo, ambas lecturas dan SN-0726-28700 y el detector lo caza. Dos viajes reales del mismo mes tendrían que pesar a menos de 100 kg de diferencia para chocar (rarísimo; y sería solo un aviso a revisar). Los SN ya guardados NO cambian. Una sola línea tocada dentro del bloque v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=316. -->
-<script src="app.js?v=356"></script>
+<script src="app.js?v=357"></script>
 </body>
 </html>
