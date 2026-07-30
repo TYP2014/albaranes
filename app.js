@@ -12452,7 +12452,7 @@ function renderItvGlobalBanner() {
       <div style="flex:1;color:#fff;line-height:1.5">${mensajeHtml}</div>
       <div style="display:flex;gap:6px">
         <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('itv')">🛡️ Ver ITV</button>
-        <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideItvBannerToday()" title="Ocultar hasta mañana">✕</button>
+        <button class="btn" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid rgba(255,255,255,.55);color:#fff;font-weight:700;line-height:1" onclick="hideItvBannerToday()" title="Ocultar este aviso hasta mañana">✕</button>
       </div>
     </div>`;
 }
