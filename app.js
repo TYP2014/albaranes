@@ -24688,7 +24688,12 @@ function tacoPintar(r) {
   let filas = '';
   r.dias.slice(-30).reverse().forEach(d => {
     const t = _tacoTotalesDia(d.ev);
-    const quien = d.cond.length ? [...new Set(d.cond.map(c => c.nombre))].join(', ') : '<i style="color:var(--mu)">nadie</i>';
+    // v370: en un fichero de TARJETA el conductor es el dueño de la tarjeta. La lista
+    // de "tarjetas metidas" solo existe en los ficheros de CAMION, asi que en las
+    // tarjetas salia "nadie" en todas las filas, que es absurdo.
+    let quien;
+    if (r.tipo === 'conductor') quien = r.conductor || '—';
+    else quien = d.cond.length ? [...new Set(d.cond.map(c => c.nombre))].join(', ') : '<i style="color:var(--mu)">nadie</i>';
     filas += `<tr><td>${_tacoDMY(d.fecha)}</td><td>${d.odo ? d.odo.toLocaleString('es-ES') : (d.km != null ? d.km + ' km' : '—')}</td>
       <td style="font-weight:700">${_tacoHM(t[3])}</td><td>${_tacoHM(t[2])}</td><td>${_tacoHM(t[1])}</td><td>${_tacoHM(t[0])}</td>
       <td>${quien}</td></tr>`;
