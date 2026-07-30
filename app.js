@@ -169,12 +169,13 @@ async function loadUserMap() {
       userMap[p.id] = { name: p.name || '(sin nombre)' };
     });
 
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_tacografo, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     (data || []).forEach(p => { userMap[p.id] = Object.assign(userMap[p.id] || {}, {
       name: p.name || userMap[p.id]?.name || '(sin nombre)',
       role: p.role || '',
       puede_ver_itv: !!p.puede_ver_itv,
+      puede_ver_tacografo: !!p.puede_ver_tacografo,   // v368
       puede_ver_neumaticos: !!p.puede_ver_neumaticos,
       empresa_neumaticos: p.empresa_neumaticos || null,
       puede_ver_vacaciones: !!p.puede_ver_vacaciones,
@@ -229,6 +230,13 @@ async function loadUserMap() {
             console.warn(`[v107BC arranque] ${nombre} FALLÓ tras ${dur}s:`, e.message || e);
           });
       };
+
+      // v368: pestaña Tacografo. Mismo patron que ITV, pero SIN carga al arrancar:
+      // de momento solo lee ficheros sueltos, no hay nada que traer de la BD.
+      const _permTaco = !!userMap[currentUser.id]?.puede_ver_tacografo;
+      const tabTaco = document.getElementById('tabTaco');
+      if (tabTaco) tabTaco.style.display = _permTaco ? '' : 'none';
+      window._tieneTaco = _permTaco;
 
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
       const tabItv = document.getElementById('tabItv');
@@ -395,6 +403,7 @@ async function loadUserMap() {
           'tabProduccion', 'tabAdmin'];
         if (!_permITV)    _ocultarFinal.push('tabItv');
         if (!_permTaller) _ocultarFinal.push('tabTaller');
+        if (!userMap[currentUser.id]?.puede_ver_tacografo) _ocultarFinal.push('tabTaco');   // v368
         _ocultarFinal.forEach(function (id) {
           const el = document.getElementById(id);
           if (el) el.style.display = 'none';
@@ -14155,7 +14164,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit'].forEach(t => {
+  ['alb','preli','gas','itv','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit','taco'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -24390,6 +24399,327 @@ function factHolcimExcel() {
   const nombre = 'Autofactura_HOLCIM_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
   toast('Excel descargado', 'ok');
+}
+
+
+// ============================================================
+// TACOGRAFO — v368 (30/07/2026) · PASO 1: LEER Y ENSEÑAR
+//
+// Esta primera version NO guarda nada: ni en la base de datos ni
+// en el almacen. Solo lee el fichero EN EL NAVEGADOR y enseña por
+// pantalla lo que ha entendido, para poder comprobarlo contra los
+// ficheros reales antes de dar el paso de guardar (v369).
+//
+// Lee los TRES formatos que usa el grupo:
+//   · V_...  1ª generacion  -> empieza por 76 01
+//   · V_...  2ª generacion  -> empieza por 76 21 (tacografo inteligente)
+//   · C_/D_  tarjeta de conductor -> no empieza por 76, va en bloques TLV
+//
+// REGLA DE ORO: al terminar se comprueba que los bytes leidos
+// coinciden EXACTAMENTE con el tamaño del fichero. Un lector de
+// estos, si calcula mal un tamaño, NO da error: se descoloca y se
+// come dias en silencio. Si no cuadra, se avisa y no se da por
+// bueno. Asi se cazaron dos fallos en las pruebas (los registros de
+// exceso de velocidad son de 31 bytes y no 27, y la identificacion
+// del tacografo son 116 y no 118).
+// ============================================================
+
+const _TACO_ACT = ['DESCANSO', 'DISPONIBLE', 'OTROS TRABAJOS', 'CONDUCIENDO'];
+
+function _tacoU16(b, p) { return (b[p] << 8) | b[p + 1]; }
+function _tacoU24(b, p) { return (b[p] << 16) | (b[p + 1] << 8) | b[p + 2]; }
+function _tacoU32(b, p) { return (b[p] * 16777216) + (b[p + 1] << 16) + (b[p + 2] << 8) + b[p + 3]; }
+
+// Los textos del tacografo llevan delante un byte que dice el juego de
+// caracteres (normalmente 0x01) y van rellenos con espacios o 0x00/0xFF.
+function _tacoTxt(b, p, n) {
+  let s = '';
+  for (let i = 0; i < n; i++) {
+    const c = b[p + i];
+    if (c === 0 || c === 0xFF) continue;
+    if (c < 0x20) continue;              // se salta el byte de juego de caracteres
+    s += String.fromCharCode(c);
+  }
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+// Las fechas del tacografo son segundos desde 1970 (hora UTC).
+function _tacoFecha(v) {
+  if (!v || v < 946684800 || v > 4102444800) return null;   // fuera de 2000-2100 = vacio
+  return new Date(v * 1000);
+}
+function _tacoDMY(v) {
+  const d = _tacoFecha(v);
+  if (!d) return '—';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+function _tacoHM(min) {
+  if (!min) return '—';
+  return Math.floor(min / 60) + 'h' + String(min % 60).padStart(2, '0');
+}
+
+// Las matriculas vienen con el byte de juego de caracteres delante y a veces
+// con espacios dentro (visto de verdad: "5254 HTP"). Se dejan como las escribe
+// Juan Carlos: solo mayusculas y numeros, sin espacios ni guiones.
+function _tacoLimpiaMat(s) {
+  return (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// ---- Suma de horas de un dia -------------------------------------
+// OJO: cada dia trae DOS listas, la del hueco del conductor y la del
+// hueco del ayudante. Si se suman las dos salen dias de 39 horas (paso
+// de verdad en las pruebas). Aqui se cuenta SOLO el hueco del conductor.
+function _tacoTotalesDia(ev) {
+  const t = [0, 0, 0, 0];
+  const solo = ev.filter(e => e.slot === 0);
+  for (let i = 0; i < solo.length; i++) {
+    const fin = (i + 1 < solo.length) ? solo[i + 1].min : 1440;
+    t[solo[i].act] += Math.max(0, fin - solo[i].min);
+  }
+  return t;
+}
+
+// ================= VEHICULO · 1ª GENERACION =======================
+function _tacoParseVU_G1(b) {
+  const out = { gen: 'G1', tipo: 'vehiculo', dias: [] };
+  let p = 0;
+  while (p < b.length - 1 && b[p] === 0x76) {
+    const trep = b[p + 1]; p += 2;
+    if (trep === 0x01) {                       // resumen
+      p += 194 + 194;
+      out.vin = _tacoTxt(b, p, 17); p += 17;
+      out.matricula = _tacoLimpiaMat(_tacoTxt(b, p + 1, 14)); p += 15;
+      p += 4;
+      out.memDesde = _tacoU32(b, p); out.memHasta = _tacoU32(b, p + 4); p += 8;
+      p += 1 + 58;
+      p += 1 + b[p] * 98;                      // bloqueos de empresa
+      p += 1 + b[p] * 31;                      // controles
+      p += 128;
+    } else if (trep === 0x02) {                // un dia de actividad
+      const fecha = _tacoU32(b, p); p += 4;
+      const odo = _tacoU24(b, p); p += 3;
+      const niw = _tacoU16(b, p); p += 2;
+      const cond = [];
+      for (let k = 0; k < niw; k++) {
+        const r = p + k * 129;
+        const ape = _tacoTxt(b, r, 36), nom = _tacoTxt(b, r + 36, 36);
+        cond.push({ nombre: (nom + ' ' + ape).trim(), entra: _tacoU32(b, r + 94), sale: _tacoU32(b, r + 102) });
+      }
+      p += niw * 129;
+      const nac = _tacoU16(b, p); p += 2;
+      const ev = [];
+      for (let k = 0; k < nac; k++) {
+        const v = _tacoU16(b, p + k * 2);
+        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+      }
+      p += nac * 2;
+      p += 1 + b[p] * 28;                      // lugares de inicio/fin de jornada
+      const nsc = _tacoU16(b, p); p += 2 + nsc * 5;
+      p += 128;
+      out.dias.push({ fecha, odo, cond, ev });
+    } else if (trep === 0x03) {                // eventos y averias
+      p += 1 + b[p] * 82;
+      p += 1 + b[p] * 83;
+      p += 9;
+      p += 1 + b[p] * 31;                      // exceso de velocidad: 31, NO 27
+      p += 1 + b[p] * 98;
+      p += 128;
+    } else if (trep === 0x04) {                // velocidad segundo a segundo: no se usa
+      const nb = _tacoU16(b, p); p += 2 + nb * 64; p += 128;
+    } else if (trep === 0x05) {                // datos tecnicos
+      out.taco = _tacoTxt(b, p, 36);
+      p += 116 + 20;                           // identificacion: 116, NO 118
+      p += 1 + b[p] * 167;                     // calibraciones
+      p += 128;
+    } else break;
+  }
+  out.leidos = p;
+  return out;
+}
+
+// ================= VEHICULO · 2ª GENERACION =======================
+// Aqui el fichero va en "listas": tipo(1) + tamaño de registro(2) +
+// cuantos registros(2) + los registros. Mucho mas ordenado que la 1ª.
+function _tacoParseVU_G2(b) {
+  const VALIDOS = { 0x21: 1, 0x22: 1, 0x23: 1, 0x24: 1, 0x25: 1, 0x31: 1, 0x32: 1, 0x33: 1, 0x35: 1 };
+  const out = { gen: 'G2', tipo: 'vehiculo', dias: [] };
+  let p = 0;
+  while (p < b.length - 1 && b[p] === 0x76 && VALIDOS[b[p + 1]]) {
+    const trep = b[p + 1]; p += 2;
+    const arrs = [];
+    while (p + 5 <= b.length) {
+      const rt = b[p], rs = _tacoU16(b, p + 1), n = _tacoU16(b, p + 3);
+      const tot = 5 + rs * n;
+      if (rs === 0 || p + tot > b.length) break;
+      arrs.push({ rt, rs, n, dp: p + 5 });
+      p += tot;
+    }
+    if (trep === 0x21 || trep === 0x31) {
+      arrs.forEach(a => {
+        if (a.rt === 0x0a && a.n) out.vin = _tacoTxt(b, a.dp, 17);
+        if (a.rt === 0x0b && a.n) out.matricula = _tacoLimpiaMat(_tacoTxt(b, a.dp + 1, a.rs - 1));
+        if (a.rt === 0x13 && a.n) { out.memDesde = _tacoU32(b, a.dp); out.memHasta = _tacoU32(b, a.dp + 4); }
+      });
+    }
+    if (trep === 0x25 || trep === 0x35) {
+      arrs.forEach(a => { if (a.rt === 0x19 && a.n) out.taco = _tacoTxt(b, a.dp, 36); });
+    }
+    if (trep === 0x22 || trep === 0x32) {
+      let fecha = null, odo = null; const ev = [], cond = [];
+      arrs.forEach(a => {
+        if (a.rt === 0x06 && a.n) fecha = _tacoU32(b, a.dp);
+        if (a.rt === 0x05 && a.n) odo = _tacoU24(b, a.dp);
+        if (a.rt === 0x0d) {                   // tarjetas metidas ese dia
+          for (let k = 0; k < a.n; k++) {
+            const r = a.dp + k * a.rs;
+            const ape = _tacoTxt(b, r, 36), nom = _tacoTxt(b, r + 36, 36);
+            cond.push({ nombre: (nom + ' ' + ape).trim(), entra: 0, sale: 0 });
+          }
+        }
+        if (a.rt === 0x01) {
+          for (let k = 0; k < a.n; k++) {
+            const v = _tacoU16(b, a.dp + k * 2);
+            ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+          }
+        }
+      });
+      out.dias.push({ fecha, odo, cond, ev });
+    }
+  }
+  out.leidos = p;
+  return out;
+}
+
+// ================= TARJETA DE CONDUCTOR ===========================
+// La tarjeta va en bloques: etiqueta(2) + version(1) + tamaño(2) + datos.
+// Una tarjeta moderna trae DOS copias de todo, la de 1ª y la de 2ª
+// generacion. Se lee la de 2ª (version 2), que es la mas completa.
+function _tacoParseCard(b) {
+  const out = { gen: 'G1', tipo: 'conductor', dias: [] };
+  const bloques = {};
+  let p = 0;
+  while (p + 5 <= b.length) {
+    const tag = _tacoU16(b, p), ap = b[p + 2], ln = _tacoU16(b, p + 3);
+    if (p + 5 + ln > b.length) break;
+    const clave = tag + ':' + ap;
+    if (!bloques[clave]) bloques[clave] = { ln, dp: p + 5 };
+    p += 5 + ln;
+  }
+  out.leidos = p;
+  if (bloques['1312:2'] || bloques['1316:2']) out.gen = 'G2';   // 0x0520 / 0x0524 en version 2
+
+  // --- quien es (0x0520) ---
+  const id = bloques['1312:2'] || bloques['1312:0'];
+  if (id) {
+    const d = id.dp;
+    out.tarjeta_num = _tacoTxt(b, d + 1, 16);
+    out.conductor = (_tacoTxt(b, d + 102, 35) + ' ' + _tacoTxt(b, d + 66, 35)).replace(/\s+/g, ' ').trim();
+    out.caduca = _tacoU32(b, d + 61);
+  }
+
+  // --- que hizo cada dia (0x0504) ---
+  // Es un carrete que da la vuelta: se empieza en el dia mas viejo y se va
+  // saltando con la longitud que indica cada registro, dando la vuelta al final.
+  const act = bloques['1284:2'] || bloques['1284:0'];
+  if (act) {
+    const ini = act.dp, viejo = _tacoU16(b, ini), nuevo = _tacoU16(b, ini + 2);
+    const B0 = ini + 4, N = act.ln - 4;
+    const g16 = i => (b[B0 + (i % N)] << 8) | b[B0 + ((i + 1) % N)];
+    let i = viejo;
+    for (let vueltas = 0; vueltas < 800; vueltas++) {
+      const rl = g16(i + 2);
+      if (rl < 12 || rl > 1500) break;
+      const fecha = (g16(i + 4) * 65536) + g16(i + 6);
+      const km = g16(i + 10);
+      const ev = [];
+      for (let k = 0; k < (rl - 12) / 2; k++) {
+        const v = g16(i + 12 + k * 2);
+        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+      }
+      out.dias.push({ fecha, odo: null, km, cond: [], ev });
+      if (i === nuevo) break;
+      i = (i + rl) % N;
+    }
+  }
+  return out;
+}
+
+// ================= PUNTO DE ENTRADA ===============================
+function tacoLeerBuffer(buf, nombre) {
+  const b = new Uint8Array(buf);
+  let r;
+  if (b[0] === 0x76 && b[1] === 0x01) r = _tacoParseVU_G1(b);
+  else if (b[0] === 0x76) r = _tacoParseVU_G2(b);
+  else r = _tacoParseCard(b);
+  r.fichero = nombre;
+  r.bytes = b.length;
+  r.completo = (r.leidos === b.length);
+  // fechas que cubre, mirando los dias leidos
+  const fs = r.dias.map(d => d.fecha).filter(Boolean).sort((a, c) => a - c);
+  r.desde = fs.length ? fs[0] : null;
+  r.hasta = fs.length ? fs[fs.length - 1] : null;
+  return r;
+}
+
+// ================= PANTALLA =======================================
+function tacoPintar(r) {
+  const box = document.getElementById('tacoResultado');
+  if (!box) return;
+  const aviso = r.completo
+    ? `<span class="ks">✅ Leido entero: ${r.bytes.toLocaleString('es-ES')} de ${r.bytes.toLocaleString('es-ES')} bytes</span>`
+    : `<span style="color:var(--erd);font-weight:700">⛔ SOLO SE HAN LEIDO ${r.leidos.toLocaleString('es-ES')} DE ${r.bytes.toLocaleString('es-ES')} BYTES — NO fiarse de estos datos</span>`;
+
+  let cab = `<div style="font-family:var(--mn);font-size:12px;line-height:1.9">
+      <b>${r.fichero}</b><br>${aviso}<br>
+      Tipo: <b>${r.tipo === 'vehiculo' ? 'CAMION' : 'TARJETA DE CONDUCTOR'}</b> ·
+      Generacion: <b>${r.gen}</b><br>`;
+  if (r.matricula) cab += `Matricula: <b>${r.matricula}</b> · Bastidor: ${r.vin || '—'}<br>`;
+  if (r.conductor) cab += `Conductor: <b>${r.conductor}</b> · Tarjeta: ${r.tarjeta_num || '—'} · Caduca: ${_tacoDMY(r.caduca)}<br>`;
+  if (r.taco) cab += `Tacografo: ${r.taco}<br>`;
+  if (r.memDesde) cab += `Memoria del aparato: ${_tacoDMY(r.memDesde)} → ${_tacoDMY(r.memHasta)}<br>`;
+  cab += `Dias con datos: <b>${r.dias.length}</b> (${_tacoDMY(r.desde)} → ${_tacoDMY(r.hasta)})</div>`;
+
+  let filas = '';
+  r.dias.slice(-30).reverse().forEach(d => {
+    const t = _tacoTotalesDia(d.ev);
+    const quien = d.cond.length ? [...new Set(d.cond.map(c => c.nombre))].join(', ') : '<i style="color:var(--mu)">nadie</i>';
+    filas += `<tr><td>${_tacoDMY(d.fecha)}</td><td>${d.odo ? d.odo.toLocaleString('es-ES') : (d.km != null ? d.km + ' km' : '—')}</td>
+      <td style="font-weight:700">${_tacoHM(t[3])}</td><td>${_tacoHM(t[2])}</td><td>${_tacoHM(t[1])}</td><td>${_tacoHM(t[0])}</td>
+      <td>${quien}</td></tr>`;
+  });
+
+  box.innerHTML = cab + `
+    <div style="overflow-x:auto;margin-top:14px">
+    <table class="tbl"><thead><tr>
+      <th>Fecha</th><th>Cuentakm</th><th>Conduciendo</th><th>Otros trab.</th><th>Disponible</th><th>Descanso</th><th>Quien iba</th>
+    </tr></thead><tbody>${filas || '<tr><td colspan="7" style="text-align:center;color:var(--mu)">Sin dias</td></tr>'}</tbody></table>
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px">
+      Se muestran los ultimos 30 dias del fichero. Las horas son SOLO del hueco del conductor (el del ayudante va aparte).
+      El dia en que se hizo la descarga sale incompleto: la jornada estaba a medias.
+    </div></div>`;
+}
+
+function tacoSoltar(files) {
+  if (!files || !files.length) return;
+  const f = files[0];
+  const box = document.getElementById('tacoResultado');
+  if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Leyendo ' + f.name + '…</div>';
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const r = tacoLeerBuffer(fr.result, f.name);
+      console.log('[v368 tacografo]', r);
+      tacoPintar(r);
+      if (!r.completo) toast('El fichero NO se ha leido entero — avisa a Claude', 'err');
+      else toast('Leido: ' + r.dias.length + ' dias', 'ok');
+    } catch (e) {
+      console.error('[v368 tacografo]', e);
+      if (box) box.innerHTML = '<div style="color:var(--erd);font-family:var(--mn);font-size:12px">Error leyendo el fichero: ' + (e.message || e) + '</div>';
+      toast('Error leyendo el fichero', 'err');
+    }
+  };
+  fr.readAsArrayBuffer(f);
 }
 
 
