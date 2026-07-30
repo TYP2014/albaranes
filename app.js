@@ -24551,14 +24551,19 @@ function _tacoParseVU_G2(b) {
     while (p + 5 <= b.length) {
       const rt = b[p], rs = _tacoU16(b, p + 1), n = _tacoU16(b, p + 3);
       const tot = 5 + rs * n;
-      if (rs === 0 || p + tot > b.length) break;
+      // v369: el 0x76 es el principio del bloque SIGUIENTE, no una lista.
+      if (rt === 0x76 || rs === 0 || p + tot > b.length) break;
       arrs.push({ rt, rs, n, dp: p + 5 });
       p += tot;
+      // v369: la FIRMA (tipo 0x08) es SIEMPRE la ultima lista de un bloque.
+      // Es el unico modo fiable de saber donde acaba: sin esto, el lector se
+      // tragaba el bloque siguiente entero (paso con el 9566NBR).
+      if (rt === 0x08) break;
     }
     if (trep === 0x21 || trep === 0x31) {
       arrs.forEach(a => {
         if (a.rt === 0x0a && a.n) out.vin = _tacoTxt(b, a.dp, 17);
-        if (a.rt === 0x0b && a.n) out.matricula = _tacoLimpiaMat(_tacoTxt(b, a.dp + 1, a.rs - 1));
+        if ((a.rt === 0x0b || a.rt === 0x24) && a.n && a.rs >= 14) out.matricula = _tacoLimpiaMat(_tacoTxt(b, a.dp + 1, a.rs - 1));   // v369: 0x24 en los mas nuevos
         if (a.rt === 0x13 && a.n) { out.memDesde = _tacoU32(b, a.dp); out.memHasta = _tacoU32(b, a.dp + 4); }
       });
     }
