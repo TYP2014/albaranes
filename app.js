@@ -10328,8 +10328,8 @@ function updateStats() {
       <div class="stat"><div class="stat-l">TN Netas válidas</div><div class="stat-v">${tm.toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3})}</div><div class="stat-s">sin duplicados</div></div>
       <div class="stat"><div class="stat-l">Este mes</div><div class="stat-v">${mes}</div><div class="stat-s">${M[now.getMonth()]} ${now.getFullYear()}</div></div>
       <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
-      <div class="stat" style="--c:#d32f2f"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:#d32f2f;font-weight:700">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
-      <div class="stat" style="--c:var(--wn)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wn)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
+      <div class="stat" style="--c:var(--erd)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--erd)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
+      <div class="stat" style="--c:var(--wnd)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wnd)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
     const hdrInfo = document.getElementById('hdrInfo');
     if (hdrInfo) hdrInfo.textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
     console.log(`[updateStats] OK: ${valid.length} válidos, ${tm.toFixed(1)} TN, ${dups.length} dups, ${warns.length} revisar`);
@@ -13060,8 +13060,8 @@ function updateItvStats() {
   const box = document.getElementById('itvStatsBox');
   if (!box) return;
   box.innerHTML = `
-    <div class="stat" style="--c:var(--er)"><div class="stat-l">Caducadas</div><div class="stat-v" style="color:var(--er)">${cad}</div><div class="stat-s">no aptas</div></div>
-    <div class="stat" style="--c:#ff7a00"><div class="stat-l">Caducan en ${ITV_AVISO_DIAS} días</div><div class="stat-v" style="color:#ff7a00">${avi}</div><div class="stat-s" style="color:#ff7a00;font-weight:600">aviso</div></div>
+    <div class="stat" style="--c:var(--erd)"><div class="stat-l">Caducadas</div><div class="stat-v" style="color:var(--erd)">${cad}</div><div class="stat-s">no aptas</div></div>
+    <div class="stat" style="--c:var(--wnd)"><div class="stat-l">Caducan en ${ITV_AVISO_DIAS} días</div><div class="stat-v" style="color:var(--wnd)">${avi}</div><div class="stat-s" style="color:var(--wnd);font-weight:600">aviso</div></div>
     <div class="stat"><div class="stat-l">Vigentes</div><div class="stat-v">${vig}</div><div class="stat-s">en regla</div></div>
     <div class="stat"><div class="stat-l">Total ITVs</div><div class="stat-v">${itvRecords.length}</div><div class="stat-s">vehículos registrados</div></div>`;
 }
