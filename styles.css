@@ -3,6 +3,7 @@
   --ac:#2b7bd0;--ok:#2fbf7a;--wn:#e6a23c;--er:#d9534f;--in:#7b8ff0;--pu:#a584cc;
   --tx:#1e2933;--mu:#64748b;--fg:#16202b;
   --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'Bebas Neue',sans-serif;
+  --nu:'Outfit','IBM Plex Sans',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh}
@@ -79,30 +80,50 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .dz-s{font-size:11px;color:var(--mu);opacity:.55;pointer-events:none}
 .hl{color:var(--ac)}
 
-/* STATS */
-.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
-.stat{background:var(--sf);border:1px solid var(--bd);border-radius:9px;padding:14px 16px;position:relative;overflow:hidden}
-.stat::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--c,var(--ac))}
-.stat-l{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
-.stat-v{font-family:var(--dp);font-size:28px;line-height:1}
-.stat-s{font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px}
+/* STATS
+   v359 (30/07/2026): las tarjetas de arriba (ALBARANES VALIDOS, TN NETAS, ESTE MES,
+   VEHICULOS, DUPLICADOS, A REVISAR) tenian el texto pegado a la izquierda y el numero
+   pequeno (28px), asi que en un monitor ancho quedaban desparramadas y costaba leerlas.
+   Ahora: TODO CENTRADO dentro de cada tarjeta y el numero MAS GRANDE, con clamp() para
+   que crezca en pantalla grande y encoja solo en pantalla pequena (asi el 398.932,098 de
+   TN no se sale nunca). La barrita de color pasa de estar a la IZQUIERDA a estar ARRIBA,
+   que con el texto centrado queda simetrico. Afecta tambien a las 4 tarjetas de ITV
+   (usan las mismas clases) — es el mismo estilo, se ven igual de bien. */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+.stat{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:18px 14px 16px;position:relative;overflow:hidden;text-align:center;box-shadow:0 1px 3px rgba(30,41,51,.05)}
+.stat::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--c,var(--ac))}
+.stat-l{font-family:var(--ss);font-size:10.5px;color:var(--mu);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:9px;font-weight:600}
+.stat-v{font-family:var(--nu);font-weight:600;font-size:clamp(26px,2.1vw,40px);line-height:1;letter-spacing:-.5px;white-space:nowrap;font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1,'lnum' 1}
+.stat-s{font-family:var(--ss);font-size:11.5px;color:var(--mu);margin-top:7px;letter-spacing:.2px}
+#statsBox .stat:nth-child(2) .stat-v{font-size:clamp(20px,1.55vw,30px)}
 
-/* v104: PENDIENTES (chips de tareas del día) */
-.pend-wrap{background:linear-gradient(135deg,rgba(123,143,240,.06),rgba(43,123,208,.03));border:1px solid rgba(123,143,240,.22);border-radius:9px;padding:11px 14px;margin-bottom:14px}
-.pend-hd{font-family:var(--mn);font-size:10px;letter-spacing:1.5px;color:var(--tx);font-weight:700;margin-bottom:8px;text-transform:uppercase}
-.pend-chips{display:flex;flex-wrap:wrap;gap:7px}
-.pend-chip{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:7px 11px;font-family:var(--mn);font-size:11px;color:var(--tx);cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
-.pend-chip:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.25)}
-.pend-chip .pic{font-size:14px;line-height:1}
-.pend-chip .pn{font-weight:700;font-size:14px;font-family:var(--dp)}
-.pend-chip .ptx{color:var(--mu);font-size:10px;letter-spacing:.5px}
-.pend-er{border-color:rgba(232,64,64,.45)}
-.pend-er .pn{color:var(--er)}
-.pend-wn{border-color:rgba(245,166,35,.45)}
-.pend-wn .pn{color:var(--wn)}
-.pend-in{border-color:rgba(123,143,240,.45)}
-.pend-in .pn{color:var(--in)}
-.pend-ok{background:rgba(43,123,208,.05);border:1px solid rgba(43,123,208,.22);border-radius:9px;padding:11px 14px;margin-bottom:14px;font-family:var(--mn);font-size:11px;color:var(--ac);text-align:center;letter-spacing:.8px}
+/* v104: PENDIENTES (chips de tareas del día)
+   v359 (30/07/2026): rediseno pedido por JC ("se ve regular y los colores no me gustan").
+   ANTES: caja con degradado LILA, titulo en una linea y chips debajo, muy pequenos, con
+   los numeros en naranja claro (#e6a23c) que sobre fondo blanco casi no se leian.
+   AHORA: caja blanca y limpia (como el resto de tarjetas), el titulo y los chips EN LA
+   MISMA FILA (aprovecha el ancho, ocupa menos alto), chips en forma de pastilla mas
+   grandes y con FONDO DE COLOR SUAVE segun el aviso — rojo lo grave, ambar oscuro lo
+   que hay que revisar, azul lo informativo. Los tonos son mas oscuros a proposito para
+   que se lean bien sobre blanco. Solo CSS: renderPendientes() no se toca. */
+.pend-wrap{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(30,41,51,.05);display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px}
+.pend-hd{font-family:var(--ss);font-size:11.5px;letter-spacing:1.4px;color:var(--mu);font-weight:600;text-transform:uppercase;margin:0;flex:0 0 auto}
+.pend-chips{display:flex;flex-wrap:wrap;gap:9px;flex:1 1 auto}
+.pend-chip{display:flex;align-items:center;gap:8px;background:var(--s2);border:1.5px solid var(--bd);border-radius:999px;padding:8px 15px;font-family:var(--ss);font-size:12px;color:var(--tx);cursor:pointer;transition:transform .12s,box-shadow .12s,filter .12s}
+.pend-chip:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(30,41,51,.14);filter:saturate(1.25)}
+.pend-chip .pic{font-size:15px;line-height:1}
+.pend-chip .pn{font-weight:600;font-size:19px;font-family:var(--nu);line-height:1;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.pend-chip .ptx{font-family:var(--ss);font-size:12px;letter-spacing:.2px;font-weight:500}
+.pend-er{background:rgba(199,54,49,.09);border-color:rgba(199,54,49,.42)}
+.pend-er .pn{color:#c73631}
+.pend-er .ptx{color:#9d2b27}
+.pend-wn{background:rgba(180,113,20,.10);border-color:rgba(180,113,20,.40)}
+.pend-wn .pn{color:#b47114}
+.pend-wn .ptx{color:#8a570f}
+.pend-in{background:rgba(43,123,208,.09);border-color:rgba(43,123,208,.38)}
+.pend-in .pn{color:var(--ac)}
+.pend-in .ptx{color:#22609f}
+.pend-ok{background:rgba(47,191,122,.08);border:1px solid rgba(47,191,122,.32);border-radius:11px;padding:12px 16px;margin-bottom:16px;font-family:var(--ss);font-size:13px;color:#1e8a55;text-align:center;letter-spacing:.8px;font-weight:600}
 
 /* v105: PRODUCCIÓN MENSUAL */
 .prod-month-selector{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:18px;padding:14px;background:var(--bg2);border-radius:9px;border:1px solid var(--bd);flex-wrap:wrap}
@@ -388,4 +409,24 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
   .hdr .logo svg{height:28px!important}
   #hdrInfo{display:none}
   .tbl-top>span{white-space:normal!important}
+}
+
+/* ============================================================
+   v359 (30/07/2026): las tarjetas de arriba, en MOVIL/TABLET.
+   Al agrandar los numeros hacia falta repartirlas: 6 columnas en un
+   movil salian del tamano de un sello. Ahora: 3 columnas en tablet
+   (<=1200px) y 2 en movil (<=700px), y los chips de "Pendientes de
+   hoy" pasan a ocupar toda la linea bajo el titulo.
+   En ordenador (>1200px) esta regla NI SE CARGA: todo igual.
+   ============================================================ */
+@media (max-width:1200px){
+  .stats{grid-template-columns:repeat(3,1fr);gap:9px}
+  .stat{padding:14px 10px 12px}
+  .stat-v{font-size:clamp(22px,3.6vw,32px)}
+  #statsBox .stat:nth-child(2) .stat-v{font-size:clamp(17px,2.7vw,24px)}
+  .pend-wrap{gap:8px}
+  .pend-hd{flex:1 1 100%}
+}
+@media (max-width:700px){
+  .stats{grid-template-columns:repeat(2,1fr)}
 }
