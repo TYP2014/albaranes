@@ -18564,7 +18564,7 @@ let vacMostrarArchivados = false;
 let vacAnioActivo = new Date().getFullYear();
 let vacMesCalendario = new Date();    // mes mostrado en el calendario visual
 let vacVistaCalendario = 'mes';        // v107X: 'mes' o 'anio'
-let vacEmpresaActiva = 'TYP2014';     // v107N: subpestaña activa (TYP2014/HISPALIS/TRANSMARGAZ)
+let vacEmpresaActiva = 'TYP2014';     // v107N: subpestaña activa (TYP2014/HISPALIS/TRANSMARGAZ/PORTES v355)
 let editTrabId = null;
 let editVacPerId = null;
 
@@ -18576,8 +18576,8 @@ async function loadVacData() {
     // NULL = ve las 3. 'TYP2014,HISPALIS' = ve 2. 'TRANSMARGAZ' = ve solo Transmargaz.
     const empresasPermitidas = window._empresaVac
       ? window._empresaVac.split(',').map(s => s.trim())
-      : ['TYP2014','HISPALIS','TRANSMARGAZ'];
-    ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(emp => {
+      : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'];   // v355: + Portes 2014 Import
+    ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'].forEach(emp => {
       const btn = document.getElementById('vacSub' + emp);
       if (btn) btn.style.display = empresasPermitidas.includes(emp) ? '' : 'none';
     });
@@ -18623,7 +18623,7 @@ async function loadVacData() {
 function switchVacEmpresa(emp) {
   const empresasPermitidas = window._empresaVac
     ? window._empresaVac.split(',').map(s => s.trim())
-    : ['TYP2014','HISPALIS','TRANSMARGAZ'];
+    : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'];   // v355: + Portes 2014 Import
   if (!empresasPermitidas.includes(emp)) {
     toast('No tienes permiso para esa empresa', 'err');
     return;
@@ -19143,6 +19143,7 @@ function openTrabajadorModal(id) {
           <option value="TYP2014"${(t?.empresa==='TYP2014') || (!t && vacEmpresaActiva==='TYP2014')?' selected':''}>TYP2014</option>
           <option value="HISPALIS"${(t?.empresa==='HISPALIS') || (!t && vacEmpresaActiva==='HISPALIS')?' selected':''}>HISPALIS</option>
           <option value="TRANSMARGAZ"${(t?.empresa==='TRANSMARGAZ') || (!t && vacEmpresaActiva==='TRANSMARGAZ')?' selected':''}>TRANSMARGAZ</option>
+          <option value="PORTES"${(t?.empresa==='PORTES') || (!t && vacEmpresaActiva==='PORTES')?' selected':''}>PORTES 2014 IMPORT</option>
         </select>
       </div>
     </div>
