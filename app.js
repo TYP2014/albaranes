@@ -13110,7 +13110,7 @@ function renderItvTable() {
   const fmtTSItv = ts => ts ? new Date(ts).toLocaleDateString('es-ES') : '—';
   tb.innerHTML = filteredItv.map(r => {
     const est = _itvEstado(r);
-    const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--er);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:#ff7a00;font-weight:800">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
+    const diasTxt = est.dias === null ? '—' : (est.dias < 0 ? `<span style="color:var(--erd);font-weight:700">${est.dias}</span>` : (est.dias <= ITV_AVISO_DIAS ? `<span style="color:var(--wnd);font-weight:800">${est.dias}</span>` : `<span style="color:var(--ac)">${est.dias}</span>`));
     const subPor = userMap[r.user_id]?.name || '—';
     const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
     return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
