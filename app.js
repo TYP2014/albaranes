@@ -3405,7 +3405,7 @@ function renderQueues() {
       const seg = esp ? Math.max(0, Math.ceil((esp.hasta - Date.now()) / 1000)) : 0;
       const motivoTxt = esp && esp.motivo === 'red' ? 'reconectando' : 'IA saturada';
       const stHtml = esp
-        ? `<div class="qi-st s-processing" style="color:var(--wn)">⏳ Reintentando en ${seg}s (${motivoTxt})</div>`
+        ? `<div class="qi-st s-processing" style="color:var(--wnd)">⏳ Reintentando en ${seg}s (${motivoTxt})</div>`
         : `<div class="qi-st s-${it.status}">${stLbl(it.status)}</div>`;
       return `
       <div class="qi">
@@ -8081,8 +8081,8 @@ async function loadCostes() {
   const fmt0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
   tbody.innerHTML = filas.map(f => {
     const impTxt = f.imp > 0 ? fmtE(f.imp) + ' €' : '<span style="color:var(--mu)">—</span>';
-    const kmTxt = f.km > 0 ? fmt0(f.km) + ' km' : '<span style="color:var(--wn)">⚠️ sin km</span>';
-    const eurkmTxt = f.eurkm != null ? fmtE(f.eurkm) + ' €/km' : '<span style="color:var(--wn)">⚠️ sin km</span>';
+    const kmTxt = f.km > 0 ? fmt0(f.km) + ' km' : '<span style="color:var(--wnd)">⚠️ sin km</span>';
+    const eurkmTxt = f.eurkm != null ? fmtE(f.eurkm) + ' €/km' : '<span style="color:var(--wnd)">⚠️ sin km</span>';
     return `<tr><td style="padding:8px;font-family:var(--mn)">${f.mat}</td><td style="padding:8px">${impTxt}</td><td style="padding:8px">${kmTxt}</td><td style="padding:8px;font-weight:700">${eurkmTxt}</td></tr>`;
   }).join('');
 }
@@ -8172,7 +8172,7 @@ function renderProduccion() {
             const esPropia = f.transportista === 'TYP2014';
             const esSinAsig = f.transportista === '(sin asignar)';
             return `<tr class="prod-row${esPropia ? ' prod-row-propia' : ''}" onclick="_prodAbrirFiltro('${esc(f.transportista)}')" title="Ver albaranes de ${esc(f.transportista)} en ${_prodMesLabel()}">
-              <td style="font-weight:600">${esc(f.transportista)}${esPropia ? ' <span class="prod-tag-propia">propia</span>' : ''}${esSinAsig ? ' <span class="prod-tag-propia" style="background:rgba(245,166,35,.15);color:var(--wn)">revisar</span>' : ''}</td>
+              <td style="font-weight:600">${esc(f.transportista)}${esPropia ? ' <span class="prod-tag-propia">propia</span>' : ''}${esSinAsig ? ' <span class="prod-tag-propia" style="background:rgba(245,166,35,.15);color:var(--wnd)">revisar</span>' : ''}</td>
               <td class="prod-num" style="text-align:right">${f.albaranes}</td>
               <td class="prod-num prod-tn" style="text-align:right">${fmtTn(f.tn)}</td>
               <td class="prod-num" style="text-align:right;color:var(--mu)">${fmtMed(f.media)}</td>
@@ -10201,10 +10201,10 @@ async function gasRenderConsumo() {
   tbody.innerHTML = filas.map(f => {
     const litrosTxt = f.litros != null
       ? fmtN(f.litros, 0) + ' L'
-      : '<span style="color:var(--wn)">⚠️ sin factura</span>';
+      : '<span style="color:var(--wnd)">⚠️ sin factura</span>';
     const kmTxt = f.km != null
       ? fmtN(f.km, 0) + ' km'
-      : '<span style="color:var(--wn)">⚠️ sin km</span>';
+      : '<span style="color:var(--wnd)">⚠️ sin km</span>';
     const adblueTxt = f.adblue != null
       ? fmtN(f.adblue, 0) + ' L'
       : '<span style="color:var(--mu)">—</span>';
@@ -10223,7 +10223,7 @@ async function gasRenderConsumo() {
       // el vehículo no circula o si falta subir su factura de gasoil.
       consumoTxt = '<span title="Tiene km del tacógrafo pero NO hay gasoil registrado en este periodo. Revisa si el vehículo no está circulando/trabajando o si falta subir su factura de gasoil." style="color:var(--er);font-weight:800;font-family:var(--mn)">⛔ REVISAR</span>';
     } else {
-      consumoTxt = '<span style="color:var(--wn)">⚠️</span>';
+      consumoTxt = '<span style="color:var(--wnd)">⚠️</span>';
     }
     const periodoCell = f.aviso
       ? '<td title="' + f.aviso.replace(/"/g, '') + '">' + f.periodo + '</td>'
@@ -10579,7 +10579,7 @@ function openModal(id) {
       if (numOtros > 0) {
         histHtml = `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer;margin-top:6px">
           <input type="checkbox" id="mAplicarHistorico" style="cursor:pointer">
-          Aplicar también a los <strong style="color:var(--wn)">${numOtros}</strong> albaranes existentes con esta matrícula
+          Aplicar también a los <strong style="color:var(--wnd)">${numOtros}</strong> albaranes existentes con esta matrícula
         </label>`;
       }
       alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
@@ -14296,7 +14296,7 @@ async function loadFichajes() {
     const { data, error } = await q;
     if (error) {
       if (/does not exist|relation/i.test(error.message || '')) {
-        if (box) box.innerHTML = '<div style="color:var(--wn);font-family:var(--mn);font-size:12px">⚠️ Falta crear la tabla. Ejecuta el SQL <b>fichaje_setup.sql</b> en Supabase.</div>';
+        if (box) box.innerHTML = '<div style="color:var(--wnd);font-family:var(--mn);font-size:12px">⚠️ Falta crear la tabla. Ejecuta el SQL <b>fichaje_setup.sql</b> en Supabase.</div>';
         return;
       }
       throw error;
@@ -17174,7 +17174,7 @@ async function loadPreliquidaciones() {
   if (error) {
     if (error.message && /does not exist|relation/i.test(error.message)) {
       document.getElementById('preliList').innerHTML = `
-        <div style="background:rgba(255,170,0,0.1);border:1px solid var(--wn);padding:14px;border-radius:8px;font-family:var(--mn);font-size:12px;color:var(--wn);line-height:1.6">
+        <div style="background:rgba(255,170,0,0.1);border:1px solid var(--wn);padding:14px;border-radius:8px;font-family:var(--mn);font-size:12px;color:var(--wnd);line-height:1.6">
           ⚠️ <strong>La tabla "preliquidaciones" aún no existe en Supabase</strong>.<br>
           Pídele al administrador que ejecute el SQL de creación de tablas (ver instrucciones).
         </div>`;
@@ -17220,7 +17220,7 @@ function renderPreliList() {
       <div style="display:flex;gap:14px;align-items:center;font-family:var(--mn);font-size:11px">
         <span style="color:var(--ok)">✅ ${ok}</span>
         <span style="color:var(--er)">⛔ ${falta}</span>
-        <span style="color:var(--wn)">🔴 ${dif}</span>
+        <span style="color:var(--wnd)">🔴 ${dif}</span>
         <span style="color:var(--mu)">${pct}% OK</span>
       </div>
     </div>`;
@@ -17638,7 +17638,7 @@ function renderPreliDetail() {
     <div>Total: <strong>${todas.length}</strong></div>
     <div style="color:var(--ok)">✅ Coinciden: <strong>${ok}</strong></div>
     <div style="color:var(--er)">⛔ Faltan en mi BD: <strong>${falta}</strong></div>
-    <div style="color:var(--wn)">🔴 Diferencia TM: <strong>${dif}</strong></div>
+    <div style="color:var(--wnd)">🔴 Diferencia TM: <strong>${dif}</strong></div>
     <div style="color:var(--mu)">🟡 Sobra en mi BD: <strong>${sobra.length}</strong></div>
     ${sin?'<div style="color:var(--mu)">⚠️ Sin nº albarán: <strong>'+sin+'</strong></div>':''}
     <div>TN total: <strong>${tmPreli.toFixed(2)}</strong></div>
@@ -17663,7 +17663,7 @@ function renderPreliDetail() {
   const ESTADO_LABEL = {
     'COINCIDE': '<span style="color:var(--ok)">✅ OK</span>',
     'FALTA_BD': '<span style="color:var(--er)">⛔ Falta en BD</span>',
-    'DIFERENCIA_TM': '<span style="color:var(--wn)">🔴 Dif. TM</span>',
+    'DIFERENCIA_TM': '<span style="color:var(--wnd)">🔴 Dif. TM</span>',
     'SIN_ALBARAN': '<span style="color:var(--mu)">⚠️ Sin alb.</span>',
     'SOBRA_BD': '<span style="color:var(--mu)">🟡 Sobra en BD</span>'
   };
@@ -19675,7 +19675,7 @@ function renderTallerTabla() {
     if (v.km_actual_fecha) {
       const _d = Math.floor((Date.now() - new Date(v.km_actual_fecha + 'T00:00:00')) / 86400000);
       const _txt = v.km_actual_fecha.split('-').reverse().join('/');
-      const _col = _d > 45 ? ';color:var(--wn);font-weight:600' : '';
+      const _col = _d > 45 ? ';color:var(--wnd);font-weight:600' : '';
       kmFechaCell = `<td style="font-size:11px${_col}" title="Km de hace ${_d} días">${_txt}</td>`;
     }
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
