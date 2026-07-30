@@ -12812,8 +12812,8 @@ function renderCitasTable() {
     const est = _citaEstado(r);
     const diasTxt = est.dias === null ? '—' :
       (est.tipo === 'pasada' ? `<span style="color:var(--mu)">${est.dias}</span>` :
-       est.tipo === 'hoy' ? `<span style="color:var(--er);font-weight:700">HOY</span>` :
-       est.tipo === 'urgente' ? `<span style="color:var(--wn);font-weight:700">${est.dias}</span>` :
+       est.tipo === 'hoy' ? `<span style="color:var(--erd);font-weight:700">HOY</span>` :
+       est.tipo === 'urgente' ? `<span style="color:var(--wnd);font-weight:700">${est.dias}</span>` :
        `<span style="color:var(--ac)">${est.dias}</span>`);
     return `<tr onclick="openCitaModal(${r.db_id})" style="cursor:pointer">
       <td style="font-size:14px">${est.icon}</td>
