@@ -19512,6 +19512,10 @@ async function loadTallerData() {
     // v337: cuadre mensual de recambios (día 10). Sin await a propósito: no debe
     // retrasar la carga de Taller; con caché diaria, solo consulta 1 vez al día.
     try { recambiosAvisoDia10(); } catch (e) { console.warn('[v337]', e); }
+    // v358: cargar las citas de servicio oficial para que el AVISO GLOBAL salga
+    // aunque el usuario no haya entrado nunca en la vista. Sin await: no debe
+    // retrasar la carga de Taller.
+    try { loadTallerCitas(); } catch (e) { console.warn('[v358]', e); }
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
@@ -20610,6 +20614,7 @@ async function loadTallerCitas() {
     if (error) throw error;
     tallerCitas = data || [];
     renderTallerCitas();
+    renderCitasGlobalBanner();   // v358: refrescar el aviso de arriba
   } catch (e) {
     console.error('[loadTallerCitas] Error:', e);
     toast('Error cargando citas de servicio oficial: ' + (e.message || e), 'err');
@@ -20800,6 +20805,90 @@ async function tcitaMarcarHecha(id) {
     console.error('[tcitaMarcarHecha] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
   }
+}
+
+// ============================================================
+// v358 · AVISO GLOBAL de las citas de servicio oficial.
+// Se ve desde CUALQUIER pestaña, igual que el de ITV/Taller.
+// Reutiliza _tcitaSemaforo (v357): un solo sitio decide los colores,
+// asi la barra de arriba y la tabla no pueden discrepar nunca.
+// ============================================================
+const TCITA_BANNER_HIDE_KEY = 'tcita_banner_hidden_date';   // v358
+
+// Ir directo a la lista de citas desde el aviso
+function irACitasTaller() {
+  try { switchTab('taller'); } catch (e) {}
+  try { switchTallerVista('citas'); } catch (e) {}
+}
+
+function hideCitasBannerToday(nivel) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (nivel) localStorage.setItem(TCITA_BANNER_HIDE_KEY + '_' + nivel, hoy);
+  else ['pasada','hoy','d1','d3','d5'].forEach(k => localStorage.setItem(TCITA_BANNER_HIDE_KEY + '_' + k, hoy));
+  renderCitasGlobalBanner();
+}
+
+function renderCitasGlobalBanner() {
+  const banner = document.getElementById('tallerCitasBanner');
+  if (!banner) return;
+  if (!window._tieneTaller) { banner.style.display = 'none'; return; }
+  if (!Array.isArray(tallerCitas) || !tallerCitas.length) { banner.style.display = 'none'; return; }
+
+  // Empresas que el usuario puede ver (misma logica que las subpestanas de Taller)
+  const permitidas = window._empresaTaller
+    ? window._empresaTaller.split(',').map(s => s.trim())
+    : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'];
+
+  // Solo las que siguen abiertas (ni hechas ni anuladas) y de sus empresas
+  const grupos = { pasada: [], hoy: [], d1: [], d3: [], d5: [] };
+  tallerCitas
+    .filter(c => permitidas.includes(c.empresa))
+    .filter(c => c.estado !== 'hecha' && c.estado !== 'anulada')
+    .forEach(c => {
+      const s = _tcitaSemaforo(c);
+      if (grupos[s.clave]) grupos[s.clave].push(c);
+    });
+
+  // De lo mas urgente a lo menos. Mismos colores que la tabla.
+  const niveles = [
+    { key:'pasada', color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA PASADA SIN CERRAR' },
+    { key:'hoy',    color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA HOY' },
+    { key:'d1',     color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA MAÑANA' },
+    { key:'d3',     color:'#ff9500', bg:'rgba(255,149,0,.12)',  icon:'🟠', titulo:'CITA EN 3 DÍAS O MENOS' },
+    { key:'d5',     color:'#ffd000', bg:'rgba(255,208,0,.12)',  icon:'🟡', titulo:'CITA EN 5 DÍAS O MENOS' }
+  ];
+
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  let html = '';
+  for (const n of niveles) {
+    const lista = grupos[n.key];
+    if (!lista.length) continue;
+    if (localStorage.getItem(TCITA_BANNER_HIDE_KEY + '_' + n.key) === hoyStr) continue;
+
+    const detalle = lista.slice(0, 3).map(c => {
+      const cuando = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
+      const hora = c.hora_cita ? ' ' + esc(c.hora_cita) : '';
+      const donde = c.taller ? ' · ' + esc(c.taller) : (c.marca ? ' · ' + esc(c.marca) : '');
+      return '<strong>' + esc(c.matricula) + '</strong> (' + cuando + hora + donde + ')';
+    }).join(' · ');
+    const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
+    const cabecera = lista.length === 1
+      ? n.titulo
+      : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
+
+    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
+      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
+      '<div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">' + n.icon +
+      ' <span style="color:' + n.color + ';font-weight:800">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irACitasTaller()">📅 Ver citas</button>' +
+        '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideCitasBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
+      '</div></div>';
+  }
+
+  if (!html) { banner.style.display = 'none'; return; }
+  banner.style.display = 'block';
+  banner.innerHTML = html;
 }
 
 // ¿Es el usuario TALLER (rol no admin con permiso taller)? → no ve facturas, no concilia
