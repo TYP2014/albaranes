@@ -25019,6 +25019,7 @@ async function tacoCargarLista() {
       if (b) b.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
     });
     tacoPintarLista();
+    tacoPintarAvisos();          // v377
   } catch (e) {
     console.error('[v374 tacografo] lista:', e);
     cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:14px">No se ha podido cargar el archivo: ${e.message || e}</div>`;
@@ -25210,6 +25211,132 @@ async function tacoSoltarVarios(files) {
   if (gb) gb.innerHTML = listos
     ? `<button class="btn bp" id="tacoBtnLote" onclick="tacoGuardarLote()">💾 Guardar los ${listos} que están claros</button>`
     : `<div style="font-family:var(--mn);font-size:12px;color:var(--wnd)">Ninguno se puede guardar sin más: míralos en la lista de arriba.</div>`;
+}
+
+// ============================================================
+// TACOGRAFO — v377 (31/07/2026) · AVISOS DE DESCARGA PENDIENTE
+//
+// La ley obliga a descargar la TARJETA DE CONDUCTOR cada 28 dias y
+// el CAMION cada 90. Y hay un motivo practico ademas del legal: al
+// tacografo se le llena la memoria y EMPIEZA A MACHACAR LO VIEJO.
+// Si se pasa el plazo, esos dias NO SE RECUPERAN de ninguna manera.
+//
+// Se avisa de cuatro cosas:
+//   1. Camiones pasados de los 90 dias  (rojo)
+//   2. Camiones a punto, de 75 a 90     (ambar)
+//   3. Tarjetas pasadas de los 28 dias  (rojo) / a punto, de 21 (ambar)
+//   4. Camiones de la flota que NO tienen NI UNA descarga guardada
+//
+// El punto 4 sale de la tabla del taller (taller_vehiculos, los que
+// estan activos). Si no se puede leer, se avisa solo de los que ya
+// tienen ficheros: mas vale un aviso de menos que uno inventado.
+// ============================================================
+
+const TACO_DIAS_VEHICULO = 90;
+const TACO_DIAS_TARJETA  = 28;
+
+function _tacoDiasDesde(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00Z');
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+async function tacoPintarAvisos() {
+  const box = document.getElementById('tacoAvisos');
+  if (!box) return;
+  if (!tacoFicheros || !tacoFicheros.length) { box.innerHTML = ''; return; }
+
+  // Lo ultimo que hay de cada camion y de cada tarjeta
+  const ultVeh = new Map(), ultTar = new Map();
+  tacoFicheros.forEach(f => {
+    if (f.tipo === 'vehiculo' && f.matricula) {
+      const a = ultVeh.get(f.matricula);
+      if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ultVeh.set(f.matricula, f);
+    }
+    if (f.tipo === 'conductor' && f.conductor_nombre) {
+      const a = ultTar.get(f.conductor_nombre);
+      if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ultTar.set(f.conductor_nombre, f);
+    }
+  });
+
+  const vencidos = [], proximos = [], nunca = [], caducan = [];
+
+  ultVeh.forEach((f, mat) => {
+    const d = _tacoDiasDesde(f.fecha_hasta);
+    if (d === null) return;
+    if (d > TACO_DIAS_VEHICULO) vencidos.push({ q: mat, d, t: 'camión', emp: f.empresa });
+    else if (d >= TACO_DIAS_VEHICULO - 15) proximos.push({ q: mat, d, t: 'camión', emp: f.empresa, quedan: TACO_DIAS_VEHICULO - d });
+  });
+  ultTar.forEach((f, nom) => {
+    const d = _tacoDiasDesde(f.fecha_hasta);
+    if (d === null) return;
+    if (d > TACO_DIAS_TARJETA) vencidos.push({ q: nom, d, t: 'tarjeta', emp: f.empresa });
+    else if (d >= TACO_DIAS_TARJETA - 7) proximos.push({ q: nom, d, t: 'tarjeta', emp: f.empresa, quedan: TACO_DIAS_TARJETA - d });
+    // y de paso, tarjetas a punto de caducar
+    const c = f.tarjeta_caduca ? -_tacoDiasDesde(f.tarjeta_caduca) : null;
+    if (c !== null && c < 90) caducan.push({ q: nom, dias: c, emp: f.empresa });
+  });
+
+  // Camiones de la flota sin NI UNA descarga
+  try {
+    const { data: veh } = await sb.from('taller_vehiculos').select('matricula, empresa').eq('activo', true);
+    (veh || []).forEach(v => {
+      const m = (v.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (m && !ultVeh.has(m)) nunca.push({ q: m, emp: v.empresa });
+    });
+  } catch (e) { console.warn('[v377] no se pudo leer la flota del taller:', e); }
+
+  if (!vencidos.length && !proximos.length && !nunca.length && !caducan.length) {
+    box.innerHTML = `<div style="background:rgba(47,191,122,.08);border:1px solid rgba(47,191,122,.32);border-radius:11px;
+      padding:12px 16px;margin-bottom:16px;font-family:var(--ss);font-size:13px;color:#1e8a55;font-weight:600;text-align:center">
+      ✅ Todas las descargas al día</div>`;
+    return;
+  }
+
+  const chip = (txt, tono) => `<span style="display:inline-flex;align-items:center;gap:7px;font-family:var(--ss);
+    font-size:12px;font-weight:500;padding:7px 13px;border-radius:999px;margin:3px 5px 3px 0;
+    background:${tono.bg};border:1.5px solid ${tono.bd};color:${tono.tx}">${txt}</span>`;
+  const ROJO  = { bg: 'rgba(199,54,49,.09)',  bd: 'rgba(199,54,49,.42)',  tx: '#9d2b27' };
+  const AMBAR = { bg: 'rgba(180,113,20,.10)', bd: 'rgba(180,113,20,.40)', tx: '#8a570f' };
+  const AZUL  = { bg: 'rgba(43,123,208,.09)', bd: 'rgba(43,123,208,.38)', tx: '#22609f' };
+
+  let h = '';
+  if (vencidos.length) {
+    vencidos.sort((a, b) => b.d - a.d);
+    h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
+      color:#9d2b27;text-transform:uppercase">⛔ Fuera de plazo (${vencidos.length})</b><br>` +
+      vencidos.map(v => chip(`<b>${v.q}</b> · ${v.d} días sin descargar`, ROJO)).join('') + '</div>';
+  }
+  if (proximos.length) {
+    proximos.sort((a, b) => a.quedan - b.quedan);
+    h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
+      color:#8a570f;text-transform:uppercase">⚠ Toca pronto (${proximos.length})</b><br>` +
+      proximos.map(v => chip(`<b>${v.q}</b> · quedan ${v.quedan} días`, AMBAR)).join('') + '</div>';
+  }
+  if (caducan.length) {
+    caducan.sort((a, b) => a.dias - b.dias);
+    h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
+      color:#8a570f;text-transform:uppercase">🪪 Tarjetas que caducan (${caducan.length})</b><br>` +
+      caducan.map(v => chip(`<b>${v.q}</b> · ${v.dias > 0 ? 'en ' + v.dias + ' días' : 'CADUCADA'}`, v.dias > 0 ? AMBAR : ROJO)).join('') + '</div>';
+  }
+  if (nunca.length) {
+    h += `<div><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;color:#22609f;
+      text-transform:uppercase">Sin ninguna descarga guardada (${nunca.length})</b><br>` +
+      nunca.slice(0, 40).map(v => chip(v.q, AZUL)).join('') +
+      (nunca.length > 40 ? `<span style="font-family:var(--mn);font-size:11px;color:var(--mu)"> y ${nunca.length - 40} más</span>` : '') +
+      `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
+       Camiones activos en Taller de los que todavía no has subido ningún fichero.</div></div>`;
+  }
+
+  box.innerHTML = `<div style="background:var(--sf);border:1px solid var(--bd);border-radius:11px;
+    padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(30,41,51,.05)">
+    <div style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.4px;color:var(--mu);font-weight:600;
+      text-transform:uppercase;margin-bottom:10px">Descargas pendientes</div>${h}
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px">
+      Por ley: la tarjeta del conductor cada ${TACO_DIAS_TARJETA} días y el camión cada ${TACO_DIAS_VEHICULO}.
+      Si se pasa el plazo, al tacógrafo se le llena la memoria y machaca lo antiguo: esos días no se recuperan.
+    </div></div>`;
 }
 
 function tacoSoltar(files) {
