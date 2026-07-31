@@ -24748,17 +24748,222 @@ function tacoPintar(r) {
     </div></div>`;
 }
 
+// ============================================================
+// TACOGRAFO — v373 (31/07/2026) · GUARDAR DE VERDAD
+//
+// Ahora sí: el fichero ORIGINAL sube INTACTO al almacen (bucket
+// documentos, carpeta tacografo/EMPRESA/AÑO/) y su ficha se apunta
+// en la tabla tacografo_ficheros. Ni un byte se toca: el fichero va
+// firmado digitalmente por el aparato y si se modifica pierde valor
+// ante una inspeccion.
+//
+// LA EMPRESA se averigua sola:
+//   · fichero de CAMION    -> por la matricula, con el mapa de la app
+//   · fichero de TARJETA   -> por el nombre, contra la tabla trabajadores
+//                             (la de la pestaña Vacaciones)
+// Si no se puede averiguar, se pregunta. Nunca se inventa.
+//
+// NO SE PUEDE SUBIR DOS VECES EL MISMO fichero: se le saca una huella
+// (sha256) y la tabla tiene indice unico. Si ya estaba, avisa y no
+// duplica. La huella sirve ademas para demostrar años despues que el
+// fichero no se ha tocado.
+// ============================================================
+
+let _tacoUltimo = null;      // { file, r } del ultimo fichero leido
+let _tacoTrabajadores = null; // cache de la tabla trabajadores
+
+// Traduce lo que dice el mapa de matriculas de la app a los cuatro
+// codigos de empresa que usa la tabla (los mismos de Vacaciones).
+const _TACO_EMP = {
+  'TYP2014': 'TYP2014',
+  'TTES HISPALIS 2016': 'HISPALIS',
+  'TRANSMARGAZ 2018': 'TRANSMARGAZ',
+  'PORTES': 'PORTES'
+};
+const _TACO_EMP_NOM = {
+  'TYP2014': 'TYP2014', 'HISPALIS': 'T. HISPALIS 2016',
+  'TRANSMARGAZ': 'TRANSMARGAZ 2018', 'PORTES': 'PORTES 2014 IMPORT'
+};
+
+// Los nombres del tacografo vienen SIEMPRE en mayusculas y sin acentos;
+// en la app pueden estar de cualquier forma ("Antón Pera Baella",
+// "PERA BAELLA, ANTON"...). Se comparan como CONJUNTO DE PALABRAS, asi
+// da igual el orden, las comas y los acentos.
+function _tacoNormNombre(s) {
+  return (s || '').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // fuera acentos
+    .replace(/[^A-Z\s]/g, ' ')
+    .split(/\s+/).filter(w => w.length > 1);
+}
+function _tacoMismoNombre(a, b) {
+  const A = _tacoNormNombre(a), B = _tacoNormNombre(b);
+  if (A.length < 2 || B.length < 2) return false;
+  const corto = A.length <= B.length ? A : B, largo = A.length <= B.length ? B : A;
+  const comunes = corto.filter(w => largo.includes(w)).length;
+  return comunes === corto.length && comunes >= 2;
+}
+
+async function _tacoCargarTrabajadores() {
+  if (_tacoTrabajadores) return _tacoTrabajadores;
+  try {
+    const { data, error } = await sb.from('trabajadores').select('nombre, empresa, archivado');
+    if (error) throw error;
+    _tacoTrabajadores = data || [];
+  } catch (e) {
+    console.warn('[v373 tacografo] no se pudo leer trabajadores:', e.message);
+    _tacoTrabajadores = [];
+  }
+  return _tacoTrabajadores;
+}
+
+// Devuelve { empresa, motivo } — empresa null si no se ha podido averiguar
+async function _tacoAdivinarEmpresa(r) {
+  if (r.tipo === 'vehiculo' && r.matricula) {
+    const m = r.matricula;
+    const dueño = (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[m])
+      ? _MAT_EMP_GAS[m]
+      : (typeof TRANSPORTISTAS !== 'undefined' ? TRANSPORTISTAS[m] : null);
+    if (!dueño) return { empresa: null, motivo: `la matrícula ${m} no está en el mapa de la app` };
+    const cod = _TACO_EMP[dueño];
+    if (!cod) return { empresa: null, motivo: `la matrícula ${m} figura como <b>${dueño}</b>, que no es una empresa del grupo` };
+    return { empresa: cod, motivo: `por la matrícula ${m}` };
+  }
+  if (r.tipo === 'conductor' && r.conductor) {
+    const trab = await _tacoCargarTrabajadores();
+    const hit = trab.find(t => _tacoMismoNombre(t.nombre, r.conductor));
+    if (!hit) return { empresa: null, motivo: `<b>${r.conductor}</b> no está dado de alta en Vacaciones` };
+    if (!hit.empresa) return { empresa: null, motivo: `${hit.nombre} está de alta pero sin empresa asignada` };
+    return { empresa: hit.empresa, motivo: `${hit.nombre}, de la ficha de trabajadores` };
+  }
+  return { empresa: null, motivo: 'no hay matrícula ni conductor en el fichero' };
+}
+
+// Huella del fichero. Sirve para (1) no subir dos veces el mismo y
+// (2) poder demostrar años despues que no se ha tocado.
+async function _tacoHuella(buf) {
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+function _tacoISO(v) {
+  const d = _tacoFecha(v);
+  return d ? d.toISOString().slice(0, 10) : null;
+}
+
+async function tacoGuardar() {
+  if (!_tacoUltimo) return;
+  const { file, r } = _tacoUltimo;
+  const btn = document.getElementById('tacoBtnGuardar');
+  const est = document.getElementById('tacoEstadoGuardar');
+  const empresa = document.getElementById('tacoEmpresa')?.value;
+  if (!empresa) { toast('Elige la empresa primero', 'err'); return; }
+  if (!r.completo) { toast('Ese fichero no se leyó entero — no se guarda', 'err'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  const info = m => { if (est) est.innerHTML = m; };
+
+  try {
+    const buf = await file.arrayBuffer();
+    const sha = await _tacoHuella(buf);
+
+    // ¿Ya lo teníamos? La huella no engaña, aunque le hayan cambiado el nombre.
+    info('Comprobando si ya estaba…');
+    const { data: yaEsta, error: eDup } = await sb.from('tacografo_ficheros')
+      .select('id, file_nombre, created_at').eq('sha256', sha).maybeSingle();
+    if (eDup) throw eDup;
+    if (yaEsta) {
+      info(`<span style="color:var(--wnd);font-weight:700">Este fichero YA estaba guardado</span> como <b>${yaEsta.file_nombre}</b> (${new Date(yaEsta.created_at).toLocaleDateString('es-ES')}). No se ha duplicado.`);
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar en la app'; }
+      return;
+    }
+
+    // El fichero ORIGINAL, intacto, al almacén.
+    const año = (_tacoFecha(r.hasta) || new Date()).getUTCFullYear();
+    const ruta = `tacografo/${empresa}/${año}/${Date.now()}_${file.name}`;
+    info('Subiendo el fichero al almacén…');
+    const { error: eUp } = await sb.storage.from('documentos')
+      .upload(ruta, file, { upsert: false, contentType: 'application/octet-stream' });
+    if (eUp) throw eUp;
+
+    info('Apuntando la ficha…');
+    const fila = {
+      empresa,
+      tipo: r.tipo,
+      matricula: r.matricula || null,
+      vin: r.vin || null,
+      tarjeta_num: r.tarjeta_num || null,
+      conductor_nombre: r.conductor || null,
+      tarjeta_caduca: _tacoISO(r.caduca),
+      fecha_descarga: (_tacoFecha(r.hasta) || new Date()).toISOString(),
+      fecha_desde: _tacoISO(r.desde),
+      fecha_hasta: _tacoISO(r.hasta),
+      dias_datos: r.dias.length,
+      generacion: r.gen,
+      tacografo_marca: r.taco || null,
+      file_nombre: file.name,
+      file_url: ruta,
+      file_bytes: file.size,
+      sha256: sha,
+      user_id: currentUser?.id || null
+    };
+    const { error: eIns } = await sb.from('tacografo_ficheros').insert(fila);
+    if (eIns) {
+      // Si falla la ficha, se quita el fichero para no dejar basura suelta.
+      try { await sb.storage.from('documentos').remove([ruta]); } catch (_) {}
+      throw eIns;
+    }
+
+    info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>`);
+    toast('Guardado', 'ok');
+    if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
+  } catch (e) {
+    console.error('[v373 tacografo] guardar:', e);
+    info(`<span style="color:var(--erd);font-weight:700">No se ha podido guardar:</span> ${e.message || e}`);
+    toast('Error al guardar', 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar en la app'; }
+  }
+}
+
+// Pinta la caja de guardar, debajo de lo leído.
+async function _tacoPintarGuardar(r) {
+  const box = document.getElementById('tacoGuardarBox');
+  if (!box) return;
+  if (!r.completo) {
+    box.innerHTML = `<div style="font-family:var(--mn);font-size:11.5px;color:var(--erd);font-weight:700">
+      Este fichero no se ha leído entero, así que NO se puede guardar. Mándaselo a Claude.</div>`;
+    return;
+  }
+  const { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  const ops = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES']
+    .map(c => `<option value="${c}"${c === empresa ? ' selected' : ''}>${_TACO_EMP_NOM[c]}</option>`).join('');
+  box.innerHTML = `
+    <div style="border:1px solid var(--bd);border-radius:11px;padding:14px 16px;background:var(--sf);display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center">
+      <div style="font-family:var(--ss);font-size:12px;font-weight:600;letter-spacing:.5px;color:var(--mu);text-transform:uppercase">Empresa</div>
+      <select class="fi" id="tacoEmpresa" style="max-width:230px">
+        <option value="">— elige —</option>${ops}
+      </select>
+      <div style="font-family:var(--mn);font-size:11px;color:${empresa ? 'var(--mu)' : 'var(--wnd)'};flex:1 1 240px">
+        ${empresa ? '✓ ' + motivo : '⚠ No se ha podido averiguar: ' + motivo + '. Elígela tú.'}
+      </div>
+      <button class="btn bp" id="tacoBtnGuardar" onclick="tacoGuardar()">💾 Guardar en la app</button>
+    </div>
+    <div id="tacoEstadoGuardar" style="font-family:var(--mn);font-size:11.5px;margin-top:10px"></div>`;
+}
+
 function tacoSoltar(files) {
   if (!files || !files.length) return;
   const f = files[0];
   const box = document.getElementById('tacoResultado');
   if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Leyendo ' + f.name + '…</div>';
+  const gb = document.getElementById('tacoGuardarBox'); if (gb) gb.innerHTML = '';   // v373
   const fr = new FileReader();
   fr.onload = () => {
     try {
       const r = tacoLeerBuffer(fr.result, f.name);
       console.log('[v368 tacografo]', r);
       tacoPintar(r);
+      _tacoUltimo = { file: f, r };            // v373: se guarda para poder subirlo
+      _tacoPintarGuardar(r);                    // v373: caja de empresa + boton guardar
       if (!r.completo) toast('El fichero NO se ha leido entero — avisa a Claude', 'err');
       else toast('Leido: ' + r.dias.length + ' dias', 'ok');
     } catch (e) {
