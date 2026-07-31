@@ -24941,6 +24941,10 @@ async function tacoGuardar() {
       .select('id, file_nombre, created_at').eq('sha256', sha).maybeSingle();
     if (eDup) throw eDup;
     if (yaEsta) {
+      // v384: aunque el fichero ya estuviera, el Nº DE TARJETA sigue sirviendo.
+      // Antes solo se rellenaba al guardar de verdad, asi que volver a soltar un
+      // fichero ya subido no ponia el numero en la ficha (paso con ALVARO).
+      await _tacoRellenarTarjeta(r);
       info(`<span style="color:var(--wnd);font-weight:700">Este fichero YA estaba guardado</span> como <b>${yaEsta.file_nombre}</b> (${new Date(yaEsta.created_at).toLocaleDateString('es-ES')}). No se ha duplicado.`);
       if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar en la app'; }
       return;
@@ -25206,7 +25210,7 @@ async function _tacoGuardarUno(it) {
     const { data: ya, error: eD } = await sb.from('tacografo_ficheros')
       .select('id, file_nombre').eq('sha256', sha).maybeSingle();
     if (eD) throw eD;
-    if (ya) { it.detalle = 'ya estaba guardado'; return 'duplicado'; }
+    if (ya) { await _tacoRellenarTarjeta(r); it.detalle = 'ya estaba guardado'; return 'duplicado'; }   // v384
 
     const año = (_tacoFecha(r.hasta) || new Date()).getUTCFullYear();
     const ruta = `tacografo/${it.empresa}/${año}/${Date.now()}_${file.name}`;
