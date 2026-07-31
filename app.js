@@ -24919,6 +24919,95 @@ async function _tacoRellenarTarjeta(r) {
   }
 }
 
+// ============================================================
+// TACOGRAFO — v385 (31/07/2026) · GUARDAR EL DIA A DIA
+//
+// Hasta ahora se guardaba el fichero y su ficha. Los dias se leian
+// y se pintaban, pero no se quedaban. Esto los apunta en la tabla
+// tacografo_dias, que es la que permite preguntar cosas: cuantas
+// horas hizo Fulano en marzo, que camion anduvo mas, quien se paso
+// de conduccion...
+//
+// UN DIA PUEDE LLEGAR POR DOS CAMINOS y NO dicen lo mismo:
+//   · fichero de CAMION   -> que se movio ese camion
+//   · fichero de TARJETA  -> que hizo ese conductor, aunque se
+//                            cambiara de camion a media semana
+// Se guardan POR SEPARADO con la columna "origen". Ni se mezclan
+// ni se promedian: eso seria inventarse datos.
+//
+// NO SE DUPLICAN aunque se suba la misma semana diez veces: la
+// tabla solo admite un dia por conductor y un dia por camion, y
+// aqui se hace upsert (si ya estaba, se actualiza).
+//
+// EL DIA DE LA DESCARGA se marca como incompleto: la jornada
+// estaba a medias y sale un disparate (se vio el primer dia: 20h
+// de conduccion). Queda apuntado pero fuera de los totales.
+// ============================================================
+
+async function _tacoGuardarDias(r, empresa, ficheroId) {
+  try {
+    if (!r || !r.dias || !r.dias.length) return 0;
+
+    const raiz = (r.tarjeta_num || '').toUpperCase().replace(/\s/g, '').slice(0, 14) || null;
+    // Sin nº de tarjeta no se puede identificar al conductor sin riesgo de
+    // pisarle los dias a otro, asi que esos no se guardan.
+    if (r.tipo === 'conductor' && !raiz) {
+      console.warn('[v385] tarjeta sin número identificable: no se guardan sus días');
+      return 0;
+    }
+
+    const ultimaFecha = r.hasta;
+    const filas = [];
+    r.dias.forEach(d => {
+      const f = _tacoFecha(d.fecha);
+      if (!f) return;
+      const t = _tacoTotalesDia(d.ev);
+      const fila = {
+        empresa,
+        fecha: f.toISOString().slice(0, 10),
+        origen: r.tipo === 'conductor' ? 'conductor' : 'vehiculo',
+        min_conduccion: t[3], min_otros: t[2],
+        min_disponible: t[1], min_descanso: t[0],
+        incompleto: (d.fecha === ultimaFecha),
+        fichero_id: ficheroId || null
+      };
+      if (r.tipo === 'conductor') {
+        fila.tarjeta_raiz = raiz;
+        fila.conductor_nombre = r.conductor || null;
+        fila.km = (d.km != null ? d.km : null);
+      } else {
+        fila.matricula = r.matricula || null;
+        fila.odometro = (d.odo != null ? d.odo : null);
+        // en los ficheros de camion el nombre sale de la tarjeta que se metio
+        const q = [...new Set((d.cond || []).map(c => c.nombre).filter(Boolean))];
+        if (q.length) fila.conductor_nombre = q.join(', ');
+      }
+      if (fila.origen === 'vehiculo' && !fila.matricula) return;
+      filas.push(fila);
+    });
+    if (!filas.length) return 0;
+
+    // De 200 en 200, que un historico de 375 dias en una sola tacada
+    // es mucho pedirle a la conexion.
+    const clave = r.tipo === 'conductor' ? 'tarjeta_raiz,fecha' : 'matricula,fecha';
+    let ok = 0;
+    for (let i = 0; i < filas.length; i += 200) {
+      const trozo = filas.slice(i, i + 200);
+      const { error } = await sb.from('tacografo_dias')
+        .upsert(trozo, { onConflict: clave, ignoreDuplicates: false });
+      if (error) throw error;
+      ok += trozo.length;
+    }
+    console.log(`[v385] ${ok} días guardados de ${r.fichero}`);
+    return ok;
+  } catch (e) {
+    // Si esto falla, el fichero YA esta guardado y a salvo: los dias se
+    // pueden volver a sacar cuando se quiera. No se rompe nada.
+    console.warn('[v385] no se pudieron guardar los días:', e.message || e);
+    return 0;
+  }
+}
+
 async function tacoGuardar() {
   if (!_tacoUltimo) return;
   const { file, r } = _tacoUltimo;
@@ -24979,7 +25068,7 @@ async function tacoGuardar() {
       sha256: sha,
       user_id: currentUser?.id || null
     };
-    const { error: eIns } = await sb.from('tacografo_ficheros').insert(fila);
+    const { data: dIns, error: eIns } = await sb.from('tacografo_ficheros').insert(fila).select('id').single();   // v385: el id, para colgar los dias
     if (eIns) {
       // Si falla la ficha, se quita el fichero para no dejar basura suelta.
       try { await sb.storage.from('documentos').remove([ruta]); } catch (_) {}
@@ -24987,7 +25076,8 @@ async function tacoGuardar() {
     }
 
     await _tacoRellenarTarjeta(r);          // v383
-    info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>`);
+    const nDias = await _tacoGuardarDias(r, empresa, dIns?.id);   // v385
+    info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
@@ -25218,7 +25308,7 @@ async function _tacoGuardarUno(it) {
       .upload(ruta, file, { upsert: false, contentType: 'application/octet-stream' });
     if (eU) throw eU;
 
-    const { error: eI } = await sb.from('tacografo_ficheros').insert({
+    const { data: dI, error: eI } = await sb.from('tacografo_ficheros').insert({   // v385: el id, para colgar los dias
       empresa: it.empresa, tipo: r.tipo,
       matricula: r.matricula || null, vin: r.vin || null,
       tarjeta_num: r.tarjeta_num || null, conductor_nombre: r.conductor || null,
@@ -25229,12 +25319,13 @@ async function _tacoGuardarUno(it) {
       tacografo_marca: r.taco || null,
       file_nombre: file.name, file_url: ruta, file_bytes: file.size,
       sha256: sha, user_id: currentUser?.id || null
-    });
+    }).select('id').single();
     if (eI) {
       try { await sb.storage.from('documentos').remove([ruta]); } catch (_) {}
       throw eI;
     }
     await _tacoRellenarTarjeta(r);          // v383
+    it.nDias = await _tacoGuardarDias(r, it.empresa, dI?.id);   // v385
     return 'guardado';
   } catch (e) {
     console.error('[v376 tacografo] lote:', file.name, e);
@@ -25260,7 +25351,7 @@ function _tacoPintarLote() {
       <td>${qué}</td>
       <td style="text-align:center">${it.r ? it.r.dias.length : '—'}</td>
       <td>${emp}</td>
-      <td style="font-size:11px;color:var(--mu)">${it.detalle || ''}</td>
+      <td style="font-size:11px;color:var(--mu)">${it.nDias ? it.nDias + ' días al histórico' : (it.detalle || '')}</td>
     </tr>`;
   });
   const listos = _tacoLote.filter(i => i.estado === 'leido' && i.empresa && i.r?.completo).length;
