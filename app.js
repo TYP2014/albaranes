@@ -24986,9 +24986,32 @@ async function tacoCargarLista() {
       .select('*').order('fecha_descarga', { ascending: false });
     if (error) throw error;
     tacoFicheros = data || [];
-    // se guarda la ruta antes de firmar, que la firma la machaca
+    // v375: se firma DIRECTAMENTE contra el almacen.
+    // firmarCampo() NO servia aqui: espera la URL entera (busca "/documentos/"
+    // dentro del texto) porque el resto de la app guarda la direccion completa.
+    // Aqui se guarda solo la ruta corta (tacografo/EMPRESA/AÑO/fichero), asi que
+    // no la reconocia, no firmaba nada y el navegador buscaba el fichero en la
+    // propia web -> "El archivo no estaba disponible en el sitio".
+    // El &download= hace que el navegador lo BAJE con su nombre en vez de
+    // intentar abrirlo.
     tacoFicheros.forEach(f => { f._ruta = f.file_url; });
-    try { await firmarCampo(tacoFicheros, 'file_url'); } catch (e) { console.warn('[v374] firmar:', e); }
+    try {
+      const rutas = tacoFicheros.map(f => f._ruta).filter(Boolean);
+      if (rutas.length) {
+        const { data: firm, error: eF } = await sb.storage.from('documentos')
+          .createSignedUrls(rutas, 3600);
+        if (eF) throw eF;
+        const mapa = new Map();
+        (firm || []).forEach(x => { if (x && x.signedUrl && !x.error) mapa.set(x.path, x.signedUrl); });
+        tacoFicheros.forEach(f => {
+          const u = mapa.get(f._ruta);
+          f.file_url = u ? u + '&download=' + encodeURIComponent(f.file_nombre || 'tacografo.ddd') : null;
+        });
+      }
+    } catch (e) {
+      console.warn('[v375] no se pudieron firmar los enlaces:', e);
+      tacoFicheros.forEach(f => { f.file_url = null; });
+    }
     // las empresas que este usuario no puede ver ni se le enseñan
     const hay = new Set(tacoFicheros.map(f => f.empresa));
     ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
@@ -25032,10 +25055,9 @@ function tacoPintarLista() {
       <td>${dmy(f.fecha_desde)} → ${dmy(f.fecha_hasta)}</td>
       <td>${f.generacion || '—'}</td>
       <td style="text-align:right">${kb}</td>
-      <td style="text-align:center">
-        <a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none"
-           href="${f.file_url}" download="${f.file_nombre}" target="_blank" rel="noopener"
-           title="Descargar el fichero original, tal cual se guardó">⬇</a></td>
+      <td style="text-align:center">${f.file_url
+        ? `<a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none" href="${f.file_url}" target="_blank" rel="noopener" title="Descargar el fichero original, tal cual se guardó">⬇</a>`
+        : `<span title="No se ha podido preparar la descarga" style="color:var(--wnd);font-weight:700">⚠</span>`}</td>
     </tr>`;
   });
 
