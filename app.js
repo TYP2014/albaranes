@@ -24891,6 +24891,34 @@ function _tacoISO(v) {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
+// v383: al guardar la tarjeta de un conductor que YA esta de alta pero al que
+// todavia no se le ha puesto el numero en su ficha, se lo rellena SOLO. Asi no
+// hay que ir metiendolos a mano uno por uno: se ponen segun se suben descargas.
+// SOLO rellena si esta VACIO — nunca pisa un numero puesto a mano. Si falla
+// (permisos, o que ese numero ya lo tiene otro), no pasa nada: se apunta en la
+// consola y el fichero se guarda igual.
+async function _tacoRellenarTarjeta(r) {
+  try {
+    if (r.tipo !== 'conductor' || !r.tarjeta_num || !r.conductor) return;
+    const trab = await _tacoCargarTrabajadores();
+    const raiz = x => (x || '').toUpperCase().replace(/\s/g, '').slice(0, 14);
+    const R = raiz(r.tarjeta_num);
+    if (R.length !== 14) return;
+    if (trab.some(t => raiz(t.tarjeta_num) === R)) return;      // ya lo tiene alguien
+    const hit = trab.find(t => _tacoMismoNombre(t.nombre, r.conductor) && !t.tarjeta_num);
+    if (!hit) return;
+    const { error } = await sb.from('trabajadores')
+      .update({ tarjeta_num: r.tarjeta_num.toUpperCase(),
+                tarjeta_caduca: _tacoISO(r.caduca) })
+      .eq('nombre', hit.nombre).is('tarjeta_num', null);
+    if (error) throw error;
+    hit.tarjeta_num = r.tarjeta_num.toUpperCase();
+    console.log('[v383] nº de tarjeta puesto en la ficha de', hit.nombre, r.tarjeta_num);
+  } catch (e) {
+    console.warn('[v383] no se pudo poner el nº de tarjeta en la ficha:', e.message || e);
+  }
+}
+
 async function tacoGuardar() {
   if (!_tacoUltimo) return;
   const { file, r } = _tacoUltimo;
@@ -24954,6 +24982,7 @@ async function tacoGuardar() {
       throw eIns;
     }
 
+    await _tacoRellenarTarjeta(r);          // v383
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>`);
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     toast('Guardado', 'ok');
@@ -25201,6 +25230,7 @@ async function _tacoGuardarUno(it) {
       try { await sb.storage.from('documentos').remove([ruta]); } catch (_) {}
       throw eI;
     }
+    await _tacoRellenarTarjeta(r);          // v383
     return 'guardado';
   } catch (e) {
     console.error('[v376 tacografo] lote:', file.name, e);
@@ -25318,6 +25348,7 @@ async function tacoPintarAvisos() {
   const box = document.getElementById('tacoAvisos');
   if (!box) return;
   if (!tacoFicheros || !tacoFicheros.length) { box.innerHTML = ''; return; }
+  await _tacoCargarTrabajadores();          // v383: hace falta para saber quien esta de baja
 
   // Lo ultimo que hay de cada camion y de cada tarjeta
   const ultVeh = new Map(), ultTar = new Map();
@@ -25340,7 +25371,25 @@ async function tacoPintarAvisos() {
     if (d > TACO_DIAS_VEHICULO) vencidos.push({ q: mat, d, t: 'camión', emp: f.empresa });
     else if (d >= TACO_DIAS_VEHICULO - 15) proximos.push({ q: mat, d, t: 'camión', emp: f.empresa, quedan: TACO_DIAS_VEHICULO - d });
   });
+  // v383: un conductor DE BAJA ya no reclama descargas. Si no, Alvaro seguiria
+  // saliendo en rojo eternamente aunque se fuera hace medio año, y un aviso falso
+  // acaba con que se dejan de mirar los avisos. Su historial NO se toca: sus
+  // ficheros siguen en el archivo y se pueden descargar igual.
+  const _bajas = new Set();
+  (_tacoTrabajadores || []).forEach(t => {
+    if (t.fecha_baja) {
+      if (t.tarjeta_num) _bajas.add(t.tarjeta_num.toUpperCase().slice(0, 14));
+      if (t.nombre) _bajas.add('N:' + _tacoNormNombre(t.nombre).sort().join(' '));
+    }
+  });
+  const _estaDeBaja = f => {
+    if (f.tarjeta_num && _bajas.has(f.tarjeta_num.toUpperCase().slice(0, 14))) return true;
+    if (f.conductor_nombre && _bajas.has('N:' + _tacoNormNombre(f.conductor_nombre).sort().join(' '))) return true;
+    return false;
+  };
+
   ultTar.forEach((f, nom) => {
+    if (_estaDeBaja(f)) return;              // v383
     const d = _tacoDiasDesde(f.fecha_hasta);
     if (d === null) return;
     if (d > TACO_DIAS_TARJETA) vencidos.push({ q: nom, d, t: 'tarjeta', emp: f.empresa });
