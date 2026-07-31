@@ -14223,6 +14223,7 @@ function switchTab(tab) {
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
   if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
+  if (tab === 'taco') tacoCargarLista();     // v374
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v108: cargar Incidencias al entrar en su pestaña
   if (tab === 'incidencias') { loadIncidenciasData(); }
@@ -24914,6 +24915,7 @@ async function tacoGuardar() {
     }
 
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>`);
+    tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
   } catch (e) {
@@ -24948,6 +24950,101 @@ async function _tacoPintarGuardar(r) {
       <button class="btn bp" id="tacoBtnGuardar" onclick="tacoGuardar()">💾 Guardar en la app</button>
     </div>
     <div id="tacoEstadoGuardar" style="font-family:var(--mn);font-size:11.5px;margin-top:10px"></div>`;
+}
+
+// ============================================================
+// TACOGRAFO — v374 (31/07/2026) · EL ARCHIVO: sub-pestañas por
+// empresa, listado de lo guardado y descarga.
+//
+// Hasta ahora la pestaña sabia leer y guardar, pero no enseñar lo
+// que ya hay dentro. Esto es la parte de CONSULTA, que es la que
+// vale ante una inspeccion: entrar, filtrar y bajarse el fichero
+// original tal cual se guardo.
+//
+// La descarga usa enlaces FIRMADOS que caducan (el bucket es
+// privado), igual que albaranes, ITV y recambios.
+// ============================================================
+
+let tacoEmpresaActiva = 'TODAS';
+let tacoFicheros = [];
+
+function tacoSubTab(emp) {
+  tacoEmpresaActiva = emp;
+  ['TODAS', 'TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
+    const b = document.getElementById('tacoSub' + e);
+    if (b) { b.classList.remove('bp', 'bs'); b.classList.add(e === emp ? 'bp' : 'bs'); }
+  });
+  tacoPintarLista();
+}
+
+async function tacoCargarLista() {
+  const cont = document.getElementById('tacoLista');
+  if (!cont) return;
+  cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:14px">Cargando…</div>';
+  try {
+    const { data, error } = await sb.from('tacografo_ficheros')
+      .select('*').order('fecha_descarga', { ascending: false });
+    if (error) throw error;
+    tacoFicheros = data || [];
+    // se guarda la ruta antes de firmar, que la firma la machaca
+    tacoFicheros.forEach(f => { f._ruta = f.file_url; });
+    try { await firmarCampo(tacoFicheros, 'file_url'); } catch (e) { console.warn('[v374] firmar:', e); }
+    // las empresas que este usuario no puede ver ni se le enseñan
+    const hay = new Set(tacoFicheros.map(f => f.empresa));
+    ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
+      const b = document.getElementById('tacoSub' + e);
+      if (b) b.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
+    });
+    tacoPintarLista();
+  } catch (e) {
+    console.error('[v374 tacografo] lista:', e);
+    cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:14px">No se ha podido cargar el archivo: ${e.message || e}</div>`;
+  }
+}
+
+function tacoPintarLista() {
+  const cont = document.getElementById('tacoLista');
+  const cnt = document.getElementById('tacoListaCount');
+  if (!cont) return;
+  const fs = tacoFicheros.filter(f => tacoEmpresaActiva === 'TODAS' || f.empresa === tacoEmpresaActiva);
+  if (cnt) cnt.textContent = fs.length + (fs.length === 1 ? ' fichero' : ' ficheros');
+
+  if (!fs.length) {
+    cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:18px;text-align:center">
+      Todavía no hay ficheros guardados${tacoEmpresaActiva === 'TODAS' ? '' : ' en ' + _TACO_EMP_NOM[tacoEmpresaActiva]}.
+      Suéltalos arriba y dale a guardar.</div>`;
+    return;
+  }
+
+  const dmy = s => s ? s.split('-').reverse().join('/') : '—';
+  let filas = '';
+  fs.forEach(f => {
+    const quien = f.tipo === 'vehiculo'
+      ? `<b>${f.matricula || '—'}</b>`
+      : `<b>${f.conductor_nombre || '—'}</b>`;
+    const kb = f.file_bytes ? (f.file_bytes / 1024).toFixed(0) + ' KB' : '—';
+    filas += `<tr>
+      <td>${dmy(f.fecha_hasta)}</td>
+      <td><span style="font-family:var(--mn);font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:${f.tipo === 'vehiculo' ? 'rgba(43,123,208,.10)' : 'rgba(47,191,122,.12)'};color:${f.tipo === 'vehiculo' ? 'var(--ac)' : '#1e8a55'}">${f.tipo === 'vehiculo' ? 'CAMIÓN' : 'TARJETA'}</span></td>
+      <td>${quien}</td>
+      <td>${_TACO_EMP_NOM[f.empresa] || f.empresa}</td>
+      <td style="text-align:center;font-weight:700">${f.dias_datos ?? '—'}</td>
+      <td>${dmy(f.fecha_desde)} → ${dmy(f.fecha_hasta)}</td>
+      <td>${f.generacion || '—'}</td>
+      <td style="text-align:right">${kb}</td>
+      <td style="text-align:center">
+        <a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none"
+           href="${f.file_url}" download="${f.file_nombre}" target="_blank" rel="noopener"
+           title="Descargar el fichero original, tal cual se guardó">⬇</a></td>
+    </tr>`;
+  });
+
+  cont.innerHTML = `<div style="overflow-x:auto">
+    <table class="tbl"><thead><tr>
+      <th>Descarga</th><th>Tipo</th><th>Camión / Conductor</th><th>Empresa</th>
+      <th style="text-align:center">Días</th><th>Periodo que cubre</th><th>Gen.</th>
+      <th style="text-align:right">Tamaño</th><th style="text-align:center">Original</th>
+    </tr></thead><tbody>${filas}</tbody></table></div>`;
 }
 
 function tacoSoltar(files) {
