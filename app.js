@@ -24983,18 +24983,22 @@ async function _tacoGuardarDias(r, empresa, ficheroId) {
         if (q.length) fila.conductor_nombre = q.join(', ');
       }
       if (fila.origen === 'vehiculo' && !fila.matricula) return;
+      // v386: la CLAVE que impide duplicados. Antes se confiaba en dos indices
+      // parciales (uno por tipo) y PostgreSQL NO los admite en un "si ya existe,
+      // actualiza": rechazaba todos los intentos y la tabla se quedaba vacia.
+      // Ahora la clave es un texto normal y corriente que se ve en la tabla.
+      fila.clave = fila.origen + '|' + (fila.tarjeta_raiz || fila.matricula) + '|' + fila.fecha;
       filas.push(fila);
     });
     if (!filas.length) return 0;
 
     // De 200 en 200, que un historico de 375 dias en una sola tacada
     // es mucho pedirle a la conexion.
-    const clave = r.tipo === 'conductor' ? 'tarjeta_raiz,fecha' : 'matricula,fecha';
     let ok = 0;
     for (let i = 0; i < filas.length; i += 200) {
       const trozo = filas.slice(i, i + 200);
       const { error } = await sb.from('tacografo_dias')
-        .upsert(trozo, { onConflict: clave, ignoreDuplicates: false });
+        .upsert(trozo, { onConflict: 'clave', ignoreDuplicates: false });
       if (error) throw error;
       ok += trozo.length;
     }
