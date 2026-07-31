@@ -24980,6 +24980,10 @@ function tacoSubTab(emp) {
 async function tacoCargarLista() {
   const cont = document.getElementById('tacoLista');
   if (!cont) return;
+  // v379: olvidar la lista de trabajadores que teniamos en memoria. Si se da de
+  // alta a alguien en Vacaciones y se vuelve aqui, hay que releerla; si no, la
+  // tarjeta de ese conductor seguiria saliendo como "no esta dado de alta".
+  _tacoTrabajadores = null;
   cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:14px">Cargando…</div>';
   try {
     const { data, error } = await sb.from('tacografo_ficheros')
