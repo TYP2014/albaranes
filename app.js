@@ -24738,7 +24738,7 @@ function tacoPintar(r) {
       <td>${quien}</td></tr>`;
   });
 
-  box.innerHTML = cab + `
+  box.innerHTML = _TACO_BTN_CERRAR + cab + `
     <div style="overflow-x:auto;margin-top:14px">
     <table class="tbl"><thead><tr>
       <th>Fecha</th><th>Cuentakm</th><th>Conduciendo</th><th>Otros trab.</th><th>Disponible</th><th>Descanso</th><th>Quien iba</th>
@@ -25159,7 +25159,7 @@ function _tacoPintarLote() {
   });
   const listos = _tacoLote.filter(i => i.estado === 'leido' && i.empresa && i.r?.completo).length;
   const fuera = _tacoLote.filter(i => i.estado === 'leido' && (!i.empresa || !i.r?.completo)).length;
-  box.innerHTML = `
+  box.innerHTML = _TACO_BTN_CERRAR + `
     <div style="font-family:var(--mn);font-size:12px;margin-bottom:10px">
       <b>${_tacoLote.length} ficheros</b> · ${listos} listos para guardar${fuera ? ` · <span style="color:var(--wnd)">${fuera} se quedan fuera</span>` : ''}
     </div>
@@ -25338,6 +25338,21 @@ async function tacoPintarAvisos() {
       Si se pasa el plazo, al tacógrafo se le llena la memoria y machaca lo antiguo: esos días no se recuperan.
     </div></div>`;
 }
+
+// v378: cerrar la lectura recien hecha, para quitarla de en medio cuando ya
+// se ha guardado. NO borra nada de lo guardado: solo limpia la pantalla.
+function tacoCerrarLectura() {
+  ['tacoResultado', 'tacoGuardarBox'].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) e.innerHTML = '';
+  });
+  _tacoUltimo = null;
+  _tacoLote = [];
+}
+
+const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+  <button class="btn bs" style="padding:4px 11px;font-size:11px" onclick="tacoCerrarLectura()"
+    title="Quitar esto de la pantalla. No borra nada de lo guardado.">✕ Cerrar</button></div>`;
 
 function tacoSoltar(files) {
   if (!files || !files.length) return;
