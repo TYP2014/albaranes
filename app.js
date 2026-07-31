@@ -25044,34 +25044,62 @@ function tacoPintarLista() {
     return;
   }
 
-  const dmy = s => s ? s.split('-').reverse().join('/') : '—';
-  let filas = '';
-  fs.forEach(f => {
-    const quien = f.tipo === 'vehiculo'
-      ? `<b>${f.matricula || '—'}</b>`
-      : `<b>${f.conductor_nombre || '—'}</b>`;
-    const kb = f.file_bytes ? (f.file_bytes / 1024).toFixed(0) + ' KB' : '—';
-    filas += `<tr>
-      <td>${dmy(f.fecha_hasta)}</td>
-      <td><span style="font-family:var(--mn);font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:${f.tipo === 'vehiculo' ? 'rgba(43,123,208,.10)' : 'rgba(47,191,122,.12)'};color:${f.tipo === 'vehiculo' ? 'var(--ac)' : '#1e8a55'}">${f.tipo === 'vehiculo' ? 'CAMIÓN' : 'TARJETA'}</span></td>
-      <td>${quien}</td>
-      <td>${_TACO_EMP_NOM[f.empresa] || f.empresa}</td>
-      <td style="text-align:center;font-weight:700">${f.dias_datos ?? '—'}</td>
-      <td>${dmy(f.fecha_desde)} → ${dmy(f.fecha_hasta)}</td>
-      <td>${f.generacion || '—'}</td>
-      <td style="text-align:right">${kb}</td>
-      <td style="text-align:center">${f.file_url
-        ? `<a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none" href="${f.file_url}" target="_blank" rel="noopener" title="Descargar el fichero original, tal cual se guardó">⬇</a>`
-        : `<span title="No se ha podido preparar la descarga" style="color:var(--wnd);font-weight:700">⚠</span>`}</td>
-    </tr>`;
-  });
+  const dmy = s2 => s2 ? s2.split('-').reverse().join('/') : '—';
+  const desc = f => f.file_url
+    ? `<a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none" href="${f.file_url}" target="_blank" rel="noopener" title="Descargar el fichero original, tal cual se guardó">⬇</a>`
+    : `<span title="No se ha podido preparar la descarga" style="color:var(--wnd);font-weight:700">⚠</span>`;
 
-  cont.innerHTML = `<div style="overflow-x:auto">
-    <table class="tbl"><thead><tr>
-      <th>Descarga</th><th>Tipo</th><th>Camión / Conductor</th><th>Empresa</th>
-      <th style="text-align:center">Días</th><th>Periodo que cubre</th><th>Gen.</th>
+  // v381: CAMIONES y TARJETAS en tablas SEPARADAS. Mezclados no se leian bien y
+  // ademas no interesa lo mismo de cada uno: de un camion la matricula, de una
+  // tarjeta el numero y cuando caduca.
+  const cams = fs.filter(f => f.tipo === 'vehiculo');
+  const tars = fs.filter(f => f.tipo === 'conductor');
+
+  const titulo = (txt, n, color) => `<div style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.3px;
+    font-weight:600;text-transform:uppercase;color:${color};margin:4px 0 8px">${txt} (${n})</div>`;
+
+  let h = '';
+
+  if (cams.length) {
+    h += titulo('🚛 Camiones', cams.length, 'var(--ac)');
+    h += `<div style="overflow-x:auto;margin-bottom:20px"><table class="tbl"><thead><tr>
+      <th>Descarga</th><th>Matrícula</th><th>Empresa</th><th style="text-align:center">Días</th>
+      <th>Periodo que cubre</th><th>Gen.</th><th style="text-align:right">Tamaño</th>
+      <th style="text-align:center">Original</th></tr></thead><tbody>` +
+      cams.map(f => `<tr>
+        <td>${dmy(f.fecha_hasta)}</td>
+        <td><b>${f.matricula || '—'}</b></td>
+        <td>${_TACO_EMP_NOM[f.empresa] || f.empresa}</td>
+        <td style="text-align:center;font-weight:700">${f.dias_datos ?? '—'}</td>
+        <td>${dmy(f.fecha_desde)} → ${dmy(f.fecha_hasta)}</td>
+        <td>${f.generacion || '—'}</td>
+        <td style="text-align:right">${f.file_bytes ? (f.file_bytes / 1024).toFixed(0) + ' KB' : '—'}</td>
+        <td style="text-align:center">${desc(f)}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+  }
+
+  if (tars.length) {
+    h += titulo('🪪 Tarjetas de conductor', tars.length, '#1e8a55');
+    h += `<div style="overflow-x:auto"><table class="tbl"><thead><tr>
+      <th>Descarga</th><th>Conductor</th><th>Nº de tarjeta</th><th>Caduca</th><th>Empresa</th>
+      <th style="text-align:center">Días</th><th>Periodo que cubre</th>
       <th style="text-align:right">Tamaño</th><th style="text-align:center">Original</th>
-    </tr></thead><tbody>${filas}</tbody></table></div>`;
+      </tr></thead><tbody>` +
+      tars.map(f => `<tr>
+        <td>${dmy(f.fecha_hasta)}</td>
+        <td><b>${f.conductor_nombre || '—'}</b></td>
+        <td style="font-family:var(--mn);font-size:11px">${f.tarjeta_num || '—'}</td>
+        <td>${dmy(f.tarjeta_caduca)}</td>
+        <td>${_TACO_EMP_NOM[f.empresa] || f.empresa}</td>
+        <td style="text-align:center;font-weight:700">${f.dias_datos ?? '—'}</td>
+        <td>${dmy(f.fecha_desde)} → ${dmy(f.fecha_hasta)}</td>
+        <td style="text-align:right">${f.file_bytes ? (f.file_bytes / 1024).toFixed(0) + ' KB' : '—'}</td>
+        <td style="text-align:center">${desc(f)}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+  }
+
+  cont.innerHTML = h;
+
 }
 
 // ============================================================
@@ -25282,12 +25310,20 @@ async function tacoPintarAvisos() {
     if (c !== null && c < 90) caducan.push({ q: nom, dias: c, emp: f.empresa });
   });
 
-  // Camiones de la flota sin NI UNA descarga
+  // Camiones de la flota sin NI UNA descarga.
+  // v380: FUERA los SEMIRREMOLQUES. Un remolque no lleva tacografo, asi que no
+  // hay nada que descargarle nunca; salian 137 "pendientes" y buena parte eran
+  // remolques (R0020BDR, R0893BDW...). Se distinguen por la matricula: en España
+  // las de vehiculo de motor empiezan por NUMERO (9499LHT) y las de remolque por
+  // LETRA (R0020BDR). Cualquier matricula que empiece por letra se descarta.
+  let _nRemolques = 0;
   try {
     const { data: veh } = await sb.from('taller_vehiculos').select('matricula, empresa').eq('activo', true);
     (veh || []).forEach(v => {
       const m = (v.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (m && !ultVeh.has(m)) nunca.push({ q: m, emp: v.empresa });
+      if (!m) return;
+      if (/^[A-Z]/.test(m)) { _nRemolques++; return; }      // remolque: no lleva tacografo
+      if (!ultVeh.has(m)) nunca.push({ q: m, emp: v.empresa });
     });
   } catch (e) { console.warn('[v377] no se pudo leer la flota del taller:', e); }
 
@@ -25330,7 +25366,8 @@ async function tacoPintarAvisos() {
       nunca.slice(0, 40).map(v => chip(v.q, AZUL)).join('') +
       (nunca.length > 40 ? `<span style="font-family:var(--mn);font-size:11px;color:var(--mu)"> y ${nunca.length - 40} más</span>` : '') +
       `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
-       Camiones activos en Taller de los que todavía no has subido ningún fichero.</div></div>`;
+       Camiones activos en Taller de los que todavía no has subido ningún fichero.${_nRemolques
+         ? ` No se cuentan ${_nRemolques} semirremolques: no llevan tacógrafo.` : ''}</div></div>`;
   }
 
   box.innerHTML = `<div style="background:var(--sf);border:1px solid var(--bd);border-radius:11px;
