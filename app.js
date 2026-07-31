@@ -7,6 +7,29 @@ const { createClient } = supabase;
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ============================================================================
+// v371: FUENTES ESTANDAR DE PDF.JS.
+// pdf.js no lleva dentro las letras de repuesto (Liberation/Foxit) que necesita
+// cuando un PDF usa Arial/Helvetica/Times SIN incrustar. Si no se le dice donde
+// estan, esas letras se dibujan CAMBIADAS (jeroglificos) — y como los albaranes
+// en PDF se convierten a foto antes de mandarlos a la IA, la IA no puede leer
+// esa parte. Caso real: albaran Molins N-23509 (31/07/2026) — el recuadro
+// TRANSPORTISTA entero (matricula 5099LNP, remolque R4870BDJ y el operador
+// TRANSP. LLANTADA E HIJOS) salia en jeroglificos y se guardo sin matricula,
+// sin remolque y sin cliente.
+// Se aplica a TODAS las llamadas a getDocument (subida, visor y lectores).
+// SI ALGUN DIA FALLA EL CDN: pdf.js vuelve solo al comportamiento de antes
+// (avisa por consola y dibuja igual que hoy); no rompe nada.
+// ============================================================================
+function _pdfOpts(o) {
+  var base = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
+  o = o || {};
+  o.standardFontDataUrl = base + 'standard_fonts/';
+  o.cMapUrl = base + 'cmaps/';
+  o.cMapPacked = true;
+  return o;
+}
+
+// ============================================================================
 // v344: EL PORTERO (Parte 2 de "la gorda" de seguridad, 26/07/2026).
 // TODAS las llamadas a la IA pasan por la función Edge `ia-proxy` de Supabase.
 // El navegador ya NO lleva ninguna clave de la IA: se identifica con la sesión
@@ -2845,7 +2868,7 @@ async function addFiles(files, type) {
         // cargar). Si aun asi no responde, lanzamos error y cae al catch de
         // mas abajo, que ya manda el PDF ENTERO como fallback → SIEMPRE avanza.
         const _cargarPdf = (ab) => {
-          const work = pdfjsLib.getDocument({ data: ab }).promise;
+          const work = pdfjsLib.getDocument(_pdfOpts({ data: ab })).promise;
           const to = new Promise((_, rej) =>
             setTimeout(() => rej(new Error('pdf.js no respondió (worker no listo)')), 20000));
           return Promise.race([work, to]);
@@ -7127,7 +7150,7 @@ async function _textoPdfGasoil(b64, todasLasPaginas) {
     if (typeof pdfjsLib === 'undefined' || !b64) return '';
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: bytes })).promise;
     // v308: para DETECTAR proveedor bastan 4 páginas; para el LECTOR EXACTO
     // de Soledad hace falta el texto ENTERO (los repostajes van en todas).
     let txt = ''; const maxP = todasLasPaginas ? pdf.numPages : Math.min(pdf.numPages, 4);
@@ -9453,7 +9476,7 @@ async function _renderPdfAtScale(wrapId, scale) {
     if (prev && typeof prev.cancel === 'function') { try { prev.cancel(); } catch (e) {} }
   } catch (e) {}
   try {
-    const pdf = await pdfjsLib.getDocument(url).promise;
+    const pdf = await pdfjsLib.getDocument(_pdfOpts({ url: url })).promise;
     let pn = pageNum > 0 ? pageNum : 1;
     if (pn > pdf.numPages) pn = 1;
     const page = await pdf.getPage(pn);
@@ -9549,7 +9572,7 @@ async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
     return;
   }
   try {
-    const pdf = await pdfjsLib.getDocument(url).promise;
+    const pdf = await pdfjsLib.getDocument(_pdfOpts({ url: url })).promise;
     let pn = pageNum && pageNum > 0 ? pageNum : 1;
     if (pn > pdf.numPages) pn = 1;
     const page = await pdf.getPage(pn);
@@ -17282,7 +17305,7 @@ async function procesarPreliquidacion(file) {
   // Cargar PDF y leer texto de TODAS las páginas (para detectar cliente y filtrar páginas sin datos)
   setPreliProgress('Leyendo páginas del PDF...', 8);
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: arrayBuffer })).promise;
   const numPages = pdf.numPages;
 
   setPreliProgress(`Analizando contenido (${numPages} páginas)...`, 10);
@@ -23347,7 +23370,7 @@ async function _factEnviosDeclaradosPdf(file) {
   try {
     if (typeof pdfjsLib === 'undefined' || !file) { console.warn('[v293] sin pdf.js o sin fichero — no puedo leer los envíos declarados'); return null; }
     const ab = await file.arrayBuffer();
-    const work = pdfjsLib.getDocument({ data: ab }).promise;
+    const work = pdfjsLib.getDocument(_pdfOpts({ data: ab })).promise;
     const to = new Promise((_, rej) => setTimeout(() => rej(new Error('pdf.js no respondió')), 20000));
     const pdf = await Promise.race([work, to]);
     // Se concatena el texto de TODAS las páginas y se aplana (acentos SUELTOS del SAP: "Env i os").
