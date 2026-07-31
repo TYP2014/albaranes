@@ -25069,8 +25069,153 @@ function tacoPintarLista() {
     </tr></thead><tbody>${filas}</tbody></table></div>`;
 }
 
+// ============================================================
+// TACOGRAFO — v376 (31/07/2026) · VARIOS FICHEROS DE GOLPE
+//
+// Sueltas UNO -> todo igual que antes: lo lee, enseña el dia a dia
+// y tu decides guardarlo.
+// Sueltas VARIOS -> modo lote: los lee todos, dice de cada uno que
+// ha entendido y que empresa le toca, y guarda de una tacada los
+// que esten claros.
+//
+// LOS QUE NO ESTAN CLAROS NO SE GUARDAN. Si a uno no se le puede
+// averiguar la empresa (matricula que no esta en el mapa, camion de
+// un subcontratista, conductor no dado de alta) se queda fuera, en
+// ambar, y se sube despues de uno en uno eligiendo la empresa a
+// mano. Antes inventarse la empresa que meter un fichero en la
+// sociedad equivocada.
+// ============================================================
+
+async function _tacoLeerUno(file) {
+  const buf = await file.arrayBuffer();
+  const r = tacoLeerBuffer(buf, file.name);
+  const { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  return { file, r, empresa, motivo, estado: 'leido' };
+}
+
+// Guarda un fichero ya leido. Devuelve 'guardado' | 'duplicado' | 'error'
+async function _tacoGuardarUno(it) {
+  const { file, r } = it;
+  if (!r.completo) { it.detalle = 'no se leyó entero'; return 'error'; }
+  if (!it.empresa) { it.detalle = it.motivo; return 'error'; }
+  try {
+    const buf = await file.arrayBuffer();
+    const sha = await _tacoHuella(buf);
+    const { data: ya, error: eD } = await sb.from('tacografo_ficheros')
+      .select('id, file_nombre').eq('sha256', sha).maybeSingle();
+    if (eD) throw eD;
+    if (ya) { it.detalle = 'ya estaba guardado'; return 'duplicado'; }
+
+    const año = (_tacoFecha(r.hasta) || new Date()).getUTCFullYear();
+    const ruta = `tacografo/${it.empresa}/${año}/${Date.now()}_${file.name}`;
+    const { error: eU } = await sb.storage.from('documentos')
+      .upload(ruta, file, { upsert: false, contentType: 'application/octet-stream' });
+    if (eU) throw eU;
+
+    const { error: eI } = await sb.from('tacografo_ficheros').insert({
+      empresa: it.empresa, tipo: r.tipo,
+      matricula: r.matricula || null, vin: r.vin || null,
+      tarjeta_num: r.tarjeta_num || null, conductor_nombre: r.conductor || null,
+      tarjeta_caduca: _tacoISO(r.caduca),
+      fecha_descarga: (_tacoFecha(r.hasta) || new Date()).toISOString(),
+      fecha_desde: _tacoISO(r.desde), fecha_hasta: _tacoISO(r.hasta),
+      dias_datos: r.dias.length, generacion: r.gen,
+      tacografo_marca: r.taco || null,
+      file_nombre: file.name, file_url: ruta, file_bytes: file.size,
+      sha256: sha, user_id: currentUser?.id || null
+    });
+    if (eI) {
+      try { await sb.storage.from('documentos').remove([ruta]); } catch (_) {}
+      throw eI;
+    }
+    return 'guardado';
+  } catch (e) {
+    console.error('[v376 tacografo] lote:', file.name, e);
+    it.detalle = e.message || String(e);
+    return 'error';
+  }
+}
+
+let _tacoLote = [];
+
+function _tacoPintarLote() {
+  const box = document.getElementById('tacoResultado');
+  if (!box) return;
+  const ICO = { leido: '·', guardado: '✅', duplicado: '↺', error: '⛔', guardando: '…' };
+  const COL = { guardado: '#1e8a55', duplicado: 'var(--mu)', error: 'var(--erd)', leido: 'var(--tx)', guardando: 'var(--ac)' };
+  let filas = '';
+  _tacoLote.forEach(it => {
+    const emp = it.empresa ? _TACO_EMP_NOM[it.empresa] : `<span style="color:var(--wnd)">⚠ ${it.motivo}</span>`;
+    const qué = it.r ? (it.r.tipo === 'vehiculo' ? (it.r.matricula || '—') : (it.r.conductor || '—')) : '—';
+    filas += `<tr>
+      <td style="color:${COL[it.estado]};font-weight:700;text-align:center">${ICO[it.estado] || '·'}</td>
+      <td style="font-size:11px">${it.file.name}</td>
+      <td>${qué}</td>
+      <td style="text-align:center">${it.r ? it.r.dias.length : '—'}</td>
+      <td>${emp}</td>
+      <td style="font-size:11px;color:var(--mu)">${it.detalle || ''}</td>
+    </tr>`;
+  });
+  const listos = _tacoLote.filter(i => i.estado === 'leido' && i.empresa && i.r?.completo).length;
+  const fuera = _tacoLote.filter(i => i.estado === 'leido' && (!i.empresa || !i.r?.completo)).length;
+  box.innerHTML = `
+    <div style="font-family:var(--mn);font-size:12px;margin-bottom:10px">
+      <b>${_tacoLote.length} ficheros</b> · ${listos} listos para guardar${fuera ? ` · <span style="color:var(--wnd)">${fuera} se quedan fuera</span>` : ''}
+    </div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr>
+      <th style="width:34px"></th><th>Fichero</th><th>Camión / Conductor</th>
+      <th style="text-align:center">Días</th><th>Empresa</th><th>Nota</th>
+    </tr></thead><tbody>${filas}</tbody></table></div>`;
+}
+
+async function tacoGuardarLote() {
+  const btn = document.getElementById('tacoBtnLote');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  let ok = 0, dup = 0, err = 0;
+  for (const it of _tacoLote) {
+    if (it.estado !== 'leido' || !it.empresa || !it.r?.completo) continue;
+    it.estado = 'guardando'; _tacoPintarLote();
+    const res = await _tacoGuardarUno(it);
+    it.estado = res;
+    if (res === 'guardado') ok++; else if (res === 'duplicado') dup++; else err++;
+    _tacoPintarLote();
+  }
+  const gb = document.getElementById('tacoGuardarBox');
+  if (gb) gb.innerHTML = `<div style="font-family:var(--mn);font-size:12px">
+    <span class="ks">✅ ${ok} guardados</span>
+    ${dup ? ` · <span style="color:var(--mu)">${dup} ya estaban</span>` : ''}
+    ${err ? ` · <span style="color:var(--erd);font-weight:700">${err} sin guardar</span>` : ''}
+    </div><div style="font-family:var(--mn);font-size:10.5px;color:var(--mu);margin-top:6px">
+    Los que no se han guardado siguen en la lista de arriba con el motivo. Súbelos de uno en uno
+    para elegirles la empresa a mano.</div>`;
+  toast(`${ok} guardados`, ok ? 'ok' : 'err');
+  tacoCargarLista();
+}
+
+async function tacoSoltarVarios(files) {
+  const box = document.getElementById('tacoResultado');
+  const gb = document.getElementById('tacoGuardarBox');
+  if (gb) gb.innerHTML = '';
+  _tacoLote = [];
+  if (box) box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Leyendo ${files.length} ficheros…</div>`;
+  for (const f of files) {
+    try {
+      _tacoLote.push(await _tacoLeerUno(f));
+    } catch (e) {
+      _tacoLote.push({ file: f, r: null, empresa: null, motivo: 'no se ha podido leer', estado: 'error', detalle: e.message || String(e) });
+    }
+    _tacoPintarLote();
+  }
+  const listos = _tacoLote.filter(i => i.estado === 'leido' && i.empresa && i.r?.completo).length;
+  if (gb) gb.innerHTML = listos
+    ? `<button class="btn bp" id="tacoBtnLote" onclick="tacoGuardarLote()">💾 Guardar los ${listos} que están claros</button>`
+    : `<div style="font-family:var(--mn);font-size:12px;color:var(--wnd)">Ninguno se puede guardar sin más: míralos en la lista de arriba.</div>`;
+}
+
 function tacoSoltar(files) {
   if (!files || !files.length) return;
+  // v376: mas de uno -> modo lote. Uno solo -> como siempre.
+  if (files.length > 1) { tacoSoltarVarios([...files]); return; }
   const f = files[0];
   const box = document.getElementById('tacoResultado');
   if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Leyendo ' + f.name + '…</div>';
