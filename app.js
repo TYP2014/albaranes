@@ -19225,8 +19225,24 @@ function openTrabajadorModal(id) {
       <div class="fg"><label class="fl">Rol/Puesto</label><input class="fi" id="trabF_rol" value="${v('rol')}" placeholder="Conductor"></div>
       <div class="fg"><label class="fl">Fecha alta</label><input class="fi" type="date" id="trabF_alta" value="${t?.fecha_alta || ''}"></div>
     </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Nº tarjeta tacógrafo</label>
+        <input class="fi" id="trabF_tarjeta" value="${v('tarjeta_num')}" placeholder="E49932334R000001"
+               style="font-family:var(--mn)" maxlength="16"></div>
+      <div class="fg"><label class="fl">Caduca la tarjeta</label>
+        <input class="fi" type="date" id="trabF_tarjcad" value="${t?.tarjeta_caduca || ''}"></div>
+      <div class="fg"><label class="fl">Fecha de baja</label>
+        <input class="fi" type="date" id="trabF_baja" value="${t?.fecha_baja || ''}"></div>
+    </div>
     <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
       <input class="fi" id="trabF_notas" value="${v('notas')}" placeholder="opcional">
+    </div>
+    <div style="font-family:var(--mn);font-size:10.5px;color:var(--mu);line-height:1.6;margin-bottom:4px">
+      El <b>nº de tarjeta</b> es lo que de verdad identifica al conductor: el nombre se escribe de mil formas
+      (en un fichero salió "MARCELO ALEXANDER" y en la ficha "MARCELO A."), el número no. Sale del propio fichero
+      de la tarjeta y es el que piden las gestorías. Los <b>2 últimos dígitos cambian al renovarla</b>
+      (pérdida, rotura, caducidad); los 14 primeros son suyos para siempre, así que aunque la renueve seguirá
+      cruzando. La <b>fecha de baja</b> no borra a nadie: sus ficheros hay que conservarlos igual.
     </div>`;
   document.getElementById('btnDelTrab').style.display = (t && !t.archivado) ? '' : 'none';
   document.getElementById('btnReactTrab').style.display = (t && t.archivado) ? '' : 'none';
@@ -19245,6 +19261,9 @@ async function saveTrabModal() {
     nombre,
     dni: (document.getElementById('trabF_dni').value || '').trim() || null,
     empresa: document.getElementById('trabF_empresa').value || null,
+    tarjeta_num: (document.getElementById('trabF_tarjeta')?.value || '').toUpperCase().replace(/\s/g, '') || null,
+    tarjeta_caduca: document.getElementById('trabF_tarjcad')?.value || null,
+    fecha_baja: document.getElementById('trabF_baja')?.value || null,
     rol: (document.getElementById('trabF_rol').value || '').trim() || null,
     fecha_alta: document.getElementById('trabF_alta').value || null,
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
@@ -24807,7 +24826,7 @@ function _tacoMismoNombre(a, b) {
 async function _tacoCargarTrabajadores() {
   if (_tacoTrabajadores) return _tacoTrabajadores;
   try {
-    const { data, error } = await sb.from('trabajadores').select('nombre, empresa, archivado');
+    const { data, error } = await sb.from('trabajadores').select('nombre, empresa, archivado, tarjeta_num, fecha_baja');   // v382
     if (error) throw error;
     _tacoTrabajadores = data || [];
   } catch (e) {
@@ -24829,12 +24848,33 @@ async function _tacoAdivinarEmpresa(r) {
     if (!cod) return { empresa: null, motivo: `la matrícula ${m} figura como <b>${dueño}</b>, que no es una empresa del grupo` };
     return { empresa: cod, motivo: `por la matrícula ${m}` };
   }
-  if (r.tipo === 'conductor' && r.conductor) {
+  if (r.tipo === 'conductor') {
     const trab = await _tacoCargarTrabajadores();
-    const hit = trab.find(t => _tacoMismoNombre(t.nombre, r.conductor));
-    if (!hit) return { empresa: null, motivo: `<b>${r.conductor}</b> no está dado de alta en Vacaciones` };
+    let hit = null, como = '';
+
+    // v382: PRIMERO por NUMERO DE TARJETA, que es lo unico que identifica de
+    // verdad al conductor. Se comparan los 14 PRIMEROS caracteres: los 2 ultimos
+    // son el contador de renovaciones (perdida, rotura, caducidad) y cambian cada
+    // vez que le dan una tarjeta nueva. Los 14 primeros son suyos para siempre,
+    // asi que sus ficheros viejos y los nuevos siguen cruzando con el.
+    const raiz = x => (x || '').toUpperCase().replace(/\s/g, '').slice(0, 14);
+    if (r.tarjeta_num) {
+      const R = raiz(r.tarjeta_num);
+      if (R.length === 14) hit = trab.find(t => raiz(t.tarjeta_num) === R) || null;
+      if (hit) como = `por el nº de tarjeta`;
+    }
+    // Si no hay numero puesto todavia, se tira del nombre como antes.
+    if (!hit && r.conductor) {
+      hit = trab.find(t => _tacoMismoNombre(t.nombre, r.conductor)) || null;
+      if (hit) como = 'por el nombre';
+    }
+
+    if (!hit) return { empresa: null, motivo: r.tarjeta_num
+      ? `<b>${r.conductor || 'ese conductor'}</b> no está en Vacaciones, ni por nombre ni por la tarjeta ${r.tarjeta_num}`
+      : `<b>${r.conductor || 'ese conductor'}</b> no está dado de alta en Vacaciones` };
     if (!hit.empresa) return { empresa: null, motivo: `${hit.nombre} está de alta pero sin empresa asignada` };
-    return { empresa: hit.empresa, motivo: `${hit.nombre}, de la ficha de trabajadores` };
+    const baja = hit.fecha_baja ? ` · ⚠ de baja desde el ${hit.fecha_baja.split('-').reverse().join('/')}` : '';
+    return { empresa: hit.empresa, motivo: `${hit.nombre}, ${como}${baja}` };
   }
   return { empresa: null, motivo: 'no hay matrícula ni conductor en el fichero' };
 }
