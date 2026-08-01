@@ -134,9 +134,26 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
   90%{transform:translateY(-7px)}
   95%,100%{transform:translateY(0)}
 }
+/* v398: la flecha de la pestaña SUBIR (barra de arriba) hace el gesto cada 5s */
+.icTabUp-fle{animation:tabUpSube 5s ease-in-out infinite}
+.icTabUp-base{animation:tabUpBase 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tabUpSube{
+  0%,76%{transform:translateY(0);opacity:1}
+  80%{transform:translateY(-1px);opacity:1}
+  88%{transform:translateY(-10px);opacity:0}
+  88.6%{transform:translateY(7px);opacity:0}
+  96%,100%{transform:translateY(0);opacity:1}
+}
+@keyframes tabUpBase{
+  0%,84%{transform:scaleX(1)}
+  89%{transform:scaleX(1.3)}
+  96%,100%{transform:scaleX(1)}
+}
+.tab:hover .icTabUp-fle,.tab:hover .icTabUp-base{animation-duration:1.4s}
 .dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation-duration:2.2s}
 /* Si el usuario tiene puesto "reducir movimiento" en su sistema, nada se mueve */
 @media (prefers-reduced-motion:reduce){
+  .icTabUp-fle,.icTabUp-base,.tab:hover .icTabUp-fle,.tab:hover .icTabUp-base,
   .ic3d-doc,.ic3d-nub,.ic3d-car,.ic3d-ok,.ic3d-fle,.ic3d-som,.dz-ic,
   .dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation:none}
 }
