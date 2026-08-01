@@ -24980,7 +24980,8 @@ async function _tacoRellenarTarjeta(r) {
 // pintan aqui, que si se mezclan salen dias de 39 horas.
 // ============================================================
 
-const _TACO_COL = ['#2fbf7a', '#e6c23c', '#2b7bd0', '#d94a45'];   // descanso, dispon., otros, conduciendo
+// v392: colores VIVOS como los de ASG y todo el sector, pedidos por JC ("tienen que cantar").
+const _TACO_COL = ['#1fc94c', '#ffd800', '#0a53d8', '#e51c23'];   // descanso, dispon., otros, conduciendo
 const _TACO_NOM = ['Descanso', 'Disponible', 'Otros trabajos', 'Conducción'];
 
 let _tacoInfPersonas = null;   // quien hay para elegir
@@ -25080,9 +25081,10 @@ async function tacoInfVer() {
     const dFin = new Date(lunes + 'T12:00:00Z'); dFin.setUTCDate(dFin.getUTCDate() + 6);
     const hasta = dFin.toISOString().slice(0, 10);
 
+    // v392: se traen TAMBIEN los tramos del segundo conductor (hueco ayudante),
+    // para poder enseñar los dias en que fueron dos. Se separan luego.
     let q = sb.from('tacografo_tramos').select('*')
       .gte('fecha', lunes).lte('fecha', hasta)
-      .eq('hueco_ayudante', false)
       .order('fecha').order('minuto_ini');
     q = (tipo === 'C') ? q.eq('tarjeta_raiz', id) : q.eq('matricula', id);
     const { data: tramos, error } = await q;
@@ -25106,11 +25108,12 @@ async function tacoInfVer() {
       return;
     }
 
-    // agrupar por dia
-    const porDia = new Map();
+    // agrupar por dia, separando el hueco del conductor del de su ayudante
+    const porDia = new Map(), porDiaAyu = new Map();
     tramos.forEach(t => {
-      if (!porDia.has(t.fecha)) porDia.set(t.fecha, []);
-      porDia.get(t.fecha).push(t);
+      const m = t.hueco_ayudante ? porDiaAyu : porDia;
+      if (!m.has(t.fecha)) m.set(t.fecha, []);
+      m.get(t.fecha).push(t);
     });
 
     const totSem = [0, 0, 0, 0];
@@ -25119,9 +25122,18 @@ async function tacoInfVer() {
       const d = new Date(lunes + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k);
       const iso = d.toISOString().slice(0, 10);
       const ts = porDia.get(iso) || [];
+      const tsAyu = (porDiaAyu.get(iso) || []).filter(t => !t.sin_tarjeta || t.actividad !== 0);   // v392
+      const huboDos = tsAyu.some(t => t.actividad !== 0 || !t.sin_tarjeta);
       const esIncompleto = _incompletos.has(iso);          // v390
       const tot = [0, 0, 0, 0];
-      ts.forEach(t => { tot[t.actividad] += (t.minuto_fin - t.minuto_ini); });
+      let sinReg = 0;                                       // v391
+      // v391: lo grabado con la TARJETA FUERA no acredita nada - si el conductor
+      // no registro el descanso, legalmente no cuenta como descanso diario ni
+      // semanal. Se cuenta aparte y NO se suma a las actividades.
+      ts.forEach(t => {
+        const m = (t.minuto_fin - t.minuto_ini);
+        if (t.sin_tarjeta) sinReg += m; else tot[t.actividad] += m;
+      });
       // v390: el dia de la descarga NO se suma a la semana - su ultimo tramo
       // quedo sin cerrar y se estira hasta medianoche, inflando lo que sea que
       // estuviera haciendo en ese momento.
@@ -25131,9 +25143,17 @@ async function tacoInfVer() {
       const barras = ts.map(t => {
         const izq = (t.minuto_ini / 1440 * 100).toFixed(3);
         const anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
-        const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}${t.sin_tarjeta ? ' (sin tarjeta)' : ''}`;
+        // v391: tarjeta fuera -> EN BLANCO con rayitas grises (como ASG). No se
+        // pinta del color de la actividad porque no esta acreditada: un descanso
+        // sin registrar NO es un descanso ante una inspeccion.
+        if (t.sin_tarjeta) {
+          const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · SIN REGISTRAR (tarjeta fuera) · anotado como ${_TACO_NOM[t.actividad]}`;
+          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+            background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.22) 0 2px,transparent 2px 6px)"></div>`;
+        }
+        const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}`;
         return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
-          background:${_TACO_COL[t.actividad]}${t.sin_tarjeta ? ';background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.28) 0 3px,transparent 3px 6px)' : ''}"></div>`;
+          background:${_TACO_COL[t.actividad]}"></div>`;
       }).join('');
 
       // las rayitas de las horas
@@ -25155,19 +25175,32 @@ async function tacoInfVer() {
             ${_tacoDMY2(iso)} · <span style="color:var(--mu)">${_tacoDiaSemana(iso)}</span>
             ${vacio ? '<span style="color:var(--mu);font-weight:400"> — sin datos</span>' : ''}
             ${esIncompleto ? '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>' : ''}
+            ${huboDos ? '<span style="font-family:var(--mn);font-size:10px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 9px;margin-left:6px">≡ dos conductores</span>' : ''}
           </div>
           <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
             ${barras}${ejes}
           </div>
+          ${huboDos ? `<div style="position:relative;height:9px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyu.map(t => {
+            const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
+            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${t.sin_tarjeta ? '#fff' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
+          }).join('')}</div>` : ''}
           <div style="position:relative;height:14px;font-family:var(--mn);font-size:9px;color:var(--mu);margin-top:2px">${nums}</div>
           ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
             ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
+            ${sinReg ? `<span style="color:var(--mu)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fff;border:1px solid var(--bd);background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.25) 0 2px,transparent 2px 4px);margin-right:4px"></span>Sin registrar (tarjeta fuera): <b>${hm(sinReg)}</b> — no cuenta como descanso</span>` : ''}
           </div>`}
         </div>`;
     }
 
     const hm = v => `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}`;
-    cont.innerHTML = `
+    const leyenda = `<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-family:var(--mn);font-size:11px;
+      border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px;background:var(--sf)">
+      ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${_TACO_COL[a]};margin-right:5px;vertical-align:-1px"></span>${_TACO_NOM[a]}</span>`).join('')}
+      <span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:#fff;border:1px solid var(--bd);background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.25) 0 2px,transparent 2px 4px);margin-right:5px;vertical-align:-1px"></span>Sin tarjeta (no acredita)</span>
+      <span>≡ Dos conductores</span>
+      <span style="color:var(--mu)">Ferry y Fuera de ámbito: pendientes (van en otro bloque del fichero)</span>
+    </div>`;
+    cont.innerHTML = leyenda + `
       <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;margin-bottom:12px">
         <div style="font-family:var(--ss);font-size:15px;font-weight:600">${nom}</div>
         <div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
@@ -25178,7 +25211,8 @@ async function tacoInfVer() {
         </div>
       </div>${h}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
-        Pasa el ratón por la barra para ver la hora exacta de cada tramo. Rayado = el tacógrafo grabó sin tarjeta metida.
+        Pasa el ratón por la barra para ver la hora exacta de cada tramo. En BLANCO rayado = tiempo con la tarjeta fuera:
+        no está acreditado, así que no se pinta de color ni cuenta como descanso diario o semanal.
         Solo se muestra el hueco del conductor; el del ayudante se guarda pero no se suma aquí.
       </div>`;
   } catch (e) {
