@@ -25048,10 +25048,12 @@ async function tacoInfPintarSelector() {
           <label class="fl">Conductor</label>
           <select class="fi" id="tacoInfQuien" onchange="tacoInfVer()">${op(conds)}</select>
         </div>
-        <div class="fg"><label class="fl">Semana del</label>
-          <input class="fi" type="date" id="tacoInfDesde" value="${_tacoLunes(hasta)}" onchange="tacoInfVer()"></div>
-        <button class="btn bs" onclick="tacoInfMover(-7)">‹ Semana anterior</button>
-        <button class="btn bs" onclick="tacoInfMover(7)">Semana siguiente ›</button>
+        <div class="fg"><label class="fl">Del día</label>
+          <input class="fi" type="date" id="tacoInfDesde" value="${(() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); })()}" onchange="tacoInfVer()"></div>
+        <div class="fg"><label class="fl">Al día</label>
+          <input class="fi" type="date" id="tacoInfHasta" value="${hasta}" onchange="tacoInfVer()"></div>
+        <button class="btn bs" onclick="tacoInfMover(-1)" title="Retrocede lo que mida el rango">‹ Anterior</button>
+        <button class="btn bs" onclick="tacoInfMover(1)" title="Avanza lo que mida el rango">Siguiente ›</button>
         <button class="btn bp" onclick="tacoInfVer()">Ver</button>
       </div>`;
     tacoInfVer();
@@ -25061,28 +25063,46 @@ async function tacoInfPintarSelector() {
   }
 }
 
-function tacoInfMover(dias) {
-  const i = document.getElementById('tacoInfDesde');
-  if (!i || !i.value) return;
-  const d = new Date(i.value + 'T12:00:00Z');
-  d.setUTCDate(d.getUTCDate() + dias);
-  i.value = d.toISOString().slice(0, 10);
-  tacoInfVer();
+// v407: los botones saltan LO QUE MIDA EL RANGO puesto (2 dias -> de 2 en 2)
+function _tacoMoverRango(idDesde, idHasta, dir, verFn) {
+  const a = document.getElementById(idDesde), b = document.getElementById(idHasta);
+  if (!a || !a.value) return;
+  if (b && !b.value) b.value = a.value;
+  const dA = new Date(a.value + 'T12:00:00Z'), dB = new Date((b?.value || a.value) + 'T12:00:00Z');
+  const n = Math.max(1, Math.round((dB - dA) / 86400000) + 1) * dir;
+  dA.setUTCDate(dA.getUTCDate() + n); dB.setUTCDate(dB.getUTCDate() + n);
+  a.value = dA.toISOString().slice(0, 10);
+  if (b) b.value = dB.toISOString().slice(0, 10);
+  verFn();
 }
+function tacoInfMover(dir) { _tacoMoverRango('tacoInfDesde', 'tacoInfHasta', dir > 0 ? 1 : -1, tacoInfVer); }
 
 // v406: el motor del grafico semanal, con parametros. Lo usan DOS pantallas:
 // CONDUCTORES (tacoInf...) y VEHICULOS (tacoVeh...), cada una con sus controles.
-async function _tacoVerSemana(idQuien, idDesde, idCont) {
+async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
   const cont = document.getElementById(idCont);
   const quien = document.getElementById(idQuien)?.value;
-  const desde = document.getElementById(idDesde)?.value;
+  let desde = document.getElementById(idDesde)?.value;
+  let hastaIn = document.getElementById(idHasta)?.value;
   if (!cont || !quien || !desde) return;
+  // v407: RANGO LIBRE de dia A a dia B (pedido de JC: "y si solo quiero ver 2
+  // dias?"). La semana cerrada era cosa de ASG, no nuestra. Si las fechas vienen
+  // al reves, se dan la vuelta solas. Tope de 31 dias por pantalla: mas de un
+  // mes de barras no hay quien lo lea (para eso vendran los informes).
+  if (!hastaIn) hastaIn = desde;
+  if (hastaIn < desde) { const t = desde; desde = hastaIn; hastaIn = t; }
   cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:12px">Cargando…</div>';
   try {
     const [tipo, id] = [quien.slice(0, 1), quien.slice(2)];
-    const lunes = _tacoLunes(desde);
-    const dFin = new Date(lunes + 'T12:00:00Z'); dFin.setUTCDate(dFin.getUTCDate() + 6);
-    const hasta = dFin.toISOString().slice(0, 10);
+    const lunes = desde;                                   // v407: ya no se fuerza al lunes
+    let hasta = hastaIn;
+    let nDias = Math.round((new Date(hasta + 'T12:00:00Z') - new Date(lunes + 'T12:00:00Z')) / 86400000) + 1;
+    let recortado = false;
+    if (nDias > 31) {
+      nDias = 31; recortado = true;
+      const dF = new Date(lunes + 'T12:00:00Z'); dF.setUTCDate(dF.getUTCDate() + 30);
+      hasta = dF.toISOString().slice(0, 10);
+    }
 
     // v392: se traen TAMBIEN los tramos del segundo conductor (hueco ayudante),
     // para poder enseñar los dias en que fueron dos. Se separan luego.
@@ -25151,7 +25171,7 @@ async function _tacoVerSemana(idQuien, idDesde, idCont) {
 
     const totSem = [0, 0, 0, 0];
     let h = '';
-    for (let k = 0; k < 7; k++) {
+    for (let k = 0; k < nDias; k++) {
       const d = new Date(lunes + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k);
       const iso = d.toISOString().slice(0, 10);
       const ts = porDia.get(iso) || [];
@@ -25263,9 +25283,9 @@ async function _tacoVerSemana(idQuien, idDesde, idCont) {
       <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;margin-bottom:12px">
         <div style="font-family:var(--ss);font-size:15px;font-weight:600">${nom}</div>
         <div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
-          Semana del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)}</div>
+          Del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)} · ${nDias} día${nDias === 1 ? '' : 's'}${recortado ? ' <span style="color:var(--wnd)">(recortado a 31: para más, usa los informes)</span>' : ''}</div>
         <div style="font-family:var(--mn);font-size:12px;margin-left:auto">
-          Conducción de la semana: <b style="font-size:15px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
+          Conducción del periodo: <b style="font-size:15px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
           <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>
         </div>
       </div>${h}
@@ -25281,16 +25301,9 @@ async function _tacoVerSemana(idQuien, idDesde, idCont) {
 }
 
 // v406: los dos envoltorios finos sobre el motor
-function tacoInfVer() { _tacoVerSemana('tacoInfQuien', 'tacoInfDesde', 'tacoInfResultado'); }
-function tacoVehVer() { _tacoVerSemana('tacoVehQuien', 'tacoVehDesde', 'tacoVehResultado'); }
-function tacoVehMover(dias) {
-  const i = document.getElementById('tacoVehDesde');
-  if (!i || !i.value) return;
-  const d = new Date(i.value + 'T12:00:00Z');
-  d.setUTCDate(d.getUTCDate() + dias);
-  i.value = d.toISOString().slice(0, 10);
-  tacoVehVer();
-}
+function tacoInfVer() { _tacoVerSemana('tacoInfQuien', 'tacoInfDesde', 'tacoInfHasta', 'tacoInfResultado'); }
+function tacoVehVer() { _tacoVerSemana('tacoVehQuien', 'tacoVehDesde', 'tacoVehHasta', 'tacoVehResultado'); }
+function tacoVehMover(dir) { _tacoMoverRango('tacoVehDesde', 'tacoVehHasta', dir > 0 ? 1 : -1, tacoVehVer); }
 
 async function _tacoGuardarTramos(r, empresa, filasDia, idPorClave) {
   try {
@@ -26042,9 +26055,10 @@ function tacoSec(sec) {
 // ============================================================
 // TACOGRAFO — v406 (01/08/2026) · VEHICULOS: EL CASO DEL RADAR
 //
-// Llega la multa del radar con fecha y matricula. Se entra aqui,
-// se pone la matricula y el dia, y sale QUIEN CONDUCIA - que es lo
-// que hay que contestar para identificar al conductor.
+// Llega la multa del radar con fecha y matricula: se elige el camion,
+// se pone ESE dia en el filtro (del dia X al dia X) y bajo el dia sale
+// QUIEN CONDUCIA. Todo dentro de la ficha del camion, como en ASG -
+// JC pidio quitar el buscador aparte: "no quiero mas subpestañas".
 //
 // El dato sale de tacografo_dias: en los ficheros del CAMION viene
 // el nombre de quien metio la tarjeta cada dia, y se guarda desde
@@ -26064,8 +26078,6 @@ async function tacoVehPintarSelector() {
     if (!vehs.length) {
       box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
         Todavía no hay descargas de camión guardadas. Súbelas en SUBIR y vuelve.</div>`;
-      const bq = document.getElementById('tacoRadarMat');
-      if (bq) bq.disabled = true;
       return;
     }
     // el desplegable de la ficha
@@ -26077,15 +26089,14 @@ async function tacoVehPintarSelector() {
           <label class="fl">Camión</label>
           <select class="fi" id="tacoVehQuien" onchange="tacoVehVer()">${op}</select>
         </div>
-        <div class="fg"><label class="fl">Semana del</label>
-          <input class="fi" type="date" id="tacoVehDesde" value="${_tacoLunes(hasta)}" onchange="tacoVehVer()"></div>
-        <button class="btn bs" onclick="tacoVehMover(-7)">‹ Semana anterior</button>
-        <button class="btn bs" onclick="tacoVehMover(7)">Semana siguiente ›</button>
+        <div class="fg"><label class="fl">Del día</label>
+          <input class="fi" type="date" id="tacoVehDesde" value="${(() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); })()}" onchange="tacoVehVer()"></div>
+        <div class="fg"><label class="fl">Al día</label>
+          <input class="fi" type="date" id="tacoVehHasta" value="${hasta}" onchange="tacoVehVer()"></div>
+        <button class="btn bs" onclick="tacoVehMover(-1)" title="Retrocede lo que mida el rango">‹ Anterior</button>
+        <button class="btn bs" onclick="tacoVehMover(1)" title="Avanza lo que mida el rango">Siguiente ›</button>
         <button class="btn bp" onclick="tacoVehVer()">Ver</button>
       </div>`;
-    // la lista de matriculas para el buscador
-    const dl = document.getElementById('tacoRadarMats');
-    if (dl) dl.innerHTML = vehs.map(x => `<option value="${x.nombre}">`).join('');
     tacoVehVer();
   } catch (e) {
     console.error('[v406]', e);
@@ -26093,49 +26104,6 @@ async function tacoVehPintarSelector() {
   }
 }
 
-// El buscador: matricula + fecha -> quien conducia
-async function tacoRadarBuscar() {
-  const cont = document.getElementById('tacoRadarResultado');
-  const mat = (document.getElementById('tacoRadarMat')?.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const fecha = document.getElementById('tacoRadarFecha')?.value;
-  if (!cont) return;
-  if (!mat || !fecha) { toast('Pon la matrícula y el día', 'err'); return; }
-  cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Buscando…</div>';
-  try {
-    const { data, error } = await sb.from('tacografo_dias')
-      .select('conductor_nombre, min_conduccion, odometro, empresa, incompleto')
-      .eq('origen', 'vehiculo').eq('matricula', mat).eq('fecha', fecha).maybeSingle();
-    if (error) throw error;
-
-    const dmy = fecha.split('-').reverse().join('/');
-    if (!data) {
-      cont.innerHTML = `<div style="border:1.5px solid rgba(180,113,20,.4);background:rgba(180,113,20,.07);border-radius:10px;padding:13px 16px;font-family:var(--mn);font-size:12.5px;color:var(--wnd)">
-        <b>Del ${mat} no hay descarga subida que cubra el ${dmy}.</b><br>
-        <span style="font-size:11px">O ese día no está en ningún fichero guardado, o falta subir la descarga del camión. Míralo en el ARCHIVO.</span></div>`;
-      return;
-    }
-    const quien = (data.conductor_nombre || '').trim();
-    const hm = v => v ? `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}` : '0h00';
-    if (!quien) {
-      cont.innerHTML = `<div style="border:1.5px solid rgba(199,54,49,.4);background:rgba(199,54,49,.06);border-radius:10px;padding:13px 16px;font-family:var(--mn);font-size:12.5px">
-        <b style="color:var(--erd)">El ${dmy} el ${mat} no registró ninguna tarjeta metida.</b><br>
-        <span style="font-size:11px;color:var(--mu)">Conducción de ese día: ${hm(data.min_conduccion)}. ${data.min_conduccion > 0 ? '⚠ Se movió SIN tarjeta: eso hay que mirarlo.' : 'El camión estuvo parado.'}</span></div>`;
-      return;
-    }
-    cont.innerHTML = `<div style="border:1.5px solid rgba(47,191,122,.45);background:rgba(47,191,122,.07);border-radius:10px;padding:14px 17px">
-      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:4px">El ${dmy}, el camión <b>${mat}</b> (${_TACO_EMP_NOM[data.empresa] || data.empresa}) lo llevaba:</div>
-      <div style="font-family:var(--ss);font-size:19px;font-weight:700;color:#1e8a55">${quien}</div>
-      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:5px">
-        Conducción registrada ese día: <b>${hm(data.min_conduccion)}</b>${data.odometro ? ` · cuentakm a medianoche: ${data.odometro.toLocaleString('es-ES')}` : ''}${data.incompleto ? ' · ⚠ día de la descarga (parcial)' : ''}
-      </div>
-      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">
-        Sale del fichero firmado del propio tacógrafo. El original está en el ARCHIVO por si hay que presentarlo.
-      </div></div>`;
-  } catch (e) {
-    console.error('[v406 radar]', e);
-    cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo buscar: ${e.message || e}</div>`;
-  }
-}
 
 function tacoSoltar(files) {
   if (!files || !files.length) return;
