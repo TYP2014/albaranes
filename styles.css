@@ -84,18 +84,18 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
    v396 (01/08/2026): ICONO DE SUBIR EN 3D Y EN MOVIMIENTO
    Pedido por JC ("mas bonito, en 3D y en movimiento").
    Solo estetica: NO toca el arrastrar/soltar ni ninguna funcion.
-   Ciclo de 9s: el gesto dura ~1,5s y el resto esta QUIETO.
+   v400: ciclo de 5s (antes 9s); el gesto dura ~1,4s y el resto esta QUIETO.
    Al pasar el raton, el ciclo se acelera.
    ============================================================ */
 .dz-ic.ic3d{line-height:0}
 .dz-ic.ic3d svg{width:72px;height:72px;display:block;margin:0 auto;overflow:visible}
 #cardSubirAlb .dz-ic.ic3d svg{width:96px;height:96px}
-.ic3d-doc{animation:ic3dSube 9s ease-in-out infinite}
-.ic3d-nub{animation:ic3dNube 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
-.ic3d-car{animation:ic3dCarpeta 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
-.ic3d-ok{animation:ic3dPop 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
-.ic3d-fle{animation:ic3dVaiven 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
-.ic3d-som{animation:ic3dSombra 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-doc{animation:ic3dSube 5s ease-in-out infinite}
+.ic3d-nub{animation:ic3dNube 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-car{animation:ic3dCarpeta 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
+.ic3d-ok{animation:ic3dPop 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-fle{animation:ic3dVaiven 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-som{animation:ic3dSombra 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes ic3dSube{
   0%,72%{transform:translateY(0);opacity:1}
   76%{transform:translateY(-3px);opacity:1}
@@ -128,7 +128,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
   80%{transform:scaleX(.88);opacity:.08}
   90%,100%{transform:scaleX(1);opacity:.13}
 }
-#dzGas .dz-ic,#dzItv .dz-ic,#dzCita .dz-ic,#tacoDrop .dz-ic,#dzNeumAlb .dz-ic,#dzNeumFactura .dz-ic{animation:dzSaltito 9s ease-in-out infinite}
+#dzGas .dz-ic,#dzItv .dz-ic,#dzCita .dz-ic,#tacoDrop .dz-ic,#dzNeumAlb .dz-ic,#dzNeumFactura .dz-ic{animation:dzSaltito 5s ease-in-out infinite}
 @keyframes dzSaltito{
   0%,85%{transform:translateY(0)}
   90%{transform:translateY(-7px)}
