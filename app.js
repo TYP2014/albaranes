@@ -25088,6 +25088,16 @@ async function tacoInfVer() {
     const { data: tramos, error } = await q;
     if (error) throw error;
 
+    // v390: que dias de este periodo son el DIA DE LA DESCARGA (jornada a
+    // medias). Estan marcados en tacografo_dias desde la v385, pero el grafico
+    // no miraba la marca y salian barbaridades tipo 20h44 de conduccion.
+    let qd = sb.from('tacografo_dias').select('fecha, incompleto')
+      .gte('fecha', lunes).lte('fecha', hasta)
+      .eq('origen', tipo === 'C' ? 'conductor' : 'vehiculo');
+    qd = (tipo === 'C') ? qd.eq('tarjeta_raiz', id) : qd.eq('matricula', id);
+    const { data: diasInfo } = await qd;
+    const _incompletos = new Set((diasInfo || []).filter(x => x.incompleto).map(x => x.fecha));
+
     const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
     if (!tramos || !tramos.length) {
       cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:18px;text-align:center">
@@ -25109,9 +25119,13 @@ async function tacoInfVer() {
       const d = new Date(lunes + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k);
       const iso = d.toISOString().slice(0, 10);
       const ts = porDia.get(iso) || [];
+      const esIncompleto = _incompletos.has(iso);          // v390
       const tot = [0, 0, 0, 0];
       ts.forEach(t => { tot[t.actividad] += (t.minuto_fin - t.minuto_ini); });
-      tot.forEach((v, i) => totSem[i] += v);
+      // v390: el dia de la descarga NO se suma a la semana - su ultimo tramo
+      // quedo sin cerrar y se estira hasta medianoche, inflando lo que sea que
+      // estuviera haciendo en ese momento.
+      if (!esIncompleto) tot.forEach((v, i) => totSem[i] += v);
 
       // la barra: cada tramo, un trocito del ancho que le toca
       const barras = ts.map(t => {
@@ -25140,6 +25154,7 @@ async function tacoInfVer() {
           <div style="font-family:var(--ss);font-size:12px;font-weight:600;margin-bottom:7px">
             ${_tacoDMY2(iso)} · <span style="color:var(--mu)">${_tacoDiaSemana(iso)}</span>
             ${vacio ? '<span style="color:var(--mu);font-weight:400"> — sin datos</span>' : ''}
+            ${esIncompleto ? '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>' : ''}
           </div>
           <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
             ${barras}${ejes}
