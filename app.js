@@ -14223,7 +14223,7 @@ function switchTab(tab) {
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
   if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
-  if (tab === 'taco') tacoCargarLista();     // v374
+  if (tab === 'taco') { tacoCargarLista(); tacoInfPintarSelector(); }     // v374 / v388
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v108: cargar Incidencias al entrar en su pestaña
   if (tab === 'incidencias') { loadIncidenciasData(); }
@@ -24964,6 +24964,214 @@ async function _tacoRellenarTarjeta(r) {
 // cuenta para sus horas) sin perder el dato del segundo conductor.
 // ============================================================
 
+// ============================================================
+// TACOGRAFO — v388 (01/08/2026) · INFORME DE ACTIVIDAD
+//
+// El grafico que pidio JC: la barra de 24 horas de cada dia, con
+// los colores de siempre (rojo conduciendo, azul otros trabajos,
+// amarillo disponible, verde descanso), sus totales debajo y las
+// horas de la semana.
+//
+// Sale de tacografo_tramos, asi que se puede mirar cualquier dia
+// guardado sin volver a buscar el fichero.
+//
+// SOLO EL HUECO DEL CONDUCTOR (hueco_ayudante = false): son sus
+// horas. Las del segundo conductor estan guardadas pero no se
+// pintan aqui, que si se mezclan salen dias de 39 horas.
+// ============================================================
+
+const _TACO_COL = ['#2fbf7a', '#e6c23c', '#2b7bd0', '#d94a45'];   // descanso, dispon., otros, conduciendo
+const _TACO_NOM = ['Descanso', 'Disponible', 'Otros trabajos', 'Conducción'];
+
+let _tacoInfPersonas = null;   // quien hay para elegir
+
+function _tacoHHMM(min) {
+  return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+}
+function _tacoDiaSemana(iso) {
+  const D = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+  return D[new Date(iso + 'T12:00:00Z').getUTCDay()];
+}
+// Lunes de la semana a la que pertenece una fecha
+function _tacoLunes(iso) {
+  const d = new Date(iso + 'T12:00:00Z');
+  const n = (d.getUTCDay() + 6) % 7;          // 0 = lunes
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+function _tacoDMY2(iso) { return iso ? iso.split('-').reverse().join('/') : '—'; }
+
+// Quien tiene datos guardados, para el desplegable
+async function _tacoInfCargarPersonas() {
+  if (_tacoInfPersonas) return _tacoInfPersonas;
+  const { data, error } = await sb.from('tacografo_dias')
+    .select('origen, tarjeta_raiz, conductor_nombre, matricula, empresa, fecha')
+    .order('fecha', { ascending: false }).limit(5000);
+  if (error) throw error;
+  const m = new Map();
+  (data || []).forEach(d => {
+    const k = d.origen === 'conductor' ? 'C|' + d.tarjeta_raiz : 'V|' + d.matricula;
+    if (!m.has(k)) m.set(k, {
+      clave: k, tipo: d.origen, empresa: d.empresa,
+      nombre: d.origen === 'conductor' ? (d.conductor_nombre || d.tarjeta_raiz) : d.matricula,
+      ultima: d.fecha
+    });
+  });
+  _tacoInfPersonas = [...m.values()].sort((a, b) =>
+    a.tipo === b.tipo ? a.nombre.localeCompare(b.nombre) : (a.tipo === 'conductor' ? -1 : 1));
+  return _tacoInfPersonas;
+}
+
+async function tacoInfPintarSelector() {
+  const box = document.getElementById('tacoInfSelector');
+  if (!box) return;
+  try {
+    const p = await _tacoInfCargarPersonas();
+    if (!p.length) {
+      box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
+        Todavía no hay actividad guardada. Sube ficheros arriba y vuelve.</div>`;
+      return;
+    }
+    const conds = p.filter(x => x.tipo === 'conductor');
+    const vehs = p.filter(x => x.tipo === 'vehiculo');
+    const op = l => l.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+    // por defecto, la semana del último día que haya
+    const hasta = p[0].ultima;
+    box.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+        <div class="fg" style="min-width:260px;flex:1 1 260px">
+          <label class="fl">Conductor o camión</label>
+          <select class="fi" id="tacoInfQuien" onchange="tacoInfVer()">
+            ${conds.length ? `<optgroup label="Conductores">${op(conds)}</optgroup>` : ''}
+            ${vehs.length ? `<optgroup label="Camiones">${op(vehs)}</optgroup>` : ''}
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Semana del</label>
+          <input class="fi" type="date" id="tacoInfDesde" value="${_tacoLunes(hasta)}" onchange="tacoInfVer()"></div>
+        <button class="btn bs" onclick="tacoInfMover(-7)">‹ Semana anterior</button>
+        <button class="btn bs" onclick="tacoInfMover(7)">Semana siguiente ›</button>
+        <button class="btn bp" onclick="tacoInfVer()">Ver</button>
+      </div>`;
+    tacoInfVer();
+  } catch (e) {
+    console.error('[v388]', e);
+    box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo cargar: ${e.message || e}</div>`;
+  }
+}
+
+function tacoInfMover(dias) {
+  const i = document.getElementById('tacoInfDesde');
+  if (!i || !i.value) return;
+  const d = new Date(i.value + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + dias);
+  i.value = d.toISOString().slice(0, 10);
+  tacoInfVer();
+}
+
+async function tacoInfVer() {
+  const cont = document.getElementById('tacoInfResultado');
+  const quien = document.getElementById('tacoInfQuien')?.value;
+  const desde = document.getElementById('tacoInfDesde')?.value;
+  if (!cont || !quien || !desde) return;
+  cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:12px">Cargando…</div>';
+  try {
+    const [tipo, id] = [quien.slice(0, 1), quien.slice(2)];
+    const lunes = _tacoLunes(desde);
+    const dFin = new Date(lunes + 'T12:00:00Z'); dFin.setUTCDate(dFin.getUTCDate() + 6);
+    const hasta = dFin.toISOString().slice(0, 10);
+
+    let q = sb.from('tacografo_tramos').select('*')
+      .gte('fecha', lunes).lte('fecha', hasta)
+      .eq('hueco_ayudante', false)
+      .order('fecha').order('minuto_ini');
+    q = (tipo === 'C') ? q.eq('tarjeta_raiz', id) : q.eq('matricula', id);
+    const { data: tramos, error } = await q;
+    if (error) throw error;
+
+    const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
+    if (!tramos || !tramos.length) {
+      cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:18px;text-align:center">
+        No hay actividad guardada de <b>${nom}</b> entre el ${_tacoDMY2(lunes)} y el ${_tacoDMY2(hasta)}.<br>
+        <span style="font-size:11px">Puede que ese periodo no esté en los ficheros subidos.</span></div>`;
+      return;
+    }
+
+    // agrupar por dia
+    const porDia = new Map();
+    tramos.forEach(t => {
+      if (!porDia.has(t.fecha)) porDia.set(t.fecha, []);
+      porDia.get(t.fecha).push(t);
+    });
+
+    const totSem = [0, 0, 0, 0];
+    let h = '';
+    for (let k = 0; k < 7; k++) {
+      const d = new Date(lunes + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k);
+      const iso = d.toISOString().slice(0, 10);
+      const ts = porDia.get(iso) || [];
+      const tot = [0, 0, 0, 0];
+      ts.forEach(t => { tot[t.actividad] += (t.minuto_fin - t.minuto_ini); });
+      tot.forEach((v, i) => totSem[i] += v);
+
+      // la barra: cada tramo, un trocito del ancho que le toca
+      const barras = ts.map(t => {
+        const izq = (t.minuto_ini / 1440 * 100).toFixed(3);
+        const anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
+        const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}${t.sin_tarjeta ? ' (sin tarjeta)' : ''}`;
+        return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          background:${_TACO_COL[t.actividad]}${t.sin_tarjeta ? ';background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.28) 0 3px,transparent 3px 6px)' : ''}"></div>`;
+      }).join('');
+
+      // las rayitas de las horas
+      let ejes = '';
+      for (let hh = 0; hh <= 24; hh += 1) {
+        const x = (hh / 24 * 100).toFixed(3);
+        ejes += `<div style="position:absolute;left:${x}%;top:0;bottom:0;width:1px;background:rgba(30,41,51,${hh % 6 === 0 ? '.30' : '.10'})"></div>`;
+      }
+      let nums = '';
+      for (let hh = 0; hh <= 24; hh += 2) {
+        nums += `<span style="position:absolute;left:${(hh / 24 * 100).toFixed(3)}%;transform:translateX(-50%)">${hh}</span>`;
+      }
+
+      const hm = v => v ? `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}` : '—';
+      const vacio = !ts.length;
+      h += `
+        <div style="border:1px solid var(--bd);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:${vacio ? 'rgba(30,41,51,.02)' : 'var(--sf)'}">
+          <div style="font-family:var(--ss);font-size:12px;font-weight:600;margin-bottom:7px">
+            ${_tacoDMY2(iso)} · <span style="color:var(--mu)">${_tacoDiaSemana(iso)}</span>
+            ${vacio ? '<span style="color:var(--mu);font-weight:400"> — sin datos</span>' : ''}
+          </div>
+          <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
+            ${barras}${ejes}
+          </div>
+          <div style="position:relative;height:14px;font-family:var(--mn);font-size:9px;color:var(--mu);margin-top:2px">${nums}</div>
+          ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
+            ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
+          </div>`}
+        </div>`;
+    }
+
+    const hm = v => `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}`;
+    cont.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;margin-bottom:12px">
+        <div style="font-family:var(--ss);font-size:15px;font-weight:600">${nom}</div>
+        <div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
+          Semana del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)}</div>
+        <div style="font-family:var(--mn);font-size:12px;margin-left:auto">
+          Conducción de la semana: <b style="font-size:15px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
+          <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>
+        </div>
+      </div>${h}
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
+        Pasa el ratón por la barra para ver la hora exacta de cada tramo. Rayado = el tacógrafo grabó sin tarjeta metida.
+        Solo se muestra el hueco del conductor; el del ayudante se guarda pero no se suma aquí.
+      </div>`;
+  } catch (e) {
+    console.error('[v388]', e);
+    cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:12px">No se pudo cargar: ${e.message || e}</div>`;
+  }
+}
+
 async function _tacoGuardarTramos(r, empresa, filasDia, idPorClave) {
   try {
     if (!r || !r.dias || !r.dias.length || !idPorClave || !idPorClave.size) return 0;
@@ -25180,6 +25388,7 @@ async function tacoGuardar() {
     const nDias = await _tacoGuardarDias(r, empresa, dIns?.id);   // v385
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
+    _tacoInfPersonas = null; tacoInfPintarSelector();   // v388
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
   } catch (e) {
@@ -25501,7 +25710,14 @@ async function tacoSoltarVarios(files) {
     try {
       _tacoLote.push(await _tacoLeerUno(f));
     } catch (e) {
-      _tacoLote.push({ file: f, r: null, empresa: null, motivo: 'no se ha podido leer', estado: 'error', detalle: e.message || String(e) });
+      // v388: NotFoundError = el NAVEGADOR no ha podido leer el fichero del disco
+      // (arrastrado desde dentro de un ZIP sin extraer, movido/borrado a mitad,
+      // o carpeta de OneDrive sin descargar). No es fallo de la app.
+      const esNF = (e && (e.name === 'NotFoundError' || /could not be found/i.test(e.message || '')));
+      _tacoLote.push({ file: f, r: null, empresa: null,
+        motivo: esNF ? 'el navegador no pudo leer el fichero del disco' : 'no se ha podido leer',
+        estado: 'error',
+        detalle: esNF ? 'Si venía de un ZIP, extráelo primero a una carpeta normal y vuelve a soltarlo' : (e.message || String(e)) });
     }
     _tacoPintarLote();
   }
