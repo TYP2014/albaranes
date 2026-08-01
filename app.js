@@ -25033,19 +25033,20 @@ async function tacoInfPintarSelector() {
         Todavía no hay actividad guardada. Sube ficheros arriba y vuelve.</div>`;
       return;
     }
+    // v406: aqui SOLO conductores - los camiones tienen ya su propia seccion
     const conds = p.filter(x => x.tipo === 'conductor');
-    const vehs = p.filter(x => x.tipo === 'vehiculo');
     const op = l => l.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
-    // por defecto, la semana del último día que haya
-    const hasta = p[0].ultima;
+    if (!conds.length) {
+      box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
+        Todavía no hay tarjetas de conductor guardadas. Súbelas en SUBIR y vuelve.</div>`;
+      return;
+    }
+    const hasta = conds[0].ultima;
     box.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
         <div class="fg" style="min-width:260px;flex:1 1 260px">
-          <label class="fl">Conductor o camión</label>
-          <select class="fi" id="tacoInfQuien" onchange="tacoInfVer()">
-            ${conds.length ? `<optgroup label="Conductores">${op(conds)}</optgroup>` : ''}
-            ${vehs.length ? `<optgroup label="Camiones">${op(vehs)}</optgroup>` : ''}
-          </select>
+          <label class="fl">Conductor</label>
+          <select class="fi" id="tacoInfQuien" onchange="tacoInfVer()">${op(conds)}</select>
         </div>
         <div class="fg"><label class="fl">Semana del</label>
           <input class="fi" type="date" id="tacoInfDesde" value="${_tacoLunes(hasta)}" onchange="tacoInfVer()"></div>
@@ -25069,10 +25070,12 @@ function tacoInfMover(dias) {
   tacoInfVer();
 }
 
-async function tacoInfVer() {
-  const cont = document.getElementById('tacoInfResultado');
-  const quien = document.getElementById('tacoInfQuien')?.value;
-  const desde = document.getElementById('tacoInfDesde')?.value;
+// v406: el motor del grafico semanal, con parametros. Lo usan DOS pantallas:
+// CONDUCTORES (tacoInf...) y VEHICULOS (tacoVeh...), cada una con sus controles.
+async function _tacoVerSemana(idQuien, idDesde, idCont) {
+  const cont = document.getElementById(idCont);
+  const quien = document.getElementById(idQuien)?.value;
+  const desde = document.getElementById(idDesde)?.value;
   if (!cont || !quien || !desde) return;
   cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:12px">Cargando…</div>';
   try {
@@ -25093,12 +25096,16 @@ async function tacoInfVer() {
     // v390: que dias de este periodo son el DIA DE LA DESCARGA (jornada a
     // medias). Estan marcados en tacografo_dias desde la v385, pero el grafico
     // no miraba la marca y salian barbaridades tipo 20h44 de conduccion.
-    let qd = sb.from('tacografo_dias').select('fecha, incompleto')
+    let qd = sb.from('tacografo_dias').select('fecha, incompleto, conductor_nombre')
       .gte('fecha', lunes).lte('fecha', hasta)
       .eq('origen', tipo === 'C' ? 'conductor' : 'vehiculo');
     qd = (tipo === 'C') ? qd.eq('tarjeta_raiz', id) : qd.eq('matricula', id);
     const { data: diasInfo } = await qd;
     const _incompletos = new Set((diasInfo || []).filter(x => x.incompleto).map(x => x.fecha));
+    // v406: en la ficha del CAMION, quien lo llevaba cada dia (viene del propio
+    // fichero del camion: las tarjetas que se metieron ese dia)
+    const _quienDia = new Map();
+    if (tipo === 'V') (diasInfo || []).forEach(x => { if (x.conductor_nombre) _quienDia.set(x.fecha, x.conductor_nombre); });
 
     // v394: la HORA a la que se hizo la descarga, sacada del nombre del propio
     // fichero (V_..._20260727_0323.TGD -> 03:23). El tacografo conto hasta ese
@@ -25224,6 +25231,7 @@ async function tacoInfVer() {
               ? `<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga · el tacógrafo contó hasta las ${_tacoHHMM(corte)}; lo registrado hasta ahí sí cuenta</span>`
               : '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>') : ''}
             ${huboDos ? '<span style="font-family:var(--mn);font-size:10px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 9px;margin-left:6px">≡ dos conductores</span>' : ''}
+            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:11px;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
           </div>
           <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
             ${barras}${ejes}${(esIncompleto && corte != null) ? `
@@ -25270,6 +25278,18 @@ async function tacoInfVer() {
     console.error('[v388]', e);
     cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:12px">No se pudo cargar: ${e.message || e}</div>`;
   }
+}
+
+// v406: los dos envoltorios finos sobre el motor
+function tacoInfVer() { _tacoVerSemana('tacoInfQuien', 'tacoInfDesde', 'tacoInfResultado'); }
+function tacoVehVer() { _tacoVerSemana('tacoVehQuien', 'tacoVehDesde', 'tacoVehResultado'); }
+function tacoVehMover(dias) {
+  const i = document.getElementById('tacoVehDesde');
+  if (!i || !i.value) return;
+  const d = new Date(i.value + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + dias);
+  i.value = d.toISOString().slice(0, 10);
+  tacoVehVer();
 }
 
 async function _tacoGuardarTramos(r, empresa, filasDia, idPorClave) {
@@ -26016,6 +26036,105 @@ function tacoSec(sec) {
   // cada seccion carga lo suyo al entrar (y no antes)
   if (sec === 'archivo') tacoCargarLista();
   if (sec === 'conductores') tacoInfPintarSelector();
+  if (sec === 'vehiculos') tacoVehPintarSelector();   // v406
+}
+
+// ============================================================
+// TACOGRAFO — v406 (01/08/2026) · VEHICULOS: EL CASO DEL RADAR
+//
+// Llega la multa del radar con fecha y matricula. Se entra aqui,
+// se pone la matricula y el dia, y sale QUIEN CONDUCIA - que es lo
+// que hay que contestar para identificar al conductor.
+//
+// El dato sale de tacografo_dias: en los ficheros del CAMION viene
+// el nombre de quien metio la tarjeta cada dia, y se guarda desde
+// la v385. Si ese dia el camion no tiene descarga subida, se dice
+// claramente - no se adivina.
+//
+// Debajo, la ficha del camion: el mismo grafico semanal de los
+// conductores, y bajo cada dia QUIEN LO LLEVABA.
+// ============================================================
+
+async function tacoVehPintarSelector() {
+  const box = document.getElementById('tacoVehSelector');
+  if (!box) return;
+  try {
+    const p = await _tacoInfCargarPersonas();
+    const vehs = p.filter(x => x.tipo === 'vehiculo');
+    if (!vehs.length) {
+      box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
+        Todavía no hay descargas de camión guardadas. Súbelas en SUBIR y vuelve.</div>`;
+      const bq = document.getElementById('tacoRadarMat');
+      if (bq) bq.disabled = true;
+      return;
+    }
+    // el desplegable de la ficha
+    const op = vehs.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+    const hasta = vehs[0].ultima;
+    box.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+        <div class="fg" style="min-width:220px;flex:1 1 220px">
+          <label class="fl">Camión</label>
+          <select class="fi" id="tacoVehQuien" onchange="tacoVehVer()">${op}</select>
+        </div>
+        <div class="fg"><label class="fl">Semana del</label>
+          <input class="fi" type="date" id="tacoVehDesde" value="${_tacoLunes(hasta)}" onchange="tacoVehVer()"></div>
+        <button class="btn bs" onclick="tacoVehMover(-7)">‹ Semana anterior</button>
+        <button class="btn bs" onclick="tacoVehMover(7)">Semana siguiente ›</button>
+        <button class="btn bp" onclick="tacoVehVer()">Ver</button>
+      </div>`;
+    // la lista de matriculas para el buscador
+    const dl = document.getElementById('tacoRadarMats');
+    if (dl) dl.innerHTML = vehs.map(x => `<option value="${x.nombre}">`).join('');
+    tacoVehVer();
+  } catch (e) {
+    console.error('[v406]', e);
+    box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo cargar: ${e.message || e}</div>`;
+  }
+}
+
+// El buscador: matricula + fecha -> quien conducia
+async function tacoRadarBuscar() {
+  const cont = document.getElementById('tacoRadarResultado');
+  const mat = (document.getElementById('tacoRadarMat')?.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const fecha = document.getElementById('tacoRadarFecha')?.value;
+  if (!cont) return;
+  if (!mat || !fecha) { toast('Pon la matrícula y el día', 'err'); return; }
+  cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Buscando…</div>';
+  try {
+    const { data, error } = await sb.from('tacografo_dias')
+      .select('conductor_nombre, min_conduccion, odometro, empresa, incompleto')
+      .eq('origen', 'vehiculo').eq('matricula', mat).eq('fecha', fecha).maybeSingle();
+    if (error) throw error;
+
+    const dmy = fecha.split('-').reverse().join('/');
+    if (!data) {
+      cont.innerHTML = `<div style="border:1.5px solid rgba(180,113,20,.4);background:rgba(180,113,20,.07);border-radius:10px;padding:13px 16px;font-family:var(--mn);font-size:12.5px;color:var(--wnd)">
+        <b>Del ${mat} no hay descarga subida que cubra el ${dmy}.</b><br>
+        <span style="font-size:11px">O ese día no está en ningún fichero guardado, o falta subir la descarga del camión. Míralo en el ARCHIVO.</span></div>`;
+      return;
+    }
+    const quien = (data.conductor_nombre || '').trim();
+    const hm = v => v ? `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}` : '0h00';
+    if (!quien) {
+      cont.innerHTML = `<div style="border:1.5px solid rgba(199,54,49,.4);background:rgba(199,54,49,.06);border-radius:10px;padding:13px 16px;font-family:var(--mn);font-size:12.5px">
+        <b style="color:var(--erd)">El ${dmy} el ${mat} no registró ninguna tarjeta metida.</b><br>
+        <span style="font-size:11px;color:var(--mu)">Conducción de ese día: ${hm(data.min_conduccion)}. ${data.min_conduccion > 0 ? '⚠ Se movió SIN tarjeta: eso hay que mirarlo.' : 'El camión estuvo parado.'}</span></div>`;
+      return;
+    }
+    cont.innerHTML = `<div style="border:1.5px solid rgba(47,191,122,.45);background:rgba(47,191,122,.07);border-radius:10px;padding:14px 17px">
+      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:4px">El ${dmy}, el camión <b>${mat}</b> (${_TACO_EMP_NOM[data.empresa] || data.empresa}) lo llevaba:</div>
+      <div style="font-family:var(--ss);font-size:19px;font-weight:700;color:#1e8a55">${quien}</div>
+      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:5px">
+        Conducción registrada ese día: <b>${hm(data.min_conduccion)}</b>${data.odometro ? ` · cuentakm a medianoche: ${data.odometro.toLocaleString('es-ES')}` : ''}${data.incompleto ? ' · ⚠ día de la descarga (parcial)' : ''}
+      </div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:6px">
+        Sale del fichero firmado del propio tacógrafo. El original está en el ARCHIVO por si hay que presentarlo.
+      </div></div>`;
+  } catch (e) {
+    console.error('[v406 radar]', e);
+    cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo buscar: ${e.message || e}</div>`;
+  }
 }
 
 function tacoSoltar(files) {
