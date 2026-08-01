@@ -509,3 +509,13 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 @media (max-width:700px){
   .stats{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ===== v408: recuadros de la parrilla de INFORMES de tacografo ===== */
+.taco-rep-card{display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:center;
+  padding:16px 10px;border:1px solid var(--bd);border-radius:11px;background:var(--sf);cursor:pointer;
+  font-family:var(--ss);font-size:12px;font-weight:600;color:var(--tx);text-align:center;line-height:1.35;
+  transition:transform .12s ease, box-shadow .12s ease}
+.taco-rep-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(30,41,51,.10)}
+.taco-rep-card .trc-nota{font-family:var(--mn);font-size:10px;font-weight:400;color:var(--mu)}
+.taco-rep-card.trc-pronto{opacity:.55}
+.taco-rep-card.trc-pronto:hover{transform:none;box-shadow:none;cursor:default}

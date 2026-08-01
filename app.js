@@ -26105,6 +26105,151 @@ async function tacoVehPintarSelector() {
 }
 
 
+// ============================================================
+// TACOGRAFO — v408 (01/08/2026) · INFORMES: LA PARRILLA
+// Y EL PRIMERO FUNCIONANDO: REGISTRO DE JORNADAS DE TRABAJO
+//
+// El del PDF de ASG que guardo JC como modelo: dia a dia, hora de
+// inicio y fin de jornada, conduccion, otros trabajos y el T.T.
+// EFECTIVO (conduccion + otros), con los totales del periodo y la
+// nota legal del Estatuto (art. 34.9 y 35.5 RDL 2/2015).
+//
+// De donde sale cada cosa (todo de tacografo_tramos, hueco del
+// conductor, tramos registrados con tarjeta):
+//   inicio jornada = primer minuto del dia que NO es descanso
+//   fin jornada    = ultimo minuto del dia que NO es descanso
+//   conduccion     = suma de los tramos de conducir
+//   otros trabajos = suma de los tramos de otros trabajos
+//   T.T. efectivo  = conduccion + otros (igual que ASG: 7:05+2:44=9:49)
+// Dia sin nada    -> "SIN ACTIVIDAD"
+// Dia de descarga -> "PARCIAL" y NO computa (un documento que puede
+//                    acabar firmado no debe llevar un dia a medias)
+// Tarjeta fuera   -> no computa (no esta acreditado)
+// ============================================================
+
+function tacoRep(cual) {
+  const panel = document.getElementById('tacoRepPanel');
+  if (!panel) return;
+  if (cual === 'jornadas') { tacoRepJornadasUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+
+async function tacoRepJornadasUI() {
+  const panel = document.getElementById('tacoRepPanel');
+  const p = await _tacoInfCargarPersonas();
+  const conds = p.filter(x => x.tipo === 'conductor');
+  if (!conds.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas todavía.</div></div>'; return; }
+  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  // por defecto: el mes pasado entero, que es lo que se suele pedir
+  const hoy = new Date();
+  const d1 = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - 1, 1));
+  const d2 = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), 0));
+  panel.innerHTML = `
+    <div class="card">
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#0a53d8"></span>REGISTRO DE JORNADAS DE TRABAJO</div></div>
+      <div class="card-bd">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+          <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Conductor</label>
+            <select class="fi" id="tacoRJquien">${op}</select></div>
+          <div class="fg"><label class="fl">Del día</label>
+            <input class="fi" type="date" id="tacoRJdesde" value="${d1.toISOString().slice(0, 10)}"></div>
+          <div class="fg"><label class="fl">Al día</label>
+            <input class="fi" type="date" id="tacoRJhasta" value="${d2.toISOString().slice(0, 10)}"></div>
+          <button class="btn bp" onclick="tacoRepJornadasVer()">Ver en pantalla</button>
+        </div>
+        <div id="tacoRJout" style="margin-top:14px"></div>
+      </div>
+    </div>`;
+}
+
+async function tacoRepJornadasVer() {
+  const out = document.getElementById('tacoRJout');
+  const quien = document.getElementById('tacoRJquien')?.value;
+  let desde = document.getElementById('tacoRJdesde')?.value;
+  let hasta = document.getElementById('tacoRJhasta')?.value;
+  if (!out || !quien || !desde || !hasta) return;
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Preparando…</div>';
+  try {
+    const id = quien.slice(2);
+    const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
+    const emp = (_tacoInfPersonas || []).find(x => x.clave === quien)?.empresa || '';
+
+    const { data: tramos, error } = await sb.from('tacografo_tramos').select('fecha, minuto_ini, minuto_fin, actividad, sin_tarjeta')
+      .eq('tarjeta_raiz', id).eq('hueco_ayudante', false)
+      .gte('fecha', desde).lte('fecha', hasta)
+      .order('fecha').order('minuto_ini');
+    if (error) throw error;
+    const { data: dInfo } = await sb.from('tacografo_dias').select('fecha, incompleto')
+      .eq('origen', 'conductor').eq('tarjeta_raiz', id)
+      .gte('fecha', desde).lte('fecha', hasta);
+    const incomp = new Set((dInfo || []).filter(x => x.incompleto).map(x => x.fecha));
+    const conDatos = new Set((dInfo || []).map(x => x.fecha));
+
+    const porDia = new Map();
+    (tramos || []).forEach(t => {
+      if (!porDia.has(t.fecha)) porDia.set(t.fecha, []);
+      porDia.get(t.fecha).push(t);
+    });
+
+    const hm = v => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+    const dmy = x => x.split('-').reverse().join('/');
+    let filas = '', totCon = 0, totOtr = 0, nSin = 0, nParc = 0, nFuera = 0;
+    const dA = new Date(desde + 'T12:00:00Z'), dB = new Date(hasta + 'T12:00:00Z');
+    for (let d = new Date(dA); d <= dB; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      const ts = (porDia.get(iso) || []).filter(t => !t.sin_tarjeta);
+      const util = ts.filter(t => t.actividad !== 0);
+      const parcial = incomp.has(iso);
+      const sinFichero = !conDatos.has(iso);
+      let celdas;
+      if (parcial) {
+        celdas = `<td colspan="5" style="color:var(--wnd)">PARCIAL — día de la descarga, no computado</td>`;
+        nParc++;
+      } else if (sinFichero) {
+        celdas = `<td colspan="5" style="color:var(--mu)">SIN DESCARGA SUBIDA QUE CUBRA ESTE DÍA</td>`;
+        nFuera++;
+      } else if (!util.length) {
+        celdas = `<td colspan="5" style="color:var(--mu)">SIN ACTIVIDAD</td>`;
+        nSin++;
+      } else {
+        const ini = Math.min(...util.map(t => t.minuto_ini));
+        const fin = Math.max(...util.map(t => t.minuto_fin));
+        const con = util.filter(t => t.actividad === 3).reduce((a, t) => a + t.minuto_fin - t.minuto_ini, 0);
+        const otr = util.filter(t => t.actividad === 2).reduce((a, t) => a + t.minuto_fin - t.minuto_ini, 0);
+        totCon += con; totOtr += otr;
+        celdas = `<td>${hm(ini)}</td><td>${hm(fin === 1440 ? 1439 : fin)}</td>
+          <td style="font-weight:700;color:${_TACO_COL[3]}">${hm(con)}</td><td>${hm(otr)}</td>
+          <td style="font-weight:700">${hm(con + otr)}</td>`;
+      }
+      filas += `<tr><td style="white-space:nowrap">${dmy(iso)}</td>${celdas}</tr>`;
+    }
+
+    out.innerHTML = `
+      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-bottom:8px">
+        <b style="color:var(--tx);font-family:var(--ss);font-size:13px">${nom}</b> · ${_TACO_EMP_NOM[emp] || emp}
+        · del ${dmy(desde)} al ${dmy(hasta)}
+      </div>
+      <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
+        <thead><tr><th>Día</th><th>Inicio jornada</th><th>Fin jornada</th><th>Conducción</th><th>Otros trabajos</th><th>T.T. efectivo</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr style="font-weight:700;border-top:2px solid var(--bd)">
+          <td>TOTALES</td><td></td><td></td>
+          <td style="color:${_TACO_COL[3]}">${hm(totCon)}</td><td>${hm(totOtr)}</td><td>${hm(totCon + totOtr)}</td>
+        </tr></tfoot>
+      </table></div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:9px;line-height:1.6">
+        Horas del hueco del conductor, registradas con tarjeta. Lo grabado con la tarjeta fuera no computa (no está
+        acreditado)${nParc ? ` · ${nParc} día(s) parciales por descarga, no computados` : ''}${nFuera ? ` · ${nFuera} día(s) sin descarga subida` : ''}.
+        En cumplimiento de los art. 34.9 y 35.5 del RDL 2/2015 (Estatuto de los Trabajadores). Para horas
+        extraordinarias, ver art. 10 bis del RD 1561/95 de jornadas especiales.
+        <b>La descarga en PDF/Excel con firmas viene en el siguiente paso.</b>
+      </div>`;
+  } catch (e) {
+    console.error('[v408]', e);
+    out.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo preparar: ${e.message || e}</div>`;
+  }
+}
+
 function tacoSoltar(files) {
   if (!files || !files.length) return;
   // v376: mas de uno -> modo lote. Uno solo -> como siempre.
