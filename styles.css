@@ -79,6 +79,67 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .dz-ic{font-size:34px;margin-bottom:6px;pointer-events:none}
 .dz-t{font-family:var(--mn);font-size:12px;color:var(--mu);margin-bottom:3px;pointer-events:none}
 .dz-s{font-size:11px;color:var(--mu);opacity:.55;pointer-events:none}
+
+/* ============================================================
+   v396 (01/08/2026): ICONO DE SUBIR EN 3D Y EN MOVIMIENTO
+   Pedido por JC ("mas bonito, en 3D y en movimiento").
+   Solo estetica: NO toca el arrastrar/soltar ni ninguna funcion.
+   Ciclo de 9s: el gesto dura ~1,5s y el resto esta QUIETO.
+   Al pasar el raton, el ciclo se acelera.
+   ============================================================ */
+.dz-ic.ic3d{line-height:0}
+.dz-ic.ic3d svg{width:72px;height:72px;display:block;margin:0 auto;overflow:visible}
+#cardSubirAlb .dz-ic.ic3d svg{width:96px;height:96px}
+.ic3d-doc{animation:ic3dSube 9s ease-in-out infinite}
+.ic3d-nub{animation:ic3dNube 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-car{animation:ic3dCarpeta 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
+.ic3d-ok{animation:ic3dPop 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-fle{animation:ic3dVaiven 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.ic3d-som{animation:ic3dSombra 9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ic3dSube{
+  0%,72%{transform:translateY(0);opacity:1}
+  76%{transform:translateY(-3px);opacity:1}
+  85%{transform:translateY(-26px);opacity:0}
+  85.6%{transform:translateY(10px);opacity:0}
+  94%,100%{transform:translateY(0);opacity:1}
+}
+@keyframes ic3dNube{
+  0%,78%{transform:translateY(0) scale(1)}
+  85%{transform:translateY(-2px) scale(1.07)}
+  93%,100%{transform:translateY(0) scale(1)}
+}
+@keyframes ic3dCarpeta{
+  0%,74%{transform:scale(1,1)}
+  79%{transform:scale(1.05,.95)}
+  88%,100%{transform:scale(1,1)}
+}
+@keyframes ic3dPop{
+  0%,84%{transform:scale(1)}
+  89%{transform:scale(1.3)}
+  95%,100%{transform:scale(1)}
+}
+@keyframes ic3dVaiven{
+  0%,74%{transform:translateY(0)}
+  80%{transform:translateY(-5px)}
+  90%,100%{transform:translateY(0)}
+}
+@keyframes ic3dSombra{
+  0%,74%{transform:scaleX(1);opacity:.13}
+  80%{transform:scaleX(.88);opacity:.08}
+  90%,100%{transform:scaleX(1);opacity:.13}
+}
+#dzGas .dz-ic,#dzItv .dz-ic,#dzCita .dz-ic,#tacoDrop .dz-ic,#dzNeumAlb .dz-ic,#dzNeumFactura .dz-ic{animation:dzSaltito 9s ease-in-out infinite}
+@keyframes dzSaltito{
+  0%,85%{transform:translateY(0)}
+  90%{transform:translateY(-7px)}
+  95%,100%{transform:translateY(0)}
+}
+.dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation-duration:2.2s}
+/* Si el usuario tiene puesto "reducir movimiento" en su sistema, nada se mueve */
+@media (prefers-reduced-motion:reduce){
+  .ic3d-doc,.ic3d-nub,.ic3d-car,.ic3d-ok,.ic3d-fle,.ic3d-som,.dz-ic,
+  .dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation:none}
+}
 .hl{color:var(--ac)}
 
 /* STATS
