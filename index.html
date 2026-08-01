@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v389 (01/08/2026): TACOGRAFOS - SUB-PESTAÑAS. El modulo se estaba haciendo largo (lector + avisos + actividad + archivo, todo en vertical) y JC pidio organizarlo como el portal de ASG: "no quiero una superpantalla donde necesite bajar diez o quince paginas". MAPA APROBADO POR JC (01/08) antes de programar, a proposito, para no hacer cincuenta cambios intermedios: SUBIR (lector + avisos de descargas) · CONDUCTORES (de momento la actividad dia a dia de la v388; despues la ficha completa con jornadas e infracciones) · VEHICULOS (en obra: llevara la ficha del camion con QUIEN lo llevaba cada dia -el caso del radar-, el buscador matricula+fecha, y los Km/GASOLEO PROFESIONAL conectados con Taller, que JC recordo que hacen falta para las ayudas del Gobierno y los mantenimientos) · INFORMES (en obra: registro de jornadas, listado de infracciones con PDF para que el conductor FIRME, descansos semanales y bisemanales, carencia de registros, conduccion sin tarjeta - todos con FILTROS, ver en pantalla primero y descarga en PDF/Excel/CSV; para inspeccion de Trafico/Transportes lo que vale son los FICHEROS ORIGINALES, que ya estan en el Archivo, y se añadira descarga en ZIP por periodo) · ARCHIVO (lo que ya existia). Las secciones en obra lo dicen claramente y explican que llevaran - no se esconde nada. Cada seccion carga lo suyo al ENTRAR en ella, no antes. La seccion se recuerda mientras dura la sesion. INFRACCIONES, dicho a JC: se haran regla a regla con el validando contra casos reales (como Holcim), con letrero de "debe analizarse antes de tomar decisiones" y las CUANTIAS EN TABLA EDITABLE, no grabadas en el codigo, porque cambian con la ley. Solo se reorganiza el HTML en 5 secciones y se añade tacoSec(); NINGUNA funcion existente cambia. styles.css NO cambia. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=389. VUELTA ATRAS: resubir app.js + index.html de la v388. -->
 <!-- v388 (01/08/2026): TACOGRAFOS - INFORME DE ACTIVIDAD, EL GRAFICO QUE PIDIO JC ("quiero mas o menos ver el grafico parecido" al de ASG). Tarjeta nueva ACTIVIDAD - DIA A DIA entre los avisos y el archivo. Eliges conductor o camion en un desplegable (agrupados, solo los que tienen actividad guardada), eliges semana (botones semana anterior/siguiente, siempre de lunes a domingo) y sale la BARRA DE 24 HORAS de cada dia: rojo conduciendo, azul otros trabajos, amarillo disponible, verde descanso - los mismos colores que usa ASG y que todo el sector. Con rayitas de las horas (las de 0/6/12/18/24 mas marcadas), numeros cada 2 horas, y AL PASAR EL RATON por cualquier tramo sale la hora exacta (07:12-09:30 - Conduccion). Debajo de cada dia, sus totales; arriba, la CONDUCCION DE LA SEMANA en grande. Los tramos SIN TARJETA salen RAYADOS en diagonal. Los dias sin datos salen en gris diciendo "sin datos" - no se inventa nada. SALE DE tacografo_tramos (v387), asi que se puede consultar CUALQUIER dia guardado sin volver a buscar el fichero - que era el motivo de elegir la opcion A. Solo el hueco del CONDUCTOR (hueco_ayudante=false): si se mezclan los dos huecos salen dias de 39 horas. El del ayudante esta guardado para cuando haga falta. El selector se refresca solo al guardar ficheros nuevos. ADEMAS: mensaje en cristiano cuando el navegador no puede leer un fichero del disco (NotFoundError, visto por JC con 3 ficheros de un lote): "el navegador no pudo leer el fichero del disco - si venia de un ZIP, extraelo primero". NO es fallo de la app: pasa al arrastrar desde dentro de un ZIP sin extraer, con ficheros movidos a mitad, o carpetas de OneDrive sin descargar. Antes salia el parrafazo en ingles de Chrome. LO QUE NO LLEVA AUN (dicho a JC): las marcas de FERRY y FUERA DE AMBITO, que van en otro bloque del fichero. No se toca el lector, ni el guardado, ni el archivo, ni los avisos. styles.css NO cambia. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=388. VUELTA ATRAS: resubir app.js + index.html de la v387. -->
 <!-- v387 (01/08/2026): TACOGRAFOS - SE GUARDAN LOS TRAMOS DE ACTIVIDAD. En tacografo_dias estaban los TOTALES del dia (tantas horas conduciendo, tantas de descanso) pero NO cuando paso cada cosa. JC pidio el grafico de barra de 24 horas del conductor, como el de ASG ("para mi este informe o poder comprobar lo realizado por el conductor es muy importante"), y para eso hacen falta los TRAMOS: de 07:12 a 09:30 conduciendo, de 09:30 a 09:45 otros trabajos... El dato ya se leia del fichero desde la v368; lo que faltaba era guardarlo. SE ELIGIO LA OPCION A (guardar en tabla) frente a la B (pintar al vuelo al soltar el fichero): asi se puede consultar un dia de hace tres meses sin volver a buscar el fichero. Y ademas los DESCANSOS SEMANALES y los avisos de infraccion, que vienen despues, necesitan saber CUANDO pasaron las cosas y no solo cuanto sumaron. TABLA tacografo_tramos (SQL del paso 6, ya ejecutado): un tramo = de tal minuto a tal minuto haciendo tal cosa. Minutos desde medianoche (0-1440), como los guarda el propio tacografo. Se cuelga del dia con ON DELETE CASCADE. Repite empresa/fecha/matricula a proposito, para consultar sin cruzar tablas. SIN INDICE UNICO, a proposito: cuando un dia vuelve a llegar (las descargas se solapan mucho) se BORRAN sus tramos y se escriben enteros de nuevo. Mas simple y mas seguro que intentar casar 30 tramos uno a uno. EL HUECO DEL AYUDANTE se guarda tambien pero MARCADO (hueco_ayudante). Los dos huecos son listas ENTRELAZADAS y si se mezclan salen dias de 39 horas (ya paso en las pruebas del 30/07), asi que cada tramo se calcula dentro de su propio hueco: cada cambio dura hasta el siguiente DEL MISMO HUECO. PROBADO ANTES DE ENTREGAR con la tarjeta real de ANTON PERA BAELLA: 159 dias, 5.927 tramos generados, y CERO dias donde los tramos no cuadren con los totales que ya se guardaban. El upsert de tacografo_dias pasa a llevar .select(id, clave) para poder colgar cada tramo de su dia. VOLUMEN: un dia normal tiene 10-40 cambios; con la flota entera y un año de historico son ~900.000 filas. Es manejable (filas diminutas, todo indexado) pero es un salto respecto a lo que habia. Si el guardado de tramos falla, el FICHERO Y LOS DIAS YA ESTAN A SALVO: solo se avisa en consola. No se toca el lector, ni el archivo, ni los avisos, ni el cruce de conductores. styles.css NO cambia. Sube app.js + index.html. node --check OK. cache app.js?v=387. VUELTA ATRAS: resubir app.js + index.html de la v386 (los tramos quedarian sin usar, sin romper nada). -->
 <!-- v386 (31/07/2026): TACOGRAFOS - ARREGLO DEL GUARDADO DE DIAS. La v385 no guardaba NI UN DIA: la consola soltaba "[v385] no se pudieron guardar los dias: there is no unique or exclusion constraint matching the ON CONFLICT specification" en cada intento. CAUSA (fallo de diseño mio): en el paso 5 monte los indices que impiden duplicados como PARCIALES - uno WHERE origen=conductor y otro WHERE origen=vehiculo. Sobre el papel es lo correcto, cada tipo con su regla. Pero PostgreSQL NO admite indices parciales en un ON CONFLICT lanzado como lo lanza Supabase, asi que rechazaba todos los upserts. NO se guardo nada mal: simplemente no se guardo nada. Los ficheros quedaron intactos y los dos que subio JC se guardaron bien. ARREGLO: fuera los dos indices parciales (SQL paso 5b) y en su lugar una COLUMNA "clave" normal, que rellena la app, con el texto origen|quien|fecha - por ejemplo conductor|E46381035V0000|2026-02-23 o vehiculo|9499LHT|2026-07-23 - y un indice unico normal encima. Menos elegante que los parciales pero funciona, y ademas se ve de un vistazo mirando la tabla por que dos filas son la misma o no. El upsert pasa a ir sobre onConflict:clave. La regla que se protege NO cambia: un dia por conductor y un dia por camion, y si vuelve a llegar se actualiza. SQL QUE HAY QUE PASAR ANTES: tacografo_paso5b_arreglo_indices.sql (comprueba que la tabla esta vacia, quita los dos indices parciales, añade la columna clave y su indice unico). Sin el, esta version seguiria fallando. No se toca el lector, ni el guardado de ficheros, ni el archivo, ni los avisos. styles.css NO cambia. Sube app.js + index.html. node --check OK. cache app.js?v=386. VUELTA ATRAS: resubir app.js + index.html de la v384 (la v385 no aporta nada sin esto). -->
@@ -1095,6 +1096,18 @@ if (typeof pdfjsLib !== 'undefined') {
 
     <!-- ===== TACOGRAFO (v368) — PASO 1: solo leer y enseñar, NO guarda nada ===== -->
     <div id="tabContentTaco" class="wrap" style="display:none">
+
+      <!-- v389: SUB-PESTAÑAS del modulo (mapa aprobado por JC el 01/08) -->
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px" id="tacoSecBar">
+        <button class="btn bp" id="tacoSecBtnsubir"       onclick="tacoSec('subir')">📥 SUBIR</button>
+        <button class="btn bs" id="tacoSecBtnconductores" onclick="tacoSec('conductores')">👤 CONDUCTORES</button>
+        <button class="btn bs" id="tacoSecBtnvehiculos"   onclick="tacoSec('vehiculos')">🚛 VEHÍCULOS</button>
+        <button class="btn bs" id="tacoSecBtninformes"    onclick="tacoSec('informes')">📊 INFORMES</button>
+        <button class="btn bs" id="tacoSecBtnarchivo"     onclick="tacoSec('archivo')">🗂 ARCHIVO</button>
+      </div>
+
+      <!-- ======== SECCION SUBIR ======== -->
+      <div id="tacoSecsubir">
       <div class="card">
         <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#7b8ff0"></span>TACÓGRAFO · LECTOR DE FICHEROS</div></div>
         <div class="card-bd">
@@ -1116,9 +1129,12 @@ if (typeof pdfjsLib !== 'undefined') {
 
       <!-- v377: avisos de descargas pendientes -->
       <div id="tacoAvisos" style="margin-top:16px"></div>
+      </div><!-- /tacoSecsubir -->
 
-      <!-- v388: INFORME DE ACTIVIDAD - la barra de 24 horas de cada dia -->
-      <div class="card" style="margin-top:16px">
+      <!-- ======== SECCION CONDUCTORES ======== -->
+      <div id="tacoSecconductores" style="display:none">
+      <!-- v388/v389: la actividad dia a dia vive aqui de momento; las fichas completas vendran despues -->
+      <div class="card">
         <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#d94a45"></span>ACTIVIDAD · DÍA A DÍA</div></div>
         <div class="card-bd">
           <div id="tacoInfSelector"></div>
@@ -1126,6 +1142,34 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
+      </div><!-- /tacoSecconductores -->
+
+      <!-- ======== SECCION VEHICULOS ======== -->
+      <div id="tacoSecvehiculos" style="display:none">
+        <div class="card"><div class="card-bd" style="text-align:center;padding:34px 20px">
+          <div style="font-size:30px;margin-bottom:8px">🚧</div>
+          <div style="font-family:var(--ss);font-size:14px;font-weight:600;margin-bottom:6px">Vehículos — en construcción</div>
+          <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);line-height:1.8">
+            Aquí irá: la ficha de cada camión con su actividad y QUIÉN lo llevaba cada día (el caso del radar),<br>
+            el buscador matrícula + fecha → conductor, y los Km / Gasóleo Profesional conectados con Taller.<br>
+            Mientras tanto, la actividad de los camiones se puede ver en CONDUCTORES (el desplegable incluye camiones).
+          </div></div></div>
+      </div>
+
+      <!-- ======== SECCION INFORMES ======== -->
+      <div id="tacoSecinformes" style="display:none">
+        <div class="card"><div class="card-bd" style="text-align:center;padding:34px 20px">
+          <div style="font-size:30px;margin-bottom:8px">🚧</div>
+          <div style="font-family:var(--ss);font-size:14px;font-weight:600;margin-bottom:6px">Informes — en construcción</div>
+          <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);line-height:1.8">
+            Aquí irán, con filtros y descarga en PDF / Excel / CSV:<br>
+            Registro de jornadas · Listado de infracciones · Descansos semanales y bisemanales ·<br>
+            Carencia de registros · Conducción sin tarjeta · Impresiones gráficas descargables.
+          </div></div></div>
+      </div>
+
+      <!-- ======== SECCION ARCHIVO ======== -->
+      <div id="tacoSecarchivo" style="display:none">
       <!-- v374: EL ARCHIVO — lo ya guardado, por empresa, con descarga -->
       <div class="card" style="margin-top:16px">
         <div class="card-hd">
@@ -1146,6 +1190,7 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
       </div>
+      </div><!-- /tacoSecarchivo -->
     </div>
 
     <div id="tabContentItv" class="wrap" style="display:none">
@@ -2195,6 +2240,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v314 (17/07/2026): ALBARANES — RED "CASI VACÍO": si Haiku devuelve una lectura con ≤2 de los 9 campos útiles (albarán/fecha/matrícula/tm/proveedor/origen/destino/material/cliente), se RELEE el archivo ENTERO con Sonnet 4.6 y se usa la lectura que traiga MÁS campos. Motivo (caso real de hoy): tickets térmicos de báscula Holcim Garraf con tinta casi borrada donde Haiku no sacaba NI el sello → sin ninguna pista, la plantilla Garraf (v312/v313) no podía saltar y el albarán quedaba vacío del todo. Sonnet ve mucho mejor las fotos malas: con que saque una pista (Garraf/zahorra/Montcada), la plantilla rellena el resto. Ya existían reintentos PARCIALES con Sonnet (matrícula, TN, destinos); este es el COMPLETO y solo se dispara en lecturas casi vacías (raro) → coste extra mínimo. Si el reintento falla (red/saturación) se sigue con lo de Haiku, nunca se pierde nada. Cambios: callClaudeAlb acepta parámetro de modelo (Haiku por defecto) + bloque de reintento en _processOne. NO toca gasoil, facturas ni el modo manual. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=314. -->
 <!-- v315 (17/07/2026): ALBARANES — ARREGLO DEL FALLO visto probando la v314 (captura de consola de Juan Carlos): el reintento con Sonnet SÍ saltaba ("Haiku leyó casi nada 0/9... Releyendo TODO con Sonnet") pero la respuesta se TIRABA porque Sonnet a veces contesta con texto delante del JSON ("Analizando el albarán...", "I need to...") y JSON.parse petaba con "Unexpected token" — el mismo fallo tumbaba también el reintento de TN (v107D0). Arreglo: nueva función _jsonRespuestaIA(text) que primero intenta el parse directo (caso normal, coste cero) y si falla RECORTA el bloque JSON (del primer { o [ al último } o ]) y lo parsea — con aviso [v315] en consola. Se aplica a TODO el circuito de lectura de albaranes: callClaudeAlb + los 9 reintentos focalizados con Sonnet (TN, matrícula, nº Cemex, nº Holcim, cliente Canro, destino Holcim, origen Puigfel, destino Promsa, Promsa). Gasoil, neumáticos y facturas NO se tocan (sus parseos siguen igual, se harán aparte si hiciera falta). Con esto el circuito del ticket Garraf queda completo: Haiku casi vacío → Sonnet relee → plantilla v313 rellena → nº SN v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=315. -->
 <!-- v316 (17/07/2026): ALBARANES — SN más robusto: la cola de KILOS del número automático (v311) se redondea a CENTENAS de kilo. Caso real de hoy: el mismo ticket de 28.740 kg se leyó una vez como 28,74 TN y otra como 28,7 TN → SN-0726-28740 vs SN-0726-28700 → números distintos → ese duplicado se habría escapado. Con el redondeo, ambas lecturas dan SN-0726-28700 y el detector lo caza. Dos viajes reales del mismo mes tendrían que pesar a menos de 100 kg de diferencia para chocar (rarísimo; y sería solo un aviso a revisar). Los SN ya guardados NO cambian. Una sola línea tocada dentro del bloque v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=316. -->
-<script src="app.js?v=388"></script>
+<script src="app.js?v=389"></script>
 </body>
 </html>

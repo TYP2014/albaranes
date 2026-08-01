@@ -14223,7 +14223,7 @@ function switchTab(tab) {
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
   if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
-  if (tab === 'taco') { tacoCargarLista(); tacoInfPintarSelector(); }     // v374 / v388
+  if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v108: cargar Incidencias al entrar en su pestaña
   if (tab === 'incidencias') { loadIncidenciasData(); }
@@ -25895,6 +25895,28 @@ function tacoCerrarLectura() {
 const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
   <button class="btn bs" style="padding:4px 11px;font-size:11px" onclick="tacoCerrarLectura()"
     title="Quitar esto de la pantalla. No borra nada de lo guardado.">✕ Cerrar</button></div>`;
+
+// ============================================================
+// TACOGRAFO — v389 (01/08/2026) · SUB-PESTAÑAS
+// El modulo se estaba haciendo largo (lector + avisos + actividad
+// + archivo, todo en vertical) y JC pidio organizarlo como ASG:
+// secciones, no una superpantalla de quince paginas de scroll.
+// Mapa aprobado: SUBIR · CONDUCTORES · VEHICULOS · INFORMES · ARCHIVO.
+// Vehiculos e Informes estan en obra: de momento explican que llevaran.
+// ============================================================
+let _tacoSecActiva = 'subir';
+function tacoSec(sec) {
+  _tacoSecActiva = sec;
+  ['subir', 'conductores', 'vehiculos', 'informes', 'archivo'].forEach(x => {
+    const d = document.getElementById('tacoSec' + x);
+    if (d) d.style.display = (x === sec) ? '' : 'none';
+    const b = document.getElementById('tacoSecBtn' + x);
+    if (b) { b.classList.remove('bp', 'bs'); b.classList.add(x === sec ? 'bp' : 'bs'); }
+  });
+  // cada seccion carga lo suyo al entrar (y no antes)
+  if (sec === 'archivo') tacoCargarLista();
+  if (sec === 'conductores') tacoInfPintarSelector();
+}
 
 function tacoSoltar(files) {
   if (!files || !files.length) return;
