@@ -25100,6 +25100,32 @@ async function tacoInfVer() {
     const { data: diasInfo } = await qd;
     const _incompletos = new Set((diasInfo || []).filter(x => x.incompleto).map(x => x.fecha));
 
+    // v394: la HORA a la que se hizo la descarga, sacada del nombre del propio
+    // fichero (V_..._20260727_0323.TGD -> 03:23). El tacografo conto hasta ese
+    // momento y NI UN MINUTO mas: la barra debe cortarse ahi, no en medianoche.
+    const _cortes = new Map();
+    if (_incompletos.size) {
+      try {
+        let qf = sb.from('tacografo_ficheros').select('file_nombre, fecha_hasta, tarjeta_num, matricula')
+          .in('fecha_hasta', [..._incompletos]);
+        qf = (tipo === 'C') ? qf.eq('tipo', 'conductor') : qf.eq('matricula', id);
+        const { data: fich } = await qf;
+        (fich || []).forEach(f => {
+          if (tipo === 'C') {
+            const rz = (f.tarjeta_num || '').toUpperCase().slice(0, 14);
+            if (rz !== id) return;
+          }
+          const m = /_(\d{8})_(\d{4})/.exec(f.file_nombre || '');
+          if (!m) return;
+          const fIso = m[1].slice(0, 4) + '-' + m[1].slice(4, 6) + '-' + m[1].slice(6, 8);
+          if (fIso !== f.fecha_hasta) return;          // el nombre no cuadra con el dia: no fiarse
+          const min = parseInt(m[2].slice(0, 2), 10) * 60 + parseInt(m[2].slice(2), 10);
+          const ya = _cortes.get(f.fecha_hasta);
+          if (ya == null || min > ya) _cortes.set(f.fecha_hasta, min);
+        });
+      } catch (e) { console.warn('[v394] hora de descarga:', e); }
+    }
+
     const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
     if (!tramos || !tramos.length) {
       cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:18px;text-align:center">
@@ -25125,24 +25151,44 @@ async function tacoInfVer() {
       const tsAyu = (porDiaAyu.get(iso) || []).filter(t => !t.sin_tarjeta || t.actividad !== 0);   // v392
       const huboDos = tsAyu.some(t => t.actividad !== 0 || !t.sin_tarjeta);
       const esIncompleto = _incompletos.has(iso);          // v390
+      // v394: si se SABE a que hora se hizo la descarga (del nombre del fichero),
+      // los tramos se RECORTAN a ese minuto: el tacografo conto hasta ahi y lo
+      // que conto es real y se suma. Del corte en adelante NO HAY DATO: ni color
+      // ni blanco - la barra simplemente se acaba. Nada de hacer de vidente.
+      const corte = esIncompleto ? (_cortes.get(iso) ?? null) : null;
+      let tsv = ts, tsAyuV = tsAyu;
+      if (esIncompleto && corte != null) {
+        const rec = arr => arr.filter(t => t.minuto_ini < corte)
+          .map(t => ({ ...t, minuto_fin: Math.min(t.minuto_fin, corte) }));
+        tsv = rec(ts); tsAyuV = rec(tsAyu);
+      }
+      // v393 (solo si NO se sabe la hora): el tramo que llega a medianoche esta
+      // sin cerrar y va en blanco.
+      const _esAbierto = t => esIncompleto && corte == null && t.minuto_fin === 1440;
       const tot = [0, 0, 0, 0];
-      let sinReg = 0;                                       // v391
-      // v391: lo grabado con la TARJETA FUERA no acredita nada - si el conductor
-      // no registro el descanso, legalmente no cuenta como descanso diario ni
-      // semanal. Se cuenta aparte y NO se suma a las actividades.
-      ts.forEach(t => {
+      let sinReg = 0, sinCerrar = 0;                        // v391 / v393
+      tsv.forEach(t => {
         const m = (t.minuto_fin - t.minuto_ini);
-        if (t.sin_tarjeta) sinReg += m; else tot[t.actividad] += m;
+        if (_esAbierto(t)) sinCerrar += m;
+        else if (t.sin_tarjeta) sinReg += m;
+        else tot[t.actividad] += m;
       });
-      // v390: el dia de la descarga NO se suma a la semana - su ultimo tramo
-      // quedo sin cerrar y se estira hasta medianoche, inflando lo que sea que
-      // estuviera haciendo en ese momento.
-      if (!esIncompleto) tot.forEach((v, i) => totSem[i] += v);
+      // v394: si se conoce la hora del corte, lo registrado hasta ahi es REAL
+      // (el tacografo lo atestigua) y SI se suma a la semana. Solo se excluye
+      // el dia entero cuando no se sabe donde cortar (v390).
+      if (!esIncompleto || corte != null) tot.forEach((v, i) => totSem[i] += v);
 
       // la barra: cada tramo, un trocito del ancho que le toca
-      const barras = ts.map(t => {
+      const barras = tsv.map(t => {
         const izq = (t.minuto_ini / 1440 * 100).toFixed(3);
         const anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
+        // v393: tramo SIN CERRAR (dia de la descarga) -> en blanco. Se sabe que
+        // empezo, no cuanto duro.
+        if (_esAbierto(t)) {
+          const tit = `${_tacoHHMM(t.minuto_ini)} → … · SIN CERRAR: la descarga se hizo a mitad de este tramo (iba en ${_TACO_NOM[t.actividad]}). Se completará con la próxima descarga.`;
+          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+            background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 8px)"></div>`;
+        }
         // v391: tarjeta fuera -> EN BLANCO con rayitas grises (como ASG). No se
         // pinta del color de la actividad porque no esta acreditada: un descanso
         // sin registrar NO es un descanso ante una inspeccion.
@@ -25174,20 +25220,25 @@ async function tacoInfVer() {
           <div style="font-family:var(--ss);font-size:12px;font-weight:600;margin-bottom:7px">
             ${_tacoDMY2(iso)} · <span style="color:var(--mu)">${_tacoDiaSemana(iso)}</span>
             ${vacio ? '<span style="color:var(--mu);font-weight:400"> — sin datos</span>' : ''}
-            ${esIncompleto ? '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>' : ''}
+            ${esIncompleto ? (corte != null
+              ? `<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga · el tacógrafo contó hasta las ${_tacoHHMM(corte)}; lo registrado hasta ahí sí cuenta</span>`
+              : '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>') : ''}
             ${huboDos ? '<span style="font-family:var(--mn);font-size:10px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 9px;margin-left:6px">≡ dos conductores</span>' : ''}
           </div>
           <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
-            ${barras}${ejes}
+            ${barras}${ejes}${(esIncompleto && corte != null) ? `
+              <div title="Sin datos aún: la descarga se hizo a las ${_tacoHHMM(corte)}. El resto del día vendrá en la próxima descarga." style="position:absolute;left:${(corte / 1440 * 100).toFixed(3)}%;right:0;top:0;bottom:0;background:#eef0f2"></div>
+              <div style="position:absolute;left:${(corte / 1440 * 100).toFixed(3)}%;top:0;bottom:0;width:2px;background:#1e2933"></div>` : ''}
           </div>
-          ${huboDos ? `<div style="position:relative;height:9px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyu.map(t => {
+          ${huboDos ? `<div style="position:relative;height:9px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyuV.map(t => {
             const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
-            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${t.sin_tarjeta ? '#fff' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
+            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${(t.sin_tarjeta || _esAbierto(t)) ? '#fff' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
           }).join('')}</div>` : ''}
           <div style="position:relative;height:14px;font-family:var(--mn);font-size:9px;color:var(--mu);margin-top:2px">${nums}</div>
           ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
             ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
             ${sinReg ? `<span style="color:var(--mu)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fff;border:1px solid var(--bd);background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.25) 0 2px,transparent 2px 4px);margin-right:4px"></span>Sin registrar (tarjeta fuera): <b>${hm(sinReg)}</b> — no cuenta como descanso</span>` : ''}
+            ${sinCerrar ? `<span style="color:var(--mu)">Tramo sin cerrar por la descarga: <b>${hm(sinCerrar)}</b> — no se cuenta; se completará con la próxima descarga</span>` : ''}
           </div>`}
         </div>`;
     }
