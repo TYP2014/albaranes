@@ -24944,6 +24944,99 @@ async function _tacoRellenarTarjeta(r) {
 // de conduccion). Queda apuntado pero fuera de los totales.
 // ============================================================
 
+// ============================================================
+// TACOGRAFO — v387 (01/08/2026) · GUARDAR LOS TRAMOS
+//
+// En tacografo_dias estan los TOTALES del dia. Aqui se guarda
+// CUANDO paso cada cosa: de las 07:12 a las 09:30 conduciendo, de
+// 09:30 a 09:45 otros trabajos... Es lo que permite dibujar la
+// barra de 24 horas del conductor, y lo que hara falta para los
+// descansos semanales y los avisos de infraccion, que necesitan
+// saber cuando pasaron las cosas y no solo cuanto sumaron.
+//
+// COMO SE EVITAN LOS DUPLICADOS: sin indice unico. Cuando un dia
+// vuelve a llegar (las descargas se solapan mucho), se BORRAN sus
+// tramos y se escriben enteros de nuevo. Es mas simple y mas
+// seguro que intentar casar 30 tramos uno a uno.
+//
+// EL HUECO DEL AYUDANTE se guarda tambien, pero marcado. Asi el
+// dibujo puede enseñar solo al conductor titular (que es lo que
+// cuenta para sus horas) sin perder el dato del segundo conductor.
+// ============================================================
+
+async function _tacoGuardarTramos(r, empresa, filasDia, idPorClave) {
+  try {
+    if (!r || !r.dias || !r.dias.length || !idPorClave || !idPorClave.size) return 0;
+
+    const raiz = (r.tarjeta_num || '').toUpperCase().replace(/\s/g, '').slice(0, 14) || null;
+    const esCond = (r.tipo === 'conductor');
+    if (esCond && !raiz) return 0;
+
+    // los ids de los dias que acabamos de guardar, por fecha
+    const idPorFecha = new Map();
+    filasDia.forEach(f => {
+      const id = idPorClave.get(f.clave);
+      if (id) idPorFecha.set(f.fecha, id);
+    });
+    if (!idPorFecha.size) return 0;
+
+    const tramos = [];
+    r.dias.forEach(d => {
+      const f = _tacoFecha(d.fecha);
+      if (!f) return;
+      const fecha = f.toISOString().slice(0, 10);
+      const diaId = idPorFecha.get(fecha);
+      if (!diaId || !d.ev || !d.ev.length) return;
+
+      // Los cambios vienen ordenados por minuto, y cada uno dura hasta el
+      // siguiente DEL MISMO HUECO (el del conductor y el del ayudante son
+      // dos listas entrelazadas: si se mezclan, salen dias de 39 horas).
+      [0, 1].forEach(hueco => {
+        const lista = d.ev.filter(e => e.slot === hueco);
+        for (let i = 0; i < lista.length; i++) {
+          const ini = lista[i].min;
+          const fin = (i + 1 < lista.length) ? lista[i + 1].min : 1440;
+          if (fin <= ini) continue;                 // por si viene algo raro
+          tramos.push({
+            dia_id: diaId, empresa, fecha,
+            origen: esCond ? 'conductor' : 'vehiculo',
+            tarjeta_raiz: esCond ? raiz : null,
+            matricula: esCond ? null : (r.matricula || null),
+            minuto_ini: ini, minuto_fin: fin,
+            actividad: lista[i].act,
+            sin_tarjeta: !!lista[i].sin,
+            hueco_ayudante: (hueco === 1)
+          });
+        }
+      });
+    });
+    if (!tramos.length) return 0;
+
+    // Fuera los que hubiera de antes de esos dias, y se escriben de nuevo.
+    const ids = [...idPorFecha.values()];
+    for (let i = 0; i < ids.length; i += 100) {
+      const { error } = await sb.from('tacografo_tramos')
+        .delete().in('dia_id', ids.slice(i, i + 100));
+      if (error) throw error;
+    }
+
+    let ok = 0;
+    for (let i = 0; i < tramos.length; i += 500) {
+      const trozo = tramos.slice(i, i + 500);
+      const { error } = await sb.from('tacografo_tramos').insert(trozo);
+      if (error) throw error;
+      ok += trozo.length;
+    }
+    console.log(`[v387] ${ok} tramos guardados de ${r.fichero}`);
+    return ok;
+  } catch (e) {
+    // Si falla, el fichero y los dias YA estan a salvo. Los tramos se
+    // pueden volver a sacar cuando se quiera soltando el fichero otra vez.
+    console.warn('[v387] no se pudieron guardar los tramos:', e.message || e);
+    return 0;
+  }
+}
+
 async function _tacoGuardarDias(r, empresa, ficheroId) {
   try {
     if (!r || !r.dias || !r.dias.length) return 0;
@@ -24995,14 +25088,18 @@ async function _tacoGuardarDias(r, empresa, ficheroId) {
     // De 200 en 200, que un historico de 375 dias en una sola tacada
     // es mucho pedirle a la conexion.
     let ok = 0;
+    const idPorClave = new Map();          // v387: para colgarles los tramos
     for (let i = 0; i < filas.length; i += 200) {
       const trozo = filas.slice(i, i + 200);
-      const { error } = await sb.from('tacografo_dias')
-        .upsert(trozo, { onConflict: 'clave', ignoreDuplicates: false });
+      const { data: dev, error } = await sb.from('tacografo_dias')
+        .upsert(trozo, { onConflict: 'clave', ignoreDuplicates: false })
+        .select('id, clave');
       if (error) throw error;
+      (dev || []).forEach(x => idPorClave.set(x.clave, x.id));
       ok += trozo.length;
     }
     console.log(`[v385] ${ok} días guardados de ${r.fichero}`);
+    await _tacoGuardarTramos(r, empresa, filas, idPorClave);   // v387
     return ok;
   } catch (e) {
     // Si esto falla, el fichero YA esta guardado y a salvo: los dias se
