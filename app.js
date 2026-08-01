@@ -24569,7 +24569,7 @@ function _tacoParseVU_G1(b) {
       const ev = [];
       for (let k = 0; k < nac; k++) {
         const v = _tacoU16(b, p + k * 2);
-        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, unk: (v >> 14) & 1, act: (v >> 11) & 3, min: v & 0x7FF });   // v409: bit14 = con tarjeta fuera, 1=sin anotar
       }
       p += nac * 2;
       p += 1 + b[p] * 28;                      // lugares de inicio/fin de jornada
@@ -24643,7 +24643,7 @@ function _tacoParseVU_G2(b) {
         if (a.rt === 0x01) {
           for (let k = 0; k < a.n; k++) {
             const v = _tacoU16(b, a.dp + k * 2);
-            ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+            ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, unk: (v >> 14) & 1, act: (v >> 11) & 3, min: v & 0x7FF });   // v409: bit14 = con tarjeta fuera, 1=sin anotar
           }
         }
       });
@@ -24698,7 +24698,7 @@ function _tacoParseCard(b) {
       const ev = [];
       for (let k = 0; k < (rl - 12) / 2; k++) {
         const v = g16(i + 12 + k * 2);
-        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, act: (v >> 11) & 3, min: v & 0x7FF });
+        ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, unk: (v >> 14) & 1, act: (v >> 11) & 3, min: v & 0x7FF });   // v409: bit14 = con tarjeta fuera, 1=sin anotar
       }
       out.dias.push({ fecha, odo: null, km, cond: [], ev });
       if (i === nuevo) break;
@@ -25193,11 +25193,16 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       // sin cerrar y va en blanco.
       const _esAbierto = t => esIncompleto && corte == null && t.minuto_fin === 1440;
       const tot = [0, 0, 0, 0];
-      let sinReg = 0, sinCerrar = 0;                        // v391 / v393
+      // v409 (lo destapo JC comparando con ASG): con la tarjeta fuera hay DOS
+      // casos y la ley los separa. Si el conductor ANOTO la actividad al meter
+      // la tarjeta, la anotacion VALE: cuenta como lo que anoto. Si NO anoto
+      // nada, se cuenta como DESCANSO PRESUNTO (la practica del sector y de
+      // ASG), pero se avisa aparte para poder corregir al conductor.
+      let sinAnotar = 0, sinCerrar = 0;                     // v409 / v393
       tsv.forEach(t => {
         const m = (t.minuto_fin - t.minuto_ini);
         if (_esAbierto(t)) sinCerrar += m;
-        else if (t.sin_tarjeta) sinReg += m;
+        else if (t.sin_tarjeta && t.sin_anotar) { tot[0] += m; sinAnotar += m; }
         else tot[t.actividad] += m;
       });
       // v394: si se conoce la hora del corte, lo registrado hasta ahi es REAL
@@ -25216,13 +25221,19 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
           return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
             background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 8px)"></div>`;
         }
-        // v391: tarjeta fuera -> EN BLANCO con rayitas grises (como ASG). No se
-        // pinta del color de la actividad porque no esta acreditada: un descanso
-        // sin registrar NO es un descanso ante una inspeccion.
-        if (t.sin_tarjeta) {
-          const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · SIN REGISTRAR (tarjeta fuera) · anotado como ${_TACO_NOM[t.actividad]}`;
+        // v409: tarjeta fuera, DOS casos (lo destapo JC con el dia 21/07 de
+        // Anton). ANOTADO a mano -> el color de lo que anoto, con rayitas
+        // negras, como ASG: la anotacion manual vale. SIN ANOTAR -> verde
+        // tenue de descanso presunto.
+        if (t.sin_tarjeta && !t.sin_anotar) {
+          const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} ANOTADO A MANO (tarjeta fuera): vale`;
           return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
-            background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.22) 0 2px,transparent 2px 6px)"></div>`;
+            background:${_TACO_COL[t.actividad]};background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.38) 0 2px,transparent 2px 7px)"></div>`;
+        }
+        if (t.sin_tarjeta) {
+          const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · tarjeta fuera SIN ANOTAR: se presume descanso. Recuérdale que lo anote al meter la tarjeta.`;
+          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+            background:#bfe9cf;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 7px)"></div>`;
         }
         const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}`;
         return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
@@ -25260,12 +25271,12 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
           </div>
           ${huboDos ? `<div style="position:relative;height:9px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyuV.map(t => {
             const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
-            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${(t.sin_tarjeta || _esAbierto(t)) ? '#fff' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
+            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
           }).join('')}</div>` : ''}
           <div style="position:relative;height:14px;font-family:var(--mn);font-size:9px;color:var(--mu);margin-top:2px">${nums}</div>
           ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
             ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
-            ${sinReg ? `<span style="color:var(--mu)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#fff;border:1px solid var(--bd);background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.25) 0 2px,transparent 2px 4px);margin-right:4px"></span>Sin registrar (tarjeta fuera): <b>${hm(sinReg)}</b> — no cuenta como descanso</span>` : ''}
+            ${sinAnotar ? `<span style="color:var(--wnd)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#bfe9cf;border:1px solid var(--bd);margin-right:4px"></span>Sin anotar (tarjeta fuera): <b>${hm(sinAnotar)}</b> — se presume descanso; que lo anote al meter la tarjeta</span>` : ''}
             ${sinCerrar ? `<span style="color:var(--mu)">Tramo sin cerrar por la descarga: <b>${hm(sinCerrar)}</b> — no se cuenta; se completará con la próxima descarga</span>` : ''}
           </div>`}
         </div>`;
@@ -25275,7 +25286,8 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     const leyenda = `<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-family:var(--mn);font-size:11px;
       border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px;background:var(--sf)">
       ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${_TACO_COL[a]};margin-right:5px;vertical-align:-1px"></span>${_TACO_NOM[a]}</span>`).join('')}
-      <span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:#fff;border:1px solid var(--bd);background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.25) 0 2px,transparent 2px 4px);margin-right:5px;vertical-align:-1px"></span>Sin tarjeta (no acredita)</span>
+      <span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${_TACO_COL[0]};background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.38) 0 2px,transparent 2px 5px);margin-right:5px;vertical-align:-1px"></span>Anotado a mano, tarjeta fuera (vale)</span>
+      <span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:#bfe9cf;border:1px solid var(--bd);margin-right:5px;vertical-align:-1px"></span>Sin anotar (presunto descanso)</span>
       <span>≡ Dos conductores</span>
       <span style="color:var(--mu)">Ferry y Fuera de ámbito: pendientes (van en otro bloque del fichero)</span>
     </div>`;
@@ -25290,8 +25302,9 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         </div>
       </div>${h}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
-        Pasa el ratón por la barra para ver la hora exacta de cada tramo. En BLANCO rayado = tiempo con la tarjeta fuera:
-        no está acreditado, así que no se pinta de color ni cuenta como descanso diario o semanal.
+        Pasa el ratón por la barra para ver la hora exacta de cada tramo. Con la tarjeta fuera: si el conductor lo ANOTÓ
+        al meterla, va con su color y rayitas negras (la anotación vale); si NO lo anotó, va en verde tenue como descanso
+        presunto — y conviene recordarle que lo anote.
         Solo se muestra el hueco del conductor; el del ayudante se guarda pero no se suma aquí.
       </div>`;
   } catch (e) {
@@ -25346,6 +25359,7 @@ async function _tacoGuardarTramos(r, empresa, filasDia, idPorClave) {
             minuto_ini: ini, minuto_fin: fin,
             actividad: lista[i].act,
             sin_tarjeta: !!lista[i].sin,
+            sin_anotar: !!(lista[i].sin && lista[i].unk),   // v409: fuera Y sin anotacion manual
             hueco_ayudante: (hueco === 1)
           });
         }
