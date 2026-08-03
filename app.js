@@ -3778,6 +3778,15 @@ async function processQueue(type) {
     setTimeout(() => { try { alert(_av); } catch (e) {} }, 400);
   }
 
+  // v410: si la lectura por IA de una factura Soledad no cuadró con el importe
+  // bruto, avisar AHORA con ventana (mismo criterio que el aviso de factura
+  // repetida: es importante y un toast se pierde).
+  if (window._avisoFacturaCuadre) {
+    const _avc = window._avisoFacturaCuadre;
+    window._avisoFacturaCuadre = null;
+    setTimeout(() => { try { alert(_avc); } catch (e) {} }, 550);
+  }
+
   // v107BN: si durante el proceso el servidor de IA estuvo saturado y agotó
   // todos los reintentos, mostrar el aviso CLARO ahora (terminada la cola),
   // con alert para que el usuario lo vea seguro y sepa que NO es su app y
@@ -3915,17 +3924,23 @@ async function _processOne(it, type, key, timeoutMs) {
             // v308: factura SOLEDAD (o desconocida) → primero el LECTOR EXACTO
             // sin IA (parser del texto del PDF, con autocomprobación contra el
             // importe bruto). Solo si no valida, cae al lector de IA de siempre.
-            let _detSoledad = null;
+            let _detSoledad = null, _txtSoledad = '';
             if (it.isPdf) {
               try {
-                const _txtCompleto = await _textoPdfGasoil(it.b64, true);
-                _detSoledad = _parsearFacturaSoledadTexto(_txtCompleto);
+                _txtSoledad = await _textoPdfGasoil(it.b64, true);
+                _detSoledad = _parsearFacturaSoledadTexto(_txtSoledad);
               } catch (eDet) { console.warn('[v308] error en el lector exacto → plan B (IA):', eDet && eDet.message || eDet); }
             }
             if (_detSoledad) {
               results = _detSoledad;
             } else {
               results = await callClaudeFacturaGasoil(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+              // v410: CUADRE del plan B. El lector exacto (v308) ya se autocomprueba
+              // contra el importe bruto; la IA no tenía red y el 03/08/2026 se saltó
+              // una línea (factura I0000020694: el AdBlue de 79,50 L / 59,79 € del
+              // ALB 2028190730). Ahora, si la suma de lo leído no clava el bruto de
+              // la factura, se avisa con ventana al terminar la cola.
+              _cuadreFacturaSoledadIA(results, _txtSoledad);
             }
           }
         } else {
@@ -7394,6 +7409,43 @@ function _parsearFacturaSoledadTexto(txt) {
     console.log('[v308] LECTOR EXACTO Soledad OK: ' + regs.length + ' repostajes · suma ' + suma.toFixed(2) + ' € = importe bruto · factura ' + (numFactura || '?') + ' · empresa ' + (empresa || '?'));
     return regs;
   } catch (e) { console.warn('[v308] lector exacto falló:', e); return null; }
+}
+
+// v410 (03/08/2026): CUADRE de la lectura por IA (plan B) de facturas Soledad.
+// El lector exacto (v308) ya se autocomprueba; pero cuando el flujo cae a la IA,
+// hasta hoy no había red y una línea saltada pasaba desapercibida (caso real
+// 03/08/2026, factura I0000020694: la IA se saltó el primer albarán, un AdBlue
+// de 59,79 €, y JC lo pilló a ojo comparando con el papel). AHORA: se suma el
+// importe de todas las líneas que la IA ha leído y se compara con el IMPORTE
+// BRUTO que trae la propia factura (mismas expresiones que usa el v308). Si no
+// clava (±5 céntimos), se deja un aviso que processQueue muestra con VENTANA al
+// terminar la cola (mismo mecanismo que el aviso de factura repetida: un toast
+// de 4s se escapa). Los registros leídos SÍ se guardan igual (no se pierde nada
+// válido); el aviso es para que se compare con el papel y se añada lo que falte.
+function _cuadreFacturaSoledadIA(results, txt) {
+  try {
+    if (!Array.isArray(results) || !results.length || !txt) return;
+    const t = String(txt).replace(/\s+/g, ' ');
+    const f = (x) => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+    let bruto = null;
+    let mB = t.match(/TOTAL FACTURA\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
+    if (mB) bruto = f(mB[1]);
+    if (bruto == null) { mB = t.match(/IMPORTE BRUTO[^0-9]{0,160}(\d{1,3}(?:\.\d{3})*,\d{2})/); if (mB) bruto = f(mB[1]); }
+    if (bruto == null || !(bruto > 0)) { console.warn('[v410 cuadre IA] no encuentro el IMPORTE BRUTO en el texto → no puedo cuadrar'); return; }
+    const suma = Math.round(results.reduce((a, r) => a + (parseFloat(r && r.importe) || 0), 0) * 100) / 100;
+    const dif = Math.round((bruto - suma) * 100) / 100;
+    if (Math.abs(dif) <= 0.05) { console.log('[v410 cuadre IA] OK: ' + results.length + ' líneas · suma ' + suma.toFixed(2) + ' € = importe bruto ' + bruto.toFixed(2) + ' €'); return; }
+    const nf = (results[0] && results[0].num_factura) ? String(results[0].num_factura) : '?';
+    const _msg = '⚠️ LA LECTURA NO CUADRA CON LA FACTURA ' + nf
+      + '\n\nLas ' + results.length + ' líneas leídas suman ' + suma.toFixed(2)
+      + ' €, pero el importe bruto de la factura es ' + bruto.toFixed(2) + ' €.\n'
+      + (dif > 0 ? ('FALTAN ' + dif.toFixed(2) + ' €: lo más probable es que se haya saltado alguna línea.')
+                 : ('SOBRAN ' + Math.abs(dif).toFixed(2) + ' €: puede haber leído alguna línea de más o un importe mal.'))
+      + '\n\nLo leído SÍ se ha guardado. Compara la lista con la factura en papel y corrige o añade lo que falte.';
+    console.warn('[v410 cuadre IA] ' + _msg.replace(/\n/g, ' '));
+    window._avisoFacturaCuadre = _msg;
+    try { if (typeof toast === 'function') toast('⚠️ La lectura no cuadra con el total de la factura', 'warn'); } catch (e) {}
+  } catch (e) { console.warn('[v410 cuadre IA] fallo al cuadrar (no bloquea nada):', e); }
 }
 
 // FASE 1: lector de FACTURAS MENSUALES de gasoil de Neumáticos Soledad
