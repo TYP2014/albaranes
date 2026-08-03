@@ -131,11 +131,13 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 /* v411: la escena flota en 3D de verdad — perspectiva e inclinacion continua,
    como los dibujos 3D de las webs modernas. El gesto de la hoja (5s) no se toca:
    va en los grupos de dentro y esto va en el SVG entero, no chocan. */
-.dz-ic.ic3d{perspective:700px}
-.dz-ic.ic3d svg{transform-style:preserve-3d;animation:ic3dFlota 7s ease-in-out infinite;will-change:transform}
+.dz-ic.ic3d{perspective:420px}
+.dz-ic.ic3d svg{transform-style:preserve-3d;animation:ic3dFlota 5s ease-in-out infinite;will-change:transform}
 @keyframes ic3dFlota{
-  0%,100%{transform:rotateX(10deg) rotateY(-8deg) translateY(0)}
-  50%{transform:rotateX(15deg) rotateY(8deg) translateY(-5px)}
+  0%,100%{transform:rotateX(6deg) rotateY(-24deg) rotateZ(-2deg) translateY(0) scale(1)}
+  25%{transform:rotateX(18deg) rotateY(0deg) rotateZ(0deg) translateY(-10px) scale(1.09)}
+  50%{transform:rotateX(6deg) rotateY(24deg) rotateZ(2deg) translateY(0) scale(1)}
+  75%{transform:rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(-6px) scale(1.05)}
 }
 .dz:hover .dz-ic.ic3d svg{animation-duration:3s}
 #dzGas .dz-ic,#dzItv .dz-ic,#dzCita .dz-ic,#tacoDrop .dz-ic,#dzNeumAlb .dz-ic,#dzNeumFactura .dz-ic{animation:dzSaltito 5s ease-in-out infinite}
@@ -166,7 +168,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
   .icTabUp-fle,.icTabUp-base,.tab:hover .icTabUp-fle,.tab:hover .icTabUp-base,
   .ic3d-doc,.ic3d-nub,.ic3d-car,.ic3d-ok,.ic3d-fle,.ic3d-som,.dz-ic,
   .dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation:none}
-  .dz-ic.ic3d svg,.dz:hover .dz-ic.ic3d svg{animation:none;transform:rotateX(10deg) rotateY(-8deg)}
+  .dz-ic.ic3d svg,.dz:hover .dz-ic.ic3d svg{animation:none;transform:rotateX(6deg) rotateY(-24deg)}
 }
 .hl{color:var(--ac)}
 
