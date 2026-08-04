@@ -26436,6 +26436,10 @@ async function tacoRepSinTarjUI() {
         <div id="tacoSTout" style="margin-top:14px"></div>
       </div>
     </div>`;
+  // v438 (pedido JC): al entrar, el listado sale SOLO — todos los camiones,
+  // los últimos 31 días — sin tener que elegir ni pulsar nada (como el aviso
+  // que manda ASG al recibir la descarga). Los filtros quedan para afinar.
+  tacoRepSinTarjVer();
 }
 
 async function tacoRepSinTarjVer() {
