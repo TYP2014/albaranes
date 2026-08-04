@@ -2634,7 +2634,8 @@ function renderSetup() {
   // del servidor (ia-proxy). El recuadro solo informa. De paso se limpia la
   // clave vieja que pudiera quedar guardada en este navegador.
   try { localStorage.removeItem('anth_key'); } catch (e) {}
-  const html = `<div style="margin:0 0 12px"><span class="ks">🔒 IA por servidor seguro — sin clave en este navegador</span></div>`;
+  // v434: fuera el recuadro verde "🔒 IA por servidor seguro" — ya no aporta y confundía a los usuarios.
+  const html = '';
   document.getElementById('setupBox').innerHTML = html;
   if (document.getElementById('setupBoxSubir')) document.getElementById('setupBoxSubir').innerHTML = html;
 }
