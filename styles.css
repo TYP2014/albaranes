@@ -146,25 +146,26 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 /* v415: la campana de la cita ITV se balancea como si sonara, al compas de 5s de todo */
 .icCampana{animation:itvCampana 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center 20%}
 /* v418: la balanza de las citas ITV - duda, se decanta al verde y el visto se queda ARRIBA */
-.icBalanza{animation:itvBalanza 5s ease-in-out infinite;transform-box:view-box;transform-origin:60px 30px}
-.icBalanzaChapa{animation:itvBalanzaChapa 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.icBalanza{animation:itvBalanza 6s ease-in-out infinite;transform-box:view-box;transform-origin:60px 30px}
+.icBalanzaChapa{animation:itvBalanzaChapa 6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+/* v419: tres balanceos igualados a ambos lados (la "lucha de poderes") y al final gana el verde */
 @keyframes itvBalanza{
   0%{transform:rotate(0deg)}
-  8%{transform:rotate(9deg)}
-  20%{transform:rotate(-21deg)}
-  30%{transform:rotate(-7deg)}
-  38%{transform:rotate(-17deg)}
-  46%{transform:rotate(-12.5deg)}
-  54%,100%{transform:rotate(-14deg)}
+  7%{transform:rotate(16deg)}
+  17%{transform:rotate(-16deg)}
+  27%{transform:rotate(15deg)}
+  37%{transform:rotate(-15deg)}
+  47%{transform:rotate(12deg)}
+  57%,100%{transform:rotate(-14deg)}
 }
 @keyframes itvBalanzaChapa{
   0%{transform:rotate(0deg)}
-  8%{transform:rotate(-9deg)}
-  20%{transform:rotate(21deg)}
-  30%{transform:rotate(7deg)}
-  38%{transform:rotate(17deg)}
-  46%{transform:rotate(12.5deg)}
-  54%,100%{transform:rotate(14deg)}
+  7%{transform:rotate(-16deg)}
+  17%{transform:rotate(16deg)}
+  27%{transform:rotate(-15deg)}
+  37%{transform:rotate(15deg)}
+  47%{transform:rotate(-12deg)}
+  57%,100%{transform:rotate(14deg)}
 }
 @keyframes itvCampana{
   0%,80%{transform:rotate(0)}
