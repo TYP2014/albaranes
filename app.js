@@ -12921,11 +12921,26 @@ function renderCitasTable() {
       <td>${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
-      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''}</td>
+      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp">📲</button></td>
     </tr>`;
   }).join('');
   // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
   _aplicarItvSoloLectura();
+}
+
+// v444: recordatorio de la cita de ITV por WhatsApp (calcado del de
+// reconocimientos médicos: se abre WhatsApp con el texto ya escrito y
+// solo queda elegir a quién mandárselo).
+function itvCitaWhatsApp(id) {
+  const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
+  if (!r) return;
+  const dia = r.fecha_cita ? r.fecha_cita.split('-').reverse().join('/') : '';
+  let msg = '🛡 Recordatorio: cita de ITV\n';
+  msg += '🚛 ' + (r.matricula || '') + '\n';
+  msg += '📅 ' + dia + (r.hora_cita ? ' a las ' + r.hora_cita : '') + '\n';
+  if (r.centro) msg += '📍 ' + r.centro + '\n';
+  msg += 'Llevar la ficha técnica y el permiso de circulación.';
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
 // v107K82: descarga la foto (jpg) de una cita ITV.
