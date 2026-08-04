@@ -21285,6 +21285,108 @@ function recmedWhatsApp(id) {
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
+// ---------- v443: LECTURA POR IA de la carta de la mutua ----------
+// Arrastras el PDF (o foto) de Prevenjobs y la IA saca empresa, día,
+// dirección y CADA trabajador con su DNI, puesto y hora. Una carta con
+// dos trabajadores crea DOS citas que comparten el mismo documento.
+// La EMPRESA se decide con filtro defensivo EN CÓDIGO (lección de la
+// casa: las reglas de prompt no son fiables para lógica determinista):
+// "IMPORT" manda — Portes 2014 IMPORT ≠ Transportes y Portes 2014.
+function _recmedMapearEmpresa(txt) {
+  const t = String(txt || '').toUpperCase();
+  if (t.includes('IMPORT')) return 'PORTES';
+  if (t.includes('HISPALIS')) return 'HISPALIS';
+  if (t.includes('TRANSMARGAZ')) return 'TRANSMARGAZ';
+  if (t.includes('PORTES 2014') || t.includes('TRANSPORTES Y PORTES') || t.includes('TYP')) return 'TYP2014';
+  return null;
+}
+
+const _RECMED_PROMPT = `Lees una CITACION DE RECONOCIMIENTO MEDICO de una mutua/servicio de prevencion español (Prevenjobs u otro). Devuelve SOLO un JSON, sin explicaciones ni marcas de codigo, con esta forma exacta:
+{"empresa_texto":"...","fecha":"YYYY-MM-DD","centro":"...","direccion":"...","telefono":"...","trabajadores":[{"nombre":"...","dni":"...","puesto":"...","hora":"HH:MM"}]}
+REGLAS:
+- empresa_texto: el nombre de la empresa TAL CUAL sale tras "Empresa:". Copialo literal, no lo interpretes.
+- fecha: el dia de la citacion ("citados el dia DD/MM/YYYY"), en formato YYYY-MM-DD.
+- trabajadores: UNA entrada por CADA fila de la tabla de trabajadores. No te saltes ninguna ni inventes ninguna. dni y puesto tal cual; hora en HH:MM (columna Cita). Si un dato no aparece, pon null.
+- centro: nombre de la clinica si aparece (ej. "Clinica Prevenjobs"); direccion: calle + poblacion en una linea; telefono: el que aparezca.
+- NUNCA inventes datos que no esten escritos en el documento.`;
+
+async function _recmedLlamarIA(b64, isPdf, mediaType) {
+  const bloque = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+  const res = await fetch(IA_PROXY_URL, {
+    method: 'POST',
+    headers: await _iaCabeceras(),
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: [bloque, { type: 'text', text: _RECMED_PROMPT }] }] })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const err = new Error(e.error?.message || ('HTTP ' + res.status)); err.status = res.status; throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  return JSON.parse(text);
+}
+
+function recmedDrop(e) {
+  e.preventDefault();
+  try { el(e); } catch (x) {}
+  recmedAddFiles(e.dataTransfer.files);
+}
+
+async function recmedAddFiles(files) {
+  const lista = Array.from(files || []).filter(f => f && (f.type === 'application/pdf' || f.type.startsWith('image/')));
+  if (!lista.length) { toast('Suelta un PDF o una foto de la carta', 'warn'); return; }
+  const est = document.getElementById('recmedLeyendo');
+  for (const f of lista) {
+    if (f.size > 15 * 1024 * 1024) { toast(f.name + ': pasa de 15 MB', 'warn'); continue; }
+    if (est) { est.style.display = ''; est.innerHTML = '⏳ Leyendo <strong>' + esc(f.name) + '</strong> con la IA…'; }
+    try {
+      const b64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result).split(',')[1]);
+        r.onerror = () => rej(new Error('No pude leer el archivo'));
+        r.readAsDataURL(f);
+      });
+      const isPdf = f.type === 'application/pdf';
+      const j = await _recmedLlamarIA(b64, isPdf, f.type);
+      // Validación dura antes de guardar nada
+      const empresa = _recmedMapearEmpresa(j.empresa_texto);
+      if (!empresa) throw new Error('No reconozco la empresa de la carta ("' + (j.empresa_texto || '¿?') + '"). Apúntala a mano con ➕.');
+      if (!j.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(j.fecha)) throw new Error('No saqué la fecha de la citación. Apúntala a mano con ➕.');
+      const trabs = (j.trabajadores || []).filter(t => t && t.nombre);
+      if (!trabs.length) throw new Error('No encontré trabajadores en la carta. Apúntala a mano con ➕.');
+      // El documento se sube UNA vez y lo comparten todas las citas de la carta
+      const limpio = f.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const ruta = 'reconocimientos/' + empresa + '/' + Date.now() + '_' + limpio;
+      const up = await sb.storage.from('documentos').upload(ruta, f);
+      if (up.error) throw up.error;
+      const filas = trabs.map(t => ({
+        empresa,
+        trabajador: String(t.nombre).trim(),
+        dni: t.dni ? String(t.dni).trim() : null,
+        puesto: t.puesto ? String(t.puesto).trim() : null,
+        fecha_cita: j.fecha,
+        hora_cita: t.hora ? String(t.hora).trim() : null,
+        centro: j.centro || 'Clínica Prevenjobs',
+        direccion: j.direccion || null,
+        telefono: j.telefono || null,
+        archivo_path: ruta,
+        archivo_nombre: f.name
+      }));
+      const ins = await sb.from('taller_reconocimientos').insert(filas);
+      if (ins.error) throw ins.error;
+      const dia = j.fecha.split('-').reverse().join('/');
+      toast('✓ ' + filas.length + ' cita(s) creada(s) del ' + dia + ' (' + empresa + '): ' + filas.map(x => x.trabajador.split(' ')[0]).join(', '));
+    } catch (e) {
+      console.error('[recmed IA]', f.name, e);
+      toast('❌ ' + f.name + ': ' + (e.message || e), 'err');
+    }
+  }
+  if (est) est.style.display = 'none';
+  await loadRecmed();
+}
+
 // ---------- aviso global (3, 2 y 1 días — mismo patrón que v358) ----------
 const RECMED_BANNER_HIDE_KEY = 'recmed_banner_hidden_date';
 
