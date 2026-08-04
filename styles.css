@@ -568,3 +568,19 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .taco-rep-card .trc-nota{font-family:var(--mn);font-size:10px;font-weight:400;color:var(--mu)}
 .taco-rep-card.trc-pronto{opacity:.55}
 .taco-rep-card.trc-pronto:hover{transform:none;box-shadow:none;cursor:default}
+
+/* ============================================================
+   v433: LA FICHA DEL VEHICULO DEL TALLER, MAS GRANDE (pedido JC:
+   "me referia a TODO, desde que pinchas en ese vehiculo; sobra
+   pantalla por todos lados"). Reglas SOLO dentro de #ovTallerMant:
+   los tamaños pequeños puestos en linea (10/11/12px) se suben con
+   !important sin tener que tocar decenas de cadenas en app.js.
+   El ancho del recuadro va en el propio index (max-width en linea).
+   ============================================================ */
+#ovTallerMant input.fi{font-size:13px !important;padding:6px 8px !important}
+#ovTallerMant .btn{font-size:12.5px !important}
+#ovTallerMant th{font-size:12.5px !important;padding:8px 10px !important}
+#ovTallerMant [style*="font-size:10px"]{font-size:12px !important}
+#ovTallerMant [style*="font-size:11px"]{font-size:13px !important}
+#ovTallerMant [style*="font-size:12px"]{font-size:13.5px !important}
+#ovTallerMant [style*="font-size:14px"]{font-size:16px !important}
