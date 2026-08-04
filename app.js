@@ -20324,10 +20324,20 @@ function tallerVerHistorico(vehId) {
       const fechaDisp = (d && d !== '0000-00-00') ? d.split('-').reverse().join('/') : 'Sin fecha';
       const conKm = tareas.find(t => t.km != null);
       const kmDisp = conKm ? conKm.km.toLocaleString('es-ES') + ' km' : '—';
-      const conReal = tareas.find(t => t.realizado_por);
-      const realDisp = conReal ? esc2(conReal.realizado_por) : '';
+      // v431: TODOS los que trabajaron ese dia, no solo el primero (pedido de
+      // JC: "necesitamos que aparezcan los 4 nombres, todos los que han
+      // realizado reparaciones"). Una linea puede traer varios nombres
+      // ("Carlos Garcia y Cesar Rigol"): se separan por " y " y por comas,
+      // se quitan los repetidos y se juntan por orden de aparicion.
+      const _nom = []; const _yaN = new Set();
+      tareas.forEach(t => String(t.realizado_por || '').split(/\s+y\s+|,/i).forEach(n => {
+        n = n.trim(); if (!n) return;
+        const k2 = n.toLowerCase();
+        if (!_yaN.has(k2)) { _yaN.add(k2); _nom.push(n); }
+      }));
+      const realDisp = _nom.map(esc2).join(', ');
       const cab = `📅 <b>${fechaDisp}</b> · ${kmDisp}${realDisp ? ' · ' + realDisp : ''} <span style="color:var(--mu)">— ${tareas.length} tarea(s)</span>`;
-      const lineas = tareas.map(t => `<div style="padding:3px 0;border-bottom:1px solid rgba(36,48,48,.4);font-family:var(--mn);font-size:11px;color:var(--tx)"><span style="color:var(--ac)">•</span> ${esc2(t.tipo || '')}${t.notas ? ` <span style="color:var(--mu)">— ${esc2(t.notas)}</span>` : ''}</div>`).join('');
+      const lineas = tareas.map(t => `<div style="padding:3px 0;border-bottom:1px solid rgba(36,48,48,.4);font-family:var(--mn);font-size:11px;color:var(--tx)"><span style="color:var(--ac)">•</span> ${esc2(t.tipo || '')}${t.notas ? ` <span style="color:var(--mu)">— ${esc2(t.notas)}</span>` : ''}${t.realizado_por ? ` <span style="color:#1e8a55">👤 ${esc2(t.realizado_por)}</span>` : ''}</div>`).join('');
       return `<details style="margin-bottom:6px;border:1px solid var(--bd);border-radius:6px;padding:6px 10px;background:rgba(255,255,255,.02)">
         <summary style="cursor:pointer;font-family:var(--mn);font-size:12px;color:var(--tx)">${cab}</summary>
         <div style="margin-top:6px">${lineas}</div>
