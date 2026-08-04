@@ -22368,36 +22368,25 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
     // de la IA), ni líneas de menos (las que se comió v261). Método seguro: SELECT primero (ids
     // concretos), DELETE solo esos ids por lotes, y luego INSERT del lote completo. Si el borrado
     // falla por lo que sea, PLAN B = solo añadir lo que falte (conteo, como v271): nunca se pierde nada.
-    // v273 — REEMPLAZO POR MATERIAL (definitivo): v272 borraba las copias viejas que COINCIDEN con
+    // v273 — REEMPLAZO POR MATERIAL (retirado en v436): v272 borraba las copias viejas que COINCIDEN con
     // el papel, pero las líneas viejas MAL LEÍDAS por la IA (ej. real 09/07: "16W2026-0000296" que no
     // existe — era "25W..." leído mal) no coinciden con nada y se quedaban como fantasmas ("Sin copia").
-    // Ahora, al subir un PDF, se borra TODO su MATERIAL de ese mes (todo el YESO de junio, se llame el
-    // fichero como se llame y esté escrito como esté) y se inserta el papel fresco. Borrón y cuenta
-    // nueva: la BD queda EXACTAMENTE como dice el PDF. SELECT de ids primero, DELETE solo esos ids.
-    // Nota: si algún mes Holcim mandara DOS liquidaciones del MISMO material, re-subir las dos y listo.
-    const _concNorm = (c) => String(c || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-    const conceptosLote = new Set();
-    lineas.forEach(L => { const c = _concNorm(L.concepto); if (c) conceptosLote.add(c); });
+    // v273 borraba TODO el MATERIAL del mes antes de insertar. FALLO REAL cazado por JC el 04/08/2026:
+    // Holcim partió las calizas de JULIO en TRES PDFs con los MISMOS materiales — al resubir CALIZAS_1,
+    // el borrado por material se llevó por delante las calizas de CALIZAS_2 (494→25) y del 577 (342→311),
+    // que eran de OTROS ficheros. Con varios PDFs del mismo material, v273 solo dejaba vivo el último.
+    // v436 — REEMPLAZO POR FICHERO: al (re)subir un PDF se borran SOLO las líneas viejas de ESE MISMO
+    // fichero (mismo nombre, mismo mes) y se inserta el papel fresco. Los PDFs hermanos del mismo
+    // material NO se tocan jamás. Los fantasmas de un PDF RENOMBRADO (el caso que motivó v273) se
+    // quitan con el botón 🗑 Borrar de "Ver subidas", que es el flujo que ya se usa.
     let reemplazoOK = false;
     try {
-      const LOTE = 1000;
-      const idsBorrar = [];
-      for (let desde = 0; ; desde += LOTE) {
-        const { data, error } = await sb.from('autofacturas_lineas')
-          .select('id,concepto')
-          .eq('proveedor', 'HOLCIM').eq('mes', mes)
-          .order('id', { ascending: true }).range(desde, desde + LOTE - 1);
-        if (error) throw error;
-        (data || []).forEach(r => { if (conceptosLote.has(_concNorm(r.concepto))) idsBorrar.push(r.id); });
-        if (!data || data.length < LOTE) break;
-      }
-      for (let i = 0; i < idsBorrar.length; i += 100) {
-        const { error } = await sb.from('autofacturas_lineas').delete().in('id', idsBorrar.slice(i, i + 100));
-        if (error) throw error;
-      }
-      console.log('[v273] reemplazo por material (' + [...conceptosLote].join(', ') + '): ' + idsBorrar.length + ' líneas viejas quitadas del mes ' + mes + '; se insertan ' + lineas.length + ' frescas del PDF.');
+      const { error } = await sb.from('autofacturas_lineas').delete()
+        .eq('proveedor', 'HOLCIM').eq('mes', mes).eq('fichero', fichero);
+      if (error) throw error;
+      console.log('[v436] reemplazo por FICHERO ("' + fichero + '"): líneas viejas de ese fichero quitadas del mes ' + mes + '; se insertan ' + lineas.length + ' frescas del PDF. Los demás ficheros del mes NO se tocan.');
       reemplazoOK = true;
-    } catch (e) { console.warn('[v273] no pude reemplazar por material (PLAN B: solo añadir lo que falte):', e); }
+    } catch (e) { console.warn('[v436] no pude reemplazar por fichero (PLAN B: solo añadir lo que falte):', e); }
     if (!reemplazoOK) {
       // PLAN B (v271) — conteo de lo ya guardado este mes (paginado de 1000 en 1000).
       const enBD = new Map(); // clave → cuántas copias hay ya en BD
