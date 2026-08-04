@@ -25391,6 +25391,15 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       // el dia entero cuando no se sabe donde cortar (v390).
       if (!esIncompleto || corte != null) tot.forEach((v, i) => totSem[i] += v);
 
+      // v426 (recolocado en v428: se definia DESPUES de usarse y saltaba
+      // "Cannot access _datos before initialization"): para cada tramo,
+      // QUIEN tenia la tarjeta metida en esos minutos + los datos del raton.
+      const _condDia = (tipo === 'V') ? (_condMin.get(iso) || []) : [];
+      const _quienEn = t => _condDia.filter(c => (c.e ?? 0) < t.minuto_fin && (c.s ?? 1440) > t.minuto_ini)
+        .map(c => c.n).join(', ');
+      const _at = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+      const _infId = idCont + '_ti_' + k;
+      const _datos = (t, etiq, hf, du) => ` data-ac="${_at(etiq)}" data-hi="${_tacoHHMM(t.minuto_ini)}" data-hf="${_at(hf)}" data-du="${_at(du)}" data-cn="${_at(_quienEn(t))}" onmouseover="_tacoTrHover(this,'${_infId}')"`;
       // la barra: cada tramo, un trocito del ancho que le toca
       const barras = tsv.map(t => {
         const izq = (t.minuto_ini / 1440 * 100).toFixed(3);
@@ -25440,13 +25449,6 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       // el dia de la descarga, que el siguiente aun no esta descargado) NO se
       // inventa nada: sale "km —" y se apunta como dia sin dato. El tope de
       // 3000 km/dia es un cortafuegos por si un contador viniera corrupto.
-      // v426: para cada tramo, QUIEN tenia la tarjeta metida en esos minutos
-      const _condDia = (tipo === 'V') ? (_condMin.get(iso) || []) : [];
-      const _quienEn = t => _condDia.filter(c => (c.e ?? 0) < t.minuto_fin && (c.s ?? 1440) > t.minuto_ini)
-        .map(c => c.n).join(', ');
-      const _at = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
-      const _infId = idCont + '_ti_' + k;
-      const _datos = (t, etiq, hf, du) => ` data-ac="${_at(etiq)}" data-hi="${_tacoHHMM(t.minuto_ini)}" data-hf="${_at(hf)}" data-du="${_at(du)}" data-cn="${_at(_quienEn(t))}" onmouseover="_tacoTrHover(this,'${_infId}')"`;
       let kmDia = null;
       if (tipo === 'V' && !vacio) {
         const dSig = new Date(iso + 'T12:00:00Z'); dSig.setUTCDate(dSig.getUTCDate() + 1);
