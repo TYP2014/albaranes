@@ -24696,7 +24696,19 @@ function _tacoParseVU_G2(b) {
           for (let k = 0; k < a.n; k++) {
             const r = a.dp + k * a.rs;
             const ape = _tacoTxt(b, r, 36), nom = _tacoTxt(b, r + 36, 36);
-            cond.push({ nombre: (nom + ' ' + ape).trim(), entra: 0, sale: 0 });
+            // v426: la HORA de meter y sacar la tarjeta (antes se dejaba a 0 y
+            // no se podia saber QUIEN conducia en cada tramo). En 2ª generacion
+            // el registro lleva: nombre(72) + nº tarjeta y generacion(19) +
+            // caducidad(4) -> ENTRADA en el byte 95 y SALIDA en el 103. Con
+            // cortafuegos: si el valor no parece una fecha de verdad, 0 (y el
+            // conductor cuenta como "todo el dia", que es lo prudente).
+            let entra = 0, sale = 0;
+            if (a.rs >= 107) {
+              const e = _tacoU32(b, r + 95), s2 = _tacoU32(b, r + 103);
+              if (e > 500000000) entra = e;
+              if (s2 > 500000000) sale = s2;
+            }
+            cond.push({ nombre: (nom + ' ' + ape).trim(), entra, sale });
           }
         }
         if (a.rt === 0x01) {
@@ -25061,6 +25073,20 @@ function _tacoLunes(iso) {
 }
 function _tacoDMY2(iso) { return iso ? iso.split('-').reverse().join('/') : '—'; }
 
+// v426: la franja de informacion bajo cada dia, como el "Hora inicio / Hora
+// fin / Duracion" de ASG. Cada trocito de la barra lleva sus datos encima
+// (data-...) y al pasar el raton se vuelcan aqui. Se queda puesto lo ultimo
+// tocado, igual que en ASG.
+function _tacoTrHover(el, id) {
+  const d = document.getElementById(id);
+  if (!d || !el || !el.dataset) return;
+  const c = el.dataset.cn;
+  d.innerHTML = `<b style="color:var(--tx)">${el.dataset.ac || ''}</b>
+    · Hora inicio: <b style="color:var(--tx)">${el.dataset.hi || '—'}</b>
+    · Hora fin: <b style="color:var(--tx)">${el.dataset.hf || '—'}</b>
+    · Duración: <b style="color:var(--tx)">${el.dataset.du || '—'}</b>${c ? ` · 👤 <b style="color:#1e8a55">${c}</b>` : ''}`;
+}
+
 // v425: el tacografo graba en UTC y asi lo enseñamos (mover las horas de sitio
 // cambiaria tramos de dia y es delicado). Lo que SI se dice bien claro es el
 // DESFASE con la hora de España: +1h en invierno, +2h en verano. El cambio de
@@ -25243,7 +25269,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     // un dia = contador del dia siguiente - contador del dia. Para el ultimo
     // dia del rango hace falta el contador de "hasta + 1".
     const hastaMas1 = (() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
-    let qd = sb.from('tacografo_dias').select('fecha, incompleto, conductor_nombre' + (tipo === 'V' ? ', odometro' : ''))
+    let qd = sb.from('tacografo_dias').select('fecha, incompleto, conductor_nombre' + (tipo === 'V' ? ', odometro, conductores' : ''))
       .gte('fecha', lunes).lte('fecha', tipo === 'V' ? hastaMas1 : hasta)
       .eq('origen', tipo === 'C' ? 'conductor' : 'vehiculo');
     qd = (tipo === 'C') ? qd.eq('tarjeta_raiz', id) : qd.eq('matricula', id);
@@ -25257,6 +25283,9 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     // del camion, guardado desde la v385 en la columna odometro).
     const _odoDia = new Map();
     if (tipo === 'V') (diasInfo || []).forEach(x => { if (x.odometro != null) _odoDia.set(x.fecha, x.odometro); });
+    // v426: en que minutos estuvo metida cada tarjeta (para el 👤 de cada tramo)
+    const _condMin = new Map();
+    if (tipo === 'V') (diasInfo || []).forEach(x => { if (Array.isArray(x.conductores) && x.conductores.length) _condMin.set(x.fecha, x.conductores); });
     let totKm = 0, diasSinKm = 0;   // v421: total de km del periodo y dias sin dato
 
     // v394: la HORA a la que se hizo la descarga, sacada del nombre del propio
@@ -25321,8 +25350,14 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       const d = new Date(lunes + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k);
       const iso = d.toISOString().slice(0, 10);
       const ts = porDia.get(iso) || [];
-      const tsAyu = (porDiaAyu.get(iso) || []).filter(t => !t.sin_tarjeta || t.actividad !== 0);   // v392
-      const huboDos = tsAyu.some(t => t.actividad !== 0 || !t.sin_tarjeta);
+      // v427: el hueco 2 SOLO cuenta como "dos conductores" si de verdad hubo
+      // una TARJETA METIDA en el. Con el hueco vacio, el tacografo apunta solo
+      // un "disponible" automatico — la barrita amarilla que extraño a JC
+      // ("rara vez van nuestros conductores juntos") — y eso NO es una segunda
+      // persona. Antes (v392) esa apuntacion automatica colaba y salian el
+      // letrero "dos conductores" y la barrita sin haber nadie.
+      const tsAyu = (porDiaAyu.get(iso) || []).filter(t => !t.sin_tarjeta);
+      const huboDos = tsAyu.length > 0;
       const esIncompleto = _incompletos.has(iso);          // v390
       // v394: si se SABE a que hora se hizo la descarga (del nombre del fichero),
       // los tramos se RECORTAN a ese minuto: el tacografo conto hasta ahi y lo
@@ -25364,7 +25399,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         // empezo, no cuanto duro.
         if (_esAbierto(t)) {
           const tit = `${_tacoHHMM(t.minuto_ini)} → … · SIN CERRAR: la descarga se hizo a mitad de este tramo (iba en ${_TACO_NOM[t.actividad]}). Duración: aún sin saber. Se completará con la próxima descarga.`;
-          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad] + ' (sin cerrar)', '…', 'aún sin saber')} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
             background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 8px)"></div>`;
         }
         // v409: tarjeta fuera, DOS casos (lo destapo JC con el dia 21/07 de
@@ -25373,16 +25408,17 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         // tenue de descanso presunto.
         if (t.sin_tarjeta && !t.sin_anotar) {
           const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} ANOTADO A MANO (tarjeta fuera): vale · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}`;
-          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad] + ' (anotado a mano, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
             background:${_TACO_COL[t.actividad]};background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.38) 0 2px,transparent 2px 7px)"></div>`;
         }
         if (t.sin_tarjeta) {
           const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · tarjeta fuera SIN ANOTAR: se presume descanso · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}. Recuérdale que lo anote al meter la tarjeta.`;
-          return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div title="${tit}"${_datos(t, 'Sin anotar (presunto descanso, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
             background:#bfe9cf;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 7px)"></div>`;
         }
-        const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}`;
-        return `<div title="${tit}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+        const _qn = _quienEn(t);
+        const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}${_qn ? ' · 👤 ' + _qn : ''}`;
+        return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
           background:${_TACO_COL[t.actividad]}"></div>`;
       }).join('');
 
@@ -25404,6 +25440,13 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       // el dia de la descarga, que el siguiente aun no esta descargado) NO se
       // inventa nada: sale "km —" y se apunta como dia sin dato. El tope de
       // 3000 km/dia es un cortafuegos por si un contador viniera corrupto.
+      // v426: para cada tramo, QUIEN tenia la tarjeta metida en esos minutos
+      const _condDia = (tipo === 'V') ? (_condMin.get(iso) || []) : [];
+      const _quienEn = t => _condDia.filter(c => (c.e ?? 0) < t.minuto_fin && (c.s ?? 1440) > t.minuto_ini)
+        .map(c => c.n).join(', ');
+      const _at = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+      const _infId = idCont + '_ti_' + k;
+      const _datos = (t, etiq, hf, du) => ` data-ac="${_at(etiq)}" data-hi="${_tacoHHMM(t.minuto_ini)}" data-hf="${_at(hf)}" data-du="${_at(du)}" data-cn="${_at(_quienEn(t))}" onmouseover="_tacoTrHover(this,'${_infId}')"`;
       let kmDia = null;
       if (tipo === 'V' && !vacio) {
         const dSig = new Date(iso + 'T12:00:00Z'); dSig.setUTCDate(dSig.getUTCDate() + 1);
@@ -25430,9 +25473,10 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
           </div>
           ${huboDos ? `<div style="position:relative;height:14px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyuV.map(t => {
             const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
-            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}" style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
+            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}"${_datos(t, 'Ayudante · ' + _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
           }).join('')}</div>` : ''}
           <div style="position:relative;height:15px;font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:3px">${nums}</div>
+          ${vacio ? '' : `<div id="${_infId}" style="font-family:var(--mn);font-size:11px;background:rgba(30,41,51,.05);border:1px solid var(--bd);border-radius:6px;padding:5px 10px;margin-top:4px;color:var(--mu)">Pasa el ratón por la barra para ver hora de inicio, fin, duración${tipo === 'V' ? ' y conductor' : ''} de cada tramo…</div>`}
           ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
             ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
             ${sinAnotar ? `<span style="color:var(--wnd)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#bfe9cf;border:1px solid var(--bd);margin-right:4px"></span>Sin anotar (tarjeta fuera): <b>${hm(sinAnotar)}</b> — se presume descanso; que lo anote al meter la tarjeta</span>` : ''}
@@ -25591,6 +25635,15 @@ async function _tacoGuardarDias(r, empresa, ficheroId) {
         // en los ficheros de camion el nombre sale de la tarjeta que se metio
         const q = [...new Set((d.cond || []).map(c => c.nombre).filter(Boolean))];
         if (q.length) fila.conductor_nombre = q.join(', ');
+        // v426: y ADEMAS los minutos del dia en que cada tarjeta estuvo metida,
+        // para poder decir QUIEN conducia en cada tramo al pasar el raton.
+        // entra=0 -> ya estaba metida desde antes (minuto 0) · sale=0 -> seguia
+        // metida a medianoche (minuto 1440). d.fecha es el epoch de las 00:00.
+        const _mm = ts => Math.max(0, Math.min(1440, Math.round((ts - d.fecha) / 60)));
+        const lc = (d.cond || []).filter(c => c.nombre).map(c => ({
+          n: c.nombre, e: c.entra ? _mm(c.entra) : 0, s: c.sale ? _mm(c.sale) : 1440
+        })).filter(c => c.s > c.e);
+        if (lc.length) fila.conductores = lc;
       }
       if (fila.origen === 'vehiculo' && !fila.matricula) return;
       // v386: la CLAVE que impide duplicados. Antes se confiaba en dos indices
