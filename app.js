@@ -25061,26 +25061,69 @@ function _tacoLunes(iso) {
 }
 function _tacoDMY2(iso) { return iso ? iso.split('-').reverse().join('/') : '—'; }
 
-// Quien tiene datos guardados, para el desplegable
+// v422: la EMPRESA como filtro madre del modulo entero (pedido de JC:
+// "tiene que estar subdividido por empresa, no todo mezclado"). Se elige
+// arriba y CONDUCTORES, VEHICULOS, INFORMES, ARCHIVO y los avisos de SUBIR
+// se quedan solo con lo de esa empresa.
+let _tacoEmpGlobal = 'TODAS';
+function _tacoEmpPasa(x) { return _tacoEmpGlobal === 'TODAS' || x.empresa === _tacoEmpGlobal; }
+function tacoEmpGlobal(emp) {
+  _tacoEmpGlobal = emp;
+  ['TODAS', 'TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
+    const b = document.getElementById('tacoEmpG' + e);
+    if (b) { b.classList.remove('bp', 'bs'); b.classList.add(e === emp ? 'bp' : 'bs'); }
+  });
+  // todas las secciones se vuelven a pintar con el filtro nuevo (las que no
+  // estan a la vista se pintan igual: al entrar ya salen filtradas)
+  tacoInfPintarSelector();
+  tacoVehPintarSelector();
+  if (document.getElementById('tacoRJquien')) tacoRepJornadasUI();   // informe abierto
+  tacoSubTab(emp);                          // el ARCHIVO se pone en la misma empresa
+  tacoPintarAvisos();                       // los avisos de descargas, tambien
+}
+
+// Quien tiene datos guardados, para el desplegable.
+// v422: antes se leia tacografo_dias con .limit(5000), pero Supabase corta en
+// 1000 filas por peticion. Con ficheros de casi un año (365 filas cada uno),
+// dos o tres fichas se comian las 1000 mas recientes y el resto de camiones
+// NI SALIA en el desplegable (le paso a JC con las tractoras). Ahora se lee
+// tacografo_ficheros: UNA fila por fichero, no por dia — ahi caben años.
 async function _tacoInfCargarPersonas() {
   if (_tacoInfPersonas) return _tacoInfPersonas;
-  const { data, error } = await sb.from('tacografo_dias')
-    .select('origen, tarjeta_raiz, conductor_nombre, matricula, empresa, fecha')
-    .order('fecha', { ascending: false }).limit(5000);
+  const { data, error } = await sb.from('tacografo_ficheros')
+    .select('tipo, matricula, tarjeta_num, conductor_nombre, empresa, fecha_hasta')
+    .order('fecha_hasta', { ascending: false }).limit(1000);
   if (error) throw error;
   const m = new Map();
-  (data || []).forEach(d => {
-    const k = d.origen === 'conductor' ? 'C|' + d.tarjeta_raiz : 'V|' + d.matricula;
+  (data || []).forEach(f => {
+    const raiz = (f.tarjeta_num || '').toUpperCase().replace(/\s/g, '').slice(0, 14);
+    if (f.tipo === 'conductor' && !raiz) return;
+    if (f.tipo !== 'conductor' && !f.matricula) return;
+    const k = f.tipo === 'conductor' ? 'C|' + raiz : 'V|' + f.matricula;
     if (!m.has(k)) m.set(k, {
-      clave: k, tipo: d.origen, empresa: d.empresa,
-      nombre: d.origen === 'conductor' ? (d.conductor_nombre || d.tarjeta_raiz) : d.matricula,
-      ultima: d.fecha
+      clave: k, tipo: f.tipo, empresa: f.empresa,
+      nombre: f.tipo === 'conductor' ? (f.conductor_nombre || raiz) : f.matricula,
+      ultima: f.fecha_hasta          // viene ordenado: el primero es el mas reciente
     });
   });
   _tacoInfPersonas = [...m.values()].sort((a, b) =>
     a.tipo === b.tipo ? a.nombre.localeCompare(b.nombre) : (a.tipo === 'conductor' ? -1 : 1));
   return _tacoInfPersonas;
 }
+
+// v422: al CAMBIAR de conductor/camion en el desplegable, las fechas se ponen
+// solas en la ultima semana CON DATOS de ese — antes se quedaban las del
+// anterior y salia "No hay actividad" (el "no los puedo ver" de JC).
+function _tacoSelFechas(quien, idDesde, idHasta) {
+  const per = (_tacoInfPersonas || []).find(x => x.clave === quien);
+  if (!per || !per.ultima) return;
+  const a = document.getElementById(idDesde), b = document.getElementById(idHasta);
+  const d = new Date(per.ultima + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6);
+  if (a) a.value = d.toISOString().slice(0, 10);
+  if (b) b.value = per.ultima;
+}
+function tacoInfCambio() { _tacoSelFechas(document.getElementById('tacoInfQuien')?.value, 'tacoInfDesde', 'tacoInfHasta'); tacoInfVer(); }
+function tacoVehCambio() { _tacoSelFechas(document.getElementById('tacoVehQuien')?.value, 'tacoVehDesde', 'tacoVehHasta'); tacoVehVer(); }
 
 async function tacoInfPintarSelector() {
   const box = document.getElementById('tacoInfSelector');
@@ -25093,11 +25136,12 @@ async function tacoInfPintarSelector() {
       return;
     }
     // v406: aqui SOLO conductores - los camiones tienen ya su propia seccion
-    const conds = p.filter(x => x.tipo === 'conductor');
+    // v422: y solo los de la empresa elegida arriba
+    const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);
     const op = l => l.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
     if (!conds.length) {
       box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
-        Todavía no hay tarjetas de conductor guardadas. Súbelas en SUBIR y vuelve.</div>`;
+        Todavía no hay tarjetas de conductor guardadas${_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}. Súbelas en SUBIR y vuelve.</div>`;
       return;
     }
     const hasta = conds[0].ultima;
@@ -25105,7 +25149,7 @@ async function tacoInfPintarSelector() {
       <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
         <div class="fg" style="min-width:260px;flex:1 1 260px">
           <label class="fl">Conductor</label>
-          <select class="fi" id="tacoInfQuien" onchange="tacoInfVer()">${op(conds)}</select>
+          <select class="fi" id="tacoInfQuien" onchange="tacoInfCambio()">${op(conds)}</select>
         </div>
         <div class="fg"><label class="fl">Del día</label>
           <input class="fi" type="date" id="tacoInfDesde" value="${(() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); })()}" onchange="tacoInfVer()"></div>
@@ -25566,14 +25610,24 @@ async function tacoGuardar() {
     // ¿Ya lo teníamos? La huella no engaña, aunque le hayan cambiado el nombre.
     info('Comprobando si ya estaba…');
     const { data: yaEsta, error: eDup } = await sb.from('tacografo_ficheros')
-      .select('id, file_nombre, created_at').eq('sha256', sha).maybeSingle();
+      .select('id, file_nombre, created_at, empresa').eq('sha256', sha).maybeSingle();
     if (eDup) throw eDup;
     if (yaEsta) {
       // v384: aunque el fichero ya estuviera, el Nº DE TARJETA sigue sirviendo.
-      // Antes solo se rellenaba al guardar de verdad, asi que volver a soltar un
-      // fichero ya subido no ponia el numero en la ficha (paso con ALVARO).
       await _tacoRellenarTarjeta(r);
-      info(`<span style="color:var(--wnd);font-weight:700">Este fichero YA estaba guardado</span> como <b>${yaEsta.file_nombre}</b> (${new Date(yaEsta.created_at).toLocaleDateString('es-ES')}). No se ha duplicado.`);
+      // v423: EL AGUJERO QUE DEJABA A JC CON 2 CAMIONES. Los ficheros subidos
+      // ANTES de la v385 estan en el archivo pero sus dias nunca se extrajeron,
+      // y al volver a soltarlos se chocaban con este muro de "ya estaba" y se
+      // iban SIN apuntar nada (la v409 decia "los tramos se reescriben solos"
+      // y no era verdad en este camino). Ahora, aunque el fichero no se
+      // duplique, sus dias y tramos SI se (re)apuntan — es seguro: los dias
+      // van por upsert y los tramos se borran antes de reinsertar. La empresa
+      // usada es LA QUE YA TIENE el fichero guardado, para no partir un camion
+      // entre dos sociedades por un despiste del desplegable.
+      info('Este fichero ya estaba — reapuntando sus días…');
+      const nDias = await _tacoGuardarDias(r, yaEsta.empresa || empresa, yaEsta.id);
+      info(`<span style="color:var(--wnd);font-weight:700">Este fichero YA estaba guardado</span> como <b>${yaEsta.file_nombre}</b> (${new Date(yaEsta.created_at).toLocaleDateString('es-ES')}). No se ha duplicado${nDias ? ` — pero sus <b>${nDias} días</b> se han vuelto a apuntar en el histórico` : ''}.`);
+      _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();
       if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar en la app'; }
       return;
     }
@@ -25618,7 +25672,7 @@ async function tacoGuardar() {
     const nDias = await _tacoGuardarDias(r, empresa, dIns?.id);   // v385
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
-    _tacoInfPersonas = null; tacoInfPintarSelector();   // v388
+    _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v388 · v422: tambien los camiones
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
   } catch (e) {
@@ -25638,7 +25692,12 @@ async function _tacoPintarGuardar(r) {
       Este fichero no se ha leído entero, así que NO se puede guardar. Mándaselo a Claude.</div>`;
     return;
   }
-  const { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  let { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  // v422: si el fichero no delata la empresa, se toma la elegida en el filtro
+  // de arriba. Si el fichero apunta a OTRA distinta, manda el fichero (la
+  // matricula manda, como siempre) pero se avisa por si es un despiste.
+  if (!empresa && _tacoEmpGlobal !== 'TODAS') { empresa = _tacoEmpGlobal; motivo = 'tomada del filtro de empresa de arriba — compruébala'; }
+  else if (empresa && _tacoEmpGlobal !== 'TODAS' && empresa !== _tacoEmpGlobal) { motivo += ' · ⚠ el filtro de arriba está en ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + ', pero este fichero apunta a ' + (_TACO_EMP_NOM[empresa] || empresa); }
   const ops = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES']
     .map(c => `<option value="${c}"${c === empresa ? ' selected' : ''}>${_TACO_EMP_NOM[c]}</option>`).join('');
   box.innerHTML = `
@@ -25724,6 +25783,8 @@ async function tacoCargarLista() {
     ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
       const b = document.getElementById('tacoSub' + e);
       if (b) b.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
+      const g = document.getElementById('tacoEmpG' + e);          // v422: la barra global, igual
+      if (g) g.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
     });
     tacoPintarLista();
     tacoPintarAvisos();          // v377
@@ -25825,7 +25886,12 @@ function tacoPintarLista() {
 async function _tacoLeerUno(file) {
   const buf = await file.arrayBuffer();
   const r = tacoLeerBuffer(buf, file.name);
-  const { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  let { empresa, motivo } = await _tacoAdivinarEmpresa(r);
+  // v422: si el fichero no delata la empresa, se toma la elegida en el filtro
+  // de arriba. Si el fichero apunta a OTRA distinta, manda el fichero (la
+  // matricula manda, como siempre) pero se avisa por si es un despiste.
+  if (!empresa && _tacoEmpGlobal !== 'TODAS') { empresa = _tacoEmpGlobal; motivo = 'tomada del filtro de empresa de arriba — compruébala'; }
+  else if (empresa && _tacoEmpGlobal !== 'TODAS' && empresa !== _tacoEmpGlobal) { motivo += ' · ⚠ el filtro de arriba está en ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + ', pero este fichero apunta a ' + (_TACO_EMP_NOM[empresa] || empresa); }
   return { file, r, empresa, motivo, estado: 'leido' };
 }
 
@@ -25838,9 +25904,16 @@ async function _tacoGuardarUno(it) {
     const buf = await file.arrayBuffer();
     const sha = await _tacoHuella(buf);
     const { data: ya, error: eD } = await sb.from('tacografo_ficheros')
-      .select('id, file_nombre').eq('sha256', sha).maybeSingle();
+      .select('id, file_nombre, empresa').eq('sha256', sha).maybeSingle();
     if (eD) throw eD;
-    if (ya) { await _tacoRellenarTarjeta(r); it.detalle = 'ya estaba guardado'; return 'duplicado'; }   // v384
+    if (ya) {
+      // v423: mismo agujero que en el flujo de uno en uno — el duplicado se iba
+      // sin apuntar los dias. Ahora se (re)apuntan con la empresa YA guardada.
+      await _tacoRellenarTarjeta(r);
+      const nD = await _tacoGuardarDias(r, ya.empresa || it.empresa, ya.id);
+      it.detalle = 'ya estaba guardado' + (nD ? ` · ${nD} días reapuntados` : '');
+      return 'duplicado';
+    }   // v384 · v423
 
     const año = (_tacoFecha(r.hasta) || new Date()).getUTCFullYear();
     const ruta = `tacografo/${it.empresa}/${año}/${Date.now()}_${file.name}`;
@@ -25928,6 +26001,7 @@ async function tacoGuardarLote() {
     para elegirles la empresa a mano.</div>`;
   toast(`${ok} guardados`, ok ? 'ok' : 'err');
   tacoCargarLista();
+  _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v422: que salgan ya en los desplegables
 }
 
 async function tacoSoltarVarios(files) {
@@ -25991,10 +26065,13 @@ async function tacoPintarAvisos() {
   if (!box) return;
   if (!tacoFicheros || !tacoFicheros.length) { box.innerHTML = ''; return; }
   await _tacoCargarTrabajadores();          // v383: hace falta para saber quien esta de baja
+  // v422: los avisos, solo de la empresa elegida arriba
+  const _fichAvi = tacoFicheros.filter(_tacoEmpPasa);
+  if (!_fichAvi.length) { box.innerHTML = ''; return; }
 
   // Lo ultimo que hay de cada camion y de cada tarjeta
   const ultVeh = new Map(), ultTar = new Map();
-  tacoFicheros.forEach(f => {
+  _fichAvi.forEach(f => {
     if (f.tipo === 'vehiculo' && f.matricula) {
       const a = ultVeh.get(f.matricula);
       if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ultVeh.set(f.matricula, f);
@@ -26051,6 +26128,7 @@ async function tacoPintarAvisos() {
   try {
     const { data: veh } = await sb.from('taller_vehiculos').select('matricula, empresa').eq('activo', true);
     (veh || []).forEach(v => {
+      if (!_tacoEmpPasa(v)) return;                        // v422: solo la empresa elegida
       const m = (v.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (!m) return;
       if (/^[A-Z]/.test(m)) { _nRemolques++; return; }      // remolque: no lleva tacografo
@@ -26171,10 +26249,10 @@ async function tacoVehPintarSelector() {
   if (!box) return;
   try {
     const p = await _tacoInfCargarPersonas();
-    const vehs = p.filter(x => x.tipo === 'vehiculo');
+    const vehs = p.filter(x => x.tipo === 'vehiculo').filter(_tacoEmpPasa);   // v422: solo la empresa elegida
     if (!vehs.length) {
       box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
-        Todavía no hay descargas de camión guardadas. Súbelas en SUBIR y vuelve.</div>`;
+        Todavía no hay descargas de camión guardadas${_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}. Súbelas en SUBIR y vuelve.</div>`;
       return;
     }
     // el desplegable de la ficha
@@ -26184,7 +26262,7 @@ async function tacoVehPintarSelector() {
       <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
         <div class="fg" style="min-width:220px;flex:1 1 220px">
           <label class="fl">Camión</label>
-          <select class="fi" id="tacoVehQuien" onchange="tacoVehVer()">${op}</select>
+          <select class="fi" id="tacoVehQuien" onchange="tacoVehCambio()">${op}</select>
         </div>
         <div class="fg"><label class="fl">Del día</label>
           <input class="fi" type="date" id="tacoVehDesde" value="${(() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); })()}" onchange="tacoVehVer()"></div>
@@ -26233,8 +26311,8 @@ function tacoRep(cual) {
 async function tacoRepJornadasUI() {
   const panel = document.getElementById('tacoRepPanel');
   const p = await _tacoInfCargarPersonas();
-  const conds = p.filter(x => x.tipo === 'conductor');
-  if (!conds.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas todavía.</div></div>'; return; }
+  const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);   // v422: solo la empresa elegida
+  if (!conds.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
   const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
   // por defecto: el mes pasado entero, que es lo que se suele pedir
   const hoy = new Date();
