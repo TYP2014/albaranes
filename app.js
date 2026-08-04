@@ -25175,8 +25175,13 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     // v390: que dias de este periodo son el DIA DE LA DESCARGA (jornada a
     // medias). Estan marcados en tacografo_dias desde la v385, pero el grafico
     // no miraba la marca y salian barbaridades tipo 20h44 de conduccion.
-    let qd = sb.from('tacografo_dias').select('fecha, incompleto, conductor_nombre')
-      .gte('fecha', lunes).lte('fecha', hasta)
+    // v421: en el camion se pide TAMBIEN el odometro, y UN DIA MAS por detras:
+    // el fichero guarda el contador a las 00:00 de cada dia, asi que los km de
+    // un dia = contador del dia siguiente - contador del dia. Para el ultimo
+    // dia del rango hace falta el contador de "hasta + 1".
+    const hastaMas1 = (() => { const d = new Date(hasta + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+    let qd = sb.from('tacografo_dias').select('fecha, incompleto, conductor_nombre' + (tipo === 'V' ? ', odometro' : ''))
+      .gte('fecha', lunes).lte('fecha', tipo === 'V' ? hastaMas1 : hasta)
       .eq('origen', tipo === 'C' ? 'conductor' : 'vehiculo');
     qd = (tipo === 'C') ? qd.eq('tarjeta_raiz', id) : qd.eq('matricula', id);
     const { data: diasInfo } = await qd;
@@ -25185,6 +25190,11 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     // fichero del camion: las tarjetas que se metieron ese dia)
     const _quienDia = new Map();
     if (tipo === 'V') (diasInfo || []).forEach(x => { if (x.conductor_nombre) _quienDia.set(x.fecha, x.conductor_nombre); });
+    // v421: contador de km a las 00:00 de cada dia (viene del propio fichero
+    // del camion, guardado desde la v385 en la columna odometro).
+    const _odoDia = new Map();
+    if (tipo === 'V') (diasInfo || []).forEach(x => { if (x.odometro != null) _odoDia.set(x.fecha, x.odometro); });
+    let totKm = 0, diasSinKm = 0;   // v421: total de km del periodo y dias sin dato
 
     // v394: la HORA a la que se hizo la descarga, sacada del nombre del propio
     // fichero (V_..._20260727_0323.TGD -> 03:23). El tacografo conto hasta ese
@@ -25312,6 +25322,18 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
 
       const hm = v => v ? `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}` : '—';
       const vacio = !ts.length;
+      // v421: km del dia del camion = contador de las 00:00 del dia SIGUIENTE
+      // menos el de las 00:00 de este dia. Si falta uno de los dos (tipico:
+      // el dia de la descarga, que el siguiente aun no esta descargado) NO se
+      // inventa nada: sale "km —" y se apunta como dia sin dato. El tope de
+      // 3000 km/dia es un cortafuegos por si un contador viniera corrupto.
+      let kmDia = null;
+      if (tipo === 'V' && !vacio) {
+        const dSig = new Date(iso + 'T12:00:00Z'); dSig.setUTCDate(dSig.getUTCDate() + 1);
+        const o1 = _odoDia.get(iso), o2 = _odoDia.get(dSig.toISOString().slice(0, 10));
+        if (o1 != null && o2 != null && o2 >= o1 && (o2 - o1) <= 3000) { kmDia = o2 - o1; totKm += kmDia; }
+        else diasSinKm++;
+      }
       h += `
         <div style="border:1px solid var(--bd);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:${vacio ? 'rgba(30,41,51,.02)' : 'var(--sf)'}">
           <div style="font-family:var(--ss);font-size:12px;font-weight:600;margin-bottom:7px">
@@ -25322,6 +25344,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
               : '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>') : ''}
             ${huboDos ? '<span style="font-family:var(--mn);font-size:10px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 9px;margin-left:6px">≡ dos conductores</span>' : ''}
             ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:11px;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
+            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:11px;margin-left:8px" title="Contador del tacógrafo a las 00:00 del día siguiente menos el de este día. Si falta el día siguiente (p. ej. el día de la descarga), aún no se puede calcular.">🛣 ${kmDia != null ? '<b>' + kmDia.toLocaleString('es-ES') + ' km</b>' : '<span style="color:var(--mu)">km —</span>'}</span>` : ''}
           </div>
           <div style="position:relative;height:26px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
             ${barras}${ejes}${(esIncompleto && corte != null) ? `
@@ -25357,7 +25380,8 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
           Del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)} · ${nDias} día${nDias === 1 ? '' : 's'}${recortado ? ' <span style="color:var(--wnd)">(recortado a 31: para más, usa los informes)</span>' : ''}</div>
         <div style="font-family:var(--mn);font-size:12px;margin-left:auto">
           Conducción del periodo: <b style="font-size:15px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
-          <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>
+          <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>${tipo === 'V' ? `
+          · 🛣 <b style="font-size:15px">${totKm.toLocaleString('es-ES')} km</b>${diasSinKm ? `<span style="color:var(--wnd)" title="Días con actividad pero sin poder calcular los km (falta el contador del día siguiente, típico del día de la descarga)."> (${diasSinKm} día${diasSinKm === 1 ? '' : 's'} sin dato de km)</span>` : ''}` : ''}
         </div>
       </div>${h}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
