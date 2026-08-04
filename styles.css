@@ -145,6 +145,27 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 #dzGas .dz-ic,#tacoDrop .dz-ic,#dzNeumAlb .dz-ic,#dzNeumFactura .dz-ic{animation:dzSaltito 5s ease-in-out infinite}
 /* v415: la campana de la cita ITV se balancea como si sonara, al compas de 5s de todo */
 .icCampana{animation:itvCampana 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center 20%}
+/* v418: la balanza de las citas ITV - duda, se decanta al verde y el visto se queda ARRIBA */
+.icBalanza{animation:itvBalanza 5s ease-in-out infinite;transform-box:view-box;transform-origin:60px 30px}
+.icBalanzaChapa{animation:itvBalanzaChapa 5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes itvBalanza{
+  0%{transform:rotate(0deg)}
+  8%{transform:rotate(9deg)}
+  20%{transform:rotate(-21deg)}
+  30%{transform:rotate(-7deg)}
+  38%{transform:rotate(-17deg)}
+  46%{transform:rotate(-12.5deg)}
+  54%,100%{transform:rotate(-14deg)}
+}
+@keyframes itvBalanzaChapa{
+  0%{transform:rotate(0deg)}
+  8%{transform:rotate(-9deg)}
+  20%{transform:rotate(21deg)}
+  30%{transform:rotate(7deg)}
+  38%{transform:rotate(17deg)}
+  46%{transform:rotate(12.5deg)}
+  54%,100%{transform:rotate(14deg)}
+}
 @keyframes itvCampana{
   0%,80%{transform:rotate(0)}
   84%{transform:rotate(13deg)}
@@ -181,6 +202,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
   .dz:hover .ic3d-doc,.dz:hover .ic3d-nub,.dz:hover .ic3d-car,.dz:hover .ic3d-ok,.dz:hover .ic3d-fle,.dz:hover .ic3d-som,.dz:hover .dz-ic{animation:none}
   .dz-ic.ic3d svg,.dz:hover .dz-ic.ic3d svg{animation:none;transform:rotateX(6deg) rotateY(-24deg)}
   .icCampana{animation:none}
+  .icBalanza{animation:none;transform:rotate(-14deg)}
+  .icBalanzaChapa{animation:none;transform:rotate(14deg)}
 }
 .hl{color:var(--ac)}
 
