@@ -18697,6 +18697,7 @@ let editVacPerId = null;
 
 async function loadVacData() {
   if (!window._tieneVac) return;
+  try { loadRecmed(); } catch (e) { console.warn('[v441]', e); }   // v441: reconocimientos + su aviso
   try {
     // v107N: ajustar subpestañas visibles según permisos del usuario.
     // window._empresaVac contiene la lista de empresas permitidas separada por comas.
@@ -19636,6 +19637,7 @@ async function loadTallerData() {
     // aunque el usuario no haya entrado nunca en la vista. Sin await: no debe
     // retrasar la carga de Taller.
     try { loadTallerCitas(); } catch (e) { console.warn('[v358]', e); }
+    try { loadRecmed(); } catch (e) { console.warn('[v440]', e); }   // v440: aviso de reconocimientos desde el arranque
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
@@ -21016,6 +21018,330 @@ function renderCitasGlobalBanner() {
       '</div></div>';
   }
 
+  if (!html) { banner.style.display = 'none'; return; }
+  banner.style.display = 'block';
+  banner.innerHTML = html;
+}
+
+// ============================================================
+// v440 · TALLER > RECONOCIMIENTOS MÉDICOS (Prevenjobs y demás)
+// Cuarta vista de Taller, hermana de Citas Servicio Oficial.
+// Diferencias con las citas de taller: (1) lleva DOCUMENTO
+// adjunto (el PDF de Prevenjobs) subido al bucket 'documentos'
+// (privado, se descarga con enlace firmado); (2) botón WhatsApp
+// con el recordatorio ya escrito para mandárselo al trabajador;
+// (3) se ven TODAS las empresas permitidas JUNTAS (pocas citas
+// al año, mejor de un vistazo) con su columna EMPRESA, y aquí
+// SÍ entra PORTES (la cita de César es de Portes 2014 Import).
+// Reutiliza _tcitaSemaforo (v357): un solo sitio decide colores.
+// ============================================================
+let tallerRecmed = [];
+let editRecmedId = null;
+
+// v441: selector de vistas de la pestaña EMPLEADOS (antes "Vacaciones"):
+// 🌴 Vacaciones (todo lo de siempre, intacto) · 🩺 Reconocimientos médicos
+function switchEmpleadosVista(v) {
+  const vb = document.getElementById('empVistaVacBox');
+  const rb = document.getElementById('empVistaRecmedBox');
+  const bv = document.getElementById('empVistaVac');
+  const br = document.getElementById('empVistaRecmed');
+  [[vb,bv],[rb,br]].forEach(([caja,boton]) => {
+    if (caja) caja.style.display = 'none';
+    if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
+  });
+  if (v === 'recmed') {
+    if (rb) rb.style.display = '';
+    if (br) { br.classList.remove('bs'); br.classList.add('bp'); }
+    loadRecmed();
+  } else {
+    if (vb) vb.style.display = '';
+    if (bv) { bv.classList.remove('bs'); bv.classList.add('bp'); }
+  }
+}
+
+// Empresas que este usuario puede ver aquí. Mismas que en Taller
+// + PORTES para quien ve el grupo (TYP2014/HISPALIS). Transmargaz
+// sigue siendo caja cerrada: solo lo suyo.
+function _recmedEmpresas() {
+  // v441: manda el permiso de EMPLEADOS/Vacaciones (_empresaVac), no el de Taller
+  const base = window._empresaVac
+    ? window._empresaVac.split(',').map(s => s.trim())
+    : ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+  if ((base.includes('TYP2014') || base.includes('HISPALIS')) && !base.includes('PORTES')) base.push('PORTES');
+  return base;
+}
+
+async function loadRecmed() {
+  if (!window._tieneVac) return;   // v441: puerta de EMPLEADOS (Vacaciones)
+  try {
+    const { data, error } = await sb.from('taller_reconocimientos')
+      .select('*').order('fecha_cita', { ascending: true });
+    if (error) throw error;
+    tallerRecmed = data || [];
+    renderRecmed();
+    renderRecmedGlobalBanner();
+  } catch (e) {
+    console.error('[loadRecmed]', e);
+    toast('Error cargando reconocimientos: ' + (e.message || e), 'err');
+  }
+}
+
+function _recmedLista() {
+  const emp = _recmedEmpresas();
+  return tallerRecmed
+    .filter(c => emp.includes(c.empresa))
+    .sort((a, b) => {
+      const sa = _tcitaSemaforo(a), sb2 = _tcitaSemaforo(b);
+      if (sa.orden !== sb2.orden) return sa.orden - sb2.orden;
+      return (a.fecha_cita || '').localeCompare(b.fecha_cita || '');
+    });
+}
+
+const _RECMED_EMP_NOM = { TYP2014: 'TYP2014', HISPALIS: 'T. HISPALIS 2016', TRANSMARGAZ: 'TRANSMARGAZ 2018', PORTES: 'PORTES 2014 IMPORT' };
+
+function renderRecmed() {
+  const box = document.getElementById('recmedBox');
+  if (!box) return;
+  const citas = _recmedLista();
+  if (!citas.length) {
+    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">No hay reconocimientos apuntados. Pulsa <strong>➕ Nueva cita médica</strong> y sube el PDF de la mutua.</div>';
+    return;
+  }
+  let filas = '';
+  citas.forEach(c => {
+    const s = _tcitaSemaforo(c);
+    const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '—';
+    const finde = c.fecha_cita ? ' <span style="color:var(--mu)">(' + _tacoDiaSemana(c.fecha_cita) + ')</span>' : '';
+    filas += '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
+      '<td style="padding:7px 8px;white-space:nowrap"><span style="color:' + s.color + ';font-weight:800">' + s.txt + '</span></td>' +
+      '<td style="padding:7px 8px;font-weight:700">' + esc(c.trabajador || '') + (c.puesto ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(c.puesto) + '</span>' : '') + '</td>' +
+      '<td style="padding:7px 8px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[c.empresa] || c.empresa) + '</td>' +
+      '<td style="padding:7px 8px;white-space:nowrap">' + dia + finde + (c.hora_cita ? ' · <strong>' + esc(c.hora_cita) + '</strong>' : '') + '</td>' +
+      '<td style="padding:7px 8px">' + esc(c.centro || '') + '</td>' +
+      '<td style="padding:7px 8px;white-space:nowrap">' + (c.archivo_path
+        ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedDescargar(\'' + c.id + '\')" title="' + esc(c.archivo_nombre || 'documento') + '">📄 Descargar</button>'
+        : '<span style="color:var(--mu);font-size:10px">sin doc.</span>') + '</td>' +
+      '<td style="padding:7px 8px;white-space:nowrap;text-align:right">' +
+        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp">📲 WhatsApp</button> ' +
+        (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedMarcarHecha(\'' + c.id + '\')">✓ Hecha</button> ' : '') +
+        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="openRecmedEdit(\'' + c.id + '\')">✎ Editar</button>' +
+      '</td></tr>';
+  });
+  box.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
+    '<th style="padding:6px 8px">AVISO</th><th style="padding:6px 8px">TRABAJADOR</th><th style="padding:6px 8px">EMPRESA</th><th style="padding:6px 8px">DÍA · HORA</th><th style="padding:6px 8px">CENTRO</th><th style="padding:6px 8px">DOCUMENTO</th><th style="padding:6px 8px;text-align:right">ACCIONES</th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+}
+
+// ---------- modal ----------
+function _recmedCampos(c) {
+  const emp = _recmedEmpresas();
+  const ops = emp.map(e => '<option value="' + e + '"' + ((c.empresa || 'TYP2014') === e ? ' selected' : '') + '>' + (_RECMED_EMP_NOM[e] || e) + '</option>').join('');
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
+      <div class="fg" style="grid-column:1/-1"><label class="fl">Trabajador *</label><input class="fi" id="rmTrab" value="${esc(c.trabajador || '')}" placeholder="Nombre y apellidos"></div>
+      <div class="fg"><label class="fl">Empresa *</label><select class="fi" id="rmEmp">${ops}</select></div>
+      <div class="fg"><label class="fl">Puesto</label><input class="fi" id="rmPuesto" value="${esc(c.puesto || '')}" placeholder="Conductor, Operario Taller..."></div>
+      <div class="fg"><label class="fl">Día de la cita *</label><input class="fi" type="date" id="rmFecha" value="${c.fecha_cita || ''}"></div>
+      <div class="fg"><label class="fl">Hora</label><input class="fi" id="rmHora" value="${esc(c.hora_cita || '')}" placeholder="08:00"></div>
+      <div class="fg"><label class="fl">Centro</label><input class="fi" id="rmCentro" value="${esc(c.centro || 'Clínica Prevenjobs')}"></div>
+      <div class="fg"><label class="fl">Teléfono</label><input class="fi" id="rmTel" value="${esc(c.telefono || '935378399')}"></div>
+      <div class="fg" style="grid-column:1/-1"><label class="fl">Dirección</label><input class="fi" id="rmDir" value="${esc(c.direccion || 'Passeig de les Lletres nº 11 Local, 08221 Terrassa')}"></div>
+      <div class="fg" style="grid-column:1/-1"><label class="fl">Notas</label><input class="fi" id="rmNotas" value="${esc(c.notas || '')}" placeholder="En ayunas mínimo 4 horas..."></div>
+      <div class="fg" style="grid-column:1/-1"><label class="fl">Documento de la cita (PDF o foto)</label>
+        <input class="fi" type="file" id="rmFile" accept=".pdf,image/*">
+        ${c.archivo_nombre ? '<div style="font-family:var(--mn);font-size:10.5px;color:var(--mu);margin-top:4px">Ya adjunto: <strong>' + esc(c.archivo_nombre) + '</strong> — si eliges otro archivo, lo sustituye.</div>' : ''}
+      </div>
+      ${editRecmedId ? `<div class="fg"><label class="fl">Estado</label><select class="fi" id="rmEstado">
+        <option value="pendiente"${c.estado === 'pendiente' ? ' selected' : ''}>Pendiente</option>
+        <option value="hecha"${c.estado === 'hecha' ? ' selected' : ''}>✓ Hecha</option>
+        <option value="anulada"${c.estado === 'anulada' ? ' selected' : ''}>✕ Anulada</option></select></div>` : ''}
+    </div>`;
+}
+
+function openRecmedModalNew() {
+  editRecmedId = null;
+  document.getElementById('recmedModalTitulo').textContent = 'NUEVA CITA MÉDICA';
+  document.getElementById('recmedFields').innerHTML = _recmedCampos({});
+  document.getElementById('recmedBtnDel').style.display = 'none';
+  document.getElementById('recmedOv').classList.add('on');
+}
+
+function openRecmedEdit(id) {
+  const c = tallerRecmed.find(x => x.id === id);
+  if (!c) return;
+  editRecmedId = id;
+  document.getElementById('recmedModalTitulo').textContent = 'EDITAR CITA MÉDICA';
+  document.getElementById('recmedFields').innerHTML = _recmedCampos(c);
+  document.getElementById('recmedBtnDel').style.display = '';
+  document.getElementById('recmedOv').classList.add('on');
+}
+
+function closeRecmedModal() {
+  document.getElementById('recmedOv').classList.remove('on');
+  editRecmedId = null;
+}
+
+async function saveRecmedModal() {
+  const trab = (document.getElementById('rmTrab')?.value || '').trim();
+  const empresa = document.getElementById('rmEmp')?.value;
+  const fecha = document.getElementById('rmFecha')?.value;
+  if (!trab || !empresa || !fecha) { toast('Faltan trabajador, empresa o día de la cita', 'warn'); return; }
+  const payload = {
+    empresa, trabajador: trab, fecha_cita: fecha,
+    puesto: (document.getElementById('rmPuesto')?.value || '').trim() || null,
+    hora_cita: (document.getElementById('rmHora')?.value || '').trim() || null,
+    centro: (document.getElementById('rmCentro')?.value || '').trim() || null,
+    telefono: (document.getElementById('rmTel')?.value || '').trim() || null,
+    direccion: (document.getElementById('rmDir')?.value || '').trim() || null,
+    notas: (document.getElementById('rmNotas')?.value || '').trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  const est = document.getElementById('rmEstado');
+  if (est) payload.estado = est.value;
+  try {
+    // Documento: si eligieron archivo, subirlo al bucket privado
+    const f = document.getElementById('rmFile')?.files?.[0];
+    if (f) {
+      if (f.size > 15 * 1024 * 1024) { toast('El archivo pasa de 15 MB', 'warn'); return; }
+      const limpio = f.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const ruta = 'reconocimientos/' + empresa + '/' + Date.now() + '_' + limpio;
+      const up = await sb.storage.from('documentos').upload(ruta, f);
+      if (up.error) throw up.error;
+      payload.archivo_path = ruta;
+      payload.archivo_nombre = f.name;
+    }
+    if (editRecmedId) {
+      const { error } = await sb.from('taller_reconocimientos').update(payload).eq('id', editRecmedId);
+      if (error) throw error;
+      toast('✓ Cita médica actualizada');
+    } else {
+      const { error } = await sb.from('taller_reconocimientos').insert(payload);
+      if (error) throw error;
+      toast('✓ Cita médica guardada');
+    }
+    closeRecmedModal();
+    await loadRecmed();
+  } catch (e) {
+    console.error('[saveRecmed]', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteRecmed() {
+  if (!editRecmedId) return;
+  const c = tallerRecmed.find(x => x.id === editRecmedId);
+  if (!confirm('¿Eliminar la cita médica de ' + (c?.trabajador || '') + '? Esto no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('taller_reconocimientos').delete().eq('id', editRecmedId);
+    if (error) throw error;
+    toast('Cita médica eliminada');
+    closeRecmedModal();
+    await loadRecmed();
+  } catch (e) {
+    console.error('[deleteRecmed]', e);
+    toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+async function recmedMarcarHecha(id) {
+  try {
+    const { error } = await sb.from('taller_reconocimientos')
+      .update({ estado: 'hecha', updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    toast('✓ Reconocimiento marcado como hecho');
+    await loadRecmed();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// Descarga con enlace firmado (bucket privado)
+async function recmedDescargar(id) {
+  const c = tallerRecmed.find(x => x.id === id);
+  if (!c || !c.archivo_path) { toast('Esta cita no tiene documento adjunto', 'warn'); return; }
+  try {
+    const { data, error } = await sb.storage.from('documentos').createSignedUrl(c.archivo_path, 3600);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank');
+  } catch (e) {
+    console.error('[recmedDescargar]', e);
+    toast('No pude preparar la descarga: ' + (e.message || e), 'err');
+  }
+}
+
+// Recordatorio de WhatsApp ya escrito (se elige el contacto al abrirse)
+function recmedWhatsApp(id) {
+  const c = tallerRecmed.find(x => x.id === id);
+  if (!c) return;
+  const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
+  const finde = c.fecha_cita ? ' (' + _tacoDiaSemana(c.fecha_cita) + ')' : '';
+  let msg = '🩺 Recordatorio: reconocimiento médico\n';
+  msg += (c.trabajador || '') + '\n';
+  msg += '📅 ' + dia + finde + (c.hora_cita ? ' a las ' + c.hora_cita : '') + '\n';
+  msg += '📍 ' + (c.centro || '') + (c.direccion ? ' — ' + c.direccion : '') + '\n';
+  if (c.telefono) msg += '📞 ' + c.telefono + '\n';
+  msg += '⚠️ Hay que ir EN AYUNAS (mínimo 4 horas).\n';
+  msg += 'Si estás de baja, no puede hacerse hasta tener el alta médica.';
+  if (c.notas) msg += '\n📝 ' + c.notas;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ---------- aviso global (3, 2 y 1 días — mismo patrón que v358) ----------
+const RECMED_BANNER_HIDE_KEY = 'recmed_banner_hidden_date';
+
+function irAReconocimientos() {
+  try { switchTab('vac'); } catch (e) {}                 // v441: pestaña EMPLEADOS
+  try { switchEmpleadosVista('recmed'); } catch (e) {}
+}
+
+function hideRecmedBannerToday(nivel) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (nivel) localStorage.setItem(RECMED_BANNER_HIDE_KEY + '_' + nivel, hoy);
+  renderRecmedGlobalBanner();
+}
+
+function renderRecmedGlobalBanner() {
+  const banner = document.getElementById('recmedBanner');
+  if (!banner) return;
+  if (!window._tieneVac) { banner.style.display = 'none'; return; }   // v441
+  if (!Array.isArray(tallerRecmed) || !tallerRecmed.length) { banner.style.display = 'none'; return; }
+  const emp = _recmedEmpresas();
+  const grupos = { pasada: [], hoy: [], d1: [], d3: [], d5: [] };
+  tallerRecmed
+    .filter(c => emp.includes(c.empresa))
+    .filter(c => c.estado !== 'hecha' && c.estado !== 'anulada')
+    .forEach(c => {
+      const s = _tcitaSemaforo(c);
+      if (grupos[s.clave]) grupos[s.clave].push(c);
+    });
+  const niveles = [
+    { key: 'pasada', color: '#a855f7', bg: 'rgba(168,85,247,.14)', icon: '⚠️', titulo: 'RECONOCIMIENTO PASADO SIN CERRAR' },
+    { key: 'hoy',    color: '#ff3b30', bg: 'rgba(255,59,48,.18)',  icon: '🩺', titulo: 'RECONOCIMIENTO HOY' },
+    { key: 'd1',     color: '#ff5050', bg: 'rgba(255,80,80,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA' },
+    { key: 'd3',     color: '#ff9500', bg: 'rgba(255,149,0,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS O MENOS' },
+    { key: 'd5',     color: '#ffd000', bg: 'rgba(255,208,0,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 5 DÍAS O MENOS' }
+  ];
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  let html = '';
+  for (const n of niveles) {
+    const lista = grupos[n.key];
+    if (!lista.length) continue;
+    if (localStorage.getItem(RECMED_BANNER_HIDE_KEY + '_' + n.key) === hoyStr) continue;
+    const detalle = lista.slice(0, 3).map(c => {
+      const cuando = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
+      const hora = c.hora_cita ? ' ' + esc(c.hora_cita) : '';
+      return '<strong>' + esc(c.trabajador) + '</strong> (' + cuando + hora + ')';
+    }).join(' · ');
+    const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
+    const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('RECONOCIMIENTO', 'RECONOCIMIENTOS');
+    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
+      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
+      '<div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">' + n.icon +
+      ' <span style="color:' + n.color + ';font-weight:800">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAReconocimientos()">🩺 Ver reconocimientos</button>' +
+        '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideRecmedBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
+      '</div></div>';
+  }
   if (!html) { banner.style.display = 'none'; return; }
   banner.style.display = 'block';
   banner.innerHTML = html;

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v441 (04/08/2026): PESTAÑA "EMPLEADOS" = VACACIONES + RECONOCIMIENTOS MEDICOS (rectificacion de JC sobre la v440 recien entregada y NUNCA desplegada: "en taller esta todo muy liado, mejor en vacaciones... indicar la pestaña como EMPLEADOS con 2 subpestañas: vacaciones con sus subpestañas, y citas reconocimiento... acuerdate de los avisos en pantalla principal 3, 2, 1 dia antes"; despues concreto permisos: "Marta, Maria del Mar y Admin, como vacaciones ahora, las 2 subpestañas"). LA V440 SE SUSTITUYE ENTERA POR ESTE PAQUETE (no llego a GitHub); la funcionalidad de reconocimientos es LA MISMA (cita con PDF de la mutua subido al bucket privado, descarga con enlace firmado, WhatsApp con recordatorio ya escrito, semaforo _tcitaSemaforo y AVISO GLOBAL 5/3/manana/HOY/pasada visible desde cualquier pestaña), lo que cambia es DONDE VIVE Y QUIEN LA VE: (1) la pestaña de arriba pasa de "Vacaciones" a "EMPLEADOS" (misma clave interna 'vac', mismo icono y contador - cero riesgo); (2) dentro, DOS vistas con botones como las de Taller: 🌴 Vacaciones (TODO lo de siempre envuelto en empVistaVacBox, sin tocar ni una funcion) y 🩺 Reconocimientos medicos (empVistaRecmedBox); (3) PERMISOS: mandan los de Vacaciones (_tieneVac y _empresaVac) para LAS DOS vistas - Admin, Marta y Maria del Mar como hasta ahora, cada uno con sus empresas, Transmargaz caja cerrada si algun dia entra, y PORTES visible para quien ve el grupo; el usuario TALLER ya NO ve reconocimientos (no tiene Vacaciones); (4) el boton del aviso global salta ahora a EMPLEADOS > Reconocimientos (irAReconocimientos usa switchTab('vac')); (5) el aviso se carga al abrir Vacaciones (linea en loadVacData) ademas del enganche de arranque de la v440 en loadTallerData (ambos idempotentes, la puerta nueva _tieneVac decide); (6) LIMPIEZA de la v440 en Taller: fuera el boton y la caja de alli, y switchTallerVista vuelve a sus 3 vistas de la v357. El div recmedBanner (avisos, junto a los de ITV/citas) y el modal recmedOv se quedan donde estaban: son globales. REQUIERE SQL PREVIO SI AUN NO SE EJECUTO: taller_reconocimientos_v440.sql (mismo fichero de la v440; el nombre de la tabla menciona taller pero es interno e invisible - si ya se ejecuto, NO volver a ejecutarlo aunque no pasaria nada, es CREATE IF NOT EXISTS). ORDEN: 1º SQL (si falta), 2º subir app.js + index.html. styles.css NO cambia (v=47). node --check OK. cache app.js?v=441. VUELTA ATRAS: resubir app.js + index.html de la v439 (la v440 nunca existio en GitHub; la tabla puede quedarse, no molesta). -->
+<!-- v440 (04/08/2026): TALLER - VISTA NUEVA "RECONOCIMIENTOS MEDICOS" (pedido de JC con la citacion real de Prevenjobs de Cesar Rigol, Portes 2014 Import, cita 03/09/2026 08:00: "casi siempre vamos a esta direccion... que nos salga un aviso a 3, 2 y 1 dias... que se pueda subir el documento y descargarlo... y mandarlo por WhatsApp al trabajador como recordatorio... alguna vez se me ha pasado"). CUARTA vista de Taller, hermana de Citas Servicio Oficial (v357/v358) y calcada de su patron: (1) se apunta la cita con trabajador, empresa, dia, hora, centro/direccion/telefono (PRERELLENOS con Prevenjobs Terrassa, el 99,99% de las veces) y notas; (2) A DIFERENCIA de las citas de taller, lleva DOCUMENTO adjunto: el PDF/foto de la mutua se sube al bucket privado documentos (reconocimientos/EMPRESA/...) y se descarga con boton 📄 por enlace firmado de 1 hora; (3) boton 📲 WhatsApp con el recordatorio YA ESCRITO (nombre, dia con dia de la semana, hora, centro, direccion, telefono, EN AYUNAS minimo 4 horas, y que de baja no puede hacerse hasta el alta) - se abre wa.me y JC elige el contacto; (4) AVISO GLOBAL visible desde cualquier pestana (div recmedBanner junto al de citas), mismo semaforo _tcitaSemaforo de la v357 (5d amarillo, 3d naranja, 1d/manana rojo, HOY rojo fuerte, PASADA SIN CERRAR morado - cubre de sobra el 3/2/1 pedido), con su propia clave de ocultar hasta manana y boton directo "Ver reconocimientos"; se carga en el arranque junto a las citas (linea nueva en loadTallerData) para que avise sin abrir Taller; (5) EMPRESAS: aqui se ven TODAS LAS PERMITIDAS JUNTAS con columna EMPRESA (pocas citas al ano, mejor de un vistazo) y entra PORTES para quien ve el grupo - Transmargaz sigue siendo caja cerrada (solo lo suyo, via _empresaTaller); (6) acciones por fila: Descargar, WhatsApp, Hecha, Editar; Eliminar solo dentro del modal con confirmacion; una cita pasada sin cerrar NO desaparece (igual que v357). INCIDENTE DE TALLER DE ESTA MISMA SESION, para que conste: el primer intento de editar el index con python casco AL ESCRIBIR (emoji con par surrogate mal escapado) y dejo el index local A CERO BYTES; se recupero del live de GitHub (v439) y se reescribio con escritura a fichero nuevo + rename - LECCION: en ediciones por script, escribir SIEMPRE a fichero nuevo y renombrar. REQUIERE SQL PREVIO: taller_reconocimientos_v440.sql (tabla nueva con las 4 empresas en el CHECK desde el principio + RLS modelo taller_setup). ORDEN: 1º SQL, 2º subir app.js + index.html. Piezas app.js: switchTallerVista con 4 vistas + modulo recmed completo (load/render/modal/save con subida a Storage/descarga firmada/WhatsApp/marcar hecha/banner global) + 1 linea de arranque. Piezas index: boton vista, caja, div banner, modal. styles.css NO cambia (v=47). node --check OK. cache app.js?v=440. VUELTA ATRAS: resubir app.js + index.html de la v439 (la tabla puede quedarse, no molesta). -->
 <!-- v439 (04/08/2026): TACOGRAFOS - CONDUCCION SIN TARJETA CON EL FORMATO DE LOS AVISOS DE ASG (JC pregunto si subir el minimo de minutos por los muchos tramos de 1-2 min de taller; la respuesta legal es que LA LEY NO FIJA MINIMO - art. 140.22 LOTT, muy grave desde el primer minuto en via publica, 2.001 euros y perdida de honorabilidad - asi que NO se sube ningun minimo ni se oculta nada: se ORDENA como hace ASG en sus emails). CAMBIOS en tacoRepSinTarjVer, solo presentacion: (1) los tramos CORTOS (<15 min, maniobras de patio probables en recinto privado, fuera del ambito del reglamento) se AGRUPAN por dia - "21/07 - 3 periodos de menos de 15 min - 0h17" - en gris, bajo el rotulo "Periodos de menos de 15 minutos acumulados", identico al email real de ASG que JC compartio (9566NBR del 26/07); (2) los tramos LARGOS (>=15 min) se detallan UNO A UNO en rojo con la marca "tramo largo - comprobar", que son los que huelen a carretera; (3) la cabecera de cada camion y el resumen general separan largos de cortos; (4) NOTA LEGAL al pie: sin minimo legal, cuantia y honorabilidad, y el protocolo del email de ASG (determinar quien lo movio y pedir tickets justificativos - solo validos por averia/deterioro/extravio/robo o renovacion pedida con 15 dias habiles). El umbral de 15 min es el mismo que usa ASG. No cambia la consulta, ni el guardado, ni la regla del tramo sin cerrar (v393). styles.css NO cambia (v=47). Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=439. VUELTA ATRAS: resubir app.js + index.html de la v438. -->
 <!-- v438 (04/08/2026): TACOGRAFOS - EL INFORME DE CONDUCCION SIN TARJETA SE CARGA SOLO AL ENTRAR (pedido de JC nada mas probar la v437: "tengo que ir de uno en uno, no quiero eso, cuando entre que tenga un listado del veh. por ejemplo un mes para atras, no buscandolo yo - ASG nos envia un email con todos los avisos cuando recibe la descarga"). El desplegable YA tenia la opcion "Todos los camiones" y el rango por defecto YA eran los ultimos 31 dias - lo que faltaba era no tener que pulsar: ahora, al abrir la tarjeta del informe, se lanza SOLO con esos valores por defecto (todos los camiones de la empresa filtrada, ultimo mes) y el listado aparece directamente. Los filtros de arriba se quedan para afinar despues (un camion concreto, otro rango). UNA LINEA: llamada a tacoRepSinTarjVer() al final de tacoRepSinTarjUI. DE PASO queda validado con el caso real del 4839NBF que el dato es BUENO: 15 tramos de 1-3 min = maniobras de patio, exactamente lo que el informe debe enseñar. APUNTADO PARA EL FUTURO (dicho por JC): avisos automaticos tipo el email de ASG al recibir cada descarga - encajara cuando se conecte la descarga remota (ya anotado en v422). styles.css NO cambia (v=47). Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=438. VUELTA ATRAS: resubir app.js + index.html de la v437. -->
 <!-- v437 (04/08/2026): TACOGRAFOS - INFORME "CONDUCCION SIN TARJETA" FUNCIONANDO (siguiente paso del mapa de INFORMES v408, en la sesion rapida de 15 min de JC). Era la tarjeta "en preparacion" de VEHICULOS; los datos YA estaban guardados en tacografo_tramos desde la v387 (origen=vehiculo + actividad=3 conduccion + sin_tarjeta=true, hueco del conductor) - solo faltaba la pantalla. COMO VA: eliges camion (o TODOS, respetando el filtro de empresa de arriba) y rango libre Del dia/Al dia (por defecto los ultimos 31 dias, que es lo que interesa vigilar); sale cada EPISODIO agrupado por camion con dia, horario, duracion en rojo, total por camion y total general; si no hay nada, barra VERDE "ningun episodio". REGLAS HONESTAS: (1) el tramo SIN CERRAR del dia de la descarga (llega a medianoche en dia incompleto) se ENSEÑA en gris pero NO se suma (regla v393: lo no cerrado no se acredita); (2) nota al pie: sale del fichero FIRMADO del camion, puede ser el taller moviendolo pero hay que comprobarlo, es DISTINTO del "sin anotar" del conductor, y solo se examina lo descargado y subido; (3) letrero UTC de la v425 reutilizado. La consulta va PAGINADA de 1000 en 1000 (leccion v422: Supabase corta en 1000). Piezas: rama 'sintarjeta' en tacoRep + tacoRepSinTarjUI + tacoRepSinTarjVer (todo NUEVO, cero funciones existentes tocadas) + la tarjeta de la parrilla del index pasa de trc-pronto a activa. styles.css NO cambia (v=47). Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=437. VUELTA ATRAS: resubir app.js + index.html de la v436. -->
@@ -691,7 +693,7 @@ if (typeof pdfjsLib !== 'undefined') {
            Para Transmargaz, además, el campo empresa_neumaticos='TRANSMARGAZ' los limita a su subpestaña. -->
       <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78909c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg> Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
       <!-- v107M: pestaña Vacaciones oculta por defecto. Se muestra a usuarios con puede_ver_vacaciones=TRUE. -->
-      <div class="tab" id="tabVac" onclick="switchTab('vac')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffca28" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg> Vacaciones <span class="tab-badge" id="tabVacCount">0</span></div>
+      <div class="tab" id="tabVac" onclick="switchTab('vac')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffca28" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg> Empleados <span class="tab-badge" id="tabVacCount">0</span></div>
       <!-- v107AE: pestaña Taller oculta por defecto. Se muestra a usuarios con puede_ver_taller=TRUE.
            Para Transmargaz, empresa_taller='TRANSMARGAZ' los limita a su subpestaña. -->
       <div class="tab" id="tabTaller" onclick="switchTab('taller')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff7043" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.9 4.9L3 17l4 4 6.6-6.6a3.5 3.5 0 0 0 4.9-4.9l-2.3 2.3-2.5-2.5z"/></svg> Taller <span class="tab-badge" id="tabTallerCount">0</span></div>
@@ -722,6 +724,7 @@ if (typeof pdfjsLib !== 'undefined') {
     <div id="tallerGlobalBanner" style="display:none"></div>
     <!-- v358: aviso global de CITAS EN SERVICIO OFICIAL (5/3/1 días y HOY) -->
     <div id="tallerCitasBanner" style="display:none"></div>
+    <div id="recmedBanner" style="display:none"></div>
     <!-- v337: cuadre mensual de recambios (aviso a partir del día 10) -->
     <div id="recambDia10Banner" style="display:none"></div>
 
@@ -1417,6 +1420,24 @@ if (typeof pdfjsLib !== 'undefined') {
       </div>
     </div>
 
+    <!-- v440: modal de reconocimiento medico -->
+    <div class="ov" id="recmedOv" onclick="if(event.target===this)closeRecmedModal()">
+      <div class="modal" style="max-width:640px">
+        <div class="modal-hd">
+          <div class="st"><div class="dot" style="--c:var(--wn)"></div><span id="recmedModalTitulo">NUEVA CITA MÉDICA</span></div>
+          <div style="display:flex;gap:8px"><button class="btn bs" onclick="closeRecmedModal()">✕</button></div>
+        </div>
+        <div class="modal-bd"><div id="recmedFields"></div></div>
+        <div class="modal-ft">
+          <button class="btn br" id="recmedBtnDel" onclick="deleteRecmed()" style="display:none">Eliminar</button>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="btn bs" onclick="closeRecmedModal()">Cancelar</button>
+            <button class="btn bp" onclick="saveRecmedModal()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- v108: TAB INCIDENCIAS (temas pendientes con clientes) -->
     <div id="tabContentIncidencias" class="wrap" style="display:none">
       <div class="card">
@@ -1658,6 +1679,12 @@ if (typeof pdfjsLib !== 'undefined') {
 
     <!-- v107M: TAB VACACIONES -->
     <div id="tabContentVac" class="wrap" style="display:none">
+      <!-- v441: EMPLEADOS = dos vistas: Vacaciones (todo lo de siempre) y Reconocimientos médicos -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="btn bp" id="empVistaVac" onclick="switchEmpleadosVista('vac')" style="font-size:11px">🌴 Vacaciones</button>
+        <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')" style="font-size:11px">🩺 Reconocimientos médicos</button>
+      </div>
+      <div id="empVistaVacBox">
 
       <!-- v107N: Subpestañas por empresa -->
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="vacSubtabs">
@@ -1718,6 +1745,32 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando calendario...</div>
         </div>
       </div>
+      </div><!-- v441: fin empVistaVacBox -->
+
+      <!-- ===== v441: VISTA RECONOCIMIENTOS MEDICOS (antes iba en Taller, JC la quiso aqui) ===== -->
+      <div id="empVistaRecmedBox" style="display:none">
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot" style="--c:var(--wn)"></div>RECONOCIMIENTOS MÉDICOS <span style="color:var(--mu);font-size:10px;font-weight:400">· todas tus empresas juntas (Portes incluida)</span></div>
+            <div class="tbl-acts">
+              <button class="btn bp" onclick="openRecmedModalNew()" style="font-size:11px">➕ Nueva cita médica</button>
+              <button class="btn bs" onclick="loadRecmed()" style="font-size:11px" title="Actualizar la lista">🔄 Actualizar</button>
+            </div>
+          </div>
+          <div class="card-bd">
+            <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">
+              Sube el PDF de la mutua al crear la cita · aviso arriba en toda la app según se acerque:
+              <strong style="color:#b58900">5 días</strong> ·
+              <strong style="color:#e8841a">3 días</strong> ·
+              <strong style="color:#c62828">1 día</strong> ·
+              <strong style="color:#b71c1c">HOY</strong> ·
+              <strong style="color:#6a1b9a">pasada sin cerrar</strong>
+              · botón 📲 para mandar el recordatorio por WhatsApp al trabajador.
+            </div>
+            <div id="recmedBox"></div>
+          </div>
+        </div>
+      </div><!-- fin vista reconocimientos -->
 
     </div>
 
@@ -1847,6 +1900,8 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
       </div><!-- fin vista citas -->
+
+
     </div>
 
     <!-- TAB SUBIR -->
@@ -2341,6 +2396,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v314 (17/07/2026): ALBARANES — RED "CASI VACÍO": si Haiku devuelve una lectura con ≤2 de los 9 campos útiles (albarán/fecha/matrícula/tm/proveedor/origen/destino/material/cliente), se RELEE el archivo ENTERO con Sonnet 4.6 y se usa la lectura que traiga MÁS campos. Motivo (caso real de hoy): tickets térmicos de báscula Holcim Garraf con tinta casi borrada donde Haiku no sacaba NI el sello → sin ninguna pista, la plantilla Garraf (v312/v313) no podía saltar y el albarán quedaba vacío del todo. Sonnet ve mucho mejor las fotos malas: con que saque una pista (Garraf/zahorra/Montcada), la plantilla rellena el resto. Ya existían reintentos PARCIALES con Sonnet (matrícula, TN, destinos); este es el COMPLETO y solo se dispara en lecturas casi vacías (raro) → coste extra mínimo. Si el reintento falla (red/saturación) se sigue con lo de Haiku, nunca se pierde nada. Cambios: callClaudeAlb acepta parámetro de modelo (Haiku por defecto) + bloque de reintento en _processOne. NO toca gasoil, facturas ni el modo manual. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=314. -->
 <!-- v315 (17/07/2026): ALBARANES — ARREGLO DEL FALLO visto probando la v314 (captura de consola de Juan Carlos): el reintento con Sonnet SÍ saltaba ("Haiku leyó casi nada 0/9... Releyendo TODO con Sonnet") pero la respuesta se TIRABA porque Sonnet a veces contesta con texto delante del JSON ("Analizando el albarán...", "I need to...") y JSON.parse petaba con "Unexpected token" — el mismo fallo tumbaba también el reintento de TN (v107D0). Arreglo: nueva función _jsonRespuestaIA(text) que primero intenta el parse directo (caso normal, coste cero) y si falla RECORTA el bloque JSON (del primer { o [ al último } o ]) y lo parsea — con aviso [v315] en consola. Se aplica a TODO el circuito de lectura de albaranes: callClaudeAlb + los 9 reintentos focalizados con Sonnet (TN, matrícula, nº Cemex, nº Holcim, cliente Canro, destino Holcim, origen Puigfel, destino Promsa, Promsa). Gasoil, neumáticos y facturas NO se tocan (sus parseos siguen igual, se harán aparte si hiciera falta). Con esto el circuito del ticket Garraf queda completo: Haiku casi vacío → Sonnet relee → plantilla v313 rellena → nº SN v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=315. -->
 <!-- v316 (17/07/2026): ALBARANES — SN más robusto: la cola de KILOS del número automático (v311) se redondea a CENTENAS de kilo. Caso real de hoy: el mismo ticket de 28.740 kg se leyó una vez como 28,74 TN y otra como 28,7 TN → SN-0726-28740 vs SN-0726-28700 → números distintos → ese duplicado se habría escapado. Con el redondeo, ambas lecturas dan SN-0726-28700 y el detector lo caza. Dos viajes reales del mismo mes tendrían que pesar a menos de 100 kg de diferencia para chocar (rarísimo; y sería solo un aviso a revisar). Los SN ya guardados NO cambian. Una sola línea tocada dentro del bloque v311. Sube app.js + index.html. NO requiere SQL. node --check OK. cache app.js?v=316. -->
-<script src="app.js?v=439"></script>
+<script src="app.js?v=441"></script>
 </body>
 </html>
