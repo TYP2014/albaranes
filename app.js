@@ -21262,9 +21262,16 @@ function renderRecambios() {
   let html = '';
   mesesOrden.forEach(m => {
     const del = grupos[m];
-    // v253: dentro del mes, ordenados por PROVEEDOR (variantes agrupadas) y fecha →
-    // los documentos de la misma casa salen juntos, no mezclados.
-    del.sort((a, b) => _recProvKey(a.proveedor || '').localeCompare(_recProvKey(b.proveedor || '')) || String(a.fecha || '').localeCompare(String(b.fecha || '')));
+    // v420 (pedido por JC por voz): dentro del mes, TRES bloques separados —
+    // primero los 📦 ALBARANES, luego los ↩️ ABONOS y al final las 🧾 FACTURAS —
+    // y dentro de cada bloque por PROVEEDOR A→Z (variantes agrupadas con _recProvKey,
+    // como antes) y por FECHA con la MÁS RECIENTE ARRIBA (día 30 arriba, día 1 abajo).
+    // Es SOLO un cambio de orden en pantalla: no toca datos ni BD.
+    const _ordenTipo = { albaran: 0, abono: 1, factura: 2 };
+    del.sort((a, b) =>
+      ((_ordenTipo[a.tipo_doc] !== undefined ? _ordenTipo[a.tipo_doc] : 0) - (_ordenTipo[b.tipo_doc] !== undefined ? _ordenTipo[b.tipo_doc] : 0)) ||
+      _recProvKey(a.proveedor || '').localeCompare(_recProvKey(b.proveedor || '')) ||
+      String(b.fecha || '').localeCompare(String(a.fecha || '')));
     const pend = del.filter(d => !d.conciliado);
     const conc = del.filter(d => d.conciliado);
     const nAlbM = del.filter(d => d.tipo_doc === 'albaran').length;
