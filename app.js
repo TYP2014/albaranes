@@ -26492,38 +26492,65 @@ async function tacoRepSinTarjVer() {
     // Agrupar por camión
     const porMat = new Map();
     tramos.forEach(t => { const k = t.matricula || '—'; if (!porMat.has(k)) porMat.set(k, []); porMat.get(k).push(t); });
-    let h = '', totMin = 0, totEp = 0, totAbiertos = 0;
+    // v439 — como el email de ASG: los tramos CORTOS (<15 min, maniobras de
+    // patio probables) se AGRUPAN por día (N periodos · total); los LARGOS
+    // (>=15 min) se detallan uno a uno, que son los que huelen a carretera.
+    // La ley NO fija minimo (art. 140.22 LOTT: muy grave desde el primer
+    // minuto en via publica), asi que nada se oculta: solo se ordena.
+    const CORTO_MIN = 15;
+    let h = '', totMin = 0, totLargos = 0, totCortos = 0, totAbiertos = 0;
     [...porMat.keys()].sort().forEach(m => {
       const ts = porMat.get(m);
-      let minM = 0, filas = '';
+      let minM = 0, filasLargos = '', cortosPorDia = new Map(), nLargosM = 0, nCortosM = 0;
       ts.forEach(t => {
         const abierto = (t.minuto_fin === 1440) && incomp.has((t.matricula || '') + '|' + t.fecha);
         const minutos = t.minuto_fin - t.minuto_ini;
         if (abierto) { totAbiertos++; }
-        else { minM += minutos; totEp++; }
-        filas += `<tr${abierto ? ' style="color:var(--mu)"' : ''}>
+        else { minM += minutos; }
+        if (!abierto && minutos < CORTO_MIN) {
+          // corto: al saco de su día
+          nCortosM++; totCortos++;
+          if (!cortosPorDia.has(t.fecha)) cortosPorDia.set(t.fecha, { n: 0, min: 0 });
+          const c = cortosPorDia.get(t.fecha); c.n++; c.min += minutos;
+          return;
+        }
+        if (!abierto) { nLargosM++; totLargos++; }
+        filasLargos += `<tr${abierto ? ' style="color:var(--mu)"' : ''}>
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${dmy(t.fecha)} <span style="color:var(--mu)">(${_tacoDiaSemana(t.fecha)})</span></td>
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${hm(t.minuto_ini)} – ${hm(t.minuto_fin)}</td>
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px;font-weight:700;${abierto ? '' : 'color:var(--erd)'}">${dur(minutos)}</td>
-          <td style="padding:5px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${abierto ? 'sin cerrar (día de la descarga) — no se suma' : ''}</td></tr>`;
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${abierto ? 'sin cerrar (día de la descarga) — no se suma' : '⚠ tramo largo — comprobar'}</td></tr>`;
       });
       totMin += minM;
+      let filasCortos = '';
+      if (cortosPorDia.size) {
+        filasCortos = [...cortosPorDia.keys()].sort().map(f => {
+          const c = cortosPorDia.get(f);
+          return `<tr style="color:var(--mu)">
+            <td style="padding:4px 10px;font-family:var(--mn);font-size:12.5px">${dmy(f)} <span>(${_tacoDiaSemana(f)})</span></td>
+            <td style="padding:4px 10px;font-family:var(--mn);font-size:12.5px">${c.n} periodo(s) de menos de ${CORTO_MIN} min</td>
+            <td style="padding:4px 10px;font-family:var(--mn);font-size:12.5px;font-weight:600">${dur(c.min)}</td>
+            <td style="padding:4px 10px;font-family:var(--mn);font-size:11.5px">maniobras de patio probables</td></tr>`;
+        }).join('');
+        filasCortos = `<tr><td colspan="4" style="padding:7px 10px;background:var(--s2);font-family:var(--mn);font-size:11.5px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Periodos de menos de ${CORTO_MIN} minutos acumulados (agrupados por día, como en los avisos de ASG)</td></tr>` + filasCortos;
+      }
       h += `<div style="margin-top:14px;border:1px solid var(--bd);border-radius:10px;overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#fdf0ef;border-bottom:1px solid var(--bd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#fdf0ef;border-bottom:1px solid var(--bd);flex-wrap:wrap">
           <b style="font-family:var(--mn);font-size:14.5px">🚛 ${m}</b>
-          <span style="font-family:var(--mn);font-size:13px;color:var(--erd);font-weight:700">${ts.length} tramo(s) · ${dur(minM)} conduciendo sin tarjeta</span></div>
+          <span style="font-family:var(--mn);font-size:13px;color:var(--erd);font-weight:700">${nLargosM ? nLargosM + ' tramo(s) LARGO(s) · ' : ''}${nCortosM} corto(s) agrupado(s) · ${dur(minM)} en total</span></div>
         <table style="width:100%;border-collapse:collapse">
-          <tr style="background:var(--s2)"><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DÍA</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">HORARIO</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DURACIÓN</th><th></th></tr>
-          ${filas}</table></div>`;
+          ${filasLargos ? `<tr style="background:var(--s2)"><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DÍA</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">HORARIO</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DURACIÓN</th><th></th></tr>${filasLargos}` : ''}
+          ${filasCortos}</table></div>`;
     });
 
     out.innerHTML = `
       <div style="background:#fdeeee;border:1px solid #f0c4c2;border-radius:9px;padding:11px 14px;font-family:var(--mn);font-size:13.5px;color:var(--erd);font-weight:700">
-        🚫 ${totEp} episodio(s) de conducción sin tarjeta ${filtro} · ${dur(totMin)} en total · del ${dmy(desde)} al ${dmy(hasta)}${totAbiertos ? ' · +' + totAbiertos + ' sin cerrar (no se suman)' : ''}</div>
+        🚫 ${totLargos ? totLargos + ' tramo(s) LARGO(s) a comprobar · ' : ''}${totCortos} periodo(s) corto(s) agrupado(s) · ${dur(totMin)} en total ${filtro} · del ${dmy(desde)} al ${dmy(hasta)}${totAbiertos ? ' · +' + totAbiertos + ' sin cerrar (no se suman)' : ''}</div>
       ${h}
       <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:10px;line-height:1.6">
         ${_tacoTxtUTC(desde, hasta)}<br>
-        Sale del FICHERO FIRMADO del propio camión (el original está en el ARCHIVO). Un tramo aquí significa que el camión SE MOVIÓ sin ninguna tarjeta metida: puede ser el taller o una maniobra en base, pero hay que comprobarlo — en carretera es sanción grave. Esto es distinto del "sin anotar" del conductor (tarjeta fuera sin anotación al meterla), que se ve en su ficha. Solo se examina lo descargado y subido.</div>`;
+        ⚖ La ley NO fija un mínimo: conducir sin la tarjeta insertada en vía pública es infracción MUY GRAVE desde el primer minuto (art. 140.22 LOTT) — multa de 2.001 € y pérdida de la honorabilidad, con posible suspensión de las Tarjetas de Transporte. Los periodos cortos suelen ser maniobras en base o taller (recinto privado, fuera del ámbito del reglamento): por eso van AGRUPADOS por día y no uno a uno, igual que en los avisos de ASG — pero no se ocultan. Los tramos LARGOS hay que comprobarlos: determinar quién movió el camión y, si procede, pedirle los tickets justificativos (solo válidos por avería, deterioro, extravío o robo de la tarjeta, o renovación pedida con 15 días hábiles).<br>
+        Sale del FICHERO FIRMADO del propio camión (el original está en el ARCHIVO). Esto es distinto del "sin anotar" del conductor (tarjeta fuera sin anotación al meterla), que se ve en su ficha. Solo se examina lo descargado y subido.</div>`;
   } catch (e) {
     console.error('[v437 sin tarjeta]', e);
     out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No pude preparar el informe: ' + (e.message || e) + '</div>';
