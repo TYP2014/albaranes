@@ -25458,15 +25458,15 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       }
       h += `
         <div style="border:1px solid var(--bd);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:${vacio ? 'rgba(30,41,51,.02)' : 'var(--sf)'}">
-          <div style="font-family:var(--ss);font-size:12px;font-weight:600;margin-bottom:7px">
+          <div style="font-family:var(--ss);font-size:14px;font-weight:700;margin-bottom:8px">
             ${_tacoDMY2(iso)} · <span style="color:var(--mu)">${_tacoDiaSemana(iso)}</span>
             ${vacio ? '<span style="color:var(--mu);font-weight:400"> — sin datos</span>' : ''}
             ${esIncompleto ? (corte != null
               ? `<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga · el tacógrafo contó hasta las ${_tacoHHMM(corte)}; lo registrado hasta ahí sí cuenta</span>`
               : '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>') : ''}
-            ${huboDos ? '<span style="font-family:var(--mn);font-size:10px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 9px;margin-left:6px">≡ dos conductores</span>' : ''}
-            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:11px;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
-            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:11px;margin-left:8px" title="Contador del tacógrafo a las 00:00 del día siguiente menos el de este día. Si falta el día siguiente (p. ej. el día de la descarga), aún no se puede calcular.">🛣 ${kmDia != null ? '<b>' + kmDia.toLocaleString('es-ES') + ' km</b>' : '<span style="color:var(--mu)">km —</span>'}</span>` : ''}
+            ${huboDos ? '<span style="font-family:var(--mn);font-size:11.5px;background:rgba(30,41,51,.08);border-radius:999px;padding:2px 10px;margin-left:6px">≡ dos conductores</span>' : ''}
+            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:13px;font-weight:600;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
+            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:13px;margin-left:8px" title="Contador del tacógrafo a las 00:00 del día siguiente menos el de este día. Si falta el día siguiente (p. ej. el día de la descarga), aún no se puede calcular.">🛣 ${kmDia != null ? '<b>' + kmDia.toLocaleString('es-ES') + ' km</b>' : '<span style="color:var(--mu)">km —</span>'}</span>` : ''}
           </div>
           <div style="position:relative;height:46px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
             ${barras}${ejes}${(esIncompleto && corte != null) ? `
@@ -25477,9 +25477,9 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
             const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
             return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}"${_datos(t, 'Ayudante · ' + _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
           }).join('')}</div>` : ''}
-          <div style="position:relative;height:15px;font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:3px">${nums}</div>
-          ${vacio ? '' : `<div id="${_infId}" style="font-family:var(--mn);font-size:11px;background:rgba(30,41,51,.05);border:1px solid var(--bd);border-radius:6px;padding:5px 10px;margin-top:4px;color:var(--mu)">Pasa el ratón por la barra para ver hora de inicio, fin, duración${tipo === 'V' ? ' y conductor' : ''} de cada tramo…</div>`}
-          ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mn);font-size:11px;margin-top:6px">
+          <div style="position:relative;height:16px;font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:3px">${nums}</div>
+          ${vacio ? '' : `<div id="${_infId}" style="font-family:var(--mn);font-size:13px;background:rgba(30,41,51,.05);border:1px solid var(--bd);border-radius:6px;padding:7px 12px;margin-top:6px;color:var(--mu)">Pasa el ratón por la barra para ver hora de inicio, fin, duración${tipo === 'V' ? ' y conductor' : ''} de cada tramo…</div>`}
+          ${vacio ? '' : `<div style="display:flex;flex-wrap:wrap;gap:16px;font-family:var(--mn);font-size:13px;margin-top:8px">
             ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_TACO_COL[a]};margin-right:4px"></span>${_TACO_NOM[a]}: <b>${hm(tot[a])}</b></span>`).join('')}
             ${sinAnotar ? `<span style="color:var(--wnd)"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#bfe9cf;border:1px solid var(--bd);margin-right:4px"></span>Sin anotar (tarjeta fuera): <b>${hm(sinAnotar)}</b> — se presume descanso; que lo anote al meter la tarjeta</span>` : ''}
             ${sinCerrar ? `<span style="color:var(--mu)">Tramo sin cerrar por la descarga: <b>${hm(sinCerrar)}</b> — no se cuenta; se completará con la próxima descarga</span>` : ''}
@@ -25488,8 +25488,8 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     }
 
     const hm = v => `${Math.floor(v / 60)}h${String(v % 60).padStart(2, '0')}`;
-    const leyenda = `<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-family:var(--mn);font-size:11px;
-      border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:12px;background:var(--sf)">
+    const leyenda = `<div style="display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mn);font-size:12.5px;
+      border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:12px;background:var(--sf)">
       <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(lunes, hasta)}</span>
       ${[3, 2, 1, 0].map(a => `<span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${_TACO_COL[a]};margin-right:5px;vertical-align:-1px"></span>${_TACO_NOM[a]}</span>`).join('')}
       <span><span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${_TACO_COL[0]};background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.38) 0 2px,transparent 2px 5px);margin-right:5px;vertical-align:-1px"></span>Anotado a mano, tarjeta fuera (vale)</span>
@@ -25499,17 +25499,17 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     </div>`;
     cont.innerHTML = leyenda + `
       <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;margin-bottom:12px">
-        <div style="font-family:var(--ss);font-size:15px;font-weight:600">${nom}</div>
-        <div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
+        <div style="font-family:var(--ss);font-size:18px;font-weight:700">${nom}</div>
+        <div style="font-family:var(--mn);font-size:13px;color:var(--mu)">
           Del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)} · ${nDias} día${nDias === 1 ? '' : 's'}${recortado ? ' <span style="color:var(--wnd)">(recortado a 31: para más, usa los informes)</span>' : ''}</div>
-        <div style="font-family:var(--mn);font-size:12px;margin-left:auto">
-          Conducción del periodo: <b style="font-size:15px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
+        <div style="font-family:var(--mn);font-size:13px;margin-left:auto">
+          Conducción del periodo: <b style="font-size:17px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
           <span title="Lo conducido en el periodo + lo de los 7 días anteriores al inicio (la bisemanal, como en ASG)"> · bisemanal <b>${hm(totSem[3] + condSemAnt)}</b></span>
           <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>${tipo === 'V' ? `
-          · 🛣 <b style="font-size:15px">${totKm.toLocaleString('es-ES')} km</b>${diasSinKm ? `<span style="color:var(--wnd)" title="Días con actividad pero sin poder calcular los km (falta el contador del día siguiente, típico del día de la descarga)."> (${diasSinKm} día${diasSinKm === 1 ? '' : 's'} sin dato de km)</span>` : ''}` : ''}
+          · 🛣 <b style="font-size:17px">${totKm.toLocaleString('es-ES')} km</b>${diasSinKm ? `<span style="color:var(--wnd)" title="Días con actividad pero sin poder calcular los km (falta el contador del día siguiente, típico del día de la descarga)."> (${diasSinKm} día${diasSinKm === 1 ? '' : 's'} sin dato de km)</span>` : ''}` : ''}
         </div>
       </div>${h}
-      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">
+      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:6px">
         Pasa el ratón por la barra para ver la hora exacta de cada tramo. Con la tarjeta fuera: si el conductor lo ANOTÓ
         al meterla, va con su color y rayitas negras (la anotación vale); si NO lo anotó, va en verde tenue como descanso
         presunto — y conviene recordarle que lo anote.
