@@ -21164,7 +21164,7 @@ function openRecmedModalNew() {
   document.getElementById('recmedModalTitulo').textContent = 'NUEVA CITA MÉDICA';
   document.getElementById('recmedFields').innerHTML = _recmedCampos({});
   document.getElementById('recmedBtnDel').style.display = 'none';
-  document.getElementById('recmedOv').classList.add('on');
+  document.getElementById('recmedOv').classList.add('open');
 }
 
 function openRecmedEdit(id) {
@@ -21174,11 +21174,11 @@ function openRecmedEdit(id) {
   document.getElementById('recmedModalTitulo').textContent = 'EDITAR CITA MÉDICA';
   document.getElementById('recmedFields').innerHTML = _recmedCampos(c);
   document.getElementById('recmedBtnDel').style.display = '';
-  document.getElementById('recmedOv').classList.add('on');
+  document.getElementById('recmedOv').classList.add('open');
 }
 
 function closeRecmedModal() {
-  document.getElementById('recmedOv').classList.remove('on');
+  document.getElementById('recmedOv').classList.remove('open');
   editRecmedId = null;
 }
 
