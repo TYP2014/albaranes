@@ -26396,6 +26396,134 @@ function tacoRep(cual) {
   const panel = document.getElementById('tacoRepPanel');
   if (!panel) return;
   if (cual === 'jornadas') { tacoRepJornadasUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  if (cual === 'sintarjeta') { tacoRepSinTarjUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   // v437
+}
+
+// ============================================================
+// v437 — INFORME: CONDUCCIÓN SIN TARJETA (vehículos).
+// El fichero del CAMIÓN graba la actividad aunque no haya tarjeta
+// metida; si el camión CONDUJO en ese estado, es un episodio a
+// mirar (multa gorda en inspección). Sale de tacografo_tramos:
+// origen=vehiculo + actividad=3 (conducción) + sin_tarjeta=true.
+// REGLAS HONESTAS: el tramo sin cerrar del día de la descarga
+// (llega a medianoche en un día marcado incompleto) se ENSEÑA
+// pero NO se suma (regla v393: lo no cerrado no se acredita).
+// ============================================================
+async function tacoRepSinTarjUI() {
+  const panel = document.getElementById('tacoRepPanel');
+  const p = await _tacoInfCargarPersonas();
+  const vehs = p.filter(x => x.tipo !== 'conductor').filter(_tacoEmpPasa);
+  if (!vehs.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay descargas de camión guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
+  const op = '<option value="">— Todos los camiones' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' —</option>'
+    + vehs.map(x => `<option value="${x.nombre}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  // por defecto: los últimos 31 días (es un informe de vigilancia, lo reciente es lo que interesa)
+  const hoy = new Date();
+  const d2 = hoy.toISOString().slice(0, 10);
+  const d1 = (() => { const d = new Date(hoy); d.setUTCDate(d.getUTCDate() - 30); return d.toISOString().slice(0, 10); })();
+  panel.innerHTML = `
+    <div class="card">
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#e51c23"></span>CONDUCCIÓN SIN TARJETA</div></div>
+      <div class="card-bd">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+          <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Camión</label>
+            <select class="fi" id="tacoSTmat">${op}</select></div>
+          <div class="fg"><label class="fl">Del día</label>
+            <input class="fi" type="date" id="tacoSTdesde" value="${d1}"></div>
+          <div class="fg"><label class="fl">Al día</label>
+            <input class="fi" type="date" id="tacoSThasta" value="${d2}"></div>
+          <button class="btn bp" onclick="tacoRepSinTarjVer()">Ver en pantalla</button>
+        </div>
+        <div id="tacoSTout" style="margin-top:14px"></div>
+      </div>
+    </div>`;
+}
+
+async function tacoRepSinTarjVer() {
+  const out = document.getElementById('tacoSTout');
+  const mat = document.getElementById('tacoSTmat')?.value || '';
+  let desde = document.getElementById('tacoSTdesde')?.value;
+  let hasta = document.getElementById('tacoSThasta')?.value;
+  if (!out || !desde || !hasta) return;
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Buscando…</div>';
+  try {
+    // Tramos de CONDUCCIÓN con la tarjeta fuera (hueco del conductor).
+    // Paginado de 1000 en 1000: Supabase corta en 1000 filas (lección v422).
+    let tramos = [], desdeFila = 0; const LOTE = 1000;
+    for (let i = 0; i < 10; i++) {
+      let q = sb.from('tacografo_tramos').select('fecha, matricula, minuto_ini, minuto_fin, empresa')
+        .eq('origen', 'vehiculo').eq('actividad', 3).eq('sin_tarjeta', true).eq('hueco_ayudante', false)
+        .gte('fecha', desde).lte('fecha', hasta)
+        .order('matricula').order('fecha').order('minuto_ini')
+        .range(desdeFila, desdeFila + LOTE - 1);
+      if (mat) q = q.eq('matricula', mat);
+      if (!mat && _tacoEmpGlobal !== 'TODAS') q = q.eq('empresa', _tacoEmpGlobal);
+      const r = await q;
+      if (r.error) throw r.error;
+      tramos = tramos.concat(r.data || []);
+      if (!r.data || r.data.length < LOTE) break;
+      desdeFila += LOTE;
+    }
+    // Días de la descarga (incompletos) de esos camiones: su tramo hasta
+    // medianoche está SIN CERRAR y no se acredita (regla v393).
+    let qd = sb.from('tacografo_dias').select('fecha, matricula')
+      .eq('origen', 'vehiculo').eq('incompleto', true)
+      .gte('fecha', desde).lte('fecha', hasta);
+    if (mat) qd = qd.eq('matricula', mat);
+    const rd = await qd;
+    const incomp = new Set((rd.data || []).map(x => (x.matricula || '') + '|' + x.fecha));
+
+    const hm = v => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
+    const dur = v => (v >= 60 ? Math.floor(v / 60) + 'h' + String(v % 60).padStart(2, '0') : v + ' min');
+    const dmy = x => x.split('-').reverse().join('/');
+    const filtro = mat ? ('del camión ' + mat) : (_tacoEmpGlobal === 'TODAS' ? 'de todos los camiones' : 'de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal));
+
+    if (!tramos.length) {
+      out.innerHTML = `<div style="background:#e8f7ee;border:1px solid #bfe3cd;border-radius:9px;padding:12px 14px;font-family:var(--mn);font-size:13px;color:#1f7a45;font-weight:600">
+        ✓ Ningún episodio de conducción sin tarjeta ${filtro} del ${dmy(desde)} al ${dmy(hasta)}.</div>
+        <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:8px">Solo se mira lo que hay DESCARGADO Y SUBIDO: un día sin descarga subida no puede examinarse. ${_tacoTxtUTC(desde, hasta)}</div>`;
+      return;
+    }
+
+    // Agrupar por camión
+    const porMat = new Map();
+    tramos.forEach(t => { const k = t.matricula || '—'; if (!porMat.has(k)) porMat.set(k, []); porMat.get(k).push(t); });
+    let h = '', totMin = 0, totEp = 0, totAbiertos = 0;
+    [...porMat.keys()].sort().forEach(m => {
+      const ts = porMat.get(m);
+      let minM = 0, filas = '';
+      ts.forEach(t => {
+        const abierto = (t.minuto_fin === 1440) && incomp.has((t.matricula || '') + '|' + t.fecha);
+        const minutos = t.minuto_fin - t.minuto_ini;
+        if (abierto) { totAbiertos++; }
+        else { minM += minutos; totEp++; }
+        filas += `<tr${abierto ? ' style="color:var(--mu)"' : ''}>
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${dmy(t.fecha)} <span style="color:var(--mu)">(${_tacoDiaSemana(t.fecha)})</span></td>
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${hm(t.minuto_ini)} – ${hm(t.minuto_fin)}</td>
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:13px;font-weight:700;${abierto ? '' : 'color:var(--erd)'}">${dur(minutos)}</td>
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${abierto ? 'sin cerrar (día de la descarga) — no se suma' : ''}</td></tr>`;
+      });
+      totMin += minM;
+      h += `<div style="margin-top:14px;border:1px solid var(--bd);border-radius:10px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#fdf0ef;border-bottom:1px solid var(--bd)">
+          <b style="font-family:var(--mn);font-size:14.5px">🚛 ${m}</b>
+          <span style="font-family:var(--mn);font-size:13px;color:var(--erd);font-weight:700">${ts.length} tramo(s) · ${dur(minM)} conduciendo sin tarjeta</span></div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:var(--s2)"><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DÍA</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">HORARIO</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DURACIÓN</th><th></th></tr>
+          ${filas}</table></div>`;
+    });
+
+    out.innerHTML = `
+      <div style="background:#fdeeee;border:1px solid #f0c4c2;border-radius:9px;padding:11px 14px;font-family:var(--mn);font-size:13.5px;color:var(--erd);font-weight:700">
+        🚫 ${totEp} episodio(s) de conducción sin tarjeta ${filtro} · ${dur(totMin)} en total · del ${dmy(desde)} al ${dmy(hasta)}${totAbiertos ? ' · +' + totAbiertos + ' sin cerrar (no se suman)' : ''}</div>
+      ${h}
+      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:10px;line-height:1.6">
+        ${_tacoTxtUTC(desde, hasta)}<br>
+        Sale del FICHERO FIRMADO del propio camión (el original está en el ARCHIVO). Un tramo aquí significa que el camión SE MOVIÓ sin ninguna tarjeta metida: puede ser el taller o una maniobra en base, pero hay que comprobarlo — en carretera es sanción grave. Esto es distinto del "sin anotar" del conductor (tarjeta fuera sin anotación al meterla), que se ve en su ficha. Solo se examina lo descargado y subido.</div>`;
+  } catch (e) {
+    console.error('[v437 sin tarjeta]', e);
+    out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No pude preparar el informe: ' + (e.message || e) + '</div>';
+  }
 }
 
 async function tacoRepJornadasUI() {
