@@ -12921,7 +12921,7 @@ function renderCitasTable() {
       <td>${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
-      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg></button></td>
+      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg></button></td>
     </tr>`;
   }).join('');
   // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
@@ -21137,7 +21137,7 @@ function renderRecmed() {
         ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedDescargar(\'' + c.id + '\')" title="' + esc(c.archivo_nombre || 'documento') + '">📄 Descargar</button>'
         : '<span style="color:var(--mu);font-size:10px">sin doc.</span>') + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap;text-align:right">' +
-        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
+        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
         (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedMarcarHecha(\'' + c.id + '\')">✓ Hecha</button> ' : '') +
         '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="openRecmedEdit(\'' + c.id + '\')">✎ Editar</button>' +
       '</td></tr>';
@@ -21430,12 +21430,13 @@ function renderRecmedGlobalBanner() {
       const s = _tcitaSemaforo(c);
       if (grupos[s.clave]) grupos[s.clave].push(c);
     });
+  // v446: colores VIVOS (el aviso se camuflaba con el fondo, captura de JC)
   const niveles = [
-    { key: 'pasada', color: '#a855f7', bg: 'rgba(168,85,247,.14)', icon: '⚠️', titulo: 'RECONOCIMIENTO PASADO SIN CERRAR' },
-    { key: 'hoy',    color: '#ff3b30', bg: 'rgba(255,59,48,.18)',  icon: '🩺', titulo: 'RECONOCIMIENTO HOY' },
-    { key: 'd1',     color: '#ff5050', bg: 'rgba(255,80,80,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA' },
-    { key: 'd3',     color: '#ff9500', bg: 'rgba(255,149,0,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS O MENOS' },
-    { key: 'd5',     color: '#ffd000', bg: 'rgba(255,208,0,.12)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 5 DÍAS O MENOS' }
+    { key: 'pasada', color: '#7b1fa2', bg: 'rgba(168,85,247,.32)', icon: '⚠️', titulo: 'RECONOCIMIENTO PASADO SIN CERRAR' },
+    { key: 'hoy',    color: '#c62828', bg: 'rgba(255,59,48,.38)',  icon: '🩺', titulo: 'RECONOCIMIENTO HOY' },
+    { key: 'd1',     color: '#d32f2f', bg: 'rgba(255,80,80,.32)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA' },
+    { key: 'd3',     color: '#e65100', bg: 'rgba(255,149,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS O MENOS' },
+    { key: 'd5',     color: '#b58900', bg: 'rgba(255,208,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 5 DÍAS O MENOS' }
   ];
   const hoyStr = new Date().toISOString().slice(0, 10);
   let html = '';
@@ -21446,14 +21447,14 @@ function renderRecmedGlobalBanner() {
     const detalle = lista.slice(0, 3).map(c => {
       const cuando = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
       const hora = c.hora_cita ? ' ' + esc(c.hora_cita) : '';
-      return '<strong>' + esc(c.trabajador) + '</strong> (' + cuando + hora + ')';
+      return '<strong style="font-weight:900;color:#111">' + esc(c.trabajador) + '</strong> (' + cuando + hora + ')';
     }).join(' · ');
     const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('RECONOCIMIENTO', 'RECONOCIMIENTOS');
-    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
-      '<div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">' + n.icon +
-      ' <span style="color:' + n.color + ';font-weight:800">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+    html += '<div style="background:' + n.bg + ';border:2px solid ' + n.color + ';border-left:7px solid ' + n.color +
+      ';border-radius:7px;padding:13px 16px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:14px">' +
+      '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="font-size:18px;vertical-align:-2px">' + n.icon + '</span>' +
+      ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
         '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAReconocimientos()">🩺 Ver reconocimientos</button>' +
         '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideRecmedBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
