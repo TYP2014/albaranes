@@ -25151,9 +25151,14 @@ function _tacoParseVU_G1(b) {
       // reciente). Es el mismo dato que lee ASG para sus emails de aviso.
       {
         const nCal = b[p];
+        let mejorCal = 0;
         for (let k = 0; k < nCal; k++) {
-          const fc = _tacoU32(b, p + 1 + k * 167 + 163);
-          if (_tacoFechaCreible(fc)) out.proximaRevision = fc;
+          const r = p + 1 + k * 167;
+          const cal = _tacoU32(b, r + 155), sig = _tacoU32(b, r + 163);   // v455: igual que en G2
+          if (!_tacoFechaCreible(sig)) continue;
+          if (_tacoFechaCreible(cal) && sig > cal) {
+            if (cal >= mejorCal) { mejorCal = cal; out.proximaRevision = sig; out.ultimaCalibracion = cal; }
+          } else if (!mejorCal) { out.proximaRevision = sig; }
         }
       }
       p += 1 + b[p] * 167;                     // calibraciones
@@ -25195,23 +25200,29 @@ function _tacoParseVU_G2(b) {
     }
     if (trep === 0x25 || trep === 0x35) {
       arrs.forEach(a => { if (a.rt === 0x19 && a.n) out.taco = _tacoTxt(b, a.dp, 36); });
-      // v454: PROXIMA REVISION en 2ª generacion. Aqui las calibraciones van en
-      // su propia lista, pero el numero de tipo cambia entre versiones del
-      // reglamento y no me fio de clavarlo a ciegas. Se hace a prueba de bombas:
-      // en las listas de registros grandes (>=100 bytes, tamaño de una
-      // calibracion) se leen los ULTIMOS 4 bytes de cada registro y el valor se
-      // acepta SOLO si parece fecha de verdad Y cae en un futuro razonable
-      // (±3 años, el ciclo es bienal). Si nada cuadra NO se inventa: se queda
-      // vacio y la pantalla lo dira. El chivato de consola dice el tipo de lista
-      // acertado, para clavarlo con un fichero real de JC.
+      // v455: PROXIMA REVISION en 2ª generacion, CLAVADA con dos ficheros
+      // reales de JC (9566NBR y 9499LHT). La lista de calibraciones es la
+      // 0x0c (se reconoce porque dentro viene el nombre del taller:
+      // "DIRECAUTO, SL", "IVECO ESPAÑA SL", "ZONA FRANCA ALARI SEPAUTO").
+      // Dentro de cada registro: byte 155 = fecha de ESA calibracion y
+      // byte 163 = PROXIMA revision — comprobado en 16 registros, siempre
+      // 155 + 2 años exactos = 163 (2025-02-11 -> 2027-02-11, 2024-07-04
+      // -> 2026-07-04, 2025-05-12 -> 2027-05-12). Es el MISMO offset 163
+      // que en 1ª generacion, donde el 6807HYY dio 21/08/2026 igual que el
+      // email de ASG. El tamaño del registro cambia (222 o 252 segun la
+      // version), pero la posicion NO.
+      // MANDA LA CALIBRACION MAS RECIENTE, no la ultima de la lista: los
+      // registros no siempre vienen ordenados.
       arrs.forEach(a => {
-        if (!a.n || a.rs < 100) return;
+        if (a.rt !== 0x0c || !a.n || a.rs < 170) return;
+        let mejorCal = 0;
         for (let k = 0; k < a.n; k++) {
-          const fc = _tacoU32(b, a.dp + k * a.rs + a.rs - 4);
-          if (_tacoFechaCreible(fc) && _tacoEsRevisionPlausible(fc)) {
-            out.proximaRevision = fc;
-            out._revisionTipo = a.rt;
-          }
+          const r = a.dp + k * a.rs;
+          const cal = _tacoU32(b, r + 155);      // cuando se calibro
+          const sig = _tacoU32(b, r + 163);      // cuando toca la proxima
+          if (!_tacoFechaCreible(cal) || !_tacoFechaCreible(sig)) continue;
+          if (sig <= cal) continue;              // la proxima va DESPUES, si no es basura
+          if (cal >= mejorCal) { mejorCal = cal; out.proximaRevision = sig; out.ultimaCalibracion = cal; }
         }
       });
     }
@@ -26243,6 +26254,16 @@ async function tacoGuardar() {
       // usada es LA QUE YA TIENE el fichero guardado, para no partir un camion
       // entre dos sociedades por un despiste del desplegable.
       info('Este fichero ya estaba — reapuntando sus días…');
+      // v455: y de paso se le pone la FECHA DE PROXIMA REVISION, que los
+      // ficheros subidos antes de la v454 no tenian. Asi JC recupera los
+      // vencimientos de toda su flota volviendo a soltar las descargas que
+      // ya tiene, sin borrar nada. Solo escribe si el dato se ha leido.
+      if (r.proximaRevision) {
+        const { error: eRev } = await sb.from('tacografo_ficheros')
+          .update({ proxima_revision: _tacoISO(r.proximaRevision) }).eq('id', yaEsta.id);
+        if (eRev) console.warn('[v455] no pude apuntar la próxima revisión:', eRev.message || eRev);
+        else console.log('[v455] ' + (r.matricula || '¿?') + ' — próxima revisión apuntada en un fichero que ya estaba: ' + _tacoDMY(r.proximaRevision));
+      }
       const nDias = await _tacoGuardarDias(r, yaEsta.empresa || empresa, yaEsta.id);
       info(`<span style="color:var(--wnd);font-weight:700">Este fichero YA estaba guardado</span> como <b>${yaEsta.file_nombre}</b> (${new Date(yaEsta.created_at).toLocaleDateString('es-ES')}). No se ha duplicado${nDias ? ` — pero sus <b>${nDias} días</b> se han vuelto a apuntar en el histórico` : ''}.`);
       _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();
@@ -26284,7 +26305,7 @@ async function tacoGuardar() {
     if (r.tipo === 'vehiculo') {
       console.log('[v454] ' + (r.matricula || '¿?') + ' (' + r.gen + ') — próxima revisión del tacógrafo: ' +
         (r.proximaRevision ? _tacoDMY(r.proximaRevision) : '❌ NO ENCONTRADA en este fichero') +
-        (r._revisionTipo !== undefined ? ' [lista tipo 0x' + r._revisionTipo.toString(16) + ']' : ''));
+        (r.ultimaCalibracion ? ' (última calibración: ' + _tacoDMY(r.ultimaCalibracion) + ')' : ''));
     }
     const { data: dIns, error: eIns } = await sb.from('tacografo_ficheros').insert(fila).select('id').single();   // v385: el id, para colgar los dias
     if (eIns) {
