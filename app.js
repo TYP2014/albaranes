@@ -27242,9 +27242,32 @@ async function tacoVehPintarSelector() {
 // Tarjeta fuera   -> no computa (no esta acreditado)
 // ============================================================
 
+// v464: al abrir un informe, la PARRILLA SE TAPA y el informe queda como
+// pantalla propia con su boton "✕ Cerrar informe" para volver — como en ASG.
+// JC: "que no se queden los informes ahi arriba, que se abra un apartado
+// nuevo o se tapen, y despues le doy a cerrar y me voy de ahi".
+function tacoRepCerrar() {
+  const p = document.getElementById('tacoRepPanel');
+  const g = document.getElementById('tacoRepParrilla');
+  if (p) p.innerHTML = '';
+  if (g) g.style.display = '';
+  const sec = document.getElementById('tacoSecinformes');
+  if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function _tacoRepAbrir() {
+  const g = document.getElementById('tacoRepParrilla');
+  if (g) g.style.display = 'none';
+}
+function _tacoRepBarra(titulo) {
+  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    + '<b style="font-family:var(--mn);font-size:15px">' + titulo + '</b>'
+    + '<button class="btn bs" style="font-size:11px" onclick="tacoRepCerrar()">✕ Cerrar informe</button></div>';
+}
+
 function tacoRep(cual) {
   const panel = document.getElementById('tacoRepPanel');
   if (!panel) return;
+  _tacoRepAbrir();
   if (cual === 'jornadas') { tacoRepJornadasUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   if (cual === 'sintarjeta') { tacoRepSinTarjUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   // v437
   if (cual === 'km') { tacoRepKmUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }                 // v461
@@ -27273,28 +27296,77 @@ function tacoRep(cual) {
 async function tacoRepKmUI() {
   const panel = document.getElementById('tacoRepPanel');
   const p = await _tacoInfCargarPersonas();
-  const vehs = p.filter(x => x.tipo !== 'conductor').filter(_tacoEmpPasa);
-  if (!vehs.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay descargas de camión guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
-  const op = '<option value="">— Todos los camiones' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' —</option>'
-    + vehs.map(x => `<option value="${x.nombre}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  // v464: ESTA PANTALLA MANDA SOBRE SI MISMA. JC pidio que el informe tenga
+  // SUS PROPIOS filtros, en este orden: EMPRESA -> VEHICULOS (los que quiera:
+  // uno, tres, cinco o todos) -> FECHAS; y que lo que se exporte sea
+  // EXACTAMENTE lo que hay filtrado, no las tres empresas juntas. El filtro
+  // de empresa de la barra de arriba solo sirve de valor de partida.
+  const todos = p.filter(x => x.tipo !== 'conductor');
+  if (!todos.length) { panel.innerHTML = _tacoRepBarra('⛽ KM · GASÓLEO PROFESIONAL') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay descargas de camión guardadas todavía.</div></div>'; return; }
+  _kmVehTodos = todos;
+  const emps = [...new Set(todos.map(x => x.empresa).filter(Boolean))]
+    .sort((a, b) => _KM_ORDEN_EMP.indexOf(a) - _KM_ORDEN_EMP.indexOf(b));
   const anyo = new Date().getFullYear();
-  panel.innerHTML = `
-    <div class="card">
-      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#1565c0"></span>KM · GASÓLEO PROFESIONAL</div></div>
+  const opEmp = '<option value="TODAS">— Todas mis empresas —</option>'
+    + emps.map(e => `<option value="${e}"${e === _tacoEmpGlobal ? ' selected' : ''}>${_TACO_EMP_NOM[e] || e}</option>`).join('');
+  panel.innerHTML = _tacoRepBarra('⛽ KM · GASÓLEO PROFESIONAL')
+    + `<div class="card">
       <div class="card-bd">
-        <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
-          <div class="fg" style="min-width:240px;flex:1 1 240px"><label class="fl">Camión</label>
-            <select class="fi" id="tacoKmMat">${op}</select></div>
-          <div class="fg"><label class="fl">Desde</label><input class="fi" type="date" id="tacoKmD1" value="${anyo}-01-01"></div>
-          <div class="fg"><label class="fl">Hasta</label><input class="fi" type="date" id="tacoKmD2" value="${anyo}-12-31"></div>
-          <button class="btn bs" onclick="tacoKmAnyo(${anyo - 1})" style="font-size:11px" title="Año pasado completo">${anyo - 1}</button>
-          <button class="btn bs" onclick="tacoKmAnyo(${anyo})" style="font-size:11px" title="Este año completo">${anyo}</button>
-          <button class="btn bp" onclick="tacoRepKmVer()">Ver en pantalla</button>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-start">
+          <div class="fg" style="min-width:210px"><label class="fl">1 · Empresa</label>
+            <select class="fi" id="tacoKmEmp" onchange="kmPintarVehiculos()">${opEmp}</select></div>
+          <div class="fg" style="min-width:290px;flex:1 1 290px"><label class="fl">2 · Vehículos <span style="color:var(--mu);font-weight:400">(marca los que quieras)</span></label>
+            <div id="tacoKmVehs" style="border:1px solid var(--bd);border-radius:8px;padding:8px;max-height:170px;overflow-y:auto;background:var(--sf)"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="kmMarcarTodos(true)">Todos</button>
+              <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="kmMarcarTodos(false)">Ninguno</button>
+              <span id="tacoKmCuenta" style="font-family:var(--mn);font-size:10.5px;color:var(--mu);align-self:center"></span>
+            </div></div>
+          <div class="fg"><label class="fl">3 · Desde</label><input class="fi" type="date" id="tacoKmD1" value="${anyo}-01-01">
+            <label class="fl" style="margin-top:8px">Hasta</label><input class="fi" type="date" id="tacoKmD2" value="${anyo}-12-31">
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="tacoKmAnyo(${anyo - 1})">${anyo - 1}</button>
+              <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="tacoKmAnyo(${anyo})">${anyo}</button>
+            </div></div>
+          <div class="fg" style="align-self:flex-end"><button class="btn bp" onclick="tacoRepKmVer()">Ver kilómetros</button></div>
         </div>
-        <div id="tacoKmOut" style="margin-top:14px"></div>
+        <div id="tacoKmOut" style="margin-top:16px"></div>
       </div>
     </div>`;
+  kmPintarVehiculos();
   tacoRepKmVer();
+}
+
+let _kmVehTodos = [];
+
+// Los camiones de la empresa elegida, cada uno con su casilla
+function kmPintarVehiculos() {
+  const cont = document.getElementById('tacoKmVehs');
+  const emp = document.getElementById('tacoKmEmp')?.value || 'TODAS';
+  if (!cont) return;
+  const lista = _kmVehTodos.filter(v => emp === 'TODAS' || v.empresa === emp)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  if (!lista.length) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay camiones de esa empresa.</span>'; return; }
+  cont.innerHTML = lista.map(v =>
+    '<label style="display:flex;align-items:center;gap:7px;padding:3px 2px;font-family:var(--mn);font-size:12px;cursor:pointer">'
+    + '<input type="checkbox" class="kmVeh" value="' + v.nombre + '" checked onchange="kmContar()">'
+    + '<b>' + v.nombre + '</b>'
+    + (emp === 'TODAS' ? '<span style="color:var(--mu);font-size:10px">' + (_TACO_EMP_NOM[v.empresa] || v.empresa || '') + '</span>' : '')
+    + '</label>').join('');
+  kmContar();
+}
+function kmMarcarTodos(si) {
+  document.querySelectorAll('#tacoKmVehs .kmVeh').forEach(c => { c.checked = si; });
+  kmContar();
+}
+function kmContar() {
+  const t = document.querySelectorAll('#tacoKmVehs .kmVeh').length;
+  const m = document.querySelectorAll('#tacoKmVehs .kmVeh:checked').length;
+  const s = document.getElementById('tacoKmCuenta');
+  if (s) s.textContent = m + ' de ' + t + ' marcados';
+}
+function _kmMarcados() {
+  return [...document.querySelectorAll('#tacoKmVehs .kmVeh:checked')].map(c => c.value);
 }
 
 function tacoKmAnyo(a) {
@@ -27304,13 +27376,15 @@ function tacoKmAnyo(a) {
   tacoRepKmVer();
 }
 
-let _kmFilas = [], _kmPeriodo = { d1: '', d2: '' };
+let _kmFilas = [], _kmPeriodo = { d1: '', d2: '' }, _kmEmpElegida = 'TODAS';   // v464
 
 async function tacoRepKmVer() {
   const out = document.getElementById('tacoKmOut');
-  const mat = document.getElementById('tacoKmMat')?.value || '';
+  const marcados = _kmMarcados();                                  // v464
+  _kmEmpElegida = document.getElementById('tacoKmEmp')?.value || 'TODAS';
   let d1 = document.getElementById('tacoKmD1')?.value, d2 = document.getElementById('tacoKmD2')?.value;
   if (!out || !d1 || !d2) return;
+  if (!marcados.length) { out.innerHTML = '<div style="font-family:var(--mn);font-size:12.5px;color:var(--wnd);padding:12px;border:1px dashed var(--wn);border-radius:8px">No has marcado ningún camión.</div>'; _kmFilas = []; return; }
   if (d2 < d1) { const t = d1; d1 = d2; d2 = t; }
   _kmPeriodo = { d1, d2 };
   out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Sumando kilómetros…</div>';
@@ -27322,9 +27396,10 @@ async function tacoRepKmVer() {
         .eq('origen', 'vehiculo').not('odometro', 'is', null)
         .gte('fecha', d1).lte('fecha', d2)
         .order('matricula').order('fecha').range(desde, desde + 999);
-      if (mat) q = q.eq('matricula', mat);
-      // v463: NO se filtra por empresa aqui — la empresa buena esta en la ficha
-      // del fichero (ver mas abajo), no en los dias.
+      // v464: se filtra por los camiones MARCADOS. Si son pocos, la consulta
+      // los pide directamente; si son muchos se traen todos y se cribán abajo
+      // (mas rapido que una lista enorme en la peticion).
+      if (marcados.length <= 25) q = q.in('matricula', marcados);
       const r = await q;
       if (r.error) throw r.error;
       dias = dias.concat(r.data || []);
@@ -27357,9 +27432,11 @@ async function tacoRepKmVer() {
       porMat.get(d.matricula).push(d);
     });
     _kmFilas = [];
+    const setMarcados = new Set(marcados);
     [...porMat.keys()].sort().forEach(m => {
+      if (!setMarcados.has(m)) return;                                           // v464
       const emp = empDe.get(m) || null;
-      if (_tacoEmpGlobal !== 'TODAS' && emp && emp !== _tacoEmpGlobal) return;   // v463: filtro de verdad
+      if (_kmEmpElegida !== 'TODAS' && emp && emp !== _kmEmpElegida) return;      // v464: manda el filtro DE ESTA pantalla
       const ls = porMat.get(m).sort((a, b) => a.fecha.localeCompare(b.fecha));
       const pri = ls[0], ult = ls[ls.length - 1];
       // El cuentakilometros solo sube. Si baja es cambio de aparato: se avisa.
@@ -27466,7 +27543,7 @@ function _kmPorEmpresa() {
 }
 
 function _kmNombreFichero(ext) {
-  const e = _tacoEmpGlobal === 'TODAS' ? 'GRUPO' : _tacoEmpGlobal;
+  const e = _kmEmpElegida === 'TODAS' ? 'GRUPO' : _kmEmpElegida;   // v464: la de ESTA pantalla
   return 'KM_GASOLEO_PROFESIONAL_' + e + '_' + _kmPeriodo.d1 + '_a_' + _kmPeriodo.d2 + '.' + ext;
 }
 
@@ -27615,14 +27692,14 @@ async function tacoRepSinTarjUI() {
   const panel = document.getElementById('tacoRepPanel');
   const p = await _tacoInfCargarPersonas();
   const vehs = p.filter(x => x.tipo !== 'conductor').filter(_tacoEmpPasa);
-  if (!vehs.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay descargas de camión guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
+  if (!vehs.length) { panel.innerHTML = _tacoRepBarra('🚫 CONDUCCIÓN SIN TARJETA') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay descargas de camión guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
   const op = '<option value="">— Todos los camiones' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' —</option>'
     + vehs.map(x => `<option value="${x.nombre}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
   // por defecto: los últimos 31 días (es un informe de vigilancia, lo reciente es lo que interesa)
   const hoy = new Date();
   const d2 = hoy.toISOString().slice(0, 10);
   const d1 = (() => { const d = new Date(hoy); d.setUTCDate(d.getUTCDate() - 30); return d.toISOString().slice(0, 10); })();
-  panel.innerHTML = `
+  panel.innerHTML = _tacoRepBarra('🚫 CONDUCCIÓN SIN TARJETA') + `
     <div class="card">
       <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#e51c23"></span>CONDUCCIÓN SIN TARJETA</div></div>
       <div class="card-bd">
