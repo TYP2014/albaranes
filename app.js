@@ -25681,6 +25681,10 @@ function tacoEmpGlobal(emp) {
   if (document.getElementById('tacoRJquien')) tacoRepJornadasUI();   // informe abierto
   tacoSubTab(emp);                          // el ARCHIVO se pone en la misma empresa
   tacoPintarAvisos();                       // los avisos de descargas, tambien
+  // v460: VENCIMIENTOS tambien. Se me quedo fuera en la v457 y por eso al
+  // cambiar de empresa seguian saliendo los camiones de todas mezclados
+  // (cazado por JC: "estan mezclados, no diferencia empresa").
+  if (document.getElementById('tacoVencBox')) tacoVencVer();
 }
 
 // Quien tiene datos guardados, para el desplegable.
@@ -27040,11 +27044,31 @@ function _vencPintar() {
     const ord = [...filas].sort((a, b) => orden(a, b, esVeh));
     const conFecha = ord.filter(f => (esVeh ? f.proxima_revision : f.tarjeta_caduca));
     const sinFecha = ord.length - conFecha.length;
+    // v460: RESUMEN POR ESCALON — cuantos hay en cada color, de un vistazo,
+    // sin tener que leerse la tabla entera (pedido de JC junto al filtro).
+    const cuenta = new Map();
+    ord.forEach(f => {
+      const iso2 = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+      if (!iso2 || f.venc_hecho === iso2) return;
+      const e2 = _vencEscalon(_vencDias(iso2));
+      if (e2) cuenta.set(e2.clave, (cuenta.get(e2.clave) || 0) + 1);
+    });
+    let chips = '';
+    _VENC_ESC.forEach(e2 => {
+      const n2 = cuenta.get(e2.clave);
+      if (!n2) return;
+      chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:' + e2.fondo + ';border:1.5px solid ' + e2.color
+        + ';border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:' + e2.color + '">'
+        + n2 + ' · ' + e2.txt + '</span>';
+    });
+    const tranquilos = conFecha.length - [...cuenta.values()].reduce((a2, b2) => a2 + b2, 0);
+    if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(46,125,50,.10);border:1.5px solid #2e7d32;border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:#2e7d32">' + tranquilos + ' · AL DÍA</span>';
+    if (sinFecha) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1.5px dashed var(--mu);border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:700;color:var(--mu)">' + sinFecha + ' · SIN DATO</span>';
     return '<div>'
       + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
       + '<b style="font-family:var(--mn);font-size:13.5px">' + icono + ' ' + titulo + '</b>'
-      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + conFecha.length + ' con fecha'
-      + (sinFecha ? ' · <span style="color:var(--wnd)">' + sinFecha + ' sin dato</span>' : '') + '</span></div>'
+      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span></div>'
+      + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + chips + '</div>' : '')
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
       + '<table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">'
@@ -27056,7 +27080,12 @@ function _vencPintar() {
   };
   // v458: DOS COLUMNAS (camiones a la izquierda, tarjetas a la derecha), que
   // se apilan solas si la pantalla es estrecha — el movil sigue leyendose.
-  box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:22px;align-items:start">'
+  // v460: se dice CLARAMENTE de que empresa es lo que se esta viendo
+  const rotuloEmp = _tacoEmpGlobal === 'TODAS'
+    ? '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Viendo <b>TODAS</b> las empresas</span>'
+    : '<span style="font-family:var(--mn);font-size:11px;color:var(--in)">Viendo solo <b>' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + '</b> — cambia la empresa en la barra de arriba</span>';
+  box.innerHTML = '<div style="margin-bottom:12px">' + rotuloEmp + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:22px;align-items:start">'
     + tabla('REVISIÓN DEL TACÓGRAFO', '🚛', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '🪪', _vencCache.con, false)
     + '</div>'
