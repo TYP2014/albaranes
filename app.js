@@ -27314,7 +27314,7 @@ async function tacoRepKmUI() {
       <div class="card-bd">
         <div style="display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-start">
           <div class="fg" style="min-width:210px"><label class="fl">1 · Empresa</label>
-            <select class="fi" id="tacoKmEmp" onchange="kmPintarVehiculos()">${opEmp}</select></div>
+            <select class="fi" id="tacoKmEmp" onchange="kmPintarVehiculos();kmFiltroTocado()">${opEmp}</select></div>
           <div class="fg" style="min-width:290px;flex:1 1 290px"><label class="fl">2 · Vehículos <span style="color:var(--mu);font-weight:400">(marca los que quieras)</span></label>
             <div id="tacoKmVehs" style="border:1px solid var(--bd);border-radius:8px;padding:8px;max-height:170px;overflow-y:auto;background:var(--sf)"></div>
             <div style="display:flex;gap:6px;margin-top:6px">
@@ -27322,13 +27322,12 @@ async function tacoRepKmUI() {
               <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="kmMarcarTodos(false)">Ninguno</button>
               <span id="tacoKmCuenta" style="font-family:var(--mn);font-size:10.5px;color:var(--mu);align-self:center"></span>
             </div></div>
-          <div class="fg"><label class="fl">3 · Desde</label><input class="fi" type="date" id="tacoKmD1" value="${anyo}-01-01">
-            <label class="fl" style="margin-top:8px">Hasta</label><input class="fi" type="date" id="tacoKmD2" value="${anyo}-12-31">
+          <div class="fg"><label class="fl">3 · Desde</label><input class="fi" type="date" id="tacoKmD1" value="${anyo}-01-01" onchange="kmFiltroTocado()">
+            <label class="fl" style="margin-top:8px">Hasta</label><input class="fi" type="date" id="tacoKmD2" value="${anyo}-12-31" onchange="kmFiltroTocado()">
             <div style="display:flex;gap:6px;margin-top:6px">
               <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="tacoKmAnyo(${anyo - 1})">${anyo - 1}</button>
               <button class="btn bs" style="font-size:10px;padding:3px 9px" onclick="tacoKmAnyo(${anyo})">${anyo}</button>
             </div></div>
-          <div class="fg" style="align-self:flex-end"><button class="btn bp" onclick="tacoRepKmVer()">Ver kilómetros</button></div>
         </div>
         <div id="tacoKmOut" style="margin-top:16px"></div>
       </div>
@@ -27338,8 +27337,25 @@ async function tacoRepKmUI() {
 }
 
 let _kmVehTodos = [];
+// v465 — FILTRO EN CASCADA (JC: "voy filtrando y que se coloque lo filtrado").
+// Igual que en Albaranes y en Tarifas: tocas empresa, camiones o fechas y la
+// tabla se rehace SOLA. Asi desaparece de raiz el problema que se acababa de
+// llevar por delante un PDF: JC eligio Hispalis + 6 camiones, no pulso el
+// boton de ver, y exporto las tres empresas del resultado anterior. Con la
+// cascada, LO QUE SE VE ES SIEMPRE LO FILTRADO, y por tanto lo que se exporta
+// tambien. Fuera el boton "Ver kilómetros" y fuera avisos.
+//
+// Con una ESPERA CORTA: si se marcan seis casillas seguidas no tiene sentido
+// preguntar seis veces a la base; se espera medio segundo a que pare de tocar
+// y se pide UNA vez.
+let _kmTimer = null;
+function kmFiltroTocado() {
+  const out = document.getElementById('tacoKmOut');
+  if (out) out.style.opacity = '.4';
+  clearTimeout(_kmTimer);
+  _kmTimer = setTimeout(() => { tacoRepKmVer(); }, 450);
+}
 
-// Los camiones de la empresa elegida, cada uno con su casilla
 function kmPintarVehiculos() {
   const cont = document.getElementById('tacoKmVehs');
   const emp = document.getElementById('tacoKmEmp')?.value || 'TODAS';
@@ -27349,7 +27365,7 @@ function kmPintarVehiculos() {
   if (!lista.length) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay camiones de esa empresa.</span>'; return; }
   cont.innerHTML = lista.map(v =>
     '<label style="display:flex;align-items:center;gap:7px;padding:3px 2px;font-family:var(--mn);font-size:12px;cursor:pointer">'
-    + '<input type="checkbox" class="kmVeh" value="' + v.nombre + '" checked onchange="kmContar()">'
+    + '<input type="checkbox" class="kmVeh" value="' + v.nombre + '" checked onchange="kmContar();kmFiltroTocado()">'
     + '<b>' + v.nombre + '</b>'
     + (emp === 'TODAS' ? '<span style="color:var(--mu);font-size:10px">' + (_TACO_EMP_NOM[v.empresa] || v.empresa || '') + '</span>' : '')
     + '</label>').join('');
@@ -27357,7 +27373,7 @@ function kmPintarVehiculos() {
 }
 function kmMarcarTodos(si) {
   document.querySelectorAll('#tacoKmVehs .kmVeh').forEach(c => { c.checked = si; });
-  kmContar();
+  kmContar(); kmFiltroTocado();
 }
 function kmContar() {
   const t = document.querySelectorAll('#tacoKmVehs .kmVeh').length;
@@ -27373,7 +27389,7 @@ function tacoKmAnyo(a) {
   const d1 = document.getElementById('tacoKmD1'), d2 = document.getElementById('tacoKmD2');
   if (d1) d1.value = a + '-01-01';
   if (d2) d2.value = a + '-12-31';
-  tacoRepKmVer();
+  kmFiltroTocado();
 }
 
 let _kmFilas = [], _kmPeriodo = { d1: '', d2: '' }, _kmEmpElegida = 'TODAS';   // v464
@@ -27460,6 +27476,7 @@ async function tacoRepKmVer() {
 function _kmPintar() {
   const out = document.getElementById('tacoKmOut');
   if (!out) return;
+  out.style.opacity = '1';   // v465: cascada, siempre al dia
   const dmy = x => x ? x.split('-').reverse().join('/') : '—';
   const nf = n => new Intl.NumberFormat('es-ES').format(n);
   if (!_kmFilas.length) {
@@ -27507,7 +27524,8 @@ function _kmPintar() {
     + _kmFilas.length + ' camiones · ' + nf(total) + ' km' + (grupos.length > 1 ? ' · ' + grupos.length + ' empresas' : '') + '</span>'
     + (nParcial ? '<span style="background:rgba(255,208,0,.16);border:1.5px solid #b58900;border-radius:20px;padding:4px 12px;font-family:var(--mn);font-size:11px;font-weight:700;color:#b58900">' + nParcial + ' sin cubrir el periodo entero</span>' : '')
     + (nRaro ? '<span style="background:rgba(255,59,48,.14);border:1.5px solid var(--erd);border-radius:20px;padding:4px 12px;font-family:var(--mn);font-size:11px;font-weight:700;color:var(--erd)">' + nRaro + ' con el contador raro</span>' : '')
-    + '<div style="margin-left:auto;display:flex;gap:6px">'
+    + '<div style="margin-left:auto;display:flex;gap:6px;align-items:center">'
+    + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu);margin-right:4px">se exporta lo de abajo</span>'
     + '<button class="btn bs" style="font-size:11px" onclick="kmExportarExcel()">📗 Excel</button>'
     + '<button class="btn bs" style="font-size:11px" onclick="kmExportarPDF()">📕 PDF</button>'
     + '<button class="btn bp" style="font-size:11px" onclick="kmPasarATaller()" title="Poner estos kilómetros en la ficha de Taller de cada camión">🔧 Actualizar km en Taller</button>'
