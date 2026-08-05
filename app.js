@@ -20987,7 +20987,7 @@ function renderCitasGlobalBanner() {
     : ['TYP2014','HISPALIS','TRANSMARGAZ','PORTES'];
 
   // Solo las que siguen abiertas (ni hechas ni anuladas) y de sus empresas
-  const grupos = { pasada: [], hoy: [], d1: [], d3: [], d5: [] };
+  const grupos = { pasada: [], hoy: [], d1: [], d3: [], d5: [] };   // v449: REPARADO (la v448 le cambio las claves por error; taller usa d3/d5)
   tallerCitas
     .filter(c => permitidas.includes(c.empresa))
     .filter(c => c.estado !== 'hecha' && c.estado !== 'anulada')
@@ -21106,7 +21106,7 @@ function _recmedLista() {
   return tallerRecmed
     .filter(c => emp.includes(c.empresa))
     .sort((a, b) => {
-      const sa = _tcitaSemaforo(a), sb2 = _tcitaSemaforo(b);
+      const sa = _recmedSemaforo(a), sb2 = _recmedSemaforo(b);   // v448
       if (sa.orden !== sb2.orden) return sa.orden - sb2.orden;
       return (a.fecha_cita || '').localeCompare(b.fecha_cita || '');
     });
@@ -21124,7 +21124,7 @@ function renderRecmed() {
   }
   let filas = '';
   citas.forEach(c => {
-    const s = _tcitaSemaforo(c);
+    const s = _recmedSemaforo(c);   // v448
     const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '—';
     const finde = c.fecha_cita ? ' <span style="color:var(--mu)">(' + _tacoDiaSemana(c.fecha_cita) + ')</span>' : '';
     filas += '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
@@ -21402,6 +21402,24 @@ async function recmedAddFiles(files) {
   await loadRecmed();
 }
 
+// v448 — semáforo PROPIO de reconocimientos: JC quiere los peldaños
+// EXACTAMENTE a 3, 2 y 1 día, cada uno con su color, y ver cuántos días
+// faltan. El de las citas de taller (_tcitaSemaforo) NO se toca: allí 3
+// y 2 comparten escalón y así se queda.
+function _recmedSemaforo(c) {
+  if (c.estado === 'hecha')   return { clave:'hecha',   color:'#2e7d32', fondo:'rgba(46,125,50,.12)',   txt:'✓ HECHA',   orden: 9 };
+  if (c.estado === 'anulada') return { clave:'anulada', color:'#78909c', fondo:'rgba(120,144,156,.10)', txt:'✕ ANULADA', orden: 9 };
+  const d = _tcitaDias(c.fecha_cita);
+  if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',         orden: 8 };
+  if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
+  if (d === 0)                return { clave:'hoy',     color:'#ffffff', fondo:'#b71c1c',               txt:'🔴 HOY',    orden: 1 };
+  if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.18)',   txt:'MAÑANA · falta 1 día', orden: 2 };
+  if (d === 2)                return { clave:'d2',      color:'#e8841a', fondo:'rgba(232,132,26,.18)',  txt:'Faltan 2 días', orden: 3 };
+  if (d === 3)                return { clave:'d3',      color:'#c9a100', fondo:'rgba(245,197,24,.22)',  txt:'Faltan 3 días', orden: 4 };
+  if (d <= 7)                 return { clave:'d7',      color:'#4a7bbd', fondo:'rgba(74,123,189,.12)',  txt:'Faltan ' + d + ' días', orden: 5 };
+  return { clave:'lejos', color:'var(--mu)', fondo:'transparent', txt:'Faltan ' + d + ' días', orden: 6 };
+}
+
 // ---------- aviso global (3, 2 y 1 días — mismo patrón que v358) ----------
 const RECMED_BANNER_HIDE_KEY = 'recmed_banner_hidden_date';
 
@@ -21422,21 +21440,19 @@ function renderRecmedGlobalBanner() {
   if (!window._tieneVac) { banner.style.display = 'none'; return; }   // v441
   if (!Array.isArray(tallerRecmed) || !tallerRecmed.length) { banner.style.display = 'none'; return; }
   const emp = _recmedEmpresas();
-  const grupos = { pasada: [], hoy: [], d1: [], d3: [], d5: [] };
+  const grupos = { d1: [], d2: [], d3: [] };   // v449: SOLO 3, 2 y 1 dia (JC: fuera los de HOY y pasada)
   tallerRecmed
     .filter(c => emp.includes(c.empresa))
     .filter(c => c.estado !== 'hecha' && c.estado !== 'anulada')
     .forEach(c => {
-      const s = _tcitaSemaforo(c);
+      const s = _recmedSemaforo(c);   // v448
       if (grupos[s.clave]) grupos[s.clave].push(c);
     });
   // v446: colores VIVOS (el aviso se camuflaba con el fondo, captura de JC)
   const niveles = [
-    { key: 'pasada', color: '#7b1fa2', bg: 'rgba(168,85,247,.32)', icon: '⚠️', titulo: 'RECONOCIMIENTO PASADO SIN CERRAR' },
-    { key: 'hoy',    color: '#c62828', bg: 'rgba(255,59,48,.38)',  icon: '🩺', titulo: 'RECONOCIMIENTO HOY' },
-    { key: 'd1',     color: '#d32f2f', bg: 'rgba(255,80,80,.32)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA' },
-    { key: 'd3',     color: '#e65100', bg: 'rgba(255,149,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS O MENOS' },
-    { key: 'd5',     color: '#b58900', bg: 'rgba(255,208,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 5 DÍAS O MENOS' }
+    { key: 'd1',     color: '#b71c1c', bg: 'rgba(255,59,48,.42)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA · FALTA 1 DÍA' },
+    { key: 'd2',     color: '#e65100', bg: 'rgba(255,140,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 2 DÍAS' },
+    { key: 'd3',     color: '#b58900', bg: 'rgba(255,208,0,.36)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS' }
   ];
   const hoyStr = new Date().toISOString().slice(0, 10);
   let html = '';
