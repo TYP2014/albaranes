@@ -13893,12 +13893,44 @@ async function liqConfirmSubir(files) {
         const imp = Number(row.importe);
         if (!num) { noCasan.push({ numero: '(sin número)', motivo: 'fila sin número de factura' }); continue; }
 
+        // v466: CASADO TOLERANTE. Caso real Holcim 05/08/2026: el banco escribe
+        // los números CON ceros por delante (00040886) y en la app están SIN
+        // ellos (40886) — el casado exacto de la v301 daba "no está" en las 7.
+        // Tres intentos, por orden:
+        //   1) número EXACTO (como siempre);
+        //   2) número SIN ceros por delante, comparando por los DOS lados;
+        //   3) rescate por IMPORTE: si hay UNA SOLA factura de esa empresa con
+        //      ese importe al céntimo, es esa (cubre números mal leídos por la
+        //      IA, p. ej. 00440067 por 00040067). El doble check de importe
+        //      de abajo sigue vigilando en todos los casos.
+        const numSC = num.replace(/^0+/, '');
+        let hits = [];
+        let porImporte = false;
+
         let q = sb.from('facturas_emitidas').select('id,numero,empresa,total,estado,observaciones').eq('numero', num);
         if (empresa) q = q.eq('empresa', empresa);
-        const { data: hits, error: qerr } = await q;
-        if (qerr) throw qerr;
+        const r1 = await q;
+        if (r1.error) throw r1.error;
+        hits = r1.data || [];
 
-        if (!hits || !hits.length) { noCasan.push({ numero: num, motivo: 'no está en Facturas Emitidas' + (empresa ? ' (' + empresa + ')' : '') }); continue; }
+        if (!hits.length && numSC && numSC !== num) {
+          let q2 = sb.from('facturas_emitidas').select('id,numero,empresa,total,estado,observaciones').like('numero', '%' + numSC);
+          if (empresa) q2 = q2.eq('empresa', empresa);
+          const r2 = await q2;
+          if (r2.error) throw r2.error;
+          hits = (r2.data || []).filter(x => String(x.numero || '').replace(/^0+/, '') === numSC);
+        }
+
+        if (!hits.length && empresa && Number.isFinite(imp) && imp > 0) {
+          const r3 = await sb.from('facturas_emitidas').select('id,numero,empresa,total,estado,observaciones')
+            .eq('empresa', empresa).gte('total', imp - 0.02).lte('total', imp + 0.02);
+          if (r3.error) throw r3.error;
+          const cand = r3.data || [];
+          if (cand.length === 1) { hits = cand; porImporte = true; console.log('[v466 confirming] ' + num + ' no está por número; casada por IMPORTE con la ' + cand[0].numero); }
+          else if (cand.length > 1) { noCasan.push({ numero: num, motivo: 'no está por número y hay ' + cand.length + ' facturas de ' + empresa + ' con ese importe — revísala a mano' }); continue; }
+        }
+
+        if (!hits.length) { noCasan.push({ numero: num, motivo: 'no está en Facturas Emitidas' + (empresa ? ' (' + empresa + ')' : '') }); continue; }
         if (hits.length > 1) { noCasan.push({ numero: num, motivo: 'hay ' + hits.length + ' facturas con ese número, no sé cuál marcar' }); continue; }
 
         const f = hits[0];
@@ -13907,17 +13939,18 @@ async function liqConfirmSubir(files) {
           noCasan.push({ numero: num, motivo: 'el importe no cuadra (liquidación ' + imp.toFixed(2) + ' € · factura ' + Number(f.total).toFixed(2) + ' €)' });
           continue;
         }
-        if (f.estado === 'cobrada') { yaCobradas.push(num); continue; }
+        if (f.estado === 'cobrada') { yaCobradas.push(String(f.numero)); continue; }
 
         // v302: rellena Observaciones con el detalle de la liquidación, sin pisar lo que ya hubiera
-        const notaObs = 'Confirming BBVA · Liquidación ' + cesion + ' · cobrado ' + (fCobro ? fCobro.split('-').reverse().join('/') : '?');
+        let notaObs = 'Confirming BBVA · Liquidación ' + cesion + ' · cobrado ' + (fCobro ? fCobro.split('-').reverse().join('/') : '?');
+        if (porImporte) notaObs += ' · casada por IMPORTE (la liquidación ponía nº ' + num + ')';
         const obsPrev = (f.observaciones || '').trim();
         const obsNueva = obsPrev.includes(notaObs) ? obsPrev : (obsPrev ? obsPrev + ' · ' + notaObs : notaObs);
 
         const { error: uerr } = await sb.from('facturas_emitidas')
           .update({ estado: 'cobrada', fecha_cobro: fCobro, forma_cobro: 'Confirming BBVA', observaciones: obsNueva }).eq('id', f.id);
         if (uerr) throw uerr;
-        marcadas.push(num);
+        marcadas.push(String(f.numero) + (String(f.numero) !== num ? ' (en el papel: ' + num + ')' : ''));
       }
 
       // Registrar la liquidación (candado + histórico + coste financiero)
