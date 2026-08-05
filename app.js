@@ -26985,21 +26985,25 @@ function _vencFila(f, esVeh) {
   const sub = esVeh ? (_TACO_EMP_NOM[f.empresa] || f.empresa || '') : (f.tarjeta_num || '');
   const dmy = x => x ? x.split('-').reverse().join('/') : '—';
   let etiqueta;
-  if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:11px">sin dato — vuelve a subir su descarga</span>';
-  else if (hecho) etiqueta = '<span style="color:#2e7d32;font-weight:800">✓ ' + (esVeh ? 'REVISIÓN HECHA' : 'RENOVADA') + '</span>';
-  else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900">' + esc.txt + '</span>';
+  if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:10px">sin dato</span>';
+  else if (hecho) etiqueta = '<span style="color:#2e7d32;font-weight:800;font-size:10.5px">✓ ' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
+  else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900;font-size:10.5px">' + esc.txt + '</span>';
   else etiqueta = '<span style="color:var(--mu)">—</span>';
   const fondo = (!hecho && esc) ? esc.fondo : 'transparent';
+  // v458: la fecha y el "faltan N días" van JUNTOS en una celda, para que las
+  // dos tablas quepan a media pantalla sin apretujarse.
+  const cel2 = !iso
+    ? '<span style="color:var(--mu);font-size:10px">vuelve a subir su descarga</span>'
+    : dmy(iso) + '<br><span style="color:var(--mu);font-size:10px">' + _vencTxtDias(hecho ? null : dias) + '</span>';
   const btn = (iso && !hecho && esc)
-    ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Revisión hecha' : 'Renovada') + '</button>'
-    : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:10px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + (f.venc_hecho_por ? ' · ' + esc2(f.venc_hecho_por) : '') + '</span>' : '');
+    ? '<button class="btn bs" style="font-size:9.5px;padding:3px 7px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
+    : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:9.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
-    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12.5px;font-weight:800">' + esc2(quien) + '</td>'
-    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + esc2(sub) + '</td>'
-    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12.5px">' + dmy(iso) + '</td>'
-    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12px">' + _vencTxtDias(hecho ? null : dias) + '</td>'
-    + '<td style="padding:7px 9px">' + etiqueta + '</td>'
-    + '<td style="padding:7px 9px;text-align:right">' + btn + '</td></tr>';
+    + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;font-weight:800">' + esc2(quien)
+      + '<br><span style="font-weight:400;font-size:9.5px;color:var(--mu)">' + esc2(sub) + '</span></td>'
+    + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;white-space:nowrap">' + cel2 + '</td>'
+    + '<td style="padding:6px 8px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
+    + '<td style="padding:6px 8px;text-align:right">' + btn + '</td></tr>';
 }
 
 function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -27015,28 +27019,32 @@ function _vencPintar() {
     return da - db;
   };
   const tabla = (titulo, icono, filas, esVeh) => {
-    if (!filas.length) return '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:10px">' + icono + ' ' + titulo + ': no hay descargas subidas todavía.</div>';
+    if (!filas.length) return '<div><div style="font-family:var(--mn);font-size:13.5px;font-weight:700;margin-bottom:8px">' + icono + ' ' + titulo + '</div>'
+      + '<div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);padding:10px;border:1px dashed var(--bd);border-radius:8px">No hay descargas subidas todavía.</div></div>';
     const ord = [...filas].sort((a, b) => orden(a, b, esVeh));
     const conFecha = ord.filter(f => (esVeh ? f.proxima_revision : f.tarjeta_caduca));
     const sinFecha = ord.length - conFecha.length;
-    return '<div style="margin-bottom:22px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
-      + '<b style="font-family:var(--mn);font-size:14px">' + icono + ' ' + titulo + '</b>'
-      + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">' + conFecha.length + ' con fecha'
+    return '<div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
+      + '<b style="font-family:var(--mn);font-size:13.5px">' + icono + ' ' + titulo + '</b>'
+      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + conFecha.length + ' con fecha'
       + (sinFecha ? ' · <span style="color:var(--wnd)">' + sinFecha + ' sin dato</span>' : '') + '</span></div>'
-      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
+      + '<table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">'
-      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
-      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'EMPRESA' : 'Nº TARJETA') + '</th>'
-      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
-      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">CUÁNDO</th>'
-      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">AVISO</th>'
+      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
+      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
+      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">AVISO</th>'
       + '<th></th></tr>'
       + ord.map(f => _vencFila(f, esVeh)).join('') + '</table></div></div>';
   };
-  box.innerHTML = tabla('REVISIÓN DEL TACÓGRAFO (camiones)', '🚛', _vencCache.veh, true)
+  // v458: DOS COLUMNAS (camiones a la izquierda, tarjetas a la derecha), que
+  // se apilan solas si la pantalla es estrecha — el movil sigue leyendose.
+  box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:22px;align-items:start">'
+    + tabla('REVISIÓN DEL TACÓGRAFO', '🚛', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '🪪', _vencCache.con, false)
-    + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;border-top:1px solid var(--bd);padding-top:10px">'
+    + '</div>'
+    + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;border-top:1px solid var(--bd);padding-top:10px;margin-top:18px">'
     + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
     + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
     + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.</div>';
