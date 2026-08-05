@@ -2945,6 +2945,21 @@ async function addFiles(files, type) {
               // grande). Ahora si una página genera un b64 vacío o muy corto
               // (<100 chars), reintentamos con escala 1.6, luego 1.2. Mejor
               // menos resolución que perder el albarán entero.
+              // v450: además de la foto, sacamos el TEXTO INTERNO de la página.
+              // Caso real (albarán N-23598 de Molins/Promotora, 05/08/2026): ese
+              // PDF trae fuentes con codificación rara y al pintarlo a imagen los
+              // rótulos salen en garabatos ("chino mandarín", dixit JC) — la IA no
+              // encuentra MATRÍCULA1/MATRÍCULA2 y el albarán entra sin matrícula ni
+              // transportista. El texto interno del PDF, en cambio, está PERFECTO.
+              // Se lo mandamos a la IA junto a la foto como chuleta de apoyo.
+              const _textoDePagina = async () => {
+                try {
+                  const page = await pdf.getPage(p);
+                  const tc = await page.getTextContent();
+                  const t = (tc.items || []).map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+                  return t.length > 40 ? t.slice(0, 6000) : '';
+                } catch (e) { return ''; }
+              };
               const _intentarRenderPagina = async (escalaIntento) => {
                 const page = await pdf.getPage(p);
                 const viewport = page.getViewport({ scale: escalaIntento });
@@ -2993,6 +3008,7 @@ async function addFiles(files, type) {
                   throw new Error(`Render PDF→JPG vacío en página ${p} tras probar ${escalas.length} escalas (${escalas.join(', ')})`);
                 }
                 const { imgB64, pageBlob } = result;
+                const textoPag = await _textoDePagina();   // v450
                 const baseName = f.name.replace(/\.pdf$/i, '');
                 const pageName = `${baseName}_pag${String(p).padStart(3,'0')}.jpg`;
                 let pageFile = null;
@@ -3015,6 +3031,7 @@ async function addFiles(files, type) {
                     // Se asignan AQUÍ (al encolar), no cuando la IA termina.
                     _tandaSubida: _tandaActual,
                     _pagArchivo: p,
+                    textoPdf: textoPag,   // v450: chuleta de texto para la IA
                     hasJpgFile: !!pageFile
                   });
                   return true;
@@ -3627,7 +3644,7 @@ async function guardarComoManual() {
       if (it.b64 && key) {
         const ctrl = new AbortController();
         results = await withTimeout(
-          callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, true),
+          callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, true, 'claude-haiku-4-5', it.textoPdf || ''),   // v450
           50000, 'lectura manual'
         );
       }
@@ -3876,7 +3893,7 @@ async function _processOne(it, type, key, timeoutMs) {
       const timer = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
         if (type === 'alb') {
-          results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal);
+          results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-haiku-4-5', it.textoPdf || '');   // v450
           // v314 (17/07/2026, Juan Carlos): RED "CASI VACÍO" → RELEER TODO CON SONNET.
           // Caso real: tickets térmicos de báscula (Holcim Garraf) con tinta casi borrada.
           // Haiku a veces devuelve el albarán con 0-2 campos (ni el sello) y entonces ni la
@@ -3893,7 +3910,7 @@ async function _processOne(it, type, key, timeoutMs) {
             const _mejorHaiku = results.length ? Math.max.apply(null, results.map(_cuentaV314)) : 0;
             if (_mejorHaiku <= 2) {
               console.warn(`[v314] Haiku leyó casi nada (${_mejorHaiku}/9 campos útiles). Releyendo TODO con Sonnet 4.6...`);
-              const _resSonnet = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-sonnet-4-6');
+              const _resSonnet = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-sonnet-4-6', it.textoPdf || '');   // v450
               const _mejorSonnet = _resSonnet.length ? Math.max.apply(null, _resSonnet.map(_cuentaV314)) : 0;
               if (_mejorSonnet > _mejorHaiku) {
                 console.log(`[v314] Sonnet recuperó ${_mejorSonnet}/9 campos (Haiku tenía ${_mejorHaiku}/9) → uso la lectura de Sonnet`);
@@ -5826,7 +5843,7 @@ function _jsonRespuestaIA(text) {
   }
 }
 
-async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-4-5') {
+async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-4-5', textoPdf = '') {   // v450: textoPdf
   // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
   // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
   // a valid string". Esto pasa típicamente si en algún reintento se perdió el b64 (bug
@@ -6087,7 +6104,14 @@ SOLO JSON válido, sin markdown.`;
     // caché y las siguientes lo reusan a 1/10 del precio (ahorro grande, ~hasta 67% según
     // Anthropic). El manual es estático (sus "arriba" son zonas del albarán en papel, NO el
     // orden imagen/texto), así que ponerlo antes de la imagen NO cambia la lectura.
-    { model: modelo, max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock] }] },
+    // v450: si la página venía de un PDF con texto, va detrás de la imagen como
+    // CHULETA. Manda la IMAGEN salvo que en ella no se lea algo: entonces el texto
+    // desempata. Así se recuperan los PDFs que se pintan en garabatos.
+    { model: modelo, max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: (
+      textoPdf
+        ? [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock, { type: 'text', text: 'TEXTO INTERNO DEL PDF (copiado tal cual del fichero, sin pasar por la foto). Úsalo SOLO como APOYO: manda lo que se ve en la imagen, pero si en la imagen algún dato sale ilegible o con símbolos raros, cógelo de aquí. Ojo: aquí el orden de las palabras puede estar desordenado, así que no deduzcas posiciones ni "lo de arriba/abajo" de este texto, solo valores sueltos (matrículas, nº de albarán, fechas, pesos, nombres).\n\n' + textoPdf }]
+        : [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock]
+    ) }] },
     key, signal, 'callClaudeAlb ' + modelo
   );
   if (!res.ok) {
