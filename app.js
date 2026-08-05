@@ -25083,6 +25083,38 @@ function _tacoTotalesDia(ev) {
 }
 
 // ================= VEHICULO · 1ª GENERACION =======================
+// v459 — ELEGIR LA REVISION BUENA entre todas las calibraciones.
+// Vale igual para G1 y G2: byte 155 = fecha de esa calibracion, byte
+// 163 = proxima revision. Comun para no volver a arreglar lo mismo dos
+// veces (que ya ha pasado).
+//
+// FALLO REAL QUE CORRIGE (0742KMB, cazado por JC): ese camion tiene 8
+// calibraciones y la nº5 viene MAL DE FABRICA — calibrado el 28/06/2022
+// pero con "proxima" 23/06/2022, o sea ANTES de calibrarse. La v455
+// descartaba esa fila (bien) pero al descartarla se llevaba por delante
+// el rastro de "la mas reciente", y acababa quedandose con la nº6
+// (20/06/2026, ya vencida) en vez de la nº7, que es la buena:
+// calibrado 22/06/2026 por Neumaticos Soledad -> proxima 22/06/2028.
+// AHORA: se recorren TODAS, se apunta la calibracion mas reciente de
+// entre las coherentes, y ESA manda; las incoherentes se saltan sin
+// estropear nada. Si ninguna fuera coherente, se coge la proxima MAS
+// LEJANA de las creibles, que es lo mas prudente antes que dar por
+// vencido un camion que no lo esta.
+function _tacoElegirRevision(b, base, n, tam, out) {
+  let mejorCal = -1, sigDeMejor = 0, masLejana = 0;
+  for (let k = 0; k < n; k++) {
+    const r = base + k * tam;
+    const cal = _tacoU32(b, r + 155);
+    const sig = _tacoU32(b, r + 163);
+    if (!_tacoFechaCreible(sig)) continue;
+    if (sig > masLejana) masLejana = sig;
+    if (!_tacoFechaCreible(cal) || sig <= cal) continue;   // fila incoherente: se salta
+    if (cal > mejorCal) { mejorCal = cal; sigDeMejor = sig; }
+  }
+  if (sigDeMejor) { out.proximaRevision = sigDeMejor; out.ultimaCalibracion = mejorCal; }
+  else if (masLejana) { out.proximaRevision = masLejana; }
+}
+
 // v454: cortafuegos para las fechas de revision. Un TimeReal son
 // "segundos desde 1970"; cualquier basura leida de donde no toca da
 // numeros absurdos. Creible = entre 2005 y 2050.
@@ -25152,15 +25184,7 @@ function _tacoParseVU_G1(b) {
       // reciente). Es el mismo dato que lee ASG para sus emails de aviso.
       {
         const nCal = b[p];
-        let mejorCal = 0;
-        for (let k = 0; k < nCal; k++) {
-          const r = p + 1 + k * 167;
-          const cal = _tacoU32(b, r + 155), sig = _tacoU32(b, r + 163);   // v455: igual que en G2
-          if (!_tacoFechaCreible(sig)) continue;
-          if (_tacoFechaCreible(cal) && sig > cal) {
-            if (cal >= mejorCal) { mejorCal = cal; out.proximaRevision = sig; out.ultimaCalibracion = cal; }
-          } else if (!mejorCal) { out.proximaRevision = sig; }
-        }
+        _tacoElegirRevision(b, p + 1, nCal, 167, out);
       }
       p += 1 + b[p] * 167;                     // calibraciones
       p += 128;
@@ -25216,15 +25240,7 @@ function _tacoParseVU_G2(b) {
       // registros no siempre vienen ordenados.
       arrs.forEach(a => {
         if (a.rt !== 0x0c || !a.n || a.rs < 170) return;
-        let mejorCal = 0;
-        for (let k = 0; k < a.n; k++) {
-          const r = a.dp + k * a.rs;
-          const cal = _tacoU32(b, r + 155);      // cuando se calibro
-          const sig = _tacoU32(b, r + 163);      // cuando toca la proxima
-          if (!_tacoFechaCreible(cal) || !_tacoFechaCreible(sig)) continue;
-          if (sig <= cal) continue;              // la proxima va DESPUES, si no es basura
-          if (cal >= mejorCal) { mejorCal = cal; out.proximaRevision = sig; out.ultimaCalibracion = cal; }
-        }
+        _tacoElegirRevision(b, a.dp, a.n, a.rs, out);
       });
     }
     if (trep === 0x22 || trep === 0x32) {
