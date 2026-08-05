@@ -27323,12 +27323,32 @@ async function tacoRepKmVer() {
         .gte('fecha', d1).lte('fecha', d2)
         .order('matricula').order('fecha').range(desde, desde + 999);
       if (mat) q = q.eq('matricula', mat);
-      if (!mat && _tacoEmpGlobal !== 'TODAS') q = q.eq('empresa', _tacoEmpGlobal);
+      // v463: NO se filtra por empresa aqui — la empresa buena esta en la ficha
+      // del fichero (ver mas abajo), no en los dias.
       const r = await q;
       if (r.error) throw r.error;
       dias = dias.concat(r.data || []);
       if (!r.data || r.data.length < 1000) break;
       desde += 1000;
+    }
+    // v463: LA EMPRESA DE CADA CAMION SALE DE LA FICHA DEL FICHERO, no de los
+    // dias. En tacografo_dias la empresa puede venir del filtro de arriba en el
+    // momento de subir (si la matricula no estaba en el mapa), asi que filtrar
+    // por ahi mezclaba las tres empresas — que es justo lo que le paso a JC:
+    // un Excel con la cabecera de Hispalis y camiones de todo el grupo dentro.
+    // tacografo_ficheros SI tiene la empresa buena (es la que usa VENCIMIENTOS).
+    const empDe = new Map();
+    {
+      let fi = [], desde2 = 0;
+      for (let i = 0; i < 10; i++) {
+        const r = await sb.from('tacografo_ficheros').select('matricula, empresa, fecha_descarga')
+          .eq('tipo', 'vehiculo').order('fecha_descarga', { ascending: false }).range(desde2, desde2 + 999);
+        if (r.error) throw r.error;
+        fi = fi.concat(r.data || []);
+        if (!r.data || r.data.length < 1000) break;
+        desde2 += 1000;
+      }
+      fi.forEach(x => { if (x.matricula && !empDe.has(x.matricula)) empDe.set(x.matricula, x.empresa); });
     }
     const porMat = new Map();
     dias.forEach(d => {
@@ -27338,12 +27358,14 @@ async function tacoRepKmVer() {
     });
     _kmFilas = [];
     [...porMat.keys()].sort().forEach(m => {
+      const emp = empDe.get(m) || null;
+      if (_tacoEmpGlobal !== 'TODAS' && emp && emp !== _tacoEmpGlobal) return;   // v463: filtro de verdad
       const ls = porMat.get(m).sort((a, b) => a.fecha.localeCompare(b.fecha));
       const pri = ls[0], ult = ls[ls.length - 1];
       // El cuentakilometros solo sube. Si baja es cambio de aparato: se avisa.
       const km = ult.odometro - pri.odometro;
       _kmFilas.push({
-        matricula: m, empresa: ls[0].empresa,
+        matricula: m, empresa: emp,
         f1: pri.fecha, km1: pri.odometro,
         f2: ult.fecha, km2: ult.odometro,
         km, dias: ls.length,
@@ -27371,24 +27393,41 @@ function _kmPintar() {
   const total = _kmFilas.reduce((a, f) => a + (f.raro ? 0 : f.km), 0);
   const nParcial = _kmFilas.filter(f => f.parcial).length;
   const nRaro = _kmFilas.filter(f => f.raro).length;
-  let filas = '';
-  _kmFilas.forEach(f => {
-    const av = f.raro
-      ? '<span style="color:var(--erd);font-weight:800">⚠ el contador baja — ¿cambio de aparato?</span>'
-      : (f.parcial ? '<span style="color:#b58900">datos del ' + dmy(f.f1) + ' al ' + dmy(f.f2) + '</span>' : '');
-    filas += '<tr style="border-bottom:1px solid var(--bd)' + (f.raro ? ';background:rgba(255,59,48,.10)' : (f.parcial ? ';background:rgba(255,208,0,.10)' : '')) + '">'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12.5px;font-weight:800">' + f.matricula + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px">' + dmy(f.f1) + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px;text-align:right">' + nf(f.km1) + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px">' + dmy(f.f2) + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px;text-align:right">' + nf(f.km2) + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:13px;text-align:right;font-weight:800">' + (f.raro ? '—' : nf(f.km)) + '</td>'
-      + '<td style="padding:6px 9px;font-family:var(--mn);font-size:10.5px">' + av + '</td></tr>';
+  const grupos = _kmPorEmpresa();
+
+  const th = (t, d) => '<th style="text-align:' + (d ? 'right' : 'left') + ';padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + t + '</th>';
+  let bloques = '';
+  grupos.forEach(g => {
+    let filas = '';
+    g.filas.forEach(f => {
+      const av = f.raro
+        ? '<span style="color:var(--erd);font-weight:800">⚠ el contador baja — ¿cambio de aparato?</span>'
+        : (f.parcial ? '<span style="color:#b58900">datos del ' + dmy(f.f1) + ' al ' + dmy(f.f2) + '</span>' : '');
+      filas += '<tr style="border-bottom:1px solid var(--bd)' + (f.raro ? ';background:rgba(255,59,48,.10)' : (f.parcial ? ';background:rgba(255,208,0,.10)' : '')) + '">'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12.5px;font-weight:800">' + f.matricula + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px">' + dmy(f.f1) + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px;text-align:right">' + nf(f.km1) + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px">' + dmy(f.f2) + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:12px;text-align:right">' + nf(f.km2) + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:13px;text-align:right;font-weight:800">' + (f.raro ? '—' : nf(f.km)) + '</td>'
+        + '<td style="padding:6px 9px;font-family:var(--mn);font-size:10.5px">' + av + '</td></tr>';
+    });
+    bloques += '<div style="margin-bottom:18px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:6px">'
+      + '<b style="font-family:var(--mn);font-size:13px">🏢 ' + g.nom + '</b>'
+      + '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + g.filas.length + ' vehículos · <b style="color:var(--tx)">' + nf(g.km) + ' km</b></span></div>'
+      + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse">'
+      + '<tr style="background:var(--s2)">' + th('MATRÍCULA') + th('FECHA INICIO') + th('KM INICIO', 1) + th('FECHA FIN') + th('KM FIN', 1) + th('DIFERENCIA', 1) + th('AVISO') + '</tr>'
+      + filas
+      + '<tr style="background:var(--s2);border-top:2px solid var(--bd)"><td colspan="5" style="padding:7px 9px;font-family:var(--mn);font-size:11.5px;font-weight:800;text-align:right">SUBTOTAL ' + g.nom + '</td>'
+      + '<td style="padding:7px 9px;font-family:var(--mn);font-size:13px;font-weight:900;text-align:right">' + nf(g.km) + '</td><td></td></tr>'
+      + '</table></div></div>';
   });
+
   out.innerHTML =
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">'
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">'
     + '<span style="background:rgba(21,101,192,.12);border:1.5px solid #1565c0;border-radius:20px;padding:4px 12px;font-family:var(--mn);font-size:12px;font-weight:800;color:#1565c0">'
-    + _kmFilas.length + ' camiones · ' + nf(total) + ' km en total</span>'
+    + _kmFilas.length + ' camiones · ' + nf(total) + ' km' + (grupos.length > 1 ? ' · ' + grupos.length + ' empresas' : '') + '</span>'
     + (nParcial ? '<span style="background:rgba(255,208,0,.16);border:1.5px solid #b58900;border-radius:20px;padding:4px 12px;font-family:var(--mn);font-size:11px;font-weight:700;color:#b58900">' + nParcial + ' sin cubrir el periodo entero</span>' : '')
     + (nRaro ? '<span style="background:rgba(255,59,48,.14);border:1.5px solid var(--erd);border-radius:20px;padding:4px 12px;font-family:var(--mn);font-size:11px;font-weight:700;color:var(--erd)">' + nRaro + ' con el contador raro</span>' : '')
     + '<div style="margin-left:auto;display:flex;gap:6px">'
@@ -27396,23 +27435,34 @@ function _kmPintar() {
     + '<button class="btn bs" style="font-size:11px" onclick="kmExportarPDF()">📕 PDF</button>'
     + '<button class="btn bp" style="font-size:11px" onclick="kmPasarATaller()" title="Poner estos kilómetros en la ficha de Taller de cada camión">🔧 Actualizar km en Taller</button>'
     + '</div></div>'
-    + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse">'
-    + '<tr style="background:var(--s2)">'
-    + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">MATRÍCULA</th>'
-    + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">FECHA INICIO</th>'
-    + '<th style="text-align:right;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">KM INICIO</th>'
-    + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">FECHA FIN</th>'
-    + '<th style="text-align:right;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">KM FIN</th>'
-    + '<th style="text-align:right;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">DIFERENCIA</th>'
-    + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">AVISO</th></tr>'
-    + filas
-    + '<tr style="background:var(--s2);border-top:2px solid var(--bd)"><td colspan="5" style="padding:8px 9px;font-family:var(--mn);font-size:12px;font-weight:800;text-align:right">TOTAL</td>'
-    + '<td style="padding:8px 9px;font-family:var(--mn);font-size:13.5px;font-weight:900;text-align:right">' + nf(total) + '</td><td></td></tr>'
-    + '</table></div>'
+    + bloques
+    + (grupos.length > 1 ? '<div style="text-align:right;font-family:var(--mn);font-size:13.5px;font-weight:900;padding:8px 9px;border-top:2px solid var(--bd)">TOTAL GRUPO: ' + nf(total) + ' km</div>' : '')
     + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:10px;line-height:1.6">'
-    + 'Los kilómetros salen del CUENTAKILÓMETROS de las propias descargas: por cada camión se toma la primera y la última lectura del periodo y se restan. '
+    + 'Los kilómetros salen del CUENTAKILÓMETROS de las propias descargas: por cada camión se toma la primera y la última lectura del periodo y se restan. Cada empresa va en su propia tabla con su subtotal. '
     + 'Si faltan descargas dentro del periodo la fila se marca en amarillo y dice de qué día a qué día hay datos de verdad: esos kilómetros son los que se pueden acreditar. '
     + 'Si el contador baja (cambio de aparato) la fila se marca en rojo y NO se suma — hay que mirarla a mano. ' + _tacoTxtUTC(_kmPeriodo.d1, _kmPeriodo.d2) + '</div>';
+}
+
+// v463: agrupa las filas por EMPRESA. Con el filtro en TODAS salen los tres
+// bloques separados, cada uno con su subtotal — que es como Transportes las
+// quiere para el Gasoleo Profesional (una relacion por empresa, cada una con
+// su CIF). Con una empresa elegida, sale un solo bloque.
+const _KM_ORDEN_EMP = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+// v463: el CIF va en la cabecera de cada bloque, que esto se manda fuera.
+const _KM_CIF = { TYP2014: 'B90172735', HISPALIS: 'B90286337', TRANSMARGAZ: 'B67316752', PORTES: 'B02657435' };
+function _kmPorEmpresa() {
+  const g = new Map();
+  _kmFilas.forEach(f => {
+    const e = f.empresa || 'SIN EMPRESA';
+    if (!g.has(e)) g.set(e, []);
+    g.get(e).push(f);
+  });
+  return [...g.keys()]
+    .sort((x, y) => {
+      const ix = _KM_ORDEN_EMP.indexOf(x), iy = _KM_ORDEN_EMP.indexOf(y);
+      return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy);
+    })
+    .map(e => ({ emp: e, nom: _TACO_EMP_NOM[e] || e, filas: g.get(e), km: g.get(e).reduce((a2, f) => a2 + (f.raro ? 0 : f.km), 0) }));
 }
 
 function _kmNombreFichero(ext) {
@@ -27425,24 +27475,35 @@ function kmExportarExcel() {
   if (!_kmFilas.length) { toast('No hay nada que exportar', 'warn'); return; }
   const dmy = x => x.split('-').reverse().join('/');
   const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  let f = '';
-  _kmFilas.forEach(x => {
-    f += '<tr><td>' + x.matricula + '</td><td>' + dmy(x.f1) + '</td><td>' + x.km1 + '</td><td>' + dmy(x.f2) + '</td><td>' + x.km2 + '</td><td>'
-      + (x.raro ? '' : x.km) + '</td><td>' + (x.raro ? 'CONTADOR A LA BAJA - REVISAR' : (x.parcial ? 'Datos solo del ' + dmy(x.f1) + ' al ' + dmy(x.f2) : '')) + '</td></tr>';
-  });
+  const grupos = _kmPorEmpresa();
   const total = _kmFilas.reduce((a, x) => a + (x.raro ? 0 : x.km), 0);
-  const emp = _tacoEmpGlobal === 'TODAS' ? 'GRUPO TYP2014' : (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal);
+  // v463: UNA HOJA POR EMPRESA. El Excel se manda a Transportes para el
+  // Gasoleo Profesional y cada empresa presenta LO SUYO con su CIF, asi que
+  // no pueden ir mezcladas ni en la misma hoja.
+  let hojas = '';
+  grupos.forEach(g => {
+    let f = '';
+    g.filas.forEach(x => {
+      f += '<tr><td>' + x.matricula + '</td><td>' + dmy(x.f1) + '</td><td>' + x.km1 + '</td><td>' + dmy(x.f2) + '</td><td>' + x.km2 + '</td><td>'
+        + (x.raro ? '' : x.km) + '</td><td>' + (x.raro ? 'CONTADOR A LA BAJA - REVISAR' : (x.parcial ? 'Datos solo del ' + dmy(x.f1) + ' al ' + dmy(x.f2) : '')) + '</td></tr>';
+    });
+    const cif = _KM_CIF[g.emp] ? ' · CIF ' + _KM_CIF[g.emp] : '';
+    hojas += '<tr><td colspan="7"><b>' + esc(g.nom) + esc(cif) + ' — KM GASÓLEO PROFESIONAL</b></td></tr>'
+      + '<tr><td colspan="7">Periodo: ' + dmy(_kmPeriodo.d1) + ' a ' + dmy(_kmPeriodo.d2) + ' · sacado de las descargas de tacógrafo</td></tr>'
+      + '<tr><th>MATRÍCULA</th><th>FECHA INICIO</th><th>KM INICIO</th><th>FECHA FIN</th><th>KM FIN</th><th>DIFERENCIA (km)</th><th>AVISO</th></tr>'
+      + f
+      + '<tr><td colspan="5"><b>TOTAL ' + esc(g.nom) + '</b></td><td><b>' + g.km + '</b></td><td></td></tr>'
+      + '<tr></tr><tr></tr>';
+  });
+  if (grupos.length > 1) hojas += '<tr><td colspan="5"><b>TOTAL GRUPO</b></td><td><b>' + total + '</b></td><td></td></tr>';
   const html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'
-    + '<table border="1"><tr><td colspan="7"><b>' + esc(emp) + ' — KM GASÓLEO PROFESIONAL</b></td></tr>'
-    + '<tr><td colspan="7">Periodo: ' + dmy(_kmPeriodo.d1) + ' a ' + dmy(_kmPeriodo.d2) + ' · sacado de las descargas de tacógrafo</td></tr><tr></tr>'
-    + '<tr><th>MATRÍCULA</th><th>FECHA INICIO</th><th>KM INICIO</th><th>FECHA FIN</th><th>KM FIN</th><th>DIFERENCIA (km)</th><th>AVISO</th></tr>'
-    + f + '<tr><td colspan="5"><b>TOTAL</b></td><td><b>' + total + '</b></td><td></td></tr></table></body></html>';
+    + '<table border="1">' + hojas + '</table></body></html>';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' }));
   a.download = _kmNombreFichero('xls');
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  toast('✓ Excel descargado');
+  toast('✓ Excel descargado' + (grupos.length > 1 ? ' · ' + grupos.length + ' empresas separadas' : ''));
 }
 
 // PDF por la impresora del navegador (Guardar como PDF), sin librerias
@@ -27450,29 +27511,43 @@ function kmExportarPDF() {
   if (!_kmFilas.length) { toast('No hay nada que exportar', 'warn'); return; }
   const dmy = x => x.split('-').reverse().join('/');
   const nf = n => new Intl.NumberFormat('es-ES').format(n);
-  const emp = _tacoEmpGlobal === 'TODAS' ? 'GRUPO TYP2014' : (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal);
+  const grupos = _kmPorEmpresa();
   const total = _kmFilas.reduce((a, x) => a + (x.raro ? 0 : x.km), 0);
-  let f = '';
-  _kmFilas.forEach(x => {
-    f += '<tr' + (x.raro ? ' class="rojo"' : (x.parcial ? ' class="ama"' : '')) + '><td><b>' + x.matricula + '</b></td><td>' + dmy(x.f1) + '</td><td class="d">' + nf(x.km1)
-      + '</td><td>' + dmy(x.f2) + '</td><td class="d">' + nf(x.km2) + '</td><td class="d"><b>' + (x.raro ? '—' : nf(x.km)) + '</b></td><td class="n">'
-      + (x.raro ? 'contador a la baja — revisar' : (x.parcial ? 'datos del ' + dmy(x.f1) + ' al ' + dmy(x.f2) : '')) + '</td></tr>';
+  // v463: CADA EMPRESA EN SU PROPIA PAGINA, con su CIF en la cabecera: el PDF
+  // se manda a Transportes y cada empresa presenta lo suyo por separado.
+  let paginas = '';
+  grupos.forEach((g, i) => {
+    let f = '';
+    g.filas.forEach(x => {
+      f += '<tr' + (x.raro ? ' class="rojo"' : (x.parcial ? ' class="ama"' : '')) + '><td><b>' + x.matricula + '</b></td><td>' + dmy(x.f1) + '</td><td class="d">' + nf(x.km1)
+        + '</td><td>' + dmy(x.f2) + '</td><td class="d">' + nf(x.km2) + '</td><td class="d"><b>' + (x.raro ? '—' : nf(x.km)) + '</b></td><td class="n">'
+        + (x.raro ? 'contador a la baja — revisar' : (x.parcial ? 'datos del ' + dmy(x.f1) + ' al ' + dmy(x.f2) : '')) + '</td></tr>';
+    });
+    paginas += '<section' + (i ? ' class="salto"' : '') + '>'
+      + '<h1>' + g.nom + (_KM_CIF[g.emp] ? ' · CIF ' + _KM_CIF[g.emp] : '') + '</h1>'
+      + '<h2>Relación de kilómetros realizados (Gasóleo Profesional) · Periodo: ' + dmy(_kmPeriodo.d1) + ' a ' + dmy(_kmPeriodo.d2)
+      + ' · ' + g.filas.length + ' vehículos · emitido el ' + new Date().toLocaleDateString('es-ES') + '</h2>'
+      + '<table><thead><tr><th>Matrícula</th><th>Fecha inicio</th><th class="d">Km inicio</th><th>Fecha fin</th><th class="d">Km fin</th><th class="d">Diferencia</th><th>Aviso</th></tr></thead>'
+      + '<tbody>' + f + '</tbody>'
+      + '<tfoot><tr><td colspan="5" style="text-align:right"><b>TOTAL ' + g.nom + '</b></td><td class="d"><b>' + nf(g.km) + '</b></td><td></td></tr></tfoot></table>'
+      + '<footer>Kilómetros obtenidos del cuentakilómetros registrado en las descargas de tacógrafo (primera y última lectura del periodo). '
+      + 'Las filas en amarillo no cubren el periodo completo: solo hay datos entre las fechas indicadas. Las filas en rojo tienen el contador a la baja (posible cambio de aparato) y no se suman.</footer>'
+      + '</section>';
   });
+  if (grupos.length > 1) paginas += '<section class="salto"><h1>Resumen del grupo</h1>'
+    + '<table><thead><tr><th>Empresa</th><th class="d">Vehículos</th><th class="d">Kilómetros</th></tr></thead><tbody>'
+    + grupos.map(g => '<tr><td><b>' + g.nom + '</b>' + (_KM_CIF[g.emp] ? ' <span class="n">CIF ' + _KM_CIF[g.emp] + '</span>' : '') + '</td><td class="d">' + g.filas.length + '</td><td class="d"><b>' + nf(g.km) + '</b></td></tr>').join('')
+    + '</tbody><tfoot><tr><td style="text-align:right"><b>TOTAL</b></td><td class="d"><b>' + _kmFilas.length + '</b></td><td class="d"><b>' + nf(total) + '</b></td></tr></tfoot></table></section>';
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador bloqueó la ventana — permite las ventanas emergentes', 'warn'); return; }
   w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>' + _kmNombreFichero('pdf') + '</title><style>'
-    + 'body{font-family:Arial,Helvetica,sans-serif;margin:22px;color:#111}h1{font-size:16px;margin:0 0 3px}h2{font-size:11.5px;font-weight:400;color:#555;margin:0 0 14px}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;margin:22px;color:#111}h1{font-size:15px;margin:0 0 3px}h2{font-size:10.5px;font-weight:400;color:#555;margin:0 0 12px}'
     + 'table{width:100%;border-collapse:collapse;font-size:10.5px}th{background:#eef2f7;text-align:left;padding:5px 6px;border:1px solid #c8d2de}'
     + 'td{padding:4px 6px;border:1px solid #d8e0ea}.d{text-align:right}.n{font-size:9px;color:#666}'
     + '.ama{background:#fff8e1}.rojo{background:#fdecea}tfoot td{background:#eef2f7;font-size:12px}'
-    + 'footer{margin-top:12px;font-size:9px;color:#666;line-height:1.5}@media print{body{margin:10mm}}</style></head><body>'
-    + '<h1>' + emp + ' — Relación de kilómetros realizados (Gasóleo Profesional)</h1>'
-    + '<h2>Periodo: ' + dmy(_kmPeriodo.d1) + ' a ' + dmy(_kmPeriodo.d2) + ' · ' + _kmFilas.length + ' vehículos · emitido el ' + new Date().toLocaleDateString('es-ES') + '</h2>'
-    + '<table><thead><tr><th>Matrícula</th><th>Fecha inicio</th><th class="d">Km inicio</th><th>Fecha fin</th><th class="d">Km fin</th><th class="d">Diferencia</th><th>Aviso</th></tr></thead>'
-    + '<tbody>' + f + '</tbody>'
-    + '<tfoot><tr><td colspan="5" style="text-align:right"><b>TOTAL</b></td><td class="d"><b>' + nf(total) + '</b></td><td></td></tr></tfoot></table>'
-    + '<footer>Kilómetros obtenidos del cuentakilómetros registrado en las descargas de tacógrafo (primera y última lectura del periodo). '
-    + 'Las filas en amarillo no cubren el periodo completo: solo hay datos entre las fechas indicadas. Las filas en rojo tienen el contador a la baja (posible cambio de aparato) y no se suman.</footer>'
+    + 'footer{margin-top:10px;font-size:9px;color:#666;line-height:1.5}section{margin-bottom:26px}'
+    + '.salto{page-break-before:always}@media print{body{margin:10mm}}</style></head><body>'
+    + paginas
     + '<script>window.onload=function(){window.print()}<\/script></body></html>');
   w.document.close();
 }
