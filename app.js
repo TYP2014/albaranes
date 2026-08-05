@@ -13630,7 +13630,7 @@ function renderFactEmit() {
           ? '<button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitDesmarcar(\'' + f.id + '\')">\u21a9 Pendiente</button>'
           : '<button class="btn bp" style="font-size:9px;padding:4px 8px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">\u2705 Cobrada</button>')
        + ' <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitEditar(\'' + f.id + '\')">\u270f Editar</button>'
-       + ' <button class="btn br" style="padding:4px 8px;display:inline-flex;align-items:center;justify-content:center" title="Eliminar esta factura" onclick="factEmitBorrar(\'' + f.id + '\')"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>'
+       + ' <button class="btn br" style="padding:4px 9px;background:var(--er);border-color:var(--er);display:inline-flex;align-items:center;justify-content:center" title="Eliminar esta factura" onclick="factEmitBorrar(\'' + f.id + '\')"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>'
        + '</td></tr>';
   });
   h += '</tbody></table></div>';
