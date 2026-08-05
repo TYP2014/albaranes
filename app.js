@@ -26556,8 +26556,20 @@ async function _tacoGuardarUno(it) {
       // v423: mismo agujero que en el flujo de uno en uno — el duplicado se iba
       // sin apuntar los dias. Ahora se (re)apuntan con la empresa YA guardada.
       await _tacoRellenarTarjeta(r);
+      // v456: EL MISMO AGUJERO, OTRA VEZ, EN EL OTRO CAMINO. La v455 hizo que
+      // los ficheros "que ya estaban" apuntaran la fecha de proxima revision,
+      // pero solo en el flujo de UNO EN UNO. JC sube SIEMPRE varios a la vez,
+      // que va por AQUI, asi que resolto sus 15 descargas y no se apunto ni una.
+      let revPuesta = false;
+      if (r.proximaRevision) {
+        const { error: eRev } = await sb.from('tacografo_ficheros')
+          .update({ proxima_revision: _tacoISO(r.proximaRevision) }).eq('id', ya.id);
+        if (eRev) console.warn('[v456] no pude apuntar la próxima revisión:', eRev.message || eRev);
+        else { revPuesta = true; console.log('[v456] ' + (r.matricula || '¿?') + ' — próxima revisión apuntada: ' + _tacoDMY(r.proximaRevision)); }
+      }
       const nD = await _tacoGuardarDias(r, ya.empresa || it.empresa, ya.id);
-      it.detalle = 'ya estaba guardado' + (nD ? ` · ${nD} días reapuntados` : '');
+      it.detalle = 'ya estaba guardado' + (nD ? ` · ${nD} días reapuntados` : '')
+                 + (revPuesta ? ` · revisión: ${_tacoDMY(r.proximaRevision)}` : '');
       return 'duplicado';
     }   // v384 · v423
 
