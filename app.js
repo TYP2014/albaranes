@@ -25082,6 +25082,19 @@ function _tacoTotalesDia(ev) {
 }
 
 // ================= VEHICULO · 1ª GENERACION =======================
+// v454: cortafuegos para las fechas de revision. Un TimeReal son
+// "segundos desde 1970"; cualquier basura leida de donde no toca da
+// numeros absurdos. Creible = entre 2005 y 2050.
+function _tacoFechaCreible(t) {
+  return typeof t === 'number' && t > 1104537600 && t < 2524608000;
+}
+// Una PROXIMA revision no puede caer 10 años atras ni 20 adelante: se
+// admite de 3 años antes de hoy (camion atrasado) a 3 años despues.
+function _tacoEsRevisionPlausible(t) {
+  const hoy = Date.now() / 1000;
+  return t > hoy - 94608000 && t < hoy + 94608000;
+}
+
 function _tacoParseVU_G1(b) {
   const out = { gen: 'G1', tipo: 'vehiculo', dias: [] };
   let p = 0;
@@ -25131,6 +25144,18 @@ function _tacoParseVU_G1(b) {
     } else if (trep === 0x05) {                // datos tecnicos
       out.taco = _tacoTxt(b, p, 36);
       p += 116 + 20;                           // identificacion: 116, NO 118
+      // v454: PROXIMA REVISION DEL TACOGRAFO. No se calcula sumando 2 años:
+      // viene ESCRITA en el fichero. Cada registro de calibracion mide 167
+      // bytes y su ULTIMO campo (offset 163) es NextCalibrationDate, un
+      // TimeReal de 4 bytes. Manda la del ULTIMO registro (calibracion mas
+      // reciente). Es el mismo dato que lee ASG para sus emails de aviso.
+      {
+        const nCal = b[p];
+        for (let k = 0; k < nCal; k++) {
+          const fc = _tacoU32(b, p + 1 + k * 167 + 163);
+          if (_tacoFechaCreible(fc)) out.proximaRevision = fc;
+        }
+      }
       p += 1 + b[p] * 167;                     // calibraciones
       p += 128;
     } else break;
@@ -25170,6 +25195,25 @@ function _tacoParseVU_G2(b) {
     }
     if (trep === 0x25 || trep === 0x35) {
       arrs.forEach(a => { if (a.rt === 0x19 && a.n) out.taco = _tacoTxt(b, a.dp, 36); });
+      // v454: PROXIMA REVISION en 2ª generacion. Aqui las calibraciones van en
+      // su propia lista, pero el numero de tipo cambia entre versiones del
+      // reglamento y no me fio de clavarlo a ciegas. Se hace a prueba de bombas:
+      // en las listas de registros grandes (>=100 bytes, tamaño de una
+      // calibracion) se leen los ULTIMOS 4 bytes de cada registro y el valor se
+      // acepta SOLO si parece fecha de verdad Y cae en un futuro razonable
+      // (±3 años, el ciclo es bienal). Si nada cuadra NO se inventa: se queda
+      // vacio y la pantalla lo dira. El chivato de consola dice el tipo de lista
+      // acertado, para clavarlo con un fichero real de JC.
+      arrs.forEach(a => {
+        if (!a.n || a.rs < 100) return;
+        for (let k = 0; k < a.n; k++) {
+          const fc = _tacoU32(b, a.dp + k * a.rs + a.rs - 4);
+          if (_tacoFechaCreible(fc) && _tacoEsRevisionPlausible(fc)) {
+            out.proximaRevision = fc;
+            out._revisionTipo = a.rt;
+          }
+        }
+      });
     }
     if (trep === 0x22 || trep === 0x32) {
       let fecha = null, odo = null; const ev = [], cond = [];
@@ -26223,6 +26267,7 @@ async function tacoGuardar() {
       tarjeta_num: r.tarjeta_num || null,
       conductor_nombre: r.conductor || null,
       tarjeta_caduca: _tacoISO(r.caduca),
+      proxima_revision: _tacoISO(r.proximaRevision),   // v454
       fecha_descarga: (_tacoFecha(r.hasta) || new Date()).toISOString(),
       fecha_desde: _tacoISO(r.desde),
       fecha_hasta: _tacoISO(r.hasta),
@@ -26235,6 +26280,12 @@ async function tacoGuardar() {
       sha256: sha,
       user_id: currentUser?.id || null
     };
+    // v454: chivato para cotejar con el email de ASG antes de fiarnos del dato
+    if (r.tipo === 'vehiculo') {
+      console.log('[v454] ' + (r.matricula || '¿?') + ' (' + r.gen + ') — próxima revisión del tacógrafo: ' +
+        (r.proximaRevision ? _tacoDMY(r.proximaRevision) : '❌ NO ENCONTRADA en este fichero') +
+        (r._revisionTipo !== undefined ? ' [lista tipo 0x' + r._revisionTipo.toString(16) + ']' : ''));
+    }
     const { data: dIns, error: eIns } = await sb.from('tacografo_ficheros').insert(fila).select('id').single();   // v385: el id, para colgar los dias
     if (eIns) {
       // Si falla la ficha, se quita el fichero para no dejar basura suelta.
@@ -26500,6 +26551,7 @@ async function _tacoGuardarUno(it) {
       matricula: r.matricula || null, vin: r.vin || null,
       tarjeta_num: r.tarjeta_num || null, conductor_nombre: r.conductor || null,
       tarjeta_caduca: _tacoISO(r.caduca),
+      proxima_revision: _tacoISO(r.proximaRevision),   // v454
       fecha_descarga: (_tacoFecha(r.hasta) || new Date()).toISOString(),
       fecha_desde: _tacoISO(r.desde), fecha_hasta: _tacoISO(r.hasta),
       dias_datos: r.dias.length, generacion: r.gen,
