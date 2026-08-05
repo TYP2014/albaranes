@@ -19677,6 +19677,7 @@ async function loadTallerData() {
     // retrasar la carga de Taller.
     try { loadTallerCitas(); } catch (e) { console.warn('[v358]', e); }
     try { loadRecmed(); } catch (e) { console.warn('[v440]', e); }   // v440: aviso de reconocimientos desde el arranque
+    try { tacoVencVer(); } catch (e) { console.warn('[v457]', e); }   // v457: vencimientos de tacógrafo, para que el aviso salga desde el arranque
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
@@ -26874,7 +26875,7 @@ const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;marg
 let _tacoSecActiva = 'subir';
 function tacoSec(sec) {
   _tacoSecActiva = sec;
-  ['subir', 'conductores', 'vehiculos', 'informes', 'archivo'].forEach(x => {
+  ['subir', 'conductores', 'vehiculos', 'vencimientos', 'informes', 'archivo'].forEach(x => {
     const d = document.getElementById('tacoSec' + x);
     if (d) d.style.display = (x === sec) ? '' : 'none';
     const b = document.getElementById('tacoSecBtn' + x);
@@ -26884,6 +26885,233 @@ function tacoSec(sec) {
   if (sec === 'archivo') tacoCargarLista();
   if (sec === 'conductores') tacoInfPintarSelector();
   if (sec === 'vehiculos') tacoVehPintarSelector();   // v406
+  if (sec === 'vencimientos') tacoVencVer();          // v457
+}
+
+// ============================================================
+// TACOGRAFO — v457 (05/08/2026) · VENCIMIENTOS
+//
+// Lo que JC quiere dejar de recibir por email de ASG: cuando
+// caduca la TARJETA de cada conductor y cuando toca la REVISION
+// bienal del tacografo de cada camion.
+//
+// LOS DOS DATOS SALEN DE LAS PROPIAS DESCARGAS, no se calculan:
+//   · camion    -> NextCalibrationDate del ultimo registro de
+//                  calibracion (v454 en G1, v455 en G2)
+//   · conductor -> fecha de caducidad grabada en la tarjeta (v383)
+//
+// ESCALERA DE AVISOS pedida por JC: 60 · 45 · 30 · 15 · 5 · 1 dia
+// y VENCIDO. El vencido NO desaparece hasta que se marca como
+// hecho (revision pasada / tarjeta renovada), y al marcarlo se
+// apunta quien y cuando, que es lo que vale ante una inspeccion.
+//
+// SE ENSEÑA SOLO LA ULTIMA DESCARGA DE CADA UNO: si un camion
+// tiene diez ficheros, manda el mas reciente. Y lo que no tiene
+// fecha se dice ABIERTAMENTE ("sin dato — vuelve a subir su
+// descarga"), no se esconde ni se inventa.
+// ============================================================
+const _VENC_ESC = [
+  { max:  -1, clave: 'vencido', color: '#7f1d1d', fondo: 'rgba(127,29,29,.30)',  txt: 'VENCIDO',        orden: 0 },
+  { max:   1, clave: 'd1',      color: '#b71c1c', fondo: 'rgba(255,59,48,.34)',  txt: '1 DÍA',          orden: 1 },
+  { max:   5, clave: 'd5',      color: '#d32f2f', fondo: 'rgba(255,80,80,.26)',  txt: '5 DÍAS O MENOS', orden: 2 },
+  { max:  15, clave: 'd15',     color: '#e65100', fondo: 'rgba(255,140,0,.26)',  txt: '15 DÍAS',        orden: 3 },
+  { max:  30, clave: 'd30',     color: '#b58900', fondo: 'rgba(255,208,0,.28)',  txt: '30 DÍAS',        orden: 4 },
+  { max:  45, clave: 'd45',     color: '#2e7d32', fondo: 'rgba(46,125,50,.18)',  txt: '45 DÍAS',        orden: 5 },
+  { max:  60, clave: 'd60',     color: '#1565c0', fondo: 'rgba(21,101,192,.16)', txt: '60 DÍAS',        orden: 6 }
+];
+
+function _vencDias(iso) {
+  if (!iso) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  return Math.round((d - hoy) / 86400000);
+}
+function _vencEscalon(dias) {
+  if (dias === null) return null;
+  if (dias < 0) return _VENC_ESC[0];
+  for (const e of _VENC_ESC) { if (e.max >= 0 && dias <= e.max) return e; }
+  return null;   // mas de 60 dias: tranquilo, sin color
+}
+function _vencTxtDias(dias) {
+  if (dias === null) return '—';
+  if (dias < 0) return 'venció hace ' + Math.abs(dias) + ' día' + (Math.abs(dias) === 1 ? '' : 's');
+  if (dias === 0) return 'HOY';
+  return 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's');
+}
+
+let _vencCache = { veh: [], con: [] };
+
+async function tacoVencVer() {
+  const box = document.getElementById('tacoVencBox');
+  if (!box) return;
+  box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Mirando las descargas…</div>';
+  try {
+    // Paginado: Supabase corta en 1000 (leccion v422)
+    let filas = [], desde = 0;
+    for (let i = 0; i < 10; i++) {
+      let q = sb.from('tacografo_ficheros')
+        .select('tipo, matricula, conductor_nombre, tarjeta_num, empresa, proxima_revision, tarjeta_caduca, fecha_descarga, venc_hecho, venc_hecho_por, venc_hecho_el')
+        .order('fecha_descarga', { ascending: false }).range(desde, desde + 999);
+      if (_tacoEmpGlobal !== 'TODAS') q = q.eq('empresa', _tacoEmpGlobal);
+      const r = await q;
+      if (r.error) throw r.error;
+      filas = filas.concat(r.data || []);
+      if (!r.data || r.data.length < 1000) break;
+      desde += 1000;
+    }
+    // Nos quedamos con la descarga MAS RECIENTE de cada camion / tarjeta
+    const veh = new Map(), con = new Map();
+    filas.forEach(f => {
+      if (f.tipo === 'vehiculo' && f.matricula) { if (!veh.has(f.matricula)) veh.set(f.matricula, f); }
+      else if (f.tipo === 'conductor' && f.tarjeta_num) { if (!con.has(f.tarjeta_num)) con.set(f.tarjeta_num, f); }
+    });
+    _vencCache.veh = [...veh.values()];
+    _vencCache.con = [...con.values()];
+    _vencPintar();
+    renderVencBanner();
+  } catch (e) {
+    console.error('[v457]', e);
+    box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No pude preparar los vencimientos: ' + (e.message || e) + '</div>';
+  }
+}
+
+function _vencFila(f, esVeh) {
+  const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+  const dias = _vencDias(iso);
+  const esc = _vencEscalon(dias);
+  const hecho = !!f.venc_hecho && f.venc_hecho === iso;   // marcado PARA ESTA fecha
+  const quien = esVeh ? (f.matricula || '—') : (f.conductor_nombre || '—');
+  const sub = esVeh ? (_TACO_EMP_NOM[f.empresa] || f.empresa || '') : (f.tarjeta_num || '');
+  const dmy = x => x ? x.split('-').reverse().join('/') : '—';
+  let etiqueta;
+  if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:11px">sin dato — vuelve a subir su descarga</span>';
+  else if (hecho) etiqueta = '<span style="color:#2e7d32;font-weight:800">✓ ' + (esVeh ? 'REVISIÓN HECHA' : 'RENOVADA') + '</span>';
+  else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900">' + esc.txt + '</span>';
+  else etiqueta = '<span style="color:var(--mu)">—</span>';
+  const fondo = (!hecho && esc) ? esc.fondo : 'transparent';
+  const btn = (iso && !hecho && esc)
+    ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Revisión hecha' : 'Renovada') + '</button>'
+    : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:10px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + (f.venc_hecho_por ? ' · ' + esc2(f.venc_hecho_por) : '') + '</span>' : '');
+  return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
+    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12.5px;font-weight:800">' + esc2(quien) + '</td>'
+    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + esc2(sub) + '</td>'
+    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12.5px">' + dmy(iso) + '</td>'
+    + '<td style="padding:7px 9px;font-family:var(--mn);font-size:12px">' + _vencTxtDias(hecho ? null : dias) + '</td>'
+    + '<td style="padding:7px 9px">' + etiqueta + '</td>'
+    + '<td style="padding:7px 9px;text-align:right">' + btn + '</td></tr>';
+}
+
+function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function _vencPintar() {
+  const box = document.getElementById('tacoVencBox');
+  if (!box) return;
+  const orden = (a, b, esVeh) => {
+    const da = _vencDias(esVeh ? a.proxima_revision : a.tarjeta_caduca);
+    const db = _vencDias(esVeh ? b.proxima_revision : b.tarjeta_caduca);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  };
+  const tabla = (titulo, icono, filas, esVeh) => {
+    if (!filas.length) return '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:10px">' + icono + ' ' + titulo + ': no hay descargas subidas todavía.</div>';
+    const ord = [...filas].sort((a, b) => orden(a, b, esVeh));
+    const conFecha = ord.filter(f => (esVeh ? f.proxima_revision : f.tarjeta_caduca));
+    const sinFecha = ord.length - conFecha.length;
+    return '<div style="margin-bottom:22px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
+      + '<b style="font-family:var(--mn);font-size:14px">' + icono + ' ' + titulo + '</b>'
+      + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">' + conFecha.length + ' con fecha'
+      + (sinFecha ? ' · <span style="color:var(--wnd)">' + sinFecha + ' sin dato</span>' : '') + '</span></div>'
+      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      + '<tr style="background:var(--s2)">'
+      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
+      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'EMPRESA' : 'Nº TARJETA') + '</th>'
+      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
+      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">CUÁNDO</th>'
+      + '<th style="text-align:left;padding:6px 9px;font-family:var(--mn);font-size:11px;color:var(--mu)">AVISO</th>'
+      + '<th></th></tr>'
+      + ord.map(f => _vencFila(f, esVeh)).join('') + '</table></div></div>';
+  };
+  box.innerHTML = tabla('REVISIÓN DEL TACÓGRAFO (camiones)', '🚛', _vencCache.veh, true)
+    + tabla('TARJETA DE CONDUCTOR', '🪪', _vencCache.con, false)
+    + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;border-top:1px solid var(--bd);padding-top:10px">'
+    + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
+    + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
+    + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.</div>';
+}
+
+async function vencMarcarHecho(tipo, clave) {
+  const esVeh = tipo === 'V';
+  const f = (esVeh ? _vencCache.veh : _vencCache.con).find(x => (esVeh ? x.matricula : x.tarjeta_num) === clave);
+  if (!f) return;
+  const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+  const que = esVeh ? ('la revisión del ' + clave + ' del ' + iso.split('-').reverse().join('/')) : ('la tarjeta de ' + (f.conductor_nombre || clave));
+  if (!confirm('¿Marcar ' + que + ' como ' + (esVeh ? 'REVISIÓN HECHA' : 'RENOVADA') + '?\n\nEl aviso dejará de salir. Cuando subas la próxima descarga, la fecha nueva vendrá en ella y el aviso volverá solo.')) return;
+  try {
+    let q = sb.from('tacografo_ficheros')
+      .update({ venc_hecho: iso, venc_hecho_por: currentUser?.email || currentUser?.id || null, venc_hecho_el: new Date().toISOString() });
+    q = esVeh ? q.eq('matricula', clave).eq('tipo', 'vehiculo') : q.eq('tarjeta_num', clave).eq('tipo', 'conductor');
+    const { error } = await q;
+    if (error) throw error;
+    toast('✓ Apuntado');
+    await tacoVencVer();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// ---------- aviso arriba, en toda la app ----------
+const VENC_BANNER_HIDE = 'venc_banner_hidden';
+
+function irAVencimientos() {
+  try { switchTab('tacografo'); } catch (e) {}
+  try { tacoSec('vencimientos'); } catch (e) {}
+}
+function hideVencBannerToday(clave) {
+  localStorage.setItem(VENC_BANNER_HIDE + '_' + clave, new Date().toISOString().slice(0, 10));
+  renderVencBanner();
+}
+
+function renderVencBanner() {
+  const b = document.getElementById('vencBanner');
+  if (!b) return;
+  const todo = [];
+  _vencCache.veh.forEach(f => {
+    const iso = f.proxima_revision; if (!iso || f.venc_hecho === iso) return;
+    const d = _vencDias(iso), e = _vencEscalon(d);
+    if (e) todo.push({ e, d, txt: '🚛 ' + f.matricula, iso });
+  });
+  _vencCache.con.forEach(f => {
+    const iso = f.tarjeta_caduca; if (!iso || f.venc_hecho === iso) return;
+    const d = _vencDias(iso), e = _vencEscalon(d);
+    if (e) todo.push({ e, d, txt: '🪪 ' + (f.conductor_nombre || f.tarjeta_num), iso });
+  });
+  if (!todo.length) { b.style.display = 'none'; return; }
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  const porEsc = new Map();
+  todo.forEach(x => { if (!porEsc.has(x.e.clave)) porEsc.set(x.e.clave, { e: x.e, lista: [] }); porEsc.get(x.e.clave).lista.push(x); });
+  let html = '';
+  [..._VENC_ESC].sort((a, b2) => a.orden - b2.orden).forEach(e => {
+    const g = porEsc.get(e.clave);
+    if (!g) return;
+    if (localStorage.getItem(VENC_BANNER_HIDE + '_' + e.clave) === hoyStr) return;
+    const det = g.lista.slice(0, 4).map(x => '<strong style="font-weight:900;color:#111">' + esc2(x.txt) + '</strong> (' + x.iso.split('-').reverse().join('/') + ')').join(' · ');
+    const resto = g.lista.length > 4 ? ' · +' + (g.lista.length - 4) + ' más' : '';
+    const cab = e.clave === 'vencido'
+      ? (g.lista.length === 1 ? 'TACÓGRAFO VENCIDO' : g.lista.length + ' TACÓGRAFOS/TARJETAS VENCIDOS')
+      : 'VENCE EN ' + e.txt;
+    html += '<div style="background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
+      + ';border-radius:7px;padding:12px 16px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">'
+      + '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="font-size:17px;vertical-align:-2px">⏱</span> '
+      + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
+      + '<div style="display:flex;gap:6px">'
+      + '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAVencimientos()">⏱ Ver vencimientos</button>'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideVencBannerToday(\'' + e.clave + '\')" title="Ocultar hasta mañana">✕</button>'
+      + '</div></div>';
+  });
+  if (!html) { b.style.display = 'none'; return; }
+  b.style.display = 'block';
+  b.innerHTML = html;
 }
 
 // ============================================================
