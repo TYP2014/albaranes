@@ -27948,6 +27948,7 @@ async function tacoRepJornadasVer() {
     const hm = v => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
     const dmy = x => x.split('-').reverse().join('/');
     let filas = '', totCon = 0, totOtr = 0, nSin = 0, nParc = 0, nFuera = 0;
+    const dias = [];   // v467: lo mismo que se pinta, guardado para el PDF y el Excel
     const dA = new Date(desde + 'T12:00:00Z'), dB = new Date(hasta + 'T12:00:00Z');
     for (let d = new Date(dA); d <= dB; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
@@ -27958,19 +27959,20 @@ async function tacoRepJornadasVer() {
       let celdas;
       if (parcial) {
         celdas = `<td colspan="5" style="color:var(--wnd)">PARCIAL — día de la descarga, no computado</td>`;
-        nParc++;
+        nParc++; dias.push({ iso, tipo: 'parcial' });
       } else if (sinFichero) {
         celdas = `<td colspan="5" style="color:var(--mu)">SIN DESCARGA SUBIDA QUE CUBRA ESTE DÍA</td>`;
-        nFuera++;
+        nFuera++; dias.push({ iso, tipo: 'sin_descarga' });
       } else if (!util.length) {
         celdas = `<td colspan="5" style="color:var(--mu)">SIN ACTIVIDAD</td>`;
-        nSin++;
+        nSin++; dias.push({ iso, tipo: 'sin_actividad' });
       } else {
         const ini = Math.min(...util.map(t => t.minuto_ini));
         const fin = Math.max(...util.map(t => t.minuto_fin));
         const con = util.filter(t => t.actividad === 3).reduce((a, t) => a + t.minuto_fin - t.minuto_ini, 0);
         const otr = util.filter(t => t.actividad === 2).reduce((a, t) => a + t.minuto_fin - t.minuto_ini, 0);
         totCon += con; totOtr += otr;
+        dias.push({ iso, tipo: 'ok', ini, fin, con, otr });
         celdas = `<td>${hm(ini)}</td><td>${hm(fin === 1440 ? 1439 : fin)}</td>
           <td style="font-weight:700;color:${_TACO_COL[3]}">${hm(con)}</td><td>${hm(otr)}</td>
           <td style="font-weight:700">${hm(con + otr)}</td>`;
@@ -27978,10 +27980,21 @@ async function tacoRepJornadasVer() {
       filas += `<tr><td style="white-space:nowrap">${dmy(iso)}</td>${celdas}</tr>`;
     }
 
+    // v467: guardado para las descargas (PDF para firmar y Excel)
+    _tacoRJultimo = { nom, emp, desde, hasta, dias, totCon, totOtr, nParc, nFuera, nSin };
+
     out.innerHTML = `
-      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-bottom:8px">
-        <b style="color:var(--tx);font-family:var(--ss);font-size:13px">${nom}</b> · ${_TACO_EMP_NOM[emp] || emp}
-        · del ${dmy(desde)} al ${dmy(hasta)}
+      <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">
+          <b style="color:var(--tx);font-family:var(--ss);font-size:13px">${nom}</b> · ${_TACO_EMP_NOM[emp] || emp}
+          · del ${dmy(desde)} al ${dmy(hasta)}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn bp" style="padding:5px 12px;font-size:11.5px" onclick="tacoRJpdf()"
+            title="Abre el registro maquetado con las casillas de firma. Desde ahí: Imprimir o Guardar como PDF.">🖨 PDF para firmar</button>
+          <button class="btn bs" style="padding:5px 12px;font-size:11.5px" onclick="tacoRJexcel()"
+            title="Descarga esta misma tabla en Excel.">📊 Excel</button>
+        </div>
       </div>
       <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
         <thead><tr><th>Día</th><th>Inicio jornada</th><th>Fin jornada</th><th>Conducción</th><th>Otros trabajos</th><th>T.T. efectivo</th></tr></thead>
@@ -27997,12 +28010,149 @@ async function tacoRepJornadasVer() {
         acreditado)${nParc ? ` · ${nParc} día(s) parciales por descarga, no computados` : ''}${nFuera ? ` · ${nFuera} día(s) sin descarga subida` : ''}.
         En cumplimiento de los art. 34.9 y 35.5 del RDL 2/2015 (Estatuto de los Trabajadores). Para horas
         extraordinarias, ver art. 10 bis del RD 1561/95 de jornadas especiales.
-        <b>La descarga en PDF/Excel con firmas viene en el siguiente paso.</b>
       </div>`;
   } catch (e) {
     console.error('[v408]', e);
     out.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo preparar: ${e.message || e}</div>`;
   }
+}
+
+// ============================================================
+// v467: DESCARGAS DEL REGISTRO DE JORNADAS — el "siguiente paso"
+// que anunciaba la pantalla desde la v408. Dos salidas:
+// - PDF PARA FIRMAR: ventana maquetada en A4 (modelo tipo ASG) con
+//   membrete de la empresa, la tabla del periodo y las casillas de
+//   firma del trabajador y de la empresa. Desde ahí: Imprimir o
+//   "Guardar como PDF" del propio navegador. Sin librerías nuevas.
+// - EXCEL: la misma tabla con el motor de siempre (xlsx-js-style).
+// Los datos NO se recalculan: son EXACTAMENTE los de la pantalla
+// (_tacoRJultimo), así lo que se firma es lo que se ha visto.
+// ============================================================
+let _tacoRJultimo = null;
+
+const _TACO_EMP_RAZON = {
+  'TYP2014': 'TRANSPORTES Y PORTES 2014, S.L. · CIF B90172735',
+  'HISPALIS': 'TRANSPORTES HISPALIS 2016, S.L. · CIF B90286337',
+  'TRANSMARGAZ': 'TRANSMARGAZ 2018, S.L. · CIF B67316752',
+  'PORTES': 'PORTES 2014 IMPORT, S.L. · CIF B02657435'
+};
+
+function _tacoRJtextoDia(tipo) {
+  return tipo === 'parcial' ? 'PARCIAL — día de la descarga, no computado'
+    : tipo === 'sin_descarga' ? 'SIN DESCARGA SUBIDA QUE CUBRA ESTE DÍA'
+    : 'SIN ACTIVIDAD';
+}
+
+function tacoRJpdf() {
+  const u = _tacoRJultimo;
+  if (!u) { toast('Dale primero a "Ver en pantalla"', 'err'); return; }
+  const hm = v => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+  const dmy = x => x.split('-').reverse().join('/');
+  const DIAS_SEM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const filas = u.dias.map(d => {
+    const ds = DIAS_SEM[new Date(d.iso + 'T12:00:00Z').getUTCDay()];
+    if (d.tipo !== 'ok') {
+      return `<tr><td>${dmy(d.iso)}</td><td>${ds}</td><td colspan="5" class="mu">${_tacoRJtextoDia(d.tipo)}</td></tr>`;
+    }
+    return `<tr><td>${dmy(d.iso)}</td><td>${ds}</td><td>${hm(d.ini)}</td><td>${hm(d.fin === 1440 ? 1439 : d.fin)}</td>
+      <td><b>${hm(d.con)}</b></td><td>${hm(d.otr)}</td><td><b>${hm(d.con + d.otr)}</b></td></tr>`;
+  }).join('');
+  const notas = [];
+  if (u.nParc) notas.push(`${u.nParc} día(s) parciales por descarga, no computados`);
+  if (u.nFuera) notas.push(`${u.nFuera} día(s) sin descarga subida`);
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Registro de jornadas · ${u.nom} · ${dmy(u.desde)} a ${dmy(u.hasta)}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1e2933; margin: 0; font-size: 11px; }
+  .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1e2933; padding-bottom: 8px; margin-bottom: 10px; }
+  .cab h1 { font-size: 14px; margin: 0 0 2px; letter-spacing: .5px; }
+  .cab .emp { font-size: 12px; font-weight: bold; }
+  .datos { margin: 8px 0 10px; line-height: 1.7; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #97a3ad; padding: 3px 6px; text-align: center; }
+  th { background: #eef1f4; font-size: 10.5px; }
+  td { font-size: 10.5px; }
+  .mu { color: #7b8792; }
+  tfoot td { font-weight: bold; background: #f6f7f9; }
+  .legal { font-size: 8.5px; color: #55616c; margin-top: 8px; line-height: 1.5; }
+  .firmas { display: flex; gap: 24px; margin-top: 22px; page-break-inside: avoid; }
+  .firma { flex: 1; border: 1px solid #97a3ad; border-radius: 4px; padding: 8px 10px 4px; height: 82px; display: flex; flex-direction: column; justify-content: space-between; }
+  .firma b { font-size: 10px; }
+  .firma .fx { font-size: 9px; color: #55616c; }
+  .noprint { margin: 10px 0; text-align: right; }
+  .noprint button { font-size: 13px; padding: 7px 16px; cursor: pointer; }
+  @media print { .noprint { display: none; } }
+</style></head><body>
+<div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar como PDF</button></div>
+<div class="cab">
+  <div>
+    <h1>REGISTRO DE JORNADAS DE TRABAJO</h1>
+    <div style="font-size:9.5px;color:#55616c">Art. 34.9 y 35.5 del RDL 2/2015 (Estatuto de los Trabajadores) · RD 1561/95 de jornadas especiales</div>
+  </div>
+  <div style="text-align:right"><div class="emp">${_TACO_EMP_RAZON[u.emp] || _TACO_EMP_NOM[u.emp] || u.emp || ''}</div></div>
+</div>
+<div class="datos">
+  <b>Trabajador:</b> ${u.nom} &nbsp;·&nbsp; <b>Periodo:</b> del ${dmy(u.desde)} al ${dmy(u.hasta)}
+  &nbsp;·&nbsp; <b>Fuente:</b> tarjeta de tacógrafo del conductor
+</div>
+<table>
+  <thead><tr><th>Día</th><th></th><th>Inicio jornada</th><th>Fin jornada</th><th>Conducción</th><th>Otros trabajos</th><th>T.T. efectivo</th></tr></thead>
+  <tbody>${filas}</tbody>
+  <tfoot><tr><td colspan="4">TOTALES DEL PERIODO</td><td>${hm(u.totCon)}</td><td>${hm(u.totOtr)}</td><td>${hm(u.totCon + u.totOtr)}</td></tr></tfoot>
+</table>
+<div class="legal">
+  ${_tacoTxtUTC(u.desde, u.hasta).replace(/<[^>]+>/g, '')}. Horas del hueco del conductor, registradas con tarjeta;
+  lo grabado con la tarjeta fuera no computa (no está acreditado)${notas.length ? ' · ' + notas.join(' · ') : ''}.
+  Para horas extraordinarias, ver art. 10 bis del RD 1561/95.
+</div>
+<div class="firmas">
+  <div class="firma"><b>Firma del trabajador</b><div class="fx">Recibí copia · Fecha: ____ / ____ / ________</div></div>
+  <div class="firma"><b>Firma y sello de la empresa</b><div class="fx">Fecha: ____ / ____ / ________</div></div>
+</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('El navegador bloqueó la ventana emergente — permítela para esta página y repite', 'err'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+function tacoRJexcel() {
+  const u = _tacoRJultimo;
+  if (!u) { toast('Dale primero a "Ver en pantalla"', 'err'); return; }
+  const hm = v => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+  const dmy = x => x.split('-').reverse().join('/');
+  const rows = [
+    ['REGISTRO DE JORNADAS DE TRABAJO', '', '', '', '', ''],
+    [(_TACO_EMP_RAZON[u.emp] || u.emp || ''), '', '', '', '', ''],
+    ['Trabajador: ' + u.nom, '', 'Periodo: ' + dmy(u.desde) + ' a ' + dmy(u.hasta), '', '', ''],
+    ['', '', '', '', '', ''],
+    ['Día', 'Inicio jornada', 'Fin jornada', 'Conducción', 'Otros trabajos', 'T.T. efectivo']
+  ];
+  u.dias.forEach(d => {
+    if (d.tipo !== 'ok') rows.push([dmy(d.iso), _tacoRJtextoDia(d.tipo), '', '', '', '']);
+    else rows.push([dmy(d.iso), hm(d.ini), hm(d.fin === 1440 ? 1439 : d.fin), hm(d.con), hm(d.otr), hm(d.con + d.otr)]);
+  });
+  rows.push(['TOTALES', '', '', hm(u.totCon), hm(u.totOtr), hm(u.totCon + u.totOtr)]);
+  rows.push(['', '', '', '', '', '']);
+  rows.push(['Firma del trabajador:', '', '', 'Firma y sello de la empresa:', '', '']);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const fCab = 4, fTot = 5 + u.dias.length;
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+      if (!ws[addr].s) ws[addr].s = {};
+      ws[addr].s.alignment = { horizontal: R < 4 ? 'left' : 'center', vertical: 'center' };
+      ws[addr].s.font = { bold: (R <= 2 || R === fCab || R === fTot || R === fTot + 2), sz: R === 0 ? 13 : 12 };
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Jornadas');
+  XLSX.writeFile(wb, `Jornadas_${(u.nom || '').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g, '_')}_${u.desde}_${u.hasta}.xlsx`);
+  toast('✓ Excel del registro de jornadas descargado');
 }
 
 function tacoSoltar(files) {
