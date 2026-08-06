@@ -27304,6 +27304,219 @@ function tacoRep(cual) {
   if (cual === 'jornadas') { tacoRepJornadasUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   if (cual === 'sintarjeta') { tacoRepSinTarjUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   // v437
   if (cual === 'km') { tacoRepKmUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }                 // v461
+  if (cual === 'descansos') { tacoRepDescUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }        // v468
+}
+
+// ============================================================
+// v468 · DESCANSOS SEMANALES Y BISEMANALES
+//
+// Lo que dice el Reglamento (CE) 561/2006:
+//   - Descanso semanal NORMAL: 45 h seguidas o mas.
+//   - Descanso semanal REDUCIDO: de 24 h a menos de 45 h (hay que
+//     compensar la diferencia antes del final de la 3ª semana
+//     siguiente, enganchada a un descanso de 9 h o mas).
+//   - Como MUCHO 6 periodos de 24 h desde el final de un descanso
+//     semanal hasta el principio del siguiente.
+//   - En DOS semanas consecutivas: dos normales, o uno normal y
+//     uno reducido. Dos reducidos seguidos NO valen.
+//
+// COMO SE CALCULA AQUI: se monta una cinta de minutos seguidos
+// (no por dias sueltos, que un descanso de 45 h cruza dos o tres
+// medianoches) y se buscan las rachas de descanso de 24 h o mas.
+//   descanso = actividad 0  +  tarjeta fuera SIN ANOTAR (presunto,
+//   la regla que fijo JC) ; el resto (conduccion, otros trabajos,
+//   disponibilidad) rompe la racha.
+//
+// LO QUE NO SE INVENTA (esto es lo importante): los dias SIN
+// DESCARGA SUBIDA y los dias PARCIALES (el de la propia descarga)
+// NO se cuentan como descanso ni como trabajo: salen aparte como
+// "NO ACREDITADO". Un hueco de esos parte la racha, porque no se
+// puede acreditar un descanso con datos que no se tienen. Es lo
+// que pidio JC: huecos -> "no acreditado", nunca rellenar a ojo.
+// ============================================================
+const _TACO_DESC_NORMAL = 45 * 60;   // 2700 min
+const _TACO_DESC_MIN = 24 * 60;      // 1440 min
+const _TACO_DESC_MAXTRAB = 144 * 60; // 6 periodos de 24 h
+
+async function tacoRepDescUI() {
+  const panel = document.getElementById('tacoRepPanel');
+  const p = await _tacoInfCargarPersonas();
+  const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);
+  if (!conds.length) {
+    panel.innerHTML = _tacoRepBarra('🛌 DESCANSOS SEMANALES Y BISEMANALES')
+      + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas'
+      + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>';
+    return;
+  }
+  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  // por defecto: los ultimos 2 meses (para ver varias semanas seguidas,
+  // que es como se mira este informe)
+  const hoy = new Date();
+  const d2 = hoy.toISOString().slice(0, 10);
+  const d1 = (() => { const d = new Date(hoy); d.setUTCDate(d.getUTCDate() - 59); return d.toISOString().slice(0, 10); })();
+  panel.innerHTML = _tacoRepBarra('🛌 DESCANSOS SEMANALES Y BISEMANALES') + `
+    <div class="card">
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#1fc94c"></span>DESCANSOS SEMANALES Y BISEMANALES</div></div>
+      <div class="card-bd">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+          <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Conductor</label>
+            <select class="fi" id="tacoDSquien">${op}</select></div>
+          <div class="fg"><label class="fl">Del día</label>
+            <input class="fi" type="date" id="tacoDSdesde" value="${d1}"></div>
+          <div class="fg"><label class="fl">Al día</label>
+            <input class="fi" type="date" id="tacoDShasta" value="${d2}"></div>
+          <button class="btn bp" onclick="tacoRepDescVer()">Ver en pantalla</button>
+        </div>
+        <div id="tacoDSout" style="margin-top:14px"></div>
+      </div>
+    </div>`;
+  tacoRepDescVer();
+}
+
+async function tacoRepDescVer() {
+  const out = document.getElementById('tacoDSout');
+  const quien = document.getElementById('tacoDSquien')?.value;
+  let desde = document.getElementById('tacoDSdesde')?.value;
+  let hasta = document.getElementById('tacoDShasta')?.value;
+  if (!out || !quien || !desde || !hasta) return;
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Calculando…</div>';
+  try {
+    const id = quien.slice(2);
+    const per = (_tacoInfPersonas || []).find(x => x.clave === quien);
+    const nom = per?.nombre || id, emp = per?.empresa || '';
+
+    // Se mira 14 dias ANTES del periodo pedido: un descanso semanal puede
+    // haber empezado antes, y hace falta el anterior para medir los 6 dias.
+    const dIni = new Date(desde + 'T00:00:00Z'); dIni.setUTCDate(dIni.getUTCDate() - 14);
+    const desdeExt = dIni.toISOString().slice(0, 10);
+
+    // tramos, paginados de 1000 en 1000 (leccion v422)
+    let tramos = [], fila = 0; const LOTE = 1000;
+    for (let i = 0; i < 15; i++) {
+      const r = await sb.from('tacografo_tramos')
+        .select('fecha, minuto_ini, minuto_fin, actividad, sin_tarjeta, sin_anotar')
+        .eq('origen', 'conductor').eq('tarjeta_raiz', id).eq('hueco_ayudante', false)
+        .gte('fecha', desdeExt).lte('fecha', hasta)
+        .order('fecha').order('minuto_ini')
+        .range(fila, fila + LOTE - 1);
+      if (r.error) throw r.error;
+      tramos = tramos.concat(r.data || []);
+      if (!r.data || r.data.length < LOTE) break;
+      fila += LOTE;
+    }
+    const { data: dInfo } = await sb.from('tacografo_dias').select('fecha, incompleto')
+      .eq('origen', 'conductor').eq('tarjeta_raiz', id)
+      .gte('fecha', desdeExt).lte('fecha', hasta);
+    const conDatos = new Set((dInfo || []).map(x => x.fecha));
+    const incomp = new Set((dInfo || []).filter(x => x.incompleto).map(x => x.fecha));
+
+    // LA CINTA DE MINUTOS: 0 = no acreditado, 1 = descanso, 2 = trabajo
+    const MS = 86400000, D0 = Date.parse(desdeExt + 'T00:00:00Z');
+    const nDias = Math.round((Date.parse(hasta + 'T00:00:00Z') - D0) / MS) + 1;
+    const cinta = new Uint8Array(nDias * 1440);            // arranca todo en 0 (no acreditado)
+    const idxDia = iso => Math.round((Date.parse(iso + 'T00:00:00Z') - D0) / MS);
+    for (let k = 0; k < nDias; k++) {
+      const iso = new Date(D0 + k * MS).toISOString().slice(0, 10);
+      if (!conDatos.has(iso) || incomp.has(iso)) continue;   // sin descarga o dia parcial -> se queda en 0
+      cinta.fill(1, k * 1440, (k + 1) * 1440);               // dia acreditado: de base, descanso
+    }
+    (tramos || []).forEach(t => {
+      const k = idxDia(t.fecha);
+      if (k < 0 || k >= nDias) return;
+      if (!conDatos.has(t.fecha) || incomp.has(t.fecha)) return;
+      const esDescanso = (t.sin_tarjeta && t.sin_anotar) || t.actividad === 0;
+      if (esDescanso) return;                                // ya vale 1
+      const a = k * 1440 + Math.max(0, t.minuto_ini);
+      const b = k * 1440 + Math.min(1440, t.minuto_fin);
+      if (b > a) cinta.fill(2, a, b);
+    });
+
+    // LAS RACHAS: se recorre la cinta y se agrupan minutos iguales
+    const rachas = [];
+    let est = cinta[0], ini = 0;
+    for (let i = 1; i <= cinta.length; i++) {
+      if (i === cinta.length || cinta[i] !== est) { rachas.push({ est, ini, fin: i }); est = cinta[i]; ini = i; }
+    }
+    const fh = a => { const d = new Date(D0 + a * 60000); return d.toISOString().slice(8, 10) + '/' + d.toISOString().slice(5, 7) + ' ' + d.toISOString().slice(11, 16); };
+    const hm = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+    const aIso = a => new Date(D0 + a * 60000).toISOString().slice(0, 10);
+
+    // descansos semanales = rachas de descanso de 24 h o mas
+    const sem = rachas.filter(r => r.est === 1 && (r.fin - r.ini) >= _TACO_DESC_MIN);
+    // no acreditados: huecos dentro del periodo pedido (los 14 dias de
+    // contexto no se enseñan, solo sirven para el calculo)
+    const noAcr = rachas.filter(r => r.est === 0 && aIso(r.fin - 1) >= desde);
+
+    // AVISOS entre descansos consecutivos
+    const avisos = new Map();   // indice del descanso -> texto
+    for (let i = 1; i < sem.length; i++) {
+      const hueco = sem[i].ini - sem[i - 1].fin;
+      if (hueco > _TACO_DESC_MAXTRAB) avisos.set(i, `⚠ ${hm(hueco)} desde el descanso anterior (el tope son 6 días = 144h)`);
+      const durA = sem[i - 1].fin - sem[i - 1].ini, durB = sem[i].fin - sem[i].ini;
+      if (durA < _TACO_DESC_NORMAL && durB < _TACO_DESC_NORMAL) {
+        avisos.set(i, (avisos.get(i) ? avisos.get(i) + ' · ' : '') + '⚠ dos reducidos seguidos: en dos semanas consecutivas hace falta uno de 45h');
+      }
+    }
+
+    // solo se ENSEÑAN los que terminan dentro del periodo pedido
+    const verSem = sem.map((r, i) => ({ r, i })).filter(x => aIso(x.r.fin - 1) >= desde);
+    let nNorm = 0, nRed = 0;
+    const filas = verSem.map(({ r, i }) => {
+      const dur = r.fin - r.ini;
+      const normal = dur >= _TACO_DESC_NORMAL;
+      normal ? nNorm++ : nRed++;
+      const av = avisos.get(i) || '';
+      const cortado = r.ini === 0 || r.fin === cinta.length;
+      return `<tr>
+        <td style="white-space:nowrap">${fh(r.ini)}</td>
+        <td style="white-space:nowrap">${fh(r.fin)}</td>
+        <td style="font-weight:700">${hm(dur)}</td>
+        <td style="color:${normal ? '#1a8f3c' : 'var(--wnd)'};font-weight:600">${normal ? 'NORMAL (≥45h)' : 'REDUCIDO (24–45h)'}</td>
+        <td style="color:var(--wnd);font-size:10.5px">${av}${cortado ? (av ? ' · ' : '') + 'llega al borde del periodo, puede ser más largo' : ''}</td>
+      </tr>`;
+    }).join('');
+
+    const filasNo = noAcr.map(r => `<tr>
+      <td style="white-space:nowrap">${fh(r.ini)}</td><td style="white-space:nowrap">${fh(r.fin)}</td>
+      <td style="font-weight:700">${hm(r.fin - r.ini)}</td>
+      <td colspan="2" style="color:var(--mu)">Sin descarga subida o día parcial — no se puede acreditar</td></tr>`).join('');
+
+    const dmy = x => x.split('-').reverse().join('/');
+    out.innerHTML = `
+      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-bottom:8px">
+        <b style="color:var(--tx);font-family:var(--ss);font-size:13px">${nom}</b> · ${_TACO_EMP_NOM[emp] || emp}
+        · del ${dmy(desde)} al ${dmy(hasta)}
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mn);font-size:12px;margin-bottom:10px">
+        <span>Descansos normales (≥45h): <b style="color:#1a8f3c">${nNorm}</b></span>
+        <span>Reducidos (24–45h): <b style="color:var(--wnd)">${nRed}</b></span>
+        <span>Tramos no acreditados: <b style="color:${noAcr.length ? 'var(--erd)' : 'var(--mu)'}">${noAcr.length}</b></span>
+      </div>
+      ${verSem.length ? `<div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
+        <thead><tr><th>Empieza</th><th>Termina</th><th>Duración</th><th>Tipo</th><th>Avisos</th></tr></thead>
+        <tbody>${filas}</tbody></table></div>`
+        : `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:8px 0">
+             No se ha encontrado NINGÚN descanso de 24h o más en este periodo. Si el conductor sí descansó,
+             lo más probable es que falten descargas por subir.</div>`}
+      ${filasNo ? `<div style="margin-top:14px">
+        <b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;color:var(--erd);text-transform:uppercase">No acreditado (${noAcr.length})</b>
+        <div style="overflow-x:auto;margin-top:6px"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
+          <thead><tr><th>Desde</th><th>Hasta</th><th>Duración</th><th colspan="2">Motivo</th></tr></thead>
+          <tbody>${filasNo}</tbody></table></div></div>` : ''}
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
+        <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(desde, hasta)}.</span>
+        Reglamento (CE) 561/2006: descanso semanal normal 45h seguidas; reducido de 24h a 45h (la diferencia se
+        compensa antes del final de la 3ª semana siguiente); como mucho 6 periodos de 24h entre un descanso semanal
+        y el siguiente; en dos semanas consecutivas, al menos uno de 45h. Cuenta como descanso lo grabado en
+        descanso y la tarjeta fuera sin anotar (presunto). Los días sin descarga subida y el día de la propia
+        descarga NO se cuentan ni a favor ni en contra: salen como no acreditados y cortan la racha.
+        <b>La compensación de los reducidos no se calcula todavía</b> — se hará al montar el listado de infracciones.
+      </div>`;
+  } catch (e) {
+    console.error('[v468]', e);
+    out.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo calcular: ${e.message || e}</div>`;
+  }
 }
 
 // ============================================================
