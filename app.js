@@ -27517,20 +27517,31 @@ async function _tacoCintaCond(id, desdeExt, hasta) {
   const MS = 86400000, D0 = Date.parse(desdeExt + 'T00:00:00Z');
   const nDias = Math.round((Date.parse(hasta + 'T00:00:00Z') - D0) / MS) + 1;
   const cinta = new Uint8Array(nDias * 1440);
+  // v479: SEGUNDA cinta, la de la actividad al detalle, que hace falta para
+  // la conduccion ininterrumpida (la de arriba mete conducir, otros trabajos
+  // y disponibilidad en el mismo saco "trabajo" y aqui no valen lo mismo).
+  //   0 = no acreditado · 1 = descanso · 2 = disponibilidad
+  //   3 = otros trabajos · 4 = conduciendo
+  const act = new Uint8Array(nDias * 1440);
   for (let k = 0; k < nDias; k++) {
     const iso = new Date(D0 + k * MS).toISOString().slice(0, 10);
     if (!conDatos.has(iso) || incomp.has(iso)) continue;
     cinta.fill(1, k * 1440, (k + 1) * 1440);
+    act.fill(1, k * 1440, (k + 1) * 1440);
   }
   (tramos || []).forEach(t => {
     if (!conDatos.has(t.fecha) || incomp.has(t.fecha)) return;
     const k = Math.round((Date.parse(t.fecha + 'T00:00:00Z') - D0) / MS);
     if (k < 0 || k >= nDias) return;
-    if ((t.sin_tarjeta && t.sin_anotar) || t.actividad === 0) return;
     const a = k * 1440 + Math.max(0, t.minuto_ini), b = k * 1440 + Math.min(1440, t.minuto_fin);
-    if (b > a) cinta.fill(2, a, b);
+    if (b <= a) return;
+    // tarjeta fuera SIN anotar = descanso presunto (regla de JC, v409)
+    const pres = (t.sin_tarjeta && t.sin_anotar);
+    act.fill(pres ? 1 : (t.actividad === 0 ? 1 : t.actividad === 1 ? 2 : t.actividad === 2 ? 3 : 4), a, b);
+    if (pres || t.actividad === 0) return;
+    cinta.fill(2, a, b);
   });
-  return { cinta, D0, nDias };
+  return { cinta, act, D0, nDias };
 }
 
 function _tacoRachas(cinta) {
@@ -27539,6 +27550,71 @@ function _tacoRachas(cinta) {
   for (let i = 1; i <= cinta.length; i++) {
     if (i === cinta.length || cinta[i] !== est) { out.push({ est, ini, fin: i }); est = cinta[i]; ini = i; }
   }
+  return out;
+}
+
+// ============================================================
+// v479 - CONDUCCION ININTERRUMPIDA (la pausa de las 4h30)
+//
+// LA NORMA (Reglamento CE 561/2006, art. 7): tras 4h30 de
+// conduccion el conductor hace una pausa SEGUIDA de 45 minutos,
+// a menos que empiece un descanso. Se puede partir en dos: 15
+// minutos primero y 30 minutos despues, EN ESE ORDEN (al reves
+// no vale, lo dice el articulo).
+//
+// QUE CUENTA COMO PAUSA: el descanso y la DISPONIBILIDAD (la
+// espera en el muelle con la tarjeta en disponibilidad). "OTROS
+// TRABAJOS" NO es pausa - pero tampoco suma conduccion: ni
+// interrumpe ni acumula, el contador se queda como estaba.
+//
+// GRAVEDAD (BOE 25/02/2025, anexo III, filas C1-C3):
+//   4h30 < ... < 5h  LEVE  ·  5h <= ... < 6h  GRAVE
+//   6h <= ...  MUY GRAVE
+//
+// PRUDENCIA, la de siempre: un tramo con datos SIN ACREDITAR
+// (dia sin descarga o dia parcial) no se juzga - se reinicia el
+// contador y se sigue. Y el ultimo tramo, si se queda sin cerrar
+// al final del periodo, TAMPOCO se juzga: puede que siguiera
+// conduciendo, o puede que parara justo despues; con la descarga
+// de la semana siguiente aparecera solo si toca.
+// ============================================================
+function _tacoGravPCI(d) { return d >= 360 ? 'MG' : d >= 300 ? 'G' : 'L'; }
+
+function _tacoPCI(act) {
+  // rachas de la cinta detallada
+  const R = [];
+  let e = act[0], i0 = 0;
+  for (let i = 1; i <= act.length; i++) {
+    if (i === act.length || act[i] !== e) { R.push({ e, ini: i0, fin: i }); e = act[i]; i0 = i; }
+  }
+  // descanso y disponibilidad son las DOS pausa: se juntan en un solo bloque,
+  // porque 20 min de descanso + 30 min de disponibilidad seguidos son 50 min
+  // de pausa de verdad y contarlos por separado seria injusto.
+  const B = [];
+  R.forEach(r => {
+    const tipo = (r.e === 1 || r.e === 2) ? 'P' : r.e === 4 ? 'C' : r.e === 3 ? 'T' : 'X';
+    const u = B[B.length - 1];
+    if (u && u.tipo === tipo) u.fin = r.fin; else B.push({ tipo, ini: r.ini, fin: r.fin });
+  });
+
+  const out = [];
+  let cond = 0, ini = -1, arm = false, pausas = [];
+  const reset = () => { cond = 0; ini = -1; arm = false; pausas = []; };
+  const cerrar = fin => {
+    if (cond > 270 && ini >= 0) out.push({ ini, fin, dur: cond, pausas: pausas.slice() });
+    reset();
+  };
+  B.forEach(b => {
+    const dur = b.fin - b.ini;
+    if (b.tipo === 'X') { reset(); return; }              // hueco: no se juzga
+    if (b.tipo === 'T') { if (ini >= 0) pausas.push({ ini: b.ini, dur, tr: true }); return; }
+    if (b.tipo === 'C') { if (ini < 0) ini = b.ini; cond += dur; return; }
+    // pausa
+    if (ini >= 0) pausas.push({ ini: b.ini, dur });
+    if (dur >= 45) { cerrar(b.ini); return; }             // los 45 seguidos
+    if (dur >= 30 && arm) { cerrar(b.ini); return; }      // el 15 + 30
+    if (dur >= 15) arm = true;                            // queda armado el 15
+  });
   return out;
 }
 
@@ -27557,7 +27633,7 @@ async function tacoRepInfUI() {
   const d1 = (() => { const d = new Date(hoy); d.setUTCMonth(d.getUTCMonth() - 3); return d.toISOString().slice(0, 10); })();
   panel.innerHTML = _tacoRepBarra('⚖️ LISTADO DE INFRACCIONES') + `
     <div class="card">
-      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#ffb400"></span>INFRACCIONES · DESCANSOS</div></div>
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#ffb400"></span>INFRACCIONES · DESCANSOS Y CONDUCCIÓN</div></div>
       <div class="card-bd">
         <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
           <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Conductor</label>
@@ -27593,7 +27669,7 @@ async function tacoRepInfVer() {
     const dI = new Date(desde + 'T00:00:00Z'); dI.setUTCDate(dI.getUTCDate() - 21);
     const desdeExt = dI.toISOString().slice(0, 10);
 
-    const { cinta, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
+    const { cinta, act, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
     const rachas = _tacoRachas(cinta);
     const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const iso = a => _tacoMadISO(D0 + a * 60000);        // v478: fecha en hora de España
@@ -27714,6 +27790,19 @@ async function tacoRepInfVer() {
       });
     });
 
+    // ---------- CONDUCCION ININTERRUMPIDA (v479) ----------
+    _tacoPCI(act).forEach(p => {
+      infra.push({
+        fecha: iso(p.fin - 1),
+        txt: `Conducci\u00f3n ininterrumpida de ${hm(p.dur)}h sin la pausa de 45 minutos`,
+        tipo: _tacoGravPCI(p.dur),
+        detC: {
+          ini: fh2(p.ini), fin: fh2(p.fin), dur: p.dur,
+          pausas: p.pausas.map(x => ({ h: fh2(x.ini), dur: x.dur, tr: !!x.tr }))
+        }
+      });
+    });
+
     // solo las del periodo pedido, ordenadas por fecha
     const lista = infra.filter(x => x.fecha >= desde && x.fecha <= hasta)
       .sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
@@ -27727,9 +27816,11 @@ async function tacoRepInfVer() {
     // en distintivos redondeados como los suyos, y no como letra suelta.
     const col = _TACO_INF_COL;
     _tacoIFdet = lista.map(x => x.det || null);
+    _tacoIFdetC = lista.map(x => x.detC || null);
+    const lupa = (fn, ix) => ` <a href="#" onclick="${fn}(${ix});return false" style="font-size:10px;color:#0a53d8;text-decoration:none">🔍 detalle</a>`;
     const filas = lista.map((x, ix) => `<tr>
       <td style="white-space:nowrap">${dmy(x.fecha)}</td>
-      <td>${x.txt}${x.det ? ` <a href="#" onclick="tacoIFverDet(${ix});return false" style="font-size:10px;color:#0a53d8;text-decoration:none">🔍 detalle</a>` : ''}</td>
+      <td>${x.txt}${x.det ? lupa('tacoIFverDet', ix) : x.detC ? lupa('tacoIFverDetC', ix) : ''}</td>
       <td style="text-align:center">${_tacoPill(x.tipo, x.tipo)}</td>
       <td style="text-align:center;white-space:nowrap">${_tacoPill(x.tipo, _TACO_INF_IMP[x.tipo])}</td>
       <td style="text-align:center;font-size:11px">${_tacoHon(x.tipo)}</td>
@@ -27764,16 +27855,20 @@ async function tacoRepInfVer() {
              Sin infracciones de descanso en este periodo.</div>`}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
         <span style="color:#0a53d8;font-weight:600">${_tacoTxtMadrid()}.</span>
-        Reglamento (CE) 561/2006 y umbrales de gravedad de la Instrucción Circular 1/2021 del Ministerio de
-        Transportes (Reglamento UE 2016/403 · ROTT). Descanso diario: 11h, o 9h reducido — las 3 reducciones se
+        Reglamento (CE) 561/2006. Umbrales de gravedad del <b>anexo III de la Resolución de 21/02/2025</b> de la
+        Dirección General de Transporte por Carretera (BOE 25/02/2025), que es la tabla vigente.
+        Descanso diario: 11h, o 9h reducido — las 3 reducciones se
         asignan a los 3 descansos más cortos entre dos semanales, como hace la aplicación del Ministerio.
         Diario sobre 9h: MG&lt;7h · G 7-8h · L 8-9h. Sobre 11h: MG&lt;8h30 · G 8h30-10h · L 10-11h.
         Semanal (ref. 45h): MG&lt;36h · G 36-42h · L ≥42h.
+        Conducción ininterrumpida (art. 7): pausa de 45 min tras 4h30, o 15 min y después 30 min en ese orden;
+        cuentan como pausa el descanso y la disponibilidad, «otros trabajos» no interrumpe.
+        MG≥6h · G 5-6h · L 4h30-5h.
         Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
         la cuantía exacta la fija la Administración.
         ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
-        <b>De momento solo se calculan los DESCANSOS</b> — los excesos de conducción (ininterrumpida y diaria)
-        vienen en el siguiente paso. Compara con ASG antes de hacer firmar nada.
+        <b>Faltan todavía</b> los excesos de conducción DIARIA (9h/10h), SEMANAL (56h) y BISEMANAL (90h),
+        y las prelaciones para no contar dos veces el mismo hecho. Compara con ASG antes de hacer firmar nada.
       </div>`;
   } catch (e) {
     console.error('[v469]', e);
@@ -27819,6 +27914,43 @@ function tacoIFverDet(ix) {
     <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
       La duración es la del descanso <b>dentro</b> de su ventana de 24h: lo que sobresale cuenta para el día siguiente.
       Compara este número de descansos con el que dice ASG en su propio detalle.
+    </div></div>`;
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// v479: el detalle de una conduccion ininterrumpida. Ensena el tramo de
+// volante entero y TODAS las paradas que hizo dentro, con sus minutos, para
+// ver de un vistazo por que ninguna valio como pausa reglamentaria.
+let _tacoIFdetC = [];
+
+function tacoIFverDetC(ix) {
+  const d = _tacoIFdetC[ix];
+  const p = document.getElementById('tacoIFdetPanel');
+  if (!p || !d) return;
+  const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const val = x => x.tr ? '<span style="color:var(--mu)">otros trabajos \u2014 no es pausa</span>'
+    : x.dur >= 45 ? '<span style="color:#1a8f3c;font-weight:600">v\u00e1lida (45 min o m\u00e1s)</span>'
+    : x.dur >= 30 ? '<span style="color:var(--wnd)">solo vale si antes hubo una de 15 min</span>'
+    : x.dur >= 15 ? '<span style="color:var(--wnd)">15 min \u2014 hace falta otra de 30 min despu\u00e9s</span>'
+    : '<span style="color:var(--erd)">menos de 15 min \u2014 no cuenta</span>';
+  p.style.display = '';
+  p.innerHTML = `<div style="border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:var(--bg2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
+      <b style="font-family:var(--mn);font-size:12px">Detalle de la conducci\u00f3n ininterrumpida</b>
+      <button class="btn bs" style="font-size:10.5px;padding:3px 9px" onclick="document.getElementById('tacoIFdetPanel').style.display='none'">\u2715 cerrar</button>
+    </div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:7px">
+      Al volante desde <b style="color:var(--tx)">${d.ini}</b> hasta <b style="color:var(--tx)">${d.fin}</b> \u00b7
+      conducci\u00f3n acumulada <b style="color:var(--erd)">${hm(d.dur)}h</b> \u00b7 el tope son <b>04:30h</b>.
+    </div>
+    ${d.pausas.length ? `<div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11px">
+      <thead><tr><th>Parada</th><th>Dur\u00f3</th><th>\u00bfVale como pausa?</th></tr></thead>
+      <tbody>${d.pausas.map(x => `<tr><td style="white-space:nowrap">${x.h}</td>
+        <td style="font-weight:700">${hm(x.dur)}</td><td>${val(x)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<div style="font-family:var(--mn);font-size:11px;color:var(--erd)">No hizo ninguna parada en todo el tramo.</div>'}
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
+      Art. 7 del Reglamento (CE) 561/2006: pausa seguida de 45 min, o 15 min y despu\u00e9s 30 min (en ese orden).
+      Cuentan como pausa el descanso y la disponibilidad; \u00abotros trabajos\u00bb no interrumpe la conducci\u00f3n.
     </div></div>`;
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
