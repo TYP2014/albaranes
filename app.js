@@ -20526,7 +20526,7 @@ async function tallerImportarKmExcel(file) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
     // Buscar la fila de cabecera (contiene "Matrícula" y "Cuentakilómetros")
-    let headerIdx = -1, colMat = -1, colKmFin = -1;
+    let headerIdx = -1, colMat = -1, colKmFin = -1, colFFin = -1;
     for (let i = 0; i < rows.length; i++) {
       // v476: la fila puede venir con HUECOS (celdas vacias). .map() los salta y
       // los deja como huecos, pero findIndex SI los recorre -> daba undefined y
@@ -20539,13 +20539,27 @@ async function tallerImportarKmExcel(file) {
       const jKm = fila.findIndex(c => (c.includes('cuentakil') || c.includes('km ') || c === 'km fin') && c.includes('fin'));
       const jKm2 = fila.findIndex(c => c.includes('cuentakil'));
       if (jMat >= 0 && (jKm >= 0 || jKm2 >= 0)) {
-        headerIdx = i; colMat = jMat; colKmFin = jKm >= 0 ? jKm : jKm2; break;
+        headerIdx = i; colMat = jMat; colKmFin = jKm >= 0 ? jKm : jKm2;
+        // v477: la columna "Fecha fin" = dia REAL de la ultima descarga de ese camion.
+        colFFin = fila.findIndex(c => c.includes('fecha') && c.includes('fin'));
+        break;
       }
     }
     if (headerIdx < 0) { toast('No reconozco el formato del Excel (falta Matrícula/Cuentakilómetros)', 'err'); return; }
 
-    let actualizados = 0, noEncontrados = [], saltadosCero = 0;
-    const fechaImport = new Date().toISOString().slice(0, 10);
+    // v477: dd/mm/aaaa -> aaaa-mm-dd. Si el Excel no trae fecha, se usa la de hoy
+    // (ultimo recurso), pero NUNCA se pisa la fecha real de la descarga si existe.
+    const toISO = (v) => {
+      const t = String(v == null ? '' : v).trim();
+      const m = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (m) { let y = m[3]; if (y.length === 2) y = '20' + y; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); }
+      const m2 = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m2 ? m2[0] : null;
+    };
+
+    let actualizados = 0, noEncontrados = [], saltadosCero = 0, sinFecha = 0;
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    let fMin = '', fMax = '';
     for (let i = headerIdx + 1; i < rows.length; i++) {
       const fila = rows[i] || [];
       const matRaw = String(fila[colMat] || '').toUpperCase().replace(/[\s-]/g, '').trim();
@@ -20556,12 +20570,24 @@ async function tallerImportarKmExcel(file) {
       if (!v) { noEncontrados.push(matRaw); continue; }
       // Solo actualizar si el km nuevo es mayor o igual al guardado (el cuentakm no baja)
       if (v.km_actual && kmVal < v.km_actual) continue;
+      // v477 (pedido de JC): la FECHA KM tiene que ser el dia REAL de la ultima
+      // descarga de ESE camion (columna "Fecha fin" del Excel), NO el dia en que
+      // se sube el fichero. Si en septiembre subo un Excel con datos de junio, la
+      // ficha tiene que decir junio - si no, el aviso de "km viejos" del taller
+      // miente y parece que los km estan al dia cuando no lo estan.
+      const fReal = colFFin >= 0 ? toISO(fila[colFFin]) : null;
+      if (!fReal) sinFecha++;
+      const fUsar = fReal || hoyISO;
+      if (fReal) { if (!fMin || fReal < fMin) fMin = fReal; if (!fMax || fReal > fMax) fMax = fReal; }
       const { error } = await sb.from('taller_vehiculos')
-        .update({ km_actual: kmVal, km_actual_fecha: fechaImport, updated_at: new Date().toISOString() })
+        .update({ km_actual: kmVal, km_actual_fecha: fUsar, updated_at: new Date().toISOString() })
         .eq('id', v.id);
       if (!error) actualizados++;
     }
+    const _dm = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
     let msg = `✅ ${actualizados} vehículos actualizados`;
+    if (fMax) msg += fMin === fMax ? ` · fecha de los km: ${_dm(fMax)}` : ` · fechas reales de descarga: ${_dm(fMin)} a ${_dm(fMax)}`;
+    if (sinFecha) msg += ` · ⚠️ ${sinFecha} sin fecha en el Excel (se les puso la de hoy)`;
     if (saltadosCero) msg += ` · ${saltadosCero} sin datos (km 0, ignorados)`;
     if (noEncontrados.length) msg += ` · ${noEncontrados.length} no encontrados: ${noEncontrados.slice(0, 5).join(', ')}${noEncontrados.length > 5 ? '...' : ''}`;
     toast(msg, actualizados ? 'ok' : 'err');
