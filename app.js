@@ -27383,12 +27383,24 @@ function tacoRep(cual) {
 const _TACO_INF_IMP = { L: '100€', G: '401€', MG: '1.001€' };
 const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 
-function _tacoInfGrav(faltan, esSemanal) {
-  if (esSemanal) return faltan <= 240 ? 'L' : 'G';
-  if (faltan <= 60) return 'L';
-  if (faltan <= 120) return 'G';
-  return 'MG';
-}
+// v473: TABLAS OFICIALES de gravedad, copiadas de los cuadros de la
+// INSTRUCCION CIRCULAR 1/2021 del Ministerio de Transportes (Subdireccion
+// General de Inspeccion de Transporte Terrestre), que es la que usan los
+// inspectores, y que remiten al Reglamento (UE) 2016/403 y al ROTT.
+// NO son deducciones mias del listado de ASG: son los umbrales escritos.
+//   Descanso diario sobre 9 h (DDR):   MG < 7h00 · G 7h00-8h00 · L 8h00-9h00
+//   Descanso diario sobre 11 h (DDN):  MG < 8h30 · G 8h30-10h00 · L 10h00-11h00
+//   Descanso semanal, referencia 45 h: MG < 36h · G 36h-42h · L >= 42h
+//   Descanso semanal super-reducido (menos de 24 h, referencia 24 h):
+//                                      MG < 20h · G 20h-22h · L >= 22h
+// OJO al cambio respecto a la v469: yo daba MUY GRAVE por debajo de 9 h en
+// el descanso sobre 11 h, y la tabla real dice 8h30. Un descanso de 8h45
+// sobre 11 h es GRAVE, no muy grave (401 EUR en vez de 1.001 EUR). Con el
+// listado de ANTON no se noto porque no habia ningun caso en esa franja.
+function _tacoGravDDR(d) { return d < 420 ? 'MG' : d < 480 ? 'G' : 'L'; }
+function _tacoGravDDN(d) { return d < 510 ? 'MG' : d < 600 ? 'G' : 'L'; }
+function _tacoGravDS(d)  { return d < 2160 ? 'MG' : d < 2520 ? 'G' : 'L'; }
+function _tacoGravDSRR(d){ return d < 1200 ? 'MG' : d < 1320 ? 'G' : 'L'; }
 
 // Monta la cinta de minutos del conductor (misma idea que la v468).
 // Devuelve { cinta, D0, nDias } con 0=no acreditado, 1=descanso, 2=trabajo.
@@ -27507,11 +27519,12 @@ async function tacoRepInfVer() {
     for (let i = 1; i < sems.length; i++) {
       const durA = sems[i - 1].fin - sems[i - 1].ini, durB = sems[i].fin - sems[i].ini;
       if (durA < 2700 && durB < 2700) {
-        const faltan = 2700 - durB;
+        // dos reducidos seguidos: el segundo TENIA que ser de 45 h,
+        // asi que se mide contra 45 h con la tabla oficial (art. 8.6)
         infra.push({
           fecha: iso(sems[i].fin - 1),
           txt: `Minoración del descanso semanal a ${hm(durB)}h (dos reducidos consecutivos)`,
-          tipo: _tacoInfGrav(faltan, true)
+          tipo: _tacoGravDS(durB)
         });
       }
     }
@@ -27545,13 +27558,25 @@ async function tacoRepInfVer() {
       const r = descs.find(x => x.ini >= a && (x.fin - x.ini) >= 540);
       return r ? r.fin : null;
     };
-    let cursor = arranque(0), reduc = 0, vueltas = 0;
-    // La ventana que no cabe entera en los datos NO se juzga: no se sabe lo
-    // que hizo despues (era el otro fallo que destapo JC pidiendo un solo dia).
+    // v473: EL METODO OFICIAL, punto 2.5.1 de la Instruccion 1/2021:
+    //   "Se miran todos los descansos diarios cuyos PDD se inicien entre dos
+    //    descansos semanales consecutivos. Se permite que se puedan hacer
+    //    hasta 3 DDR y el resto deberan ser DDN o DDF. Para determinar las
+    //    infracciones se ORDENAN los PDD de MENOR A MAYOR y se calculan las
+    //    minoraciones sobre 9 horas los TRES PRIMEROS y sobre 11 horas los
+    //    restantes."
+    // O sea: las tres reducciones NO se gastan por orden de llegada (que es
+    // lo que hacia la v469/v472), sino que se asignan A LOS TRES DESCANSOS
+    // MAS CORTOS del tramo, que es lo mas favorable al conductor. Por eso
+    // ASG decia "07:03h sobre 9h" donde la app decia "09:00h sobre 11h".
+    // Primero se recogen los descansos diarios (uno por ventana de 24 h),
+    // agrupados por TRAMO entre descansos semanales; despues se ordenan.
+    let cursor = arranque(0), vueltas = 0, tramo = 0;
+    const pdds = [];
     while (cursor !== null && cursor + 1440 <= cinta.length && vueltas++ < 4000) {
       const finVent = cursor + 1440;
       if (hayHueco(cursor, finVent)) {              // datos sin acreditar: no se juzga
-        noAcr++;
+        noAcr++; tramo++;
         const h = rachas.find(x => x.est === 0 && x.fin > cursor);
         cursor = h ? arranque(h.fin) : null;
         continue;
@@ -27562,23 +27587,29 @@ async function tacoRepInfVer() {
         .map(r => ({ r, dur: Math.min(r.fin, finVent) - r.ini }))
         .filter(x => x.dur >= 60);
       if (!cand.length) { cursor = finVent; continue; }
-      const elegido = cand.find(x => x.dur >= 660)                        // 11 h: correcto
-        || (reduc < 3 ? cand.find(x => x.dur >= 540) : null);             // 9 h: reducido
-      if (elegido) {
-        if ((elegido.r.fin - elegido.r.ini) >= 1440) reduc = 0;           // semanal: reinicia
-        else if (elegido.dur < 660) reduc++;
-        cursor = Math.max(elegido.r.fin, cursor + 1);
+      const mejor = cand.reduce((a, b) => b.dur > a.dur ? b : a);
+      if ((mejor.r.fin - mejor.r.ini) >= 1440) {    // es SEMANAL: cierra el tramo
+        tramo++;
+        cursor = Math.max(mejor.r.fin, cursor + 1);
         continue;
       }
-      const mejor = cand.reduce((a, b) => b.dur > a.dur ? b : a);
-      const exig = reduc < 3 ? 540 : 660;
-      infra.push({
-        fecha: iso(Math.min(mejor.r.fin, finVent) - 1),
-        txt: `Minoración del descanso diario a ${hm(mejor.dur)}h sobre ${exig / 60}h`,
-        tipo: _tacoInfGrav(exig - mejor.dur, false)
-      });
+      pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur });
       cursor = Math.max(mejor.r.fin, cursor + 1);
     }
+    // ordenar cada tramo de menor a mayor: 3 primeros sobre 9 h, resto sobre 11 h
+    const porTramo = new Map();
+    pdds.forEach(x => { if (!porTramo.has(x.tramo)) porTramo.set(x.tramo, []); porTramo.get(x.tramo).push(x); });
+    porTramo.forEach(lista => {
+      lista.slice().sort((a, b) => a.dur - b.dur).forEach((p, k) => {
+        const exig = k < 3 ? 540 : 660;             // 9 h los tres mas cortos, 11 h el resto
+        if (p.dur >= exig) return;
+        infra.push({
+          fecha: iso(p.fin - 1),
+          txt: `Minoración del descanso diario a ${hm(p.dur)}h sobre ${exig / 60}h`,
+          tipo: exig === 540 ? _tacoGravDDR(p.dur) : _tacoGravDDN(p.dur)
+        });
+      });
+    });
 
     // solo las del periodo pedido, ordenadas por fecha
     const lista = infra.filter(x => x.fecha >= desde && x.fecha <= hasta)
@@ -27620,8 +27651,13 @@ async function tacoRepInfVer() {
              Sin infracciones de descanso en este periodo.</div>`}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
         <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(desde, hasta)}.</span>
-        Reglamento (CE) 561/2006. Descanso diario: 11h, o 9h reducido (3 veces entre descansos semanales).
-        Descanso semanal: 45h; si el anterior fue reducido, el siguiente debe ser de 45h.
+        Reglamento (CE) 561/2006 y umbrales de gravedad de la Instrucción Circular 1/2021 del Ministerio de
+        Transportes (Reglamento UE 2016/403 · ROTT). Descanso diario: 11h, o 9h reducido — las 3 reducciones se
+        asignan a los 3 descansos más cortos entre dos semanales, como hace la aplicación del Ministerio.
+        Diario sobre 9h: MG&lt;7h · G 7-8h · L 8-9h. Sobre 11h: MG&lt;8h30 · G 8h30-10h · L 10-11h.
+        Semanal (ref. 45h): MG&lt;36h · G 36-42h · L ≥42h.
+        Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
+        la cuantía exacta la fija la Administración.
         ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
         <b>De momento solo se calculan los DESCANSOS</b> — los excesos de conducción (ininterrumpida y diaria)
         vienen en el siguiente paso. Compara con ASG antes de hacer firmar nada.
