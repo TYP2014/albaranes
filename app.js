@@ -27485,7 +27485,9 @@ async function tacoRepInfVer() {
     const id = quien.slice(2);
     const per = (_tacoInfPersonas || []).find(x => x.clave === quien);
     const nom = per?.nombre || id, emp = per?.empresa || '';
-    const dI = new Date(desde + 'T00:00:00Z'); dI.setUTCDate(dI.getUTCDate() - 14);
+    // v472: 21 dias de contexto (antes 14) para que el ancla encuentre
+    // siempre un descanso semanal anterior al periodo pedido.
+    const dI = new Date(desde + 'T00:00:00Z'); dI.setUTCDate(dI.getUTCDate() - 21);
     const desdeExt = dI.toISOString().slice(0, 10);
 
     const { cinta, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
@@ -27525,39 +27527,57 @@ async function tacoRepInfVer() {
     // correcta; si no, vale uno de 9 h mientras le queden reducciones (3
     // entre semanales); y solo si NINGUNO vale se apunta la infraccion,
     // con el MAS LARGO de la ventana, que es lo mejor que hizo ese dia.
+    // v472: EL DESCANSO SE MIDE DENTRO DE LA VENTANA, no entero.
+    // Lo enseño el detalle de ASG del 27/05 que mando JC: "Periodo (24 h.)
+    // entre las 05:09h dia 26/05 y las 05:09h dia 27/05. Descanso entre las
+    // 21:40h dia 26/05 y las 05:09h dia 27/05" = 7h29. ANTON siguio durmiendo
+    // hasta las 06:20, pero esa hora y pico YA ES DEL PERIODO SIGUIENTE y no
+    // cuenta para este. La app medía la racha entera (8h40) y por eso salia
+    // todo largo: justo 1h11 de mas, los mismos que sobresalen.
     const descs = rachas.filter(r => r.est === 1);
-    const reengancha = a => {                       // primer descanso >= 9 h desde 'a'
+    // ANCLA: el primer descanso SEMANAL (24 h o mas) del periodo de contexto.
+    // Es un punto de partida indiscutible, asi el resultado no cambia segun
+    // por donde se empiece a mirar (lo que hacia salir 3 infracciones el 27/05
+    // al pedir un solo dia y solo 1 al pedir el periodo entero).
+    const arranque = a => {
+      const w = descs.find(x => x.ini >= a && (x.fin - x.ini) >= 1440);
+      if (w) return w.fin;
       const r = descs.find(x => x.ini >= a && (x.fin - x.ini) >= 540);
       return r ? r.fin : null;
     };
-    let cursor = reengancha(0), reduc = 0, vueltas = 0;
-    while (cursor !== null && cursor < cinta.length && vueltas++ < 4000) {
-      const finVent = Math.min(cursor + 1440, cinta.length);
+    let cursor = arranque(0), reduc = 0, vueltas = 0;
+    // La ventana que no cabe entera en los datos NO se juzga: no se sabe lo
+    // que hizo despues (era el otro fallo que destapo JC pidiendo un solo dia).
+    while (cursor !== null && cursor + 1440 <= cinta.length && vueltas++ < 4000) {
+      const finVent = cursor + 1440;
       if (hayHueco(cursor, finVent)) {              // datos sin acreditar: no se juzga
         noAcr++;
         const h = rachas.find(x => x.est === 0 && x.fin > cursor);
-        cursor = h ? reengancha(h.fin) : null;
+        cursor = h ? arranque(h.fin) : null;
         continue;
       }
-      const cand = descs.filter(r => r.ini >= cursor && r.ini < finVent && (r.fin - r.ini) >= 60);
+      // candidatos: descansos que EMPIEZAN dentro de la ventana, medidos
+      // SOLO hasta el final de la ventana (lo que sobresale es del siguiente)
+      const cand = descs.filter(r => r.ini >= cursor && r.ini < finVent)
+        .map(r => ({ r, dur: Math.min(r.fin, finVent) - r.ini }))
+        .filter(x => x.dur >= 60);
       if (!cand.length) { cursor = finVent; continue; }
-      const elegido = cand.find(r => (r.fin - r.ini) >= 660)                       // 11 h: correcto
-        || (reduc < 3 ? cand.find(r => (r.fin - r.ini) >= 540) : null);            // 9 h: reducido
+      const elegido = cand.find(x => x.dur >= 660)                        // 11 h: correcto
+        || (reduc < 3 ? cand.find(x => x.dur >= 540) : null);             // 9 h: reducido
       if (elegido) {
-        const d = elegido.fin - elegido.ini;
-        if (d >= 1440) reduc = 0; else if (d < 660) reduc++;
-        cursor = Math.max(elegido.fin, cursor + 1);
+        if ((elegido.r.fin - elegido.r.ini) >= 1440) reduc = 0;           // semanal: reinicia
+        else if (elegido.dur < 660) reduc++;
+        cursor = Math.max(elegido.r.fin, cursor + 1);
         continue;
       }
-      const mejor = cand.reduce((a, b) => (b.fin - b.ini) > (a.fin - a.ini) ? b : a);
-      const dur = mejor.fin - mejor.ini;
+      const mejor = cand.reduce((a, b) => b.dur > a.dur ? b : a);
       const exig = reduc < 3 ? 540 : 660;
       infra.push({
-        fecha: iso(mejor.fin - 1),
-        txt: `Minoración del descanso diario a ${hm(dur)}h sobre ${exig / 60}h`,
-        tipo: _tacoInfGrav(exig - dur, false)
+        fecha: iso(Math.min(mejor.r.fin, finVent) - 1),
+        txt: `Minoración del descanso diario a ${hm(mejor.dur)}h sobre ${exig / 60}h`,
+        tipo: _tacoInfGrav(exig - mejor.dur, false)
       });
-      cursor = Math.max(mejor.fin, cursor + 1);
+      cursor = Math.max(mejor.r.fin, cursor + 1);
     }
 
     // solo las del periodo pedido, ordenadas por fecha
