@@ -27397,6 +27397,21 @@ const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 // el descanso sobre 11 h, y la tabla real dice 8h30. Un descanso de 8h45
 // sobre 11 h es GRAVE, no muy grave (401 EUR en vez de 1.001 EUR). Con el
 // listado de ANTON no se noto porque no habia ningun caso en esa franja.
+// v475: distintivos de color de ASGTrans. JC: "los colores, cambialos y
+// ponlos igual o parecidos a ASGTrans, tamaño y demas". Verde leve, ambar
+// grave, rojo muy grave; el importe con el mismo color que su gravedad; la
+// honorabilidad con la letra del anexo destacada (C ambar, B roja).
+const _TACO_INF_COL = { L: '#5cb85c', G: '#f0ad4e', MG: '#d9534f' };
+function _tacoPill(tipo, txt) {
+  return '<span style="display:inline-block;background:' + (_TACO_INF_COL[tipo] || '#888')
+    + ';color:#fff;border-radius:4px;padding:3px 11px;font-size:11.5px;font-weight:700;'
+    + 'white-space:nowrap;min-width:40px;text-align:center">' + txt + '</span>';
+}
+function _tacoHon(tipo) {
+  if (tipo === 'L') return '<span style="color:var(--mu)">-</span>';
+  const letra = tipo === 'MG' ? 'B' : 'C';
+  return 'Anexo I <b style="color:' + (tipo === 'MG' ? '#d9534f' : '#f0ad4e') + '">' + letra + '</b>';
+}
 function _tacoGravDDR(d) { return d < 420 ? 'MG' : d < 480 ? 'G' : 'L'; }
 function _tacoGravDDN(d) { return d < 510 ? 'MG' : d < 600 ? 'G' : 'L'; }
 function _tacoGravDS(d)  { return d < 2160 ? 'MG' : d < 2520 ? 'G' : 'L'; }
@@ -27593,20 +27608,32 @@ async function tacoRepInfVer() {
         cursor = Math.max(mejor.r.fin, cursor + 1);
         continue;
       }
-      pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur });
+      pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur,
+        ventIni: cursor, ventFin: finVent, dIni: mejor.r.ini, dFin: mejor.r.fin });
       cursor = Math.max(mejor.r.fin, cursor + 1);
     }
     // ordenar cada tramo de menor a mayor: 3 primeros sobre 9 h, resto sobre 11 h
     const porTramo = new Map();
     pdds.forEach(x => { if (!porTramo.has(x.tramo)) porTramo.set(x.tramo, []); porTramo.get(x.tramo).push(x); });
-    porTramo.forEach(lista => {
-      lista.slice().sort((a, b) => a.dur - b.dur).forEach((p, k) => {
+    // v474: se guarda ademas el DETALLE de cada tramo (como el de ASG) para
+    // poder comparar: que descansos se han tomado por diarios, entre que
+    // horas, y contra que limite se ha medido cada uno.
+    const fh2 = a => { const d = new Date(D0 + a * 60000).toISOString(); return d.slice(8, 10) + '/' + d.slice(5, 7) + ' ' + d.slice(11, 16); };
+    porTramo.forEach((lista, nTramo) => {
+      const orden = lista.slice().sort((a, b) => a.dur - b.dur);
+      const det = orden.map((p, k) => ({
+        dur: p.dur, exig: k < 3 ? 540 : 660, orden: k + 1,
+        desde: fh2(p.dIni), hasta: fh2(p.dFin),
+        vent: fh2(p.ventIni) + ' \u2192 ' + fh2(p.ventFin)
+      })).sort((a, b) => a.desde < b.desde ? -1 : 1);
+      orden.forEach((p, k) => {
         const exig = k < 3 ? 540 : 660;             // 9 h los tres mas cortos, 11 h el resto
         if (p.dur >= exig) return;
         infra.push({
           fecha: iso(p.fin - 1),
-          txt: `Minoración del descanso diario a ${hm(p.dur)}h sobre ${exig / 60}h`,
-          tipo: exig === 540 ? _tacoGravDDR(p.dur) : _tacoGravDDN(p.dur)
+          txt: `Minoraci\u00f3n del descanso diario a ${hm(p.dur)}h sobre ${exig / 60}h`,
+          tipo: exig === 540 ? _tacoGravDDR(p.dur) : _tacoGravDDN(p.dur),
+          det: det, nTramo: nTramo, nDR: orden.filter(x => x.dur < 660).length
         });
       });
     });
@@ -27620,13 +27647,16 @@ async function tacoRepInfVer() {
     const total = nL * 100 + nG * 401 + nMG * 1001;
     _tacoIFultimo = { nom, emp, desde, hasta, lista, total, nL, nG, nMG };
 
-    const col = { L: '#1a8f3c', G: '#e08600', MG: '#e51c23' };
-    const filas = lista.map(x => `<tr>
+    // v475: los colores de ASGTrans (verde leve, ambar grave, rojo muy grave),
+    // en distintivos redondeados como los suyos, y no como letra suelta.
+    const col = _TACO_INF_COL;
+    _tacoIFdet = lista.map(x => x.det || null);
+    const filas = lista.map((x, ix) => `<tr>
       <td style="white-space:nowrap">${dmy(x.fecha)}</td>
-      <td>${x.txt}</td>
-      <td style="text-align:center"><b style="color:${col[x.tipo]}">${x.tipo}</b></td>
-      <td style="text-align:right;white-space:nowrap">${_TACO_INF_IMP[x.tipo]}</td>
-      <td style="text-align:center;font-size:10.5px">${_TACO_INF_HON[x.tipo]}</td>
+      <td>${x.txt}${x.det ? ` <a href="#" onclick="tacoIFverDet(${ix});return false" style="font-size:10px;color:#0a53d8;text-decoration:none">🔍 detalle</a>` : ''}</td>
+      <td style="text-align:center">${_tacoPill(x.tipo, x.tipo)}</td>
+      <td style="text-align:center;white-space:nowrap">${_tacoPill(x.tipo, _TACO_INF_IMP[x.tipo])}</td>
+      <td style="text-align:center;font-size:11px">${_tacoHon(x.tipo)}</td>
     </tr>`).join('');
 
     out.innerHTML = `
@@ -27638,14 +27668,21 @@ async function tacoRepInfVer() {
         <button class="btn bp" style="padding:5px 12px;font-size:11.5px" onclick="tacoInfNotif()"
           title="Abre la notificación maquetada con las casillas de firma.">🖨 Notificación para firmar</button>
       </div>
-      <div style="display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mn);font-size:12px;margin-bottom:10px">
-        <span>Leves: <b style="color:${col.L}">${nL}</b></span>
-        <span>Graves: <b style="color:${col.G}">${nG}</b></span>
-        <span>Muy graves: <b style="color:${col.MG}">${nMG}</b></span>
-        <span>Total sanciones: <b>${total.toLocaleString('es-ES')} €</b></span>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px">
+        ${_tacoPill('L', 'L = Leve')} ${_tacoPill('G', 'G = Grave')} ${_tacoPill('MG', 'MG = Muy grave')}
       </div>
-      ${lista.length ? `<div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
-        <thead><tr><th>Fecha</th><th>Infracción</th><th>Tipo</th><th>Importe</th><th>Honorabilidad</th></tr></thead>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:12px;font-size:12.5px">
+        <span style="color:var(--mu)">Leves <b style="color:${col.L}">${nL}</b></span>
+        <span style="color:var(--mu)">Graves <b style="color:${col.G}">${nG}</b></span>
+        <span style="color:var(--mu)">Muy graves <b style="color:${col.MG}">${nMG}</b></span>
+        <span style="background:#17a2b8;color:#fff;border-radius:4px;padding:5px 14px;font-weight:700;letter-spacing:.4px">
+          TOTAL INFRACCIONES: ${total.toLocaleString('es-ES')} €</span>
+      </div>
+      <div id="tacoIFdetPanel" style="display:none;margin-bottom:10px"></div>
+      ${lista.length ? `<div style="overflow-x:auto"><table class="tt" style="width:100%;font-size:12.5px">
+        <thead><tr><th style="text-align:center">Fecha</th><th style="text-align:center">Infracción</th>
+        <th style="text-align:center">Tipo</th><th style="text-align:center">Importe</th>
+        <th style="text-align:center">Honorabilidad</th></tr></thead>
         <tbody>${filas}</tbody></table></div>`
         : `<div style="font-family:var(--mn);font-size:12px;color:#1a8f3c;padding:8px 0">
              Sin infracciones de descanso en este periodo.</div>`}
@@ -27668,6 +27705,48 @@ async function tacoRepInfVer() {
   }
 }
 
+// v474: EL DETALLE DEL TRAMO, como el que enseña ASG al pinchar el
+// cuadradito del grafico. Sirve para COMPARAR: que descansos ha tomado la
+// app por diarios en ese tramo entre semanales, entre que horas, contra que
+// limite se ha medido cada uno (9 h los tres mas cortos, 11 h el resto) y
+// cual es la ventana de 24 h de la que sale. Si ASG y la app cuentan un
+// numero distinto de descansos reducidos, aqui se ve a la primera.
+let _tacoIFdet = [];
+
+function tacoIFverDet(ix) {
+  const det = _tacoIFdet[ix];
+  const p = document.getElementById('tacoIFdetPanel');
+  if (!p || !det) return;
+  const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const nDR = det.filter(x => x.dur < 660).length;
+  p.style.display = '';
+  p.innerHTML = `<div style="border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:var(--bg2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
+      <b style="font-family:var(--mn);font-size:12px">Detalle del tramo entre dos descansos semanales</b>
+      <button class="btn bs" style="font-size:10.5px;padding:3px 9px" onclick="document.getElementById('tacoIFdetPanel').style.display='none'">✕ cerrar</button>
+    </div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:7px">
+      Descansos diarios encontrados: <b style="color:var(--tx)">${det.length}</b> ·
+      de ellos reducidos (menos de 11h): <b style="color:var(--tx)">${nDR}</b>
+      — los <b>3 más cortos</b> se miden sobre 9h y el resto sobre 11h.
+    </div>
+    <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11px">
+      <thead><tr><th>Descanso</th><th>Duración</th><th>Se mide sobre</th><th>Ventana de 24h</th><th>¿Infringe?</th></tr></thead>
+      <tbody>${det.map(d => `<tr>
+        <td style="white-space:nowrap">${d.desde} → ${d.hasta}</td>
+        <td style="font-weight:700">${hm(d.dur)}</td>
+        <td>${d.exig / 60}h <span style="color:var(--mu)">(el ${d.orden}º más corto)</span></td>
+        <td style="white-space:nowrap;color:var(--mu)">${d.vent}</td>
+        <td style="color:${d.dur < d.exig ? 'var(--erd)' : '#1a8f3c'};font-weight:600">${d.dur < d.exig ? 'SÍ' : 'no'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
+      La duración es la del descanso <b>dentro</b> de su ventana de 24h: lo que sobresale cuenta para el día siguiente.
+      Compara este número de descansos con el que dice ASG en su propio detalle.
+    </div></div>`;
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 // La NOTIFICACION para firmar, copiada del modelo real de ASG que paso JC.
 function tacoInfNotif() {
   const u = _tacoIFultimo;
@@ -27677,13 +27756,17 @@ function tacoInfNotif() {
   const MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const h = new Date();
   const hoyTxt = `${String(h.getDate()).padStart(2, '0')} de ${MES[h.getMonth()]} de ${h.getFullYear()}`;
+  // v475: mismos distintivos de color que ASGTrans tambien en el papel
+  const pill = (t, x) => `<span class="pill p${t}">${x}</span>`;
+  const hon = t => t === 'L' ? '-' : `Anexo I <b class="h${t}">${t === 'MG' ? 'B' : 'C'}</b>`;
   const filas = u.lista.map(x => `<tr><td>${dmy(x.fecha)}</td><td class="iz">${x.txt}</td>
-    <td>${x.tipo}</td><td>${_TACO_INF_IMP[x.tipo]}</td><td>${_TACO_INF_HON[x.tipo]}</td></tr>`).join('');
+    <td>${pill(x.tipo, x.tipo)}</td><td>${pill(x.tipo, _TACO_INF_IMP[x.tipo])}</td><td>${hon(x.tipo)}</td></tr>`).join('');
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>Notificación de infracciones · ${u.nom}</title>
 <style>
   @page { size: A4; margin: 14mm 12mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #1e2933; font-size: 10.5px; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1e2933; font-size: 10.5px; margin: 0;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .bloq { border: 1px solid #97a3ad; padding: 6px 9px; margin-bottom: 8px; }
   .bloq b.t { display: block; font-size: 9px; letter-spacing: 1px; color: #55616c; margin-bottom: 3px; }
   .fecha { text-align: right; margin: 10px 0; }
@@ -27693,6 +27776,11 @@ function tacoInfNotif() {
   th, td { border: 1px solid #97a3ad; padding: 3px 5px; text-align: center; font-size: 9.5px; }
   th { background: #eef1f4; }
   td.iz { text-align: left; }
+  .pill { display: inline-block; border-radius: 4px; padding: 2px 9px; color: #fff; font-weight: bold; font-size: 9px; }
+  .pL { background: #5cb85c; } .pG { background: #f0ad4e; } .pMG { background: #d9534f; }
+  .hC { color: #f0ad4e; } .hMG, .hB { color: #d9534f; }
+  .leyenda { text-align: center; margin: 8px 0 4px; }
+  .leyenda .pill { margin: 0 4px; }
   .firmas { display: flex; gap: 24px; margin-top: 26px; page-break-inside: avoid; }
   .firma { flex: 1; border: 1px solid #97a3ad; padding: 8px 10px; height: 84px; }
   .firma b { font-size: 10px; }
@@ -27713,6 +27801,7 @@ function tacoInfNotif() {
 indicado anteriormente, se han detectado las siguientes infracciones al REGLAMENTO (CE) nº 561/2006 DEL PARLAMENTO
 EUROPEO Y DEL CONSEJO, de 15 de marzo de 2006 y/o al REGLAMENTO (UE) nº 165/2014 DEL PARLAMENTO EUROPEO Y
 DEL CONSEJO, de 4 de febrero de 2014:</p>
+<div class="leyenda"><span class="pill pL">L = Leve</span><span class="pill pG">G = Grave</span><span class="pill pMG">MG = Muy grave</span></div>
 <table><thead><tr><th>Fecha</th><th>Infracción</th><th>Tipo</th><th>Importe</th><th>Honorabilidad</th></tr></thead>
 <tbody>${filas}</tbody></table>
 <p>Hay dos variantes que llevan a la pérdida de la honorabilidad: una de ellas directa, por la comisión de algunas de las
