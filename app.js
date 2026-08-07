@@ -27694,6 +27694,59 @@ function _tacoPCD(act) {
   return out;
 }
 
+// ============================================================
+// v483 - CONDUCCION SEMANAL (56h) Y BISEMANAL (90h)
+//
+// LA NORMA (Reglamento CE 561/2006, art. 6.2 y 6.3): en una
+// SEMANA NATURAL - lunes 00:00 a domingo 24:00, y natural quiere
+// decir de calendario, no "siete dias desde que empezo" - no se
+// pueden conducir mas de 56 horas. Y en DOS semanas naturales
+// consecutivas, no mas de 90. O sea que si una semana se hacen
+// 56, en la siguiente solo caben 34.
+//
+// EL LIO DEL DIA: aqui SI mandan los dias de calendario, no las
+// jornadas entre descansos. Y el dia de calendario es el
+// ESPAÑOL, no el UTC del fichero. Por eso hay que partir la
+// cinta por las medianoches de Madrid, que no caen siempre en el
+// mismo minuto: en invierno la medianoche española son las 23:00
+// UTC y en verano las 22:00. La funcion _tacoDiasCond mira, dia
+// por dia, a que hora va el reloj de Madrid y corta ahi - asi el
+// fin de semana del cambio de hora sale bien solo, sin apuntar
+// ninguna fecha a mano.
+//
+// GRAVEDAD (BOE 25/02/2025, anexo III):
+//   semanal   (B9-B12) : L 56-60h · G 60-65h · MG 65-70h · A 70h+
+//   bisemanal (B13-B16): L 90-100h · G 100-105h · MG 105-112h30
+//                        · A 112h30+
+//
+// PRUDENCIA: aqui la falta de datos NO PUEDE ACUSAR A NADIE. Si
+// falta una descarga, la suma sale MAS CORTA de lo que fue, asi
+// que un hueco jamas inventa una infraccion - como mucho esconde
+// una. Lo unico que se exige es que la semana entera quepa
+// dentro de lo descargado; una semana a medias por el borde del
+// periodo no se juzga.
+// ============================================================
+function _tacoGravPCS(d) { return d >= 4200 ? 'LIMG' : d >= 3900 ? 'MG' : d >= 3600 ? 'G' : 'L'; }
+function _tacoGravPCB(d) { return d >= 6750 ? 'LIMG' : d >= 6300 ? 'MG' : d >= 6000 ? 'G' : 'L'; }
+
+// Minutos de volante de cada DIA ESPAÑOL de la cinta
+function _tacoDiasCond(act, D0, nDias) {
+  // a que minuto de la cinta empieza la medianoche española del dia k
+  const cero = k => {
+    const o = _tacoMadP(D0 + k * 86400000);        // en UTC 00:00 Madrid marca 01:00 o 02:00
+    return k * 1440 - ((+o.hour) * 60 + (+o.minute));
+  };
+  const out = [];
+  for (let k = 0; k < nDias; k++) {
+    const ini = cero(k), fin = (k + 1 < nDias) ? cero(k + 1) : nDias * 1440;
+    if (ini < 0 || fin > act.length || fin <= ini) continue;   // dia incompleto por el borde
+    let cond = 0;
+    for (let i = ini; i < fin; i++) if (act[i] === 4) cond++;
+    out.push({ iso: _tacoMadISO(D0 + k * 86400000), cond });
+  }
+  return out;
+}
+
 async function tacoRepInfUI() {
   const panel = document.getElementById('tacoRepPanel');
   const p = await _tacoInfCargarPersonas();
@@ -27745,7 +27798,7 @@ async function tacoRepInfVer() {
     const dI = new Date(desde + 'T00:00:00Z'); dI.setUTCDate(dI.getUTCDate() - 21);
     const desdeExt = dI.toISOString().slice(0, 10);
 
-    const { cinta, act, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
+    const { cinta, act, D0, nDias } = await _tacoCintaCond(id, desdeExt, hasta);
     const rachas = _tacoRachas(cinta);
     const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const iso = a => _tacoMadISO(D0 + a * 60000);        // v478: fecha en hora de España
@@ -27916,6 +27969,55 @@ async function tacoRepInfVer() {
       });
     });
 
+    // ---------- CONDUCCION SEMANAL Y BISEMANAL (v483) ----------
+    const dias = _tacoDiasCond(act, D0, nDias);
+    const sem = new Map();                       // lunes -> { dias:[], total }
+    dias.forEach(d => {
+      const l = _tacoLunes(d.iso);
+      if (!sem.has(l)) sem.set(l, { dias: [], total: 0 });
+      const s = sem.get(l);
+      s.dias.push(d); s.total += d.cond;
+    });
+    // solo las semanas que caben ENTERAS en lo descargado (7 dias)
+    const semOk = [...sem.entries()].filter(([, s]) => s.dias.length === 7)
+      .sort((x, y) => x[0] < y[0] ? -1 : 1);
+
+    semOk.forEach(([lun, s]) => {
+      if (s.total <= 3360) return;               // 56 h
+      infra.push({
+        fecha: s.dias[6].iso,                    // el domingo: es cuando se cierra la semana
+        txt: `Superaci\u00f3n de la conducci\u00f3n semanal a ${hm(s.total)}h sobre 56h`,
+        tipo: _tacoGravPCS(s.total),
+        detW: {
+          tit: `Semana del ${_tacoDMY2(lun)} al ${_tacoDMY2(s.dias[6].iso)}`,
+          lim: 3360, total: s.total,
+          filas: s.dias.map(d => ({ et: `${_tacoDiaSemana(d.iso)} ${_tacoDMY2(d.iso)}`, dur: d.cond }))
+        }
+      });
+    });
+
+    // bisemanal: dos semanas naturales CONSECUTIVAS, las dos enteras
+    for (let i = 1; i < semOk.length; i++) {
+      const [lunA, sA] = semOk[i - 1], [lunB, sB] = semOk[i];
+      // que sean seguidas de verdad (7 dias justos entre lunes y lunes)
+      if (Math.round((Date.parse(lunB + 'T12:00:00Z') - Date.parse(lunA + 'T12:00:00Z')) / 86400000) !== 7) continue;
+      const tot = sA.total + sB.total;
+      if (tot <= 5400) continue;                 // 90 h
+      infra.push({
+        fecha: sB.dias[6].iso,
+        txt: `Superaci\u00f3n de la conducci\u00f3n bisemanal a ${hm(tot)}h sobre 90h`,
+        tipo: _tacoGravPCB(tot),
+        detW: {
+          tit: `Dos semanas seguidas: del ${_tacoDMY2(lunA)} al ${_tacoDMY2(sB.dias[6].iso)}`,
+          lim: 5400, total: tot,
+          filas: [
+            { et: `Semana del ${_tacoDMY2(lunA)}`, dur: sA.total },
+            { et: `Semana del ${_tacoDMY2(lunB)}`, dur: sB.total }
+          ]
+        }
+      });
+    }
+
     // solo las del periodo pedido, ordenadas por fecha
     const lista = infra.filter(x => x.fecha >= desde && x.fecha <= hasta)
       .sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
@@ -27932,10 +28034,11 @@ async function tacoRepInfVer() {
     _tacoIFdet = lista.map(x => x.det || null);
     _tacoIFdetC = lista.map(x => x.detC || null);
     _tacoIFdetD = lista.map(x => x.detD || null);
+    _tacoIFdetW = lista.map(x => x.detW || null);
     const lupa = (fn, ix) => ` <a href="#" onclick="${fn}(${ix});return false" style="font-size:10px;color:#0a53d8;text-decoration:none">🔍 detalle</a>`;
     const filas = lista.map((x, ix) => `<tr>
       <td style="white-space:nowrap">${dmy(x.fecha)}</td>
-      <td>${x.txt}${x.det ? lupa('tacoIFverDet', ix) : x.detC ? lupa('tacoIFverDetC', ix) : x.detD ? lupa('tacoIFverDetD', ix) : ''}</td>
+      <td>${x.txt}${x.det ? lupa('tacoIFverDet', ix) : x.detC ? lupa('tacoIFverDetC', ix) : x.detD ? lupa('tacoIFverDetD', ix) : x.detW ? lupa('tacoIFverDetW', ix) : ''}</td>
       <td style="text-align:center">${_tacoPill(x.tipo, x.tipo)}</td>
       <td style="text-align:center;white-space:nowrap">${_tacoPill(x.tipo, _TACO_INF_IMP[x.tipo])}</td>
       <td style="text-align:center;font-size:11px">${_tacoHon(x.tipo)}</td>
@@ -27984,13 +28087,14 @@ async function tacoRepInfVer() {
         Conducción diaria (art. 6.1): lo conducido entre dos descansos diarios, no por día de calendario;
         en cada semana natural las 2 más largas se miden sobre 10h y el resto sobre 9h.
         Sobre 9h: A≥13h30 · MG 11-13h30 · G 10-11h · L 9-10h. Sobre 10h: A≥15h · MG 12-15h · G 11-12h · L 10-11h.
+        Conducción semanal (art. 6.2), semana natural de lunes a domingo, máximo 56h: A≥70h · MG 65-70h · G 60-65h · L 56-60h.
+        Bisemanal (art. 6.3), dos semanas naturales seguidas, máximo 90h: A≥112h30 · MG 105-112h30 · G 100-105h · L 90-100h.
         Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
         la cuantía exacta la fija la Administración.
         ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
-        <b>Faltan todavía</b> los excesos de conducción SEMANAL (56h) y BISEMANAL (90h), y sobre todo las
-        <b>PRELACIONES</b>: mientras no estén, un mismo día con exceso de conducción Y falta de descanso puede
-        salir DOS veces, cuando la norma manda quedarse solo con la más grave. Compara con ASG antes de hacer
-        firmar nada.
+        <b>Falta todavía</b> lo más importante: las <b>PRELACIONES</b>. Mientras no estén, un mismo día con
+        exceso de conducción Y falta de descanso puede salir DOS veces, cuando la norma manda quedarse solo con
+        la más grave. Compara con ASG antes de hacer firmar nada.
       </div>`;
   } catch (e) {
     console.error('[v469]', e);
@@ -28113,6 +28217,40 @@ function tacoIFverDetD(ix) {
     <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
       Una conducci\u00f3n diaria es lo conducido <b>entre dos descansos diarios</b> (9h o m\u00e1s), no lo conducido
       en un d\u00eda de calendario: una jornada de 22:00 a 08:00 es UNA sola aunque toque dos fechas.
+    </div></div>`;
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// v483: el detalle de una conduccion semanal o bisemanal. Desglosa de donde
+// sale la suma - dia a dia en la semanal, semana a semana en la bisemanal -
+// para poder cuadrarlo con ASG sin adivinar.
+let _tacoIFdetW = [];
+
+function tacoIFverDetW(ix) {
+  const d = _tacoIFdetW[ix];
+  const p = document.getElementById('tacoIFdetPanel');
+  if (!p || !d) return;
+  const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  p.style.display = '';
+  p.innerHTML = `<div style="border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:var(--bg2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
+      <b style="font-family:var(--mn);font-size:12px">${d.tit}</b>
+      <button class="btn bs" style="font-size:10.5px;padding:3px 9px" onclick="document.getElementById('tacoIFdetPanel').style.display='none'">\u2715 cerrar</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11px">
+      <tbody>${d.filas.map(f => `<tr><td>${f.et}</td>
+        <td style="text-align:right;font-weight:${f.dur ? '700' : '400'};color:${f.dur ? 'var(--tx)' : 'var(--mu)'}">${f.dur ? hm(f.dur) : '—'}</td></tr>`).join('')}
+        <tr><td style="border-top:2px solid var(--bd);font-weight:700">TOTAL</td>
+        <td style="border-top:2px solid var(--bd);text-align:right;font-weight:700;color:var(--erd)">${hm(d.total)}</td></tr>
+        <tr><td style="color:var(--mu)">M\u00e1ximo permitido</td>
+        <td style="text-align:right;color:var(--mu)">${d.lim / 60}:00</td></tr>
+        <tr><td style="color:var(--erd);font-weight:600">Se pas\u00f3 de</td>
+        <td style="text-align:right;color:var(--erd);font-weight:700">${hm(d.total - d.lim)}</td></tr>
+      </tbody>
+    </table></div>
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
+      Semana <b>natural</b>: de lunes 00:00 a domingo 24:00, en hora española. Si falta alguna descarga la suma
+      sale m\u00e1s corta de lo que fue, nunca m\u00e1s larga: un hueco no puede inventar esta infracci\u00f3n.
     </div></div>`;
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
