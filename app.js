@@ -20528,9 +20528,15 @@ async function tallerImportarKmExcel(file) {
     // Buscar la fila de cabecera (contiene "Matrícula" y "Cuentakilómetros")
     let headerIdx = -1, colMat = -1, colKmFin = -1;
     for (let i = 0; i < rows.length; i++) {
-      const fila = (rows[i] || []).map(c => String(c || '').toLowerCase());
+      // v476: la fila puede venir con HUECOS (celdas vacias). .map() los salta y
+      // los deja como huecos, pero findIndex SI los recorre -> daba undefined y
+      // reventaba en c.includes. Array.from({length}) los rellena con ''.
+      const _raw = rows[i] || [];
+      const fila = Array.from({ length: _raw.length }, (_, k) => String(_raw[k] == null ? '' : _raw[k]).toLowerCase());
       const jMat = fila.findIndex(c => c.includes('matr'));
-      const jKm = fila.findIndex(c => c.includes('cuentakil') && c.includes('fin'));
+      // v476: acepta "Cuentakilometros fin" (ASG Trans) y tambien "Km fin"
+      // (el Excel que saca la propia pestana de Tacografo · Km/Gasoleo).
+      const jKm = fila.findIndex(c => (c.includes('cuentakil') || c.includes('km ') || c === 'km fin') && c.includes('fin'));
       const jKm2 = fila.findIndex(c => c.includes('cuentakil'));
       if (jMat >= 0 && (jKm >= 0 || jKm2 >= 0)) {
         headerIdx = i; colMat = jMat; colKmFin = jKm >= 0 ? jKm : jKm2; break;
@@ -20566,6 +20572,15 @@ async function tallerImportarKmExcel(file) {
   }
   // Limpiar el input para poder re-subir el mismo archivo
   const inp = document.getElementById('tallerExcelInput'); if (inp) inp.value = '';
+}
+
+// v476: aceptar el Excel de km ARRASTRADO y soltado sobre el botón de TALLER
+// (igual que en Gasoil desde la v233). El pinchar-para-buscar sigue igual.
+function tallerKmDrop(ev) {
+  const f = ev && ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (!f) return;
+  if (!/\.(xls|xlsx)$/i.test(f.name || '')) { toast('Arrastra un Excel (.xls o .xlsx) de km', 'warn'); return; }
+  tallerImportarKmExcel(f);
 }
 
 // v233: aceptar el Excel de km del tacógrafo ARRASTRADO y soltado sobre el botón
