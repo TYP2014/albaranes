@@ -27305,6 +27305,325 @@ function tacoRep(cual) {
   if (cual === 'sintarjeta') { tacoRepSinTarjUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   // v437
   if (cual === 'km') { tacoRepKmUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }                 // v461
   if (cual === 'descansos') { tacoRepDescUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }        // v468
+  if (cual === 'infracciones') { tacoRepInfUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }      // v469
+}
+
+// ============================================================
+// v469 · LISTADO DE INFRACCIONES (descansos) + NOTIFICACION
+//
+// El objetivo REAL que explico JC: no es la multa (muchas no se
+// llegan a poner nunca), es tener el PAPEL FIRMADO. "Te aviso de
+// que estas haciendo mal los descansos". Si el conductor persiste,
+// queda constancia de que se le advirtio.
+//
+// LAS REGLAS salen del listado real de ASG de ANTON (01/05 a
+// 04/08/2026, 30 infracciones), no de una interpretacion mia. La
+// escalera de gravedad cuadra con las 30, una a una:
+//   DESCANSO DIARIO (11h, o 9h si le queda reduccion):
+//     falta <=1h -> LEVE ; >1h a 2h -> GRAVE ; >2h -> MUY GRAVE
+//     comprobado: 08:32 sobre 9h (faltan 28min) = L
+//                 07:29 sobre 9h (faltan 1h31) = G
+//                 06:45 sobre 9h (faltan 2h15) = MG
+//                 10:50 sobre 11h (faltan 10min) = L
+//                 09:36 sobre 11h (faltan 1h24) = G
+//   DESCANSO SEMANAL (45h cuando el anterior ya fue reducido):
+//     falta <=4h -> LEVE ; >4h -> GRAVE
+//     comprobado: 43:08 (faltan 1h52) = L ; 42:48 (2h12) = L
+//                 38:01 (6h59) = G ; 38:13 (6h47) = G ; 37:35 (7h25) = G
+//   Importes: 100 EUR leve · 401 grave · 1.001 muy grave
+//   Honorabilidad: grave -> Anexo I C ; muy grave -> Anexo I B
+//
+// COMO SE BUSCA EL DESCANSO DIARIO: por VENTANAS DE 24 h, no por
+// dias de calendario. Desde que termina un descanso, el conductor
+// tiene 24 h para hacer el siguiente; se coge la racha de descanso
+// MAS LARGA que empiece dentro de esa ventana y se compara con lo
+// exigido (11 h, o 9 h si aun le quedan reducciones: 3 entre dos
+// descansos semanales). Por eso hace falta la cinta de minutos de
+// la v468: un descanso cruza medianoche casi siempre.
+//
+// LOS HUECOS NO INVENTAN NADA (lo mas importante de todo): si en
+// una ventana de 24 h hay un solo minuto NO ACREDITADO (dia sin
+// descarga subida o dia parcial de la propia descarga), esa
+// ventana NO genera infraccion: se corta la cadena y se cuenta
+// aparte. Antes dejar escapar una que acusar a un trabajador de
+// algo que no consta en los datos - y este papel lo va a firmar.
+// ============================================================
+const _TACO_INF_IMP = { L: '100€', G: '401€', MG: '1.001€' };
+const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
+
+function _tacoInfGrav(faltan, esSemanal) {
+  if (esSemanal) return faltan <= 240 ? 'L' : 'G';
+  if (faltan <= 60) return 'L';
+  if (faltan <= 120) return 'G';
+  return 'MG';
+}
+
+// Monta la cinta de minutos del conductor (misma idea que la v468).
+// Devuelve { cinta, D0, nDias } con 0=no acreditado, 1=descanso, 2=trabajo.
+async function _tacoCintaCond(id, desdeExt, hasta) {
+  let tramos = [], fila = 0; const LOTE = 1000;
+  for (let i = 0; i < 20; i++) {
+    const r = await sb.from('tacografo_tramos')
+      .select('fecha, minuto_ini, minuto_fin, actividad, sin_tarjeta, sin_anotar')
+      .eq('origen', 'conductor').eq('tarjeta_raiz', id).eq('hueco_ayudante', false)
+      .gte('fecha', desdeExt).lte('fecha', hasta)
+      .order('fecha').order('minuto_ini')
+      .range(fila, fila + LOTE - 1);
+    if (r.error) throw r.error;
+    tramos = tramos.concat(r.data || []);
+    if (!r.data || r.data.length < LOTE) break;
+    fila += LOTE;
+  }
+  const { data: dInfo } = await sb.from('tacografo_dias').select('fecha, incompleto')
+    .eq('origen', 'conductor').eq('tarjeta_raiz', id)
+    .gte('fecha', desdeExt).lte('fecha', hasta);
+  const conDatos = new Set((dInfo || []).map(x => x.fecha));
+  const incomp = new Set((dInfo || []).filter(x => x.incompleto).map(x => x.fecha));
+  const MS = 86400000, D0 = Date.parse(desdeExt + 'T00:00:00Z');
+  const nDias = Math.round((Date.parse(hasta + 'T00:00:00Z') - D0) / MS) + 1;
+  const cinta = new Uint8Array(nDias * 1440);
+  for (let k = 0; k < nDias; k++) {
+    const iso = new Date(D0 + k * MS).toISOString().slice(0, 10);
+    if (!conDatos.has(iso) || incomp.has(iso)) continue;
+    cinta.fill(1, k * 1440, (k + 1) * 1440);
+  }
+  (tramos || []).forEach(t => {
+    if (!conDatos.has(t.fecha) || incomp.has(t.fecha)) return;
+    const k = Math.round((Date.parse(t.fecha + 'T00:00:00Z') - D0) / MS);
+    if (k < 0 || k >= nDias) return;
+    if ((t.sin_tarjeta && t.sin_anotar) || t.actividad === 0) return;
+    const a = k * 1440 + Math.max(0, t.minuto_ini), b = k * 1440 + Math.min(1440, t.minuto_fin);
+    if (b > a) cinta.fill(2, a, b);
+  });
+  return { cinta, D0, nDias };
+}
+
+function _tacoRachas(cinta) {
+  const out = [];
+  let est = cinta[0], ini = 0;
+  for (let i = 1; i <= cinta.length; i++) {
+    if (i === cinta.length || cinta[i] !== est) { out.push({ est, ini, fin: i }); est = cinta[i]; ini = i; }
+  }
+  return out;
+}
+
+async function tacoRepInfUI() {
+  const panel = document.getElementById('tacoRepPanel');
+  const p = await _tacoInfCargarPersonas();
+  const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);
+  if (!conds.length) {
+    panel.innerHTML = _tacoRepBarra('⚖️ LISTADO DE INFRACCIONES')
+      + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas todavía.</div></div>';
+    return;
+  }
+  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  const hoy = new Date();
+  const d2 = hoy.toISOString().slice(0, 10);
+  const d1 = (() => { const d = new Date(hoy); d.setUTCMonth(d.getUTCMonth() - 3); return d.toISOString().slice(0, 10); })();
+  panel.innerHTML = _tacoRepBarra('⚖️ LISTADO DE INFRACCIONES') + `
+    <div class="card">
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#ffb400"></span>INFRACCIONES · DESCANSOS</div></div>
+      <div class="card-bd">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
+          <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Conductor</label>
+            <select class="fi" id="tacoIFquien">${op}</select></div>
+          <div class="fg"><label class="fl">Del día</label>
+            <input class="fi" type="date" id="tacoIFdesde" value="${d1}"></div>
+          <div class="fg"><label class="fl">Al día</label>
+            <input class="fi" type="date" id="tacoIFhasta" value="${d2}"></div>
+          <button class="btn bp" onclick="tacoRepInfVer()">Ver en pantalla</button>
+        </div>
+        <div id="tacoIFout" style="margin-top:14px"></div>
+      </div>
+    </div>`;
+  tacoRepInfVer();
+}
+
+let _tacoIFultimo = null;
+
+async function tacoRepInfVer() {
+  const out = document.getElementById('tacoIFout');
+  const quien = document.getElementById('tacoIFquien')?.value;
+  let desde = document.getElementById('tacoIFdesde')?.value;
+  let hasta = document.getElementById('tacoIFhasta')?.value;
+  if (!out || !quien || !desde || !hasta) return;
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Analizando…</div>';
+  try {
+    const id = quien.slice(2);
+    const per = (_tacoInfPersonas || []).find(x => x.clave === quien);
+    const nom = per?.nombre || id, emp = per?.empresa || '';
+    const dI = new Date(desde + 'T00:00:00Z'); dI.setUTCDate(dI.getUTCDate() - 14);
+    const desdeExt = dI.toISOString().slice(0, 10);
+
+    const { cinta, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
+    const rachas = _tacoRachas(cinta);
+    const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const iso = a => new Date(D0 + a * 60000).toISOString().slice(0, 10);
+    const dmy = x => x.split('-').reverse().join('/');
+    const hayHueco = (a, b) => { for (let i = a; i < b; i++) if (cinta[i] === 0) return true; return false; };
+
+    const infra = [];
+    let noAcr = 0;
+
+    // ---------- DESCANSO SEMANAL ----------
+    // rachas de descanso de 24 h o mas, en orden. Si el anterior ya fue
+    // reducido (menos de 45 h), el siguiente TIENE que ser de 45 h.
+    const sems = rachas.filter(r => r.est === 1 && (r.fin - r.ini) >= 1440);
+    for (let i = 1; i < sems.length; i++) {
+      const durA = sems[i - 1].fin - sems[i - 1].ini, durB = sems[i].fin - sems[i].ini;
+      if (durA < 2700 && durB < 2700) {
+        const faltan = 2700 - durB;
+        infra.push({
+          fecha: iso(sems[i].fin - 1),
+          txt: `Minoración del descanso semanal a ${hm(durB)}h (dos reducidos consecutivos)`,
+          tipo: _tacoInfGrav(faltan, true)
+        });
+      }
+    }
+
+    // ---------- DESCANSO DIARIO ----------
+    // ventanas de 24 h desde que termina cada descanso
+    let cursor = null, reduc = 0;
+    for (const r of rachas) {
+      if (r.est === 0) { cursor = null; continue; }               // hueco: se corta
+      if (r.est !== 1) continue;
+      const dur = r.fin - r.ini;
+      if (dur >= 1440) { cursor = r.fin; reduc = 0; continue; }   // semanal: reinicia reducciones
+      if (cursor === null) { if (dur >= 540) cursor = r.fin; continue; }
+      if (r.ini > cursor + 1440) { cursor = r.fin; continue; }    // fuera de ventana, se reengancha
+      if (dur < 60) continue;                                     // pausas cortas, no son descanso diario
+      if (hayHueco(cursor, r.fin)) { noAcr++; cursor = r.fin; continue; }
+      let exig = 660;                                             // 11 h
+      if (dur < 660 && reduc < 3) exig = 540;                     // le queda reduccion: 9 h
+      if (dur < exig) {
+        const faltan = exig - dur;
+        infra.push({
+          fecha: iso(r.fin - 1),
+          txt: `Minoración del descanso diario a ${hm(dur)}h sobre ${exig / 60}h`,
+          tipo: _tacoInfGrav(faltan, false)
+        });
+      } else if (dur < 660) reduc++;
+      cursor = r.fin;
+    }
+
+    // solo las del periodo pedido, ordenadas por fecha
+    const lista = infra.filter(x => x.fecha >= desde && x.fecha <= hasta)
+      .sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+    const nL = lista.filter(x => x.tipo === 'L').length;
+    const nG = lista.filter(x => x.tipo === 'G').length;
+    const nMG = lista.filter(x => x.tipo === 'MG').length;
+    const total = nL * 100 + nG * 401 + nMG * 1001;
+    _tacoIFultimo = { nom, emp, desde, hasta, lista, total, nL, nG, nMG };
+
+    const col = { L: '#1a8f3c', G: '#e08600', MG: '#e51c23' };
+    const filas = lista.map(x => `<tr>
+      <td style="white-space:nowrap">${dmy(x.fecha)}</td>
+      <td>${x.txt}</td>
+      <td style="text-align:center"><b style="color:${col[x.tipo]}">${x.tipo}</b></td>
+      <td style="text-align:right;white-space:nowrap">${_TACO_INF_IMP[x.tipo]}</td>
+      <td style="text-align:center;font-size:10.5px">${_TACO_INF_HON[x.tipo]}</td>
+    </tr>`).join('');
+
+    out.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">
+          <b style="color:var(--tx);font-family:var(--ss);font-size:13px">${nom}</b> · ${_TACO_EMP_NOM[emp] || emp}
+          · del ${dmy(desde)} al ${dmy(hasta)}
+        </div>
+        <button class="btn bp" style="padding:5px 12px;font-size:11.5px" onclick="tacoInfNotif()"
+          title="Abre la notificación maquetada con las casillas de firma.">🖨 Notificación para firmar</button>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mn);font-size:12px;margin-bottom:10px">
+        <span>Leves: <b style="color:${col.L}">${nL}</b></span>
+        <span>Graves: <b style="color:${col.G}">${nG}</b></span>
+        <span>Muy graves: <b style="color:${col.MG}">${nMG}</b></span>
+        <span>Total sanciones: <b>${total.toLocaleString('es-ES')} €</b></span>
+      </div>
+      ${lista.length ? `<div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11.5px">
+        <thead><tr><th>Fecha</th><th>Infracción</th><th>Tipo</th><th>Importe</th><th>Honorabilidad</th></tr></thead>
+        <tbody>${filas}</tbody></table></div>`
+        : `<div style="font-family:var(--mn);font-size:12px;color:#1a8f3c;padding:8px 0">
+             Sin infracciones de descanso en este periodo.</div>`}
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
+        <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(desde, hasta)}.</span>
+        Reglamento (CE) 561/2006. Descanso diario: 11h, o 9h reducido (3 veces entre descansos semanales).
+        Descanso semanal: 45h; si el anterior fue reducido, el siguiente debe ser de 45h.
+        ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
+        <b>De momento solo se calculan los DESCANSOS</b> — los excesos de conducción (ininterrumpida y diaria)
+        vienen en el siguiente paso. Compara con ASG antes de hacer firmar nada.
+      </div>`;
+  } catch (e) {
+    console.error('[v469]', e);
+    out.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No se pudo calcular: ${e.message || e}</div>`;
+  }
+}
+
+// La NOTIFICACION para firmar, copiada del modelo real de ASG que paso JC.
+function tacoInfNotif() {
+  const u = _tacoIFultimo;
+  if (!u) { toast('Dale primero a "Ver en pantalla"', 'err'); return; }
+  if (!u.lista.length) { toast('No hay infracciones que notificar en este periodo', 'warn'); return; }
+  const dmy = x => x.split('-').reverse().join('/');
+  const MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const h = new Date();
+  const hoyTxt = `${String(h.getDate()).padStart(2, '0')} de ${MES[h.getMonth()]} de ${h.getFullYear()}`;
+  const filas = u.lista.map(x => `<tr><td>${dmy(x.fecha)}</td><td class="iz">${x.txt}</td>
+    <td>${x.tipo}</td><td>${_TACO_INF_IMP[x.tipo]}</td><td>${_TACO_INF_HON[x.tipo]}</td></tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Notificación de infracciones · ${u.nom}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1e2933; font-size: 10.5px; margin: 0; }
+  .bloq { border: 1px solid #97a3ad; padding: 6px 9px; margin-bottom: 8px; }
+  .bloq b.t { display: block; font-size: 9px; letter-spacing: 1px; color: #55616c; margin-bottom: 3px; }
+  .fecha { text-align: right; margin: 10px 0; }
+  h2 { font-size: 12px; margin: 12px 0 8px; }
+  p { line-height: 1.55; text-align: justify; margin: 7px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #97a3ad; padding: 3px 5px; text-align: center; font-size: 9.5px; }
+  th { background: #eef1f4; }
+  td.iz { text-align: left; }
+  .firmas { display: flex; gap: 24px; margin-top: 26px; page-break-inside: avoid; }
+  .firma { flex: 1; border: 1px solid #97a3ad; padding: 8px 10px; height: 84px; }
+  .firma b { font-size: 10px; }
+  .noprint { text-align: right; margin-bottom: 8px; }
+  .noprint button { font-size: 13px; padding: 7px 16px; cursor: pointer; }
+  @media print { .noprint { display: none; } }
+</style></head><body>
+<div class="noprint"><button onclick="window.print()">🖨 Imprimir / Guardar como PDF</button></div>
+<div class="bloq"><b class="t">DATOS EMPRESA</b>
+  NOMBRE: ${(_TACO_EMP_RAZON[u.emp] || u.emp || '').split(' · ')[0]}<br>
+  C.I.F.: ${((_TACO_EMP_RAZON[u.emp] || '').split('CIF ')[1] || '')}</div>
+<div class="bloq"><b class="t">DATOS CONDUCTOR</b>
+  NOMBRE: ${u.nom}<br>PERIODO: ${dmy(u.desde)} - ${dmy(u.hasta)}</div>
+<div class="fecha">Coria del Río, a ${hoyTxt}</div>
+<h2>ASUNTO: NOTIFICACIÓN DE INFRACCIONES DETECTADAS</h2>
+<p>Estimado ${u.nom}</p>
+<p>Por medio de la presente le informamos que, del análisis de los datos de su tarjeta de conductor durante el período
+indicado anteriormente, se han detectado las siguientes infracciones al REGLAMENTO (CE) nº 561/2006 DEL PARLAMENTO
+EUROPEO Y DEL CONSEJO, de 15 de marzo de 2006 y/o al REGLAMENTO (UE) nº 165/2014 DEL PARLAMENTO EUROPEO Y
+DEL CONSEJO, de 4 de febrero de 2014:</p>
+<table><thead><tr><th>Fecha</th><th>Infracción</th><th>Tipo</th><th>Importe</th><th>Honorabilidad</th></tr></thead>
+<tbody>${filas}</tbody></table>
+<p>Hay dos variantes que llevan a la pérdida de la honorabilidad: una de ellas directa, por la comisión de algunas de las
+27 infracciones del Anexo I A del ROTT; y otra, por acumulación de alguna de las 46 infracciones muy graves del anexo 1B
+o de las 40 graves definidas como tales en el anexo 1 C. La suma de estas infracciones determina el Índice de Reiteración
+de Infracciones, el IRI. Las empresas que alcancen un IRI igual o superior a tres perderán la honorabilidad.</p>
+<p>Consideramos que es conveniente trasladarle este Informe atendiendo a las importantes consecuencias que estos hechos
+pueden tener, principalmente por el perjuicio económico que supondría para esta empresa la imposición de las sanciones
+que se indican, graduadas según el Baremo Sancionador vigente en nuestro país.</p>
+<p>Por todo ello, le solicitamos que manifieste a la empresa de forma fehaciente en un plazo máximo de 5 días, cuanto crea
+conveniente en relación a los citados hechos y le reiteramos que debe cumplir y respetar la normativa. Si tiene dudas sobre
+su interpretación, le rogamos nos lo comunique para asegurarnos que siga recibiendo la formación necesaria.</p>
+<div class="firmas">
+  <div class="firma"><b>Firma de la Empresa</b><br><span style="font-size:9.5px">${(_TACO_EMP_RAZON[u.emp] || '').split(' · ')[0]}</span></div>
+  <div class="firma"><b>Firma del Trabajador</b><br><span style="font-size:9.5px">${u.nom}</span></div>
+</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('El navegador bloqueó la ventana emergente — permítela y repite', 'err'); return; }
+  w.document.write(html); w.document.close();
 }
 
 // ============================================================
