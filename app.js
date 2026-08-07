@@ -27279,6 +27279,38 @@ async function tacoVehPintarSelector() {
 // pantalla propia con su boton "✕ Cerrar informe" para volver — como en ASG.
 // JC: "que no se queden los informes ahi arriba, que se abra un apartado
 // nuevo o se tapen, y despues le doy a cerrar y me voy de ahi".
+// ============================================================
+// v470 · LOS CONDUCTORES, AGRUPADOS POR EMPRESA
+//
+// Pedido por JC mirando al futuro: hoy son unos pocos, pero con
+// Hispalis (9-12), Portes (~20) y Transmargaz (otros 20 y pico)
+// la lista de un solo bloque se hace inmanejable. Los botones de
+// EMPRESA de arriba ya filtran, pero en "TODAS" salian todos
+// revueltos. Ahora van en grupos con el nombre de la empresa de
+// cabecera (optgroup), y dentro por orden alfabetico.
+//
+// Mismo desplegable para los TRES informes de conductor
+// (jornadas, descansos e infracciones): una sola funcion, para
+// que no se queden distintos con el tiempo.
+// ============================================================
+function _tacoOpcCond(conds) {
+  const ORD = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+  const por = new Map();
+  (conds || []).forEach(x => {
+    const e = x.empresa || '\u2014';
+    if (!por.has(e)) por.set(e, []);
+    por.get(e).push(x);
+  });
+  const grupos = [...por.keys()].sort((a, b) => {
+    const ia = ORD.indexOf(a), ib = ORD.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  return grupos.map(e => '<optgroup label="' + (_TACO_EMP_NOM[e] || e) + '">'
+    + por.get(e).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'))
+        .map(x => `<option value="${x.clave}">${x.nombre}</option>`).join('')
+    + '</optgroup>').join('');
+}
+
 function tacoRepCerrar() {
   const p = document.getElementById('tacoRepPanel');
   const g = document.getElementById('tacoRepParrilla');
@@ -27416,7 +27448,7 @@ async function tacoRepInfUI() {
       + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas todavía.</div></div>';
     return;
   }
-  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  const op = _tacoOpcCond(conds);
   const hoy = new Date();
   const d2 = hoy.toISOString().slice(0, 10);
   const d1 = (() => { const d = new Date(hoy); d.setUTCMonth(d.getUTCMonth() - 3); return d.toISOString().slice(0, 10); })();
@@ -27483,28 +27515,49 @@ async function tacoRepInfVer() {
     }
 
     // ---------- DESCANSO DIARIO ----------
-    // ventanas de 24 h desde que termina cada descanso
-    let cursor = null, reduc = 0;
-    for (const r of rachas) {
-      if (r.est === 0) { cursor = null; continue; }               // hueco: se corta
-      if (r.est !== 1) continue;
-      const dur = r.fin - r.ini;
-      if (dur >= 1440) { cursor = r.fin; reduc = 0; continue; }   // semanal: reinicia reducciones
-      if (cursor === null) { if (dur >= 540) cursor = r.fin; continue; }
-      if (r.ini > cursor + 1440) { cursor = r.fin; continue; }    // fuera de ventana, se reengancha
-      if (dur < 60) continue;                                     // pausas cortas, no son descanso diario
-      if (hayHueco(cursor, r.fin)) { noAcr++; cursor = r.fin; continue; }
-      let exig = 660;                                             // 11 h
-      if (dur < 660 && reduc < 3) exig = 540;                     // le queda reduccion: 9 h
-      if (dur < exig) {
-        const faltan = exig - dur;
-        infra.push({
-          fecha: iso(r.fin - 1),
-          txt: `Minoración del descanso diario a ${hm(dur)}h sobre ${exig / 60}h`,
-          tipo: _tacoInfGrav(faltan, false)
-        });
-      } else if (dur < 660) reduc++;
-      cursor = r.fin;
+    // v471: UNA ventana de 24 h -> UN descanso diario. El fallo de la v469
+    // era evaluar CADA rato de descanso de la ventana como si fuera el
+    // descanso del dia: las pausas de 1 y 2 horas de la jornada salian
+    // como infracciones muy graves (61 en vez de 25 en el papel de ANTON)
+    // y ademas gastaban las reducciones antes de tiempo, por eso decia
+    // "sobre 11h" donde ASG dice "sobre 9h".
+    // Ahora, dentro de cada ventana: si hay un descanso de 11 h, jornada
+    // correcta; si no, vale uno de 9 h mientras le queden reducciones (3
+    // entre semanales); y solo si NINGUNO vale se apunta la infraccion,
+    // con el MAS LARGO de la ventana, que es lo mejor que hizo ese dia.
+    const descs = rachas.filter(r => r.est === 1);
+    const reengancha = a => {                       // primer descanso >= 9 h desde 'a'
+      const r = descs.find(x => x.ini >= a && (x.fin - x.ini) >= 540);
+      return r ? r.fin : null;
+    };
+    let cursor = reengancha(0), reduc = 0, vueltas = 0;
+    while (cursor !== null && cursor < cinta.length && vueltas++ < 4000) {
+      const finVent = Math.min(cursor + 1440, cinta.length);
+      if (hayHueco(cursor, finVent)) {              // datos sin acreditar: no se juzga
+        noAcr++;
+        const h = rachas.find(x => x.est === 0 && x.fin > cursor);
+        cursor = h ? reengancha(h.fin) : null;
+        continue;
+      }
+      const cand = descs.filter(r => r.ini >= cursor && r.ini < finVent && (r.fin - r.ini) >= 60);
+      if (!cand.length) { cursor = finVent; continue; }
+      const elegido = cand.find(r => (r.fin - r.ini) >= 660)                       // 11 h: correcto
+        || (reduc < 3 ? cand.find(r => (r.fin - r.ini) >= 540) : null);            // 9 h: reducido
+      if (elegido) {
+        const d = elegido.fin - elegido.ini;
+        if (d >= 1440) reduc = 0; else if (d < 660) reduc++;
+        cursor = Math.max(elegido.fin, cursor + 1);
+        continue;
+      }
+      const mejor = cand.reduce((a, b) => (b.fin - b.ini) > (a.fin - a.ini) ? b : a);
+      const dur = mejor.fin - mejor.ini;
+      const exig = reduc < 3 ? 540 : 660;
+      infra.push({
+        fecha: iso(mejor.fin - 1),
+        txt: `Minoración del descanso diario a ${hm(dur)}h sobre ${exig / 60}h`,
+        tipo: _tacoInfGrav(exig - dur, false)
+      });
+      cursor = Math.max(mejor.fin, cursor + 1);
     }
 
     // solo las del periodo pedido, ordenadas por fecha
@@ -27667,7 +27720,7 @@ async function tacoRepDescUI() {
       + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>';
     return;
   }
-  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  const op = _tacoOpcCond(conds);
   // por defecto: los ultimos 2 meses (para ver varias semanas seguidas,
   // que es como se mira este informe)
   const hoy = new Date();
@@ -28424,7 +28477,7 @@ async function tacoRepJornadasUI() {
   const p = await _tacoInfCargarPersonas();
   const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);   // v422: solo la empresa elegida
   if (!conds.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
-  const op = conds.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
+  const op = _tacoOpcCond(conds);
   // por defecto: el mes pasado entero, que es lo que se suele pedir
   const hoy = new Date();
   const d1 = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - 1, 1));
