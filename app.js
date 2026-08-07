@@ -25741,6 +25741,41 @@ function _tacoTxtUTC(desde, hasta) {
 // arriba y CONDUCTORES, VEHICULOS, INFORMES, ARCHIVO y los avisos de SUBIR
 // se quedan solo con lo de esa empresa.
 let _tacoEmpGlobal = 'TODAS';
+// ============================================================
+// v478 - LA HORA DE ESPANA (Europe/Madrid) EN LOS INFORMES
+//
+// El fichero del tacografo graba SIEMPRE en UTC, y asi se ha
+// venido enseñando (v425). ASG Trans lista en hora de Madrid
+// (+1h invierno / +2h verano). Con las INFRACCIONES eso dejo de
+// ser un detalle: el descanso de 09:36h de ANTON salia el 14/07
+// en la app y el 15/07 en ASG - mismo dato, un dia bailado - y
+// esa fecha va escrita en el papel que FIRMA el trabajador.
+//
+// AQUI NO SE TOCA NI UN CALCULO: la cinta de minutos es la misma,
+// las ventanas de 24h se miden igual y las tablas de gravedad no
+// se rozan. Lo unico que cambia es COMO SE ESCRIBE cada instante:
+// en vez de sacarlo con toISOString() (que es UTC) se pasa por el
+// reloj de Madrid. El propio navegador sabe en que fin de semana
+// cayo el cambio de hora de cada año, asi que no hay ninguna
+// fecha apuntada a mano que se pueda quedar vieja.
+// ============================================================
+const _TACO_FMT_MAD = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+});
+function _tacoMadP(ms) {
+  const o = {};
+  _TACO_FMT_MAD.formatToParts(new Date(ms)).forEach(p => { if (p.type !== 'literal') o[p.type] = p.value; });
+  if (o.hour === '24') o.hour = '00';        // por si el motor devuelve 24:00
+  return o;
+}
+function _tacoMadISO(ms) { const o = _tacoMadP(ms); return `${o.year}-${o.month}-${o.day}`; }
+function _tacoMadDMHM(ms) { const o = _tacoMadP(ms); return `${o.day}/${o.month} ${o.hour}:${o.minute}`; }
+// El letrero de las pantallas que YA van en hora de España
+function _tacoTxtMadrid() {
+  return '\u23F1 Fechas y horas en <b>hora de España</b> (la misma que usa ASG Trans) \u00b7 el tac\u00f3grafo graba en UTC y se convierte al mostrarlo';
+}
+
 function _tacoEmpPasa(x) { return _tacoEmpGlobal === 'TODAS' || x.empresa === _tacoEmpGlobal; }
 function tacoEmpGlobal(emp) {
   _tacoEmpGlobal = emp;
@@ -27561,7 +27596,7 @@ async function tacoRepInfVer() {
     const { cinta, D0 } = await _tacoCintaCond(id, desdeExt, hasta);
     const rachas = _tacoRachas(cinta);
     const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    const iso = a => new Date(D0 + a * 60000).toISOString().slice(0, 10);
+    const iso = a => _tacoMadISO(D0 + a * 60000);        // v478: fecha en hora de España
     const dmy = x => x.split('-').reverse().join('/');
     const hayHueco = (a, b) => { for (let i = a; i < b; i++) if (cinta[i] === 0) return true; return false; };
 
@@ -27659,7 +27694,7 @@ async function tacoRepInfVer() {
     // v474: se guarda ademas el DETALLE de cada tramo (como el de ASG) para
     // poder comparar: que descansos se han tomado por diarios, entre que
     // horas, y contra que limite se ha medido cada uno.
-    const fh2 = a => { const d = new Date(D0 + a * 60000).toISOString(); return d.slice(8, 10) + '/' + d.slice(5, 7) + ' ' + d.slice(11, 16); };
+    const fh2 = a => _tacoMadDMHM(D0 + a * 60000);       // v478: hora de España
     porTramo.forEach((lista, nTramo) => {
       const orden = lista.slice().sort((a, b) => a.dur - b.dur);
       const det = orden.map((p, k) => ({
@@ -27728,7 +27763,7 @@ async function tacoRepInfVer() {
         : `<div style="font-family:var(--mn);font-size:12px;color:#1a8f3c;padding:8px 0">
              Sin infracciones de descanso en este periodo.</div>`}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
-        <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(desde, hasta)}.</span>
+        <span style="color:#0a53d8;font-weight:600">${_tacoTxtMadrid()}.</span>
         Reglamento (CE) 561/2006 y umbrales de gravedad de la Instrucción Circular 1/2021 del Ministerio de
         Transportes (Reglamento UE 2016/403 · ROTT). Descanso diario: 11h, o 9h reducido — las 3 reducciones se
         asignan a los 3 descansos más cortos entre dos semanales, como hace la aplicación del Ministerio.
@@ -27855,6 +27890,8 @@ que se indican, graduadas según el Baremo Sancionador vigente en nuestro país.
 <p>Por todo ello, le solicitamos que manifieste a la empresa de forma fehaciente en un plazo máximo de 5 días, cuanto crea
 conveniente en relación a los citados hechos y le reiteramos que debe cumplir y respetar la normativa. Si tiene dudas sobre
 su interpretación, le rogamos nos lo comunique para asegurarnos que siga recibiendo la formación necesaria.</p>
+<p style="font-size:9px;color:#55616c">Fechas y horas expresadas en hora local española (Europe/Madrid), obtenidas de los datos
+descargados de la tarjeta de conductor.</p>
 <div class="firmas">
   <div class="firma"><b>Firma de la Empresa</b><br><span style="font-size:9.5px">${(_TACO_EMP_RAZON[u.emp] || '').split(' · ')[0]}</span></div>
   <div class="firma"><b>Firma del Trabajador</b><br><span style="font-size:9.5px">${u.nom}</span></div>
@@ -27996,9 +28033,9 @@ async function tacoRepDescVer() {
     for (let i = 1; i <= cinta.length; i++) {
       if (i === cinta.length || cinta[i] !== est) { rachas.push({ est, ini, fin: i }); est = cinta[i]; ini = i; }
     }
-    const fh = a => { const d = new Date(D0 + a * 60000); return d.toISOString().slice(8, 10) + '/' + d.toISOString().slice(5, 7) + ' ' + d.toISOString().slice(11, 16); };
+    const fh = a => _tacoMadDMHM(D0 + a * 60000);        // v478: hora de España
     const hm = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
-    const aIso = a => new Date(D0 + a * 60000).toISOString().slice(0, 10);
+    const aIso = a => _tacoMadISO(D0 + a * 60000);       // v478: fecha en hora de España
 
     // descansos semanales = rachas de descanso de 24 h o mas
     const sem = rachas.filter(r => r.est === 1 && (r.fin - r.ini) >= _TACO_DESC_MIN);
@@ -28063,7 +28100,7 @@ async function tacoRepDescVer() {
           <thead><tr><th>Desde</th><th>Hasta</th><th>Duración</th><th colspan="2">Motivo</th></tr></thead>
           <tbody>${filasNo}</tbody></table></div></div>` : ''}
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:10px;line-height:1.6">
-        <span style="color:#0a53d8;font-weight:600">${_tacoTxtUTC(desde, hasta)}.</span>
+        <span style="color:#0a53d8;font-weight:600">${_tacoTxtMadrid()}.</span>
         Reglamento (CE) 561/2006: descanso semanal normal 45h seguidas; reducido de 24h a 45h (la diferencia se
         compensa antes del final de la 3ª semana siguiente); como mucho 6 periodos de 24h entre un descanso semanal
         y el siguiente; en dos semanas consecutivas, al menos uno de 45h. Cuenta como descanso lo grabado en
