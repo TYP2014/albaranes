@@ -27467,7 +27467,7 @@ function tacoRep(cual) {
 // aparte. Antes dejar escapar una que acusar a un trabajador de
 // algo que no consta en los datos - y este papel lo va a firmar.
 // ============================================================
-const _TACO_INF_IMP = { L: '100€', G: '401€', MG: '1.001€' };
+const _TACO_INF_IMP = { L: '100€', G: '401€', MG: '1.001€', LIMG: '1.001€' };
 const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 
 // v473: TABLAS OFICIALES de gravedad, copiadas de los cuadros de la
@@ -27488,7 +27488,10 @@ const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 // ponlos igual o parecidos a ASGTrans, tamaño y demas". Verde leve, ambar
 // grave, rojo muy grave; el importe con el mismo color que su gravedad; la
 // honorabilidad con la letra del anexo destacada (C ambar, B roja).
-const _TACO_INF_COL = { L: '#5cb85c', G: '#f0ad4e', MG: '#d9534f' };
+// v481: LIMG = muy grave de las que hacen PERDER LA HONORABILIDAD directamente
+// (anexo I A del ROTT). Sale por primera vez con la conduccion diaria: 13h30
+// sobre el limite de 9h, o 15h sobre el de 10h.
+const _TACO_INF_COL = { L: '#5cb85c', G: '#f0ad4e', MG: '#d9534f', LIMG: '#8b1a17' };
 function _tacoPill(tipo, txt) {
   return '<span style="display:inline-block;background:' + (_TACO_INF_COL[tipo] || '#888')
     + ';color:#fff;border-radius:4px;padding:3px 11px;font-size:11.5px;font-weight:700;'
@@ -27496,8 +27499,9 @@ function _tacoPill(tipo, txt) {
 }
 function _tacoHon(tipo) {
   if (tipo === 'L') return '<span style="color:var(--mu)">-</span>';
-  const letra = tipo === 'MG' ? 'B' : 'C';
-  return 'Anexo I <b style="color:' + (tipo === 'MG' ? '#d9534f' : '#f0ad4e') + '">' + letra + '</b>';
+  const letra = tipo === 'LIMG' ? 'A' : tipo === 'MG' ? 'B' : 'C';
+  return 'Anexo I <b style="color:' + (_TACO_INF_COL[tipo] || '#888') + '">' + letra + '</b>'
+    + (tipo === 'LIMG' ? '<div style="font-size:9.5px;color:#8b1a17">pérdida directa</div>' : '');
 }
 function _tacoGravDDR(d) { return d < 420 ? 'MG' : d < 480 ? 'G' : 'L'; }
 function _tacoGravDDN(d) { return d < 510 ? 'MG' : d < 600 ? 'G' : 'L'; }
@@ -27626,6 +27630,67 @@ function _tacoPCI(act) {
     if (dur >= 30 && arm) { cerrar(b.ini); return; }      // el 15 + 30
     if (dur >= 15) arm = true;                            // queda armado el 15
   });
+  return out;
+}
+
+// ============================================================
+// v481 - CONDUCCION DIARIA (las 9 horas, ampliables a 10 dos
+// veces por semana)
+//
+// QUE ES UNA "CONDUCCION DIARIA" (art. 4.k del Reglamento CE
+// 561/2006): NO es lo que se conduce en un dia de calendario,
+// sino lo que se conduce ENTRE DOS DESCANSOS DIARIOS. Por eso
+// una jornada que arranca a las 22:00 y termina a las 08:00 es
+// UNA sola conduccion diaria, aunque toque dos fechas.
+// Un descanso diario es de 9 horas o mas (art. 4.g); si el
+// conductor para menos de 9 horas, eso NO cierra la jornada y
+// la conduccion sigue acumulando - por eso un descanso corto
+// puede arrastrar detras un exceso de conduccion.
+//
+// EL METODO OFICIAL (Instruccion 1/2021, punto 2.1): dentro de
+// cada SEMANA NATURAL (lunes 00:00 a domingo 24:00) se ordenan
+// las conducciones diarias de MAYOR A MENOR; las DOS MAYORES se
+// miden contra 10 horas (son las dos ampliaciones que da la
+// norma) y todas las demas contra 9 horas. O sea: las dos
+// ampliaciones NO se gastan por orden de llegada, se gastan en
+// los dos dias que mas se conducio, que es lo mas favorable al
+// conductor. Es el mismo criterio, del reves, que el de los
+// descansos diarios de la v473.
+//
+// GRAVEDAD (BOE 25/02/2025, anexo III, filas B1-B8):
+//   medida sobre 9h : L 9-10h · G 10-11h · MG 11h+ · LIMG 13h30+
+//   medida sobre 10h: L 10-11h · G 11-12h · MG 12h+ · LIMG 15h+
+//
+// PRUDENCIA: una jornada con un solo minuto sin acreditar NO se
+// juzga, y la primera y la ultima del periodo tampoco (no se
+// sabe donde empiezan ni donde acaban de verdad).
+// ============================================================
+function _tacoGravPCD9(d)  { return d >= 810 ? 'LIMG' : d >= 660 ? 'MG' : d >= 600 ? 'G' : 'L'; }
+function _tacoGravPCD10(d) { return d >= 900 ? 'LIMG' : d >= 720 ? 'MG' : d >= 660 ? 'G' : 'L'; }
+
+function _tacoPCD(act) {
+  const R = [];
+  let e = act[0], i0 = 0;
+  for (let i = 1; i <= act.length; i++) {
+    if (i === act.length || act[i] !== e) { R.push({ e, ini: i0, fin: i }); e = act[i]; i0 = i; }
+  }
+  // descansos DIARIOS = descanso puro de 9 h o mas (la disponibilidad NO es
+  // descanso para esto, solo lo es para la pausa de la conduccion seguida)
+  const rest = R.filter(r => r.e === 1 && (r.fin - r.ini) >= 540);
+  const out = [];
+  for (let k = 1; k < rest.length; k++) {
+    const a1 = rest[k - 1].fin, b1 = rest[k].ini;
+    if (b1 <= a1) continue;
+    let cond = 0, hueco = false;
+    R.forEach(r => {
+      const i1 = Math.max(r.ini, a1), i2 = Math.min(r.fin, b1);
+      if (i2 <= i1) return;
+      if (r.e === 0) hueco = true;
+      if (r.e === 4) cond += i2 - i1;
+    });
+    if (hueco || !cond) continue;          // sin acreditar, o no condujo: no se juzga
+    out.push({ ini: a1, fin: b1, dur: cond });
+  }
   return out;
 }
 
@@ -27814,24 +27879,53 @@ async function tacoRepInfVer() {
       });
     });
 
+    // ---------- CONDUCCION DIARIA (v481) ----------
+    // por SEMANA NATURAL: las dos conducciones mas largas contra 10h, el
+    // resto contra 9h (metodo oficial, punto 2.1 de la Instruccion 1/2021)
+    const porSem = new Map();
+    _tacoPCD(act).forEach(j => {
+      const sem = _tacoLunes(_tacoMadISO(D0 + j.ini * 60000));
+      if (!porSem.has(sem)) porSem.set(sem, []);
+      porSem.get(sem).push(j);
+    });
+    porSem.forEach((lst, sem) => {
+      const orden = lst.slice().sort((x, y) => y.dur - x.dur);      // de MAYOR a menor
+      const detS = orden.map((j, k) => ({
+        desde: fh2(j.ini), hasta: fh2(j.fin), dur: j.dur,
+        lim: k < 2 ? 600 : 540, orden: k + 1
+      })).sort((x, y) => x.desde < y.desde ? -1 : 1);
+      orden.forEach((j, k) => {
+        const lim = k < 2 ? 600 : 540;
+        if (j.dur <= lim) return;
+        infra.push({
+          fecha: _tacoMadISO(D0 + j.ini * 60000),
+          txt: `Superaci\u00f3n de la conducci\u00f3n diaria a ${hm(j.dur)}h sobre ${lim / 60}h`,
+          tipo: lim === 540 ? _tacoGravPCD9(j.dur) : _tacoGravPCD10(j.dur),
+          detD: { sem: _tacoDMY2(sem), lista: detS }
+        });
+      });
+    });
+
     // solo las del periodo pedido, ordenadas por fecha
     const lista = infra.filter(x => x.fecha >= desde && x.fecha <= hasta)
       .sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
     const nL = lista.filter(x => x.tipo === 'L').length;
     const nG = lista.filter(x => x.tipo === 'G').length;
     const nMG = lista.filter(x => x.tipo === 'MG').length;
-    const total = nL * 100 + nG * 401 + nMG * 1001;
-    _tacoIFultimo = { nom, emp, desde, hasta, lista, total, nL, nG, nMG };
+    const nA = lista.filter(x => x.tipo === 'LIMG').length;      // v481
+    const total = nL * 100 + nG * 401 + (nMG + nA) * 1001;
+    _tacoIFultimo = { nom, emp, desde, hasta, lista, total, nL, nG, nMG, nA };
 
     // v475: los colores de ASGTrans (verde leve, ambar grave, rojo muy grave),
     // en distintivos redondeados como los suyos, y no como letra suelta.
     const col = _TACO_INF_COL;
     _tacoIFdet = lista.map(x => x.det || null);
     _tacoIFdetC = lista.map(x => x.detC || null);
+    _tacoIFdetD = lista.map(x => x.detD || null);
     const lupa = (fn, ix) => ` <a href="#" onclick="${fn}(${ix});return false" style="font-size:10px;color:#0a53d8;text-decoration:none">🔍 detalle</a>`;
     const filas = lista.map((x, ix) => `<tr>
       <td style="white-space:nowrap">${dmy(x.fecha)}</td>
-      <td>${x.txt}${x.det ? lupa('tacoIFverDet', ix) : x.detC ? lupa('tacoIFverDetC', ix) : ''}</td>
+      <td>${x.txt}${x.det ? lupa('tacoIFverDet', ix) : x.detC ? lupa('tacoIFverDetC', ix) : x.detD ? lupa('tacoIFverDetD', ix) : ''}</td>
       <td style="text-align:center">${_tacoPill(x.tipo, x.tipo)}</td>
       <td style="text-align:center;white-space:nowrap">${_tacoPill(x.tipo, _TACO_INF_IMP[x.tipo])}</td>
       <td style="text-align:center;font-size:11px">${_tacoHon(x.tipo)}</td>
@@ -27848,11 +27942,13 @@ async function tacoRepInfVer() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px">
         ${_tacoPill('L', 'L = Leve')} ${_tacoPill('G', 'G = Grave')} ${_tacoPill('MG', 'MG = Muy grave')}
+        ${nA ? _tacoPill('LIMG', 'A = Muy grave + pérdida de honorabilidad') : ''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:12px;font-size:12.5px">
         <span style="color:var(--mu)">Leves <b style="color:${col.L}">${nL}</b></span>
         <span style="color:var(--mu)">Graves <b style="color:${col.G}">${nG}</b></span>
         <span style="color:var(--mu)">Muy graves <b style="color:${col.MG}">${nMG}</b></span>
+        ${nA ? `<span style="color:var(--mu)">Con pérdida de honorabilidad <b style="color:${col.LIMG}">${nA}</b></span>` : ''}
         <span style="background:#17a2b8;color:#fff;border-radius:4px;padding:5px 14px;font-weight:700;letter-spacing:.4px">
           TOTAL INFRACCIONES: ${total.toLocaleString('es-ES')} €</span>
       </div>
@@ -27875,11 +27971,16 @@ async function tacoRepInfVer() {
         Conducción ininterrumpida (art. 7): pausa de 45 min tras 4h30, o 15 min y después 30 min en ese orden;
         cuentan como pausa el descanso y la disponibilidad, «otros trabajos» no interrumpe.
         MG≥6h · G 5-6h · L 4h30-5h.
+        Conducción diaria (art. 6.1): lo conducido entre dos descansos diarios, no por día de calendario;
+        en cada semana natural las 2 más largas se miden sobre 10h y el resto sobre 9h.
+        Sobre 9h: A≥13h30 · MG 11-13h30 · G 10-11h · L 9-10h. Sobre 10h: A≥15h · MG 12-15h · G 11-12h · L 10-11h.
         Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
         la cuantía exacta la fija la Administración.
         ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
-        <b>Faltan todavía</b> los excesos de conducción DIARIA (9h/10h), SEMANAL (56h) y BISEMANAL (90h),
-        y las prelaciones para no contar dos veces el mismo hecho. Compara con ASG antes de hacer firmar nada.
+        <b>Faltan todavía</b> los excesos de conducción SEMANAL (56h) y BISEMANAL (90h), y sobre todo las
+        <b>PRELACIONES</b>: mientras no estén, un mismo día con exceso de conducción Y falta de descanso puede
+        salir DOS veces, cuando la norma manda quedarse solo con la más grave. Compara con ASG antes de hacer
+        firmar nada.
       </div>`;
   } catch (e) {
     console.error('[v469]', e);
@@ -27966,6 +28067,43 @@ function tacoIFverDetC(ix) {
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// v481: el detalle de una conduccion diaria. Ensena TODAS las conducciones
+// diarias de esa semana natural, cada una con sus horas y contra que limite se
+// ha medido - que es lo que hay que comparar con el detalle de ASG cuando algo
+// no cuadre (igual que con los descansos de la v474).
+let _tacoIFdetD = [];
+
+function tacoIFverDetD(ix) {
+  const d = _tacoIFdetD[ix];
+  const p = document.getElementById('tacoIFdetPanel');
+  if (!p || !d) return;
+  const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  p.style.display = '';
+  p.innerHTML = `<div style="border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:var(--bg2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
+      <b style="font-family:var(--mn);font-size:12px">Detalle de la semana del ${d.sem} (lunes a domingo)</b>
+      <button class="btn bs" style="font-size:10.5px;padding:3px 9px" onclick="document.getElementById('tacoIFdetPanel').style.display='none'">\u2715 cerrar</button>
+    </div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:7px">
+      Conducciones diarias de la semana: <b style="color:var(--tx)">${d.lista.length}</b>
+      \u2014 las <b>2 m\u00e1s largas</b> se miden sobre 10h (las dos ampliaciones que da la norma) y el resto sobre 9h.
+    </div>
+    <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11px">
+      <thead><tr><th>Jornada (entre dos descansos)</th><th>Conducci\u00f3n</th><th>Se mide sobre</th><th>\u00bfInfringe?</th></tr></thead>
+      <tbody>${d.lista.map(x => `<tr>
+        <td style="white-space:nowrap">${x.desde} \u2192 ${x.hasta}</td>
+        <td style="font-weight:700">${hm(x.dur)}</td>
+        <td>${x.lim / 60}h <span style="color:var(--mu)">(la ${x.orden}\u00aa m\u00e1s larga)</span></td>
+        <td style="color:${x.dur > x.lim ? 'var(--erd)' : '#1a8f3c'};font-weight:600">${x.dur > x.lim ? 'S\u00cd' : 'no'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
+      Una conducci\u00f3n diaria es lo conducido <b>entre dos descansos diarios</b> (9h o m\u00e1s), no lo conducido
+      en un d\u00eda de calendario: una jornada de 22:00 a 08:00 es UNA sola aunque toque dos fechas.
+    </div></div>`;
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 // La NOTIFICACION para firmar, copiada del modelo real de ASG que paso JC.
 function tacoInfNotif() {
   const u = _tacoIFultimo;
@@ -27977,7 +28115,7 @@ function tacoInfNotif() {
   const hoyTxt = `${String(h.getDate()).padStart(2, '0')} de ${MES[h.getMonth()]} de ${h.getFullYear()}`;
   // v475: mismos distintivos de color que ASGTrans tambien en el papel
   const pill = (t, x) => `<span class="pill p${t}">${x}</span>`;
-  const hon = t => t === 'L' ? '-' : `Anexo I <b class="h${t}">${t === 'MG' ? 'B' : 'C'}</b>`;
+  const hon = t => t === 'L' ? '-' : `Anexo I <b class="h${t}">${t === 'LIMG' ? 'A' : t === 'MG' ? 'B' : 'C'}</b>`;
   const filas = u.lista.map(x => `<tr><td>${dmy(x.fecha)}</td><td class="iz">${x.txt}</td>
     <td>${pill(x.tipo, x.tipo)}</td><td>${pill(x.tipo, _TACO_INF_IMP[x.tipo])}</td><td>${hon(x.tipo)}</td></tr>`).join('');
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
@@ -27997,7 +28135,8 @@ function tacoInfNotif() {
   td.iz { text-align: left; }
   .pill { display: inline-block; border-radius: 4px; padding: 2px 9px; color: #fff; font-weight: bold; font-size: 9px; }
   .pL { background: #5cb85c; } .pG { background: #f0ad4e; } .pMG { background: #d9534f; }
-  .hC { color: #f0ad4e; } .hMG, .hB { color: #d9534f; }
+  .pLIMG { background: #8b1a17; }
+  .hC { color: #f0ad4e; } .hMG, .hB { color: #d9534f; } .hLIMG { color: #8b1a17; }
   .leyenda { text-align: center; margin: 8px 0 4px; }
   .leyenda .pill { margin: 0 4px; }
   .firmas { display: flex; gap: 24px; margin-top: 26px; page-break-inside: avoid; }
@@ -28020,7 +28159,7 @@ function tacoInfNotif() {
 indicado anteriormente, se han detectado las siguientes infracciones al REGLAMENTO (CE) nº 561/2006 DEL PARLAMENTO
 EUROPEO Y DEL CONSEJO, de 15 de marzo de 2006 y/o al REGLAMENTO (UE) nº 165/2014 DEL PARLAMENTO EUROPEO Y
 DEL CONSEJO, de 4 de febrero de 2014:</p>
-<div class="leyenda"><span class="pill pL">L = Leve</span><span class="pill pG">G = Grave</span><span class="pill pMG">MG = Muy grave</span></div>
+<div class="leyenda"><span class="pill pL">L = Leve</span><span class="pill pG">G = Grave</span><span class="pill pMG">MG = Muy grave</span>${u.nA ? '<span class="pill pLIMG">A = Muy grave + pérdida de honorabilidad</span>' : ''}</div>
 <table><thead><tr><th>Fecha</th><th>Infracción</th><th>Tipo</th><th>Importe</th><th>Honorabilidad</th></tr></thead>
 <tbody>${filas}</tbody></table>
 <p>Hay dos variantes que llevan a la pérdida de la honorabilidad: una de ellas directa, por la comisión de algunas de las
