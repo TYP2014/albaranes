@@ -27004,6 +27004,12 @@ const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;marg
 let _tacoSecActiva = 'subir';
 function tacoSec(sec) {
   _tacoSecActiva = sec;
+  // v480 (fallo real que conto JC): el informe abierto NO se cerraba NUNCA
+  // solo. Se iba a Albaranes o a ITV, volvia a Tacografo y seguia plantado el
+  // Registro de jornadas; ni cambiando de sub-pestaña se quitaba. Ahora, cada
+  // vez que se entra en una seccion, la pantalla de informes vuelve a su
+  // parrilla - que es lo que uno espera al llegar.
+  _tacoRepReset();
   ['subir', 'conductores', 'vehiculos', 'vencimientos', 'informes', 'archivo'].forEach(x => {
     const d = document.getElementById('tacoSec' + x);
     if (d) d.style.display = (x === sec) ? '' : 'none';
@@ -27387,11 +27393,16 @@ function _tacoOpcCond(conds) {
     + '</optgroup>').join('');
 }
 
-function tacoRepCerrar() {
+// v480: cerrar el informe SIN mover la pantalla. Se usa tanto desde el boton
+// como al cambiar de sub-pestaña o al volver a entrar en Tacografo.
+function _tacoRepReset() {
   const p = document.getElementById('tacoRepPanel');
   const g = document.getElementById('tacoRepParrilla');
   if (p) p.innerHTML = '';
   if (g) g.style.display = '';
+}
+function tacoRepCerrar() {
+  _tacoRepReset();
   const sec = document.getElementById('tacoSecinformes');
   if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -28831,15 +28842,15 @@ async function tacoRepJornadasUI() {
   const panel = document.getElementById('tacoRepPanel');
   const p = await _tacoInfCargarPersonas();
   const conds = p.filter(x => x.tipo === 'conductor').filter(_tacoEmpPasa);   // v422: solo la empresa elegida
-  if (!conds.length) { panel.innerHTML = '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
+  if (!conds.length) { panel.innerHTML = _tacoRepBarra('🗓 REGISTRO DE JORNADAS DE TRABAJO') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">No hay tarjetas de conductor guardadas' + (_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)) + ' todavía.</div></div>'; return; }
   const op = _tacoOpcCond(conds);
   // por defecto: el mes pasado entero, que es lo que se suele pedir
   const hoy = new Date();
   const d1 = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - 1, 1));
   const d2 = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), 0));
-  panel.innerHTML = `
+  panel.innerHTML = _tacoRepBarra('🗓 REGISTRO DE JORNADAS DE TRABAJO') + `
     <div class="card">
-      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#0a53d8"></span>REGISTRO DE JORNADAS DE TRABAJO</div></div>
+      <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#0a53d8"></span>JORNADAS DE TRABAJO · DÍA A DÍA</div></div>
       <div class="card-bd">
         <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
           <div class="fg" style="min-width:250px;flex:1 1 250px"><label class="fl">Conductor</label>
