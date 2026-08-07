@@ -27836,7 +27836,10 @@ async function tacoRepInfVer() {
         cursor = Math.max(mejor.r.fin, cursor + 1);
         continue;
       }
+      // v482: se guarda tambien lo que duro el descanso ENTERO (sin recortar
+      // por el borde de la ventana). Hace falta para saber si CUMPLIO.
       pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur,
+        durFull: mejor.r.fin - mejor.r.ini,
         ventIni: cursor, ventFin: finVent, dIni: mejor.r.ini, dFin: mejor.r.fin });
       cursor = Math.max(mejor.r.fin, cursor + 1);
     }
@@ -27850,18 +27853,25 @@ async function tacoRepInfVer() {
     porTramo.forEach((lista, nTramo) => {
       const orden = lista.slice().sort((a, b) => a.dur - b.dur);
       const det = orden.map((p, k) => ({
-        dur: p.dur, exig: k < 3 ? 540 : 660, orden: k + 1,
+        dur: p.dur, full: p.durFull, exig: k < 3 ? 540 : 660, orden: k + 1,
         desde: fh2(p.dIni), hasta: fh2(p.dFin),
         vent: fh2(p.ventIni) + ' \u2192 ' + fh2(p.ventFin)
       })).sort((a, b) => a.desde < b.desde ? -1 : 1);
       orden.forEach((p, k) => {
         const exig = k < 3 ? 540 : 660;             // 9 h los tres mas cortos, 11 h el resto
+        // v482 - LA REGLA QUE FALTABA, ensenada por el detalle de ASG del
+        // 07/07: si el descanso duro 11 HORAS ENTERAS O MAS, es un descanso
+        // diario NORMAL y esta CUMPLIDO, aunque parte de esas horas caigan
+        // ya en el periodo siguiente. ASG ni lo menciona entre los reducidos.
+        // El recorte por el borde de la ventana (v472) vale para MEDIR cuanto
+        // le falto a un descanso corto, NO para decidir si cumplio.
+        if (p.durFull >= 660) return;
         if (p.dur >= exig) return;
         infra.push({
           fecha: iso(p.fin - 1),
           txt: `Minoraci\u00f3n del descanso diario a ${hm(p.dur)}h sobre ${exig / 60}h`,
           tipo: exig === 540 ? _tacoGravDDR(p.dur) : _tacoGravDDN(p.dur),
-          det: det, nTramo: nTramo, nDR: orden.filter(x => x.dur < 660).length
+          det: det, nTramo: nTramo, nDR: orden.filter(x => x.durFull < 660).length
         });
       });
     });
@@ -28001,7 +28011,7 @@ function tacoIFverDet(ix) {
   const p = document.getElementById('tacoIFdetPanel');
   if (!p || !det) return;
   const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  const nDR = det.filter(x => x.dur < 660).length;
+  const nDR = det.filter(x => x.full < 660).length;   // v482: por el descanso ENTERO
   p.style.display = '';
   p.innerHTML = `<div style="border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:var(--bg2)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px">
@@ -28014,18 +28024,21 @@ function tacoIFverDet(ix) {
       — los <b>3 más cortos</b> se miden sobre 9h y el resto sobre 11h.
     </div>
     <div style="overflow-x:auto"><table class="tt" style="width:100%;font-family:var(--mn);font-size:11px">
-      <thead><tr><th>Descanso</th><th>Duración</th><th>Se mide sobre</th><th>Ventana de 24h</th><th>¿Infringe?</th></tr></thead>
-      <tbody>${det.map(d => `<tr>
+      <thead><tr><th>Descanso</th><th>Descansó en total</th><th>Dentro de la ventana</th><th>Se mide sobre</th><th>Ventana de 24h</th><th>¿Infringe?</th></tr></thead>
+      <tbody>${det.map(d => { const ok11 = (d.full || 0) >= 660; return `<tr>
         <td style="white-space:nowrap">${d.desde} → ${d.hasta}</td>
-        <td style="font-weight:700">${hm(d.dur)}</td>
-        <td>${d.exig / 60}h <span style="color:var(--mu)">(el ${d.orden}º más corto)</span></td>
+        <td style="font-weight:700;color:${ok11 ? '#1a8f3c' : 'var(--tx)'}">${hm(d.full || d.dur)}</td>
+        <td>${hm(d.dur)}</td>
+        <td>${ok11 ? '<span style="color:var(--mu)">—</span>' : `${d.exig / 60}h <span style="color:var(--mu)">(el ${d.orden}º más corto)</span>`}</td>
         <td style="white-space:nowrap;color:var(--mu)">${d.vent}</td>
-        <td style="color:${d.dur < d.exig ? 'var(--erd)' : '#1a8f3c'};font-weight:600">${d.dur < d.exig ? 'SÍ' : 'no'}</td>
-      </tr>`).join('')}</tbody>
+        <td style="color:${(ok11 || d.dur >= d.exig) ? '#1a8f3c' : 'var(--erd)'};font-weight:600">${ok11 ? 'no · 11h enteras' : d.dur < d.exig ? 'SÍ' : 'no'}</td>
+      </tr>`; }).join('')}</tbody>
     </table></div>
     <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:7px">
-      La duración es la del descanso <b>dentro</b> de su ventana de 24h: lo que sobresale cuenta para el día siguiente.
-      Compara este número de descansos con el que dice ASG en su propio detalle.
+      Si descansó <b>11h enteras o más</b> el descanso diario está CUMPLIDO, aunque parte caiga ya en el periodo
+      siguiente: no es reducido y no se juzga. Si se queda corto, lo que cuenta es lo que hizo
+      <b>dentro</b> de su ventana de 24h; lo que sobresale es del día siguiente.
+      Compara este número de reducidos con el que dice ASG en su propio detalle.
     </div></div>`;
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
