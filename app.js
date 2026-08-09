@@ -28077,6 +28077,11 @@ async function tacoRepInfUI() {
           <div class="fg"><label class="fl">Al día</label>
             <input class="fi" type="date" id="tacoIFhasta" value="${d2}"></div>
           <button class="btn bp" onclick="tacoRepInfVer()">Ver en pantalla</button>
+          <label class="fg" style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--tx);padding-bottom:6px"
+                 title="PRUEBA. Cambia solo cómo se encadenan los periodos de 24h. Con la casilla puesta, cada periodo empieza justo 24h después del anterior (que es como los lleva ASG). Sin ella, empieza al acabar el descanso elegido, que es como funciona la app desde la v471.">
+            <input type="checkbox" id="tacoIFenc" onchange="tacoRepInfVer()" style="cursor:pointer;width:16px;height:16px">
+            <span>Ventanas encadenadas cada 24h <b style="color:var(--in)">(modo ASG · prueba)</b></span>
+          </label>
         </div>
         <div id="tacoIFout" style="margin-top:14px"></div>
       </div>
@@ -28091,6 +28096,9 @@ async function tacoRepInfVer() {
   const quien = document.getElementById('tacoIFquien')?.value;
   let desde = document.getElementById('tacoIFdesde')?.value;
   let hasta = document.getElementById('tacoIFhasta')?.value;
+  // v493 - PRUEBA de encadenado de ventanas. Por defecto APAGADO: con la casilla
+  // sin marcar, el calculo es EXACTAMENTE el de la v492, ni un cambio.
+  const _enc24 = !!document.getElementById('tacoIFenc')?.checked;
   if (!out || !quien || !desde || !hasta) return;
   if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
   out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Analizando…</div>';
@@ -28199,7 +28207,16 @@ async function tacoRepInfVer() {
       pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur,
         durFull: mejor.r.fin - mejor.r.ini,
         ventIni: cursor, ventFin: finVent, dIni: mejor.r.ini, dFin: mejor.r.fin });
-      cursor = Math.max(mejor.r.fin, cursor + 1);
+      // v493 - AQUI ESTA TODA LA DIFERENCIA, en una linea.
+      // MODO DE SIEMPRE (casilla sin marcar): el siguiente periodo empieza al
+      // ACABAR el descanso que se ha elegido. Si ese descanso era una parada
+      // larga de mediodia, se abre un periodo nuevo a mitad del dia - y eso es
+      // lo que hacia salir CINCO ventanas en cuatro dias el 18-21/05, con dos
+      // arrancando el mismo dia con 12 horas de diferencia.
+      // MODO ASG (casilla marcada): el siguiente periodo empieza SIEMPRE 24h
+      // justas despues del anterior, encadenados, que es como los lleva ASG
+      // en sus detalles. Asi una parada de mediodia no puede abrir jornada.
+      cursor = _enc24 ? finVent : Math.max(mejor.r.fin, cursor + 1);
     }
     // ordenar cada tramo de menor a mayor: 3 primeros sobre 9 h, resto sobre 11 h
     const porTramo = new Map();
@@ -28396,7 +28413,7 @@ async function tacoRepInfVer() {
         Bisemanal (art. 6.3), dos semanas naturales seguidas, máximo 90h: A≥112h30 · MG 105-112h30 · G 100-105h · L 90-100h.
         Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
         la cuantía exacta la fija la Administración.
-        ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
+        ${_enc24 ? `<b style="color:var(--in)">MODO ASG (prueba): ventanas encadenadas cada 24h.</b> ` : ''}${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
         <b>Falta todavía</b> lo más importante: las <b>PRELACIONES</b>. Mientras no estén, un mismo día con
         exceso de conducción Y falta de descanso puede salir DOS veces, cuando la norma manda quedarse solo con
         la más grave. Compara con ASG antes de hacer firmar nada.
