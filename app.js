@@ -27307,9 +27307,9 @@ function _vencFila(f, esVeh) {
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
     + '<td style="padding:11px 12px;font-family:var(--mn);font-size:15px;font-weight:800">' + esc2(quien)
       + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(sub) + '</span></td>'
-    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap">' + cel2 + '</td>'
-    + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
-    + '<td style="padding:11px 10px;text-align:right">'
+    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap;width:1px">' + cel2 + '</td>'
+    + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap;width:1px">' + etiqueta + '</td>'
+    + '<td style="padding:11px 10px;text-align:right;width:1px;white-space:nowrap">'
       + '<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;align-items:center">' + btnCopiar + btnTramite + btn + '</div>'
     + '</td></tr>';
 }
@@ -27370,7 +27370,7 @@ function _vencPintar() {
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
       + '<table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">'
-      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:100%">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
       + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
       + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">AVISO</th>'
       + '<th></th></tr>'
