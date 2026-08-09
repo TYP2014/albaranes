@@ -27078,7 +27078,7 @@ async function tacoVencVer() {
     let filas = [], desde = 0;
     for (let i = 0; i < 10; i++) {
       let q = sb.from('tacografo_ficheros')
-        .select('tipo, matricula, conductor_nombre, tarjeta_num, empresa, proxima_revision, tarjeta_caduca, fecha_descarga, venc_hecho, venc_hecho_por, venc_hecho_el')
+        .select('tipo, matricula, conductor_nombre, tarjeta_num, empresa, proxima_revision, tarjeta_caduca, fecha_descarga, venc_hecho, venc_hecho_por, venc_hecho_el, venc_tramite, venc_tramite_por, venc_tramite_el')   // v488: + el trámite
         .order('fecha_descarga', { ascending: false }).range(desde, desde + 999);
       if (_tacoEmpGlobal !== 'TODAS') q = q.eq('empresa', _tacoEmpGlobal);
       const r = await q;
@@ -27219,6 +27219,7 @@ function vencCopiarTodos(tipo) {
     .filter(f => {
       const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
       if (!iso || f.venc_hecho === iso) return false;
+      if (f.venc_tramite === iso) return false;   // v488: ya esta pedido, no se vuelve a avisar
       return !!_vencEscalon(_vencDias(iso));
     })
     .sort((a, b) => _vencDias(esVeh ? a.proxima_revision : a.tarjeta_caduca) - _vencDias(esVeh ? b.proxima_revision : b.tarjeta_caduca));
@@ -27251,15 +27252,33 @@ function _vencFila(f, esVeh) {
   const dias = _vencDias(iso);
   const esc = _vencEscalon(dias);
   const hecho = !!f.venc_hecho && f.venc_hecho === iso;   // marcado PARA ESTA fecha
+  // v488: EN TRAMITE - la renovacion ya esta pedida o la revision ya esta
+  // citada. Se apunta PARA ESTA MISMA FECHA, igual que el hecho: asi, cuando
+  // llegue una descarga con otra fecha, el tramite deja de aplicar solo y el
+  // aviso vuelve sin que nadie tenga que acordarse de nada.
+  const tramite = !hecho && !!f.venc_tramite && f.venc_tramite === iso;
+  const esAdmin = (typeof currentRole !== 'undefined' && currentRole === 'admin');
   const quien = esVeh ? (f.matricula || '—') : (f.conductor_nombre || '—');
   const sub = esVeh ? (_TACO_EMP_NOM[f.empresa] || f.empresa || '') : (f.tarjeta_num || '');
   const dmy = x => x ? x.split('-').reverse().join('/') : '—';
   let etiqueta;
   if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:12px">sin dato</span>';
   else if (hecho) etiqueta = '<span style="color:#1b5e20;font-weight:800;font-size:13px">✓ ' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
+  else if (tramite) {
+    // v488: se dice que esta en tramite, PERO SIN ESCONDER lo que le queda:
+    // debajo, en pequenio, sigue el escalon de siempre. Que este pedida no
+    // quiere decir que este resuelta.
+    const quienT = f.venc_tramite_por ? String(f.venc_tramite_por).split('@')[0] : '';
+    const cuandoT = f.venc_tramite_el ? new Date(f.venc_tramite_el).toLocaleDateString('es-ES') : '';
+    etiqueta = '<span style="color:#0d47a1;font-weight:900;font-size:13px">EN TRÁMITE</span>'
+      + (cuandoT ? '<br><span style="font-size:11px;color:var(--mu);font-weight:400">desde ' + cuandoT + (quienT ? ' · ' + esc2(quienT) : '') + '</span>' : '')
+      + (esc ? '<br><span style="font-size:11px;color:' + esc.color + ';font-weight:700">' + esc.txt + '</span>' : '');
+  }
   else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900;font-size:13px">' + esc.txt + '</span>';
   else etiqueta = '<span style="color:var(--mu);font-size:13px">—</span>';
-  const fondo = (!hecho && esc) ? esc.fondo : 'transparent';
+  // v488: el azul del tramite tapa el color de alarma - de un vistazo se ve
+  // que eso ya esta en marcha y que no hay que volver a llamar por ello.
+  const fondo = hecho ? 'transparent' : (tramite ? 'rgba(21,101,192,.22)' : (esc ? esc.fondo : 'transparent'));
   // v458: la fecha y el "faltan N días" van JUNTOS en una celda, para que las
   // dos tablas quepan a media pantalla sin apretujarse.
   const cel2 = !iso
@@ -27268,6 +27287,15 @@ function _vencFila(f, esVeh) {
   const btn = (iso && !hecho && esc)
     ? '<button class="btn bs" style="font-size:11.5px;padding:6px 11px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
     : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
+  // v488: marcar / quitar el tramite. SOLO EL ADMIN, como pidio JC: los demas
+  // lo ven pero no lo tocan. Solo tiene sentido si hay fecha, no esta hecho y
+  // el aviso esta sonando (si faltan mas de 60 dias no hay nada que tramitar).
+  let btnTramite = '';
+  if (esAdmin && iso && !hecho && esc) {
+    btnTramite = tramite
+      ? '<button class="btn bs" title="Quitar el tr\u00e1mite \u2014 vuelve a avisar como antes" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap;color:#0d47a1" onclick="vencQuitarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">QUITAR TR\u00c1MITE</button>'
+      : '<button class="btn bs" title="Ya est\u00e1 pedido / citado \u2014 deja de avisar arriba pero sigue en la tabla" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap" onclick="vencMarcarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">EN TR\u00c1MITE</button>';
+  }
   // v485: copiar el aviso de ESTA fila. Sale siempre que haya fecha y no
   // este marcado como hecho, aunque falten mas de 60 dias (a veces JC
   // quiere avisar antes de tiempo, y no cuesta nada dejarlo disponible).
@@ -27281,7 +27309,7 @@ function _vencFila(f, esVeh) {
       + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(sub) + '</span></td>'
     + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap">' + cel2 + '</td>'
     + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
-    + '<td style="padding:11px 12px;text-align:right;white-space:nowrap">' + btnCopiar + btn + '</td></tr>';
+    + '<td style="padding:11px 12px;text-align:right;white-space:nowrap">' + btnCopiar + btnTramite + btn + '</td></tr>';
 }
 
 function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -27305,11 +27333,16 @@ function _vencPintar() {
     // v460: RESUMEN POR ESCALON — cuantos hay en cada color, de un vistazo,
     // sin tener que leerse la tabla entera (pedido de JC junto al filtro).
     const cuenta = new Map();
+    let enTramite = 0;   // v488
     ord.forEach(f => {
       const iso2 = esVeh ? f.proxima_revision : f.tarjeta_caduca;
       if (!iso2 || f.venc_hecho === iso2) return;
       const e2 = _vencEscalon(_vencDias(iso2));
-      if (e2) cuenta.set(e2.clave, (cuenta.get(e2.clave) || 0) + 1);
+      if (!e2) return;
+      // v488: en tramite cuenta APARTE, no en su escalon. Si no, el resumen
+      // seguiria gritando "2 en 15 dias" cuando esos dos ya estan pedidos.
+      if (f.venc_tramite === iso2) { enTramite++; return; }
+      cuenta.set(e2.clave, (cuenta.get(e2.clave) || 0) + 1);
     });
     let chips = '';
     _VENC_ESC.forEach(e2 => {
@@ -27320,7 +27353,8 @@ function _vencPintar() {
         + n2 + ' · ' + e2.txt + '</span>';
     });
     const avisando = [...cuenta.values()].reduce((a2, b2) => a2 + b2, 0);   // v485
-    const tranquilos = conFecha.length - avisando;
+    if (enTramite) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(21,101,192,.22);border:2px solid #0d47a1;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#0d47a1">' + enTramite + ' · EN TRÁMITE</span>';   // v488
+    const tranquilos = conFecha.length - avisando - enTramite;
     if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,160,60,.22);border:2px solid #1b5e20;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#1b5e20">' + tranquilos + ' · AL DÍA</span>';
     if (sinFecha) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:2px dashed var(--mu);border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--mu)">' + sinFecha + ' · SIN DATO</span>';
     return '<div>'
@@ -27356,7 +27390,56 @@ function _vencPintar() {
     + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
     + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.<br>'
     + 'El botón COPIAR deja el aviso YA ESCRITO en el portapapeles para pegarlo en WhatsApp: del camión va la matrícula (para el taller) y del conductor su nombre, DNI y número de tarjeta. '
-    + 'El DNI sale de su ficha de trabajador; si ahí no está puesto, el aviso lo dice en vez de inventárselo.</div>';
+    + 'El DNI sale de su ficha de trabajador; si ahí no está puesto, el aviso lo dice en vez de inventárselo.<br>'
+    + '<b style="color:#0d47a1">EN TRÁMITE</b> es para cuando la renovación ya está pedida o la revisión ya está citada: la fila se queda aquí en azul, con su escalón debajo, '
+    + 'y solo deja de salir en el aviso de arriba de la app. NO es darlo por hecho. Se guarda en la base de datos, así que lo ven todos. '
+    + 'Cuando llegue la descarga nueva con la fecha nueva, el trámite deja de valer solo y el aviso vuelve.</div>';
+}
+
+// v488 — MARCAR / QUITAR "EN TRAMITE".
+// Escribe en las tres columnas nuevas, con quien y cuando, que es lo que
+// vale el dia que alguien pregunte por que ese aviso dejo de salir.
+// OJO: se apunta LA FECHA para la que se marca. Cuando llegue una descarga
+// nueva con otra fecha, la comparacion deja de cuadrar y el aviso vuelve
+// SOLO - no hay que acordarse de quitar nada.
+async function vencMarcarTramite(tipo, clave) {
+  const esVeh = tipo === 'V';
+  const f = (esVeh ? _vencCache.veh : _vencCache.con).find(x => (esVeh ? x.matricula : x.tarjeta_num) === clave);
+  if (!f) return;
+  const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+  if (!iso) return;
+  const que = esVeh
+    ? ('la revisi\u00f3n del ' + clave + ' del ' + iso.split('-').reverse().join('/'))
+    : ('la tarjeta de ' + (f.conductor_nombre || clave));
+  if (!confirm('\u00bfMarcar ' + que + ' como EN TR\u00c1MITE?\n\n'
+    + 'Es para decir que la ' + (esVeh ? 'revisi\u00f3n ya est\u00e1 citada' : 'renovaci\u00f3n ya est\u00e1 pedida') + '.\n\n'
+    + 'NO es darlo por hecho: la fila se queda en la tabla, marcada en azul, y solo deja de salir en el aviso de arriba. '
+    + 'Lo ver\u00e1n todos, no solo t\u00fa.')) return;
+  try {
+    let q = sb.from('tacografo_ficheros')
+      .update({ venc_tramite: iso, venc_tramite_por: currentUser?.email || currentUser?.id || null, venc_tramite_el: new Date().toISOString() });
+    q = esVeh ? q.eq('matricula', clave).eq('tipo', 'vehiculo') : q.eq('tarjeta_num', clave).eq('tipo', 'conductor');
+    const { error } = await q;
+    if (error) throw error;
+    toast('\u2713 Apuntado como EN TR\u00c1MITE');
+    await tacoVencVer();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+async function vencQuitarTramite(tipo, clave) {
+  const esVeh = tipo === 'V';
+  const f = (esVeh ? _vencCache.veh : _vencCache.con).find(x => (esVeh ? x.matricula : x.tarjeta_num) === clave);
+  if (!f) return;
+  if (!confirm('\u00bfQuitar el tr\u00e1mite?\n\nVolver\u00e1 a avisar arriba como antes.')) return;
+  try {
+    let q = sb.from('tacografo_ficheros')
+      .update({ venc_tramite: null, venc_tramite_por: null, venc_tramite_el: null });
+    q = esVeh ? q.eq('matricula', clave).eq('tipo', 'vehiculo') : q.eq('tarjeta_num', clave).eq('tipo', 'conductor');
+    const { error } = await q;
+    if (error) throw error;
+    toast('Tr\u00e1mite quitado');
+    await tacoVencVer();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
 async function vencMarcarHecho(tipo, clave) {
@@ -27469,12 +27552,12 @@ function renderVencBanner() {
   if (!b) return;
   const todo = [];
   _vencCache.veh.forEach(f => {
-    const iso = f.proxima_revision; if (!iso || f.venc_hecho === iso) return;
+    const iso = f.proxima_revision; if (!iso || f.venc_hecho === iso || f.venc_tramite === iso) return;   // v488
     const d = _vencDias(iso), e = _vencEscalon(d);
     if (e) todo.push({ e, d, txt: f.matricula, iso });
   });
   _vencCache.con.forEach(f => {
-    const iso = f.tarjeta_caduca; if (!iso || f.venc_hecho === iso) return;
+    const iso = f.tarjeta_caduca; if (!iso || f.venc_hecho === iso || f.venc_tramite === iso) return;   // v488
     const d = _vencDias(iso), e = _vencEscalon(d);
     if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso });
   });
