@@ -18755,6 +18755,16 @@ async function deleteNeumMov() {
 // ============================================================
 const VAC_DIAS_VACACIONES = 30;       // por trabajador y año
 const VAC_DIAS_ASUNTOS_PROPIOS = 2;
+// v484 — PALETA UNICA de Vacaciones (antes repetida en 3 vistas + 3 leyendas).
+// Colores mas intensos que los originales; siguen siendo claros a proposito
+// para que el texto NEGRO que va encima se lea bien.
+const VAC_COL = {
+  'vacaciones':          '#00e585',   // verde
+  'asuntos_propios':     '#b07dff',   // morado
+  'baja_medica':         '#ffa726',   // naranja
+  'permiso_retribuido':  '#4aa8ff',   // azul
+  'falta_injustificada': '#ff5252'    // rojo
+};
 
 let vacTrabajadores = [];     // todos los trabajadores (activos + archivados)
 let vacPeriodos = [];          // todos los periodos
@@ -18945,18 +18955,18 @@ function renderVac() {
     const msg = vacMostrarArchivados
       ? `No hay trabajadores archivados en ${vacEmpresaActiva}.`
       : `No hay trabajadores activos en <strong>${vacEmpresaActiva}</strong>. Pulsa <strong>➕ Añadir trabajador</strong> para empezar.`;
-    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:18px;text-align:center">${msg}</div>`;
+    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:13px;padding:20px;text-align:center">${msg}</div>`;
   } else {
     box.innerHTML = `
-      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">
+      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:13px">
         <thead>
           <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
-            <th style="padding:8px">NOMBRE</th>
-            <th style="padding:8px">EMPRESA</th>
-            <th style="padding:8px">🏖️ VACACIONES (usadas / bolsa)</th>
-            <th style="padding:8px">🎯 ASUNTOS PROPIOS</th>
-            <th style="padding:8px">PERIODOS</th>
-            <th style="padding:8px"></th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">NOMBRE</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">EMPRESA</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🏖️ VACACIONES (usadas / bolsa)</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🎯 ASUNTOS PROPIOS</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">PERIODOS</th>
+            <th style="padding:11px 10px"></th>
           </tr>
         </thead>
         <tbody>
@@ -18964,25 +18974,25 @@ function renderVac() {
           const s = _vacSaldoTrabajador(t.id, vacAnioActivo);
           const pctVac = s.bolsa > 0 ? Math.min(100, (s.vac_disfrutadas / s.bolsa) * 100) : 0;
           const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? '#ffb84d' : 'var(--ok)');
-          const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:9px;padding:2px 6px;border-radius:3px;margin-left:6px">ARCHIVADO</span>` : '';
+          const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:11px;padding:3px 8px;border-radius:3px;margin-left:8px">ARCHIVADO</span>` : '';
           return `<tr style="border-bottom:1px solid var(--bd)">
-            <td style="padding:8px;color:var(--ac)">${esc(t.nombre)}${archivadoBadge}</td>
-            <td style="padding:8px;color:var(--mu)">${esc(t.empresa || '—')}</td>
-            <td style="padding:8px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;min-width:80px">
+            <td style="padding:11px 10px;color:var(--ac);font-size:14px">${esc(t.nombre)}${archivadoBadge}</td>
+            <td style="padding:11px 10px;color:var(--mu)">${esc(t.empresa || '—')}</td>
+            <td style="padding:11px 10px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="flex:1;height:11px;background:#e2e8f0;border-radius:6px;overflow:hidden;min-width:90px">
                   <div style="width:${pctVac}%;height:100%;background:${colorVac};transition:width .3s"></div>
                 </div>
-                <span style="color:${colorVac};font-weight:bold;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
+                <span style="color:${colorVac};font-weight:bold;font-size:15px;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
                 <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
               </div>
-              <div style="font-size:10px;color:var(--mu);margin-top:3px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
+              <div style="font-size:12px;color:var(--mu);margin-top:5px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
             </td>
-            <td style="padding:8px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
-            <td style="padding:8px">${s.periodos.length}</td>
-            <td style="padding:8px;text-align:right">
-              <button class="btn bs" style="font-size:9px;padding:4px 8px;margin-right:4px" onclick="openVacTrabajadorDetalle('${t.id}')">Ver periodos</button>
-              <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openTrabajadorModal('${t.id}')">Editar</button>
+            <td style="padding:11px 10px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
+            <td style="padding:11px 10px">${s.periodos.length}</td>
+            <td style="padding:11px 10px;text-align:right;white-space:nowrap">
+              <button class="btn bs" style="font-size:11px;padding:6px 11px;margin-right:5px" onclick="openVacTrabajadorDetalle('${t.id}')">Ver periodos</button>
+              <button class="btn bs" style="font-size:11px;padding:6px 11px" onclick="openTrabajadorModal('${t.id}')">Editar</button>
             </td>
           </tr>`;
         }).join('')}
@@ -18991,6 +19001,26 @@ function renderVac() {
   }
   // Calendario
   _vacRenderCalendario();
+}
+
+// v484 — LEYENDA UNICA para las tres vistas (mes / 3 meses / ano).
+// bgFestivo: el tono de rojo del festivo cambia segun la vista.
+// conHoy: en 3 meses y ano hay recuadro "Hoy"; en la vista mes no.
+function _vacLeyenda(bgFestivo, conHoy) {
+  const items = [
+    [VAC_COL.vacaciones, 'Vacaciones'],
+    [VAC_COL.asuntos_propios, 'Asuntos propios'],
+    [VAC_COL.baja_medica, 'Baja médica'],
+    [VAC_COL.permiso_retribuido, 'Permiso retribuido'],
+    [VAC_COL.falta_injustificada, 'Falta injustificada'],
+    [bgFestivo, 'Festivo']
+  ].map(([c, txt]) =>
+    `<span><span style="display:inline-block;width:14px;height:14px;background:${c};border-radius:3px;vertical-align:-2px;margin-right:2px"></span> ${txt}</span>`
+  ).join('');
+  const hoy = conHoy
+    ? `<span><span style="display:inline-block;width:14px;height:14px;border:2px solid var(--ac);border-radius:3px;vertical-align:-2px;margin-right:2px"></span> Hoy</span>`
+    : '';
+  return `<div style="margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mn);font-size:12px;color:var(--mu)">${items}${hoy}</div>`;
 }
 
 // === Calendario visual de vacaciones ===
@@ -19072,48 +19102,35 @@ function _vacRenderCalendarioMes() {
   const box = document.getElementById('vacCalendarioBox');
   if (!box) return;
   const cabecera = ['L','M','X','J','V','S','D'].map(d =>
-    `<div style="text-align:center;font-family:var(--mn);font-size:10px;color:var(--mu);padding:6px">${d}</div>`
+    `<div style="text-align:center;font-family:var(--mn);font-size:13px;font-weight:700;color:var(--mu);padding:8px">${d}</div>`
   ).join('');
   const celdas = dias.map(c => {
-    if (!c) return `<div style="min-height:60px"></div>`;
+    if (!c) return `<div style="min-height:92px"></div>`;
     const bg = c.esFestivo ? 'rgba(255,80,80,.08)' : (c.esFinde ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.02)');
     const colorDia = c.esFestivo ? 'var(--er)' : (c.esFinde ? 'var(--mu)' : 'var(--fg)');
-    const trabajadoresHoy = c.periodosDia.slice(0, 3).map(p => {
+    const trabajadoresHoy = c.periodosDia.slice(0, 4).map(p => {
       const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
       const nombreCorto = (t?.nombre || '?').split(' ')[0];
       // v107Z: cada tipo tiene su color
-      const colorMap = {
-        'vacaciones': '#34d399',           // verde
-        'asuntos_propios': '#a78bfa',      // morado
-        'baja_medica': '#fbbf24',          // amarillo
-        'permiso_retribuido': '#60a5fa',   // azul
-        'falta_injustificada': '#ef4444'   // rojo
-      };
+      const colorMap = VAC_COL;   // v484 - paleta unica
       const labelMap = {
         'vacaciones': 'Vac', 'asuntos_propios': 'AP',
         'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
       };
-      const color = colorMap[p.tipo] || '#34d399';
-      return `<div style="font-size:9px;background:${color};color:#000;padding:1px 4px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${labelMap[p.tipo] || p.tipo}">${esc(nombreCorto)}</div>`;
+      const color = colorMap[p.tipo] || VAC_COL.vacaciones;
+      return `<div style="font-size:12px;font-weight:600;background:${color};color:#000;padding:3px 7px;border-radius:4px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${labelMap[p.tipo] || p.tipo}">${esc(nombreCorto)}</div>`;
     }).join('');
-    const masTexto = c.periodosDia.length > 3
-      ? `<div style="font-size:9px;color:var(--mu);margin-top:2px">+${c.periodosDia.length - 3} más</div>` : '';
-    return `<div style="min-height:60px;border:1px solid var(--bd);border-radius:4px;padding:4px;background:${bg}">
-      <div style="font-family:var(--mn);font-size:11px;color:${colorDia}">${c.d}</div>
+    const masTexto = c.periodosDia.length > 4
+      ? `<div style="font-size:11px;color:var(--mu);margin-top:3px">+${c.periodosDia.length - 4} más</div>` : '';
+    return `<div style="min-height:92px;border:1px solid var(--bd);border-radius:5px;padding:6px;background:${bg}">
+      <div style="font-family:var(--mn);font-size:15px;font-weight:700;color:${colorDia}">${c.d}</div>
       ${trabajadoresHoy}${masTexto}
     </div>`;
   }).join('');
   box.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">${cabecera}</div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${celdas}</div>
-    <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
-      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.5);border-radius:2px;vertical-align:middle"></span> Festivo</span>
-    </div>`;
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px">${cabecera}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${celdas}</div>
+    ${_vacLeyenda('rgba(255,80,80,.5)', false)}`;
 }
 
 // v107AA: vista 3 MESES. Muestra el mes anterior + el actual + el siguiente lado a lado.
@@ -19140,13 +19157,7 @@ function _vacRenderCalendario3Meses() {
     return t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014');
   });
   // Colores por tipo (mismo esquema que en mes y año)
-  const tipoColor = {
-    'vacaciones': '#34d399',
-    'asuntos_propios': '#a78bfa',
-    'baja_medica': '#fbbf24',
-    'permiso_retribuido': '#60a5fa',
-    'falta_injustificada': '#ef4444'
-  };
+  const tipoColor = VAC_COL;   // v484 - paleta unica
   const tipoLabel = {
     'vacaciones': 'Vac', 'asuntos_propios': 'AP',
     'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
@@ -19161,7 +19172,7 @@ function _vacRenderCalendario3Meses() {
     const primerDia = fecha.getDay();
     const offset = primerDia === 0 ? 6 : primerDia - 1;
     const cabecera = ['L','M','X','J','V','S','D'].map(d =>
-      `<div style="text-align:center;font-family:var(--mn);font-size:10px;color:var(--mu);padding:3px 0">${d}</div>`
+      `<div style="text-align:center;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--mu);padding:4px 0">${d}</div>`
     ).join('');
     const celdas = [];
     for (let i = 0; i < offset; i++) celdas.push('<div></div>');
@@ -19175,15 +19186,15 @@ function _vacRenderCalendario3Meses() {
       const periodosDia = periodosEmpresa.filter(p => p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr);
       // Color de fondo según periodo(s)
       let bg = 'transparent';
-      if (periodosDia.length === 1) bg = tipoColor[periodosDia[0].tipo] || '#34d399';
+      if (periodosDia.length === 1) bg = tipoColor[periodosDia[0].tipo] || VAC_COL.vacaciones;
       else if (periodosDia.length > 1) {
-        const c1 = tipoColor[periodosDia[0].tipo] || '#34d399';
-        const c2 = tipoColor[periodosDia[1].tipo] || '#a78bfa';
+        const c1 = tipoColor[periodosDia[0].tipo] || VAC_COL.vacaciones;
+        const c2 = tipoColor[periodosDia[1].tipo] || VAC_COL.asuntos_propios;
         bg = `linear-gradient(135deg,${c1} 50%,${c2} 50%)`;
       } else if (esFestivo) bg = 'rgba(255,80,80,.18)';
       else if (esFinde) bg = 'rgba(255,255,255,.04)';
       const color = periodosDia.length ? '#000' : (esFestivo ? 'var(--er)' : (esFinde ? 'var(--mu)' : 'var(--fg)'));
-      const borde = esHoy ? 'border:1.5px solid var(--ac)' : '';
+      const borde = esHoy ? 'border:2px solid var(--ac)' : '';
       // En vista 3 meses, mostramos nombre corto del trabajador en pequeño debajo del día
       const nombreCorto = periodosDia.length === 1
         ? (vacTrabajadores.find(x => x.id === periodosDia[0].trabajador_id)?.nombre || '').split(' ')[0]
@@ -19197,34 +19208,26 @@ function _vacRenderCalendario3Meses() {
       const onclick = periodosDia.length === 1
         ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" style="cursor:pointer;${borde ? borde+';' : ''}background:${bg}"`
         : `style="${borde ? borde+';' : ''}background:${bg}"`;
-      celdas.push(`<div title="${esc(tooltip)}" ${onclick} style="min-height:38px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;border-radius:3px;color:${color}">
-        <div style="font-family:var(--mn);font-size:11px;line-height:1">${d}</div>
-        ${nombreCorto ? `<div style="font-size:8px;line-height:1;margin-top:1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombreCorto)}</div>` : ''}
+      celdas.push(`<div title="${esc(tooltip)}" ${onclick} style="min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px;border-radius:4px;color:${color}">
+        <div style="font-family:var(--mn);font-size:14px;font-weight:700;line-height:1.1">${d}</div>
+        ${nombreCorto ? `<div style="font-size:11px;font-weight:600;line-height:1.1;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombreCorto)}</div>` : ''}
       </div>`);
     }
     mesesHTML.push(`
-      <div style="border:1px solid var(--bd);border-radius:6px;padding:10px;background:rgba(255,255,255,.01)">
-        <div style="font-family:var(--mn);font-size:13px;color:var(--ac);text-align:center;margin-bottom:8px">${meses[m]} ${a}</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px">${cabecera}</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${celdas.join('')}</div>
+      <div style="border:1px solid var(--bd);border-radius:8px;padding:12px;background:rgba(255,255,255,.01)">
+        <div style="font-family:var(--mn);font-size:16px;font-weight:700;color:var(--ac);text-align:center;margin-bottom:10px">${meses[m]} ${a}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">${cabecera}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${celdas.join('')}</div>
       </div>
     `);
   }
   const box = document.getElementById('vacCalendarioBox');
   if (!box) return;
   box.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
       ${mesesHTML.join('')}
     </div>
-    <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
-      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.18);border-radius:2px;vertical-align:middle"></span> Festivo</span>
-      <span><span style="display:inline-block;width:10px;height:10px;border:1.5px solid var(--ac);border-radius:2px;vertical-align:middle"></span> Hoy</span>
-    </div>`;
+    ${_vacLeyenda('rgba(255,80,80,.18)', true)}`;
 }
 
 // v107X: vista AÑO COMPLETO. 12 mini-calendarios para previsión visual rápida.
@@ -19248,7 +19251,7 @@ function _vacRenderCalendarioAnio() {
     const primerDia = new Date(anio, m, 1).getDay();
     const offset = primerDia === 0 ? 6 : primerDia - 1;
     const cabeceraMini = ['L','M','X','J','V','S','D'].map(d =>
-      `<div style="text-align:center;font-family:var(--mn);font-size:8px;color:var(--mu);padding:1px 0">${d}</div>`
+      `<div style="text-align:center;font-family:var(--mn);font-size:10px;font-weight:700;color:var(--mu);padding:2px 0">${d}</div>`
     ).join('');
     const celdasMini = [];
     for (let i = 0; i < offset; i++) celdasMini.push('<div></div>');
@@ -19262,20 +19265,14 @@ function _vacRenderCalendarioAnio() {
       // ¿Hay periodos activos este día?
       const periodosDia = periodosEmpresa.filter(p => p.fecha_inicio <= fechaStr && p.fecha_fin >= fechaStr);
       // v107Z: colores por tipo (todos los nuevos)
-      const tipoColor = {
-        'vacaciones': '#34d399',
-        'asuntos_propios': '#a78bfa',
-        'baja_medica': '#fbbf24',
-        'permiso_retribuido': '#60a5fa',
-        'falta_injustificada': '#ef4444'
-      };
+      const tipoColor = VAC_COL;   // v484 - paleta unica
       let bg = 'transparent';
       if (periodosDia.length === 1) {
-        bg = tipoColor[periodosDia[0].tipo] || '#34d399';
+        bg = tipoColor[periodosDia[0].tipo] || VAC_COL.vacaciones;
       } else if (periodosDia.length > 1) {
         // Múltiples tipos: gradiente con los 2 primeros
-        const c1 = tipoColor[periodosDia[0].tipo] || '#34d399';
-        const c2 = tipoColor[periodosDia[1].tipo] || '#a78bfa';
+        const c1 = tipoColor[periodosDia[0].tipo] || VAC_COL.vacaciones;
+        const c2 = tipoColor[periodosDia[1].tipo] || VAC_COL.asuntos_propios;
         bg = `linear-gradient(135deg,${c1} 50%,${c2} 50%)`;
       } else if (esFestivo) bg = 'rgba(255,80,80,.3)';
       else if (esFinde) bg = 'rgba(255,255,255,.04)';
@@ -19291,31 +19288,23 @@ function _vacRenderCalendarioAnio() {
       // Click para abrir periodo si hay uno
       const onclick = periodosDia.length === 1
         ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" style="cursor:pointer"` : '';
-      celdasMini.push(`<div title="${esc(tooltip)}" ${onclick} style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:9px;color:${color};background:${bg};border-radius:2px;${borde}">${d}</div>`);
+      celdasMini.push(`<div title="${esc(tooltip)}" ${onclick} style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:12px;font-weight:600;color:${color};background:${bg};border-radius:3px;${borde}">${d}</div>`);
     }
     mesesHTML.push(`
-      <div style="border:1px solid var(--bd);border-radius:6px;padding:8px;background:rgba(255,255,255,.01)">
-        <div style="font-family:var(--mn);font-size:11px;color:var(--ac);text-align:center;margin-bottom:6px">${meses[m]} ${anio}</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">${cabeceraMini}</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${celdasMini.join('')}</div>
+      <div style="border:1px solid var(--bd);border-radius:8px;padding:10px;background:rgba(255,255,255,.01)">
+        <div style="font-family:var(--mn);font-size:14px;font-weight:700;color:var(--ac);text-align:center;margin-bottom:8px">${meses[m]} ${anio}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px">${cabeceraMini}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${celdasMini.join('')}</div>
       </div>
     `);
   }
   const box = document.getElementById('vacCalendarioBox');
   if (!box) return;
   box.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px">
       ${mesesHTML.join('')}
     </div>
-    <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mn);font-size:10px;color:var(--mu)">
-      <span><span style="display:inline-block;width:10px;height:10px;background:#34d399;border-radius:2px;vertical-align:middle"></span> Vacaciones</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;vertical-align:middle"></span> Asuntos propios</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Baja médica</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;vertical-align:middle"></span> Permiso retribuido</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Falta injustificada</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(255,80,80,.3);border-radius:2px;vertical-align:middle"></span> Festivo</span>
-      <span><span style="display:inline-block;width:10px;height:10px;border:1.5px solid var(--ac);border-radius:2px;vertical-align:middle"></span> Hoy</span>
-    </div>`;
+    ${_vacLeyenda('rgba(255,80,80,.3)', true)}`;
 }
 
 function vacToggleArchivados() {
@@ -19625,19 +19614,19 @@ function openVacTrabajadorDetalle(trabajadorId) {
   const s = _vacSaldoTrabajador(trabajadorId, vacAnioActivo);
   document.getElementById('vacDetalleTitulo').textContent = `${t.nombre} · ${vacAnioActivo}`;
   const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada' };
-  let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--tx)">`
+  let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:14px;color:var(--tx)">`
         + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.) · generado a hoy: ${s.generado}</span>`
         + `<span>🎯 Asuntos propios: <strong>${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS}</strong> (${s.ap_restantes} rest.)</span>`
         + `</div>`;
   if (!s.periodos.length) {
     h += `<div style="color:var(--mu);font-size:13px;padding:10px 0">Sin periodos registrados en ${vacAnioActivo}. Pulsa "➕ Nuevo periodo".</div>`;
   } else {
-    h += `<div style="font-size:11px;color:var(--mu);margin-bottom:8px">Pulsa un periodo para editarlo o borrarlo:</div>`;
+    h += `<div style="font-size:13px;color:var(--mu);margin-bottom:8px">Pulsa un periodo para editarlo o borrarlo:</div>`;
     h += s.periodos.map(p => {
       const computoIcon = p.computo === 'naturales' ? '⚖️' : '💼';
       const fIni = p.fecha_inicio.split('-').reverse().join('/');
       const fFin = p.fecha_fin.split('-').reverse().join('/');
-      return `<div onclick="closeVacDetalle();openVacPeriodoModal('${p.id}')" style="cursor:pointer;padding:10px 12px;margin-bottom:6px;border:1px solid var(--bd);border-radius:8px;background:var(--s2);font-family:var(--mn);font-size:12px;color:var(--tx);display:flex;justify-content:space-between;align-items:center;gap:10px">`
+      return `<div onclick="closeVacDetalle();openVacPeriodoModal('${p.id}')" style="cursor:pointer;padding:12px 14px;margin-bottom:8px;border:1px solid var(--bd);border-radius:8px;background:var(--s2);font-family:var(--mn);font-size:14px;color:var(--tx);display:flex;justify-content:space-between;align-items:center;gap:10px">`
            + `<span>${labelMap[p.tipo] || p.tipo} · ${computoIcon} ${fIni} → ${fFin} · <strong>${p.dias_contados}d</strong>${p.observaciones ? ' · ' + esc(p.observaciones) : ''}</span>`
            + `<span style="color:var(--ac);font-size:15px">✏️</span></div>`;
     }).join('');
