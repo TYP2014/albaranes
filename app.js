@@ -27034,14 +27034,17 @@ function tacoSec(sec) {
 // fecha se dice ABIERTAMENTE ("sin dato — vuelve a subir su
 // descarga"), no se esconde ni se inventa.
 // ============================================================
+// v486 — COLORES MAS INTENSOS. Los fondos iban al 16-34% de opacidad y en
+// pantalla no se distinguian; ahora van al 30-55%. Las letras se oscurecen
+// un punto para que sigan leyendose encima del fondo nuevo.
 const _VENC_ESC = [
-  { max:  -1, clave: 'vencido', color: '#7f1d1d', fondo: 'rgba(127,29,29,.30)',  txt: 'VENCIDO',        orden: 0 },
-  { max:   1, clave: 'd1',      color: '#b71c1c', fondo: 'rgba(255,59,48,.34)',  txt: '1 DÍA',          orden: 1 },
-  { max:   5, clave: 'd5',      color: '#d32f2f', fondo: 'rgba(255,80,80,.26)',  txt: '5 DÍAS O MENOS', orden: 2 },
-  { max:  15, clave: 'd15',     color: '#e65100', fondo: 'rgba(255,140,0,.26)',  txt: '15 DÍAS',        orden: 3 },
-  { max:  30, clave: 'd30',     color: '#b58900', fondo: 'rgba(255,208,0,.28)',  txt: '30 DÍAS',        orden: 4 },
-  { max:  45, clave: 'd45',     color: '#2e7d32', fondo: 'rgba(46,125,50,.18)',  txt: '45 DÍAS',        orden: 5 },
-  { max:  60, clave: 'd60',     color: '#1565c0', fondo: 'rgba(21,101,192,.16)', txt: '60 DÍAS',        orden: 6 }
+  { max:  -1, clave: 'vencido', color: '#5c0d0d', fondo: 'rgba(183,28,28,.52)',  txt: 'VENCIDO',        orden: 0 },
+  { max:   1, clave: 'd1',      color: '#8f0f0f', fondo: 'rgba(255,59,48,.55)',  txt: '1 DÍA',          orden: 1 },
+  { max:   5, clave: 'd5',      color: '#a81b1b', fondo: 'rgba(255,80,80,.45)',  txt: '5 DÍAS O MENOS', orden: 2 },
+  { max:  15, clave: 'd15',     color: '#b23c00', fondo: 'rgba(255,140,0,.48)',  txt: '15 DÍAS',        orden: 3 },
+  { max:  30, clave: 'd30',     color: '#7a5c00', fondo: 'rgba(255,200,0,.52)',  txt: '30 DÍAS',        orden: 4 },
+  { max:  45, clave: 'd45',     color: '#1b5e20', fondo: 'rgba(46,160,60,.34)',  txt: '45 DÍAS',        orden: 5 },
+  { max:  60, clave: 'd60',     color: '#0d47a1', fondo: 'rgba(21,101,192,.30)', txt: '60 DÍAS',        orden: 6 }
 ];
 
 function _vencDias(iso) {
@@ -27252,31 +27255,33 @@ function _vencFila(f, esVeh) {
   const sub = esVeh ? (_TACO_EMP_NOM[f.empresa] || f.empresa || '') : (f.tarjeta_num || '');
   const dmy = x => x ? x.split('-').reverse().join('/') : '—';
   let etiqueta;
-  if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:10px">sin dato</span>';
-  else if (hecho) etiqueta = '<span style="color:#2e7d32;font-weight:800;font-size:10.5px">✓ ' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
-  else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900;font-size:10.5px">' + esc.txt + '</span>';
-  else etiqueta = '<span style="color:var(--mu)">—</span>';
+  if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:12px">sin dato</span>';
+  else if (hecho) etiqueta = '<span style="color:#1b5e20;font-weight:800;font-size:13px">✓ ' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
+  else if (esc) etiqueta = '<span style="color:' + esc.color + ';font-weight:900;font-size:13px">' + esc.txt + '</span>';
+  else etiqueta = '<span style="color:var(--mu);font-size:13px">—</span>';
   const fondo = (!hecho && esc) ? esc.fondo : 'transparent';
   // v458: la fecha y el "faltan N días" van JUNTOS en una celda, para que las
   // dos tablas quepan a media pantalla sin apretujarse.
   const cel2 = !iso
-    ? '<span style="color:var(--mu);font-size:10px">vuelve a subir su descarga</span>'
-    : dmy(iso) + '<br><span style="color:var(--mu);font-size:10px">' + _vencTxtDias(hecho ? null : dias) + '</span>';
+    ? '<span style="color:var(--mu);font-size:12px">vuelve a subir su descarga</span>'
+    : dmy(iso) + '<br><span style="color:var(--mu);font-size:12px">' + _vencTxtDias(hecho ? null : dias) + '</span>';
   const btn = (iso && !hecho && esc)
-    ? '<button class="btn bs" style="font-size:9.5px;padding:3px 7px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
-    : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:9.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
+    ? '<button class="btn bs" style="font-size:11.5px;padding:6px 11px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
+    : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
   // v485: copiar el aviso de ESTA fila. Sale siempre que haya fecha y no
   // este marcado como hecho, aunque falten mas de 60 dias (a veces JC
   // quiere avisar antes de tiempo, y no cuesta nada dejarlo disponible).
+  // v486: SIN EMOJI. En la captura de JC salia un cuadradito vacio, porque la
+  // letra monoespaciada de la tabla no tiene ese dibujo. La palabra se entiende.
   const btnCopiar = (iso && !hecho)
-    ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:9.5px;padding:3px 7px;margin-right:5px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">📋</button>'
+    ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">COPIAR</button>'
     : '';
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
-    + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;font-weight:800">' + esc2(quien)
-      + '<br><span style="font-weight:400;font-size:9.5px;color:var(--mu)">' + esc2(sub) + '</span></td>'
-    + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;white-space:nowrap">' + cel2 + '</td>'
-    + '<td style="padding:6px 8px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
-    + '<td style="padding:6px 8px;text-align:right;white-space:nowrap">' + btnCopiar + btn + '</td></tr>';
+    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:15px;font-weight:800">' + esc2(quien)
+      + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(sub) + '</span></td>'
+    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap">' + cel2 + '</td>'
+    + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
+    + '<td style="padding:11px 12px;text-align:right;white-space:nowrap">' + btnCopiar + btn + '</td></tr>';
 }
 
 function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -27292,8 +27297,8 @@ function _vencPintar() {
     return da - db;
   };
   const tabla = (titulo, icono, filas, esVeh) => {
-    if (!filas.length) return '<div><div style="font-family:var(--mn);font-size:13.5px;font-weight:700;margin-bottom:8px">' + icono + ' ' + titulo + '</div>'
-      + '<div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);padding:10px;border:1px dashed var(--bd);border-radius:8px">No hay descargas subidas todavía.</div></div>';
+    if (!filas.length) return '<div><div style="font-family:var(--mn);font-size:17px;font-weight:800;margin-bottom:10px">' + icono + titulo + '</div>'
+      + '<div style="font-family:var(--mn);font-size:13.5px;color:var(--mu);padding:14px;border:1px dashed var(--bd);border-radius:8px">No hay descargas subidas todavía.</div></div>';
     const ord = [...filas].sort((a, b) => orden(a, b, esVeh));
     const conFecha = ord.filter(f => (esVeh ? f.proxima_revision : f.tarjeta_caduca));
     const sinFecha = ord.length - conFecha.length;
@@ -27310,28 +27315,28 @@ function _vencPintar() {
     _VENC_ESC.forEach(e2 => {
       const n2 = cuenta.get(e2.clave);
       if (!n2) return;
-      chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:' + e2.fondo + ';border:1.5px solid ' + e2.color
-        + ';border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:' + e2.color + '">'
+      chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:' + e2.fondo + ';border:2px solid ' + e2.color
+        + ';border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:' + e2.color + '">'
         + n2 + ' · ' + e2.txt + '</span>';
     });
     const avisando = [...cuenta.values()].reduce((a2, b2) => a2 + b2, 0);   // v485
     const tranquilos = conFecha.length - avisando;
-    if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(46,125,50,.10);border:1.5px solid #2e7d32;border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:#2e7d32">' + tranquilos + ' · AL DÍA</span>';
-    if (sinFecha) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1.5px dashed var(--mu);border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:700;color:var(--mu)">' + sinFecha + ' · SIN DATO</span>';
+    if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,160,60,.22);border:2px solid #1b5e20;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#1b5e20">' + tranquilos + ' · AL DÍA</span>';
+    if (sinFecha) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:2px dashed var(--mu);border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--mu)">' + sinFecha + ' · SIN DATO</span>';
     return '<div>'
       + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
-      + '<b style="font-family:var(--mn);font-size:13.5px">' + icono + ' ' + titulo + '</b>'
-      + '<span style="display:flex;align-items:center;gap:10px">'
-      + (avisando ? '<button class="btn bs" title="Copiar de golpe la lista de los ' + avisando + ' que avisan" style="font-size:10px;padding:4px 9px;white-space:nowrap" onclick="vencCopiarTodos(\'' + (esVeh ? 'V' : 'C') + '\')">📋 Copiar los ' + avisando + ' avisos</button>' : '')
-      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span>'
+      + '<b style="font-family:var(--mn);font-size:17px">' + icono + titulo + '</b>'
+      + '<span style="display:flex;align-items:center;gap:12px">'
+      + (avisando ? '<button class="btn bs" title="Copiar de golpe la lista de los ' + avisando + ' que avisan" style="font-size:12px;padding:7px 13px;white-space:nowrap" onclick="vencCopiarTodos(\'' + (esVeh ? 'V' : 'C') + '\')">COPIAR LOS ' + avisando + ' AVISOS</button>' : '')
+      + '<span style="font-family:var(--mn);font-size:12.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span>'
       + '</span></div>'
-      + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + chips + '</div>' : '')
+      + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + chips + '</div>' : '')
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
       + '<table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">'
-      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
-      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
-      + '<th style="text-align:left;padding:6px 8px;font-family:var(--mn);font-size:10.5px;color:var(--mu)">AVISO</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">AVISO</th>'
       + '<th></th></tr>'
       + ord.map(f => _vencFila(f, esVeh)).join('') + '</table></div></div>';
   };
@@ -27339,18 +27344,18 @@ function _vencPintar() {
   // se apilan solas si la pantalla es estrecha — el movil sigue leyendose.
   // v460: se dice CLARAMENTE de que empresa es lo que se esta viendo
   const rotuloEmp = _tacoEmpGlobal === 'TODAS'
-    ? '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Viendo <b>TODAS</b> las empresas</span>'
-    : '<span style="font-family:var(--mn);font-size:11px;color:var(--in)">Viendo solo <b>' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + '</b> — cambia la empresa en la barra de arriba</span>';
-  box.innerHTML = '<div style="margin-bottom:12px">' + rotuloEmp + '</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:22px;align-items:start">'
-    + tabla('REVISIÓN DEL TACÓGRAFO', '🚛', _vencCache.veh, true)
-    + tabla('TARJETA DE CONDUCTOR', '🪪', _vencCache.con, false)
+    ? '<span style="font-family:var(--mn);font-size:13px;color:var(--mu)">Viendo <b>TODAS</b> las empresas</span>'
+    : '<span style="font-family:var(--mn);font-size:13px;color:var(--in)">Viendo solo <b>' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + '</b> — cambia la empresa en la barra de arriba</span>';
+  box.innerHTML = '<div style="margin-bottom:14px">' + rotuloEmp + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:26px;align-items:start">'
+    + tabla('REVISIÓN DEL TACÓGRAFO', '', _vencCache.veh, true)
+    + tabla('TARJETA DE CONDUCTOR', '', _vencCache.con, false)
     + '</div>'
-    + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;border-top:1px solid var(--bd);padding-top:10px;margin-top:18px">'
+    + '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.7;border-top:1px solid var(--bd);padding-top:12px;margin-top:22px">'
     + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
     + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
     + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.<br>'
-    + 'El botón 📋 deja el aviso YA ESCRITO en el portapapeles para pegarlo en WhatsApp: del camión va la matrícula (para el taller) y del conductor su nombre, DNI y número de tarjeta. '
+    + 'El botón COPIAR deja el aviso YA ESCRITO en el portapapeles para pegarlo en WhatsApp: del camión va la matrícula (para el taller) y del conductor su nombre, DNI y número de tarjeta. '
     + 'El DNI sale de su ficha de trabajador; si ahí no está puesto, el aviso lo dice en vez de inventárselo.</div>';
 }
 
@@ -27376,8 +27381,14 @@ async function vencMarcarHecho(tipo, clave) {
 const VENC_BANNER_HIDE = 'venc_banner_hidden';
 
 function irAVencimientos() {
-  try { switchTab('tacografo'); } catch (e) {}
+  // v486 — LA PESTAÑA SE LLAMA 'taco', NO 'tacografo'. Con el nombre malo,
+  // switchTab escondia TODAS las pestañas (ninguna coincidia) y la pantalla
+  // se quedaba en blanco. Ademas se pone la seccion ANTES de cambiar de
+  // pestaña, porque switchTab('taco') ya llama solo a tacoSec(_tacoSecActiva).
+  try { _tacoSecActiva = 'vencimientos'; } catch (e) {}
+  try { switchTab('taco'); } catch (e) {}
   try { tacoSec('vencimientos'); } catch (e) {}
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
 }
 function hideVencBannerToday(clave) {
   localStorage.setItem(VENC_BANNER_HIDE + '_' + clave, new Date().toISOString().slice(0, 10));
@@ -27391,12 +27402,12 @@ function renderVencBanner() {
   _vencCache.veh.forEach(f => {
     const iso = f.proxima_revision; if (!iso || f.venc_hecho === iso) return;
     const d = _vencDias(iso), e = _vencEscalon(d);
-    if (e) todo.push({ e, d, txt: '🚛 ' + f.matricula, iso });
+    if (e) todo.push({ e, d, txt: f.matricula, iso });
   });
   _vencCache.con.forEach(f => {
     const iso = f.tarjeta_caduca; if (!iso || f.venc_hecho === iso) return;
     const d = _vencDias(iso), e = _vencEscalon(d);
-    if (e) todo.push({ e, d, txt: '🪪 ' + (f.conductor_nombre || f.tarjeta_num), iso });
+    if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso });
   });
   if (!todo.length) { b.style.display = 'none'; return; }
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -27413,12 +27424,12 @@ function renderVencBanner() {
       ? (g.lista.length === 1 ? 'TACÓGRAFO VENCIDO' : g.lista.length + ' TACÓGRAFOS/TARJETAS VENCIDOS')
       : 'VENCE EN ' + e.txt;
     html += '<div style="background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
-      + ';border-radius:7px;padding:12px 16px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">'
-      + '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="font-size:17px;vertical-align:-2px">⏱</span> '
+      + ';border-radius:7px;padding:14px 18px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
+      + '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">⏱</span> '
       + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
       + '<div style="display:flex;gap:6px">'
-      + '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAVencimientos()">⏱ Ver vencimientos</button>'
-      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideVencBannerToday(\'' + e.clave + '\')" title="Ocultar hasta mañana">✕</button>'
+      + '<button class="btn bp" style="font-size:12.5px;padding:8px 15px;white-space:nowrap" onclick="irAVencimientos()">VER VENCIMIENTOS</button>'
+      + '<button class="btn bs" style="font-size:12.5px;padding:8px 12px" onclick="hideVencBannerToday(\'' + e.clave + '\')" title="Ocultar hasta mañana">✕</button>'
       + '</div></div>';
   });
   if (!html) { b.style.display = 'none'; return; }
