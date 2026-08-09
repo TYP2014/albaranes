@@ -27305,12 +27305,12 @@ function _vencFila(f, esVeh) {
     ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:11.5px;padding:6px 10px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">COPIAR</button>'
     : '';
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
-    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:15px;font-weight:800">' + esc2(quien)
+    + '<td style="padding:11px 12px;font-family:var(--mn);font-size:15px;font-weight:800;width:1px;white-space:nowrap">' + esc2(quien)
       + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(sub) + '</span></td>'
     + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap;width:1px">' + cel2 + '</td>'
-    + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap;width:1px">' + etiqueta + '</td>'
+    + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap;width:100%">' + etiqueta + '</td>'
     + '<td style="padding:11px 10px;text-align:right;width:1px;white-space:nowrap">'
-      + '<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;align-items:center">' + btnCopiar + btnTramite + btn + '</div>'
+      + '<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap;align-items:center">' + btnCopiar + btnTramite + btn + '</div>'
     + '</td></tr>';
 }
 
@@ -27370,9 +27370,9 @@ function _vencPintar() {
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
       + '<table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">'
-      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:100%">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:1px;white-space:nowrap">' + (esVeh ? 'CAMIÓN' : 'CONDUCTOR') + '</th>'
       + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">' + (esVeh ? 'PRÓXIMA REVISIÓN' : 'CADUCA') + '</th>'
-      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">AVISO</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:100%">AVISO</th>'
       + '<th></th></tr>'
       + ord.map(f => _vencFila(f, esVeh)).join('') + '</table></div></div>';
   };
