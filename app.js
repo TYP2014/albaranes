@@ -27380,6 +27380,44 @@ async function vencMarcarHecho(tipo, clave) {
 // ---------- aviso arriba, en toda la app ----------
 const VENC_BANNER_HIDE = 'venc_banner_hidden';
 
+// v487 — LOS ESCALONES URGENTES. En estos tres el aviso NO se calla de un
+// clic: pregunta cuanto rato. En los tranquilos (60/45/30/15 dias) la X
+// sigue funcionando como siempre, porque ahi preguntar solo cansa.
+const VENC_URGENTE = ['vencido', 'd1', 'd5'];
+
+// Cual de las barras esta ahora mismo preguntando "¿cuanto lo callo?".
+// null = ninguna. Vive solo en memoria: si se recarga, se olvida.
+let _vencPreguntando = null;
+
+// ¿Esta callado ese escalon AHORA MISMO?
+// Se guarda la HORA HASTA LA QUE lo esta (texto ISO). El formato viejo era
+// solo la fecha del dia (10 letras) y se sigue entendiendo, para no
+// destapar de golpe lo que alguien hubiera callado esta manana.
+function _vencEstaOculto(clave) {
+  const v = localStorage.getItem(VENC_BANNER_HIDE + '_' + clave);
+  if (!v) return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v === new Date().toISOString().slice(0, 10);
+  const hasta = new Date(v);
+  if (isNaN(hasta)) return false;
+  if (hasta > new Date()) return true;
+  localStorage.removeItem(VENC_BANNER_HIDE + '_' + clave);   // ya paso: se limpia solo
+  return false;
+}
+
+// Abre la pregunta en esa barra (no calla nada todavia).
+function vencOcultarPreguntar(clave) { _vencPreguntando = clave; renderVencBanner(); }
+function vencOcultarCancelar() { _vencPreguntando = null; renderVencBanner(); }
+
+// Callar N horas. Se dice EN VOZ ALTA a que hora vuelve, para que nadie
+// se quede pensando que lo ha apagado para siempre.
+function vencOcultarHoras(clave, horas) {
+  const hasta = new Date(Date.now() + horas * 3600000);
+  localStorage.setItem(VENC_BANNER_HIDE + '_' + clave, hasta.toISOString());
+  _vencPreguntando = null;
+  renderVencBanner();
+  toast('Callado ' + horas + ' horas \u2014 vuelve a las ' + hasta.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
+}
+
 function irAVencimientos() {
   // v486 — LA PESTAÑA SE LLAMA 'taco', NO 'tacografo'. Con el nombre malo,
   // switchTab escondia TODAS las pestañas (ninguna coincidia) y la pantalla
@@ -27391,8 +27429,39 @@ function irAVencimientos() {
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
 }
 function hideVencBannerToday(clave) {
-  localStorage.setItem(VENC_BANNER_HIDE + '_' + clave, new Date().toISOString().slice(0, 10));
+  // v487: la medianoche de esta noche, en hora de aqui. Antes se guardaba la
+  // fecha del dia y se comparaba con hoy; el resultado es el mismo, pero ahora
+  // habla el mismo idioma que el callar por horas.
+  const manana = new Date(); manana.setHours(24, 0, 0, 0);
+  localStorage.setItem(VENC_BANNER_HIDE + '_' + clave, manana.toISOString());
+  _vencPreguntando = null;
   renderVencBanner();
+  toast('Callado hasta ma\u00f1ana');
+}
+
+// v487 — LOS BOTONES DE LA DERECHA DEL AVISO.
+// Tres situaciones distintas:
+//   · esta barra esta preguntando  -> salen los ratos a elegir
+//   · barra URGENTE (vencido/1/5)  -> la X abre la pregunta
+//   · barra tranquila (60/45/30/15)-> la X calla hasta maniana, como siempre
+function _vencBotonera(e) {
+  const bt = 'font-size:12.5px;padding:8px 13px;white-space:nowrap';
+  if (_vencPreguntando === e.clave) {
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+      + '<span style="font-family:var(--mn);font-size:12.5px;font-weight:800;color:#111">\u00bfCu\u00e1nto lo callo?</span>'
+      + '<button class="btn bs" style="' + bt + '" onclick="vencOcultarHoras(\'' + e.clave + '\',2)">2 HORAS</button>'
+      + '<button class="btn bs" style="' + bt + '" onclick="vencOcultarHoras(\'' + e.clave + '\',4)">4 HORAS</button>'
+      + '<button class="btn bs" style="' + bt + '" onclick="hideVencBannerToday(\'' + e.clave + '\')">HASTA MA\u00d1ANA</button>'
+      + '<button class="btn bs" style="' + bt + '" onclick="vencOcultarCancelar()" title="Dejarlo como estaba">\u2715</button>'
+      + '</div>';
+  }
+  const urgente = VENC_URGENTE.includes(e.clave);
+  return '<div style="display:flex;gap:6px">'
+    + '<button class="btn bp" style="' + bt + '" onclick="irAVencimientos()">VER VENCIMIENTOS</button>'
+    + (urgente
+        ? '<button class="btn bs" style="' + bt + '" onclick="vencOcultarPreguntar(\'' + e.clave + '\')" title="Callarlo un rato \u2014 esto es urgente, te pregunto cu\u00e1nto">\u2715</button>'
+        : '<button class="btn bs" style="' + bt + '" onclick="hideVencBannerToday(\'' + e.clave + '\')" title="Ocultar hasta ma\u00f1ana">\u2715</button>')
+    + '</div>';
 }
 
 function renderVencBanner() {
@@ -27410,14 +27479,13 @@ function renderVencBanner() {
     if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso });
   });
   if (!todo.length) { b.style.display = 'none'; return; }
-  const hoyStr = new Date().toISOString().slice(0, 10);
   const porEsc = new Map();
   todo.forEach(x => { if (!porEsc.has(x.e.clave)) porEsc.set(x.e.clave, { e: x.e, lista: [] }); porEsc.get(x.e.clave).lista.push(x); });
   let html = '';
   [..._VENC_ESC].sort((a, b2) => a.orden - b2.orden).forEach(e => {
     const g = porEsc.get(e.clave);
     if (!g) return;
-    if (localStorage.getItem(VENC_BANNER_HIDE + '_' + e.clave) === hoyStr) return;
+    if (_vencEstaOculto(e.clave)) return;   // v487
     const det = g.lista.slice(0, 4).map(x => '<strong style="font-weight:900;color:#111">' + esc2(x.txt) + '</strong> (' + x.iso.split('-').reverse().join('/') + ')').join(' · ');
     const resto = g.lista.length > 4 ? ' · +' + (g.lista.length - 4) + ' más' : '';
     const cab = e.clave === 'vencido'
@@ -27427,10 +27495,7 @@ function renderVencBanner() {
       + ';border-radius:7px;padding:14px 18px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
       + '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">⏱</span> '
       + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
-      + '<div style="display:flex;gap:6px">'
-      + '<button class="btn bp" style="font-size:12.5px;padding:8px 15px;white-space:nowrap" onclick="irAVencimientos()">VER VENCIMIENTOS</button>'
-      + '<button class="btn bs" style="font-size:12.5px;padding:8px 12px" onclick="hideVencBannerToday(\'' + e.clave + '\')" title="Ocultar hasta mañana">✕</button>'
-      + '</div></div>';
+      + _vencBotonera(e) + '</div>';
   });
   if (!html) { b.style.display = 'none'; return; }
   b.style.display = 'block';
