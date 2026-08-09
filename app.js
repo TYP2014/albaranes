@@ -25516,7 +25516,7 @@ function _tacoMismoNombre(a, b) {
 async function _tacoCargarTrabajadores() {
   if (_tacoTrabajadores) return _tacoTrabajadores;
   try {
-    const { data, error } = await sb.from('trabajadores').select('nombre, empresa, archivado, tarjeta_num, fecha_baja');   // v382
+    const { data, error } = await sb.from('trabajadores').select('nombre, dni, empresa, archivado, tarjeta_num, fecha_baja');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp)
     if (error) throw error;
     _tacoTrabajadores = data || [];
   } catch (e) {
@@ -27064,7 +27064,7 @@ function _vencTxtDias(dias) {
   return 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's');
 }
 
-let _vencCache = { veh: [], con: [] };
+let _vencCache = { veh: [], con: [], trabs: [] };
 
 async function tacoVencVer() {
   const box = document.getElementById('tacoVencBox');
@@ -27092,12 +27092,155 @@ async function tacoVencVer() {
     });
     _vencCache.veh = [...veh.values()];
     _vencCache.con = [...con.values()];
+    // v485: la ficha del trabajador (para sacar el DNI del aviso).
+    // _tacoCargarTrabajadores ya cachea: si la lista esta leida, no vuelve a la BD.
+    try { _vencCache.trabs = await _tacoCargarTrabajadores(); } catch (e) { _vencCache.trabs = []; }
     _vencPintar();
     renderVencBanner();
   } catch (e) {
     console.error('[v457]', e);
     box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No pude preparar los vencimientos: ' + (e.message || e) + '</div>';
   }
+}
+
+// ============================================================
+// v485 (09/08/2026) — EL AVISO, LISTO PARA COPIAR Y PEGAR
+//
+// Lo que pidio JC: que al lado de cada vencimiento haya un boton
+// que deje el mensaje YA ESCRITO en el portapapeles, para pegarlo
+// en el WhatsApp del taller (camiones) o del conductor (tarjetas),
+// igual que hace el email de ASG pero sin depender de ASG.
+//
+// Del CAMION va solo la matricula (es lo unico que necesita el
+// taller). Del CONDUCTOR va nombre + DNI + numero de tarjeta,
+// que es lo que piden en Trafico para renovarla.
+//
+// EL DNI no se inventa ni se pide aparte: sale de la ficha del
+// trabajador (tabla trabajadores), cruzada primero por NUMERO DE
+// TARJETA -que es exacto- y, si eso falla, por nombre con el
+// comparador de siempre (_tacoMismoNombre, que aguanta comas,
+// acentos y el orden apellidos/nombre). Si no aparece, el aviso
+// se manda igual y en el hueco del DNI pone "(no consta en la app)"
+// en vez de un dato inventado.
+// ============================================================
+
+// DNI del conductor de una descarga, o null si no se sabe.
+function _vencDniDe(f) {
+  const lista = _vencCache.trabs || [];
+  if (f.tarjeta_num) {
+    const porTarjeta = lista.find(t => t.tarjeta_num && String(t.tarjeta_num).trim().toUpperCase() === String(f.tarjeta_num).trim().toUpperCase());
+    if (porTarjeta && porTarjeta.dni) return porTarjeta.dni;
+  }
+  if (f.conductor_nombre) {
+    const porNombre = lista.find(t => t.nombre && _tacoMismoNombre(t.nombre, f.conductor_nombre));
+    if (porNombre && porNombre.dni) return porNombre.dni;
+  }
+  return null;
+}
+
+// Copiar al portapapeles. navigator.clipboard falla en algunos
+// navegadores si la pagina no es https o si el movil no da permiso,
+// asi que hay red de seguridad con un textarea invisible.
+async function _vencAlPortapapeles(txt, queEs) {
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('\u2713 ' + queEs + ' copiado — ya puedes pegarlo en WhatsApp');
+    return;
+  } catch (e) { /* seguimos por el otro camino */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, txt.length);   // el iPhone necesita esto
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('\u2713 ' + queEs + ' copiado — ya puedes pegarlo en WhatsApp');
+  } catch (e2) {
+    // Ni por esas: se ensenia el texto para copiarlo a mano.
+    prompt('Copia el aviso a mano (selecciona todo y copia):', txt);
+  }
+}
+
+// Texto del aviso de UNO. dmy = fecha en formato de toda la vida.
+function _vencTextoUno(f, esVeh) {
+  const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+  if (!iso) return null;
+  const dmy = iso.split('-').reverse().join('/');
+  const dias = _vencDias(iso);
+  const esc = _vencEscalon(dias);
+  const aviso = dias < 0
+    ? 'VENCIDO — ' + _vencTxtDias(dias)
+    : (esc ? esc.txt + ' — ' + _vencTxtDias(dias) : _vencTxtDias(dias));
+  const emp = _TACO_EMP_NOM[f.empresa] || f.empresa || '';
+  if (esVeh) {
+    return '\uD83D\uDE9B AVISO — REVISI\u00d3N DEL TAC\u00d3GRAFO\n\n'
+      + 'Cami\u00f3n: ' + (f.matricula || '\u2014') + '\n'
+      + (emp ? 'Empresa: ' + emp + '\n' : '')
+      + 'Pr\u00f3xima revisi\u00f3n: ' + dmy + '\n'
+      + 'Situaci\u00f3n: ' + aviso + '\n\n'
+      + (dias < 0
+          ? 'La revisi\u00f3n YA EST\u00c1 PASADA. Hay que llevarlo al centro de tac\u00f3grafos cuanto antes.'
+          : 'Hay que llevarlo al centro de tac\u00f3grafos ANTES de esa fecha.');
+  }
+  const dni = _vencDniDe(f);
+  return '\uD83E\uDEAA AVISO — CADUCIDAD DE LA TARJETA DE TAC\u00d3GRAFO\n\n'
+    + 'Conductor: ' + (f.conductor_nombre || '\u2014') + '\n'
+    + 'DNI: ' + (dni || '(no consta en la app)') + '\n'
+    + 'N\u00ba de tarjeta: ' + (f.tarjeta_num || '\u2014') + '\n'
+    + (emp ? 'Empresa: ' + emp + '\n' : '')
+    + 'Caduca: ' + dmy + '\n'
+    + 'Situaci\u00f3n: ' + aviso + '\n\n'
+    + (dias < 0
+        ? 'La tarjeta YA EST\u00c1 CADUCADA: no se puede conducir con ella. Hay que renovarla YA.'
+        : 'Hay que pedir la renovaci\u00f3n ANTES de esa fecha. Sin tarjeta en vigor no se puede conducir.');
+}
+
+function vencCopiarUno(tipo, clave) {
+  const esVeh = tipo === 'V';
+  const f = (esVeh ? _vencCache.veh : _vencCache.con).find(x => (esVeh ? x.matricula : x.tarjeta_num) === clave);
+  if (!f) return;
+  const txt = _vencTextoUno(f, esVeh);
+  if (!txt) { toast('Ese no tiene fecha todav\u00eda', 'err'); return; }
+  _vencAlPortapapeles(txt, 'Aviso');
+}
+
+// Texto con TODOS los que estan avisando (60 dias o menos, y los
+// vencidos), en una sola lista. Los ya marcados como hechos NO salen.
+function vencCopiarTodos(tipo) {
+  const esVeh = tipo === 'V';
+  const filas = (esVeh ? _vencCache.veh : _vencCache.con)
+    .filter(f => {
+      const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+      if (!iso || f.venc_hecho === iso) return false;
+      return !!_vencEscalon(_vencDias(iso));
+    })
+    .sort((a, b) => _vencDias(esVeh ? a.proxima_revision : a.tarjeta_caduca) - _vencDias(esVeh ? b.proxima_revision : b.tarjeta_caduca));
+  if (!filas.length) { toast('No hay ning\u00fan aviso que copiar'); return; }
+  const hoy = new Date().toLocaleDateString('es-ES');
+  const ambito = _tacoEmpGlobal === 'TODAS' ? 'todas las empresas' : (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal);
+  let txt = (esVeh ? '\uD83D\uDE9B REVISIONES DE TAC\u00d3GRAFO' : '\uD83E\uDEAA TARJETAS DE TAC\u00d3GRAFO')
+    + ' \u2014 AVISOS\n(' + ambito + ' \u00b7 al ' + hoy + ')\n\n';
+  filas.forEach(f => {
+    const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
+    const dmy = iso.split('-').reverse().join('/');
+    const dias = _vencDias(iso);
+    const esc = _vencEscalon(dias);
+    if (esVeh) {
+      txt += '\u2022 ' + (f.matricula || '\u2014') + ' \u2014 ' + dmy + ' \u2014 ' + (esc ? esc.txt : '') + ' (' + _vencTxtDias(dias) + ')\n';
+    } else {
+      const dni = _vencDniDe(f);
+      txt += '\u2022 ' + (f.conductor_nombre || '\u2014') + (dni ? ' (DNI ' + dni + ')' : '')
+           + ' \u2014 ' + dmy + ' \u2014 ' + (esc ? esc.txt : '') + ' (' + _vencTxtDias(dias) + ')\n';
+    }
+  });
+  txt += '\n' + (esVeh
+    ? 'Hay que pasar la revisi\u00f3n del tac\u00f3grafo antes de la fecha de cada uno.'
+    : 'Hay que renovar cada tarjeta antes de su fecha. Sin tarjeta en vigor no se puede conducir.');
+  _vencAlPortapapeles(txt, 'Listado de ' + filas.length + ' aviso' + (filas.length === 1 ? '' : 's'));
 }
 
 function _vencFila(f, esVeh) {
@@ -27122,12 +27265,18 @@ function _vencFila(f, esVeh) {
   const btn = (iso && !hecho && esc)
     ? '<button class="btn bs" style="font-size:9.5px;padding:3px 7px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
     : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:9.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
+  // v485: copiar el aviso de ESTA fila. Sale siempre que haya fecha y no
+  // este marcado como hecho, aunque falten mas de 60 dias (a veces JC
+  // quiere avisar antes de tiempo, y no cuesta nada dejarlo disponible).
+  const btnCopiar = (iso && !hecho)
+    ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:9.5px;padding:3px 7px;margin-right:5px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">📋</button>'
+    : '';
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
     + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;font-weight:800">' + esc2(quien)
       + '<br><span style="font-weight:400;font-size:9.5px;color:var(--mu)">' + esc2(sub) + '</span></td>'
     + '<td style="padding:6px 8px;font-family:var(--mn);font-size:12px;white-space:nowrap">' + cel2 + '</td>'
     + '<td style="padding:6px 8px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
-    + '<td style="padding:6px 8px;text-align:right">' + btn + '</td></tr>';
+    + '<td style="padding:6px 8px;text-align:right;white-space:nowrap">' + btnCopiar + btn + '</td></tr>';
 }
 
 function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -27165,13 +27314,17 @@ function _vencPintar() {
         + ';border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:' + e2.color + '">'
         + n2 + ' · ' + e2.txt + '</span>';
     });
-    const tranquilos = conFecha.length - [...cuenta.values()].reduce((a2, b2) => a2 + b2, 0);
+    const avisando = [...cuenta.values()].reduce((a2, b2) => a2 + b2, 0);   // v485
+    const tranquilos = conFecha.length - avisando;
     if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(46,125,50,.10);border:1.5px solid #2e7d32;border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:800;color:#2e7d32">' + tranquilos + ' · AL DÍA</span>';
     if (sinFecha) chips += '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1.5px dashed var(--mu);border-radius:20px;padding:3px 10px;font-family:var(--mn);font-size:10.5px;font-weight:700;color:var(--mu)">' + sinFecha + ' · SIN DATO</span>';
     return '<div>'
       + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
       + '<b style="font-family:var(--mn);font-size:13.5px">' + icono + ' ' + titulo + '</b>'
-      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span></div>'
+      + '<span style="display:flex;align-items:center;gap:10px">'
+      + (avisando ? '<button class="btn bs" title="Copiar de golpe la lista de los ' + avisando + ' que avisan" style="font-size:10px;padding:4px 9px;white-space:nowrap" onclick="vencCopiarTodos(\'' + (esVeh ? 'V' : 'C') + '\')">📋 Copiar los ' + avisando + ' avisos</button>' : '')
+      + '<span style="font-family:var(--mn);font-size:10.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span>'
+      + '</span></div>'
       + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + chips + '</div>' : '')
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
       + '<table style="width:100%;border-collapse:collapse">'
@@ -27196,7 +27349,9 @@ function _vencPintar() {
     + '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;border-top:1px solid var(--bd);padding-top:10px;margin-top:18px">'
     + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
     + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
-    + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.</div>';
+    + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.<br>'
+    + 'El botón 📋 deja el aviso YA ESCRITO en el portapapeles para pegarlo en WhatsApp: del camión va la matrícula (para el taller) y del conductor su nombre, DNI y número de tarjeta. '
+    + 'El DNI sale de su ficha de trabajador; si ahí no está puesto, el aviso lo dice en vez de inventárselo.</div>';
 }
 
 async function vencMarcarHecho(tipo, clave) {
