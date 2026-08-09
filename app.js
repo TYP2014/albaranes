@@ -27285,7 +27285,7 @@ function _vencFila(f, esVeh) {
     ? '<span style="color:var(--mu);font-size:12px">vuelve a subir su descarga</span>'
     : dmy(iso) + '<br><span style="color:var(--mu);font-size:12px">' + _vencTxtDias(hecho ? null : dias) + '</span>';
   const btn = (iso && !hecho && esc)
-    ? '<button class="btn bs" style="font-size:11.5px;padding:6px 11px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
+    ? '<button class="btn bs" style="font-size:11.5px;padding:6px 10px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
     : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
   // v488: marcar / quitar el tramite. SOLO EL ADMIN, como pidio JC: los demas
   // lo ven pero no lo tocan. Solo tiene sentido si hay fecha, no esta hecho y
@@ -27293,8 +27293,8 @@ function _vencFila(f, esVeh) {
   let btnTramite = '';
   if (esAdmin && iso && !hecho && esc) {
     btnTramite = tramite
-      ? '<button class="btn bs" title="Quitar el tr\u00e1mite \u2014 vuelve a avisar como antes" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap;color:#0d47a1" onclick="vencQuitarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">QUITAR TR\u00c1MITE</button>'
-      : '<button class="btn bs" title="Ya est\u00e1 pedido / citado \u2014 deja de avisar arriba pero sigue en la tabla" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap" onclick="vencMarcarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">EN TR\u00c1MITE</button>';
+      ? '<button class="btn bs" title="Quitar el tr\u00e1mite \u2014 vuelve a avisar como antes" style="font-size:11.5px;padding:6px 10px;white-space:nowrap;color:#0d47a1" onclick="vencQuitarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">QUITAR</button>'
+      : '<button class="btn bs" title="Ya est\u00e1 pedido / citado \u2014 deja de avisar arriba pero sigue en la tabla" style="font-size:11.5px;padding:6px 10px;white-space:nowrap" onclick="vencMarcarTramite(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">EN TR\u00c1MITE</button>';
   }
   // v485: copiar el aviso de ESTA fila. Sale siempre que haya fecha y no
   // este marcado como hecho, aunque falten mas de 60 dias (a veces JC
@@ -27302,14 +27302,16 @@ function _vencFila(f, esVeh) {
   // v486: SIN EMOJI. En la captura de JC salia un cuadradito vacio, porque la
   // letra monoespaciada de la tabla no tiene ese dibujo. La palabra se entiende.
   const btnCopiar = (iso && !hecho)
-    ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:11.5px;padding:6px 11px;margin-right:6px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">COPIAR</button>'
+    ? '<button class="btn bs" title="Copiar el aviso para pegarlo en WhatsApp" style="font-size:11.5px;padding:6px 10px;white-space:nowrap" onclick="vencCopiarUno(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">COPIAR</button>'
     : '';
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
     + '<td style="padding:11px 12px;font-family:var(--mn);font-size:15px;font-weight:800">' + esc2(quien)
       + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(sub) + '</span></td>'
     + '<td style="padding:11px 12px;font-family:var(--mn);font-size:14.5px;white-space:nowrap">' + cel2 + '</td>'
     + '<td style="padding:11px 12px;font-family:var(--mn);white-space:nowrap">' + etiqueta + '</td>'
-    + '<td style="padding:11px 12px;text-align:right;white-space:nowrap">' + btnCopiar + btnTramite + btn + '</td></tr>';
+    + '<td style="padding:11px 10px;text-align:right">'
+      + '<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;align-items:center">' + btnCopiar + btnTramite + btn + '</div>'
+    + '</td></tr>';
 }
 
 function esc2(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -27361,7 +27363,7 @@ function _vencPintar() {
       + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
       + '<b style="font-family:var(--mn);font-size:17px">' + icono + titulo + '</b>'
       + '<span style="display:flex;align-items:center;gap:12px">'
-      + (avisando ? '<button class="btn bs" title="Copiar de golpe la lista de los ' + avisando + ' que avisan" style="font-size:12px;padding:7px 13px;white-space:nowrap" onclick="vencCopiarTodos(\'' + (esVeh ? 'V' : 'C') + '\')">COPIAR LOS ' + avisando + ' AVISOS</button>' : '')
+      + (avisando ? '<button class="btn bs" title="Copiar de golpe la lista de ' + (avisando === 1 ? 'el que avisa' : 'los ' + avisando + ' que avisan') + '" style="font-size:12px;padding:7px 13px;white-space:nowrap" onclick="vencCopiarTodos(\'' + (esVeh ? 'V' : 'C') + '\')">' + (avisando === 1 ? 'COPIAR EL AVISO' : 'COPIAR LOS ' + avisando + ' AVISOS') + '</button>' : '')
       + '<span style="font-family:var(--mn);font-size:12.5px;color:var(--mu)">' + ord.length + (esVeh ? ' camiones' : ' tarjetas') + '</span>'
       + '</span></div>'
       + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + chips + '</div>' : '')
