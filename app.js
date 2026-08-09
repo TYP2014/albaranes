@@ -20505,7 +20505,7 @@ async function tallerCrearVehiculo() {
   }
 }
 
-// Importar km del Excel de ASG Trans (formato "Gasóleo Profesional": todos los
+// Importar km del Excel de la referencia externa (formato "Gasóleo Profesional": todos los
 // vehículos juntos con Matrícula + Cuentakilómetros fin) o el formato de 1 vehículo.
 async function tallerImportarKmExcel(file) {
   if (!file) return;
@@ -20523,7 +20523,7 @@ async function tallerImportarKmExcel(file) {
       const _raw = rows[i] || [];
       const fila = Array.from({ length: _raw.length }, (_, k) => String(_raw[k] == null ? '' : _raw[k]).toLowerCase());
       const jMat = fila.findIndex(c => c.includes('matr'));
-      // v476: acepta "Cuentakilometros fin" (ASG Trans) y tambien "Km fin"
+      // v476: acepta "Cuentakilometros fin" (la referencia externa) y tambien "Km fin"
       // (el Excel que saca la propia pestana de Tacografo · Km/Gasoleo).
       const jKm = fila.findIndex(c => (c.includes('cuentakil') || c.includes('km ') || c === 'km fin') && c.includes('fin'));
       const jKm2 = fila.findIndex(c => c.includes('cuentakil'));
@@ -25244,7 +25244,7 @@ function _tacoParseVU_G1(b) {
       // viene ESCRITA en el fichero. Cada registro de calibracion mide 167
       // bytes y su ULTIMO campo (offset 163) es NextCalibrationDate, un
       // TimeReal de 4 bytes. Manda la del ULTIMO registro (calibracion mas
-      // reciente). Es el mismo dato que lee ASG para sus emails de aviso.
+      // reciente). Es el mismo dato que lee la referencia externa para sus emails de aviso.
       {
         const nCal = b[p];
         _tacoElegirRevision(b, p + 1, nCal, 167, out);
@@ -25297,7 +25297,7 @@ function _tacoParseVU_G2(b) {
       // 155 + 2 años exactos = 163 (2025-02-11 -> 2027-02-11, 2024-07-04
       // -> 2026-07-04, 2025-05-12 -> 2027-05-12). Es el MISMO offset 163
       // que en 1ª generacion, donde el 6807HYY dio 21/08/2026 igual que el
-      // email de ASG. El tamaño del registro cambia (222 o 252 segun la
+      // email de la referencia externa. El tamaño del registro cambia (222 o 252 segun la
       // version), pero la posicion NO.
       // MANDA LA CALIBRACION MAS RECIENTE, no la ultima de la lista: los
       // registros no siempre vienen ordenados.
@@ -25670,7 +25670,7 @@ async function _tacoRellenarTarjeta(r) {
 // pintan aqui, que si se mezclan salen dias de 39 horas.
 // ============================================================
 
-// v392: colores VIVOS como los de ASG y todo el sector, pedidos por JC ("tienen que cantar").
+// v392: colores VIVOS como los de la referencia externa y todo el sector, pedidos por JC ("tienen que cantar").
 const _TACO_COL = ['#1fc94c', '#ffd800', '#0a53d8', '#e51c23'];   // descanso, dispon., otros, conduciendo
 const _TACO_NOM = ['Descanso', 'Disponible', 'Otros trabajos', 'Conducción'];
 
@@ -25693,9 +25693,9 @@ function _tacoLunes(iso) {
 function _tacoDMY2(iso) { return iso ? iso.split('-').reverse().join('/') : '—'; }
 
 // v426: la franja de informacion bajo cada dia, como el "Hora inicio / Hora
-// fin / Duracion" de ASG. Cada trocito de la barra lleva sus datos encima
+// fin / Duracion" de la referencia externa. Cada trocito de la barra lleva sus datos encima
 // (data-...) y al pasar el raton se vuelcan aqui. Se queda puesto lo ultimo
-// tocado, igual que en ASG.
+// tocado, igual que en la referencia externa.
 function _tacoTrHover(el, id) {
   const d = document.getElementById(id);
   if (!d || !el || !el.dataset) return;
@@ -25734,10 +25734,10 @@ let _tacoEmpGlobal = 'TODAS';
 // v478 - LA HORA DE ESPANA (Europe/Madrid) EN LOS INFORMES
 //
 // El fichero del tacografo graba SIEMPRE en UTC, y asi se ha
-// venido enseñando (v425). ASG Trans lista en hora de Madrid
+// venido enseñando (v425). la referencia externa lista en hora de Madrid
 // (+1h invierno / +2h verano). Con las INFRACCIONES eso dejo de
 // ser un detalle: el descanso de 09:36h de ANTON salia el 14/07
-// en la app y el 15/07 en ASG - mismo dato, un dia bailado - y
+// en la app y el 15/07 en la referencia externa - mismo dato, un dia bailado - y
 // esa fecha va escrita en el papel que FIRMA el trabajador.
 //
 // AQUI NO SE TOCA NI UN CALCULO: la cinta de minutos es la misma,
@@ -25762,7 +25762,7 @@ function _tacoMadISO(ms) { const o = _tacoMadP(ms); return `${o.year}-${o.month}
 function _tacoMadDMHM(ms) { const o = _tacoMadP(ms); return `${o.day}/${o.month} ${o.hour}:${o.minute}`; }
 // El letrero de las pantallas que YA van en hora de España
 function _tacoTxtMadrid() {
-  return '\u23F1 Fechas y horas en <b>hora de España</b> (la misma que usa ASG Trans) \u00b7 el tac\u00f3grafo graba en UTC y se convierte al mostrarlo';
+  return '\u23F1 Fechas y horas en <b>hora de España</b> (la que vale para la Inspección) \u00b7 el tac\u00f3grafo graba en UTC y se convierte al mostrarlo';
 }
 
 function _tacoEmpPasa(x) { return _tacoEmpGlobal === 'TODAS' || x.empresa === _tacoEmpGlobal; }
@@ -25892,7 +25892,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
   let hastaIn = document.getElementById(idHasta)?.value;
   if (!cont || !quien || !desde) return;
   // v407: RANGO LIBRE de dia A a dia B (pedido de JC: "y si solo quiero ver 2
-  // dias?"). La semana cerrada era cosa de ASG, no nuestra. Si las fechas vienen
+  // dias?"). La semana cerrada era cosa de la referencia externa, no nuestra. Si las fechas vienen
   // al reves, se dan la vuelta solas. Tope de 31 dias por pantalla: mas de un
   // mes de barras no hay quien lo lea (para eso vendran los informes).
   if (!hastaIn) hastaIn = desde;
@@ -25973,7 +25973,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
     }
 
     const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
-    // v424: la BISEMANAL como ASG — lo conducido en el periodo MAS lo de los
+    // v424: la BISEMANAL como la referencia externa — lo conducido en el periodo MAS lo de los
     // 7 dias ANTERIORES al inicio. Sale de tacografo_dias, que ya guarda los
     // totales de cada dia (los dias de descarga, a medias, no se cuentan).
     let condSemAnt = 0;
@@ -26032,11 +26032,11 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       // sin cerrar y va en blanco.
       const _esAbierto = t => esIncompleto && corte == null && t.minuto_fin === 1440;
       const tot = [0, 0, 0, 0];
-      // v409 (lo destapo JC comparando con ASG): con la tarjeta fuera hay DOS
+      // v409 (lo destapo JC comparando con la referencia externa): con la tarjeta fuera hay DOS
       // casos y la ley los separa. Si el conductor ANOTO la actividad al meter
       // la tarjeta, la anotacion VALE: cuenta como lo que anoto. Si NO anoto
       // nada, se cuenta como DESCANSO PRESUNTO (la practica del sector y de
-      // ASG), pero se avisa aparte para poder corregir al conductor.
+      // la referencia externa), pero se avisa aparte para poder corregir al conductor.
       let sinAnotar = 0, sinCerrar = 0;                     // v409 / v393
       tsv.forEach(t => {
         const m = (t.minuto_fin - t.minuto_ini);
@@ -26071,7 +26071,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         }
         // v409: tarjeta fuera, DOS casos (lo destapo JC con el dia 21/07 de
         // Anton). ANOTADO a mano -> el color de lo que anoto, con rayitas
-        // negras, como ASG: la anotacion manual vale. SIN ANOTAR -> verde
+        // negras, como la referencia externa: la anotacion manual vale. SIN ANOTAR -> verde
         // tenue de descanso presunto.
         if (t.sin_tarjeta && !t.sin_anotar) {
           const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} ANOTADO A MANO (tarjeta fuera): vale · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}`;
@@ -26162,7 +26162,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
           Del ${_tacoDMY2(lunes)} al ${_tacoDMY2(hasta)} · ${nDias} día${nDias === 1 ? '' : 's'}${recortado ? ' <span style="color:var(--wnd)">(recortado a 31: para más, usa los informes)</span>' : ''}</div>
         <div style="font-family:var(--mn);font-size:14px;margin-left:auto">
           Conducción del periodo: <b style="font-size:19px;color:${_TACO_COL[3]}">${hm(totSem[3])}</b>
-          <span title="Lo conducido en el periodo + lo de los 7 días anteriores al inicio (la bisemanal, como en ASG)"> · bisemanal <b>${hm(totSem[3] + condSemAnt)}</b></span>
+          <span title="Lo conducido en el periodo + lo de los 7 días anteriores al inicio (la bisemanal)"> · bisemanal <b>${hm(totSem[3] + condSemAnt)}</b></span>
           <span style="color:var(--mu)"> · otros trabajos ${hm(totSem[2])}</span>${tipo === 'V' ? `
           · 🛣 <b style="font-size:19px">${totKm.toLocaleString('es-ES')} km</b>${diasSinKm ? `<span style="color:var(--wnd)" title="Días con actividad pero sin poder calcular los km (falta el contador del día siguiente, típico del día de la descarga)."> (${diasSinKm} día${diasSinKm === 1 ? '' : 's'} sin dato de km)</span>` : ''}` : ''}
         </div>
@@ -26420,7 +26420,7 @@ async function tacoGuardar() {
       sha256: sha,
       user_id: currentUser?.id || null
     };
-    // v454: chivato para cotejar con el email de ASG antes de fiarnos del dato
+    // v454: chivato para cotejar con el email de la referencia externa antes de fiarnos del dato
     if (r.tipo === 'vehiculo') {
       console.log('[v454] ' + (r.matricula || '¿?') + ' (' + r.gen + ') — próxima revisión del tacógrafo: ' +
         (r.proximaRevision ? _tacoDMY(r.proximaRevision) : '❌ NO ENCONTRADA en este fichero') +
@@ -26985,7 +26985,7 @@ const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;marg
 // ============================================================
 // TACOGRAFO — v389 (01/08/2026) · SUB-PESTAÑAS
 // El modulo se estaba haciendo largo (lector + avisos + actividad
-// + archivo, todo en vertical) y JC pidio organizarlo como ASG:
+// + archivo, todo en vertical) y JC pidio organizarlo como la referencia externa:
 // secciones, no una superpantalla de quince paginas de scroll.
 // Mapa aprobado: SUBIR · CONDUCTORES · VEHICULOS · INFORMES · ARCHIVO.
 // Vehiculos e Informes estan en obra: de momento explican que llevaran.
@@ -27015,7 +27015,7 @@ function tacoSec(sec) {
 // ============================================================
 // TACOGRAFO — v457 (05/08/2026) · VENCIMIENTOS
 //
-// Lo que JC quiere dejar de recibir por email de ASG: cuando
+// Lo que JC quiere dejar de recibir por email de la referencia externa: cuando
 // caduca la TARJETA de cada conductor y cuando toca la REVISION
 // bienal del tacografo de cada camion.
 //
@@ -27112,7 +27112,7 @@ async function tacoVencVer() {
 // Lo que pidio JC: que al lado de cada vencimiento haya un boton
 // que deje el mensaje YA ESCRITO en el portapapeles, para pegarlo
 // en el WhatsApp del taller (camiones) o del conductor (tarjetas),
-// igual que hace el email de ASG pero sin depender de ASG.
+// igual que hace el email de la referencia externa pero sin depender de la referencia externa.
 //
 // Del CAMION va solo la matricula (es lo unico que necesita el
 // taller). Del CONDUCTOR va nombre + DNI + numero de tarjeta,
@@ -27592,7 +27592,7 @@ function renderVencBanner() {
 //
 // Llega la multa del radar con fecha y matricula: se elige el camion,
 // se pone ESE dia en el filtro (del dia X al dia X) y bajo el dia sale
-// QUIEN CONDUCIA. Todo dentro de la ficha del camion, como en ASG -
+// QUIEN CONDUCIA. Todo dentro de la ficha del camion, como en la referencia externa -
 // JC pidio quitar el buscador aparte: "no quiero mas subpestañas".
 //
 // El dato sale de tacografo_dias: en los ficheros del CAMION viene
@@ -27644,7 +27644,7 @@ async function tacoVehPintarSelector() {
 // TACOGRAFO — v408 (01/08/2026) · INFORMES: LA PARRILLA
 // Y EL PRIMERO FUNCIONANDO: REGISTRO DE JORNADAS DE TRABAJO
 //
-// El del PDF de ASG que guardo JC como modelo: dia a dia, hora de
+// El del PDF de la referencia externa que guardo JC como modelo: dia a dia, hora de
 // inicio y fin de jornada, conduccion, otros trabajos y el T.T.
 // EFECTIVO (conduccion + otros), con los totales del periodo y la
 // nota legal del Estatuto (art. 34.9 y 35.5 RDL 2/2015).
@@ -27655,7 +27655,7 @@ async function tacoVehPintarSelector() {
 //   fin jornada    = ultimo minuto del dia que NO es descanso
 //   conduccion     = suma de los tramos de conducir
 //   otros trabajos = suma de los tramos de otros trabajos
-//   T.T. efectivo  = conduccion + otros (igual que ASG: 7:05+2:44=9:49)
+//   T.T. efectivo  = conduccion + otros (igual que la referencia externa: 7:05+2:44=9:49)
 // Dia sin nada    -> "SIN ACTIVIDAD"
 // Dia de descarga -> "PARCIAL" y NO computa (un documento que puede
 //                    acabar firmado no debe llevar un dia a medias)
@@ -27663,7 +27663,7 @@ async function tacoVehPintarSelector() {
 // ============================================================
 
 // v464: al abrir un informe, la PARRILLA SE TAPA y el informe queda como
-// pantalla propia con su boton "✕ Cerrar informe" para volver — como en ASG.
+// pantalla propia con su boton "✕ Cerrar informe" para volver — como en la referencia externa.
 // JC: "que no se queden los informes ahi arriba, que se abra un apartado
 // nuevo o se tapen, y despues le doy a cerrar y me voy de ahi".
 // ============================================================
@@ -27740,7 +27740,7 @@ function tacoRep(cual) {
 // que estas haciendo mal los descansos". Si el conductor persiste,
 // queda constancia de que se le advirtio.
 //
-// LAS REGLAS salen del listado real de ASG de ANTON (01/05 a
+// LAS REGLAS salen del listado real de la referencia externa de ANTON (01/05 a
 // 04/08/2026, 30 infracciones), no de una interpretacion mia. La
 // escalera de gravedad cuadra con las 30, una a una:
 //   DESCANSO DIARIO (11h, o 9h si le queda reduccion):
@@ -27779,7 +27779,7 @@ const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 // INSTRUCCION CIRCULAR 1/2021 del Ministerio de Transportes (Subdireccion
 // General de Inspeccion de Transporte Terrestre), que es la que usan los
 // inspectores, y que remiten al Reglamento (UE) 2016/403 y al ROTT.
-// NO son deducciones mias del listado de ASG: son los umbrales escritos.
+// NO son deducciones mias del listado de la referencia externa: son los umbrales escritos.
 //   Descanso diario sobre 9 h (DDR):   MG < 7h00 · G 7h00-8h00 · L 8h00-9h00
 //   Descanso diario sobre 11 h (DDN):  MG < 8h30 · G 8h30-10h00 · L 10h00-11h00
 //   Descanso semanal, referencia 45 h: MG < 36h · G 36h-42h · L >= 42h
@@ -27789,8 +27789,8 @@ const _TACO_INF_HON = { L: '-', G: 'Anexo I C', MG: 'Anexo I B' };
 // el descanso sobre 11 h, y la tabla real dice 8h30. Un descanso de 8h45
 // sobre 11 h es GRAVE, no muy grave (401 EUR en vez de 1.001 EUR). Con el
 // listado de ANTON no se noto porque no habia ningun caso en esa franja.
-// v475: distintivos de color de ASGTrans. JC: "los colores, cambialos y
-// ponlos igual o parecidos a ASGTrans, tamaño y demas". Verde leve, ambar
+// v475: distintivos de color de la referencia externa. JC: "los colores, cambialos y
+// ponlos igual o parecidos a la referencia externa, tamaño y demas". Verde leve, ambar
 // grave, rojo muy grave; el importe con el mismo color que su gravedad; la
 // honorabilidad con la letra del anexo destacada (C ambar, B roja).
 // v481: LIMG = muy grave de las que hacen PERDER LA HONORABILIDAD directamente
@@ -28077,11 +28077,6 @@ async function tacoRepInfUI() {
           <div class="fg"><label class="fl">Al día</label>
             <input class="fi" type="date" id="tacoIFhasta" value="${d2}"></div>
           <button class="btn bp" onclick="tacoRepInfVer()">Ver en pantalla</button>
-          <label class="fg" style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--tx);padding-bottom:6px"
-                 title="PRUEBA. Cambia solo cómo se encadenan los periodos de 24h. Con la casilla puesta, cada periodo empieza justo 24h después del anterior (que es como los lleva ASG). Sin ella, empieza al acabar el descanso elegido, que es como funciona la app desde la v471.">
-            <input type="checkbox" id="tacoIFenc" onchange="tacoRepInfVer()" style="cursor:pointer;width:16px;height:16px">
-            <span>Ventanas encadenadas cada 24h <b style="color:var(--in)">(modo ASG · prueba)</b></span>
-          </label>
         </div>
         <div id="tacoIFout" style="margin-top:14px"></div>
       </div>
@@ -28096,9 +28091,6 @@ async function tacoRepInfVer() {
   const quien = document.getElementById('tacoIFquien')?.value;
   let desde = document.getElementById('tacoIFdesde')?.value;
   let hasta = document.getElementById('tacoIFhasta')?.value;
-  // v493 - PRUEBA de encadenado de ventanas. Por defecto APAGADO: con la casilla
-  // sin marcar, el calculo es EXACTAMENTE el de la v492, ni un cambio.
-  const _enc24 = !!document.getElementById('tacoIFenc')?.checked;
   if (!out || !quien || !desde || !hasta) return;
   if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
   out.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Analizando…</div>';
@@ -28144,13 +28136,13 @@ async function tacoRepInfVer() {
     // descanso del dia: las pausas de 1 y 2 horas de la jornada salian
     // como infracciones muy graves (61 en vez de 25 en el papel de ANTON)
     // y ademas gastaban las reducciones antes de tiempo, por eso decia
-    // "sobre 11h" donde ASG dice "sobre 9h".
+    // "sobre 11h" donde la referencia externa dice "sobre 9h".
     // Ahora, dentro de cada ventana: si hay un descanso de 11 h, jornada
     // correcta; si no, vale uno de 9 h mientras le queden reducciones (3
     // entre semanales); y solo si NINGUNO vale se apunta la infraccion,
     // con el MAS LARGO de la ventana, que es lo mejor que hizo ese dia.
     // v472: EL DESCANSO SE MIDE DENTRO DE LA VENTANA, no entero.
-    // Lo enseño el detalle de ASG del 27/05 que mando JC: "Periodo (24 h.)
+    // Lo enseño el detalle de la referencia externa del 27/05 que mando JC: "Periodo (24 h.)
     // entre las 05:09h dia 26/05 y las 05:09h dia 27/05. Descanso entre las
     // 21:40h dia 26/05 y las 05:09h dia 27/05" = 7h29. ANTON siguio durmiendo
     // hasta las 06:20, pero esa hora y pico YA ES DEL PERIODO SIGUIENTE y no
@@ -28177,7 +28169,7 @@ async function tacoRepInfVer() {
     // O sea: las tres reducciones NO se gastan por orden de llegada (que es
     // lo que hacia la v469/v472), sino que se asignan A LOS TRES DESCANSOS
     // MAS CORTOS del tramo, que es lo mas favorable al conductor. Por eso
-    // ASG decia "07:03h sobre 9h" donde la app decia "09:00h sobre 11h".
+    // la referencia externa decia "07:03h sobre 9h" donde la app decia "09:00h sobre 11h".
     // Primero se recogen los descansos diarios (uno por ventana de 24 h),
     // agrupados por TRAMO entre descansos semanales; despues se ordenan.
     let cursor = arranque(0), vueltas = 0, tramo = 0;
@@ -28202,51 +28194,76 @@ async function tacoRepInfVer() {
         cursor = Math.max(mejor.r.fin, cursor + 1);
         continue;
       }
+      // v494 - DESCANSO DIARIO FRACCIONADO (DDF). Art. 4 g) del 561/2006:
+      // dos partes dentro del MISMO periodo de 24h, la 1a de 3h o mas y la
+      // 2a de 9h o mas, seguidas cada una. Suman 12h y es un descanso
+      // NORMAL: no es infraccion y NO gasta reduccion.
+      // Se buscan por orden: la primera que llegue de 3h o mas, y despues
+      // de ella una de 9h o mas. Se mide con la duracion YA RECORTADA por
+      // el borde de la ventana, porque las dos partes tienen que caber
+      // dentro del mismo periodo de 24h.
+      let ddf = null;
+      for (let i = 0; i < cand.length && !ddf; i++) {
+        if (cand[i].dur < 180) continue;
+        for (let j = i + 1; j < cand.length; j++) {
+          if (cand[j].r.ini < cand[i].r.fin) continue;
+          if (cand[j].dur >= 540 && (cand[i].dur + cand[j].dur) >= 720) { ddf = [cand[i], cand[j]]; break; }
+        }
+      }
+      if (ddf) {
+        pdds.push({ tramo, fin: Math.min(ddf[1].r.fin, finVent), dur: ddf[0].dur + ddf[1].dur,
+          durFull: ddf[0].dur + ddf[1].dur, ddf: true,
+          p1: ddf[0].dur, p2: ddf[1].dur,
+          ventIni: cursor, ventFin: finVent, dIni: ddf[0].r.ini, dFin: ddf[1].r.fin });
+        // La jornada acaba al terminar la SEGUNDA parte, no en la primera.
+        // Esto arregla ademas, de propina, lo de las ventanas que se abrian
+        // a mediodia: la parada larga ya no cierra el dia ella sola.
+        cursor = Math.max(ddf[1].r.fin, cursor + 1);
+        continue;
+      }
       // v482: se guarda tambien lo que duro el descanso ENTERO (sin recortar
       // por el borde de la ventana). Hace falta para saber si CUMPLIO.
       pdds.push({ tramo, fin: Math.min(mejor.r.fin, finVent), dur: mejor.dur,
         durFull: mejor.r.fin - mejor.r.ini,
         ventIni: cursor, ventFin: finVent, dIni: mejor.r.ini, dFin: mejor.r.fin });
-      // v493 - AQUI ESTA TODA LA DIFERENCIA, en una linea.
-      // MODO DE SIEMPRE (casilla sin marcar): el siguiente periodo empieza al
-      // ACABAR el descanso que se ha elegido. Si ese descanso era una parada
-      // larga de mediodia, se abre un periodo nuevo a mitad del dia - y eso es
-      // lo que hacia salir CINCO ventanas en cuatro dias el 18-21/05, con dos
-      // arrancando el mismo dia con 12 horas de diferencia.
-      // MODO ASG (casilla marcada): el siguiente periodo empieza SIEMPRE 24h
-      // justas despues del anterior, encadenados, que es como los lleva ASG
-      // en sus detalles. Asi una parada de mediodia no puede abrir jornada.
-      cursor = _enc24 ? finVent : Math.max(mejor.r.fin, cursor + 1);
+      cursor = Math.max(mejor.r.fin, cursor + 1);
     }
     // ordenar cada tramo de menor a mayor: 3 primeros sobre 9 h, resto sobre 11 h
     const porTramo = new Map();
     pdds.forEach(x => { if (!porTramo.has(x.tramo)) porTramo.set(x.tramo, []); porTramo.get(x.tramo).push(x); });
-    // v474: se guarda ademas el DETALLE de cada tramo (como el de ASG) para
+    // v474: se guarda ademas el DETALLE de cada tramo (como el de la referencia externa) para
     // poder comparar: que descansos se han tomado por diarios, entre que
     // horas, y contra que limite se ha medido cada uno.
     const fh2 = a => _tacoMadDMHM(D0 + a * 60000);       // v478: hora de España
     porTramo.forEach((lista, nTramo) => {
-      const orden = lista.slice().sort((a, b) => a.dur - b.dur);
+      // v494: los FRACCIONADOS van al final del orden, nunca pueden coger una
+      // de las 3 plazas de "reducido" - son descansos NORMALES.
+      const orden = lista.slice().sort((a, b) => {
+        if (!!a.ddf !== !!b.ddf) return a.ddf ? 1 : -1;
+        return a.dur - b.dur;
+      });
       const det = orden.map((p, k) => ({
-        dur: p.dur, full: p.durFull, exig: k < 3 ? 540 : 660, orden: k + 1,
+        dur: p.dur, full: p.durFull, exig: p.ddf ? 0 : (k < 3 ? 540 : 660), orden: k + 1,
+        ddf: !!p.ddf, p1: p.p1, p2: p.p2,
         desde: fh2(p.dIni), hasta: fh2(p.dFin),
         vent: fh2(p.ventIni) + ' \u2192 ' + fh2(p.ventFin)
       })).sort((a, b) => a.desde < b.desde ? -1 : 1);
       orden.forEach((p, k) => {
         const exig = k < 3 ? 540 : 660;             // 9 h los tres mas cortos, 11 h el resto
-        // v482 - LA REGLA QUE FALTABA, ensenada por el detalle de ASG del
+        // v482 - LA REGLA QUE FALTABA, ensenada por el detalle de la referencia externa del
         // 07/07: si el descanso duro 11 HORAS ENTERAS O MAS, es un descanso
         // diario NORMAL y esta CUMPLIDO, aunque parte de esas horas caigan
-        // ya en el periodo siguiente. ASG ni lo menciona entre los reducidos.
+        // ya en el periodo siguiente. la referencia externa ni lo menciona entre los reducidos.
         // El recorte por el borde de la ventana (v472) vale para MEDIR cuanto
         // le falto a un descanso corto, NO para decidir si cumplio.
+        if (p.ddf) return;                          // v494: fraccionado = descanso normal
         if (p.durFull >= 660) return;
         if (p.dur >= exig) return;
         infra.push({
           fecha: iso(p.fin - 1),
           txt: `Minoraci\u00f3n del descanso diario a ${hm(p.dur)}h sobre ${exig / 60}h`,
           tipo: exig === 540 ? _tacoGravDDR(p.dur) : _tacoGravDDN(p.dur),
-          det: det, nTramo: nTramo, nDR: orden.filter(x => x.durFull < 660).length
+          det: det, nTramo: nTramo, nDR: orden.filter(x => x.durFull < 660 && !x.ddf).length
         });
       });
     });
@@ -28350,7 +28367,7 @@ async function tacoRepInfVer() {
     const total = nL * 100 + nG * 401 + (nMG + nA) * 1001;
     _tacoIFultimo = { nom, emp, desde, hasta, lista, total, nL, nG, nMG, nA };
 
-    // v475: los colores de ASGTrans (verde leve, ambar grave, rojo muy grave),
+    // v475: los colores de la referencia externa (verde leve, ambar grave, rojo muy grave),
     // en distintivos redondeados como los suyos, y no como letra suelta.
     const col = _TACO_INF_COL;
     _tacoIFdet = lista.map(x => x.det || null);
@@ -28413,10 +28430,10 @@ async function tacoRepInfVer() {
         Bisemanal (art. 6.3), dos semanas naturales seguidas, máximo 90h: A≥112h30 · MG 105-112h30 · G 100-105h · L 90-100h.
         Importes: mínimo de cada tramo del art. 143 LOTT (leve 100-400 · grave 401-1.000 · muy grave 1.001-6.000);
         la cuantía exacta la fija la Administración.
-        ${_enc24 ? `<b style="color:var(--in)">MODO ASG (prueba): ventanas encadenadas cada 24h.</b> ` : ''}${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
+        ${noAcr ? `<b style="color:var(--erd)">${noAcr} ventana(s) de 24h con datos sin acreditar: NO se han evaluado</b> (faltan descargas). ` : ''}
         <b>Falta todavía</b> lo más importante: las <b>PRELACIONES</b>. Mientras no estén, un mismo día con
         exceso de conducción Y falta de descanso puede salir DOS veces, cuando la norma manda quedarse solo con
-        la más grave. Compara con ASG antes de hacer firmar nada.
+        la más grave. Compara con la referencia externa antes de hacer firmar nada.
       </div>`;
   } catch (e) {
     console.error('[v469]', e);
@@ -28424,11 +28441,11 @@ async function tacoRepInfVer() {
   }
 }
 
-// v474: EL DETALLE DEL TRAMO, como el que enseña ASG al pinchar el
+// v474: EL DETALLE DEL TRAMO, como el que enseña la referencia externa al pinchar el
 // cuadradito del grafico. Sirve para COMPARAR: que descansos ha tomado la
 // app por diarios en ese tramo entre semanales, entre que horas, contra que
 // limite se ha medido cada uno (9 h los tres mas cortos, 11 h el resto) y
-// cual es la ventana de 24 h de la que sale. Si ASG y la app cuentan un
+// cual es la ventana de 24 h de la que sale. Si la referencia externa y la app cuentan un
 // numero distinto de descansos reducidos, aqui se ve a la primera.
 let _tacoIFdet = [];
 
@@ -28464,7 +28481,7 @@ function tacoIFverDet(ix) {
       Si descansó <b>11h enteras o más</b> el descanso diario está CUMPLIDO, aunque parte caiga ya en el periodo
       siguiente: no es reducido y no se juzga. Si se queda corto, lo que cuenta es lo que hizo
       <b>dentro</b> de su ventana de 24h; lo que sobresale es del día siguiente.
-      Compara este número de reducidos con el que dice ASG en su propio detalle.
+      Compara este número de reducidos con el que diga tu fuente de contraste.
     </div></div>`;
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -28508,7 +28525,7 @@ function tacoIFverDetC(ix) {
 
 // v481: el detalle de una conduccion diaria. Ensena TODAS las conducciones
 // diarias de esa semana natural, cada una con sus horas y contra que limite se
-// ha medido - que es lo que hay que comparar con el detalle de ASG cuando algo
+// ha medido - que es lo que hay que comparar con el detalle de la referencia externa cuando algo
 // no cuadre (igual que con los descansos de la v474).
 let _tacoIFdetD = [];
 
@@ -28545,7 +28562,7 @@ function tacoIFverDetD(ix) {
 
 // v483: el detalle de una conduccion semanal o bisemanal. Desglosa de donde
 // sale la suma - dia a dia en la semanal, semana a semana en la bisemanal -
-// para poder cuadrarlo con ASG sin adivinar.
+// para poder cuadrarlo con la referencia externa sin adivinar.
 let _tacoIFdetW = [];
 
 function tacoIFverDetW(ix) {
@@ -28577,7 +28594,7 @@ function tacoIFverDetW(ix) {
   p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// La NOTIFICACION para firmar, copiada del modelo real de ASG que paso JC.
+// La NOTIFICACION para firmar, copiada del modelo real de la referencia externa que paso JC.
 function tacoInfNotif() {
   const u = _tacoIFultimo;
   if (!u) { toast('Dale primero a "Ver en pantalla"', 'err'); return; }
@@ -28586,7 +28603,7 @@ function tacoInfNotif() {
   const MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const h = new Date();
   const hoyTxt = `${String(h.getDate()).padStart(2, '0')} de ${MES[h.getMonth()]} de ${h.getFullYear()}`;
-  // v475: mismos distintivos de color que ASGTrans tambien en el papel
+  // v475: mismos distintivos de color que la referencia externa tambien en el papel
   const pill = (t, x) => `<span class="pill p${t}">${x}</span>`;
   const hon = t => t === 'L' ? '-' : `Anexo I <b class="h${t}">${t === 'LIMG' ? 'A' : t === 'MG' ? 'B' : 'C'}</b>`;
   const filas = u.lista.map(x => `<tr><td>${dmy(x.fecha)}</td><td class="iz">${x.txt}</td>
@@ -28875,7 +28892,7 @@ async function tacoRepDescVer() {
 // Es la "Relacion anual de kilometros realizados" que hay que
 // presentar a la Agencia Tributaria para la devolucion del
 // Gasoleo Profesional, y que hasta ahora JC sacaba del portal
-// de ASG. Formato copiado de su Excel real:
+// de la referencia externa. Formato copiado de su Excel real:
 //   MATRICULA · FECHA INICIO · KM INICIO · FECHA FIN · KM FIN · DIFERENCIA
 //
 // EL DATO ES EL CUENTAKILOMETROS DE LAS PROPIAS DESCARGAS
@@ -28884,7 +28901,7 @@ async function tacoRepDescVer() {
 // periodo y el ULTIMO, y se restan. No se inventa nada: si un
 // camion no tiene lecturas suficientes, se dice.
 //
-// HONESTIDAD (lo que ASG no te cuenta): si faltan descargas en
+// HONESTIDAD (lo que la referencia externa no te cuenta): si faltan descargas en
 // medio del periodo, los km de esos dias NO estan y el total
 // sale corto. Por eso cada fila avisa cuando el primer dato no
 // es el principio del periodo o el ultimo no es el final.
@@ -29331,7 +29348,7 @@ async function tacoRepSinTarjUI() {
     </div>`;
   // v438 (pedido JC): al entrar, el listado sale SOLO — todos los camiones,
   // los últimos 31 días — sin tener que elegir ni pulsar nada (como el aviso
-  // que manda ASG al recibir la descarga). Los filtros quedan para afinar.
+  // que manda la referencia externa al recibir la descarga). Los filtros quedan para afinar.
   tacoRepSinTarjVer();
 }
 
@@ -29385,7 +29402,7 @@ async function tacoRepSinTarjVer() {
     // Agrupar por camión
     const porMat = new Map();
     tramos.forEach(t => { const k = t.matricula || '—'; if (!porMat.has(k)) porMat.set(k, []); porMat.get(k).push(t); });
-    // v439 — como el email de ASG: los tramos CORTOS (<15 min, maniobras de
+    // v439 — como el email de la referencia externa: los tramos CORTOS (<15 min, maniobras de
     // patio probables) se AGRUPAN por día (N periodos · total); los LARGOS
     // (>=15 min) se detallan uno a uno, que son los que huelen a carretera.
     // La ley NO fija minimo (art. 140.22 LOTT: muy grave desde el primer
@@ -29425,7 +29442,7 @@ async function tacoRepSinTarjVer() {
             <td style="padding:4px 10px;font-family:var(--mn);font-size:12.5px;font-weight:600">${dur(c.min)}</td>
             <td style="padding:4px 10px;font-family:var(--mn);font-size:11.5px">maniobras de patio probables</td></tr>`;
         }).join('');
-        filasCortos = `<tr><td colspan="4" style="padding:7px 10px;background:var(--s2);font-family:var(--mn);font-size:11.5px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Periodos de menos de ${CORTO_MIN} minutos acumulados (agrupados por día, como en los avisos de ASG)</td></tr>` + filasCortos;
+        filasCortos = `<tr><td colspan="4" style="padding:7px 10px;background:var(--s2);font-family:var(--mn);font-size:11.5px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Periodos de menos de ${CORTO_MIN} minutos acumulados (agrupados por día)</td></tr>` + filasCortos;
       }
       h += `<div style="margin-top:14px;border:1px solid var(--bd);border-radius:10px;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;background:#fdf0ef;border-bottom:1px solid var(--bd);flex-wrap:wrap">
@@ -29442,7 +29459,7 @@ async function tacoRepSinTarjVer() {
       ${h}
       <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:10px;line-height:1.6">
         ${_tacoTxtUTC(desde, hasta)}<br>
-        ⚖ La ley NO fija un mínimo: conducir sin la tarjeta insertada en vía pública es infracción MUY GRAVE desde el primer minuto (art. 140.22 LOTT) — multa de 2.001 € y pérdida de la honorabilidad, con posible suspensión de las Tarjetas de Transporte. Los periodos cortos suelen ser maniobras en base o taller (recinto privado, fuera del ámbito del reglamento): por eso van AGRUPADOS por día y no uno a uno, igual que en los avisos de ASG — pero no se ocultan. Los tramos LARGOS hay que comprobarlos: determinar quién movió el camión y, si procede, pedirle los tickets justificativos (solo válidos por avería, deterioro, extravío o robo de la tarjeta, o renovación pedida con 15 días hábiles).<br>
+        ⚖ La ley NO fija un mínimo: conducir sin la tarjeta insertada en vía pública es infracción MUY GRAVE desde el primer minuto (art. 140.22 LOTT) — multa de 2.001 € y pérdida de la honorabilidad, con posible suspensión de las Tarjetas de Transporte. Los periodos cortos suelen ser maniobras en base o taller (recinto privado, fuera del ámbito del reglamento): por eso van AGRUPADOS por día y no uno a uno — pero no se ocultan. Los tramos LARGOS hay que comprobarlos: determinar quién movió el camión y, si procede, pedirle los tickets justificativos (solo válidos por avería, deterioro, extravío o robo de la tarjeta, o renovación pedida con 15 días hábiles).<br>
         Sale del FICHERO FIRMADO del propio camión (el original está en el ARCHIVO). Esto es distinto del "sin anotar" del conductor (tarjeta fuera sin anotación al meterla), que se ve en su ficha. Solo se examina lo descargado y subido.</div>`;
   } catch (e) {
     console.error('[v437 sin tarjeta]', e);
@@ -29583,7 +29600,7 @@ async function tacoRepJornadasVer() {
 // ============================================================
 // v467: DESCARGAS DEL REGISTRO DE JORNADAS — el "siguiente paso"
 // que anunciaba la pantalla desde la v408. Dos salidas:
-// - PDF PARA FIRMAR: ventana maquetada en A4 (modelo tipo ASG) con
+// - PDF PARA FIRMAR: ventana maquetada en A4 (modelo tipo la referencia externa) con
 //   membrete de la empresa, la tabla del periodo y las casillas de
 //   firma del trabajador y de la empresa. Desde ahí: Imprimir o
 //   "Guardar como PDF" del propio navegador. Sin librerías nuevas.
