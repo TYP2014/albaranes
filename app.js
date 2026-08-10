@@ -25007,6 +25007,20 @@ function factHolcimExcelPorMaterial() {
   const _titulo = (s) => { const min = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'a', 'en']); return String(s || '').trim().toLowerCase().split(/\s+/).map((w, i) => (i > 0 && min.has(w)) ? w : (w.charAt(0).toUpperCase() + w.slice(1))).join(' '); };
   const _transKey = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ZZZZ';
   const _cmpTMF = (tA, mA, fA, tB, mB, fB) => { const TA = _transKey(tA), TB = _transKey(tB); if (TA < TB) return -1; if (TA > TB) return 1; return _cmpMatFecha(mA, fA, mB, fB); };
+  // v500 (Juan Carlos 10/08/2026) — COLOR EN LA FECHA CUANDO EL VIAJE NO ES DEL MES QUE SE REPASA.
+  // Holcim factura de ~dia 20 del mes anterior al dia 5 del siguiente (y ADEC/Tecnocatalana se
+  // estiran mas todavia), asi que en el Excel de julio siempre caen viajes de junio y de agosto.
+  // Como el orden es transportista -> matricula -> fecha (para poder tachar camion por camion
+  // contra el papel de Holcim, v107J53/J55), esos forasteros quedan ESCONDIDOS dentro del bloque
+  // de cada camion y las fechas parecen bailar. Se pinta SOLO la celda de la Fecha, sin tocar el
+  // orden: asi el color aguanta aunque JC reordene o filtre la hoja en el propio Excel.
+  //   AMBAR  = dia de ANTES del mes que se repasa (nos vamos dias atras)
+  //   AZUL   = dia de DESPUES (nos vamos dias adelante)
+  //   sin color = del mes, que son la mayoria
+  const _mmRef = String(_factHolcimMesActual || '').match(/^(\d{4})-(\d{2})$/);
+  const _mesRef = _mmRef ? (parseInt(_mmRef[1], 10) * 12 + parseInt(_mmRef[2], 10)) : 0;
+  const _mesDeFecha = (f) => { const m = String(f || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? (parseInt(m[3], 10) * 12 + parseInt(m[2], 10)) : 0; };
+  let _fueraMes = 0;
 
   materialesFinal.forEach(mat => {
     let ab = (u.abonados || []).filter(a => _famPar(a) === mat);
@@ -25044,6 +25058,21 @@ function factHolcimExcelPorMaterial() {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 36 }];
     ws['!autofilter'] = { ref: 'A1:L1' };
+    // v500 — pintar la celda de FECHA (columna D) de los viajes que NO son del mes repasado.
+    if (_mesRef && ws['!ref']) {
+      const _rg = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = 1; R <= _rg.e.r; R++) {
+        const _cel = ws[XLSX.utils.encode_cell({ r: R, c: 3 })];
+        if (!_cel || _cel.v == null || _cel.v === '') continue;
+        const _mm = _mesDeFecha(_cel.v);
+        if (!_mm || _mm === _mesRef) continue;
+        if (!_cel.s) _cel.s = {};
+        _cel.s.fill = { patternType: 'solid', fgColor: { rgb: _mm < _mesRef ? 'FFC66E' : '8FC4F5' } };
+        _cel.s.font = { bold: true, color: { rgb: '000000' } };
+        _cel.s.alignment = { horizontal: 'center', vertical: 'center' };
+        _fueraMes++;
+      }
+    }
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
@@ -25054,7 +25083,7 @@ function factHolcimExcelPorMaterial() {
     : 'Holcim_por_familia';
   const _sufTr = window._factHolcimTransFiltro ? ('_' + String(window._factHolcimTransFiltro).replace(/[^A-Z0-9]+/gi, '_').slice(0, 24)) : ''; // v285
   XLSX.writeFile(wb, _nomFich + _sufTr + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-  toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)'), 'ok');
+  toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)') + (_fueraMes ? ' · ' + _fueraMes + ' fecha(s) de otro mes marcadas en color (ámbar = antes, azul = después)' : ''), 'ok');
 }
 
 // v107GB — Confirmar una "posible" (la marca facturada en memoria + Supabase y refresca el modal).
