@@ -22876,7 +22876,7 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
   // cada re-subida metía copias nuevas (yeso de junio acabó con líneas ×4, todas "Sin copia" en el cruce).
   const _claveLinea = (numero, fecha, mat, tn, concepto) =>
     [_factNormAlb(numero), _factFechaBarra(fecha), _factNormMat(mat),
-     (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(2)),
+     (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3)), // v497: 3 decimales — con 2, 28,995 y 29,000 eran "la misma línea" y una se perdía
      String(concepto || '').toUpperCase().trim()].join('|');
   if ((proveedor || '') === 'HOLCIM') {
     // v270 — ARREGLO del exceso de v261 (confirmado con la autofactura de julio 2026): Holcim REPITE
@@ -24230,8 +24230,19 @@ async function _factSubirAutofacturaHolcim0(files) {
           console.warn('[v293] RECORTE ABORTADO: leídas ' + leidas + ' > doble de lo declarado (' + declaradas + '); exceso ' + exceso0 + '. Guardado SIN recortar.');
           toast('🚨 REVISIÓN HUMANA: el PDF declara ' + declaradas + ' envíos pero he leído ' + leidas + ' (exceso descomunal de ' + exceso0 + ', más del doble). NO he recortado NADA para no llevarme viajes buenos — casi seguro el total está mal leído (¿varias liquidaciones/PO?). Guardadas las ' + leidas + ' líneas tal cual: revisa el cruce a mano.', 'err');
         } else {
+        // v497 (Juan Carlos 10/08/2026) — LA TIJERA REDONDEABA LAS TONELADAS Y SE COMÍA VIAJES BUENOS.
+        // Caso real: yeso de julio, 29/07, camión 1213JCD, DOS viajes reales en el papel: 29 T y 28,995 T.
+        // La clave de "copia repetida" redondeaba la TN a 2 decimales, así que 28,995 se convertía en
+        // "29.00" y las dos líneas parecían LA MISMA. Cuando el OCR leía alguna línea de más y había que
+        // recortar hasta los envíos que declara el PDF, la tijera veía ese grupo como el que más copias
+        // tenía y se llevaba por delante un VIAJE DE VERDAD. Resultado: el albarán 0071908455 se quedaba
+        // en "NO ABONADO" para siempre, y la línea de Holcim no salía ni en "sin copia" porque nunca se
+        // llegó a guardar. Orden de JC: si en el papel hay dos, tienen que salir dos. Ahora la clave usa
+        // TRES decimales (que es como Holcim escribe las toneladas), así que dos pesadas distintas ya
+        // NUNCA se confunden entre sí. Las copias de verdad (línea idéntica leída dos veces) se siguen
+        // quitando igual que antes.
         const _kL = (L) => [_factNormAlb(L.num_entrega), _factFechaBarra(L.fecha), _factNormMat(L.matricula),
-          (isNaN(_factNum(L.tn)) ? '' : _factNum(L.tn).toFixed(2)), String(L.material || '').toUpperCase().trim()].join('|');
+          (isNaN(_factNum(L.tn)) ? '' : _factNum(L.tn).toFixed(3)), String(L.material || '').toUpperCase().trim()].join('|'); // v497: 3 decimales, ver comentario abajo
         const grupos = new Map(); // clave → [índices en orden de lectura]
         lineas.forEach((L, i) => {
           if (!L || L._control) return;
