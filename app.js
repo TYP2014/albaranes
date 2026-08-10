@@ -24401,7 +24401,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
       //   • Tecnocatalana / árido reciclado → SOLO Nº. Holcim paga POR VIAJE (importe fijo) y nosotros
       //     ponemos TN = 1 a propósito, así que la TN NUNCA coincide → no se mira ni TN ni matrícula ni fecha.
       //   • Resto (clinker/áridos/cemento) → las tres: nº + TN + fecha + matrícula.
-      const _famR = _factFamiliaHolcim(match.producto, match.obra || match.destino || '');
+      const _famR = _factFamiliaHolcim(match.producto, match.obra || match.destino || '', match.planta || match.origen || '');
       const esAdec = (_famR === 'Escorias / Adec');
       const esTecno = (_famR === 'Árido reciclado / Tecnocatalana');
       // v107J74 — Núcleo Garraf → Puerto: Holcim lo factura con SU camión fijo (0658HLF) y SU fecha de
@@ -24549,7 +24549,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
     //   (a) su nº empieza por 3104, (b) proveedor/cliente HOLCIM/LAFARGE, o
     //   (c) su MATERIAL es uno de los que paga Holcim (familia ≠ Otros), aunque el
     //   proveedor de origen sea otro (Guixos Canals yeso, Promotora Promsa…).
-    const _famR = _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+    const _famR = _factFamiliaHolcim(r.producto, r.obra || r.destino || '', r.planta || r.origen || '');
     const pareceHolcim = /^3104\d{7}$/.test(n)
       || /HOLCIM|LAFARGE/.test(String(r.proveedor || r.cliente || '').toUpperCase())
       || (_famR && _famR !== 'Otros');
@@ -24614,9 +24614,10 @@ function _factProcesarYMostrarHolcim(setEstado) {
 // familia, para agrupar el repaso como lo hace Juan Carlos. El material viene canonizado
 // (concepto/material) y el destino del campo `origen` (lo lee J42: La Roca, Zona Franca,
 // Montcada, Molienda Tarragona, CLINKER - GRAO DE CASTELLON, NUCLEO GARRAF A PUERTO…).
-function _factFamiliaHolcim(material, destino) {
+function _factFamiliaHolcim(material, destino, origen) {
   const m = String(material || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const d = String(destino || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const o = String(origen || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // v498: origen/planta del albarán
   // 1) Núcleo Garraf → Puerto (obra temporal, familia propia). Se separa por destino.
   // v107J74 — clasificar por el DESTINO (Puerto de Barcelona / Núcleo Garraf), valga el material que
   // valga. Holcim lo factura como "Servicios de Transporte", pero NUESTRO albarán (Sodira) lo trae como
@@ -24635,7 +24636,18 @@ function _factFamiliaHolcim(material, destino) {
   // línea de Holcim no lleva esa palabra en el material, el abonado se iba a "Otros" en el Excel.
   // Si el DESTINO menciona ESCORIA, es la misma familia → así abonado y no-abonado caen en la misma hoja.
   if (/ESCORIA/.test(d)) return 'Escorias / Adec';
-  if (/RECICLADO/.test(m)) return 'Árido reciclado / Tecnocatalana';
+  // v498 (Juan Carlos 10/08/2026) — EL ÁRIDO RECICLADO SOLO ES DE TECNOCATALANA.
+  // Antes bastaba con que el material dijera "reciclado" para meterlo en esta familia, y se colaban
+  // servicios que no tienen nada que ver. Caso real: albarán P-227605, 22/07/2026, camión 9918MXC,
+  // 26,82 T, ORIGEN "Hercal" y DESTINO "Zona Franca" — otro cliente y otro sitio, y aparecía en el
+  // repaso de Tecnocatalana como NO ABONADO. El servicio de verdad SIEMPRE lleva Tecnocatalana de
+  // Runes en el proveedor/origen y entra en Fábrica Montcada. Regla prudente: solo se descarta cuando
+  // SABEMOS el origen, ese origen NO es Tecnocatalana Y ademas no va a Montcada. Si no consta el
+  // origen (las líneas de la propia autofactura no lo traen), todo sigue exactamente como antes.
+  if (/RECICLADO/.test(m)) {
+    if (o && !/TECNOCATALANA|RUNES/.test(o) && !/MONTCADA/.test(d)) return 'Otros';
+    return 'Árido reciclado / Tecnocatalana';
+  }
   // 2) Áridos de Cantera Garraf: SOLO AF-/AG- (el "árido siderúrgico/reciclado" ya se filtró arriba),
   // separados por destino. v107J56: "Fábrica Montcada" NO es "Montcada" (eso es recepción de materia
   // prima en la fábrica Holcim, no venta de áridos a Hormigones Montcada).
@@ -24686,6 +24698,9 @@ function _albNoEsParaHolcim(r) {
   const albN = _factNormAlb(r.albaran);
   if (/^3104\d{7}$/.test(albN)) return false;               // nº de Holcim (3104…) → cruza
   const matU = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // v498 — árido reciclado que NO viene de Tecnocatalana (ej. Hercal → Zona Franca): no es de Holcim,
+  // fuera del cruce y del repaso, para que no se mezcle con el servicio de Tecnocatalana.
+  if (/RECICLAD/.test(matU) && _factFamiliaHolcim(r.producto, r.obra || r.destino || '', r.planta || r.origen || '') !== 'Árido reciclado / Tecnocatalana') return true;
   // Materia prima que Holcim paga aunque el proveedor de origen sea un tercero:
   if (/CALIZA|ARCILLA|YESO|ARENA|LIMONITA|ESCOMBRO|SIDERURGIC|ESCORIA|RECICLAD|TECNOCATALANA|ADEC/.test(matU)) return false;
   // El resto (áridos/gravetas de CEMEX, Sodira, Àrids Garcia, etc.) NO es de Holcim → fuera del cruce.
@@ -24708,7 +24723,7 @@ function _factHolcimMostrarInforme() {
   // material + destino. El destino de la línea está en L.destino (lo leyó J42); el de
   // un albarán nuestro (no abonados) en r.obra/r.destino.
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '', r.planta || r.origen || '');
   // v107J71 — abonado/a-revisar se clasifica por NUESTRO albarán (a.rec), no por la línea de Holcim
   // (Holcim renombra escoria→"residuos" y reciclado→"servicio"). Así caen en su familia correcta.
   const _famPar = (a) => (a && a.rec ? _famAlb(a.rec) : _famLinea(a.linea));
@@ -24901,7 +24916,7 @@ function factHolcimExcelPorMaterial() {
   if (!u) { toast('No hay datos que exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const _famLinea = (L) => _factFamiliaHolcim(L.material, L.destino);
-  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '');
+  const _famAlb = (r) => _factFamiliaHolcim(r.producto, r.obra || r.destino || '', r.planta || r.origen || '');
   // v107K18: deducir el ORIGEN de una línea Holcim (las líneas de la autofactura no traen origen).
   // Igual que en el resto: áridos Garraf → "Cantera de Garraf"; cemento/clinker → "Fábrica Montcada";
   // calizas/arena/arcilla → su origen de materia prima. Si no se reconoce, se deja vacío.
