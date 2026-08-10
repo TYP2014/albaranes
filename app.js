@@ -24430,6 +24430,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
         if (usados.has(String(r.db_id))) return false;
         if (_factNormMat(r.tractora) !== matL) return false;
         if (_albNoEsParaHolcim(r)) return false;
+        if (_albDuplicadoAMano(r)) return false; // v496: una copia repetida no puede quedarse la línea del albarán bueno
         if (_tipoMP) {
           const _rmat = String(r.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           if (!_rmat.includes(_tipoMP)) return false;
@@ -24490,6 +24491,10 @@ function _factProcesarYMostrarHolcim(setEstado) {
     // copia repetida, no un viaje sin pagar. El viaje real lo representa la copia buena (que
     // sí cuadra con la autofactura). Antes el duplicado se colaba en la lista de no abonados.
     if (r._dup) return;
+    // v496 — igual que el duplicado automático: el marcado A MANO ("DUPLICADO" escrito en el nº de
+    // albarán) tampoco sale como no abonado. Es la misma copia otra vez; el viaje real lo representa
+    // la copia buena, que es la que cruza con la autofactura.
+    if (_albDuplicadoAMano(r)) return;
     // v107K75 (Juan Carlos 15/06/2026): YA NO se esconden los albaranes facturados.
     // Antes, si un albarán estaba marcado "facturado", no se mostraba como "no abonado", y eso
     // hacía DESAPARECER viajes del Excel (faltaban 5+ en Arena Martorell-Hispalis). Ahora, si
@@ -24653,6 +24658,17 @@ function _factFamiliaHolcim(material, destino) {
 // solo cruza si es de HOLCIM (proveedor o nº 3104…) o si es MATERIA PRIMA que Holcim paga aunque el
 // proveedor sea un tercero (Caliza Cemex/Promsa/Foj, Arena, Arcilla, Yeso, Árido siderúrgico/reciclado…).
 // El resto de áridos/gravetas de terceros (CEMEX, Sodira, Àrids Garcia, etc.) queda FUERA del cruce.
+// v496 (Juan Carlos 10/08/2026) — ALBARÁN MARCADO A MANO COMO DUPLICADO.
+// Cuando aparece la misma copia dos veces, JC le borra el número al sobrante y escribe "DUPLICADO"
+// en su sitio. Es una copia repetida del mismo viaje, NO un viaje sin pagar: no debe salir jamás en
+// "NO ABONADOS" (caso real: 8466NGN 30/06/2026 31,520 T, caliza Cemex de julio), ni puede robarle
+// la línea de Holcim al albarán bueno en el cruce por fecha+matrícula+TN. Queda FUERA del repaso de
+// Holcim por los dos lados. Esto es aparte del duplicado que detecta sola la app (r._dup), que ya
+// se saltaba desde la v107K40. El albarán NO se borra ni se toca: sigue en su listado como siempre.
+function _albDuplicadoAMano(r) {
+  return /DUPLICAD/.test(String((r && r.albaran) || '').toUpperCase());
+}
+
 function _albNoEsParaHolcim(r) {
   const prov = String(r.proveedor || '').toUpperCase();
   if (/HOLCIM|LAFARGE/.test(prov)) return false;            // es de Holcim → cruza
