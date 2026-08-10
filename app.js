@@ -24667,7 +24667,19 @@ function _factFamiliaHolcim(material, destino, origen) {
   if (/CALIZA\s+FOJ/.test(m)) return 'Caliza Foj';
   if (/CALIZA\s+CEMEX/.test(m)) return 'Caliza Cemex';
   if (/CALIZA\s+GARRAF|ZAHORRA/.test(m)) return 'Caliza Garraf Zahorra';
-  if (/ARENA/.test(m) && !/DESAREN|RESIDU/.test(m)) return 'Arena Martorell'; // v107K76: "desarenatge"/"residuos" NO es arena
+  // v499 (Juan Carlos 10/08/2026) — LAS DOS ARENAS SON SERVICIOS DISTINTOS. Hasta ahora TODO lo que
+  // llevara "ARENA" caía en la hoja "Arena Martorell", y ahí se mezclaban dos cosas que no tienen
+  // nada que ver: (a) la ARENA EXTRAIDA CANTERA MARTORELL, que entra en Fábrica Montcada desde
+  // Martorell, y (b) la ARENA CRUDA (ARENISCA) de PAVIMENT-SPORT, SA, que sale de la cantera de
+  // Begues a la que en el pueblo llaman "Charly" (origen canónico 'Charly/Begues', v353). Se decide
+  // primero por el MATERIAL, que es el dato fiable, y solo si el material no lo aclara se mira el
+  // origen/destino. Si no hay ninguna pista, se queda en 'Arena Martorell' como toda la vida.
+  if (/ARENA|ARENISCA/.test(m) && !/DESAREN|RESIDU/.test(m)) { // v107K76: "desarenatge"/"residuos" NO es arena
+    if (/ARENISCA|ARENA\s+CRUDA/.test(m)) return 'Arena Charly/Begues';
+    if (/MARTORELL|ARENA\s+EXTRAIDA/.test(m)) return 'Arena Martorell';
+    if (/CHARLY|BEGUES|PAV[IE]MENT/.test(o + ' ' + d)) return 'Arena Charly/Begues';
+    return 'Arena Martorell';
+  }
   if (/ARCILLA/.test(m)) return 'Arcilla';
   if (/YESO/.test(m)) return 'Yeso';
   if (/LIMONITA/.test(m)) return 'Limonita';
@@ -24736,7 +24748,7 @@ function _factHolcimMostrarInforme() {
   // Orden lógico de familias (las que existan en este informe)
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
-    'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
+    'Arena Martorell', 'Arena Charly/Begues', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
     'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
@@ -24927,6 +24939,7 @@ function factHolcimExcelPorMaterial() {
     if (/CALIZA\s+FOJ/.test(m)) return 'Foj/Vallirana';
     if (/CALIZA\s+CEMEX/.test(m)) return 'Cemex/Begues';
     if (/CALIZA\s+GARRAF|ZAHORRA/.test(m)) return 'Cantera de Garraf';
+    if (/ARENISCA|ARENA\s+CRUDA/.test(m)) return 'Charly/Begues'; // v499: la arena de Paviment-Sport
     if (/ARENA/.test(m)) return 'Martorell';
     if (/ARCILLA/.test(m)) return 'Papiol';
     if (/CLINKER/.test(m)) return 'Fábrica Montcada';
@@ -24943,7 +24956,7 @@ function factHolcimExcelPorMaterial() {
   (u.sinAlbaran || []).forEach(L => setM.add(_famLinea(L)));
   const _ORDEN_FAM = [
     'Caliza Promsa', 'Caliza Foj', 'Caliza Cemex', 'Caliza Garraf Zahorra',
-    'Arena Martorell', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
+    'Arena Martorell', 'Arena Charly/Begues', 'Arcilla', 'Yeso', 'Limonita', 'Escombros',
     'Áridos Garraf → La Roca', 'Áridos Garraf → Zona Franca', 'Áridos Garraf → Montcada',
     'Núcleo Garraf → Puerto Barcelona',
     'Cisternas / Sacos / Palets',
