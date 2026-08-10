@@ -24343,7 +24343,19 @@ function _factProcesarYMostrarHolcim(setEstado) {
     const esMateriaPrima = /CALIZA|ARENA|YESO|ARCILLA|LIMONITA/.test(matUp);
 
     // 1) POR Nº DE ALBARÁN (cemento, áridos, clinker, palets) → ABONADO directo (el número manda).
-    if (numA && porNum.has(numA)) {
+    // v495 (Juan Carlos 10/08/2026) — LA MATERIA PRIMA NUNCA CRUZA POR NÚMERO. Causa real del fallo
+    // que se repetía cada mes, cazada con el yeso de julio (INVOIC 3310947711): Holcim NO pone nº de
+    // albarán en las materias primas, pone su Nº DE ENTREGA SEMANAL ("28W2026-0000338"), y ESE MISMO
+    // número lo comparten TODAS las líneas de esa semana. Si en NUESTROS albaranes hay UNO solo con ese
+    // número apuntado (lo escribe la IA al leer una copia donde figura), porNum lo encuentra y las 32
+    // líneas de la semana entera se van por esta rama: se casan con ese albarán suelto (o caen en
+    // "posible duplicidad") y DESAPARECEN del informe — ni abonadas ni sin copia. Los 32 viajes buenos
+    // se quedaban en "NO ABONADO" con la fecha, la matrícula y la TN CLAVADAS al papel. Semana 28W
+    // (06→10/07) entera perdida; las semanas 29W/30W/31W cruzaron bien porque ningún albarán nuestro
+    // lleva esos números. Ahora las materias primas (caliza/arena/yeso/arcilla/limonita) saltan esta
+    // rama SIEMPRE y bajan al bloque 2, que es su regla de toda la vida: FECHA + MATRÍCULA + TN. Si no
+    // coincide → NO ABONADO / SIN COPIA, visible. Nunca más se puede tragar una línea en silencio.
+    if (numA && porNum.has(numA) && !esMateriaPrima) {
       const cand = porNum.get(numA);
       // v107K89 (26/06/2026): MULTIMATERIAL — albarán de plataforma/sacos con VARIAS filas del
       // mismo nº (cada material su línea). Holcim escribe el nº UNA sola vez (la 2ª línea va sin
