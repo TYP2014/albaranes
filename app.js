@@ -24419,7 +24419,7 @@ async function _factPapelHolcim(file) {
     // son las buenas. Ojo: una entrega de estas puede traer VARIOS materiales debajo (el albaran
     // 35692002403 trae cuatro), pero como el patron arranca SIEMPRE en la fecha, la entrega cuenta una
     // sola vez, que es como la cuenta Holcim.
-    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}\s+)?(T|PI)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
     // v507 — CADA FILA SABE A QUE PEDIDO DE COMPRAS PERTENECE. El papel va por bloques y cada bloque se
     // abre con "Pedido de compras 4503370147". Se apunta donde empieza cada uno para poder etiquetar
     // luego cada fila con el suyo (ver mas abajo el cuadre pedido a pedido).
@@ -24506,7 +24506,7 @@ async function _factPapelHolcim(file) {
       const _cnt0 = {}; filas.forEach(f => { const k = f.po || '?'; _cnt0[k] = (_cnt0[k] || 0) + 1; });
       const _cortos = Object.keys(_declPO).filter(po => (_cnt0[po] || 0) < _declPO[po]);
       if (_cortos.length) {
-        const _reAmplio = new RegExp("(\\d{2}\\.\\d{2}\\.\\d{4})((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,60}?)([A-Z0-9]{2,8})\\s*\\/((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,400}?)(-?\\d{1,3}(?:[.,]\\d{1,3})?)\\s+(?:[\\d.]{1,7}\\s+)?(T|PI)(?:\\s+(?:T|PI))?\\s+([\\d.,]+)\\s+EUR\\s+([\\d.,]+)", "g");
+        const _reAmplio = new RegExp("(\\d{2}\\.\\d{2}\\.\\d{4})((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,60}?)([A-Z0-9]{2,8})\\s*\\/((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,400}?)(-?\\d{1,3}(?:[.,]\\d{1,3})?)\\s+(?:[\\d.]{1,7}(?:,\\d{1,3})?\\s+(?:\\d\\s+)?)?(T|PI)(?:\\s+(?:T|PI))?\\s+([\\d.,]+)\\s+EUR\\s+([\\d.,]+)", "g");
         const _ya = new Set(filas.map(f => String(f.num || '')));
         let _mr, _resc = 0;
         while ((_mr = _reAmplio.exec(full)) !== null) {
@@ -24530,6 +24530,66 @@ async function _factPapelHolcim(file) {
         }
         if (_resc) console.warn('[v518] ' + _resc + ' fila(s) rescatadas en el/los pedido(s) ' + _cortos.join(', ') + '. Sin esto el recuento salía corto y el candado no se aplicaba.');
       }
+    }
+    // v520 (Juan Carlos 11/08/2026) — EL PAPEL SE LEE ENTERO: TAMBIEN LOS MATERIALES DE DEBAJO.
+    // ESTE ES EL ARREGLO DE FONDO, el que quita la causa en vez de ir tapando sintomas.
+    // HASTA HOY el lector guardaba UNA fila por entrega, la del PRIMER material. Para CONTAR esta bien
+    // (Holcim cuenta un envio, no un material) pero para CUADRAR se queda corto: cuando un albaran trae
+    // varios materiales, los de debajo NO estaban en el papel, asi que el cuadre no tenia con que
+    // compararlos - de ahi la v517 (protegerlos a mano) y de ahi que, cuando la IA lee mal una tonelada,
+    // el cuadre creyera que faltaba una fila y REPUSIERA una fantasma, dejando las dos. En el 577 eso
+    // dejo el fichero en 830 lineas cuando el papel dice 777.
+    // AHORA se leen tambien esas filas de debajo. La prueba de que estan TODAS y bien leidas es que la
+    // suma de importes da EXACTAMENTE el Total Neto de la factura: ARIDOS_2 493 lineas = 85.235,63 EUR
+    // y el 577 777 lineas = 180.528,94 EUR, al centimo.
+    // LO QUE NO CAMBIA, y es importante: el RECUENTO para el candado sigue siendo el de ENTREGAS (488 y
+    // 700), porque es lo que declara Holcim. Las sub-lineas van en una lista APARTE (filas.sub) y no
+    // tocan ni el conteo por pedido (v507), ni los declarados, ni el rescate de la matricula rota (v518).
+    // Cada sub-linea hereda la fecha, la matricula, el nº de entrega y el pedido de SU fila de arriba.
+    // GUARDAS: solo se miran los trozos que van entre una fila aceptada y la siguiente fecha, se cortan
+    // en cuanto asoma una cabecera o una hoja de resumen, y solo se admiten si esa entrega ya estaba
+    // aceptada - asi no puede colarse nada de los totales.
+    {
+      const _sub = [];
+      const _porNum = new Map(); filas.forEach(f => { if (f.num && !_porNum.has(f.num)) _porNum.set(f.num, f); });
+      // v520: ANTES DE TROCEAR, FUERA EL PIE Y LA CABECERA DE CADA PAGINA. Es lo que despistaba: el pie
+      // lleva la FECHA DE IMPRESION ("Pagina 18 / 25  04.08.2026") y la cabecera repite el "Periodo:
+      // 29.06.2026-21.07.2026" - o sea TRES fechas que no son de ningun porte. El troceo se cortaba ahi
+      // y perdia los materiales que continuaban al principio de la pagina siguiente (7 filas y 1.187,04
+      // EUR en el 577). Se quita el bloque entero, del "Pagina N / M" hasta el final de los titulos de
+      // columna. Esto SOLO afecta a esta pasada de materiales: el recuento de entregas y el candado se
+      // hicieron antes, sobre el texto intacto.
+      const _txt = full.replace(/Pagina\s*\d+\s*\/\s*\d+[\s\S]{0,700}?Valor\s+neto/gi, ' ');
+      const _fechas = []; { const _rf = /\d{2}\.\d{2}\.\d{4}/g; let _mf; while ((_mf = _rf.exec(_txt)) !== null) _fechas.push(_mf.index); }
+      // v520: la cabecera de pagina NO corta - SE SALTA. Un albaran con varios materiales puede seguir
+      // al principio de la pagina siguiente, detras del membrete y de la fila de titulos de columna
+      // (caso real del 577: siete materiales que se perdian asi, 1.187,04 EUR). Lo que SI corta de
+      // verdad es lo que marca fin de bloque: los subtotales, los totales, otro pedido u otro
+      // transportista - detras de eso nunca hay un material suelto.
+      const _corta = /(Subtotal\s+por|Total\s+PO\s+y\s+planta|Total\s+transporte|Total\s+Transportista|Pedido\s+de\s+compras|Transportista\s*:)/i;
+      const _cabecera = /Fecha\s+de\s*entrega[\s\S]{0,400}?Valor\s+neto/gi;
+      const _reSub = /(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI|UP)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+      for (let z = 0; z < _fechas.length; z++) {
+        const _ini = _fechas[z], _finSeg = (z + 1 < _fechas.length) ? _fechas[z + 1] : _txt.length;
+        let _seg = _txt.slice(_ini, Math.min(_finSeg, _ini + 6000));
+        const _mn = _seg.match(/(\d{1,2}\s*W\s*\d{4}\s*-?\s*\d{3,})|(\b\d{8,12}\b)/);
+        if (!_mn) continue;
+        const _padre = _porNum.get(String(_mn[0]).replace(/\s+/g, ''));
+        if (!_padre) continue;                       // esa entrega no se acepto arriba: no se mira
+        const _c = _seg.search(_corta); if (_c > 20) _seg = _seg.slice(0, _c);
+        _seg = _seg.replace(_cabecera, ' ');          // v520: fuera el membrete y los titulos de columna
+        _reSub.lastIndex = 0; let _ms, _n = 0;
+        while ((_ms = _reSub.exec(_seg)) !== null) {
+          _n++;
+          if (_n === 1) continue;                    // la primera es la fila de arriba, ya esta en filas
+          _sub.push({
+            fecha: _padre.fecha, num: _padre.num, matricula: _padre.matricula,
+            tn: _factNum(_ms[1]), unidad: _ms[2], importe: _factNum(_ms[4]), po: _padre.po, _sub: true
+          });
+        }
+      }
+      filas.sub = _sub;
+      if (_sub.length) console.log('[v520] papel: ' + _sub.length + ' fila(s) de material adicional bajo una misma entrega (multimaterial y extracostes). Total de lineas del papel: ' + (filas.length + _sub.length) + '.');
     }
     const _cuentaPO = {};
     filas.forEach(f => { const k = f.po || '?'; _cuentaPO[k] = (_cuentaPO[k] || 0) + 1; });
@@ -24719,8 +24779,11 @@ async function _factSubirAutofacturaHolcim0(files) {
     if (_cuadraPapel) {
       const _kPap = (mat, fec, tn) => [_factNormMat(_corregirMatAutof(mat)), _factFechaBarra(fec),
         (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3))].join('|');
+      // v520: el papel COMPLETO = las entregas + las filas de material de debajo (filas.sub).
+      // Con esto el cuadre ya tiene la verdad entera y deja de inventar reposiciones fantasma.
+      const _papelTodo = _papel.concat(Array.isArray(_papel.sub) ? _papel.sub : []);
       const _delPapel = new Map();
-      _papel.forEach(f => { const k = _kPap(f.matricula, f.fecha, f.tn); if (!_delPapel.has(k)) _delPapel.set(k, []); _delPapel.get(k).push(f); });
+      _papelTodo.forEach(f => { const k = _kPap(f.matricula, f.fecha, f.tn); if (!_delPapel.has(k)) _delPapel.set(k, []); _delPapel.get(k).push(f); });
       const _leidas = new Map();
       lineas.forEach((L, i) => {
         if (!L || L._control) return;
@@ -24729,7 +24792,7 @@ async function _factSubirAutofacturaHolcim0(files) {
         _leidas.get(k).push(i);
       });
       window._factCuadre502 = true; // v502: el papel manda; a partir de aqui la lista es la del PDF, exacta
-      const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0, _ajenas = 0, _noRecortadas = 0, _copiasSinNum = 0;
+      const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0, _ajenas = 0, _noRecortadas = 0, _copiasSinNum = 0, _cupoQuitadas = 0;
       // v505 (Juan Carlos 11/08/2026) — EL PASO QUE FALTABA: LO QUE NO ESTA EN EL PAPEL, SOBRA. Caso real
       // del Garraf de julio: el cuadre YA se aplicaba bien (papel 1.071 = 1.071 declaradas) pero se
       // guardaban 1.075. Motivo: el bucle de abajo recorre LAS FILAS DEL PAPEL y ajusta cada una, asi que
@@ -24757,7 +24820,7 @@ async function _factSubirAutofacturaHolcim0(files) {
       // 28,140 donde el papel pone 28,145, el caso del Garraf) REPITE EL MATERIAL, asi que sigue cayendo
       // exactamente igual que en la v505. Y las lineas de AJUSTE/ABONO (sin nº) siguen intocables.
       const _numPapel = new Set();
-      _papel.forEach(f => { const n = _factNormAlb(f.num); if (n) _numPapel.add(n); });
+      _papelTodo.forEach(f => { const n = _factNormAlb(f.num); if (n) _numPapel.add(n); });
       const _mtxt = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const _matPorNum = new Map();   // nº de entrega → materiales ya dados por buenos
       const _conNum = new Set();      // v519: clave+importe de las lineas que SI traen nº de albaran
@@ -24874,7 +24937,39 @@ async function _factSubirAutofacturaHolcim0(files) {
       });
       if (_quitar.size || _nuevas.length) {
         lineas = lineas.filter((L, i) => !_quitar.has(i)).concat(_nuevas);
-        console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _ajenas + ' fila(s) ajena(s) al papel quitada(s), ' + _repuestas + ' fila(s) repuesta(s)' + (_copiasSinNum ? ', ' + _copiasSinNum + ' copia(s) sin nº quitada(s)' : '') + (_noRecortadas ? ', ' + _noRecortadas + ' fila(s) de más RESPETADAS por no ser copias' : '') + '. Quedan ' + lineas.length + '.');
+      }
+      // v520 — LA RED FINAL: NINGUN ALBARAN PUEDE TENER MAS LINEAS QUE LAS QUE DICE EL PAPEL.
+      // Es la regla que pidio JC dicha en codigo: manda el numero de albaran, y manda el papel. Ahora
+      // que el papel se lee ENTERO sabemos cuantas lineas le tocan a cada entrega (una por material),
+      // asi que se puede cerrar el ultimo agujero: cuando la IA lee mal una tonelada, esa linea no casa
+      // con ninguna del papel, el cuadre repone la buena... y se quedaban LAS DOS. Aqui, si una entrega
+      // acaba con mas lineas de las que trae el papel, se quitan las sobrantes empezando por LAS QUE NO
+      // CASAN con ninguna fila del papel - o sea, justo las mal leidas; las que casan no se tocan nunca.
+      // Las lineas SIN nº de albaran (ajustes y abonos) quedan fuera de esta cuenta, como siempre.
+      {
+        let _exceso = 0;
+        const _cupo = new Map();
+        _papelTodo.forEach(f => { const n = _factNormAlb(f.num); if (!n) return; _cupo.set(n, (_cupo.get(n) || 0) + 1); });
+        const _porNumF = new Map();
+        lineas.forEach((L, i) => { if (!L || L._control) return; const n = _factNormAlb(L.num_entrega); if (!n) return; if (!_porNumF.has(n)) _porNumF.set(n, []); _porNumF.get(n).push(i); });
+        const _fuera = new Set();
+        _porNumF.forEach((idxs, n) => {
+          const _max = _cupo.get(n) || 0;
+          if (!_max || idxs.length <= _max) return;
+          const _casan = [], _noCasan = [];
+          idxs.forEach(i => { const L = lineas[i]; (_delPapel.has(_kPap(L.matricula, L.fecha, L.tn)) ? _casan : _noCasan).push(i); });
+          const _orden = _casan.concat(_noCasan);
+          for (let z = _max; z < _orden.length; z++) {
+            _fuera.add(_orden[z]); _exceso++;
+            const L = lineas[_orden[z]];
+            console.warn('[v520] albaran ' + L.num_entrega + ': el papel trae ' + _max + ' linea(s) y habia ' + idxs.length + '. Quitada la que no casa con el papel (' + L.tn + ' T · ' + (L.material || '') + ').');
+          }
+        });
+        _cupoQuitadas = _exceso;
+        if (_exceso) { lineas = lineas.filter((L, i) => !_fuera.has(i)); console.warn('[v520] ' + _exceso + ' linea(s) de mas quitadas por pasarse del cupo que marca el papel. Quedan ' + lineas.length + '.'); }
+      }
+      if (_quitar.size || _nuevas.length || _cupoQuitadas) {
+        console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _ajenas + ' fila(s) ajena(s) al papel quitada(s), ' + _repuestas + ' fila(s) repuesta(s)' + (_copiasSinNum ? ', ' + _copiasSinNum + ' copia(s) sin nº quitada(s)' : '') + (_noRecortadas ? ', ' + _noRecortadas + ' fila(s) de más RESPETADAS por no ser copias' : '') + (_cupoQuitadas ? ', ' + _cupoQuitadas + ' fuera por pasarse del cupo del papel' : '') + '. Quedan ' + lineas.length + '.');
         toast('🧾 Cuadre con el papel: la IA repitió ' + _sobras + ', se invent\u00f3 ' + _ajenas + ' y se dej\u00f3 ' + _repuestas + '. Ya está corregido: quedan ' + lineas.length + ', las mismas que el PDF.', 'ok');
       } else {
         console.log('[v501] cuadre contra el papel: PERFECTO, no falta ni sobra ninguna fila.');
