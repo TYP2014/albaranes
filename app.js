@@ -24913,6 +24913,37 @@ async function _factSubirAutofacturaHolcim0(files) {
           }
           return;
         }
+        // v521 — NO SE REPONE LO QUE YA ESTA CON SU NUMERO. El emparejamiento con el papel va por
+        // fecha+matricula+TN, y cuando un albaran trae varias lineas IGUALES (tres "Derivacion adicional"
+        // de 34,92 EUR, tres "Fin de semana"...) esa clave no las distingue: el cuadre creia que faltaban
+        // y las reponia, aunque estuvieran. En el 577 eso solo son 42 filas inventadas. Ahora, antes de
+        // reponer, se descuentan las que YA existen en la app con el mismo Nº DE ALBARAN y la misma
+        // cantidad; solo se repone lo que de verdad falta. Es otra vez la misma regla: manda el numero.
+        let _faltan = fp.length - idxs.length;
+        if (_faltan > 0) {
+          const _yaDe = new Map();
+          lineas.forEach((L) => {
+            if (!L || L._control) return;
+            const nn = _factNormAlb(L.num_entrega); if (!nn) return;
+            const kk = nn + '|' + (isNaN(_factNum(L.tn)) ? '' : _factNum(L.tn).toFixed(3));
+            _yaDe.set(kk, (_yaDe.get(kk) || 0) + 1);
+          });
+          const _pend = [];
+          for (let j = 0; j < fp.length; j++) {
+            const pp = fp[j], nn = _factNormAlb(pp.num);
+            const kk = nn + '|' + (isNaN(_factNum(pp.tn)) ? '' : _factNum(pp.tn).toFixed(3));
+            const q = _yaDe.get(kk) || 0;
+            if (nn && q > 0) { _yaDe.set(kk, q - 1); continue; }   // esa ya la tenemos
+            _pend.push(pp);
+          }
+          if (_pend.length < _faltan) {
+            console.log('[v521] ' + k + ': el papel trae ' + fp.length + ' y aqui hay ' + idxs.length + ', pero ' + (_faltan - _pend.length) + ' ya estan con su nº de albaran. No se reponen.');
+            _faltan = _pend.length;
+          }
+          fp = idxs.concat(_pend.map(() => null)).length ? fp : fp;   // fp intacto; se usa _pend abajo
+          if (_faltan <= 0) return;
+          var _repPend = _pend;
+        }
         if (idxs.length >= fp.length) return;
         let plantilla = idxs.length ? lineas[idxs[idxs.length - 1]] : null;
         if (!plantilla) {
@@ -24920,8 +24951,9 @@ async function _factSubirAutofacturaHolcim0(files) {
           plantilla = lineas.find(L => L && !L._control && _factNormMat(_corregirMatAutof(L.matricula)) === matN) || null;
         }
         if (!plantilla) { console.warn('[v501] falta ' + (fp.length - idxs.length) + ' fila(s) de ' + k + ' pero no hay ninguna otra de ese camión de la que copiar el material: NO se inventa.'); return; }
-        for (let j = idxs.length; j < fp.length; j++) {
-          const p = fp[j] || fp[0];
+        const _lista = (typeof _repPend !== 'undefined' && _repPend) ? _repPend : fp.slice(idxs.length);
+        for (let j = 0; j < _lista.length; j++) {
+          const p = _lista[j] || fp[0];
           const nueva = Object.assign({}, plantilla);
           nueva.num_entrega = p.num || plantilla.num_entrega;
           nueva.fecha = p.fecha;
@@ -24948,25 +24980,47 @@ async function _factSubirAutofacturaHolcim0(files) {
       // Las lineas SIN nº de albaran (ajustes y abonos) quedan fuera de esta cuenta, como siempre.
       {
         let _exceso = 0;
+        // v521 (Juan Carlos 11/08/2026) — EL CUPO VA POR ALBARAN + MATERIAL, NO POR ALBARAN ENTERO.
+        // La v520 conto las lineas que le tocan a cada ALBARAN y con eso no basta: en el 577 hay QUINCE
+        // albaranes con sub-lineas IDENTICAS entre si - tres "Derivacion adicional" de 34,92 EUR, tres
+        // "Fin de semana" de 38,80, tres palets iguales... Con el cupo por albaran, si la IA lee de mas
+        // en un material y de menos en otro, el total del albaran cuadra y el cupo NO ENTRA: por eso en
+        // el 577 solo quito 2 de las 58 que sobraban y el fichero se quedo en 835 en vez de 777.
+        // La unidad de verdad es ALBARAN + MATERIAL: el papel dice que el albaran 31042171923 tiene TRES
+        // "Derivacion adicional", asi que en la app no puede haber ni una mas ni una menos.
+        // El material del papel no se lee (el lector determinista no lo saca), asi que el cupo se reparte
+        // por la CANTIDAD, que si esta: dentro de un albaran, las lineas se agrupan por toneladas +
+        // importe, que es lo que distingue un material de otro cuando el nombre no lo tenemos. Las que
+        // no encajen en ningun grupo del papel se van, empezando por las que no casan.
+        const _kMat = (tn, imp) => (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3)) + '|' + (imp == null || isNaN(_factNum(imp)) ? '' : _factNum(imp).toFixed(2));
         const _cupo = new Map();
-        _papelTodo.forEach(f => { const n = _factNormAlb(f.num); if (!n) return; _cupo.set(n, (_cupo.get(n) || 0) + 1); });
+        _papelTodo.forEach(f => {
+          const n = _factNormAlb(f.num); if (!n) return;
+          if (!_cupo.has(n)) _cupo.set(n, { total: 0, porMat: new Map() });
+          const c = _cupo.get(n); c.total++;
+          const k = _kMat(f.tn, f.importe); c.porMat.set(k, (c.porMat.get(k) || 0) + 1);
+        });
         const _porNumF = new Map();
         lineas.forEach((L, i) => { if (!L || L._control) return; const n = _factNormAlb(L.num_entrega); if (!n) return; if (!_porNumF.has(n)) _porNumF.set(n, []); _porNumF.get(n).push(i); });
         const _fuera = new Set();
         _porNumF.forEach((idxs, n) => {
-          const _max = _cupo.get(n) || 0;
-          if (!_max || idxs.length <= _max) return;
+          const _c = _cupo.get(n);
+          if (!_c || !_c.total || idxs.length <= _c.total) return;
+          // primero las que casan con el papel, luego las demas: se conservan por ese orden
           const _casan = [], _noCasan = [];
           idxs.forEach(i => { const L = lineas[i]; (_delPapel.has(_kPap(L.matricula, L.fecha, L.tn)) ? _casan : _noCasan).push(i); });
-          const _orden = _casan.concat(_noCasan);
-          for (let z = _max; z < _orden.length; z++) {
-            _fuera.add(_orden[z]); _exceso++;
-            const L = lineas[_orden[z]];
-            console.warn('[v520] albaran ' + L.num_entrega + ': el papel trae ' + _max + ' linea(s) y habia ' + idxs.length + '. Quitada la que no casa con el papel (' + L.tn + ' T · ' + (L.material || '') + ').');
-          }
+          const _queda = new Map(_c.porMat); let _libres = _c.total;
+          [].concat(_casan, _noCasan).forEach(i => {
+            const L = lineas[i], k = _kMat(L.tn, L.valor_neto);
+            const _q = _queda.get(k) || 0;
+            if (_q > 0) { _queda.set(k, _q - 1); _libres--; return; }        // encaja en un grupo del papel
+            if (_libres > 0 && !_c.porMat.has(k)) { _libres--; return; }     // material que el papel no separa: cabe si hay hueco
+            _fuera.add(i); _exceso++;
+            console.warn('[v521] albaran ' + L.num_entrega + ': el papel trae ' + _c.total + ' linea(s) y habia ' + idxs.length + '. Quitada la sobrante (' + L.tn + ' T · ' + (L.valor_neto != null ? L.valor_neto + ' EUR · ' : '') + (L.material || '') + ').');
+          });
         });
         _cupoQuitadas = _exceso;
-        if (_exceso) { lineas = lineas.filter((L, i) => !_fuera.has(i)); console.warn('[v520] ' + _exceso + ' linea(s) de mas quitadas por pasarse del cupo que marca el papel. Quedan ' + lineas.length + '.'); }
+        if (_exceso) { lineas = lineas.filter((L, i) => !_fuera.has(i)); console.warn('[v521] ' + _exceso + ' linea(s) de mas quitadas por pasarse del cupo que marca el papel (albaran + material). Quedan ' + lineas.length + '.'); }
       }
       if (_quitar.size || _nuevas.length || _cupoQuitadas) {
         console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _ajenas + ' fila(s) ajena(s) al papel quitada(s), ' + _repuestas + ' fila(s) repuesta(s)' + (_copiasSinNum ? ', ' + _copiasSinNum + ' copia(s) sin nº quitada(s)' : '') + (_noRecortadas ? ', ' + _noRecortadas + ' fila(s) de más RESPETADAS por no ser copias' : '') + (_cupoQuitadas ? ', ' + _cupoQuitadas + ' fuera por pasarse del cupo del papel' : '') + '. Quedan ' + lineas.length + '.');
