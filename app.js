@@ -23584,21 +23584,42 @@ function factAutoVaciar() {
 // navegador se queda sin sitio, se va tirando el más viejo; si aun así no cabe, no se guarda y se
 // avisa por consola, pero el cruce que acabas de hacer NO se ve afectado en nada.
 const _REPASOS_KEY = 'typ2014_repasos_fact_v1';
-const _REPASOS_MAX = 4;
+const _REPASOS_MAX = 2;   // v512: un repaso de un mes gordo ronda los 3 MB y el navegador da ~5 en total
 
-// Quita del albarán los campos gordos que el informe y el Excel NO usan (la URL del escaneo, los
-// anexos, las líneas de detalle…). Sin esto un repaso de Holcim ocupa el triple y no cabe.
+// v512 (Juan Carlos 11/08/2026) — LA v511 NO CABÍA EN EL NAVEGADOR. Al probarla con el mes de julio
+// entero (4.206 abonados + 952 no abonados + 393 sin copia + 79 duplicidades = más de 5.500 filas, cada
+// una con el albarán COMPLETO de 37 columnas) el navegador soltó "no cabe ni un repaso" y el panel no
+// llegó a aparecer. El cálculo de la v511 se hizo pensando en las ~1.100 filas del Excel de áridos
+// Garraf, no en el mes completo. ARREGLO: en vez de quitar unos pocos campos gordos (lista negra), se
+// guardan SOLO los que el informe y el Excel usan de verdad (lista blanca). Los campos son los que
+// leen _factHolcimMostrarInforme, factHolcimExcelPorMaterial y _factFamiliaHolcim, sacados del propio
+// código para no dejarse ninguno y que no salgan columnas en blanco al pulsar VER. Con esto una fila
+// pasa de ~700 bytes a ~120: el mes entero baja de unos 4 MB a menos de 0,7 MB y entra de sobra.
+// Estos y solo estos: son los campos que leen el informe, el Excel por familia y el clasificador de
+// familias. db_id va porque lo necesita el botón de confirmar del informe. Cada campo de más son ~4 MB
+// repartidos entre 5.600 filas, así que la lista se queda corta a propósito.
+const _REPASO_CAMPOS = ['albaran', 'destino', 'estado_facturacion', 'fact_fija', 'fecha', 'material',
+  'matricula', 'num_entrega', 'obra', 'origen', 'planta', 'precio', 'producto', 'tm', 'tn', 'tractora',
+  'transportista', 'valor_neto', 'db_id'];
 function _repasoAdelgazar(o) {
   if (!o || typeof o !== 'object') return o;
-  const FUERA = ['file_url', 'anexos', 'linea_albaran', 'user_id', 'created_at', 'observaciones'];
   const c = {};
-  for (const k in o) { if (FUERA.indexOf(k) === -1) c[k] = o[k]; }
+  for (let i = 0; i < _REPASO_CAMPOS.length; i++) {
+    const k = _REPASO_CAMPOS[i];
+    if (o[k] !== undefined && o[k] !== null && o[k] !== '') c[k] = o[k];
+  }
   return c;
 }
 function _repasoAdelgazarPares(arr) {
   return (arr || []).map(x => {
     if (!x || typeof x !== 'object') return x;
-    if (x.linea || x.rec) return { linea: x.linea, rec: _repasoAdelgazar(x.rec), difs: x.difs, modo: x.modo, confirmado: x.confirmado };
+    if (x.linea || x.rec) { // v512: la línea también se adelgaza (antes iba entera)
+      const y = { linea: _repasoAdelgazar(x.linea), rec: _repasoAdelgazar(x.rec) };
+      if (x.difs && x.difs.length) y.difs = x.difs;
+      if (x.modo) y.modo = x.modo;
+      if (x.confirmado) y.confirmado = x.confirmado;
+      return y;
+    }
     return _repasoAdelgazar(x);
   });
 }
@@ -23628,7 +23649,7 @@ function _factRepasoGuardar(proveedor, mes, u) {
         abonados: _repasoAdelgazarPares(u.abonados),
         posibles: _repasoAdelgazarPares(u.posibles),
         noAbonados: (u.noAbonados || []).map(_repasoAdelgazar),
-        sinAlbaran: u.sinAlbaran || [],
+        sinAlbaran: (u.sinAlbaran || []).map(_repasoAdelgazar),   // v512
         dupPago: _repasoAdelgazarPares(u.dupPago),
         ajustes: u.ajustes || null,
         fichero: u.fichero || '',
@@ -23642,7 +23663,11 @@ function _factRepasoGuardar(proveedor, mes, u) {
       try { localStorage.setItem(_REPASOS_KEY, JSON.stringify(lista.slice(0, _REPASOS_MAX))); break; }
       catch (e) {
         lista.pop();
-        if (!lista.length) { console.warn('[v511] no cabe ni un repaso en el navegador; no se guarda (el cruce actual no se ve afectado).'); return; }
+        if (!lista.length) {
+          console.warn('[v512] el repaso no cabe en el navegador; no se guarda. El cruce que acabas de hacer NO se ve afectado: el informe de pantalla y su Excel funcionan igual.');
+          try { toast('El repaso es demasiado grande para guardarlo en este navegador. El informe de pantalla funciona igual.', 'err'); } catch (_e) {}
+          return;
+        }
       }
     }
     console.log('[v511] repaso guardado: ' + proveedor + ' ' + mes + ' (' + dato.n.ab + ' abonados · ' + dato.n.no + ' no abonados)');
