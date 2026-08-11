@@ -24109,20 +24109,19 @@ async function _factPapelHolcim(file) {
     const filas = [];
     let m, _fuera = 0;
     while ((m = re.exec(full)) !== null) {
-      // v503 (Juan Carlos 11/08/2026) — FUERA LAS FILAS DE LOS RESUMENES. Caso real: el Garraf de julio
-      // (INVOIC 3310947721, 1.071 envios declarados) contaba 1.079 filas y por esas 8 de mas el cuadre
-      // NO se aplicaba y el fichero se quedaba sin arreglar. Las 8 son lineas de la hoja de totales del
-      // final: "Subtotal por vehiculo 0287NMT/R4635BDS 509,985 T 3.192,67 EUR 17 Envios". Tienen la misma
-      // pinta que un porte (matricula "/" remolque + TN + T + importe + EUR + valor) y se colaban porque
-      // la fecha que el patron les pillaba delante era la del "Periodo: 02.07.2026-17.07.2026" de la
-      // cabecera de esa pagina. Tres criterios, cualquiera de los tres la tira, y los tres son propios
-      // de las hojas de resumen — un porte de verdad NUNCA los cumple:
-      //   (a) justo delante pone "Subtotal";
-      //   (b) justo detras pone "Envios" (los portes no llevan contador);
-      //   (c) entre la matricula y las toneladas aparece la palabra "Total".
-      const _antes = full.slice(Math.max(0, m.index - 60), m.index);
-      const _despues = full.slice(re.lastIndex, re.lastIndex + 30);
-      if (/Subtotal/i.test(_antes) || /Envi?os/i.test(_despues) || /\bTotal\b/i.test(m[4] || '')) { _fuera++; continue; }
+      // v504 (Juan Carlos 11/08/2026) — LA v503 SE QUEDO CORTA: MIRABA ALREDEDOR DE LA FILA, Y ESO
+      // DEPENDE DE COMO EL NAVEGADOR JUNTE EL TEXTO. Aqui, contra el PDF, cazaba las 8 filas de resumen
+      // del Garraf de julio; en el navegador solo cazo 3 (quedaban 1.076 contra 1.071 declaradas), asi
+      // que el candado volvio a saltar y el fichero siguio sin cuadrar. AHORA SE MIRA LA PROPIA FILA:
+      // TODO porte de Holcim lleva su "Num. Entrega" entre la fecha y la matricula — formato semana
+      // ("28W2026-0000338"), 10 digitos de materia prima ("0071908556") u 11 de arido/cemento. Las
+      // lineas de la hoja de totales ("Subtotal por vehiculo 0287NMT/R4635BDS 509,985 T 3.192,67 EUR
+      // 17 Envios") NO tienen numero de entrega: ahi lo unico que hay entre la fecha y la matricula es
+      // el rabo del "Periodo: 02.07.2026-17.07.2026" de la cabecera y las palabras "Subtotal por
+      // vehiculo". Sin numero de entrega, fuera. Es un dato del propio papel, no del espaciado, asi que
+      // da igual como parta el texto cada navegador. Probado con los dos PDF reales: Garraf 1.079 -> 1.071
+      // CLAVADAS (8 descartadas, las mismas 8 de siempre) y CHARLY 90 -> 90 con 0 descartadas.
+      if (!/(\d{1,2}\s*W\s*\d{4}\s*-?\s*\d{3,})|(\b\d{8,12}\b)/.test(m[2] || '')) { _fuera++; continue; }
       filas.push({
         fecha: _factFechaBarra(m[1]),
         num: String(m[2] || '').replace(/\s+/g, ''),
@@ -24131,7 +24130,7 @@ async function _factPapelHolcim(file) {
         importe: _factNum(m[7])
       });
     }
-    if (_fuera) console.log('[v503] ' + _fuera + ' fila(s) de las hojas de resumen descartadas al contar el papel.');
+    if (_fuera) console.log('[v504] ' + _fuera + ' fila(s) sin Nº de entrega (hojas de resumen) descartadas al contar el papel.');
     console.log('[v501] papel de Holcim leído SIN IA: ' + filas.length + ' fila(s) de porte.');
     return filas;
   } catch (e) { console.warn('[v501] no pude leer el papel fila a fila:', e); return null; }
