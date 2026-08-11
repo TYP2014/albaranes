@@ -24683,15 +24683,54 @@ async function _factSubirAutofacturaHolcim0(files) {
       // la verdad completa), toda fila leida cuya clave FECHA+MATRICULA+TN no exista en el papel se
       // descarta. SALVAGUARDA: las lineas de AJUSTE/ABONO (las que no traen nº de albaran) NO se tocan
       // nunca — esas son legitimas y no figuran como portes en el papel.
+      // v517 (Juan Carlos 11/08/2026) — LA SALVAGUARDA DEL MULTIMATERIAL. LO QUE EVITA QUE EL CUADRE
+      // NOS QUITE DINERO. Destapado al analizar ARIDOS_2 (3310947404) y el 577 (3310947577): UNA MISMA
+      // ENTREGA puede traer VARIOS MATERIALES, cada uno con SU cantidad y SU importe. Holcim la cuenta
+      // como UN envio y en el papel el patron arranca SIEMPRE en la fecha, asi que el lector determinista
+      // se queda con el PRIMER material - que es lo correcto para CONTAR, pero NO lo es para CUADRAR.
+      // El paso v505 empareja por FECHA+MATRICULA+TN, asi que los materiales 2º, 3º... no caen en ninguna
+      // clave del papel y se descartaban como "filas ajenas". CUANTO COSTABA: en el albaran 35682000823
+      // (15/07, 7091NND) Holcim paga 92,41 EUR repartidos en CINCO materiales y solo se habria guardado
+      // el primero, 25,85 EUR; en el 35692002427 (13/07, 1270LST) paga 154,88 EUR en DOS y se habria
+      // quedado en 135,52. Solo en ARIDOS_2 son 85,92 EUR que Holcim SI paga. En el 577 hay 32 entregas
+      // asi, con 48 sub-lineas. AHORA: una fila que no case con el papel NO se descarta si (a) su Nº DE
+      // ENTREGA si esta en el papel y (b) su MATERIAL no se ha contado ya para ese mismo numero. Es la
+      // regla que dio JC - EN ESTOS ALBARANES MANDA EL NUMERO - aplicada al cuadre. LO QUE NO SE ROMPE:
+      // el tartamudeo del OCR (la misma linea leida dos veces, o leida con las toneladas cambiadas -
+      // 28,140 donde el papel pone 28,145, el caso del Garraf) REPITE EL MATERIAL, asi que sigue cayendo
+      // exactamente igual que en la v505. Y las lineas de AJUSTE/ABONO (sin nº) siguen intocables.
+      const _numPapel = new Set();
+      _papel.forEach(f => { const n = _factNormAlb(f.num); if (n) _numPapel.add(n); });
+      const _mtxt = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const _matPorNum = new Map();   // nº de entrega → materiales ya dados por buenos
+      lineas.forEach((L) => {
+        if (!L || L._control) return;
+        if (!_delPapel.has(_kPap(L.matricula, L.fecha, L.tn))) return;  // esta se decide mas abajo
+        const n = _factNormAlb(L.num_entrega); if (!n) return;
+        if (!_matPorNum.has(n)) _matPorNum.set(n, new Set());
+        _matPorNum.get(n).add(_mtxt(L.material));
+      });
+      let _protegidas = 0;
       _leidas.forEach((idxs, k) => {
         if (_delPapel.has(k)) return;
         idxs.forEach(i => {
           const L = lineas[i];
           if (!L || !String(L.num_entrega || '').trim()) return; // ajuste/abono: intocable
+          const n = _factNormAlb(L.num_entrega), mm = _mtxt(L.material);
+          if (n && mm && _numPapel.has(n)) {
+            if (!_matPorNum.has(n)) _matPorNum.set(n, new Set());
+            const vistos = _matPorNum.get(n);
+            if (!vistos.has(mm)) {   // v517: material DISTINTO del mismo albaran = sub-linea legitima
+              vistos.add(mm); _protegidas++;
+              console.log('[v517] sub-linea de multimaterial respetada: albaran ' + L.num_entrega + ' · ' + (L.material || '') + ' · ' + L.tn + ' T · ' + (L.valor_neto != null ? L.valor_neto + ' EUR' : ''));
+              return;
+            }
+          }
           _quitar.add(i); _ajenas++;
           console.warn('[v505] fila que NO esta en el papel, descartada: ' + k);
         });
       });
+      if (_protegidas) console.warn('[v517] ' + _protegidas + ' sub-linea(s) de albaranes MULTIMATERIAL respetadas (varios materiales en una misma entrega). Sin esto se habrian borrado y se habria perdido su importe.');
       _delPapel.forEach((fp, k) => {
         const idxs = _leidas.get(k) || [];
         if (idxs.length > fp.length) {
