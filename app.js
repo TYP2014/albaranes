@@ -24113,7 +24113,17 @@ async function _factPapelHolcim(file) {
     // se comia la fila entera de al lado y devolvia la matricula equivocada (2254JVJ con el -14 PI del
     // 3768LZJ). Es una guarda del propio papel, no del espaciado, asi que da igual como junte el texto
     // cada navegador. Comprobado contra ARIDOS_3: 497 filas (493 T + 4 PI), cero numeros repetidos.
-    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(T|PI)\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    // v509 (Juan Carlos 11/08/2026) — EL CEMENTO EN SACOS Y PALETS LLEVA DOS CANTIDADES EN LA MISMA
+    // LINEA. Destapado con ARIDOS_1 (INVOIC 3310947403): "CEM I 42,5 R-SR 5 PAL PLAS 25  11,200 448
+    // T T  14,34 EUR  160,62" — Holcim pone las TONELADAS y ADEMAS el numero de sacos/palets, con sus
+    // dos unidades seguidas ("T T", o "T PI" en el saco de 25 kg). El lector esperaba una sola cantidad
+    // y una sola unidad, asi que se dejaba estas filas fuera: 5 en ARIDOS_1 (3 del pedido 4503373368 y
+    // 2 del 4503375059), y por eso ese fichero no cuadraba por 3 y por 2. Ahora la segunda cantidad y
+    // la segunda unidad son OPCIONALES. Las toneladas que se guardan siguen siendo las PRIMERAS, que
+    // son las buenas. Ojo: una entrega de estas puede traer VARIOS materiales debajo (el albaran
+    // 35692002403 trae cuatro), pero como el patron arranca SIEMPRE en la fecha, la entrega cuenta una
+    // sola vez, que es como la cuenta Holcim.
+    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:\d{1,4}\s+)?(T|PI)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
     // v507 — CADA FILA SABE A QUE PEDIDO DE COMPRAS PERTENECE. El papel va por bloques y cada bloque se
     // abre con "Pedido de compras 4503370147". Se apunta donde empieza cada uno para poder etiquetar
     // luego cada fila con el suyo (ver mas abajo el cuadre pedido a pedido).
@@ -24150,13 +24160,23 @@ async function _factPapelHolcim(file) {
     // v507 — LO QUE DECLARA EL PAPEL, PEDIDO A PEDIDO. La hoja de totales trae un "Subtotal por PO
     // 4503370147 … 125 Envíos" por cada pedido. Se guarda ese desglose junto a las filas para poder
     // cuadrar cada pedido por separado en vez de fiarlo todo a un unico total global.
+    // v509 — UN PEDIDO PUEDE REPARTIRSE ENTRE VARIAS PLANTAS, Y CADA UNA TRAE SU PROPIO "N Envios".
+    // En ARIDOS_1 el pedido 4503373368 sale como "Planta Fabrica Montcada ... 290 Envios" y debajo
+    // "Planta Molienda Tarragona ... 1 Envios": son 291 en total, pero la v508 solo miraba el primero
+    // y se quedaba en 290. Ahora se recorre el bloque ENTERO de cada pedido (hasta el siguiente
+    // "Subtotal por PO" o hasta "Total transporte") y se suman todos los "N Envios" que aparezcan.
     const _declPO = {};
-    { const _rs = /Subtotal\s+por\s+PO\s*(\d{6,})/g; let _ms;
-      while ((_ms = _rs.exec(full)) !== null) {
-        const _resto = full.slice(_ms.index, _ms.index + 400);
-        const _mm = _resto.match(/([\d][\d\s.,]*?)\s*E\s*n\s*v\s*i?\s*o\s*s/i);
-        if (_mm) { const _n = parseInt(String(_mm[1]).replace(/[^\d]/g, ''), 10);
-          if (!isNaN(_n) && _n > 0 && _n < 100000) _declPO[_ms[1]] = (_declPO[_ms[1]] || 0) + _n; }
+    { const _bl = []; const _rs = /Subtotal\s+por\s+PO\s*(\d{6,})/g; let _ms;
+      while ((_ms = _rs.exec(full)) !== null) _bl.push({ pos: _ms.index, po: _ms[1] });
+      for (let i = 0; i < _bl.length; i++) {
+        let _fin = (i + 1 < _bl.length) ? _bl[i + 1].pos : full.indexOf('Total transporte', _bl[i].pos);
+        if (_fin < 0) _fin = _bl[i].pos + 800;
+        const _trozo = full.slice(_bl[i].pos, _fin);
+        const _re = /([\d][\d\s.,]*?)\s*E\s*n\s*v\s*i?\s*o\s*s/gi; let _me;
+        while ((_me = _re.exec(_trozo)) !== null) {
+          const _n = parseInt(String(_me[1]).replace(/[^\d]/g, ''), 10);
+          if (!isNaN(_n) && _n > 0 && _n < 100000) _declPO[_bl[i].po] = (_declPO[_bl[i].po] || 0) + _n;
+        }
       } }
     const _cuentaPO = {};
     filas.forEach(f => { const k = f.po || '?'; _cuentaPO[k] = (_cuentaPO[k] || 0) + 1; });
