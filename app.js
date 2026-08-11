@@ -24296,7 +24296,26 @@ async function _factSubirAutofacturaHolcim0(files) {
         _leidas.get(k).push(i);
       });
       window._factCuadre502 = true; // v502: el papel manda; a partir de aqui la lista es la del PDF, exacta
-      const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0;
+      const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0, _ajenas = 0;
+      // v505 (Juan Carlos 11/08/2026) — EL PASO QUE FALTABA: LO QUE NO ESTA EN EL PAPEL, SOBRA. Caso real
+      // del Garraf de julio: el cuadre YA se aplicaba bien (papel 1.071 = 1.071 declaradas) pero se
+      // guardaban 1.075. Motivo: el bucle de abajo recorre LAS FILAS DEL PAPEL y ajusta cada una, asi que
+      // una fila que la IA se INVENTA -leyendo mal las toneladas, p.ej. 28,140 donde el papel pone
+      // 28,145- no cae en ninguna clave del papel, nadie la mira y se queda para siempre. Luego salia en
+      // el informe como "SIN COPIA" y ensuciaba el repaso. AHORA, y SOLO cuando el cuadre esta validado
+      // (el recuento sin IA coincide EXACTAMENTE con los envios que declara el PDF, o sea que el papel es
+      // la verdad completa), toda fila leida cuya clave FECHA+MATRICULA+TN no exista en el papel se
+      // descarta. SALVAGUARDA: las lineas de AJUSTE/ABONO (las que no traen nº de albaran) NO se tocan
+      // nunca — esas son legitimas y no figuran como portes en el papel.
+      _leidas.forEach((idxs, k) => {
+        if (_delPapel.has(k)) return;
+        idxs.forEach(i => {
+          const L = lineas[i];
+          if (!L || !String(L.num_entrega || '').trim()) return; // ajuste/abono: intocable
+          _quitar.add(i); _ajenas++;
+          console.warn('[v505] fila que NO esta en el papel, descartada: ' + k);
+        });
+      });
       _delPapel.forEach((fp, k) => {
         const idxs = _leidas.get(k) || [];
         if (idxs.length > fp.length) {
@@ -24327,8 +24346,8 @@ async function _factSubirAutofacturaHolcim0(files) {
       });
       if (_quitar.size || _nuevas.length) {
         lineas = lineas.filter((L, i) => !_quitar.has(i)).concat(_nuevas);
-        console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _repuestas + ' fila(s) repuesta(s). Quedan ' + lineas.length + '.');
-        toast('🧾 Cuadre con el papel: la IA repitió ' + _sobras + ' fila(s) y se dejó ' + _repuestas + '. Ya está corregido: quedan ' + lineas.length + ', las mismas que el PDF.', 'ok');
+        console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _ajenas + ' fila(s) ajena(s) al papel quitada(s), ' + _repuestas + ' fila(s) repuesta(s). Quedan ' + lineas.length + '.');
+        toast('🧾 Cuadre con el papel: la IA repitió ' + _sobras + ', se invent\u00f3 ' + _ajenas + ' y se dej\u00f3 ' + _repuestas + '. Ya está corregido: quedan ' + lineas.length + ', las mismas que el PDF.', 'ok');
       } else {
         console.log('[v501] cuadre contra el papel: PERFECTO, no falta ni sobra ninguna fila.');
       }
