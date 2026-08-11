@@ -24559,15 +24559,33 @@ async function _factPapelHolcim(file) {
       // EUR en el 577). Se quita el bloque entero, del "Pagina N / M" hasta el final de los titulos de
       // columna. Esto SOLO afecta a esta pasada de materiales: el recuento de entregas y el candado se
       // hicieron antes, sobre el texto intacto.
-      const _txt = full.replace(/Pagina\s*\d+\s*\/\s*\d+[\s\S]{0,700}?Valor\s+neto/gi, ' ');
-      const _fechas = []; { const _rf = /\d{2}\.\d{2}\.\d{4}/g; let _mf; while ((_mf = _rf.exec(_txt)) !== null) _fechas.push(_mf.index); }
+      // v523 (12/08/2026) — EL TROCEO NO PUEDE DEPENDER DE COMO VENGA EL TEXTO. La v520 limpiaba el pie
+      // y la cabecera buscando "Pagina N / M ... Valor neto", y eso encaja con unas extracciones y con
+      // otras no: el navegador (pdf.js) devuelve el texto en distinto orden que otras herramientas, y en
+      // el 577 la misma version leia 777 lineas en un sitio y 770 en otro - se perdian las 7 sub-lineas
+      // que quedan al principio de pagina, y con ellas 1.187,04 EUR. AHORA no se limpia nada: se trocea
+      // por las fechas que SON DE UN PORTE, que se reconocen porque detras llevan un Nº DE ENTREGA (8 a
+      // 12 cifras) antes de la siguiente fecha. Las del pie ("Pagina 18 / 25  04.08.2026") y las de la
+      // cabecera ("Periodo: 29.06.2026-21.07.2026") no lo llevan, asi que no cortan. Es la misma idea de
+      // siempre: MANDA EL NUMERO DE ALBARAN, tambien para saber donde empieza cada fila.
+      const _txt = full;
+      const _fechas = []; {
+        const _rf = /\d{2}\.\d{2}\.\d{4}/g; let _mf;
+        while ((_mf = _rf.exec(_txt)) !== null) {
+          // La fecha de un porte lleva SU Nº DE ENTREGA pegado detras (fecha, numero, matricula...).
+          // La del pie ("Pagina 18 / 25 04.08.2026") y la del periodo ("Periodo: 29.06.2026-21.07.2026")
+          // no: detras llevan el membrete o los titulos de columna. Por eso se exige que el numero
+          // aparezca en los primeros 40 caracteres, no mas lejos.
+          if (/^\d{2}\.\d{2}\.\d{4}\s+(\d{1,2}\s*W\s*\d{4}\s*-?\s*\d{3,}|\d{8,12})\b/.test(_txt.slice(_mf.index, _mf.index + 40))) _fechas.push(_mf.index);
+        }
+      }
       // v520: la cabecera de pagina NO corta - SE SALTA. Un albaran con varios materiales puede seguir
       // al principio de la pagina siguiente, detras del membrete y de la fila de titulos de columna
       // (caso real del 577: siete materiales que se perdian asi, 1.187,04 EUR). Lo que SI corta de
       // verdad es lo que marca fin de bloque: los subtotales, los totales, otro pedido u otro
       // transportista - detras de eso nunca hay un material suelto.
       const _corta = /(Subtotal\s+por|Total\s+PO\s+y\s+planta|Total\s+transporte|Total\s+Transportista|Pedido\s+de\s+compras|Transportista\s*:)/i;
-      const _cabecera = /Fecha\s+de\s*entrega[\s\S]{0,400}?Valor\s+neto/gi;
+      const _cabecera = /Fecha\s+de\s*entrega[\s\S]{0,600}?Valor\s+neto/gi;
       const _reSub = /(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI|UP)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
       for (let z = 0; z < _fechas.length; z++) {
         const _ini = _fechas[z], _finSeg = (z + 1 < _fechas.length) ? _fechas[z + 1] : _txt.length;
@@ -24576,8 +24594,19 @@ async function _factPapelHolcim(file) {
         if (!_mn) continue;
         const _padre = _porNum.get(String(_mn[0]).replace(/\s+/g, ''));
         if (!_padre) continue;                       // esa entrega no se acepto arriba: no se mira
+        // v523: primero se quita la cabecera de pagina (membrete + titulos de columna) VENGA DONDE VENGA,
+        // y SOLO DESPUES se busca el corte de fin de bloque. Al reves - como estaba - la propia cabecera
+        // cortaba el segmento y se perdian los materiales que continuan al principio de la pagina
+        // siguiente: 7 filas y 1.187,04 EUR en el 577, segun como devuelva el texto el navegador.
+        // v523: el salto de pagina se quita ENTERO - desde "Pagina N / M" hasta el ultimo titulo de
+        // columna ("Valor neto") - porque entre medias va el membrete, la direccion, la referencia y el
+        // periodo, y los materiales que continuan DESPUES de ese bloque son portes de la fila de arriba.
+        _seg = _seg.replace(/Pagina\s*\d+\s*\/\s*\d+[\s\S]{0,1200}?Valor\s+neto/gi, ' ')
+                   .replace(_cabecera, ' ')
+                   .replace(/Pagina\s*\d+\s*\/\s*\d+/gi, ' ')
+                   .replace(/Periodo\s*:\s*\d{2}\.\d{2}\.\d{4}\s*-\s*\d{2}\.\d{2}\.\d{4}/gi, ' ')
+                   .replace(/Referencia\s*\d{6,}/gi, ' ');
         const _c = _seg.search(_corta); if (_c > 20) _seg = _seg.slice(0, _c);
-        _seg = _seg.replace(_cabecera, ' ');          // v520: fuera el membrete y los titulos de columna
         _reSub.lastIndex = 0; let _ms, _n = 0;
         while ((_ms = _reSub.exec(_seg)) !== null) {
           _n++;
