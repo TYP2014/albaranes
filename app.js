@@ -14346,7 +14346,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
+  if (tab === 'facturacion') { try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
@@ -23527,6 +23527,8 @@ function _factProcesarYMostrar(setEstado) {
 
   _factAutoUltimo = { abonados, noAbonados, sinAlbaran, ajustes: _factAutoAjustesAcum, fichero: _factMesBonito(_factMesActual) + ' — ' + _factAutoFicheros.join('  +  '), fecha: new Date() };
 
+  _factRepasoGuardar('CEMEX', _factMesActual, _factAutoUltimo); // v511
+
   // Marcar los abonados como facturados (en memoria + Supabase en 2º plano).
   let marcados = 0;
   for (const a of abonados) {
@@ -23566,6 +23568,172 @@ function factAutoVaciar() {
   const estado = document.getElementById('factAutoEstado');
   if (estado) { estado.style.display = 'none'; estado.innerHTML = ''; }
   toast('Listo, empezamos de cero. Sube las autofacturas del mes.', 'ok');
+}
+
+// ============================================================================
+// v511 (Juan Carlos 11/08/2026) — ÚLTIMOS REPASOS GUARDADOS.
+// Pedido de JC: hasta ahora el informe del cruce (Holcim / CEMEX) SOLO vivía en la memoria del
+// navegador. Te salías de la pestaña o recargabas y desaparecía, y había que volver a cruzar el mes
+// ENTERO para consultarlo otra vez (con 3.671 líneas, minutos). Ahora, en cuanto termina un cruce, el
+// resultado se guarda en el navegador (localStorage, sin base de datos: decisión de JC) y queda a mano
+// en una lista, con su fecha y sus contadores. El botón VER vuelve a pintar el informe TAL CUAL, con
+// sus familias y su Excel, SIN volver a cruzar nada.
+// IMPORTANTE — es una FOTO del momento en que se cruzó: si después subes albaranes o autofacturas,
+// hay que volver a cruzar. Por eso la fecha va bien visible y en ámbar si tiene más de un día.
+// Se guardan como mucho 4 repasos (uno por proveedor+mes, el más nuevo pisa al anterior). Si el
+// navegador se queda sin sitio, se va tirando el más viejo; si aun así no cabe, no se guarda y se
+// avisa por consola, pero el cruce que acabas de hacer NO se ve afectado en nada.
+const _REPASOS_KEY = 'typ2014_repasos_fact_v1';
+const _REPASOS_MAX = 4;
+
+// Quita del albarán los campos gordos que el informe y el Excel NO usan (la URL del escaneo, los
+// anexos, las líneas de detalle…). Sin esto un repaso de Holcim ocupa el triple y no cabe.
+function _repasoAdelgazar(o) {
+  if (!o || typeof o !== 'object') return o;
+  const FUERA = ['file_url', 'anexos', 'linea_albaran', 'user_id', 'created_at', 'observaciones'];
+  const c = {};
+  for (const k in o) { if (FUERA.indexOf(k) === -1) c[k] = o[k]; }
+  return c;
+}
+function _repasoAdelgazarPares(arr) {
+  return (arr || []).map(x => {
+    if (!x || typeof x !== 'object') return x;
+    if (x.linea || x.rec) return { linea: x.linea, rec: _repasoAdelgazar(x.rec), difs: x.difs, modo: x.modo, confirmado: x.confirmado };
+    return _repasoAdelgazar(x);
+  });
+}
+
+function _factRepasosLeer() {
+  try { const t = localStorage.getItem(_REPASOS_KEY); return t ? (JSON.parse(t) || []) : []; }
+  catch (e) { console.warn('[v511] no pude leer los repasos guardados:', e); return []; }
+}
+
+function _factRepasoGuardar(proveedor, mes, u) {
+  if (!u) return;
+  try {
+    const dato = {
+      id: proveedor + '|' + mes,
+      proveedor: proveedor,
+      mes: mes,
+      fecha: new Date().toISOString(),
+      quien: (typeof currentUser === 'object' && currentUser && (currentUser.email || currentUser.name)) || '',
+      n: {
+        ab: (u.abonados || []).length,
+        pos: (u.posibles || []).length,
+        no: (u.noAbonados || []).length,
+        sin: (u.sinAlbaran || []).length,
+        dup: (u.dupPago || []).length
+      },
+      u: {
+        abonados: _repasoAdelgazarPares(u.abonados),
+        posibles: _repasoAdelgazarPares(u.posibles),
+        noAbonados: (u.noAbonados || []).map(_repasoAdelgazar),
+        sinAlbaran: u.sinAlbaran || [],
+        dupPago: _repasoAdelgazarPares(u.dupPago),
+        ajustes: u.ajustes || null,
+        fichero: u.fichero || '',
+        fecha: u.fecha || new Date()
+      }
+    };
+    let lista = _factRepasosLeer().filter(r => r.id !== dato.id);
+    lista.unshift(dato);
+    // Guardar; si no cabe, ir tirando los más viejos hasta que quepa.
+    while (lista.length) {
+      try { localStorage.setItem(_REPASOS_KEY, JSON.stringify(lista.slice(0, _REPASOS_MAX))); break; }
+      catch (e) {
+        lista.pop();
+        if (!lista.length) { console.warn('[v511] no cabe ni un repaso en el navegador; no se guarda (el cruce actual no se ve afectado).'); return; }
+      }
+    }
+    console.log('[v511] repaso guardado: ' + proveedor + ' ' + mes + ' (' + dato.n.ab + ' abonados · ' + dato.n.no + ' no abonados)');
+    _factRepasosPintar();
+  } catch (e) { console.warn('[v511] no pude guardar el repaso (no crítico):', e); }
+}
+
+function _factRepasoAbrir(id) {
+  const r = _factRepasosLeer().find(x => x.id === id);
+  if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
+  if (r.proveedor === 'HOLCIM') {
+    _factHolcimUltimo = r.u;
+    _factHolcimMesActual = r.mes;
+    _factHolcimMostrarInforme();
+  } else {
+    _factAutoUltimo = r.u;
+    _factMesActual = r.mes;
+    _factAutoMostrarInforme();
+    const m = document.getElementById('ovFactAuto');   // v511: el modal real de CEMEX
+    if (m) m.classList.add('open');
+  }
+}
+
+function _factRepasoExcel(id) {
+  const r = _factRepasosLeer().find(x => x.id === id);
+  if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
+  if (r.proveedor === 'HOLCIM') {
+    _factHolcimUltimo = r.u; _factHolcimMesActual = r.mes;
+    factHolcimExcelPorMaterial();
+  } else {
+    _factAutoUltimo = r.u; _factMesActual = r.mes;
+    if (typeof factAutoExcel === 'function') factAutoExcel();
+    else toast('Abre el repaso con VER y descarga el Excel desde ahí', 'err');
+  }
+}
+
+function _factRepasoBorrar(id) {
+  if (!confirm('¿Quitar este repaso guardado?\n\nSolo se borra la copia guardada en este navegador. Tus albaranes y las autofacturas NO se tocan.')) return;
+  try {
+    localStorage.setItem(_REPASOS_KEY, JSON.stringify(_factRepasosLeer().filter(x => x.id !== id)));
+    _factRepasosPintar();
+    toast('Repaso quitado', 'ok');
+  } catch (e) { console.warn('[v511] borrar repaso:', e); }
+}
+
+// Pinta el panel. Se crea solo, justo encima del estado de Holcim, para no tocar el index.html.
+function _factRepasosPintar() {
+  const ancla = document.getElementById('factHolcimEstado');
+  if (!ancla || !ancla.parentNode) return;
+  let cont = document.getElementById('factRepasosBox');
+  if (!cont) {
+    cont = document.createElement('div');
+    cont.id = 'factRepasosBox';
+    cont.style.cssText = 'margin:10px 0 14px';
+    ancla.parentNode.insertBefore(cont, ancla);
+  }
+  const lista = _factRepasosLeer();
+  if (!lista.length) { cont.innerHTML = ''; return; }
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const _bonito = (iso) => {
+    const d = new Date(iso); if (isNaN(d)) return '';
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  };
+  const _viejo = (iso) => { const d = new Date(iso); return !isNaN(d) && (Date.now() - d.getTime()) > 86400000; };
+  let h = '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;background:var(--bg2)">'
+        + '<div style="font-weight:700;margin-bottom:8px">📊 ÚLTIMOS REPASOS GUARDADOS '
+        + '<span style="font-weight:400;color:var(--mu);font-size:11px">· es una foto del momento en que se cruzó; si has subido cosas después, vuelve a cruzar</span></div>'
+        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  lista.forEach(r => {
+    const viejo = _viejo(r.fecha);
+    h += '<tr style="border-top:1px solid var(--bd)">'
+      + '<td style="padding:6px 8px;font-weight:700;white-space:nowrap">' + esc(r.proveedor) + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">' + esc(_factMesBonito(r.mes)) + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap;color:' + (viejo ? '#e0a000' : 'var(--mu)') + '">'
+      + (viejo ? '⏳ ' : '') + esc(_bonito(r.fecha)) + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">'
+      + '<span style="color:var(--ok);font-weight:700">' + r.n.ab + ' 🟢</span>'
+      + (r.n.pos ? ' <span style="color:#7cc4ff">' + r.n.pos + ' ⚠</span>' : '')
+      + ' <span style="color:#e0a000">' + r.n.no + ' ⚠</span>'
+      + ' <span style="color:#7cc4ff">' + r.n.sin + ' 📋</span>'
+      + (r.n.dup ? ' <span style="color:var(--err)">' + r.n.dup + ' 🔁</span>' : '')
+      + '</td>'
+      + '<td style="padding:6px 8px;text-align:right;white-space:nowrap">'
+      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">👁 VER</button> '
+      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')">📊 EXCEL</button> '
+      + '<button class="btn bs" style="font-size:11px;padding:3px 8px;opacity:.6" onclick="_factRepasoBorrar(\'' + esc(r.id) + '\')" title="Quitar de la lista">✕</button>'
+      + '</td></tr>';
+  });
+  h += '</table></div></div>';
+  cont.innerHTML = h;
 }
 
 // --- Render del informe en el modal ---
@@ -24885,6 +25053,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
   }
 
   setEstado('✅ Listo. ' + _factMesBonito(_factHolcimMesActual) + ' (Holcim): ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia.' + (dupPago.length ? ' · 🔁 ' + dupPago.length + ' POSIBLE(S) DUPLICIDAD(ES) — mira el informe' : ''));
+  _factRepasoGuardar('HOLCIM', _factHolcimMesActual, _factHolcimUltimo); // v511
   _factHolcimMostrarInforme();
   toast('Holcim ' + _factMesBonito(_factHolcimMesActual) + ': ' + abonadosVent.length + ' abonados · ' + posiblesVent.length + ' a revisar · ' + noAbonados.length + ' no abonados · ' + sinAlbaranVent.length + ' sin copia', 'ok');
 }
