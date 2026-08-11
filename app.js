@@ -24107,8 +24107,22 @@ async function _factPapelHolcim(file) {
     // fecha DD.MM.AAAA → (nº entrega) → matrícula tractora + "/" → … → TN + " T " + precio + " EUR " + valor
     const re = /(\d{2}\.\d{2}\.\d{4})([\s\S]{0,60}?)(\d{4}[A-Z]{3})\s*\/([\s\S]{0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+T\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
     const filas = [];
-    let m;
+    let m, _fuera = 0;
     while ((m = re.exec(full)) !== null) {
+      // v503 (Juan Carlos 11/08/2026) — FUERA LAS FILAS DE LOS RESUMENES. Caso real: el Garraf de julio
+      // (INVOIC 3310947721, 1.071 envios declarados) contaba 1.079 filas y por esas 8 de mas el cuadre
+      // NO se aplicaba y el fichero se quedaba sin arreglar. Las 8 son lineas de la hoja de totales del
+      // final: "Subtotal por vehiculo 0287NMT/R4635BDS 509,985 T 3.192,67 EUR 17 Envios". Tienen la misma
+      // pinta que un porte (matricula "/" remolque + TN + T + importe + EUR + valor) y se colaban porque
+      // la fecha que el patron les pillaba delante era la del "Periodo: 02.07.2026-17.07.2026" de la
+      // cabecera de esa pagina. Tres criterios, cualquiera de los tres la tira, y los tres son propios
+      // de las hojas de resumen — un porte de verdad NUNCA los cumple:
+      //   (a) justo delante pone "Subtotal";
+      //   (b) justo detras pone "Envios" (los portes no llevan contador);
+      //   (c) entre la matricula y las toneladas aparece la palabra "Total".
+      const _antes = full.slice(Math.max(0, m.index - 60), m.index);
+      const _despues = full.slice(re.lastIndex, re.lastIndex + 30);
+      if (/Subtotal/i.test(_antes) || /Envi?os/i.test(_despues) || /\bTotal\b/i.test(m[4] || '')) { _fuera++; continue; }
       filas.push({
         fecha: _factFechaBarra(m[1]),
         num: String(m[2] || '').replace(/\s+/g, ''),
@@ -24117,6 +24131,7 @@ async function _factPapelHolcim(file) {
         importe: _factNum(m[7])
       });
     }
+    if (_fuera) console.log('[v503] ' + _fuera + ' fila(s) de las hojas de resumen descartadas al contar el papel.');
     console.log('[v501] papel de Holcim leído SIN IA: ' + filas.length + ' fila(s) de porte.');
     return filas;
   } catch (e) { console.warn('[v501] no pude leer el papel fila a fila:', e); return null; }
