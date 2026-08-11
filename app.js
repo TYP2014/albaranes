@@ -24415,7 +24415,21 @@ async function _factSubirAutofacturaHolcim0(files) {
       console.warn('[v501] cuadre contra el papel NO aplicado (papel: ' + (_papel ? _papel.length : 'no legible') + ' filas / declaradas: ' + _declPapel + '). Todo sigue como antes.');
     }
   }
-  {
+  // v508 (Juan Carlos 11/08/2026) — SI EL PAPEL YA MANDA, LOS GUARDIAS VIEJOS SE APARTAN. Prueba real
+  // de ARIDOS_3 con la v507: el cuadre pedido a pedido funciono perfecto (125/125, 298/298, 1/1) y dejo
+  // la lista en 497 lineas, CLAVADAS al papel... y justo despues el recorte v287 se llevo una por
+  // delante y se guardaron 496. Motivo: el v287 compara contra el TOTAL GLOBAL del PDF -424 envios- que
+  // es precisamente el numero incompleto que destapamos, porque no cuenta el pedido 4503393579 (los 908
+  // de Logistica/Geocycle). Veia 497 contra 424, creia que sobraban 73 y recortaba lo que podia. Es el
+  // mismo caso que ya arreglamos en la v502 para el filtro de borde entre trozos: se nos paso decirselo
+  // tambien a esta tijera. AHORA, cuando el cuadre contra el papel se ha aplicado (window._factCuadre502),
+  // TODA la comprobacion contra el total global se salta: no se avisa de que "faltan", no se recorta y no
+  // se toca nada, porque la lista ya esta verificada fila a fila contra el propio papel, que es una
+  // comprobacion MAS fuerte. Si el cuadre NO se aplico, todo sigue exactamente igual que hasta hoy.
+  if (window._factCuadre502) {
+    console.log('[v508] comprobación contra el total global SALTADA: la lista ya está cuadrada pedido a pedido contra el papel (v507). Se guardan ' + lineas.length + ' línea(s).');
+    toast('✅ Cuadrado contra el papel, pedido a pedido: ' + lineas.length + ' línea(s) clavadas al PDF.', 'ok');
+  } else {
     const leidas = lineas.length;
     const declaradas = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
     // v292 — si NADIE encontró el total (ni pdf.js, ni mini-consulta, ni control de la IA), casi
