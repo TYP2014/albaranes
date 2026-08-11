@@ -23767,6 +23767,9 @@ function _factRepasoBorrar(id) {
 }
 
 // Pinta el panel. Se crea solo, justo encima del estado de Holcim, para no tocar el index.html.
+// v515 (Juan Carlos 11/08/2026) — TODAS LAS FAMILIAS A LA VISTA. Antes iban en una fila de tabla y
+// salía una barra de desplazamiento horizontal: había que arrastrar para ver las últimas. Ahora cada
+// repaso es un bloque y las pastillas se reparten en varias líneas, todas visibles de golpe.
 function _factRepasosPintar() {
   const ancla = document.getElementById('factHolcimEstado');
   if (!ancla || !ancla.parentNode) return;
@@ -23786,42 +23789,45 @@ function _factRepasosPintar() {
     return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   };
   const _viejo = (iso) => { const d = new Date(iso); return !isNaN(d) && (Date.now() - d.getTime()) > 86400000; };
+
   let h = '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;background:var(--bg2)">'
         + '<div style="font-weight:700;margin-bottom:8px">📊 ÚLTIMOS REPASOS GUARDADOS '
-        + '<span style="font-weight:400;color:var(--mu);font-size:11px">· es una foto del momento en que se cruzó; si has subido cosas después, vuelve a cruzar</span></div>'
-        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
-  lista.forEach(r => {
+        + '<span style="font-weight:400;color:var(--mu);font-size:11px">· es una foto del momento en que se cruzó; si has subido cosas después, vuelve a cruzar</span></div>';
+
+  lista.forEach((r, idx) => {
     const viejo = _viejo(r.fecha);
-    h += '<tr style="border-top:1px solid var(--bd)">'
-      + '<td style="padding:6px 8px;font-weight:700;white-space:nowrap">' + esc(r.proveedor) + '</td>'
-      + '<td style="padding:6px 8px;white-space:nowrap">' + esc(_factMesBonito(r.mes)) + '</td>'
-      + '<td style="padding:6px 8px;white-space:nowrap;color:' + (viejo ? '#e0a000' : 'var(--mu)') + '">'
-      + (viejo ? '⏳ ' : '') + esc(_bonito(r.fecha)) + '</td>'
-      + '<td style="padding:6px 8px;white-space:nowrap">'
+    h += '<div style="' + (idx ? 'border-top:1px solid var(--bd);margin-top:10px;padding-top:10px' : '') + '">';
+    // Cabecera: datos a la izquierda, botones a la derecha, y baja de línea si no cabe.
+    h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:12px">'
+      + '<span style="font-weight:700">' + esc(r.proveedor) + '</span>'
+      + '<span>' + esc(_factMesBonito(r.mes)) + '</span>'
+      + '<span style="color:' + (viejo ? '#e0a000' : 'var(--mu)') + '">' + (viejo ? '⏳ ' : '') + esc(_bonito(r.fecha)) + '</span>'
+      + '<span style="white-space:nowrap">'
       + '<span style="color:var(--ok);font-weight:700">' + r.n.ab + ' 🟢</span>'
       + (r.n.pos ? ' <span style="color:#7cc4ff">' + r.n.pos + ' ⚠</span>' : '')
       + ' <span style="color:#e0a000">' + r.n.no + ' ⚠</span>'
       + ' <span style="color:#7cc4ff">' + r.n.sin + ' 📋</span>'
       + (r.n.dup ? ' <span style="color:var(--err)">' + r.n.dup + ' 🔁</span>' : '')
-      + '</td>'
-      + '<td style="padding:6px 8px;text-align:right;white-space:nowrap">'
+      + '</span>'
+      + '<span style="margin-left:auto;white-space:nowrap">'
       + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">👁 VER</button> '
       + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')" title="Todas las familias, una pestaña cada una">📊 EXCEL COMPLETO</button> '
       + '<button class="btn bs" style="font-size:11px;padding:3px 8px;opacity:.6" onclick="_factRepasoBorrar(\'' + esc(r.id) + '\')" title="Quitar de la lista">✕</button>'
-      + '</td></tr>';
-    // v513 — una pastilla por familia: la pinchas y te bajas ESA sola, en su propio Excel.
+      + '</span></div>';
+    // Pastillas: todas visibles, repartidas en las líneas que hagan falta.
     const fams = _factRepasoFamilias(r);
     if (fams.length) {
-      h += '<tr><td colspan="5" style="padding:2px 8px 10px">'
-        + '<span style="color:var(--mu);font-size:11px;margin-right:6px">o cada familia por separado:</span>';
+      h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px">'
+        + '<span style="color:var(--mu);font-size:11px;margin-right:4px">o cada familia por separado:</span>';
       fams.forEach(f => {
-        h += '<button class="btn bs" style="font-size:10px;padding:2px 8px;margin:2px 3px 0 0" '
+        h += '<button class="btn bs" style="font-size:10px;padding:2px 8px" '
           + 'onclick="_factRepasoExcel(\'' + esc(r.id) + '\',\'' + esc(f).replace(/'/g, "\\'") + '\')">📄 ' + esc(f) + '</button>';
       });
-      h += '</td></tr>';
+      h += '</div>';
     }
+    h += '</div>';
   });
-  h += '</table></div></div>';
+  h += '</div>';
   cont.innerHTML = h;
 }
 
