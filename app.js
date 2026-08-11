@@ -24063,6 +24063,52 @@ async function _factEnviosDeclaradosPdf(file) {
   } catch (e) { console.warn('[v293] no pude leer los envíos del PDF:', e); return null; }
 }
 
+// v501 (Juan Carlos 11/08/2026) — EL PAPEL DE HOLCIM SE LEE TAMBIÉN SIN IA, FILA A FILA. Es la red
+// determinista que faltaba: hasta ahora sólo se comprobaba el TOTAL de envíos, así que si la IA se
+// dejaba 3 filas y a cambio repetía otras 3, la cuenta cuadraba y NADIE se enteraba. Caso real del
+// 11/08/2026 (INVOIC 3310947635, arena de Charly, 90 envíos): el papel trae TRES grupos de filas
+// CALCADAS — 3628NMW 29/07 con 29,250 dos veces; 4210NGF 30/07 con 29,800 tres veces; 8515NGP 28/07
+// con 29,400 dos veces — y la IA, al ver dos renglones idénticos seguidos, se quedó con uno solo. A
+// cambio repitió tres veces el bloque del 9566NBR del 31/07. Total leído 90 = total declarado 90 → ni
+// aviso ni tijera, y dos viajes REALES y COBRADOS se quedaron en "NO ABONADO" para siempre.
+// Esta función saca del PDF, con pdf.js y sin IA, la lista EXACTA de filas de porte (fecha, matrícula,
+// nº de entrega, toneladas e importe). El texto de estos PDF de SAP viene celda a celda en orden de
+// lectura, así que cada fila es: fecha → nº entrega → tractora "/" remolque → proveedor → dirección →
+// material → "TN T PRECIO EUR VALOR". Se exige ese final ("... T 8,41 EUR 238,59") para no confundirse
+// con ninguna otra cifra de la página. Si el PDF es un escaneo o el formato no encaja, devuelve lo que
+// haya y quien la llama decide: NUNCA se toca nada si el recuento no cuadra al 100%.
+async function _factPapelHolcim(file) {
+  try {
+    if (typeof pdfjsLib === 'undefined' || !file) { console.warn('[v501] sin pdf.js o sin fichero — no puedo leer el papel fila a fila'); return null; }
+    const ab = await file.arrayBuffer();
+    const work = pdfjsLib.getDocument(_pdfOpts({ data: ab })).promise;
+    const to = new Promise((_, rej) => setTimeout(() => rej(new Error('pdf.js no respondió')), 20000));
+    const pdf = await Promise.race([work, to]);
+    let full = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const pg = await pdf.getPage(p);
+      const tc = await pg.getTextContent();
+      full += ' ' + tc.items.map(i => i.str).join(' ');
+    }
+    full = full.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    // fecha DD.MM.AAAA → (nº entrega) → matrícula tractora + "/" → … → TN + " T " + precio + " EUR " + valor
+    const re = /(\d{2}\.\d{2}\.\d{4})([\s\S]{0,60}?)(\d{4}[A-Z]{3})\s*\/([\s\S]{0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+T\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    const filas = [];
+    let m;
+    while ((m = re.exec(full)) !== null) {
+      filas.push({
+        fecha: _factFechaBarra(m[1]),
+        num: String(m[2] || '').replace(/\s+/g, ''),
+        matricula: m[3],
+        tn: _factNum(m[5]),
+        importe: _factNum(m[7])
+      });
+    }
+    console.log('[v501] papel de Holcim leído SIN IA: ' + filas.length + ' fila(s) de porte.');
+    return filas;
+  } catch (e) { console.warn('[v501] no pude leer el papel fila a fila:', e); return null; }
+}
+
 // v291 — PLAN B para el total de envíos: MINI-CONSULTA a la IA, dedicada y validada. Solo se usa
 // si pdf.js no pudo sacar el número (algunos PDF llegan re-guardados y su texto no se deja leer).
 // A diferencia de la fila de control dentro del prompt gigante (que la IA a veces olvida), esto es
@@ -24195,6 +24241,72 @@ async function _factSubirAutofacturaHolcim0(files) {
   let _envPdf = await _factEnviosDeclaradosPdf(file);
   if (_envPdf == null) _envPdf = await _factEnviosDeclaradosIA(file); // v291: plan B enfocado
   const _envCtrl = (_ctrl && _ctrl.envios) ? parseInt(_ctrl.envios, 10) : NaN;
+
+  // v501 — CUADRE FILA A FILA CONTRA EL PAPEL (determinista, sin IA). Regla de Juan Carlos: si en el
+  // papel hay dos viajes iguales, en la app tiene que haber dos. Se compara lo que leyó la IA con lo
+  // que dice el PDF, agrupando por FECHA + MATRÍCULA + TONELADAS (3 decimales, como escribe Holcim):
+  //   • si el papel trae MÁS copias de una fila que la IA → se REPONEN las que faltan;
+  //   • si la IA trajo MÁS → se quitan las de sobra (tartamudeo del OCR).
+  // CANDADO: esto SOLO se aplica si el recuento determinista cuadra EXACTAMENTE con los envíos que
+  // declara el propio PDF. Si no cuadra (escaneo, formato raro, palets en otra unidad…) NO se toca
+  // absolutamente nada y todo sigue como antes. Y jamás se inventa una fila de la nada: para reponer
+  // una que la IA no vio ni una sola vez se copia el material/destino/transportista de otra fila del
+  // MISMO camión, y la fecha, el nº de entrega, las toneladas y el importe salen del papel.
+  {
+    const _papel = await _factPapelHolcim(file);
+    const _declPapel = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
+    if (_papel && _papel.length && !isNaN(_declPapel) && _declPapel > 0 && _papel.length === _declPapel) {
+      const _kPap = (mat, fec, tn) => [_factNormMat(_corregirMatAutof(mat)), _factFechaBarra(fec),
+        (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3))].join('|');
+      const _delPapel = new Map();
+      _papel.forEach(f => { const k = _kPap(f.matricula, f.fecha, f.tn); if (!_delPapel.has(k)) _delPapel.set(k, []); _delPapel.get(k).push(f); });
+      const _leidas = new Map();
+      lineas.forEach((L, i) => {
+        if (!L || L._control) return;
+        const k = _kPap(L.matricula, L.fecha, L.tn);
+        if (!_leidas.has(k)) _leidas.set(k, []);
+        _leidas.get(k).push(i);
+      });
+      const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0;
+      _delPapel.forEach((fp, k) => {
+        const idxs = _leidas.get(k) || [];
+        if (idxs.length > fp.length) {
+          for (let i = idxs.length - 1; i >= fp.length; i--) { _quitar.add(idxs[i]); _sobras++; }
+          return;
+        }
+        if (idxs.length >= fp.length) return;
+        let plantilla = idxs.length ? lineas[idxs[idxs.length - 1]] : null;
+        if (!plantilla) {
+          const matN = _factNormMat(_corregirMatAutof(fp[0].matricula));
+          plantilla = lineas.find(L => L && !L._control && _factNormMat(_corregirMatAutof(L.matricula)) === matN) || null;
+        }
+        if (!plantilla) { console.warn('[v501] falta ' + (fp.length - idxs.length) + ' fila(s) de ' + k + ' pero no hay ninguna otra de ese camión de la que copiar el material: NO se inventa.'); return; }
+        for (let j = idxs.length; j < fp.length; j++) {
+          const p = fp[j] || fp[0];
+          const nueva = Object.assign({}, plantilla);
+          nueva.num_entrega = p.num || plantilla.num_entrega;
+          nueva.fecha = p.fecha;
+          nueva.matricula = fp[0].matricula;
+          nueva.tn = p.tn;
+          if (p.importe != null && !isNaN(p.importe)) nueva.valor_neto = p.importe;
+          nueva._parte = null;   // v501: sin trozo, para que el filtro de borde entre trozos (v270) no se la lleve
+          nueva._repuesta = true;
+          _nuevas.push(nueva);
+          _repuestas++;
+          console.warn('[v501] REPUESTA fila que la IA no leyó: ' + nueva.matricula + ' ' + nueva.fecha + ' ' + nueva.tn + ' T');
+        }
+      });
+      if (_quitar.size || _nuevas.length) {
+        lineas = lineas.filter((L, i) => !_quitar.has(i)).concat(_nuevas);
+        console.warn('[v501] cuadre contra el papel: ' + _sobras + ' copia(s) de más quitada(s), ' + _repuestas + ' fila(s) repuesta(s). Quedan ' + lineas.length + '.');
+        toast('🧾 Cuadre con el papel: la IA repitió ' + _sobras + ' fila(s) y se dejó ' + _repuestas + '. Ya está corregido: quedan ' + lineas.length + ', las mismas que el PDF.', 'ok');
+      } else {
+        console.log('[v501] cuadre contra el papel: PERFECTO, no falta ni sobra ninguna fila.');
+      }
+    } else {
+      console.warn('[v501] cuadre contra el papel NO aplicado (papel: ' + (_papel ? _papel.length : 'no legible') + ' filas / declaradas: ' + _declPapel + '). Todo sigue como antes.');
+    }
+  }
   {
     const leidas = lineas.length;
     const declaradas = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
