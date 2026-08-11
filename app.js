@@ -24620,8 +24620,33 @@ function _factProcesarYMostrarHolcim(setEstado) {
     // lleva esos números. Ahora las materias primas (caliza/arena/yeso/arcilla/limonita) saltan esta
     // rama SIEMPRE y bajan al bloque 2, que es su regla de toda la vida: FECHA + MATRÍCULA + TN. Si no
     // coincide → NO ABONADO / SIN COPIA, visible. Nunca más se puede tragar una línea en silencio.
-    if (numA && porNum.has(numA) && !esMateriaPrima) {
-      const cand = porNum.get(numA);
+    // v510 (Juan Carlos 11/08/2026) — LA ETIQUETA DE LA IA YA NO PUEDE TUMBAR EL Nº DE ALBARAN.
+    // Caso real de Marta (11/08/2026), albaranes 31048152205 / 31048152215 / 31048152219, camion
+    // 7131JJT del 30/07: son ARIDOS de Cantera de Garraf a Zona Franca, con su numero de Holcim
+    // perfecto en nuestro albaran Y en la autofactura... pero la IA, al leer el PDF, les arrastro el
+    // material y el origen del bloque de CALIZAS de mas arriba y los guardo como "Caliza Promsa" /
+    // "PROMOTORA MEDITERRANEA 2 S A". El cruce mira esa etiqueta para decidir la regla: al ver
+    // "Caliza" aplicaba la de materia prima (fecha+matricula+TN) y SE SALTABA EL NUMERO. Como
+    // nuestro albaran es un arido, tampoco casaba por materia prima. Resultado: viaje COBRADO que se
+    // quedaba en NO ABONADO, y sin salir en "sin copia" de la hoja de aridos porque se habia ido a la
+    // de calizas. Los dos hermanos de la misma pagina (31048152176 y 31048152195), que la IA si
+    // etiqueto bien, cruzaron a la primera.
+    // REGLA NUEVA, la de siempre de Juan Carlos: EN LOS ARIDOS MANDA EL NUMERO. La familia ya no se
+    // decide por lo que escribio la IA en la autofactura (que es lo mas fragil del sistema) sino por
+    // NUESTRO material, que es fiable. Si el numero cuadra con un albaran nuestro y ESE albaran NO es
+    // materia prima, se cruza por numero, diga lo que diga la etiqueta de Holcim.
+    // NO ROMPE LA v495 (el fallo del yeso): alli el problema era que Holcim NO pone numero en las
+    // materias primas, pone su Nº DE ENTREGA SEMANAL ("28W2026-0000338") compartido por todas las
+    // lineas de la semana, y bastaba con que UN albaran nuestro lo llevara apuntado para tragarse 32
+    // viajes. En ese caso NUESTRO albaran SI es materia prima (yeso), asi que la excepcion no se
+    // aplica y la linea sigue bajando a fecha+matricula+TN, exactamente igual que hasta hoy.
+    const _RE_MP = /CALIZA|ARENA|YESO|ARCILLA|LIMONITA/;
+    const _candNum = (numA && porNum.has(numA)) ? porNum.get(numA) : null;
+    const _nuestroEsMP = !!(_candNum && _candNum.some(c => _RE_MP.test(
+      String(c.producto || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))));
+    if (_candNum && (!esMateriaPrima || !_nuestroEsMP)) {
+      if (esMateriaPrima && !_nuestroEsMP) console.log('[v510] ' + numA + ': Holcim lo etiqueta como materia prima ("' + (L.material || '') + '") pero NUESTRO albarán es ' + (_candNum[0] && _candNum[0].producto || '?') + ' → cruza por Nº de albarán.');
+      const cand = _candNum;
       // v107K89 (26/06/2026): MULTIMATERIAL — albarán de plataforma/sacos con VARIAS filas del
       // mismo nº (cada material su línea). Holcim escribe el nº UNA sola vez (la 2ª línea va sin
       // número) y paga la entrega ENTERA. Antes (K88) marcábamos las otras como pagadas pero NO
