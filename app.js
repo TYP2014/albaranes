@@ -23691,6 +23691,39 @@ function _factRepasoGuardar(proveedor, mes, u) {
 // nada que sacar y contestaba "No hay datos de las familias marcadas" — por fuera, un botón que no
 // hace nada. Ahora se limpian SIEMPRE antes de abrir o exportar un repaso guardado. Y además, si algo
 // revienta, el error sale en pantalla y en consola en vez de morir en silencio.
+// v516 (Juan Carlos 11/08/2026) — REPARAR AL VUELO LOS REPASOS VIEJOS. La v514/v515 arreglaron cómo se
+// GUARDA, pero los repasos que ya estaban guardados con la v512 siguen mal por dentro (sin difs, sin
+// modo, sin linea/rec cuando venían vacíos) y seguían reventando al pulsar EXCEL: solo salía bien
+// "Núcleo Garraf → Puerto Barcelona", que es la única familia sin abonados y por eso nunca llegaba a
+// la línea que peta (a.difs.length). Obligar a JC a borrarlo y volver a cruzar el mes entero es un
+// apaño, no un arreglo. Ahora, al abrir o exportar, lo guardado se REPARA en memoria antes de usarse:
+// se le devuelve la forma que espera el informe (difs array, modo texto, linea y rec objeto). Así
+// funcionan tanto los repasos nuevos como los que ya estaban guardados, sin que tengas que hacer nada.
+function _factRepasoSanear(u) {
+  if (!u || typeof u !== 'object') return u;
+  const par = (x) => {
+    if (!x || typeof x !== 'object') return { linea: {}, rec: {}, difs: [], modo: '', confirmado: false };
+    return {
+      linea: (x.linea && typeof x.linea === 'object') ? x.linea : {},
+      rec: (x.rec && typeof x.rec === 'object') ? x.rec : {},
+      difs: Array.isArray(x.difs) ? x.difs : [],
+      modo: x.modo || '',
+      confirmado: x.confirmado || false
+    };
+  };
+  const suelto = (x) => (x && typeof x === 'object') ? x : {};
+  return {
+    abonados: (u.abonados || []).map(par),
+    posibles: (u.posibles || []).map(par),
+    dupPago: (u.dupPago || []).map(par),
+    noAbonados: (u.noAbonados || []).map(suelto),
+    sinAlbaran: (u.sinAlbaran || []).map(suelto),
+    ajustes: u.ajustes || null,
+    fichero: u.fichero || '',
+    fecha: u.fecha || null
+  };
+}
+
 function _factRepasoLimpiarFiltros() {
   window._factExcelMarcadas = new Set();
   window._factHolcimMatSel = null;
@@ -23703,11 +23736,11 @@ function _factRepasoAbrir(id) {
     if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
     _factRepasoLimpiarFiltros();
     if (r.proveedor === 'HOLCIM') {
-      _factHolcimUltimo = r.u;
+      _factHolcimUltimo = _factRepasoSanear(r.u);   // v516
       _factHolcimMesActual = r.mes;
       _factHolcimMostrarInforme();
     } else {
-      _factAutoUltimo = r.u;
+      _factAutoUltimo = _factRepasoSanear(r.u);     // v516
       _factMesActual = r.mes;
       _factAutoMostrarInforme();
       const m = document.getElementById('ovFactAuto');
@@ -23726,11 +23759,11 @@ function _factRepasoExcel(id, familia) {
     if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
     _factRepasoLimpiarFiltros();
     if (r.proveedor === 'HOLCIM') {
-      _factHolcimUltimo = r.u; _factHolcimMesActual = r.mes;
+      _factHolcimUltimo = _factRepasoSanear(r.u); _factHolcimMesActual = r.mes;   // v516
       if (familia) window._factExcelMarcadas = new Set([familia]);
       factHolcimExcelPorMaterial();
     } else {
-      _factAutoUltimo = r.u; _factMesActual = r.mes;
+      _factAutoUltimo = _factRepasoSanear(r.u); _factMesActual = r.mes;           // v516
       if (typeof factAutoExcel === 'function') factAutoExcel();
       else toast('Abre el repaso con VER y descarga el Excel desde ahí', 'err');
     }
@@ -23744,7 +23777,7 @@ function _factRepasoExcel(id, familia) {
 function _factRepasoFamilias(r) {
   try {
     if (!r || !r.u || r.proveedor !== 'HOLCIM') return [];
-    const u = r.u;
+    const u = _factRepasoSanear(r.u);   // v516
     const famAlb = (x) => _factFamiliaHolcim(x.producto, x.obra || x.destino || '', x.planta || x.origen || '');
     const famLin = (L) => _factFamiliaHolcim(L.material, L.destino);
     const set = new Set();
