@@ -24105,7 +24105,21 @@ async function _factPapelHolcim(file) {
     }
     full = full.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
     // fecha DD.MM.AAAA → (nº entrega) → matrícula tractora + "/" → … → TN + " T " + precio + " EUR " + valor
-    const re = /(\d{2}\.\d{2}\.\d{4})([\s\S]{0,60}?)(\d{4}[A-Z]{3})\s*\/([\s\S]{0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+T\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    // v507 (Juan Carlos 11/08/2026) — DOS ARREGLOS EN EL LECTOR DEL PAPEL, LOS DOS DESTAPADOS POR
+    // ARIDOS_3 (INVOIC 3310947405). (a) SE LEEN TAMBIEN LAS LINEAS DE PALETS: van en "PI" y no en "T"
+    // ("PALET CEMENTO -14 PI 0,75 EUR 10,50"), asi que el lector se dejaba 4 filas que Holcim SI cuenta
+    // como envios. (b) UNA FILA YA NO PUEDE SALTAR A LA SIGUIENTE: entre la fecha y el final de la fila
+    // se prohibe cruzar otra fecha DD.MM.AAAA. Sin esa guarda, al buscar una linea de palet el patron
+    // se comia la fila entera de al lado y devolvia la matricula equivocada (2254JVJ con el -14 PI del
+    // 3768LZJ). Es una guarda del propio papel, no del espaciado, asi que da igual como junte el texto
+    // cada navegador. Comprobado contra ARIDOS_3: 497 filas (493 T + 4 PI), cero numeros repetidos.
+    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(T|PI)\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    // v507 — CADA FILA SABE A QUE PEDIDO DE COMPRAS PERTENECE. El papel va por bloques y cada bloque se
+    // abre con "Pedido de compras 4503370147". Se apunta donde empieza cada uno para poder etiquetar
+    // luego cada fila con el suyo (ver mas abajo el cuadre pedido a pedido).
+    const _pedidos = [];
+    { const _rp = /Pedido de compras\s*(\d{6,})/g; let _mp; while ((_mp = _rp.exec(full)) !== null) _pedidos.push({ pos: _mp.index, po: _mp[1] }); }
+    const _poDe = (pos) => { let cur = null; for (let i = 0; i < _pedidos.length; i++) { if (_pedidos[i].pos <= pos) cur = _pedidos[i].po; else break; } return cur; };
     const filas = [];
     let m, _fuera = 0;
     while ((m = re.exec(full)) !== null) {
@@ -24127,10 +24141,27 @@ async function _factPapelHolcim(file) {
         num: String(m[2] || '').replace(/\s+/g, ''),
         matricula: m[3],
         tn: _factNum(m[5]),
-        importe: _factNum(m[7])
+        unidad: m[6],          // v507: "T" (toneladas) o "PI" (palets)
+        importe: _factNum(m[8]),
+        po: _poDe(m.index)     // v507: pedido de compras al que pertenece la fila
       });
     }
     if (_fuera) console.log('[v504] ' + _fuera + ' fila(s) sin Nº de entrega (hojas de resumen) descartadas al contar el papel.');
+    // v507 — LO QUE DECLARA EL PAPEL, PEDIDO A PEDIDO. La hoja de totales trae un "Subtotal por PO
+    // 4503370147 … 125 Envíos" por cada pedido. Se guarda ese desglose junto a las filas para poder
+    // cuadrar cada pedido por separado en vez de fiarlo todo a un unico total global.
+    const _declPO = {};
+    { const _rs = /Subtotal\s+por\s+PO\s*(\d{6,})/g; let _ms;
+      while ((_ms = _rs.exec(full)) !== null) {
+        const _resto = full.slice(_ms.index, _ms.index + 400);
+        const _mm = _resto.match(/([\d][\d\s.,]*?)\s*E\s*n\s*v\s*i?\s*o\s*s/i);
+        if (_mm) { const _n = parseInt(String(_mm[1]).replace(/[^\d]/g, ''), 10);
+          if (!isNaN(_n) && _n > 0 && _n < 100000) _declPO[_ms[1]] = (_declPO[_ms[1]] || 0) + _n; }
+      } }
+    const _cuentaPO = {};
+    filas.forEach(f => { const k = f.po || '?'; _cuentaPO[k] = (_cuentaPO[k] || 0) + 1; });
+    filas.declPorPO = _declPO;
+    filas.cuentaPorPO = _cuentaPO;
     console.log('[v501] papel de Holcim leído SIN IA: ' + filas.length + ' fila(s) de porte.');
     return filas;
   } catch (e) { console.warn('[v501] no pude leer el papel fila a fila:', e); return null; }
@@ -24283,7 +24314,36 @@ async function _factSubirAutofacturaHolcim0(files) {
     window._factCuadre502 = false; // v502: se enciende solo si el cuadre contra el papel se ha podido aplicar
     const _papel = await _factPapelHolcim(file);
     const _declPapel = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
-    if (_papel && _papel.length && !isNaN(_declPapel) && _declPapel > 0 && _papel.length === _declPapel) {
+    // v507 (Juan Carlos 11/08/2026) — EL CANDADO PASA A SER PEDIDO A PEDIDO. Lo que fallaba en
+    // ARIDOS_3, ARIDOS_1, ARIDOS_2 y el 577: el total global del papel NO INCLUYE TODOS LOS PEDIDOS.
+    // En el 3310947405 el papel trae CUATRO bloques -4503370147 (calizas), 4503373368 (aridos y
+    // palets), 4503375059 (palet mortero) y 4503393579 (Logistica/Geocycle, los albaranes 908 de
+    // Escorias Vallirana, Arido Reciclado Les Franqueses, Montcada-Cambrils…)- pero la hoja de
+    // totales solo declara los tres primeros: 125 + 298 + 1 = 424 envios. Las 73 filas del cuarto no
+    // se cuentan en ningun sitio (ni en "Subtotal por PO" ni en "Subtotal por destino"), asi que el
+    // recuento del papel -497 filas- jamas iba a coincidir con 424 y el candado saltaba siempre.
+    // AHORA se compara CADA PEDIDO CON SU PROPIO SUBTOTAL. Si todos los que el papel declara cuadran
+    // exactos, el papel es de fiar y se aplica el cuadre a TODO el fichero, tambien a los pedidos que
+    // Holcim no totaliza (los 908), que son portes reales y cobrados: JC los cruza despues con el
+    // Excel de ayuda 908, que es quien les cambia el numero de cantera por el numero de SAP.
+    // Es un candado MAS ESTRICTO que el de antes (antes bastaba con que el total global cuadrase;
+    // ahora tiene que cuadrar bloque por bloque), y si algo no encaja NO SE TOCA NADA, como siempre.
+    // Los PDF de un solo pedido (Garraf, Charly, Yeso) se comportan exactamente igual que hasta hoy.
+    let _cuadraPapel = false;
+    if (_papel && _papel.length) {
+      const _dPO = _papel.declPorPO || {}, _cPO = _papel.cuentaPorPO || {};
+      const _pos = Object.keys(_dPO);
+      if (_pos.length) {
+        _cuadraPapel = _pos.every(po => (_cPO[po] || 0) === _dPO[po]);
+        console.log('[v507] cuadre por PEDIDO → ' + _pos.map(po => po + ': papel ' + (_cPO[po] || 0) + ' / declara ' + _dPO[po]).join(' · ') + (_cuadraPapel ? '  ✔ CUADRA' : '  ✖ NO CUADRA'));
+        const _sinDecl = Object.keys(_cPO).filter(po => po !== '?' && !(po in _dPO));
+        if (_sinDecl.length) console.log('[v507] pedido(s) que el papel NO totaliza (p.ej. los 908 de Logística/Geocycle): ' + _sinDecl.map(po => po + ' → ' + _cPO[po] + ' fila(s)').join(' · '));
+      } else if (!isNaN(_declPapel) && _declPapel > 0) {
+        // Respaldo: papel sin bloques "Subtotal por PO" (formato antiguo) → total global, como antes.
+        _cuadraPapel = (_papel.length === _declPapel);
+      }
+    }
+    if (_cuadraPapel) {
       const _kPap = (mat, fec, tn) => [_factNormMat(_corregirMatAutof(mat)), _factFechaBarra(fec),
         (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3))].join('|');
       const _delPapel = new Map();
