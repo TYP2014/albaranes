@@ -24792,6 +24792,110 @@ async function _factSubirAutofacturaHolcim0(files) {
         _leidas.get(k).push(i);
       });
       window._factCuadre502 = true; // v502: el papel manda; a partir de aqui la lista es la del PDF, exacta
+
+      // =====================================================================================
+      // v522 (Juan Carlos, madrugada del 12/08/2026) — EL PAPEL MANDA, Y MANDA POR NUMERO.
+      // ESTO ES LO QUE HABIA QUE HABER HECHO DESDE MARZO, y lo dijo JC con todas las letras:
+      // "es SAP, todo tiene numero, leedlo bien". Y es verdad: se ha comprobado sobre los dos
+      // PDF de julio y LAS 493 lineas de ARIDOS_2 y LAS 777 del 577 traen su nº de albaran.
+      // TODAS. Ni una sin numero.
+      // LO QUE SE VENIA HACIENDO: el cuadre emparejaba las lineas de la IA con las del papel por
+      // FECHA + MATRICULA + TONELADAS, y a partir de ahi quitaba copias, reponia lo que faltaba y
+      // descartaba lo ajeno. Esa clave es fragil: si la IA lee 28,145 donde el papel pone 28,140 ya
+      // no casa, y si un albaran trae tres lineas identicas (tres "Derivacion adicional" de 34,92
+      // EUR) no las distingue. De ahi han salido, uno detras de otro, TODOS los fallos de hoy:
+      // reposiciones fantasma, copias que se quedaban, subtotales de las hojas de resumen colandose
+      // como portes... y cinco versiones persiguiendo sintomas.
+      // LO QUE SE HACE AHORA: si el papel ha cuadrado pedido a pedido (v507), el papel ES la lista.
+      // Se recorren SUS lineas, y para cada una se busca la de la IA con el MISMO Nº DE ALBARAN y,
+      // dentro de ese albaran, el material que mejor encaje. De la IA se conserva lo que la IA sabe
+      // y el papel no dice (el MATERIAL, el origen, el destino, el cliente); del papel se toma lo
+      // que el papel dice y manda (fecha, matricula, TONELADAS, IMPORTE). Lo que la IA leyo y no
+      // esta en el papel NO SE GUARDA: ni subtotales por vehiculo, ni subtotales por destino, ni
+      // copias, ni filas inventadas. Y lo que el papel trae y la IA no leyo, SE PONE.
+      // RESULTADO: la app queda EXACTAMENTE igual que el PDF, con el mismo numero de lineas y el
+      // mismo importe, venga la IA como venga. Es lo que hace que esto deje de repetirse cada mes.
+      // GUARDAS: solo actua con el candado validado (v507); si el papel no cuadra no se toca nada,
+      // como siempre. Las lineas de AJUSTE/ABONO que la IA marca con _control siguen intactas.
+      // Si por lo que sea el papel trajera alguna fila sin nº, esa se sigue tratando por el camino
+      // de siempre (fecha+matricula+TN), asi que no se pierde nada.
+      {
+        const _todasConNum = _papelTodo.length > 0 && _papelTodo.every(f => String(f.num || '').trim());
+        if (_todasConNum) {
+          const _mt = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // las lineas de la IA, agrupadas por nº de albaran
+          const _iaPorNum = new Map(); const _control = [];
+          lineas.forEach((L) => {
+            if (!L) return;
+            if (L._control) { _control.push(L); return; }
+            const n = _factNormAlb(L.num_entrega);
+            if (!n) return;                       // sin nº: no puede casar con nada del papel
+            if (!_iaPorNum.has(n)) _iaPorNum.set(n, []);
+            _iaPorNum.get(n).push(L);
+          });
+          // una plantilla por matricula, para las filas que la IA no leyo en absoluto
+          const _porMatr = new Map();
+          lineas.forEach((L) => {
+            if (!L || L._control) return;
+            const m = _factNormMat(_corregirMatAutof(L.matricula));
+            if (m && !_porMatr.has(m)) _porMatr.set(m, L);
+          });
+          const _final = []; let _puestas = 0, _corregidas = 0, _fuera = 0, _sinPlantilla = 0;
+          _papelTodo.forEach((f) => {
+            const n = _factNormAlb(f.num);
+            const cand = _iaPorNum.get(n) || [];
+            let elegida = null, mejor = -1;
+            // dentro del albaran, la que mas se parezca en toneladas e importe
+            cand.forEach((L) => {
+              if (L._usada) return;
+              let pts = 0;
+              const tnL = _factNum(L.tn), tnP = _factNum(f.tn);
+              if (!isNaN(tnL) && !isNaN(tnP) && Math.abs(tnL - tnP) < 0.0005) pts += 2;
+              const vL = _factNum(L.valor_neto), vP = _factNum(f.importe);
+              if (!isNaN(vL) && !isNaN(vP) && Math.abs(vL - vP) < 0.005) pts += 2;
+              if (pts > mejor) { mejor = pts; elegida = L; }
+            });
+            let nueva;
+            if (elegida) {
+              elegida._usada = true;
+              nueva = Object.assign({}, elegida);
+            } else {
+              const plant = _porMatr.get(_factNormMat(_corregirMatAutof(f.matricula)))
+                         || (cand.length ? cand[0] : null)
+                         || _porMatr.values().next().value || null;
+              if (!plant) { _sinPlantilla++; return; }
+              nueva = Object.assign({}, plant);
+              nueva.material = (cand.length && cand[0].material) ? cand[0].material : nueva.material;
+              nueva._repuesta = true;
+              _puestas++;
+            }
+            // el papel manda en lo suyo
+            nueva.num_entrega = f.num;
+            nueva.fecha = f.fecha;
+            nueva.matricula = f.matricula;
+            const _tnAntes = _factNum(nueva.tn), _vAntes = _factNum(nueva.valor_neto);
+            nueva.tn = f.tn;
+            if (f.importe != null && !isNaN(f.importe)) nueva.valor_neto = f.importe;
+            nueva._parte = null;
+            if (elegida && ((!isNaN(_tnAntes) && Math.abs(_tnAntes - _factNum(f.tn)) >= 0.0005) ||
+                            (!isNaN(_vAntes) && f.importe != null && Math.abs(_vAntes - _factNum(f.importe)) >= 0.005))) {
+              _corregidas++;
+              console.log('[v522] albarán ' + f.num + ': la IA leyó ' + _tnAntes + ' T / ' + _vAntes + ' EUR y el papel dice ' + f.tn + ' T / ' + f.importe + ' EUR. Manda el papel.');
+            }
+            _final.push(nueva);
+          });
+          lineas.forEach((L) => { if (L && !L._control && !L._usada) _fuera++; });
+          const _antes = lineas.length;
+          lineas = _final.concat(_control);
+          console.warn('[v522] EL PAPEL MANDA (por nº de albarán): la IA trajo ' + _antes + ' línea(s) y el PDF tiene ' + _papelTodo.length +
+            '. Se guardan ' + lineas.length + ': ' + _fuera + ' descartada(s) que no están en el papel (subtotales, copias o filas inventadas), ' +
+            _puestas + ' repuesta(s) que la IA no leyó y ' + _corregidas + ' con las toneladas o el importe corregidos desde el papel.' +
+            (_sinPlantilla ? ' ' + _sinPlantilla + ' no se pudieron poner por falta de datos.' : ''));
+          toast('🧾 El papel manda: se guardan ' + lineas.length + ' líneas, las mismas que el PDF (' + _fuera + ' fuera, ' + _puestas + ' repuestas, ' + _corregidas + ' corregidas).', 'ok');
+          window._factCuadre522 = true;
+        }
+      }
+      if (!window._factCuadre522) {
       const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0, _ajenas = 0, _noRecortadas = 0, _copiasSinNum = 0, _cupoQuitadas = 0;
       // v505 (Juan Carlos 11/08/2026) — EL PASO QUE FALTABA: LO QUE NO ESTA EN EL PAPEL, SOBRA. Caso real
       // del Garraf de julio: el cuadre YA se aplicaba bien (papel 1.071 = 1.071 declaradas) pero se
@@ -25028,6 +25132,8 @@ async function _factSubirAutofacturaHolcim0(files) {
       } else {
         console.log('[v501] cuadre contra el papel: PERFECTO, no falta ni sobra ninguna fila.');
       }
+      }
+      window._factCuadre522 = false;
     } else {
       console.warn('[v501] cuadre contra el papel NO aplicado (papel: ' + (_papel ? _papel.length : 'no legible') + ' filas / declaradas: ' + _declPapel + '). Todo sigue como antes.');
     }
