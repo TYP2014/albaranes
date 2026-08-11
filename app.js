@@ -22896,6 +22896,18 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
     // el conteo lote↔BD compare manzanas con manzanas.
     const _claveL = (L) => _claveLinea(L.numero_albaran, L.fecha, _corregirMatAutof(L.matricula), L.tn, L.concepto);
     // PASO 1 — quitar SOLO la copia del borde entre trozos consecutivos.
+    // v502 (Juan Carlos 11/08/2026) — LA RENDIJA QUE QUEDABA ABIERTA DESPUÉS DE LA v501. El PDF se lee
+    // en trozos de 4 páginas y este filtro quita la fila del BORDE, esa que se lee dos veces porque cae
+    // justo en la costura entre dos trozos. Pero si los DOS viajes gemelos de verdad (mismo día, mismo
+    // camión, mismas toneladas) caen partidos por esa misma costura — uno en la última fila de un trozo
+    // y el otro en la primera del siguiente — el filtro los confunde con una copia de borde y BORRA UNO,
+    // deshaciendo el cuadre que acaba de hacer la v501. Ahora: si el cuadre contra el papel SE HA PODIDO
+    // APLICAR (el recuento sin IA coincidía exactamente con los envíos que declara el PDF), la lista ya
+    // es la del papel, fila a fila, y este filtro SOBRA: se salta entero. Si el cuadre NO se pudo aplicar
+    // (escaneo, formato raro, palets en otra unidad…) el filtro sigue funcionando igual que siempre.
+    if (window._factCuadre502 === true) {
+      console.log('[v502] filtro de borde entre trozos SALTADO: la lista ya está cuadrada contra el papel (v501), no hay nada que deduplicar.');
+    } else {
     const _ultimoTrozo = new Map(); // clave → nº del último trozo donde se vio
     lineas = (lineas || []).filter(L => {
       if (!String(L.numero_albaran || '').trim()) return true; // ajustes / sin número: no deduplicar
@@ -22909,6 +22921,7 @@ async function _factGuardarEnTabla(lineas, mes, fichero, proveedor, ficheroUrl) 
       }
       return true;
     });
+    }
     // PASO 2 (v272) — REEMPLAZO POR CONTENIDO: antes de insertar, se BORRAN del mes las copias
     // viejas de ESTAS MISMAS líneas (misma clave normalizada), tengan el nombre de fichero que
     // tengan y estén escritas como estén (fecha con puntos o con barras). Así re-subir un PDF deja
@@ -24253,6 +24266,7 @@ async function _factSubirAutofacturaHolcim0(files) {
   // una que la IA no vio ni una sola vez se copia el material/destino/transportista de otra fila del
   // MISMO camión, y la fecha, el nº de entrega, las toneladas y el importe salen del papel.
   {
+    window._factCuadre502 = false; // v502: se enciende solo si el cuadre contra el papel se ha podido aplicar
     const _papel = await _factPapelHolcim(file);
     const _declPapel = (_envPdf != null && _envPdf > 0) ? _envPdf : _envCtrl;
     if (_papel && _papel.length && !isNaN(_declPapel) && _declPapel > 0 && _papel.length === _declPapel) {
@@ -24267,6 +24281,7 @@ async function _factSubirAutofacturaHolcim0(files) {
         if (!_leidas.has(k)) _leidas.set(k, []);
         _leidas.get(k).push(i);
       });
+      window._factCuadre502 = true; // v502: el papel manda; a partir de aqui la lista es la del PDF, exacta
       const _quitar = new Set(); const _nuevas = []; let _sobras = 0, _repuestas = 0;
       _delPapel.forEach((fp, k) => {
         const idxs = _leidas.get(k) || [];
