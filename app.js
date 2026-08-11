@@ -24465,7 +24465,22 @@ async function _factPapelHolcim(file) {
     { const _bl = []; const _rs = /Subtotal\s+por\s+PO\s*(\d{6,})/g; let _ms;
       while ((_ms = _rs.exec(full)) !== null) _bl.push({ pos: _ms.index, po: _ms[1] });
       for (let i = 0; i < _bl.length; i++) {
-        let _fin = (i + 1 < _bl.length) ? _bl[i + 1].pos : full.indexOf('Total transporte', _bl[i].pos);
+        // v518 (Juan Carlos 11/08/2026) — UN PDF PUEDE TRAER DOS LIQUIDACIONES, CADA UNA CON SU HOJA DE
+        // TOTALES. Destapado con el 577 (3310947577): dentro del mismo fichero van el periodo 29/06-21/07
+        // (25 paginas, 440 envios) y el 21/07-31/07 (17 paginas, 260 envios), y los NUMEROS DE PEDIDO SE
+        // REPITEN en las dos. El bloque de cada pedido se medía "hasta el siguiente Subtotal por PO", asi
+        // que el bloque del 4503373382 de la PRIMERA hoja se estiraba por encima de TODA la segunda
+        // liquidacion y se tragaba los "N Envios" de las hojas de resumen por vehiculo y por destino:
+        // declaraba 2.710 donde tenia que declarar 36 (18 + 18). AHORA el bloque acaba en LO QUE LLEGUE
+        // ANTES: el siguiente "Subtotal por PO" o el "Total transporte" que cierra ESA hoja de totales.
+        // En los ficheros de UNA sola liquidacion no cambia absolutamente nada (comprobado con ARIDOS_2:
+        // los declarados salen identicos antes y despues), porque alli el "Total transporte" siempre cae
+        // DESPUES del siguiente bloque. Los pedidos que aparecen en las dos liquidaciones se suman, que es
+        // justo lo que toca: 383+39 de la primera mas 170+72 de la segunda = 664, y las filas tambien se
+        // cuentan sobre el fichero entero.
+        let _fin = (i + 1 < _bl.length) ? _bl[i + 1].pos : -1;
+        const _tt = full.indexOf('Total transporte', _bl[i].pos);
+        if (_tt >= 0 && (_fin < 0 || _tt < _fin)) _fin = _tt;
         if (_fin < 0) _fin = _bl[i].pos + 800;
         const _trozo = full.slice(_bl[i].pos, _fin);
         const _re = /([\d][\d\s.,]*?)\s*E\s*n\s*v\s*i?\s*o\s*s/gi; let _me;
@@ -24474,6 +24489,48 @@ async function _factPapelHolcim(file) {
           if (!isNaN(_n) && _n > 0 && _n < 100000) _declPO[_bl[i].po] = (_declPO[_bl[i].po] || 0) + _n;
         }
       } }
+    // v518 (Juan Carlos 11/08/2026) — CUANDO LA MATRICULA VIENE ROTA DEL PROPIO HOLCIM. Dos casos reales
+    // el mismo dia: en ARIDOS_2 (3310947404) la fila del 13/07 pone "MBN / R8803BDS" cuando la tractora
+    // es 7878MBN, y en el 577 (3310947577) hay TREINTA filas que ponen "755KMB / R7464BDM" cuando es
+    // 0755KMB. No es cosa del PDF ni de la lectura: Holcim REPITE el error en su propia hoja de resumen
+    // ("Subtotal por vehiculo MBN/R8803BDS ... 1 Envios"). Como el patron exige 4 cifras + 3 letras, esas
+    // filas se caian y el pedido salia corto por una en ARIDOS_2 y por treinta en el 577 -> el candado no
+    // se aplicaba y el fichero se guardaba tal como lo leyo la IA. AHORA, y SOLO si algun pedido declarado
+    // queda CORTO, se da una segunda pasada aceptando matriculas de 2 a 8 caracteres, y de esa pasada solo
+    // se admite una fila si (a) su pedido es uno de los que faltan filas y (b) su Nº DE ENTREGA no lo
+    // teniamos ya. TRES CANDADOS que hacen esto seguro: no se ejecuta nunca en un fichero que ya cuadra
+    // (Garraf, Charly, Yeso, ARIDOS_1 y ARIDOS_3 ni lo tocan); no puede duplicar una entrega; y si por lo
+    // que sea rescatara de mas, el pedido dejaria de cuadrar y el candado seguiria APAGADO, que es el lado
+    // seguro. Probado con los dos PDF: ARIDOS_2 pasa a 156/156 · 253/253 · 5/5 y el 577 a 664/664 · 36/36.
+    {
+      const _cnt0 = {}; filas.forEach(f => { const k = f.po || '?'; _cnt0[k] = (_cnt0[k] || 0) + 1; });
+      const _cortos = Object.keys(_declPO).filter(po => (_cnt0[po] || 0) < _declPO[po]);
+      if (_cortos.length) {
+        const _reAmplio = new RegExp("(\\d{2}\\.\\d{2}\\.\\d{4})((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,60}?)([A-Z0-9]{2,8})\\s*\\/((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,400}?)(-?\\d{1,3}(?:[.,]\\d{1,3})?)\\s+(?:\\d{1,4}\\s+)?(T|PI)(?:\\s+(?:T|PI))?\\s+([\\d.,]+)\\s+EUR\\s+([\\d.,]+)", "g");
+        const _ya = new Set(filas.map(f => String(f.num || '')));
+        let _mr, _resc = 0;
+        while ((_mr = _reAmplio.exec(full)) !== null) {
+          if (!/(\d{1,2}\s*W\s*\d{4}\s*-?\s*\d{3,})|(\b\d{8,12}\b)/.test(_mr[2] || '')) continue;   // misma guarda v504
+          const _num = String(_mr[2] || '').replace(/\s+/g, '');
+          if (_ya.has(_num)) continue;
+          const _po = _poDe(_mr.index);
+          if (_cortos.indexOf(_po) < 0) continue;
+          _ya.add(_num);
+          filas.push({
+            fecha: _factFechaBarra(_mr[1]),
+            num: _num,
+            matricula: _mr[3],
+            tn: _factNum(_mr[5]),
+            unidad: _mr[6],
+            importe: _factNum(_mr[8]),
+            po: _po
+          });
+          _resc++;
+          console.warn('[v518] fila rescatada (Holcim escribió la matrícula incompleta): "' + _mr[3] + '" · entrega ' + _num + ' · ' + _mr[1]);
+        }
+        if (_resc) console.warn('[v518] ' + _resc + ' fila(s) rescatadas en el/los pedido(s) ' + _cortos.join(', ') + '. Sin esto el recuento salía corto y el candado no se aplicaba.');
+      }
+    }
     const _cuentaPO = {};
     filas.forEach(f => { const k = f.po || '?'; _cuentaPO[k] = (_cuentaPO[k] || 0) + 1; });
     filas.declPorPO = _declPO;
