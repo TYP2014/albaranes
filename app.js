@@ -23675,33 +23675,78 @@ function _factRepasoGuardar(proveedor, mes, u) {
   } catch (e) { console.warn('[v511] no pude guardar el repaso (no crítico):', e); }
 }
 
+// v513 (Juan Carlos 11/08/2026) — VER Y EXCEL NO HACÍAN NADA. Causa: tanto el informe como el Excel
+// se apoyan en tres filtros que viven en window y que sobreviven de una consulta a otra:
+// _factExcelMarcadas (las familias con la casilla marcada), _factHolcimMatSel (la familia que estás
+// viendo) y _factHolcimTransFiltro (el transportista). Al abrir un repaso GUARDADO se colaban los
+// filtros de la sesión anterior; si esas familias no estaban en ese repaso, el Excel se quedaba sin
+// nada que sacar y contestaba "No hay datos de las familias marcadas" — por fuera, un botón que no
+// hace nada. Ahora se limpian SIEMPRE antes de abrir o exportar un repaso guardado. Y además, si algo
+// revienta, el error sale en pantalla y en consola en vez de morir en silencio.
+function _factRepasoLimpiarFiltros() {
+  window._factExcelMarcadas = new Set();
+  window._factHolcimMatSel = null;
+  window._factHolcimTransFiltro = null;
+}
+
 function _factRepasoAbrir(id) {
-  const r = _factRepasosLeer().find(x => x.id === id);
-  if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
-  if (r.proveedor === 'HOLCIM') {
-    _factHolcimUltimo = r.u;
-    _factHolcimMesActual = r.mes;
-    _factHolcimMostrarInforme();
-  } else {
-    _factAutoUltimo = r.u;
-    _factMesActual = r.mes;
-    _factAutoMostrarInforme();
-    const m = document.getElementById('ovFactAuto');   // v511: el modal real de CEMEX
-    if (m) m.classList.add('open');
+  try {
+    const r = _factRepasosLeer().find(x => x.id === id);
+    if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
+    _factRepasoLimpiarFiltros();
+    if (r.proveedor === 'HOLCIM') {
+      _factHolcimUltimo = r.u;
+      _factHolcimMesActual = r.mes;
+      _factHolcimMostrarInforme();
+    } else {
+      _factAutoUltimo = r.u;
+      _factMesActual = r.mes;
+      _factAutoMostrarInforme();
+      const m = document.getElementById('ovFactAuto');
+      if (m) m.classList.add('open');
+    }
+  } catch (e) {
+    console.error('[v513] abrir repaso:', e);
+    toast('No pude abrir el repaso: ' + (e && e.message ? e.message : e), 'err');
   }
 }
 
-function _factRepasoExcel(id) {
-  const r = _factRepasosLeer().find(x => x.id === id);
-  if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
-  if (r.proveedor === 'HOLCIM') {
-    _factHolcimUltimo = r.u; _factHolcimMesActual = r.mes;
-    factHolcimExcelPorMaterial();
-  } else {
-    _factAutoUltimo = r.u; _factMesActual = r.mes;
-    if (typeof factAutoExcel === 'function') factAutoExcel();
-    else toast('Abre el repaso con VER y descarga el Excel desde ahí', 'err');
+// familia = null → Excel COMPLETO (todas). familia = 'Caliza Foj' → solo esa.
+function _factRepasoExcel(id, familia) {
+  try {
+    const r = _factRepasosLeer().find(x => x.id === id);
+    if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
+    _factRepasoLimpiarFiltros();
+    if (r.proveedor === 'HOLCIM') {
+      _factHolcimUltimo = r.u; _factHolcimMesActual = r.mes;
+      if (familia) window._factExcelMarcadas = new Set([familia]);
+      factHolcimExcelPorMaterial();
+    } else {
+      _factAutoUltimo = r.u; _factMesActual = r.mes;
+      if (typeof factAutoExcel === 'function') factAutoExcel();
+      else toast('Abre el repaso con VER y descarga el Excel desde ahí', 'err');
+    }
+  } catch (e) {
+    console.error('[v513] excel del repaso:', e);
+    toast('No pude sacar el Excel: ' + (e && e.message ? e.message : e), 'err');
   }
+}
+
+// v513 — Familias que hay dentro de un repaso guardado, para poder bajarlas SUELTAS.
+function _factRepasoFamilias(r) {
+  try {
+    if (!r || !r.u || r.proveedor !== 'HOLCIM') return [];
+    const u = r.u;
+    const famAlb = (x) => _factFamiliaHolcim(x.producto, x.obra || x.destino || '', x.planta || x.origen || '');
+    const famLin = (L) => _factFamiliaHolcim(L.material, L.destino);
+    const set = new Set();
+    (u.abonados || []).forEach(a => set.add(a && a.rec ? famAlb(a.rec) : famLin(a.linea || {})));
+    (u.posibles || []).forEach(a => set.add(a && a.rec ? famAlb(a.rec) : famLin(a.linea || {})));
+    (u.noAbonados || []).forEach(x => set.add(famAlb(x)));
+    (u.sinAlbaran || []).forEach(L => set.add(famLin(L)));
+    set.delete(undefined); set.delete(null); set.delete('');
+    return Array.from(set).sort();
+  } catch (e) { console.warn('[v513] familias del repaso:', e); return []; }
 }
 
 function _factRepasoBorrar(id) {
@@ -23753,9 +23798,20 @@ function _factRepasosPintar() {
       + '</td>'
       + '<td style="padding:6px 8px;text-align:right;white-space:nowrap">'
       + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">👁 VER</button> '
-      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')">📊 EXCEL</button> '
+      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')" title="Todas las familias, una pestaña cada una">📊 EXCEL COMPLETO</button> '
       + '<button class="btn bs" style="font-size:11px;padding:3px 8px;opacity:.6" onclick="_factRepasoBorrar(\'' + esc(r.id) + '\')" title="Quitar de la lista">✕</button>'
       + '</td></tr>';
+    // v513 — una pastilla por familia: la pinchas y te bajas ESA sola, en su propio Excel.
+    const fams = _factRepasoFamilias(r);
+    if (fams.length) {
+      h += '<tr><td colspan="5" style="padding:2px 8px 10px">'
+        + '<span style="color:var(--mu);font-size:11px;margin-right:6px">o cada familia por separado:</span>';
+      fams.forEach(f => {
+        h += '<button class="btn bs" style="font-size:10px;padding:2px 8px;margin:2px 3px 0 0" '
+          + 'onclick="_factRepasoExcel(\'' + esc(r.id) + '\',\'' + esc(f).replace(/'/g, "\\'") + '\')">📄 ' + esc(f) + '</button>';
+      });
+      h += '</td></tr>';
+    }
   });
   h += '</table></div></div>';
   cont.innerHTML = h;
