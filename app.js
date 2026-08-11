@@ -23613,12 +23613,20 @@ function _repasoAdelgazar(o) {
 function _repasoAdelgazarPares(arr) {
   return (arr || []).map(x => {
     if (!x || typeof x !== 'object') return x;
-    if (x.linea || x.rec) { // v512: la línea también se adelgaza (antes iba entera)
-      const y = { linea: _repasoAdelgazar(x.linea), rec: _repasoAdelgazar(x.rec) };
-      if (x.difs && x.difs.length) y.difs = x.difs;
-      if (x.modo) y.modo = x.modo;
-      if (x.confirmado) y.confirmado = x.confirmado;
-      return y;
+    // v514 (Juan Carlos 11/08/2026) — LA FORMA SE RESPETA AUNQUE VAYA VACÍA. En la v512, por ahorrar
+    // sitio, dejé fuera los campos que venían vacíos (difs, modo, y linea/rec cuando no había). Pero
+    // el informe hace "a.difs.length" y el Excel hace "a.linea.tn" DANDO POR HECHO que existen, así
+    // que al abrir un repaso guardado saltaba "Cannot read properties of undefined (reading 'length')"
+    // y ni VER ni EXCEL hacían nada. Un objeto vacío ocupa 2 bytes: no se ahorra nada quitándolo y se
+    // rompe todo. Desde aquí, lo guardado tiene SIEMPRE la misma forma que lo recién cruzado.
+    if (x.linea || x.rec) {
+      return {
+        linea: _repasoAdelgazar(x.linea) || {},
+        rec: _repasoAdelgazar(x.rec) || {},
+        difs: x.difs || [],
+        modo: x.modo || '',
+        confirmado: x.confirmado || false
+      };
     }
     return _repasoAdelgazar(x);
   });
@@ -23648,8 +23656,8 @@ function _factRepasoGuardar(proveedor, mes, u) {
       u: {
         abonados: _repasoAdelgazarPares(u.abonados),
         posibles: _repasoAdelgazarPares(u.posibles),
-        noAbonados: (u.noAbonados || []).map(_repasoAdelgazar),
-        sinAlbaran: (u.sinAlbaran || []).map(_repasoAdelgazar),   // v512
+        noAbonados: (u.noAbonados || []).map(x => _repasoAdelgazar(x) || {}),   // v514
+        sinAlbaran: (u.sinAlbaran || []).map(x => _repasoAdelgazar(x) || {}),   // v512 + v514
         dupPago: _repasoAdelgazarPares(u.dupPago),
         ajustes: u.ajustes || null,
         fichero: u.fichero || '',
