@@ -9293,8 +9293,13 @@ function _celdaEstadoHtml(r) {
   const dl = hasValidUrl(r.file_url) ? `<span onclick="event.stopPropagation();_descargarAlb(event,'${r.db_id || r._id}')" title="Descargar PDF del albarán" style="cursor:pointer">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar PDF', 3.2)}</span>` : '';
   // v107K44: cada icono va en su propia columna de ancho fijo y centrado, así todas
   // las filas quedan alineadas en columnas rectas aunque el contenido cambie de ancho.
-  const _col = (html, w) => html ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:${w}px">${html}</span>` : '';
-  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 58)}${_col(factIcon(r), 92)}${_col(factProvIcon(r), 90)}${_col(dl, 22)}</span>`;
+  // v530: ANCHO FIJO (no min-width) y hueco reservado aunque la casilla este vacia, para que
+  // las columnas queden rectas SIEMPRE. Antes, la chapa ancha (REV DUP) estiraba su columna y
+  // corria las demas a la derecha; y la fila sin PDF se quedaba sin la columna de descarga.
+  // La 1a columna pasa de 58 a 88 px: es el ancho de la chapa mas larga (REV DUP), asi ninguna
+  // se sale. El 4o parametro (true) = reservar el hueco aunque no haya nada que pintar.
+  const _col = (html, w, fijo) => (html || fijo) ? `<span style="display:inline-flex;align-items:center;justify-content:center;flex:0 0 ${w}px;width:${w}px">${html || ''}</span>` : '';
+  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 88, true)}${_col(factIcon(r), 92)}${_col(factProvIcon(r), 90)}${_col(dl, 22, true)}</span>`;
 }
 
 // v107K35 — etiqueta de estado (pill de texto). Con color/relleno = hecho; rojo = pendiente.
