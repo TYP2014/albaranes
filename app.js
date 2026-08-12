@@ -23781,6 +23781,56 @@ function _factRepasoAbrir(id) {
   }
 }
 
+// v525 (Juan Carlos 12/08/2026) — LA LISTA DE TRANSPORTISTAS DE UN REPASO GUARDADO.
+// Misma cuenta que la del informe en vivo: se mira NUESTRO transportista del albarán y, si no lo hay,
+// se deduce de la matrícula. Sirve para llenar el desplegable de cada repaso guardado.
+function _factRepasoTransportistas(r) {
+  try {
+    const u = _factRepasoSanear(r && r.u);
+    if (!u) return [];
+    const set = new Set();
+    const add = (t) => { const v = String(t || '').toUpperCase().trim(); if (v) set.add(v); };
+    (u.abonados || []).forEach(a => add((a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula)));
+    (u.posibles || []).forEach(a => add((a.rec && a.rec.transportista) || getTransportista(a.linea && a.linea.matricula)));
+    (u.noAbonados || []).forEach(x => add(x.transportista || getTransportista(x.tractora)));
+    (u.sinAlbaran || []).forEach(L => add(getTransportista(L.matricula)));
+    return [...set].sort();
+  } catch (e) { console.warn('[v525] transportistas del repaso:', e); return []; }
+}
+
+// v525 — EXCEL DE UN TRANSPORTISTA DESDE UN REPASO GUARDADO. Pedido por JC: "poder sacar todo de un
+// transportista de una tacada" sin tener que volver a cruzar el mes entero (el cruce de Holcim tarda
+// y carga todo el histórico). El botón ya existía, pero SOLO en el informe recién cruzado; en cuanto
+// te salías de la pestaña había que repetirlo todo. Aquí se hace lo mismo que hace VER: se carga el
+// repaso guardado en _factHolcimUltimo y se llama al MISMO generador de Excel de siempre
+// (factHolcimExcelPorMaterial), que ya sabe filtrar por transportista con _factHolcimTransFiltro.
+// No se duplica nada de la lógica del Excel: si un día cambia el Excel, este sale igual de cambiado.
+// Al terminar se deja _factHolcimUltimo como estaba, para no pisar el informe que hubiera abierto.
+function _factRepasoExcelTrans(id) {
+  try {
+    const sel = document.getElementById('factRepTrans_' + id);
+    const quien = sel ? String(sel.value || '').trim() : '';
+    if (!quien) { toast('Elige un transportista', 'err'); return; }
+    const r = _factRepasosLeer().find(x => x.id === id);
+    if (!r) { toast('Ese repaso ya no está guardado', 'err'); return; }
+    if (r.proveedor !== 'HOLCIM') { toast('De momento solo para repasos de Holcim', 'err'); return; }
+    const _antesU = _factHolcimUltimo, _antesMes = _factHolcimMesActual;
+    try {
+      _factHolcimUltimo = _factRepasoSanear(r.u);
+      _factHolcimMesActual = r.mes;
+      window._factHolcimTransFiltro = quien;
+      factHolcimExcelPorMaterial();
+    } finally {
+      window._factHolcimTransFiltro = null;
+      _factHolcimUltimo = _antesU;
+      _factHolcimMesActual = _antesMes;
+    }
+  } catch (e) {
+    console.error('[v525] Excel del transportista desde repaso guardado:', e);
+    toast('No pude sacar el Excel: ' + (e && e.message ? e.message : e), 'err');
+  }
+}
+
 // familia = null → Excel COMPLETO (todas). familia = 'Caliza Foj' → solo esa.
 function _factRepasoExcel(id, familia) {
   try {
@@ -23876,6 +23926,22 @@ function _factRepasosPintar() {
       + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')" title="Todas las familias, una pestaña cada una">📊 EXCEL COMPLETO</button> '
       + '<button class="btn bs" style="font-size:11px;padding:3px 8px;opacity:.6" onclick="_factRepasoBorrar(\'' + esc(r.id) + '\')" title="Quitar de la lista">✕</button>'
       + '</span></div>';
+    // v525: fila propia para el Excel de UN transportista (todas sus familias de una tacada).
+    // Solo se pinta si el repaso es de Holcim y hay transportistas que listar.
+    if (r.proveedor === 'HOLCIM') {
+      const _trs = _factRepasoTransportistas(r);
+      if (_trs.length) {
+        h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px">'
+          + '<span style="color:var(--mu);font-size:11px">o todo de un transportista:</span>'
+          + '<select id="factRepTrans_' + esc(r.id) + '" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;background:var(--s2);color:var(--tx);max-width:220px">'
+          + '<option value="">— transportista —</option>'
+          + _trs.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('')
+          + '</select>'
+          + ' <button class="btn bs" style="font-size:11px;padding:3px 10px" title="Excel mensual completo de ese transportista: una pestaña por familia, con los precios de las tarifas" '
+          + 'onclick="_factRepasoExcelTrans(\'' + esc(r.id) + '\')">📑 EXCEL DEL TRANSPORTISTA</button>'
+          + '</div>';
+      }
+    }
     // Pastillas: todas visibles, repartidas en las líneas que hagan falta.
     const fams = _factRepasoFamilias(r);
     if (fams.length) {
