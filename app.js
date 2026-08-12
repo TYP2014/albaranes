@@ -14668,7 +14668,8 @@ function _fichajeRenderAdminResumen() {
     const evsHoy = _fichajeEventosConHoraDia(uid, hoyISO).filter(e => !_fichajeEsAusencia(e.tipo));
     const minHoy = evsHoy.some(e => e.tipo === 'entrada') ? _fichajeMinutosTrabajados(evsHoy, ahora) : 0;
     const sem = _fichajeResumenSemana(uid, ahora);
-    return { nombre: nombres[uid], minHoy, semMin: sem.totalMin, saldoMin: sem.saldoMin };
+    // v532: se guardan tambien los dias sueltos (L..D) para pintar una columna por dia
+    return { nombre: nombres[uid], minHoy, semMin: sem.totalMin, saldoMin: sem.saldoMin, dias: sem.dias };
   }).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
 
   if (!filas.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
@@ -14677,16 +14678,44 @@ function _fichajeRenderAdminResumen() {
   const th = (t) => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu);white-space:nowrap">' + t + '</th>';
   const td = (t, col) => '<td style="padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;white-space:nowrap;color:' + (col || 'var(--tx)') + '">' + t + '</td>';
 
-  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>'
-    + th('Trabajador') + th('Hoy') + th('Esta semana') + th('Saldo') + '</tr></thead><tbody>';
+  // v532: una columna por DIA de la semana en curso, entre el nombre y HOY.
+  // Sabado y domingo solo se pintan si alguien tiene jornada ese dia (asi no
+  // ocupan sitio en una semana normal). Todos los trabajadores comparten las
+  // mismas fechas, asi que la cabecera se saca de la primera fila.
+  const TOPE8 = 8 * 60;
+  const diasRef = filas[0].dias || [];
+  const hayFinde = filas.some(f => (f.dias || []).slice(5).some(d => d.tieneEntrada));
+  const idxDias = diasRef.length ? (hayFinde ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4]) : [];
+
+  const thDia = (t, esHoy) => '<th style="text-align:center;padding:8px 6px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;white-space:nowrap;color:' + (esHoy ? 'var(--ac)' : 'var(--mu)') + '">' + t + '</th>';
+  const tdDia = (t, col, esHoy) => '<td style="text-align:center;padding:8px 6px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;white-space:nowrap;font-weight:' + (esHoy ? '700' : '400') + ';color:' + col + '">' + t + '</td>';
+
+  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>' + th('Trabajador');
+  idxDias.forEach(i => {
+    const d = diasRef[i];
+    const num = (d.fISO || '').slice(8);   // el dia del mes, ej "12"
+    html += thDia(d.nombre + ' ' + num, d.esHoy);
+  });
+  html += th('Hoy') + th('Esta semana') + th('Saldo') + '</tr></thead><tbody>';
+
   filas.forEach(f => {
     const saldoCol = f.saldoMin > 0 ? 'var(--wn)' : (f.saldoMin < 0 ? 'var(--in)' : 'var(--mu)');
     const saldoTxt = (f.saldoMin >= 0 ? '+' : '−') + _fichajeFmtMin(Math.abs(f.saldoMin));
-    html += '<tr>' + td('<b>' + _fichajeEsc(f.nombre) + '</b>') + td(_fichajeFmtMin(f.minHoy)) +
-            td(_fichajeFmtMin(f.semMin)) + td(saldoTxt, saldoCol) + '</tr>';
+    html += '<tr>' + td('<b>' + _fichajeEsc(f.nombre) + '</b>');
+    idxDias.forEach(i => {
+      const d = (f.dias || [])[i] || {};
+      if (!d.tieneEntrada) { html += tdDia('—', 'var(--mu)', d.esHoy); return; }
+      // Color: ambar si paso de 8h, azul si el dia ya termino y se quedo corto,
+      // normal en lo demas. El dia de HOY sale ademas en negrita.
+      let col = 'var(--tx)';
+      if (d.terminado && d.min > TOPE8 + 5) col = 'var(--wn)';
+      else if (d.terminado && d.min < TOPE8 - 5) col = 'var(--in)';
+      html += tdDia(_fichajeFmtMin(d.min), col, d.esHoy);
+    });
+    html += td(_fichajeFmtMin(f.minHoy)) + td(_fichajeFmtMin(f.semMin)) + td(saldoTxt, saldoCol) + '</tr>';
   });
   html += '</tbody></table>';
-  html += '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px;padding:0 10px">Saldo = horas sobre 8h/día de los días YA TERMINADOS de esta semana.</div>';
+  html += '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px;padding:0 10px">Saldo = horas sobre 8h/día de los días YA TERMINADOS de esta semana. En cada día: ámbar = pasó de 8h · azul = se quedó corto · — = no fichó.</div>';
 
   box.innerHTML = '<div class="card-hd"><div class="st"><div class="dot" style="--c:var(--ac)"></div>HORAS POR TRABAJADOR · ESTA SEMANA</div></div>' +
                   '<div class="card-bd" style="overflow-x:auto">' + html + '</div>';
