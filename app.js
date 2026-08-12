@@ -16204,7 +16204,11 @@ const PROVEEDORES_CANONICOS = [
     'PAVIVENT-SPORT, SA', 'PAVIVENT-SPORT, S.A', 'PAVIVENT-SPORT, S.A.', 'PAVIVENT-SPORT. SA',
     'PAVIVENT-SPORT SA', 'PAVIVENT SPORT, SA', 'PAVIVENT SPORT, S.A', 'PAVIVENT-SPORT', 'PAVIVENTSPORT',
     'PAVEVENT-SPORT, SA', 'PAVEVENT-SPORT, S.A', 'PAVEVENT-SPORT', 'PAVEVENT SPORT, SA',
-    'PAVIMENT-SPORT, SA.', 'PAVEMENT-SPORT, SA.', 'PAVIMENT-SPORT,SA', 'PAVEMENT-SPORT,SA'
+    'PAVIMENT-SPORT, SA.', 'PAVEMENT-SPORT, SA.', 'PAVIMENT-SPORT,SA', 'PAVEMENT-SPORT,SA',
+    // v528b: y PAVIEMENT, con la I y la E juntas, que es la que se escapaba de todos los patrones
+    // anteriores (3 + 1 albaranes en la BD). Ya van ONCE grafias distintas del mismo proveedor.
+    'PAVIEMENT-SPORT, SA', 'PAVIEMENT-SPORT, S.A', 'PAVIEMENT-SPORT, S.A.', 'PAVIEMENT-SPORT. SA',
+    'PAVIEMENT-SPORT SA', 'PAVIEMENT SPORT, SA', 'PAVIEMENT SPORT, S.A', 'PAVIEMENT-SPORT', 'PAVIEMENTSPORT'
   ] },
   { canon: 'Adec Global, S.L.', alias: ['Adec/Vallirana'] },
   { canon: 'Suministros de Arcilla, S.A.', alias: [] },
