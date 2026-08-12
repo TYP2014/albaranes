@@ -26145,6 +26145,7 @@ function factHolcimExcelPorMaterial() {
   const _mesRef = _mmRef ? (parseInt(_mmRef[1], 10) * 12 + parseInt(_mmRef[2], 10)) : 0;
   const _mesDeFecha = (f) => { const m = String(f || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? (parseInt(m[3], 10) * 12 + parseInt(m[2], 10)) : 0; };
   let _fueraMes = 0;
+  let _marcNar = 0, _marcAzu = 0;   // v527: cuántas marcas de JC se han pintado en total
 
   materialesFinal.forEach(mat => {
     let ab = (u.abonados || []).filter(a => _famPar(a) === mat);
@@ -26170,14 +26171,31 @@ function factHolcimExcelPorMaterial() {
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
     const aoa = [];
+    // v527 (Juan Carlos 12/08/2026) — LAS MARCAS QUE PONE JC A MANO, TAMBIEN EN ESTE EXCEL.
+    // Pedido suyo: "cuando saco el Excel por familia o por transportista no me aparecen los albaranes
+    // que ya tengo marcados, y tengo que ir mirando la app a la vez". Tenia razon: la marca NARANJA
+    // (revisar_pago, "revisar antes de abonar", para sustitutos ya pagados al transportista) y el AZUL
+    // (manual_edit, albaran editado a mano) SI salian en el Excel general de Albaranes desde la v252,
+    // pero este Excel del cruce de Holcim se monta aparte y no las llevaba. Ahora se apuntan las filas
+    // segun se van escribiendo y al final se pintan igual que en el Excel general.
+    // Se pinta la celda del Nº DE ALBARAN (columna B), que es donde se mira. Naranja manda sobre azul
+    // si un albaran tuviera las dos. Solo se miran los bloques donde hay albaran NUESTRO (abonados, no
+    // abonados y a revisar); los SIN COPIA no lo tienen, asi que no pueden estar marcados.
+    const _naranja = [], _azul = [];
+    const _apunta = (rec) => {
+      if (!rec) return;
+      const _f = aoa.length;                     // fila que se acaba de escribir (0 = cabecera)
+      if (rec.revisar_pago) _naranja.push(_f);
+      else if (rec.manual_edit === true || rec._manual === true) _azul.push(_f);
+    };
     // v107K71: PRECIO numérico (0 si no hay tarifa) y TOTAL como FÓRMULA viva =TN×PRECIO
     // (col E × col F). Si editas el precio en Excel, el total se recalcula solo.
     aoa.push(['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']);
     const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
-    ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); });
-    no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); });
+    ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); _apunta(a.rec); });
+    no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); _apunta(r); });
     sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), 'Sin copia (no lo tenemos)']); });
-    po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); });
+    po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); _apunta(a.rec); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 24 }, { wch: 36 }];
@@ -26197,6 +26215,23 @@ function factHolcimExcelPorMaterial() {
         _fueraMes++;
       }
     }
+    // v527: pintar las marcas de JC en la columna del Nº de albarán (B).
+    // NARANJA (FF9800) = "revisar antes de abonar", la que pone JC a mano en la ficha del albarán.
+    // AZUL   (1E88E5) = albarán editado a mano (manual_edit), para saber que ese dato lo tocó una persona.
+    // Mismo color y mismo sitio que en el Excel general de Albaranes, para que se lean igual.
+    _naranja.forEach(_f => {
+      const _c = ws[XLSX.utils.encode_cell({ r: _f, c: 1 })]; if (!_c) return;
+      if (!_c.s) _c.s = {};
+      _c.s.fill = { patternType: 'solid', fgColor: { rgb: 'FF9800' } };
+      _c.s.font = { bold: true, sz: 12, color: { rgb: 'FFFFFF' } };
+    });
+    _azul.forEach(_f => {
+      const _c = ws[XLSX.utils.encode_cell({ r: _f, c: 1 })]; if (!_c) return;
+      if (!_c.s) _c.s = {};
+      _c.s.fill = { patternType: 'solid', fgColor: { rgb: '1E88E5' } };
+      _c.s.font = { bold: true, sz: 12, color: { rgb: 'FFFFFF' } };
+    });
+    _marcNar += _naranja.length; _marcAzu += _azul.length;
     let nombre = _hoja(mat);
     if (usados[nombre]) { usados[nombre]++; nombre = _hoja(mat).slice(0, 28) + '_' + usados[nombre]; } else { usados[nombre] = 1; }
     XLSX.utils.book_append_sheet(wb, ws, nombre);
@@ -26207,7 +26242,7 @@ function factHolcimExcelPorMaterial() {
     : 'Holcim_por_familia';
   const _sufTr = window._factHolcimTransFiltro ? ('_' + String(window._factHolcimTransFiltro).replace(/[^A-Z0-9]+/gi, '_').slice(0, 24)) : ''; // v285
   XLSX.writeFile(wb, _nomFich + _sufTr + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-  toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)') + (_fueraMes ? ' · ' + _fueraMes + ' fecha(s) de otro mes marcadas en color (ámbar = antes, azul = después)' : ''), 'ok');
+  toast('✓ Excel descargado (' + materialesFinal.length + (materialesFinal.length === 1 ? ' familia)' : ' familias)') + (_fueraMes ? ' · ' + _fueraMes + ' fecha(s) de otro mes marcadas en color (ámbar = antes, azul = después)' : '') + (_marcNar ? ' · 🟠 ' + _marcNar + ' marcado(s) para revisar antes de abonar' : '') + (_marcAzu ? ' · 🔵 ' + _marcAzu + ' editado(s) a mano' : ''), 'ok');
 }
 
 // v107GB — Confirmar una "posible" (la marca facturada en memoria + Supabase y refresca el modal).
