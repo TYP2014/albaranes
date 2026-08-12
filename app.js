@@ -1494,6 +1494,43 @@ async function loadData() {
                        || currentUser?.id === _ID_MARIADELMAR
                        || currentUser?.id === _ID_TRANSMARGAZ);
   const _aplicaFiltro = (currentRole === 'gestor' && !_gestorInterno);
+  // v524 (Juan Carlos 12/08/2026) — LA VENTANA DE 3 MESES AHORA VA POR LA FECHA DEL TRANSPORTE,
+  // NO POR LA FECHA EN QUE SE SUBIO EL ALBARAN. Aqui estaba el motivo de que el arranque fuera cada vez
+  // mas lento y de que "lo de los 3 meses" durase apenas un mes: el filtro miraba created_at, o sea
+  // CUANDO SE SUBIO la fila, asi que cada vez que se RESUBE un PDF entero (el 577 son 777 lineas de una
+  // sentada) todas esas filas vuelven a tener created_at de hoy y ENTRAN OTRA VEZ en la ventana. La
+  // ventana no se vaciaba nunca. MEDIDO EL 12/08/2026 sobre la BD real: por created_at entraban 14.681
+  // filas de 16.826 (el 87% de la tabla); por FECHA de transporte entran 5.585 (el 33%). Y esa si avanza
+  // sola: en enero los viajes de octubre salen de la ventana y NO VUELVEN aunque se resuba el PDF.
+  // Es la solucion que aguanta con el tiempo, no un parche: da igual que la tabla llegue a 50.000 filas,
+  // en el arranque siempre se traen los tres ultimos meses de trabajo.
+  // COMO SE FILTRA: la columna 'fecha' es TEXTO en formato DD/MM/AAAA (comprobado: 16.825 de 16.826 lo
+  // cumplen, 1 sola fila tiene otro formato). Como en texto no se puede comparar una fecha asi, se pide
+  // por el TROZO DEL AÑO Y EL MES, que en DD/MM/AAAA ocupa siempre las mismas posiciones: se listan los
+  // 'MM/AAAA' de los ultimos meses y se piden con un OR de 'fecha LIKE %MM/AAAA'. Las filas con la fecha
+  // vacia o en otro formato SE TRAEN SIEMPRE, para que no desaparezca nada de la vista por un dato raro.
+  // Lo de "ver todo el historico" sigue igual y trae la tabla entera cuando hace falta (el repaso de
+  // Holcim, por ejemplo, ya lo llama solo).
+  // v524: DOS meses (el mes en curso y el anterior). Lo eligio JC el 12/08/2026 viendo los numeros
+  // reales: se suben unos 4.500-5.000 albaranes AL MES, asi que 3 meses son siempre ~15.000 filas y el
+  // arranque no bajaria nunca de ahi. Con 2 meses son ~5.800 y basta para el dia a dia; lo de atras se
+  // ve con "ver todo el historico", que sigue igual. Si algun dia hace falta mas, se cambia este numero
+  // y ya esta - no hay que tocar nada mas.
+  const _MESES_VENTANA = 2; window._MESES_VENTANA_TXT = 2; var _MESES_VENTANA_TXT = 2;
+  const _mesesVentana = () => {
+    const out = []; const hoy = new Date();
+    for (let i = 0; i < _MESES_VENTANA; i++) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      out.push(String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear());
+    }
+    return out;
+  };
+  const _filtroVentana = (q) => {
+    const ors = _mesesVentana().map(mm => 'fecha.like.%' + mm);
+    ors.push('fecha.is.null');                                   // sin fecha: se trae siempre
+    ors.push('fecha.not.like.__/__/____');                       // formato raro: se trae siempre
+    return q.or(ors.join(','));
+  };
   const _mkQuery = (desde, hasta) => {
     let q = sb.from('albaranes').select('*')
       .order('fecha', { ascending: false })
@@ -1504,11 +1541,7 @@ async function loadData() {
     // SUBIDOS en los últimos 3 meses (created_at). Esto hace el arranque rápido y
     // preparado para crecer (da igual que haya 6.000 o 50.000 en total). El histórico
     // completo se trae a la carta con cargarTodoHistorico() (botón "ver todo").
-    if (!window._cargarTodo) {
-      const corte = new Date();
-      corte.setMonth(corte.getMonth() - 3);
-      q = q.gte('created_at', corte.toISOString());
-    }
+    if (!window._cargarTodo) q = _filtroVentana(q);   // v524: por FECHA de transporte
     return q;
   };
 
@@ -1517,11 +1550,7 @@ async function loadData() {
   const _mkCount = () => {
     let c = sb.from('albaranes').select('id', { count: 'exact', head: true });
     if (_aplicaFiltro) c = c.eq('user_id', currentUser.id);
-    if (!window._cargarTodo) {
-      const corte = new Date();
-      corte.setMonth(corte.getMonth() - 3);
-      c = c.gte('created_at', corte.toISOString());
-    }
+    if (!window._cargarTodo) c = _filtroVentana(c);   // v524: el conteo usa EXACTAMENTE el mismo filtro
     return c;
   };
 
@@ -1561,7 +1590,7 @@ async function loadData() {
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
     return;
   }
-  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD` + (window._cargarTodo ? ' (TODO el histórico)' : ' (últimos 3 meses)'));
+  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD` + (window._cargarTodo ? ' (TODO el histórico)' : ' (v524: últimos ' + _MESES_VENTANA + ' meses por FECHA de transporte — ' + _mesesVentana().join(', ') + ')'));
   // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
   // v76: además, si la columna manual_edit=true en BD, marcamos _manual en memoria.
   // Así el albarán queda protegido contra reanálisis automáticos en TODA la sesión.
@@ -1734,7 +1763,7 @@ function _actualizarAvisoHistorico() {
     aviso.innerHTML = '';
   } else {
     aviso.style.display = '';
-    aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos 3 meses</b> (arranque rápido). '
+    aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos ' + (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2) + ' meses</b> (por fecha de transporte, para que la app abra rápido). '
       + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Ver todo el histórico</a> '
       + '<span style="color:var(--mu)">· para fechas más antiguas, cárgalo aquí.</span>';
   }
