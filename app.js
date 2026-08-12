@@ -11914,6 +11914,49 @@ function _rutaPrecioDe(r) {
 }
 
 const _RUTA_HEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','ORIGEN','DESTINO'];
+// v535: la MISMA cabecera para las rutas que se cobran POR VIAJE (Tecnocatalana,
+// Escombros/Puigfel, Girona Runes...), donde la columna TN vale 1 en todas las
+// filas porque no se paga por tonelada sino por porte.
+const _RUTA_HEAD_VIAJE = ['FECHA','MATRICULA','VIAJES','PRECIO (€/VIAJE)','TOTAL (€)','TRAMO','Nº DE ALBARAN','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','ORIGEN','DESTINO'];
+
+// v535: ¿esta ruta se cobra POR VIAJE? Lo es cuando TODAS sus lineas traen
+// exactamente 1 en el campo TN — que es como se graban esos portes (la tonelada
+// real, cuando la hay, va en observaciones). Si una sola linea trae toneladas de
+// verdad, la ruta se trata por toneladas como siempre.
+function _rutaEsPorViaje(filas) {
+  return filas.length > 0 && filas.every(r => Math.abs((parseFloat(r.tm) || 0) - 1) < 0.0001);
+}
+
+// v535: texto para el nombre del fichero y la cabecera — transportista filtrado
+// y periodo. Si hay varios transportistas marcados o ninguno, se dice asi.
+function _rutaEtiquetaFiltro() {
+  let trans = '';
+  try {
+    if (typeof selectedTransportistas !== 'undefined' && selectedTransportistas && selectedTransportistas.size === 1) {
+      trans = Array.from(selectedTransportistas)[0] || '';
+    } else if (typeof selectedTransportistas !== 'undefined' && selectedTransportistas && selectedTransportistas.size > 1) {
+      trans = selectedTransportistas.size + ' transportistas';
+    }
+  } catch (e) {}
+  const d = document.getElementById('fDesde')?.value || '';
+  const h = document.getElementById('fHasta')?.value || '';
+  const MES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  let periodo = '';
+  if (d && h) {
+    const dd = d.split('-'), hh = h.split('-');
+    // Mismo mes y mismo año → "JULIO 2026". Si no, el rango tal cual.
+    if (dd[0] === hh[0] && dd[1] === hh[1]) periodo = MES[parseInt(dd[1], 10) - 1] + ' ' + dd[0];
+    else periodo = dd[2] + '/' + dd[1] + '/' + dd[0] + ' a ' + hh[2] + '/' + hh[1] + '/' + hh[0];
+  } else if (d) periodo = 'desde ' + d.split('-').reverse().join('/');
+  else if (h) periodo = 'hasta ' + h.split('-').reverse().join('/');
+  return { trans: trans, periodo: periodo };
+}
+
+// Trocito seguro para un nombre de fichero (sin acentos ni signos raros).
+function _rutaFich(txt) {
+  return String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toUpperCase().slice(0, 40);
+}
 
 async function exportExcelPorRutas() {
   // v534: candado de verdad, no solo esconder el boton. Si alguien que no es admin
@@ -11949,6 +11992,7 @@ async function exportExcelPorRutas() {
   const usados = new Set(['FACTURA']);
   const resumen = [];   // lineas para la pestana FACTURA
   let totalViajes = 0, totalTn = 0, totalEuros = 0;
+  let totalViajesPorPorte = 0;   // v535: viajes de rutas que se cobran POR VIAJE (no llevan TN)
   const hojas = [];     // {nombre, rows, nDatos}
 
   lista.forEach(g => {
@@ -11965,7 +12009,8 @@ async function exportExcelPorRutas() {
     // Por PRECIO dentro de la ruta (los tramos de dias parten la ruta en dos lineas de factura)
     const porPrecio = new Map();
     let gTn = 0, gEur = 0;
-    const rows = [_RUTA_HEAD];
+    const porViaje = _rutaEsPorViaje(g.filas);   // v535
+    const rows = [porViaje ? _RUTA_HEAD_VIAJE : _RUTA_HEAD];
 
     orden.forEach(r => {
       const tm = parseFloat(r.tm) || 0;
@@ -11998,22 +12043,30 @@ async function exportExcelPorRutas() {
     rows.push(['', 'TOTAL', Math.round(gTn * 1000) / 1000, '', Math.round(gEur * 100) / 100, '', '', '', '', '', '', '']);
     hojas.push({ nombre: nombre, rows: rows, nDatos: nDatos });
 
-    totalViajes += orden.length; totalTn += gTn; totalEuros += gEur;
+    totalViajes += orden.length; totalEuros += gEur;
+    // v535: las rutas de cobro POR VIAJE no suman al total de TONELADAS. Antes,
+    // Tecnocatalana metia 101 "toneladas" que no existen (son 101 portes).
+    if (porViaje) totalViajesPorPorte += orden.length; else totalTn += gTn;
 
     // Una linea de resumen por cada precio distinto de la ruta, de mayor a menor importe
     Array.from(porPrecio.values()).sort((a, b) => b.eur - a.eur).forEach(b => {
       let concepto = '', maxN = -1;
       Object.keys(b.mats).forEach(m => { if (b.mats[m] > maxN) { maxN = b.mats[m]; concepto = m; } });
-      resumen.push([concepto, g.origen, g.destino, b.n, Math.round(b.tn * 1000) / 1000, 'TN',
+      resumen.push([concepto, g.origen, g.destino, b.n,
+                    porViaje ? b.n : Math.round(b.tn * 1000) / 1000,
+                    porViaje ? 'VIAJES' : 'TN',
                     b.precio, Math.round(b.eur * 100) / 100, nombre]);
     });
   });
 
   // ---------- Pestana FACTURA (resumen) ----------
   const hoy = new Date();
+  const et = _rutaEtiquetaFiltro();   // v535: transportista y periodo filtrados
   const cab = [
-    ['RESUMEN DE FACTURACIÓN POR RUTAS'],
-    ['Generado el ' + hoy.toLocaleDateString('es-ES') + ' · ' + totalViajes + ' viajes en ' + lista.length + ' rutas' + (nDup ? ' · ' + nDup + ' duplicado(s) excluido(s)' : '')],
+    ['SERVICIOS POR RUTAS' + (et.trans ? ' — ' + et.trans.toUpperCase() : '') + (et.periodo ? ' — ' + et.periodo : '')],
+    ['Generado el ' + hoy.toLocaleDateString('es-ES') + ' · ' + totalViajes + ' viajes en ' + lista.length + ' rutas'
+      + (totalViajesPorPorte ? ' (' + totalViajesPorPorte + ' de ellos se cobran POR VIAJE, no por tonelada)' : '')
+      + (nDup ? ' · ' + nDup + ' duplicado(s) excluido(s)' : '')],
     ['Las rutas SIN PRECIO salen a 0 € — ponlo en Tarifas por servicio y vuelve a sacar el Excel.'],
     [''],
     ['CONCEPTO','ORIGEN','DESTINO','Nº VIAJES','CANTIDAD','UD.','PRECIO (€)','IMPORTE (€)','PESTAÑA']
@@ -12085,7 +12138,10 @@ async function exportExcelPorRutas() {
     XLSX.utils.book_append_sheet(wb, ws, h.nombre);
   });
 
-  XLSX.writeFile(wb, `facturacion_por_rutas_${hoy.toISOString().slice(0, 10)}.xlsx`);
+  // v535: el fichero se llama por TRANSPORTISTA y MES, que es como JC los archiva.
+  // Si no hay un transportista solo o no hay fechas, se cae al nombre de antes.
+  const _nf = [_rutaFich(et.trans), _rutaFich(et.periodo)].filter(Boolean).join('_');
+  XLSX.writeFile(wb, `RUTAS_${_nf || hoy.toISOString().slice(0, 10)}.xlsx`);
   toast(`✓ ${lista.length} rutas · ${totalViajes} viajes · ${Math.round(totalEuros * 100) / 100} €`, 'ok');
 }
 
