@@ -16182,6 +16182,23 @@ const PROVEEDORES_CANONICOS = [
   { canon: 'Élite Cementos, S.L.U.', alias: [] },
   { canon: 'Cemex España Operaciones, S.L.U.', alias: ['Cemex España', 'Cemex España Operaciones', 'Cemex España Operaciones, S.L.U', 'Cemex Operaciones'] },
   { canon: 'Guixos Canals, S.L.', alias: [] },
+  // v526 (Juan Carlos 12/08/2026) — PAVIMENT-SPORT, SA (la cantera de Begues, "Charly/Begues").
+  // El nombre ya se reconocia en el codigo para poner el origen 'Begues' (v352/v353), pero NO estaba
+  // en esta lista, asi que la IA escribia cada vez lo que le parecia y se acumulaban variantes: en la
+  // BD habia SEIS grafias distintas para el mismo proveedor (72 + 3 + 2 + 2 + 1 + 1 = 81 albaranes),
+  // y en el desplegable de PROVEEDOR salian todas seguidas. La buena, segun el albaran en papel, es
+  // PAVIMENT-SPORT, SA: con I (no PAVEMENT), con guion, con coma y SA sin puntos.
+  // Los alias cubren lo que se ha visto de verdad y lo previsible: PAVEMENT/PAVIMENT, con guion, con
+  // espacio o sin nada, y S.A. / S.A / SA / punto en vez de coma. Asi se canoniza solo al leer.
+  { canon: 'PAVIMENT-SPORT, SA', alias: [
+    'PAVEMENT-SPORT, SA', 'PAVEMENT-SPORT. SA', 'PAVEMENT-SPORT, S.A', 'PAVEMENT-SPORT, S.A.',
+    'PAVEMENT SPORT, S.A', 'PAVEMENT SPORT, SA', 'PAVEMENT-SPORT SA', 'PAVEMENT-SPORT S.A.',
+    'PAVEMENT-SPORT', 'PAVEMENTSPORT', 'Pavement-Sport, SA', 'Pavement Sport',
+    'PAVIMENT-SPORT, S.A', 'PAVIMENT-SPORT, S.A.', 'PAVIMENT-SPORT. SA', 'PAVIMENT-SPORT SA',
+    'PAVIMENT SPORT, SA', 'PAVIMENT SPORT, S.A', 'PAVIMENT-SPORT', 'PAVIMENTSPORT',
+    'Paviment-Sport, SA', 'Paviment Sport', 'Paviment-Sport',
+    'Charly/Begues', 'CHARLY/BEGUES', 'Charly', 'CHARLY'
+  ] },
   { canon: 'Adec Global, S.L.', alias: ['Adec/Vallirana'] },
   { canon: 'Suministros de Arcilla, S.A.', alias: [] },
   { canon: 'Promotora Mediterránea-2, S.A.U.', alias: [
