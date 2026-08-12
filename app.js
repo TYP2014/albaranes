@@ -16197,7 +16197,14 @@ const PROVEEDORES_CANONICOS = [
     'PAVIMENT-SPORT, S.A', 'PAVIMENT-SPORT, S.A.', 'PAVIMENT-SPORT. SA', 'PAVIMENT-SPORT SA',
     'PAVIMENT SPORT, SA', 'PAVIMENT SPORT, S.A', 'PAVIMENT-SPORT', 'PAVIMENTSPORT',
     'Paviment-Sport, SA', 'Paviment Sport', 'Paviment-Sport',
-    'Charly/Begues', 'CHARLY/BEGUES', 'Charly', 'CHARLY'
+    'Charly/Begues', 'CHARLY/BEGUES', 'Charly', 'CHARLY',
+    // v528: mas erratas vistas en el desplegable despues del primer arreglo. La IA tambien lee
+    // PAVIVENT (con V en vez de M) y PAVIMENT-SPORT con punto final. Se añaden todas las mezclas
+    // posibles de PAVIMENT / PAVEMENT / PAVIVENT / PAVEVENT con guion, espacio o nada.
+    'PAVIVENT-SPORT, SA', 'PAVIVENT-SPORT, S.A', 'PAVIVENT-SPORT, S.A.', 'PAVIVENT-SPORT. SA',
+    'PAVIVENT-SPORT SA', 'PAVIVENT SPORT, SA', 'PAVIVENT SPORT, S.A', 'PAVIVENT-SPORT', 'PAVIVENTSPORT',
+    'PAVEVENT-SPORT, SA', 'PAVEVENT-SPORT, S.A', 'PAVEVENT-SPORT', 'PAVEVENT SPORT, SA',
+    'PAVIMENT-SPORT, SA.', 'PAVEMENT-SPORT, SA.', 'PAVIMENT-SPORT,SA', 'PAVEMENT-SPORT,SA'
   ] },
   { canon: 'Adec Global, S.L.', alias: ['Adec/Vallirana'] },
   { canon: 'Suministros de Arcilla, S.A.', alias: [] },
@@ -23644,9 +23651,16 @@ const _REPASOS_MAX = 2;   // v512: un repaso de un mes gordo ronda los 3 MB y el
 // Estos y solo estos: son los campos que leen el informe, el Excel por familia y el clasificador de
 // familias. db_id va porque lo necesita el botón de confirmar del informe. Cada campo de más son ~4 MB
 // repartidos entre 5.600 filas, así que la lista se queda corta a propósito.
+// v528 (Juan Carlos 12/08/2026) — 'revisar_pago' y 'manual_edit' AÑADIDOS A LA LISTA. La v527 pinta en
+// el Excel de Holcim la marca naranja de "revisar antes de abonar" y el azul de "editado a mano", pero
+// al sacar el Excel desde un REPASO GUARDADO salia sin colores: aqui se guardan solo los campos de esta
+// lista y esos dos no estaban, asi que en la foto del repaso la marca simplemente no existia. Son dos
+// campos de nada (true/false) y solo se guardan cuando estan puestos, asi que el sitio que ocupan es
+// despreciable. Comprobado con el Excel real de Nucleo Garraf -> Puerto Barcelona: los albaranes
+// 1/01718/129671 y 1/01718/129685, marcados en naranja en la app, salian SIN COLOR.
 const _REPASO_CAMPOS = ['albaran', 'destino', 'estado_facturacion', 'fact_fija', 'fecha', 'material',
   'matricula', 'num_entrega', 'obra', 'origen', 'planta', 'precio', 'producto', 'tm', 'tn', 'tractora',
-  'transportista', 'valor_neto', 'db_id'];
+  'transportista', 'valor_neto', 'db_id', 'revisar_pago', 'manual_edit'];
 function _repasoAdelgazar(o) {
   if (!o || typeof o !== 'object') return o;
   const c = {};
