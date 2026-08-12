@@ -9067,6 +9067,11 @@ function applyFilters() {
     || fAlb;
   const bf = document.getElementById('btnExFil');
   if (bf) bf.style.display = hasF ? 'inline-block' : 'none';
+  // v533: el Excel POR RUTAS aparece con los mismos filtros que el Excel filtrado.
+  // v534: y ADEMAS solo para el ADMIN (JC). Lo pidio el: "esto solo lo gestiono yo,
+  // que nadie mas lo pueda ver" — lleva lo que factura cada subcontratado.
+  const br = document.getElementById('btnExRutas');
+  if (br) br.style.display = (hasF && currentRole === 'admin') ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
   const bd = document.getElementById('btnDlFil');
   if (bd) bd.style.display = hasF ? 'inline-block' : 'none';
@@ -11841,6 +11846,249 @@ async function exportExcelFiltrado() {
   XLSX.writeFile(wb, `albaranes_filtrado_${_pc ? 'CLIENTE_' : ''}${new Date().toISOString().slice(0,10)}.xlsx`);
   toast(`✓ Excel filtrado${_pc ? ' (precio CLIENTE)' : ''} · ${tm.toFixed(3)} TN`);
 }
+
+
+// ============================================================
+// v533 — EXCEL POR RUTAS (una pestana por ORIGEN -> DESTINO)
+// ------------------------------------------------------------
+// Lo pidio JC con una muestra real (HISPALIS_JULIO2026_acabado.xlsx), hecha
+// a mano filtrando ruta por ruta. Al comprobar esa muestra pestana por pestana
+// se ve que el criterio es ORIGEN + DESTINO y NADA MAS: en "GARRAF-ZONA F."
+// conviven AG-11/22, AF-0/4 y AG-4/11 sin separar, y las tres calizas van
+// todas a Fabrica Montcada pero con origenes distintos.
+//
+// NO toca el cruce de Holcim ni sus Excel por familias: aquello sale de la
+// autofactura y ademas marca lo NO ABONADO, que a JC le sirve para otra cosa.
+// Esto es lo contrario: coge lo que YA esta filtrado en Albaranes (cualquier
+// proveedor, no solo Holcim) y lo reparte en pestanas.
+//
+// La primera pestana, FACTURA, es el resumen: una linea por ruta Y PRECIO
+// (una misma ruta sale en dos lineas si el mes tiene tramos de dias con
+// precios distintos, igual que en la muestra de JC), con nº de viajes,
+// toneladas, precio, importe y el nombre de la pestana donde esta el detalle.
+// ============================================================
+
+// Palabras que sobran al abreviar el nombre de una pestana ("Cantera de
+// Garraf" -> GARRAF). Se quitan solo para el TITULO de la pestana; dentro,
+// el origen y el destino salen completos en sus columnas.
+const _RUTA_RELLENO = ['cantera','canteras','planta','plantas','fabrica','fábrica','de','del','la','el','los','las','hormigones','hormigon','hormigón','puesto','expedicion','expedición','sl','s.l.','sa','s.a.','sau','s.a.u.','slu','s.l.u.'];
+
+function _rutaAbrev(txt, tope) {
+  const limpio = String(txt || '').replace(/[\[\]\:\*\?\/\\]/g, ' ');
+  const palabras = limpio.split(/[\s,\.]+/).filter(Boolean)
+    .filter(w => _RUTA_RELLENO.indexOf(w.toLowerCase()) === -1);
+  const base = (palabras.length ? palabras.join(' ') : limpio).toUpperCase().trim();
+  return base.slice(0, tope).trim() || 'SIN DATO';
+}
+
+// Nombre de pestana valido para Excel: 31 caracteres como mucho, sin los
+// caracteres que Excel prohibe, y unico dentro del libro.
+function _rutaNombreHoja(origen, destino, usados) {
+  let n = _rutaAbrev(origen, 15) + '-' + _rutaAbrev(destino, 15);
+  n = n.slice(0, 31);
+  if (!usados.has(n)) { usados.add(n); return n; }
+  for (let i = 2; i < 100; i++) {
+    const alt = n.slice(0, 31 - String(i).length - 1) + ' ' + i;
+    if (!usados.has(alt)) { usados.add(alt); return alt; }
+  }
+  usados.add(n);
+  return n;
+}
+
+// Precio de una fila: el del albaran si lo trae, y si no la TARIFA de su ruta
+// segun la fecha (con su tramo de dias). Es EXACTAMENTE el mismo criterio que
+// usa el Excel filtrado de siempre — se copia aqui para no tocar buildExcel.
+function _rutaPrecioDe(r) {
+  let precio = (r.precio != null && r.precio !== '' && parseFloat(r.precio) > 0) ? parseFloat(r.precio) : 0;
+  let tramo = '';
+  const ts = parseDate(r.fecha || '');
+  if (ts) {
+    const d = new Date(ts);
+    if (!precio) {
+      const t = _tarifaDe(r.planta || r.origen || '', r.obra || r.destino || '', d.getFullYear(), d.getMonth() + 1, d.getDate());
+      if (t != null) precio = t;
+    }
+    tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+  return { precio: precio, tramo: tramo };
+}
+
+const _RUTA_HEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','ORIGEN','DESTINO'];
+
+async function exportExcelPorRutas() {
+  // v534: candado de verdad, no solo esconder el boton. Si alguien que no es admin
+  // llamara a la funcion, aqui se para.
+  if (currentRole !== 'admin') { toast('Solo el administrador puede sacar este Excel', 'err'); return; }
+  if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  await loadTarifas();
+
+  // Los DUPLICADOS se quedan fuera, igual que en el Excel de siempre.
+  const validos = filtered.filter(r => !r._dup);
+  const nDup = filtered.length - validos.length;
+  if (!validos.length) { toast('Todo lo filtrado son duplicados', 'err'); return; }
+
+  // --- Agrupar por ORIGEN + DESTINO ---
+  const grupos = new Map();
+  validos.forEach(r => {
+    const ori = String(r.planta || r.origen || '').trim();
+    const des = String(r.obra || r.destino || '').trim();
+    const clave = (ori.toLowerCase() || '(sin origen)') + '||' + (des.toLowerCase() || '(sin destino)');
+    if (!grupos.has(clave)) grupos.set(clave, { origen: ori || 'SIN ORIGEN', destino: des || 'SIN DESTINO', filas: [] });
+    grupos.get(clave).filas.push(r);
+  });
+
+  const lista = Array.from(grupos.values()).sort((a, b) => {
+    const o = a.origen.localeCompare(b.origen, 'es');
+    return o !== 0 ? o : a.destino.localeCompare(b.destino, 'es');
+  });
+
+  if (lista.length > 45 && !confirm('Van a salir ' + lista.length + ' pestañas.\n\nSuele significar que el filtro está muy abierto. ¿Sigo igualmente?')) return;
+
+  const wb = XLSX.utils.book_new();
+  const usados = new Set(['FACTURA']);
+  const resumen = [];   // lineas para la pestana FACTURA
+  let totalViajes = 0, totalTn = 0, totalEuros = 0;
+  const hojas = [];     // {nombre, rows, nDatos}
+
+  lista.forEach(g => {
+    const nombre = _rutaNombreHoja(g.origen, g.destino, usados);
+    // Orden dentro de la pestana: fecha, matricula, nº albaran (como el Excel de siempre)
+    const orden = [...g.filas].sort((a, b) => {
+      const fa = fechaSortNum(a.fecha), fb = fechaSortNum(b.fecha);
+      if (fa !== fb) return fa - fb;
+      const ma = String(a.tractora || '').toUpperCase().trim(), mb = String(b.tractora || '').toUpperCase().trim();
+      if (ma !== mb) { if (!ma) return 1; if (!mb) return -1; return ma.localeCompare(mb, 'es', { numeric: true }); }
+      return String(a.albaran || '').localeCompare(String(b.albaran || ''), 'es', { numeric: true });
+    });
+
+    // Por PRECIO dentro de la ruta (los tramos de dias parten la ruta en dos lineas de factura)
+    const porPrecio = new Map();
+    let gTn = 0, gEur = 0;
+    const rows = [_RUTA_HEAD];
+
+    orden.forEach(r => {
+      const tm = parseFloat(r.tm) || 0;
+      const pp = _rutaPrecioDe(r);
+      const tot = Math.round(tm * pp.precio * 100) / 100;
+      gTn += tm; gEur += tot;
+      const k = String(pp.precio);
+      if (!porPrecio.has(k)) porPrecio.set(k, { precio: pp.precio, n: 0, tn: 0, eur: 0, mats: {} });
+      const b = porPrecio.get(k);
+      b.n++; b.tn += tm; b.eur += tot;
+      const mat = String(r.producto || '').trim() || '(sin material)';
+      b.mats[mat] = (b.mats[mat] || 0) + 1;
+      rows.push([
+        r.fecha != null ? r.fecha : '',
+        r.tractora != null ? r.tractora : '',
+        tm,
+        pp.precio,
+        tot,
+        pp.tramo,
+        r.albaran != null ? r.albaran : '',
+        r.producto != null ? r.producto : '',
+        r.cliente != null ? r.cliente : '',
+        r.proveedor != null ? r.proveedor : '',
+        g.origen,
+        g.destino
+      ]);
+    });
+
+    const nDatos = rows.length;   // cabecera incluida = ultima fila de datos en Excel
+    rows.push(['', 'TOTAL', Math.round(gTn * 1000) / 1000, '', Math.round(gEur * 100) / 100, '', '', '', '', '', '', '']);
+    hojas.push({ nombre: nombre, rows: rows, nDatos: nDatos });
+
+    totalViajes += orden.length; totalTn += gTn; totalEuros += gEur;
+
+    // Una linea de resumen por cada precio distinto de la ruta, de mayor a menor importe
+    Array.from(porPrecio.values()).sort((a, b) => b.eur - a.eur).forEach(b => {
+      let concepto = '', maxN = -1;
+      Object.keys(b.mats).forEach(m => { if (b.mats[m] > maxN) { maxN = b.mats[m]; concepto = m; } });
+      resumen.push([concepto, g.origen, g.destino, b.n, Math.round(b.tn * 1000) / 1000, 'TN',
+                    b.precio, Math.round(b.eur * 100) / 100, nombre]);
+    });
+  });
+
+  // ---------- Pestana FACTURA (resumen) ----------
+  const hoy = new Date();
+  const cab = [
+    ['RESUMEN DE FACTURACIÓN POR RUTAS'],
+    ['Generado el ' + hoy.toLocaleDateString('es-ES') + ' · ' + totalViajes + ' viajes en ' + lista.length + ' rutas' + (nDup ? ' · ' + nDup + ' duplicado(s) excluido(s)' : '')],
+    ['Las rutas SIN PRECIO salen a 0 € — ponlo en Tarifas por servicio y vuelve a sacar el Excel.'],
+    [''],
+    ['CONCEPTO','ORIGEN','DESTINO','Nº VIAJES','CANTIDAD','UD.','PRECIO (€)','IMPORTE (€)','PESTAÑA']
+  ];
+  const filaPrimeraRes = cab.length + 1;                 // 1ª fila de datos en Excel
+  const rowsRes = cab.concat(resumen);
+  const filaUltimaRes = rowsRes.length;                  // ultima fila de datos
+  const base = Math.round(totalEuros * 100) / 100;
+  const iva = Math.round(base * 0.21 * 100) / 100;
+  rowsRes.push(['', '', '', totalViajes, Math.round(totalTn * 1000) / 1000, '', 'BASE IMPONIBLE', base, '']);
+  rowsRes.push(['', '', '', '', '', '', 'IVA 21%', iva, '']);
+  rowsRes.push(['', '', '', '', '', '', 'TOTAL FACTURA', Math.round((base + iva) * 100) / 100, '']);
+
+  const wsR = XLSX.utils.aoa_to_sheet(rowsRes);
+  wsR['!cols'] = [34, 24, 26, 10, 12, 6, 12, 14, 22].map(w => ({ wch: w }));
+  {
+    const fB = rowsRes.length - 2, fI = rowsRes.length - 1, fT = rowsRes.length;
+    if (filaUltimaRes >= filaPrimeraRes) {
+      if (wsR['D' + fB]) wsR['D' + fB] = { t: 'n', f: `SUM(D${filaPrimeraRes}:D${filaUltimaRes})`, v: wsR['D' + fB].v };
+      if (wsR['E' + fB]) wsR['E' + fB] = { t: 'n', f: `SUM(E${filaPrimeraRes}:E${filaUltimaRes})`, v: wsR['E' + fB].v };
+      if (wsR['H' + fB]) wsR['H' + fB] = { t: 'n', f: `SUM(H${filaPrimeraRes}:H${filaUltimaRes})`, v: wsR['H' + fB].v };
+    }
+    if (wsR['H' + fI]) wsR['H' + fI] = { t: 'n', f: `H${fB}*0.21`, v: wsR['H' + fI].v };
+    if (wsR['H' + fT]) wsR['H' + fT] = { t: 'n', f: `H${fB}+H${fI}`, v: wsR['H' + fT].v };
+    const rg = XLSX.utils.decode_range(wsR['!ref']);
+    for (let R = rg.s.r; R <= rg.e.r; R++) {
+      for (let C = rg.s.c; C <= rg.e.c; C++) {
+        const a = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!wsR[a]) wsR[a] = { t: 's', v: '' };
+        if (!wsR[a].s) wsR[a].s = {};
+        wsR[a].s.alignment = { horizontal: C === 0 || C === 1 || C === 2 ? 'left' : 'center', vertical: 'center' };
+        wsR[a].s.font = { bold: true, sz: 12 };
+        if (R === 0) wsR[a].s.font = { bold: true, sz: 14 };
+        if (R === 4) wsR[a].s.font = { bold: true, sz: 13 };
+        if (R >= rowsRes.length - 3) wsR[a].s.font = { bold: true, sz: 13 };
+        if (R > 4 && (C === 6 || C === 7)) wsR[a].z = '#,##0.00 €';
+      }
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, wsR, 'FACTURA');
+
+  // ---------- Una pestana por ruta ----------
+  hojas.forEach(h => {
+    const ws = XLSX.utils.aoa_to_sheet(h.rows);
+    ws['!cols'] = [11, 11, 10, 13, 13, 9, 16, 26, 24, 24, 24, 26].map(w => ({ wch: w }));
+    // TOTAL de cada linea = TN x PRECIO (formula con el valor ya calculado, para
+    // que si JC toca un precio a mano se recalcule solo). Y las sumas del pie.
+    for (let R = 2; R <= h.nDatos; R++) {
+      const e = 'E' + R;
+      if (ws[e] && ws[e].v != null && ws[e].v !== '') ws[e] = { t: 'n', f: `C${R}*D${R}`, v: ws[e].v };
+    }
+    const fT = h.rows.length;
+    if (h.nDatos >= 2) {
+      if (ws['C' + fT] && ws['C' + fT].v != null) ws['C' + fT] = { t: 'n', f: `SUM(C2:C${h.nDatos})`, v: ws['C' + fT].v };
+      if (ws['E' + fT] && ws['E' + fT].v != null) ws['E' + fT] = { t: 'n', f: `SUM(E2:E${h.nDatos})`, v: ws['E' + fT].v };
+    }
+    const rg = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = rg.s.r; R <= rg.e.r; R++) {
+      for (let C = rg.s.c; C <= rg.e.c; C++) {
+        const a = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[a]) ws[a] = { t: 's', v: '' };
+        if (!ws[a].s) ws[a].s = {};
+        ws[a].s.alignment = { horizontal: 'center', vertical: 'center' };
+        ws[a].s.font = { bold: true, sz: 12 };
+        if (R === 0 || R === rg.e.r) ws[a].s.font = { bold: true, sz: 13 };
+        if (R > 0 && (C === 3 || C === 4)) ws[a].z = '#,##0.00 €';
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, h.nombre);
+  });
+
+  XLSX.writeFile(wb, `facturacion_por_rutas_${hoy.toISOString().slice(0, 10)}.xlsx`);
+  toast(`✓ ${lista.length} rutas · ${totalViajes} viajes · ${Math.round(totalEuros * 100) / 100} €`, 'ok');
+}
+
 
 // v107K25 — Excel SOLO de los albaranes marcados con las casillas (modo selección). Antes solo había
 // "Excel filtrado" (todo lo filtrado). Recoge los seleccionados igual que _facturarSeleccionados.
