@@ -11913,11 +11913,14 @@ function _rutaPrecioDe(r) {
   return { precio: precio, tramo: tramo };
 }
 
-const _RUTA_HEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','ORIGEN','DESTINO'];
+// v536: MISMO orden de columnas que el Excel filtrado (v529), que es al que JC
+// esta acostumbrado: detras del Nº DE ALBARAN van ORIGEN · DESTINO · MATERIAL ·
+// CLIENTE · NOMBRE PROVEEDOR, y al final REMOLQUE y TRANSPORTISTA.
+const _RUTA_HEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','ORIGEN','DESTINO','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','REMOLQUE','TRANSPORTISTA'];
 // v535: la MISMA cabecera para las rutas que se cobran POR VIAJE (Tecnocatalana,
 // Escombros/Puigfel, Girona Runes...), donde la columna TN vale 1 en todas las
 // filas porque no se paga por tonelada sino por porte.
-const _RUTA_HEAD_VIAJE = ['FECHA','MATRICULA','VIAJES','PRECIO (€/VIAJE)','TOTAL (€)','TRAMO','Nº DE ALBARAN','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','ORIGEN','DESTINO'];
+const _RUTA_HEAD_VIAJE = ['FECHA','MATRICULA','VIAJES','PRECIO (€/VIAJE)','TOTAL (€)','TRAMO','Nº DE ALBARAN','ORIGEN','DESTINO','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','REMOLQUE','TRANSPORTISTA'];
 
 // v535: ¿esta ruta se cobra POR VIAJE? Lo es cuando TODAS sus lineas traen
 // exactamente 1 en el campo TN — que es como se graban esos portes (la tonelada
@@ -12031,16 +12034,18 @@ async function exportExcelPorRutas() {
         tot,
         pp.tramo,
         r.albaran != null ? r.albaran : '',
-        r.producto != null ? r.producto : '',
-        r.cliente != null ? r.cliente : '',
-        r.proveedor != null ? r.proveedor : '',
-        g.origen,
-        g.destino
+        g.origen,                                          // v536: ORIGEN detras del nº albaran
+        g.destino,                                         // v536: DESTINO
+        r.producto != null ? r.producto : '',              // v536: MATERIAL
+        r.cliente != null ? r.cliente : '',                // v536: CLIENTE
+        r.proveedor != null ? r.proveedor : '',            // v536: NOMBRE PROVEEDOR
+        r.remolque != null ? r.remolque : '',              // v536: REMOLQUE
+        r.transportista != null ? r.transportista : ''     // v536: TRANSPORTISTA
       ]);
     });
 
     const nDatos = rows.length;   // cabecera incluida = ultima fila de datos en Excel
-    rows.push(['', 'TOTAL', Math.round(gTn * 1000) / 1000, '', Math.round(gEur * 100) / 100, '', '', '', '', '', '', '']);
+    rows.push(['', 'TOTAL', Math.round(gTn * 1000) / 1000, '', Math.round(gEur * 100) / 100, '', '', '', '', '', '', '', '', '']);
     hojas.push({ nombre: nombre, rows: rows, nDatos: nDatos });
 
     totalViajes += orden.length; totalEuros += gEur;
@@ -12111,7 +12116,7 @@ async function exportExcelPorRutas() {
   // ---------- Una pestana por ruta ----------
   hojas.forEach(h => {
     const ws = XLSX.utils.aoa_to_sheet(h.rows);
-    ws['!cols'] = [11, 11, 10, 13, 13, 9, 16, 26, 24, 24, 24, 26].map(w => ({ wch: w }));
+    ws['!cols'] = [11, 11, 10, 13, 13, 9, 16, 24, 26, 26, 24, 24, 11, 22].map(w => ({ wch: w }));
     // TOTAL de cada linea = TN x PRECIO (formula con el valor ya calculado, para
     // que si JC toca un precio a mano se recalcule solo). Y las sumas del pie.
     for (let R = 2; R <= h.nDatos; R++) {
