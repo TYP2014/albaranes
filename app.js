@@ -11649,7 +11649,15 @@ async function deleteGasRecord() {
 const ECOLS = ['fecha','tractora','tm','precio','albaran','proveedor','planta','obra','producto','cliente','remolque','transportista','tara_kg','bruto_kg','hora_entrada','hora_salida','observaciones'];
 // v95b: Total movido al lado de Precio (columna E). Antes estaba al final como col S.
 // Ahora el orden es: FECHA | MATRICULA | TN NETAS | PRECIO | TOTAL | TRAMO | Nº ALBARAN | ...
-const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','NOMBRE PROVEEDOR','ORIGEN','DESTINO','MATERIAL','CLIENTE','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
+// v529 (Juan Carlos 12/08/2026) — NOMBRE PROVEEDOR se va DETRAS DE CLIENTE. Lo pidio JC: "está justo
+// después del nº de albarán y lo usamos menos; usamos más el origen, el destino y el material".
+// Orden nuevo a partir del nº de albarán: ORIGEN · DESTINO · MATERIAL · CLIENTE · NOMBRE PROVEEDOR.
+// Afecta al Excel COMPLETO y al FILTRADO (los dos usan esta misma cabecera). El Excel del cruce de
+// Holcim NO se toca: ese lleva sus propias columnas y ya iba en ese orden.
+// Hay que cambiar TRES cosas a la vez o se descoloca todo: esta cabecera, el orden en que se construye
+// cada fila, y los anchos de columna. Lo que NO se mueve es la columna del Nº DE ALBARAN (la 7ª, la G),
+// que es la que se pinta de naranja para "revisar antes de abonar" (v252) — sigue en su sitio.
+const EHEAD = ['FECHA','MATRICULA','TN NETAS','PRECIO (€/TN)','TOTAL (€)','TRAMO','Nº DE ALBARAN','ORIGEN','DESTINO','MATERIAL','CLIENTE','NOMBRE PROVEEDOR','REMOLQUE','TRANSPORTISTA','TARA (KG)','BRUTO (KG)','H.ENTRADA','H.SALIDA','OBSERVACIONES','SUBIDO POR','EDITADO POR','ESTADO'];
 
 function buildExcel(data, opts) {
   // v262 — modo PRECIO CLIENTE (solo lo activa el admin desde el Excel Filtrado): la columna
@@ -11723,8 +11731,8 @@ function buildExcel(data, opts) {
     let _tramo = '';
     if (!_precioCliente) { const _tsT = parseDate(r.fecha || ''); if (_tsT) { const _dT = new Date(_tsT); _tramo = _tarifaTramoDe(r.planta || r.origen || '', r.obra || r.destino || '', _dT.getFullYear(), _dT.getMonth() + 1, _dT.getDate()); } }
     // Construimos la fila campo a campo en el orden EXACTO de EHEAD:
-    // FECHA, MATRICULA, TN, PRECIO, TOTAL, TRAMO, Nº ALBARAN, PROV, ORIGEN, DEST, MATERIAL,
-    // COMPRADOR, REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO POR, ESTADO
+    // FECHA, MATRICULA, TN, PRECIO, TOTAL, TRAMO, Nº ALBARAN, ORIGEN, DEST, MATERIAL, CLIENTE,
+    // PROVEEDOR (v529), REMOLQUE, TRANSPORTISTA, TARA, BRUTO, H.ENT, H.SAL, OBS, SUBIDO, EDITADO, ESTADO
     return [
       r.fecha != null ? r.fecha : '',
       r.tractora != null ? r.tractora : '',
@@ -11733,11 +11741,11 @@ function buildExcel(data, opts) {
       totalFormula,
       _tramo,
       r.albaran != null ? r.albaran : '',
-      r.proveedor != null ? r.proveedor : '',
-      r.planta != null ? r.planta : '',
-      r.obra != null ? r.obra : '',
-      r.producto != null ? r.producto : '',
-      r.cliente != null ? r.cliente : '',
+      r.planta != null ? r.planta : '',            // v529: ORIGEN
+      r.obra != null ? r.obra : '',                // v529: DESTINO
+      r.producto != null ? r.producto : '',        // v529: MATERIAL
+      r.cliente != null ? r.cliente : '',          // v529: CLIENTE
+      r.proveedor != null ? r.proveedor : '',      // v529: NOMBRE PROVEEDOR, ahora detrás de CLIENTE
       r.remolque != null ? r.remolque : '',
       r.transportista != null ? r.transportista : '',
       r.tara_kg != null ? r.tara_kg : '',
@@ -11757,7 +11765,8 @@ function buildExcel(data, opts) {
   rows.push(filaSuma);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   // v107CP: 21 anchos (añadido 18 para EDITADO POR entre SUBIDO POR y ESTADO).
-  ws['!cols'] = [10,10,9,12,12,9,14,22,18,22,20,24,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
+  // v529: los anchos siguen al orden nuevo — el 22 del proveedor viaja con él, detrás del cliente.
+  ws['!cols'] = [10,10,9,12,12,9,14,18,22,20,24,22,10,22,10,10,8,8,24,18,18,12].map(w => ({wch: w}));
   // v107K10: el TOTAL (col E) es FÓRMULA =C*D pero con el VALOR ya calculado en caché. Así se ve el
   // número al abrir el Excel Y, si editas el PRECIO a mano, el Total se recalcula solo. La fila de
   // TOTALES igual: SUM con su valor en caché (antes salían en blanco porque no llevaban valor).
