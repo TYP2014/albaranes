@@ -6006,7 +6006,7 @@ EXCEPCIÓN ÚNICA — albaranes Holcim de RECEPCIÓN (cabecera "ALBARÁN DE RECE
 Analiza el documento (Portland, Holcim, Cemex, Àrids Garcia, Canteras Canro, Élite Cementos, Eco Àrids 2025, Molins/Promsa Garraf, u otros). En albaranes Molins (Promotora Mediterránea-2 S.A.U.): el proveedor es "Promotora Mediterránea-2 S.A.U.". En Élite Cementos: matrícula tractora está en "MATRICULA REMOLQUE" — coge solo la tractora (formato 4 dígitos+3 letras, ej: 1748JGL); TN netas están en "PESO NETO" en Kgs dividido entre 1000; fecha en "FECHA DE CARGA".
 ${isPdf?'El PDF puede tener VARIAS PÁGINAS con albaranes DISTINTOS. Extrae TODOS los albaranes que encuentres. Que una página tenga "DUPLICADO" o "COPIA" NO significa ignorarla — esas etiquetas indican copias para distintos destinatarios. SOLO ignora una página si todos sus datos clave (número de albarán, fecha, peso) son idénticos a otra página ya leída. Devuelve un ARRAY JSON con un objeto por cada albarán único.':'Devuelve un objeto JSON (no array).'}
 Campos a extraer:
-- albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. 🆕 v107FK — CEMEX (cabecera con logo "CEMEX ESPAÑA"): el albarán muestra DOS números en la parte de arriba — a la izquierda "No Albarán: 77469/XXXXXX" y al lado, en el centro, "Ref. CemexGo: M..." (un código que empieza por la letra M seguida de muchos dígitos, ej. "M4690000242043" en áridos, "M8480000008858" en cemento). 🔴 El número que DEBES poner en el campo albaran es SIEMPRE el de "Ref. CemexGo:" (el que empieza por M), porque es el que CEMEX usa luego en su preliquidación mensual para cuadrar. Cópialo COMPLETO, letra a letra, SIN espacios (ej. "M4690000242043"). El otro número, el de "No Albarán: 77469/XXXXXX", NO lo pongas en albaran: añádelo al campo observaciones con el texto "Nº interno CEMEX: 77469/XXXXXX" (poniendo en lugar de XXXXXX lo que leas, ej. "Nº interno CEMEX: 77469/242043"). Si el documento NO tuviera "Ref. CemexGo: M...", entonces (y solo entonces) usa el "No Albarán: 77469/XXXXXX" como albaran. 🔴🔴🔴 REGLA ANTI-INVENCIÓN DEL NÚMERO DE ALBARÁN (v107K14 — Juan Carlos 10/06/2026, CRÍTICA, MANDA SOBRE TODO LO DEMÁS): lee el número EXACTAMENTE como está impreso en ESTE albarán, dígito a dígito. Si NO lo lees con seguridad (borroso, cortado, tapado, manchado o sencillamente no aparece en el papel), devuelve el campo albaran VACÍO (null). NUNCA te inventes un número, NUNCA copies un número de los EJEMPLOS de estas instrucciones, y NUNCA reutilices el número de otro albarán que ya hayas leído en este mismo PDF o que "recuerdes" de otro. Un número EN BLANCO es MUCHO mejor que uno equivocado: si pones un número que en realidad pertenece a OTRO albarán distinto, creas un DUPLICADO FALSO (dos albaranes diferentes con el mismo número), que es justo el error grave que hay que evitar. Ante la mínima duda sobre el número, o si no estás seguro de haberlo leído bien: déjalo VACÍO (null). Juan Carlos prefiere completarlo a mano antes que tener un número inventado o repetido. Esto aplica a TODOS los proveedores (Holcim, CEMEX, Sodira, Promsa, Portland, Élite, y cualquier otro). 🆕 v219 MOLINS/PROMSA — DÓNDE ESTÁN EL Nº Y LA FECHA (03/07/2026, fotos de móvil de Marta): en los albaranes de venta Promsa/Molins (cabecera "Molins Concrete & Aggregates" / "Promotora Mediterránea-2"), el nº de albarán está en la casilla ENMARCADA con etiqueta "NÚM. ALBARÀ" (zona izquierda, debajo del nº de pedido largo tipo 9384...): son 5 dígitos y a su derecha, DENTRO de la misma casilla, un sufijo "- N" impreso aparte. Únelos sin espacios: p. ej. de FORMATO FICTICIO "12345 - N" → albaran = "12345-N" (NO copies este ejemplo, es inventado). Lee los 5 dígitos UNO A UNO con máximo cuidado (no confundas 9 con 3 ni con 8, ni 4 con 1); estas fotos suelen estar torcidas — si UN solo dígito no se distingue con seguridad, albaran = null. La FECHA está en la casilla "DATA" justo a la DERECHA de la del número, formato dd/mm/aaaa: si esa casilla se lee, devuélvela SIEMPRE — no dejes la fecha vacía si es legible, y NO la deduzcas de otro sitio del papel.
+- albaran: número completo. En Holcim albaranes de SALIDA son 11 dígitos. En Holcim albaranes de RECEPCIÓN DE MATERIAL usa el campo "DOCUMENTO DE ENVIO" o "ENVIO" como número de albarán. 🆕 v107FK — CEMEX (cabecera con logo "CEMEX ESPAÑA"): el albarán muestra DOS números en la parte de arriba — a la izquierda "No Albarán: 77469/XXXXXX" y al lado, en el centro, "Ref. CemexGo: M..." (un código que empieza por la letra M seguida de muchos dígitos, ej. "M4690000242043" en áridos, "M8480000008858" en cemento). 🔴 El número que DEBES poner en el campo albaran es SIEMPRE el de "Ref. CemexGo:" (el que empieza por M), porque es el que CEMEX usa luego en su preliquidación mensual para cuadrar. Cópialo COMPLETO, letra a letra, SIN espacios (ej. "M4690000242043"). El otro número, el de "No Albarán: 77469/XXXXXX", NO lo pongas en albaran: añádelo al campo observaciones con el texto "Nº interno CEMEX: 77469/XXXXXX" (poniendo en lugar de XXXXXX lo que leas, ej. "Nº interno CEMEX: 77469/242043"). Si el documento NO tuviera "Ref. CemexGo: M...", entonces (y solo entonces) usa el "No Albarán: 77469/XXXXXX" como albaran. 🔴🔴🔴 **v538 — LA ÚNICA EXCEPCIÓN A LO ANTERIOR: "TODO UNO" DE CEMEX QUE PAGA HOLCIM** (Juan Carlos 13/08/2026, sobre el albarán REAL 77469/247655 del 22/07/2026). Hay UN caso, y SOLO uno, en el que NO se usa la Ref. CemexGo. Es cuando se cumplen las TRES cosas A LA VEZ en el MISMO albarán de CEMEX: (1) en el bloque "Artículo", la Descripción de la primera línea es **TODO UNO** (puede venir con punto detrás, "TODO UNO."); (2) en el bloque "Cliente", el campo "Datos Cliente:" es **HOLCIM ESPAÑA S.A.U.**; y (3) en el bloque "Destino", el campo "Datos Obra:" contiene **FABRICA MONTCADA** (en el albarán real pone "CO 2024 FABRICA MONTCADA HOLCIM"). CUANDO SE CUMPLEN LAS TRES, DOS COSAS: (A) albaran = el número de **"No Albarán:"**, con su barra y tal cual lo leas (en el albarán real: "77469/247655"), y la Ref. CemexGo se va a observaciones con el texto "Ref. CemexGo: M4690000247655" (poniendo la que leas de verdad, no ésta) — o sea, JUSTO AL REVÉS de lo normal. Y (B) **producto = "Caliza Cemex"**, NO "TODO UNO". Aunque el papel ponga "TODO UNO." en la Descripción del Artículo, el material que hay que guardar es "Caliza Cemex". MOTIVO: "TODO UNO" es como lo llama CEMEX, pero en nuestra casa ese material NO existe con ese nombre — es la caliza que Holcim compra a Cemex, y así es como está en las tarifas, en los filtros y en el cruce de Holcim (que en materias primas cuadra por fecha + matrícula + toneladas, no por número). Si se guarda como "TODO UNO" no cuadra con nada. Con producto "Caliza Cemex" y proveedor Cemex España, el origen queda "Cemex/Begues", que es lo correcto. MOTIVO, para que se entienda: ese material lo carga CEMEX en Cantera Begues pero lo PAGA HOLCIM. No sale en la preliquidación mensual de CEMEX, así que si le pones la M se mezcla con los viajes que sí paga CEMEX y aparece eternamente como "no abonado" en un cruce donde no pinta nada. ⛔⛔ SI FALTA UNA SOLA DE LAS TRES CONDICIONES, NO APLIQUES ESTA EXCEPCIÓN: usa la Ref. CemexGo (la M) como siempre. Los áridos normales de CEMEX — los que van a "HORMIGON SANT JUST", a "HORMIGON MONTCADA", a "ZONA FRANCA" o a cualquier otra obra, y todos aquellos cuyo cliente es "Cemex España Operaciones, S.L.U." — llevan SIEMPRE la M, porque ésos sí los paga CEMEX y cambiarlos rompería el cuadre de la preliquidación entera. ⛔ TRAMPA A EVITAR: "FABRICA MONTCADA" (cliente HOLCIM, artículo TODO UNO) NO es lo mismo que "HORMIGON MONTCADA" (cliente CEMEX, árido normal). Se escriben parecido y son casos OPUESTOS: el primero lleva el 77469/XXXXXX, el segundo la M. Antes de aplicar la excepción, comprueba que en "Datos Cliente:" pone HOLCIM y que el artículo es TODO UNO — con el destino solo NO basta. 🔴🔴🔴 REGLA ANTI-INVENCIÓN DEL NÚMERO DE ALBARÁN (v107K14 — Juan Carlos 10/06/2026, CRÍTICA, MANDA SOBRE TODO LO DEMÁS): lee el número EXACTAMENTE como está impreso en ESTE albarán, dígito a dígito. Si NO lo lees con seguridad (borroso, cortado, tapado, manchado o sencillamente no aparece en el papel), devuelve el campo albaran VACÍO (null). NUNCA te inventes un número, NUNCA copies un número de los EJEMPLOS de estas instrucciones, y NUNCA reutilices el número de otro albarán que ya hayas leído en este mismo PDF o que "recuerdes" de otro. Un número EN BLANCO es MUCHO mejor que uno equivocado: si pones un número que en realidad pertenece a OTRO albarán distinto, creas un DUPLICADO FALSO (dos albaranes diferentes con el mismo número), que es justo el error grave que hay que evitar. Ante la mínima duda sobre el número, o si no estás seguro de haberlo leído bien: déjalo VACÍO (null). Juan Carlos prefiere completarlo a mano antes que tener un número inventado o repetido. Esto aplica a TODOS los proveedores (Holcim, CEMEX, Sodira, Promsa, Portland, Élite, y cualquier otro). 🆕 v219 MOLINS/PROMSA — DÓNDE ESTÁN EL Nº Y LA FECHA (03/07/2026, fotos de móvil de Marta): en los albaranes de venta Promsa/Molins (cabecera "Molins Concrete & Aggregates" / "Promotora Mediterránea-2"), el nº de albarán está en la casilla ENMARCADA con etiqueta "NÚM. ALBARÀ" (zona izquierda, debajo del nº de pedido largo tipo 9384...): son 5 dígitos y a su derecha, DENTRO de la misma casilla, un sufijo "- N" impreso aparte. Únelos sin espacios: p. ej. de FORMATO FICTICIO "12345 - N" → albaran = "12345-N" (NO copies este ejemplo, es inventado). Lee los 5 dígitos UNO A UNO con máximo cuidado (no confundas 9 con 3 ni con 8, ni 4 con 1); estas fotos suelen estar torcidas — si UN solo dígito no se distingue con seguridad, albaran = null. La FECHA está en la casilla "DATA" justo a la DERECHA de la del número, formato dd/mm/aaaa: si esa casilla se lee, devuélvela SIEMPRE — no dejes la fecha vacía si es legible, y NO la deduzcas de otro sitio del papel.
 - fecha: DD/MM/YYYY
 - hora_carga: SOLO si el documento muestra una HORA impresa junto a la fecha (típico "Fecha de carga: 17/07/2026 14:53:00"). Devúlvela como "HH:MM" (→ "14:53"). Si no hay hora impresa, o no se lee con seguridad, pon null. NUNCA la inventes ni uses la hora actual.
 - proveedor: empresa que emite el albarán
@@ -7877,6 +7877,24 @@ function analyzeRecords() {
       const _nCx = String(r.albaran || '').trim().toUpperCase();
       if (/^M/.test(_nCx) && !/^M\d{13}$/.test(_nCx)) {
         r._quality = 'warn';
+      }
+      // v538 — RED DE SEGURIDAD AL REVÉS (Juan Carlos 13/08/2026: "que no me
+      // cambie los de CEMEX diarios de Sant Just y Montcada, que son diez o doce
+      // al mes y me estropearía todo"). La excepción del TODO UNO permite, por
+      // primera vez, que un CEMEX NO lleve la M. Para que la IA no pueda
+      // aplicarla donde no toca, aquí se comprueba en CÓDIGO: si un CEMEX viene
+      // SIN M, tiene que cumplir las TRES condiciones. Si no las cumple, NO se
+      // corrige a ciegas — se marca "⚠ Rev" para que JC lo vea y lo revise.
+      // Es una alarma, no un cambio: nunca toca el número.
+      if (_nCx && !/^M/.test(_nCx)) {
+        const _sinTil = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        // El material vale de las DOS maneras: "Caliza Cemex" (como debe quedar
+        // guardado) o "TODO UNO" (como viene impreso, por si la IA no lo tradujo).
+        const _matOk = /CALIZA\s*CEMEX/.test(_sinTil(r.producto)) || /TODO\s*UNO/.test(_sinTil(r.producto));
+        const _esTodoUnoHolcim = _matOk
+          && /HOLCIM/.test(_sinTil(r.cliente))
+          && /FABRICA\s+MONTCADA/.test(_sinTil(r.obra));
+        if (!_esTodoUnoHolcim) r._quality = 'warn';
       }
     }
     // v91: detectar matrículas desconocidas (rellenas pero no en TRANSPORTISTAS oficiales
@@ -13218,15 +13236,58 @@ async function loadItvData() {
   }
 }
 
+
+// v537 — LAS CITAS DE ITV PASADAS SE BORRAN SOLAS AL DIA SIGUIENTE.
+// Lo pidio JC: "se me olvida eliminarlas, se quedan ahi y ya no hacen falta,
+// aunque no fuesemos no sirven para nada... que se elimine y no haya mas rastro".
+// Se borra la cita cuya FECHA ya paso — o sea, a partir del dia siguiente; la
+// del propio dia NO se toca, que ese dia todavia hace falta tenerla delante.
+// Se borra tambien la foto del SMS/email del centro, para que no quede suelta.
+// El borrado manual desde el modal sigue funcionando igual que siempre.
+async function _itvBorrarCitasPasadas(filas) {
+  // Quien no puede crear ni borrar citas, tampoco borra nada aqui.
+  if (window._itvSoloLectura) return [];
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+  const viejas = (filas || []).filter(r => r.fecha_cita && String(r.fecha_cita).slice(0, 10) < hoyISO);
+  if (!viejas.length) return [];
+  try {
+    const { error } = await sb.from('itv_citas').delete().in('id', viejas.map(r => r.id));
+    if (error) { console.warn('[v537] no se pudieron borrar las citas pasadas:', error.message); return []; }
+  } catch (e) { console.warn('[v537] error borrando citas pasadas:', e); return []; }
+  // La foto, en segundo plano y sin dar guerra: si falla, la cita ya esta
+  // borrada igualmente y la foto no la ve nadie porque no cuelga de ningun sitio.
+  try {
+    const rutas = [];
+    viejas.forEach(r => {
+      const u = String(r.file_url || '');
+      const i = u.indexOf('/documentos/');
+      if (i !== -1) rutas.push(decodeURIComponent(u.slice(i + 12).split('?')[0]));
+    });
+    if (rutas.length) sb.storage.from('documentos').remove(rutas).catch(() => {});
+  } catch (e) { console.warn('[v537] foto de cita no borrada:', e); }
+  return viejas;
+}
+
 // v107h: cargar citas ITV (próximas inspecciones programadas)
 async function loadItvCitas() {
   if (!window._tieneITV) return;
   try {
     const { data, error } = await sb.from('itv_citas').select('*').order('fecha_cita', { ascending: true, nullsFirst: false });
     if (error) throw error;
-    itvCitasRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    // v537: antes de pintar, se van las citas cuyo dia ya paso.
+    const _borradas = await _itvBorrarCitasPasadas(data);
+    const _fuera = new Set(_borradas.map(r => r.id));
+    itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id)).map(r => ({ ...r, db_id: r.id, _id: r.id }));
     try { await firmarCampo(itvCitasRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado citas:', e); }
     applyCitasFilters();
+    if (_borradas.length) {
+      // Se dice QUE se ha borrado, no solo cuantas: si algun dia se cuela una
+      // cita con el año mal escrito, JC la vera desaparecer y sabra cual era.
+      const det = _borradas.slice(0, 3).map(r => (r.matricula || '¿?') + ' ' +
+        (r.fecha_cita ? new Date(r.fecha_cita + 'T00:00:00').toLocaleDateString('es-ES') : '')).join(', ');
+      toast('🗑 ' + _borradas.length + ' cita(s) ya pasada(s): ' + det + (_borradas.length > 3 ? '…' : ''));
+    }
   } catch (e) {
     console.error('[loadItvCitas] Error:', e);
   }
