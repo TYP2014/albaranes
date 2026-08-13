@@ -13237,7 +13237,7 @@ async function loadItvData() {
 }
 
 
-// v537 — LAS CITAS DE ITV PASADAS SE BORRAN SOLAS AL DIA SIGUIENTE.
+// v537 — LAS CITAS DE ITV PASADAS SE BORRAN SOLAS. (v539: una hora despues de la cita.)
 // Lo pidio JC: "se me olvida eliminarlas, se quedan ahi y ya no hacen falta,
 // aunque no fuesemos no sirven para nada... que se elimine y no haya mas rastro".
 // Se borra la cita cuya FECHA ya paso — o sea, a partir del dia siguiente; la
@@ -13247,9 +13247,23 @@ async function loadItvData() {
 async function _itvBorrarCitasPasadas(filas) {
   // Quien no puede crear ni borrar citas, tampoco borra nada aqui.
   if (window._itvSoloLectura) return [];
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
-  const viejas = (filas || []).filter(r => r.fecha_cita && String(r.fecha_cita).slice(0, 10) < hoyISO);
+  // v539: ya no se espera al dia siguiente — se borra UNA HORA DESPUES de la
+  // hora de la cita, que lo pidio JC ("cuando pase una hora de la cita, que se
+  // elimine"). Esa hora de cortesia es a proposito: si vas a las 6 de la mañana
+  // y te la deniegan o hay que repetir, la tienes delante mientras estas alli.
+  const AHORA = Date.now();
+  const viejas = (filas || []).filter(r => {
+    if (!r.fecha_cita) return false;
+    const lim = new Date(String(r.fecha_cita).slice(0, 10) + 'T00:00:00');
+    if (isNaN(lim.getTime())) return false;
+    // La hora se teclea a mano, asi que se lee con manga ancha: "6:00", "06:00",
+    // "14.30", "8h30"... Si no hay hora o no se entiende, se toma el final del
+    // dia, con lo que esa cita se va al dia siguiente, como hacia la v537.
+    const m = /^(\d{1,2})\s*[:.hH]\s*(\d{2})/.exec(String(r.hora_cita || '').trim());
+    lim.setHours(m ? Math.min(23, parseInt(m[1], 10)) : 23,
+                 m ? Math.min(59, parseInt(m[2], 10)) : 59, 0, 0);
+    return AHORA > lim.getTime() + 3600000;   // + 1 hora
+  });
   if (!viejas.length) return [];
   try {
     const { error } = await sb.from('itv_citas').delete().in('id', viejas.map(r => r.id));
