@@ -13386,19 +13386,22 @@ function itvCitaWhatsApp(id) {
   const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
   if (!r) return;
   const dia = r.fecha_cita ? r.fecha_cita.split('-').reverse().join('/') : '';
-  let msg = '🛡 Recordatorio: cita de ITV\n';
-  msg += '🚛 ' + (r.matricula || '') + '\n';
-  msg += '📅 ' + dia + (r.hora_cita ? ' a las ' + r.hora_cita : '') + '\n';
-  if (r.centro) msg += '📍 ' + r.centro + '\n';
+  // v541: SIN EMOJIS. En el movil de JC y en el PC de la oficina salian todos
+  // como rombos, asi que no compensa: se usan solo letras, guiones y la negrita
+  // de WhatsApp (*texto*), que se ve igual en cualquier telefono y sistema.
+  let msg = '*RECORDATORIO: CITA DE ITV*\n';
+  msg += 'Vehículo: ' + (r.matricula || '') + '\n';
+  msg += 'Día: ' + dia + (r.hora_cita ? ' a las ' + r.hora_cita : '') + '\n';
+  if (r.centro) msg += 'Centro: ' + r.centro + '\n';
   // v540: antes de salir, COMPROBAR que la documentación está a bordo. JC:
   // "las tractoras la tienen en una carpeta y los semirremolques en una especie
   // de tubo". No basta con decir "llevar" — hay que mirarlo antes de arrancar,
   // que es donde se pierde el viaje.
   msg += '\n';
-  msg += '✅ ANTES DE SALIR, comprueba que el vehículo lleva a bordo la ficha técnica y el permiso de circulación:\n';
-  msg += '   • Tractora: en la carpeta de la documentación.\n';
-  msg += '   • Semirremolque: en el tubo portadocumentos.\n';
-  msg += '📄 Llévala contigo a la estación de ITV.';
+  msg += '*ANTES DE SALIR*, comprueba que el vehículo lleva a bordo la ficha técnica y el permiso de circulación:\n';
+  msg += '- Tractora: en la carpeta de la documentación.\n';
+  msg += '- Semirremolque: en el tubo portadocumentos.\n';
+  msg += 'Llévala contigo a la estación de ITV.';
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
