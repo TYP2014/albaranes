@@ -13390,7 +13390,15 @@ function itvCitaWhatsApp(id) {
   msg += '🚛 ' + (r.matricula || '') + '\n';
   msg += '📅 ' + dia + (r.hora_cita ? ' a las ' + r.hora_cita : '') + '\n';
   if (r.centro) msg += '📍 ' + r.centro + '\n';
-  msg += 'Llevar la ficha técnica y el permiso de circulación.';
+  // v540: antes de salir, COMPROBAR que la documentación está a bordo. JC:
+  // "las tractoras la tienen en una carpeta y los semirremolques en una especie
+  // de tubo". No basta con decir "llevar" — hay que mirarlo antes de arrancar,
+  // que es donde se pierde el viaje.
+  msg += '\n';
+  msg += '✅ ANTES DE SALIR, comprueba que el vehículo lleva a bordo la ficha técnica y el permiso de circulación:\n';
+  msg += '   • Tractora: en la carpeta de la documentación.\n';
+  msg += '   • Semirremolque: en el tubo portadocumentos.\n';
+  msg += '📄 Llévala contigo a la estación de ITV.';
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
