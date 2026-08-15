@@ -15332,13 +15332,36 @@ function _fichajeArrancarReloj() {
 // Pulsar el botón grande -> graba el evento que toca con la hora del servidor
 async function ficharBotonGrande() {
   const btn = document.getElementById('fichajeBtnGrande');
+  if (btn && btn.disabled) return;   // v545: ya está grabando o no toca fichar
   const evento = btn?.dataset?.evento;
   if (!evento) return;
   await _fichajeInsertar({ tipo: evento, metodo: 'boton' });
 }
 
+// v545 — EL BOTÓN SE BLOQUEA MIENTRAS GRABA.
+// Entre pulsar y que la fila esté guardada pasan uno o dos segundos (insert +
+// recarga). Hasta ahora el botón seguía vivo todo ese rato, así que quien no
+// veía reacción volvía a pulsar: en el día 14/08/2026 de Carlos García hay
+// TRES filas con la misma hora al segundo (15:18:49) y otras tres a las
+// 17:33:01. Este cerrojo lo impide: es un solo interruptor para los dos
+// botones (el grande y el de jornada continua), así que da igual cuál se
+// pulse y cuántas veces.
+let _fichajeGrabando = false;
+
 // Inserta un fichaje (evento directo). La hora la pone el servidor (now()).
 async function _fichajeInsertar({ tipo, metodo, ts, nota }) {
+  // v545: cerrojo — si ya hay uno en camino, este toque se ignora
+  if (_fichajeGrabando) { toast('Espera un segundo, se está guardando el fichaje…'); return; }
+  _fichajeGrabando = true;
+  const _bG = document.getElementById('fichajeBtnGrande');
+  const _bC = document.getElementById('fichajeBtnContinua');
+  const _txtG = _bG ? _bG.textContent : null;
+  const _txtC = _bC ? _bC.textContent : null;
+  [_bG, _bC].forEach(b => {
+    if (!b) return;
+    b.disabled = true; b.style.opacity = '.55'; b.style.cursor = 'wait';
+  });
+  if (_bG && metodo !== 'manual') _bG.textContent = '⏳ GUARDANDO…';
   try {
     const datos = _fichajeMisDatos();
     const fila = {
@@ -15356,10 +15379,15 @@ async function _fichajeInsertar({ tipo, metodo, ts, nota }) {
     const { error } = await sb.from('fichajes').insert(fila);
     if (error) throw error;
     toast('✅ Fichaje registrado: ' + (_FICHAJE_LABELS[tipo] || tipo));
-    await loadFichajes();
+    await loadFichajes();   // repinta los botones con el evento que toca ahora
   } catch (e) {
     console.error('[_fichajeInsertar]', e);
     toast('Error al fichar: ' + (e.message || e), 'err');
+    // v545: si ha fallado, los botones vuelven a como estaban para poder reintentar
+    if (_bG) { _bG.textContent = _txtG; _bG.disabled = false; _bG.style.opacity = '1'; _bG.style.cursor = 'pointer'; }
+    if (_bC) { _bC.textContent = _txtC; _bC.disabled = false; _bC.style.opacity = '1'; _bC.style.cursor = 'pointer'; }
+  } finally {
+    _fichajeGrabando = false;   // v545: se suelta el cerrojo PASE LO QUE PASE
   }
 }
 
