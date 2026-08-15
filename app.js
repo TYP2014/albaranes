@@ -15302,8 +15302,85 @@ function _fichajeRenderBotonera() {
     }
   }
 
+  // v549 — LA SALIDA DE EMERGENCIA.
+  // El boton grande decide POR TI cual es el fichaje que toca. Si por lo que sea
+  // decide mal (un fallo como el de la v544, o un paso que falta), el trabajador
+  // se queda encerrado: pulsa, no pasa lo que espera, y vuelve a pulsar. Asi
+  // salieron las quince "Salida a comer" de Carlos Garcia el 14/08/2026.
+  // Esto le da SIEMPRE una puerta: un enlace pequenio bajo el boton que abre los
+  // cuatro fichajes para elegir a mano. No cambia nada de lo que decide la app;
+  // solo deja de ser la unica opcion.
+  if (btn && btn.parentNode && !ausenciaHoy) {
+    let elc = document.getElementById('fichajeOtroLink');
+    if (!elc) {
+      elc = document.createElement('div');
+      elc.id = 'fichajeOtroLink';
+      elc.style.cssText = 'max-width:340px;margin:0 auto 6px;text-align:center';
+      elc.innerHTML = '<button class="btn bs" style="font-size:11px;padding:7px 12px" '
+        + 'onclick="fichajeOtroToggle()">¿No es esto lo que quiero fichar?</button>';
+      const anc = document.getElementById('fichajeBtnContinua') || btn;
+      anc.parentNode.insertBefore(elc, anc.nextSibling);
+    }
+    let cajaO = document.getElementById('fichajeOtrosBox');
+    if (!cajaO) {
+      cajaO = document.createElement('div');
+      cajaO.id = 'fichajeOtrosBox';
+      cajaO.style.cssText = 'max-width:340px;margin:0 auto 16px;display:none;'
+        + 'border:1px solid var(--bd);border-radius:8px;padding:12px;background:rgba(0,0,0,.02)';
+      elc.parentNode.insertBefore(cajaO, elc.nextSibling);
+    }
+    const _ficha = [
+      ['entrada',       '🟢 Entrada'],
+      ['salida_comida', '🍽️ Salida a comer'],
+      ['vuelta_comida', '↩️ Vuelta de comer'],
+      ['salida',        '🔴 Salida']
+    ];
+    cajaO.innerHTML = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:9px;line-height:1.5">'
+      + 'Elige tú el fichaje. Se guarda con la hora de ahora y queda anotado que lo elegiste tú.</div>'
+      + _ficha.map(([t, lbl]) => {
+          const ya = eventosJornada.indexOf(t) !== -1;
+          return '<button class="btn bs" style="width:100%;font-size:12px;padding:10px;margin-bottom:6px'
+            + (ya ? ';opacity:.6' : '') + '" onclick="fichajeFicharOtro(\'' + t + '\')">'
+            + lbl + (ya ? ' · ya fichado hoy' : '') + '</button>';
+        }).join('');
+  }
+
   // Reloj en vivo
   _fichajeArrancarReloj();
+}
+
+// v549: abre/cierra el panel de la salida de emergencia
+function fichajeOtroToggle() {
+  const c = document.getElementById('fichajeOtrosBox');
+  if (!c) return;
+  c.style.display = (c.style.display === 'none' || !c.style.display) ? 'block' : 'none';
+}
+
+// v549: el trabajador elige EL a mano el fichaje. La HORA es la de ahora (no se
+// teclea), asi que el registro sigue siendo real; lo unico que elige es QUE es.
+// Queda anotado en la nota que lo eligio el y que ofrecia el boton, para que el
+// rastro de la Inspeccion diga la verdad de como se apunto.
+async function fichajeFicharOtro(tipo) {
+  const btn = document.getElementById('fichajeBtnGrande');
+  const ofrecia = btn?.dataset?.evento || null;
+  const evs = _fichajeEventosValidosDia(currentUser?.id, _fichajeFechaLocal(new Date()));
+  const lbl = _FICHAJE_LABELS[tipo] || tipo;
+  // Anti-duplicado: si ya lo tiene hoy, se avisa ANTES de crear otra fila igual
+  if (evs.indexOf(tipo) !== -1) {
+    if (!confirm('Hoy ya tienes fichado "' + lbl + '".\n\n'
+      + 'Si lo vuelves a fichar quedan dos apuntes del mismo tipo y habrá que corregirlo.\n\n'
+      + '¿Seguro que quieres fichar otra vez ' + lbl + '?')) return;
+  } else {
+    if (!confirm('¿Fichar "' + lbl + '" con la hora de ahora?')) return;
+  }
+  const c = document.getElementById('fichajeOtrosBox');
+  if (c) c.style.display = 'none';
+  await _fichajeInsertar({
+    tipo: tipo,
+    metodo: 'boton',
+    nota: 'Elegido por el trabajador' + (ofrecia && ofrecia !== tipo
+      ? ' (el botón ofrecía: ' + (_FICHAJE_LABELS[ofrecia] || ofrecia) + ')' : '')
+  });
 }
 
 function _fichajeArrancarReloj() {
@@ -15374,6 +15451,7 @@ async function _fichajeInsertar({ tipo, metodo, ts, nota }) {
       metodo: metodo || 'boton',
       registrado_por: currentUser.id
     };
+    if (nota) fila.nota = nota;   // v549: la nota llegaba y se tiraba
     // Si es manual con hora concreta, la mandamos; si es botón, la pone el server
     if (ts) fila.ts = ts;
     const { error } = await sb.from('fichajes').insert(fila);
