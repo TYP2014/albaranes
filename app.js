@@ -12986,9 +12986,9 @@ function renderTallerGlobalBanner() {
 
   // Config visual de cada nivel. La key se usa para ocultar ese color por separado.
   const niveles = [
-    { key: 'vencido', icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'mantenimiento VENCIDO',  txtPl: 'vehículos con mantenimiento VENCIDO' },
-    { key: 'pronto',  icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'mantenimiento próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con mantenimiento próximo' },
-    { key: 'plan',    icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'mantenimiento a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos a planificar' }
+    { key: 'vencido', icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'MANTENIMIENTO DE TALLER VENCIDO',  txtPl: 'vehículos con el MANTENIMIENTO DE TALLER VENCIDO' },
+    { key: 'pronto',  icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)' },
+    { key: 'plan',    icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)' }
   ];
 
   const today = new Date().toISOString().slice(0, 10);
@@ -21581,11 +21581,11 @@ function renderCitasGlobalBanner() {
 
   // De lo mas urgente a lo menos. Mismos colores que la tabla.
   const niveles = [
-    { key:'pasada', color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA PASADA SIN CERRAR' },
-    { key:'hoy',    color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA HOY' },
-    { key:'d1',     color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA MAÑANA' },
-    { key:'d3',     color:'#ff9500', bg:'rgba(255,149,0,.12)',  icon:'🟠', titulo:'CITA EN 3 DÍAS O MENOS' },
-    { key:'d5',     color:'#ffd000', bg:'rgba(255,208,0,.12)',  icon:'🟡', titulo:'CITA EN 5 DÍAS O MENOS' }
+    { key:'pasada', color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA DE TALLER OFICIAL PASADA SIN CERRAR' },
+    { key:'hoy',    color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE TALLER OFICIAL HOY' },
+    { key:'d1',     color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE TALLER OFICIAL MAÑANA' },
+    { key:'d3',     color:'#ff9500', bg:'rgba(255,149,0,.12)',  icon:'🟠', titulo:'CITA DE TALLER OFICIAL EN 3 DÍAS O MENOS' },
+    { key:'d5',     color:'#ffd000', bg:'rgba(255,208,0,.12)',  icon:'🟡', titulo:'CITA DE TALLER OFICIAL EN 5 DÍAS O MENOS' }
   ];
 
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -29267,12 +29267,12 @@ function renderVencBanner() {
   _vencCache.veh.forEach(f => {
     const iso = f.proxima_revision; if (!iso || f.venc_hecho === iso || f.venc_tramite === iso) return;   // v488
     const d = _vencDias(iso), e = _vencEscalon(d);
-    if (e) todo.push({ e, d, txt: f.matricula, iso });
+    if (e) todo.push({ e, d, txt: f.matricula, iso, tipo: 'veh' });   // v542
   });
   _vencCache.con.forEach(f => {
     const iso = f.tarjeta_caduca; if (!iso || f.venc_hecho === iso || f.venc_tramite === iso) return;   // v488
     const d = _vencDias(iso), e = _vencEscalon(d);
-    if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso });
+    if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso, tipo: 'con' });   // v542
   });
   if (!todo.length) { b.style.display = 'none'; return; }
   const porEsc = new Map();
@@ -29282,10 +29282,27 @@ function renderVencBanner() {
     const g = porEsc.get(e.clave);
     if (!g) return;
     if (_vencEstaOculto(e.clave)) return;   // v487
-    const det = g.lista.slice(0, 4).map(x => '<strong style="font-weight:900;color:#111">' + esc2(x.txt) + '</strong> (' + x.iso.split('-').reverse().join('/') + ')').join(' · ');
-    const resto = g.lista.length > 4 ? ' · +' + (g.lista.length - 4) + ' más' : '';
+    // v542: el aviso dice DE QUE es cada vencimiento — la REVISION DEL TACOGRAFO del
+    // camion y la TARJETA DEL CONDUCTOR son dos gestiones distintas y hasta ahora
+    // salian mezcladas en la misma linea, sin decir cual era cual.
+    // SIN EMOJIS a proposito (leccion de la v486: en esta letra monoespaciada salen
+    // como cuadraditos vacios); las etiquetas van en TEXTO.
+    const _vencUno = x => '<strong style="font-weight:900;color:#111">' + esc2(x.txt) + '</strong> (' + x.iso.split('-').reverse().join('/') + ')';
+    const _vencBloque = (lista, etiqueta) => {
+      if (!lista.length) return '';
+      const cuerpo = lista.slice(0, 4).map(_vencUno).join(' · ');
+      const mas = lista.length > 4 ? ' · +' + (lista.length - 4) + ' más' : '';
+      return '<span style="font-weight:900;color:#111">' + etiqueta + ':</span> ' + cuerpo + mas;
+    };
+    const _vVeh = g.lista.filter(x => x.tipo === 'con' ? false : true);
+    const _vCon = g.lista.filter(x => x.tipo === 'con');
+    const det = [
+      _vencBloque(_vVeh, 'REVISIÓN DEL TACÓGRAFO (camión)'),
+      _vencBloque(_vCon, 'TARJETA DE CONDUCTOR (renovación)')
+    ].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
+    const resto = '';
     const cab = e.clave === 'vencido'
-      ? (g.lista.length === 1 ? 'TACÓGRAFO VENCIDO' : g.lista.length + ' TACÓGRAFOS/TARJETAS VENCIDOS')
+      ? (g.lista.length === 1 ? 'YA VENCIDO' : g.lista.length + ' YA VENCIDOS')
       : 'VENCE EN ' + e.txt;
     html += '<div style="background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
       + ';border-radius:7px;padding:14px 18px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
