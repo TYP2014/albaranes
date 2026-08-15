@@ -14933,18 +14933,38 @@ function _fichajeEventosConHoraDia(userId, fechaISO) {
   });
   // Construimos el estado: un mapa tipo -> {ts, anulado}
   const estado = {};
-  // Primero los eventos directos
+
+  // v544 — UNA ANULACIÓN TACHA SU FILA, NO TODAS LAS DEL MISMO TIPO.
+  // Antes esto se hacía con `delete estado[tipo]`, o sea que anular UNA
+  // "Salida a comer" borraba TODAS las de ese día, incluidas las fichadas
+  // DESPUÉS. Caso real de Carlos García el 14/08/2026: a las 08:24 se le
+  // anuló una salida a comer, y a partir de ahí cada vez que pulsaba el
+  // botón la fila se guardaba y la app la daba por anulada al instante —
+  // el botón le seguía ofreciendo "Salida a comer" toda la tarde y acabó
+  // pulsando quince veces. Ahora la anulación se aplica POR ID (corrige_a),
+  // que es justo lo que se guarda al anular.
+  const _anulId  = new Set();   // ids de filas anuladas a mano
+  const _anulTipo = new Set();  // compatibilidad: anulaciones viejas sin corrige_a
+  delDia.filter(f => f.tipo === 'correccion' && f.anulado).forEach(f => {
+    if (f.corrige_a) _anulId.add(f.corrige_a);
+    else if (f.tipo_corregido) _anulTipo.add(f.tipo_corregido);
+  });
+
+  // Primero los eventos directos (saltando los que estén anulados)
   delDia.filter(f => f.tipo !== 'correccion').forEach(f => {
+    if (_anulId.has(f.id)) return;      // v544: anulada ESTA fila
+    if (_anulTipo.has(f.tipo)) return;  // v544: anulación vieja sin id -> como antes
     estado[f.tipo] = { ts: f.ts, anulado: false, id: f.id };
   });
-  // Luego aplicamos correcciones en orden de creación
-  delDia.filter(f => f.tipo === 'correccion')
+
+  // Luego las correcciones que NO son anulaciones (cambian la hora o el tipo),
+  // en orden de creación, como siempre
+  delDia.filter(f => f.tipo === 'correccion' && !f.anulado)
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
         .forEach(f => {
     const t = f.tipo_corregido;
     if (!t) return;
-    if (f.anulado) { delete estado[t]; }
-    else { estado[t] = { ts: f.ts_corregido || f.ts, anulado: false, id: f.id }; }
+    estado[t] = { ts: f.ts_corregido || f.ts, anulado: false, id: f.id };
   });
   // Devolver {tipo, ts} ordenados por hora
   return Object.keys(estado)
