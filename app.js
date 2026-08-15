@@ -15563,6 +15563,28 @@ function cerrarFichajeModal() {
 }
 
 // Guardar desde el modal (manual, corrección o ausencia)
+// v548 — EL BOTON GUARDAR DEL MODAL, CON CERROJO.
+// El de la v545 protege el boton grande de fichar, pero la correccion graba
+// por otro camino y ese Guardar seguia vivo: el 15/08/2026, arreglando el dia
+// de Carlos Garcia, salieron CATORCE filas de anulacion seguidas, todas sobre
+// la MISMA fila (la 1168), separadas 4 o 5 segundos - la ventana se quedaba
+// abierta con esa fila cargada y cada pulsacion creaba otra correccion igual.
+// Entre ellas se colo una con la casilla de anular SIN marcar, y esa mandaba.
+let _fichajeGuardando = false;
+async function guardarFichajeModalClic() {
+  if (_fichajeGuardando) { toast('Espera, se está guardando…'); return; }
+  _fichajeGuardando = true;
+  const b = document.getElementById('fichajeBtnGuardar');
+  const txt = b ? b.textContent : null;
+  if (b) { b.disabled = true; b.style.opacity = '.55'; b.style.cursor = 'wait'; b.textContent = 'GUARDANDO…'; }
+  try {
+    await guardarFichajeManual();
+  } finally {
+    _fichajeGuardando = false;   // se suelta SIEMPRE, tambien si falla o si se cancela
+    if (b) { b.disabled = false; b.style.opacity = '1'; b.style.cursor = 'pointer'; b.textContent = txt; }
+  }
+}
+
 async function guardarFichajeManual() {
   // Si el modal está en modo ausencia, derivar a su propia función
   if (_fichajeModalModo === 'ausencia') { return guardarFichajeAusencia(); }
@@ -15608,6 +15630,19 @@ async function guardarFichajeManual() {
     } else if (_fichajeModalModo === 'correccion') {
       // El admin crea una fila 'correccion' que apunta al original
       const anular = document.getElementById('fmAnular')?.checked;
+      // v548: ¿esta fila YA tiene correcciones? Se avisa ANTES de crear otra,
+      // diciendo lo que dice la ultima. Es lo que habria evitado las catorce
+      // seguidas sobre la 1168. No prohibe nada: se puede seguir si se quiere.
+      const _yaCorr = _fichajes.filter(f => f.tipo === 'correccion' && String(f.corrige_a) === String(_fichajeCorrigeId));
+      if (_yaCorr.length) {
+        const _ult = _yaCorr.slice().sort((a, b) => new Date(b.created_at || b.ts) - new Date(a.created_at || a.ts))[0];
+        const _dice = _ult.anulado
+          ? 'ANULADO (no cuenta)'
+          : (_FICHAJE_LABELS[_ult.tipo_corregido] || _ult.tipo_corregido) + ' a las ' + new Date(_ult.ts_corregido || _ult.ts).toTimeString().slice(0, 5);
+        if (!confirm('Este fichaje YA tiene ' + _yaCorr.length + ' corrección(es).\n\n'
+          + 'La última dice: ' + _dice + '\n\n'
+          + 'Si guardas otra, mandará la nueva. ¿Sigo?')) return;
+      }
       const orig = _fichajes.find(f => String(f.id) === String(_fichajeCorrigeId));
       const fila = {
         user_id: orig?.user_id || currentUser.id, // el fichaje sigue siendo de la trabajadora
