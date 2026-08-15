@@ -14887,6 +14887,43 @@ function _fichajeEsAdmin() {
   return currentRole === 'admin' || _esFichajeOficina();
 }
 
+// v552 — QUIEN ES CADA FICHAJE SE RESUELVE POR EL user_id, NO POR EL TEXTO GUARDADO.
+// Cazado abriendo el Excel legal: salian pestañas "marta@typ2014.local",
+// "oscarv@typ2014.local", "carlosg@typ2014.local" y "oscare@typ2014.local", algunas
+// SIN empresa, SIN CIF y SIN DNI. Dos causas distintas:
+//   (a) en la ficha de usuario de Marta y de Oscar V. el campo NOMBRE es el propio
+//       correo, asi que la app guardaba el correo - hacia su trabajo, el dato malo
+//       estaba en la ficha (se arregla con un UPDATE en profiles);
+//   (b) cuatro fichajes sueltos entraron SIN DNI ni empresa: si alguien ficha antes
+//       de que la app termine de cargar su ficha, se guarda con lo que hay, o sea
+//       nada. Es una carrera.
+// El registro del Art. 10 del RDL 8/2019 tiene que identificar al trabajador, asi
+// que una hoja sin nombre, DNI ni empresa NO VALE. Y ademas partia las horas de una
+// misma persona en dos registros distintos, porque la hoja agrupa POR NOMBRE.
+// COMO SE ARREGLA SIN TOCAR LA TABLA (que es inmutable): al ENSEÑAR un fichaje, los
+// huecos se rellenan desde la ficha del usuario, cruzando por user_id.
+// MANDA SIEMPRE LO QUE SE GUARDO AQUEL DIA - eso es lo importante y es a proposito:
+// si alguien cambia de empresa, sus fichajes viejos NO se re-etiquetan con la nueva,
+// que seria falsear el historico. La ficha solo entra cuando el dato falta o cuando
+// lo guardado es un correo, que no identifica a nadie.
+function _fichajeIdentidad(fila) {
+  const p = (typeof userMap === 'object' && userMap) ? (userMap[fila?.user_id] || {}) : {};
+  const esCorreo = t => /@/.test(String(t || ''));
+  const guardado = fila?.trabajador || '';
+  const deFicha  = p.name || '';
+  let nombre;
+  if (guardado && !esCorreo(guardado))      nombre = guardado;      // lo de aquel dia manda
+  else if (deFicha && !esCorreo(deFicha))   nombre = deFicha;       // la ficha rellena el hueco
+  else                                      nombre = guardado || deFicha || '(sin nombre)';
+  return {
+    trabajador: nombre,
+    dni:     fila?.dni     || p.fichaje_dni     || '',
+    empresa: fila?.empresa || p.fichaje_empresa || '',
+    cif:     fila?.cif     || p.fichaje_cif     || ''
+  };
+}
+function _fichajeNombreDe(fila) { return _fichajeIdentidad(fila).trabajador; }
+
 // Datos del trabajador actual (para grabar DNI/empresa/CIF correctos)
 function _fichajeMisDatos() {
   const p = userMap[currentUser?.id] || {};
@@ -15095,7 +15132,7 @@ function _fichajeRenderAdminResumen() {
 
   // Trabajadores presentes en los fichajes (user_id -> nombre)
   const nombres = {};
-  _fichajes.forEach(f => { if (f.user_id) nombres[f.user_id] = f.trabajador || nombres[f.user_id] || f.user_id; });
+  _fichajes.forEach(f => { if (f.user_id) nombres[f.user_id] = _fichajeNombreDe(f) || nombres[f.user_id] || f.user_id; });   // v552
 
   const ahora = new Date();
   const hoyISO = _fichajeFechaLocal(ahora);
@@ -15531,6 +15568,13 @@ async function _fichajeInsertar({ tipo, metodo, ts, nota }) {
   });
   if (_bG && metodo !== 'manual') _bG.textContent = '⏳ GUARDANDO…';
   try {
+    // v552: si la ficha del usuario aun no ha cargado, NO se ficha a ciegas - asi
+    // entraron los cuatro fichajes sin DNI ni empresa. Mejor esperar dos segundos
+    // que dejar una fila que no identifica a nadie en un registro legal.
+    if (!userMap || !userMap[currentUser?.id]) {
+      toast('La app aún está cargando tus datos. Espera un momento y vuelve a pulsar.', 'warn');
+      return;
+    }
     const datos = _fichajeMisDatos();
     const fila = {
       user_id: datos.user_id,
@@ -15992,7 +16036,7 @@ function renderFichajes() {
     if (esAdmin) {
       _selEmp.style.display = '';
       const _prevEmp = _selEmp.value;
-      const _noms = [...new Set(_fichajes.map(f => f.trabajador).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      const _noms = [...new Set(_fichajes.map(f => _fichajeNombreDe(f)).filter(Boolean))].sort((a, b) => a.localeCompare(b));   // v552
       _selEmp.innerHTML = '<option value="">Todos los empleados</option>' + _noms.map(n => '<option value="' + _fichajeEsc(n) + '">' + _fichajeEsc(n) + '</option>').join('');
       if (_prevEmp && _noms.indexOf(_prevEmp) !== -1) _selEmp.value = _prevEmp;
     } else { _selEmp.style.display = 'none'; }
@@ -16018,7 +16062,7 @@ function renderFichajes() {
 
   // Filtro por empleado seleccionado (admin)
   const _empSel = document.getElementById('fichajeFiltroEmpleado')?.value || '';
-  if (_empSel) filas = filas.filter(f => (f.trabajador || '') === _empSel);
+  if (_empSel) filas = filas.filter(f => _fichajeNombreDe(f) === _empSel);   // v552
 
   if (filas.length === 0) {
     box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:12px">No hay fichajes en este periodo.</div>';
@@ -16059,7 +16103,7 @@ function renderFichajes() {
     else if (esAus) rowStyle = ' style="background:rgba(123,143,240,.06)"';
 
     html += `<tr${rowStyle}>`;
-    if (esAdmin) html += td(f.trabajador || '—');
+    if (esAdmin) html += td(_fichajeNombreDe(f) || '—');   // v552
     html += td(_fichajeFechaBonita(_fichajeFechaLocal(refTs)));
     // Las ausencias no tienen hora concreta: mostramos "—"
     html += td(esAus ? '<span style="color:var(--mu)">— día completo</span>' : ('<b>' + _fichajeHoraLocal(refTs) + '</b>'));
@@ -16125,7 +16169,7 @@ function _fichajeAoaLegal(filas) {
     if (f.tipo !== 'correccion' || !f.anulado) return;
     if (f.corrige_a) { _anulId.add(f.corrige_a); return; }
     const t = f.tipo_corregido; if (!t) return;
-    _anulViejo.add((f.trabajador || '') + '||' + _fichajeFechaLocal(f.ts_corregido || f.ts) + '||' + t);
+    _anulViejo.add(_fichajeNombreDe(f) + '||' + _fichajeFechaLocal(f.ts_corregido || f.ts) + '||' + t);   // v552
   });
 
   // v547 — LAS CORRECCIONES SE APLICAN POR ORDEN DE APUNTE, IGUAL QUE EN LA PANTALLA.
@@ -16152,17 +16196,18 @@ function _fichajeAoaLegal(filas) {
     // v546: fuera las filas anuladas
     if (!esCorr) {
       if (_anulId.has(f.id)) return;
-      if (_anulViejo.has((f.trabajador || '') + '||' + fISO + '||' + f.tipo)) return;
+      if (_anulViejo.has(_fichajeNombreDe(f) + '||' + fISO + '||' + f.tipo)) return;   // v552
     }
     const [yy, mm, dd] = fISO.split('-');
-    const claveMes = `${f.trabajador || ''}||${yy}-${mm}`;
+    const _idt = _fichajeIdentidad(f);   // v552: asi las dos hojas de la misma persona se juntan en una
+    const claveMes = `${_idt.trabajador}||${yy}-${mm}`;
     if (!grupos[claveMes]) {
       grupos[claveMes] = {
         userId: f.user_id || null,   // v551: para saber su jornada de contrato
-        trabajador: f.trabajador || '',
-        dni: f.dni || '',
-        empresa: f.empresa || '',
-        cif: f.cif || '',
+        trabajador: _idt.trabajador,
+        dni: _idt.dni,
+        empresa: _idt.empresa,
+        cif: _idt.cif,
         anio: yy,
         mesNum: parseInt(mm, 10),
         dias: {}
@@ -16258,7 +16303,7 @@ function exportFichajesExcel() {
     });
     // Mismo filtro de empleado que la tabla
     const _empSelExcel = document.getElementById('fichajeFiltroEmpleado')?.value || '';
-    if (_empSelExcel) filas = filas.filter(f => (f.trabajador || '') === _empSelExcel);
+    if (_empSelExcel) filas = filas.filter(f => _fichajeNombreDe(f) === _empSelExcel);   // v552
     filas.sort((a, b) => {
       const ta = a.tipo === 'correccion' ? (a.ts_corregido || a.ts) : a.ts;
       const tb = b.tipo === 'correccion' ? (b.ts_corregido || b.ts) : b.ts;
@@ -16266,16 +16311,17 @@ function exportFichajesExcel() {
     });
     const datos = filas.map(f => {
       const esCorr = f.tipo === 'correccion';
+      const _idtx = _fichajeIdentidad(f);   // v552
       const refTs = esCorr ? (f.ts_corregido || f.ts) : f.ts;
       const tipoMostrar = esCorr ? (f.tipo_corregido || '') : f.tipo;
       const esAus = _fichajeEsAusencia(tipoMostrar);
       let tipoTxt = (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar).replace(/^[^\sA-Za-zÁÉÍÓÚáéíóúÑñ]+\s*/, '');
       if (esCorr) tipoTxt = (f.anulado ? 'ANULA ' : 'CORRIGE ') + tipoTxt;
       return {
-        'Trabajadora': f.trabajador || '',
-        'DNI': f.dni || '',
-        'Empresa': f.empresa || '',
-        'CIF': f.cif || '',
+        'Trabajadora': _idtx.trabajador,
+        'DNI': _idtx.dni,
+        'Empresa': _idtx.empresa,
+        'CIF': _idtx.cif,
         'Fecha': _fichajeFechaBonita(_fichajeFechaLocal(refTs)),
         'Hora': esAus ? 'Día completo' : _fichajeHoraLocal(refTs),
         'Tipo': tipoTxt,
