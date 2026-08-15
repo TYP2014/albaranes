@@ -192,7 +192,7 @@ async function loadUserMap() {
       userMap[p.id] = { name: p.name || '(sin nombre)' };
     });
 
-    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_tacografo, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif');
+    const { data, error } = await sb.from('profiles').select('id, name, role, puede_ver_tacografo, puede_ver_itv, puede_ver_neumaticos, empresa_neumaticos, puede_ver_vacaciones, empresa_vacaciones, puede_ver_taller, empresa_taller, puede_ver_incidencias, puede_fichar, fichaje_dni, fichaje_empresa, fichaje_cif, fichaje_horas_dia');
     if (error) { console.warn('No se pudo cargar userMap:', error.message); return; }
     (data || []).forEach(p => { userMap[p.id] = Object.assign(userMap[p.id] || {}, {
       name: p.name || userMap[p.id]?.name || '(sin nombre)',
@@ -209,7 +209,8 @@ async function loadUserMap() {
       puede_fichar: !!p.puede_fichar,
       fichaje_dni: p.fichaje_dni || null,
       fichaje_empresa: p.fichaje_empresa || null,
-      fichaje_cif: p.fichaje_cif || null
+      fichaje_cif: p.fichaje_cif || null,
+      fichaje_horas_dia: (p.fichaje_horas_dia == null ? null : Number(p.fichaje_horas_dia))   // v551
     }); });
     // v101: si el usuario actual tiene permiso ITV, mostrar la pestaña
     if (currentUser?.id) {
@@ -15019,11 +15020,30 @@ function _fichajeLunesSemana(d) {
   return x;
 }
 
+// v551 — LA JORNADA DE CADA UNO, NO 8h PARA TODOS.
+// Hasta aqui las 8 horas estaban escritas a fuego en CINCO sitios del programa, y
+// eso le daba 5 horas de deficit TODOS LOS DIAS a Maria del Mar, que tiene contrato
+// de 3 horas. Ahora sale de profiles.fichaje_horas_dia. Si esta vacio se toman 8h,
+// asi que para el resto de la plantilla NO CAMBIA NADA.
+const _FICHAJE_HORAS_DEF = 8;
+function _fichajeHorasDia(userId) {
+  const h = userMap?.[userId]?.fichaje_horas_dia;
+  return (h != null && !isNaN(h) && h > 0) ? Number(h) : _FICHAJE_HORAS_DEF;
+}
+function _fichajeMinJornada(userId) { return Math.round(_fichajeHorasDia(userId) * 60); }
+// "8h" / "3h" / "6h30" para escribirlo en pantalla y en el papel
+function _fichajeTxtJornada(userId) {
+  const h = _fichajeHorasDia(userId);
+  const ent = Math.floor(h), min = Math.round((h - ent) * 60);
+  return ent + 'h' + (min ? String(min).padStart(2, '0') : '');
+}
+
 // v107J85: resumen de la semana (L..D) de un trabajador. Para cada día con jornada
-// calcula los minutos trabajados (restando comida). El SALDO suma (trabajado - 8h)
-// SOLO de los días TERMINADOS (con salida), para no salir en negativo durante el día.
+// calcula los minutos trabajados (restando comida). El SALDO suma (trabajado - su
+// jornada) SOLO de los días TERMINADOS (con salida), para no salir en negativo
+// durante el día. v551: la jornada es la SUYA, no 8h fijas.
 function _fichajeResumenSemana(userId, refDate) {
-  const TOPE = 8 * 60;
+  const TOPE = _fichajeMinJornada(userId);   // v551
   const lunes = _fichajeLunesSemana(refDate || new Date());
   const ahora = new Date();
   const hoyISO = _fichajeFechaLocal(ahora);
@@ -15063,7 +15083,7 @@ function _fichajeRenderSemana() {
     '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px">' + celdas + '</div>' +
     '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Total: <b style="color:var(--tx)">' + _fichajeFmtMin(r.totalMin) + '</b>' +
     ' · Saldo: <b style="color:' + saldoCol + '">' + saldoTxt + '</b></div>' +
-    '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">(saldo sobre 8h/día, solo días terminados)</div>';
+    '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">(saldo sobre ' + _fichajeTxtJornada(currentUser.id) + '/día según tu contrato, solo días terminados)</div>';
 }
 
 // v107J86: RESUMEN DE HORAS POR TRABAJADOR (solo admin). El admin no ficha, así que
@@ -15084,7 +15104,8 @@ function _fichajeRenderAdminResumen() {
     const minHoy = evsHoy.some(e => e.tipo === 'entrada') ? _fichajeMinutosTrabajados(evsHoy, ahora) : 0;
     const sem = _fichajeResumenSemana(uid, ahora);
     // v532: se guardan tambien los dias sueltos (L..D) para pintar una columna por dia
-    return { nombre: nombres[uid], minHoy, semMin: sem.totalMin, saldoMin: sem.saldoMin, dias: sem.dias };
+    return { nombre: nombres[uid], uid, tope: _fichajeMinJornada(uid),   // v551
+             minHoy, semMin: sem.totalMin, saldoMin: sem.saldoMin, dias: sem.dias };
   }).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
 
   if (!filas.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
@@ -15097,7 +15118,6 @@ function _fichajeRenderAdminResumen() {
   // Sabado y domingo solo se pintan si alguien tiene jornada ese dia (asi no
   // ocupan sitio en una semana normal). Todos los trabajadores comparten las
   // mismas fechas, asi que la cabecera se saca de la primera fila.
-  const TOPE8 = 8 * 60;
   const diasRef = filas[0].dias || [];
   const hayFinde = filas.some(f => (f.dias || []).slice(5).some(d => d.tieneEntrada));
   const idxDias = diasRef.length ? (hayFinde ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4]) : [];
@@ -15123,14 +15143,16 @@ function _fichajeRenderAdminResumen() {
       // Color: ambar si paso de 8h, azul si el dia ya termino y se quedo corto,
       // normal en lo demas. El dia de HOY sale ademas en negrita.
       let col = 'var(--tx)';
-      if (d.terminado && d.min > TOPE8 + 5) col = 'var(--wn)';
-      else if (d.terminado && d.min < TOPE8 - 5) col = 'var(--in)';
+      const _tp = f.tope || 480;   // v551: la jornada de ESTE trabajador
+      if (d.terminado && d.min > _tp + 5) col = 'var(--wn)';
+      else if (d.terminado && d.min < _tp - 5) col = 'var(--in)';
       html += tdDia(_fichajeFmtMin(d.min), col, d.esHoy);
     });
-    html += td(_fichajeFmtMin(f.minHoy)) + td(_fichajeFmtMin(f.semMin)) + td(saldoTxt, saldoCol) + '</tr>';
+    html += td(_fichajeFmtMin(f.minHoy)) + td(_fichajeFmtMin(f.semMin))
+          + td(saldoTxt + ' <span style="color:var(--mu);font-size:10px">(' + _fichajeTxtJornada(f.uid) + '/día)</span>', saldoCol) + '</tr>';   // v551
   });
   html += '</tbody></table>';
-  html += '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px;padding:0 10px">Saldo = horas sobre 8h/día de los días YA TERMINADOS de esta semana. En cada día: ámbar = pasó de 8h · azul = se quedó corto · — = no fichó.</div>';
+  html += '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:8px;padding:0 10px">Saldo = horas sobre la jornada de CADA UNO según su contrato (entre paréntesis), de los días YA TERMINADOS de esta semana. En cada día: ámbar = pasó de su jornada · azul = se quedó corto · — = no fichó.</div>';
 
   box.innerHTML = '<div class="card-hd"><div class="st"><div class="dot" style="--c:var(--ac)"></div>HORAS POR TRABAJADOR · ESTA SEMANA</div></div>' +
                   '<div class="card-bd" style="overflow-x:auto">' + html + '</div>';
@@ -15292,7 +15314,10 @@ function _fichajeRenderBotonera() {
         btnCont.id = 'fichajeBtnContinua';
         btnCont.className = 'btn bw';
         btnCont.style.cssText = 'max-width:340px;margin:0 auto 16px;font-size:13px;padding:13px;display:block;width:100%';
-        btnCont.onclick = function () { _fichajeInsertar({ tipo: 'salida', metodo: 'boton' }); };
+        btnCont.onclick = function () {
+          if (!_fichajeConfirmarHora('salida')) return;   // v550
+          _fichajeInsertar({ tipo: 'salida', metodo: 'boton' });
+        };
         btn.parentNode.insertBefore(btnCont, btn.nextSibling);
       }
       btnCont.textContent = '🔴 SALIR (jornada continua, sin comer)';
@@ -15371,7 +15396,8 @@ async function fichajeFicharOtro(tipo) {
       + 'Si lo vuelves a fichar quedan dos apuntes del mismo tipo y habrá que corregirlo.\n\n'
       + '¿Seguro que quieres fichar otra vez ' + lbl + '?')) return;
   } else {
-    if (!confirm('¿Fichar "' + lbl + '" con la hora de ahora?')) return;
+    const _av = _fichajeAvisoHora(tipo);   // v550
+    if (!confirm((_av ? _av + '\n\n' : '') + '¿Fichar "' + lbl + '" con la hora de ahora?')) return;
   }
   const c = document.getElementById('fichajeOtrosBox');
   if (c) c.style.display = 'none';
@@ -15387,7 +15413,7 @@ function _fichajeArrancarReloj() {
   const relojEl = document.getElementById('fichajeRelojVivo');
   const lblEl = document.getElementById('fichajeRelojLabel');
   if (!relojEl) return;
-  const TOPE_MIN = 8 * 60; // 8 horas = norma
+  const TOPE_MIN = _fichajeMinJornada(currentUser?.id); // v551: la jornada del contrato
   const tick = () => {
     const min = _fichajeMinutosTrabajados(_fichajeEvsHoy, new Date());
     const h = Math.floor(min / 60), m = min % 60;
@@ -15397,13 +15423,77 @@ function _fichajeArrancarReloj() {
     if (lblEl) {
       lblEl.style.color = pasado ? 'var(--er)' : 'var(--mu)';
       lblEl.textContent = pasado
-        ? ('TRABAJADO HOY · +' + _fichajeFmtMin(min - TOPE_MIN) + ' sobre las 8h')
-        : 'TRABAJADO HOY · de 8:00';
+        ? ('TRABAJADO HOY · +' + _fichajeFmtMin(min - TOPE_MIN) + ' sobre ' + _fichajeTxtJornada(currentUser?.id))
+        : 'TRABAJADO HOY · de ' + _fichajeFmtMin(TOPE_MIN);
     }
   };
   tick();
   if (_fichajeRelojTimer) clearInterval(_fichajeRelojTimer);
   _fichajeRelojTimer = setInterval(tick, 1000);
+}
+
+// v550 — AVISO CUANDO LA HORA NO ENCAJA CON EL FICHAJE.
+// Es la red que habria parado a Carlos Garcia en la PRIMERA pulsacion: fichar
+// "Salida a comer" a las 17:33 no tiene sentido, y a las 08:24 tampoco.
+// SOLO PREGUNTA, NUNCA BLOQUEA: se puede seguir siempre, porque un horario raro
+// puede ser real (una guardia, un dia partido) y la ley pide el fichaje REAL, no
+// el que a la app le parezca bien.
+// LOS LIMITES SON ANCHOS A PROPOSITO. Si esto preguntara todos los dias, la gente
+// dejaria de leerlo y no serviria de nada. Estan puestos mirando los horarios que
+// se ven de verdad en la tabla (Mª del Mar entra a las 10:11 y hace jornada
+// continua de 3h), asi que un dia normal NO pregunta nada.
+// Devuelve el texto del aviso, o null si la hora es normal.
+function _fichajeAvisoHora(tipo) {
+  try {
+    const ahora = new Date();
+    const hh = ahora.getHours() + ahora.getMinutes() / 60;
+    const hs = String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0');
+    const evs = _fichajeEventosConHoraDia(currentUser?.id, _fichajeFechaLocal(ahora));
+    const de = t => { const e = evs.find(x => x.tipo === t); return e ? new Date(e.ts) : null; };
+
+    // (a) Acaba de fichar algo hace nada. Cubre el doble toque que se escape al
+    //     cerrojo de la v545 (dos aparatos, recarga a medias...).
+    let ult = null;
+    evs.forEach(e => { const d = new Date(e.ts); if (!ult || d > ult.d) ult = { t: e.tipo, d: d }; });
+    if (ult) {
+      const min = (ahora - ult.d) / 60000;
+      if (min >= 0 && min < 3) {
+        return 'Acabas de fichar "' + (_FICHAJE_LABELS[ult.t] || ult.t) + '" hace ' + Math.round(min) + ' min.';
+      }
+    }
+    // (b) Salir a comer a deshora — EL CASO DE CARLOS, por los dos lados
+    if (tipo === 'salida_comida') {
+      if (hh >= 16.5) return 'Son las ' + hs + ', es tarde para salir a comer.\n¿No querías fichar la SALIDA de fin de jornada?';
+      if (hh < 11)    return 'Son las ' + hs + ', es pronto para salir a comer.';
+    }
+    // (c) Entrada por la tarde
+    if (tipo === 'entrada' && hh >= 14) return 'Son las ' + hs + '. ¿Seguro que esto es tu ENTRADA?';
+    // (d) Comida larguisima
+    if (tipo === 'vuelta_comida') {
+      const sc = de('salida_comida');
+      if (sc) {
+        const h = (ahora - sc) / 3600000;
+        if (h > 3) return 'Llevas ' + h.toFixed(1).replace('.', ',') + ' h desde que saliste a comer.';
+      }
+    }
+    // (e) Salida al poco de entrar. El tope es 2h y no 4h a proposito: hay
+    //     jornadas continuas cortas de verdad (3h) y no hay que darles la lata.
+    if (tipo === 'salida') {
+      const en = de('entrada');
+      if (en) {
+        const h = (ahora - en) / 3600000;
+        if (h < 2) return 'Solo llevas ' + h.toFixed(1).replace('.', ',') + ' h desde tu entrada.';
+      }
+    }
+    return null;
+  } catch (e) { console.warn('[_fichajeAvisoHora]', e); return null; }   // si falla, NO estorba
+}
+
+// v550: pregunta si la hora no encaja. true = seguir, false = el usuario se echa atras
+function _fichajeConfirmarHora(tipo) {
+  const av = _fichajeAvisoHora(tipo);
+  if (!av) return true;
+  return confirm(av + '\n\n¿Fichar "' + (_FICHAJE_LABELS[tipo] || tipo) + '" de todas formas?');
 }
 
 // Pulsar el botón grande -> graba el evento que toca con la hora del servidor
@@ -15412,6 +15502,7 @@ async function ficharBotonGrande() {
   if (btn && btn.disabled) return;   // v545: ya está grabando o no toca fichar
   const evento = btn?.dataset?.evento;
   if (!evento) return;
+  if (!_fichajeConfirmarHora(evento)) return;   // v550
   await _fichajeInsertar({ tipo: evento, metodo: 'boton' });
 }
 
@@ -16067,6 +16158,7 @@ function _fichajeAoaLegal(filas) {
     const claveMes = `${f.trabajador || ''}||${yy}-${mm}`;
     if (!grupos[claveMes]) {
       grupos[claveMes] = {
+        userId: f.user_id || null,   // v551: para saber su jornada de contrato
         trabajador: f.trabajador || '',
         dni: f.dni || '',
         empresa: f.empresa || '',
@@ -16099,18 +16191,22 @@ function _fichajeAoaLegal(filas) {
   const secciones = [];
   if (!claves.length) return secciones;
 
-  const TOPE = 8 * 60; // 8 horas = jornada normal
   const fmtm = (m) => { m = Math.max(0, Math.round(m)); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
 
   claves.forEach((clave) => {
     const g = grupos[clave];
+    const TOPE = _fichajeMinJornada(g.userId);   // v551: la jornada de ESTE trabajador
     const aoa = [];
 
     aoa.push(['REGISTRO DIARIO JORNADA DE TRABAJO']);
     aoa.push(['Registro elaborado de acuerdo a lo establecido en el Art. 10 del Real Decreto-ley 8/2019, de 8 de marzo']);
     aoa.push(['Empresa:', g.empresa, '', 'CIF:', g.cif]);
     aoa.push(['Trabajador:', g.trabajador, '', 'DNI/NIE:', g.dni]);
-    aoa.push(['Nº horas según contrato:', '', 'Mes:', `${MESES[g.mesNum-1]} ${g.anio}`, 'Centro Trabajo:', _FICHAJE_CENTRO_TRABAJO]);
+    // v551: esta casilla salia SIEMPRE EN BLANCO y es de las primeras que mira un
+    // inspector. Se pone la jornada diaria y la semanal (x5 dias laborables).
+    const _hd = _fichajeHorasDia(g.userId);
+    const _hTxt = _fichajeTxtJornada(g.userId) + '/día  (' + (Math.round(_hd * 5 * 100) / 100).toString().replace('.', ',') + ' h/semana)';
+    aoa.push(['Nº horas según contrato:', _hTxt, 'Mes:', `${MESES[g.mesNum-1]} ${g.anio}`, 'Centro Trabajo:', _FICHAJE_CENTRO_TRABAJO]);
     aoa.push([]);
     aoa.push(['Día', 'Entrada', 'Salida comer', 'Vuelta comer', 'Salida', 'Horas día', 'H. ordinarias', 'H. extras', 'Observaciones']);
 
@@ -16130,8 +16226,8 @@ function _fichajeAoaLegal(filas) {
       if (vc!=null && s!=null)  dm += Math.max(0, s-vc);
       // Si solo hay entrada y salida (sin pausa de comida), contar entrada→salida.
       if (dm===0 && e!=null && s!=null && sc==null && vc==null) dm = Math.max(0, s-e);
-      const ord = Math.min(dm, TOPE);          // ordinarias: hasta 8h
-      const ext = Math.max(0, dm - TOPE);      // extras: lo que pase de 8h
+      const ord = Math.min(dm, TOPE);          // ordinarias: hasta su jornada (v551)
+      const ext = Math.max(0, dm - TOPE);      // extras: lo que pase de su jornada
       totalMin += dm; totalOrd += ord; totalExt += ext;
       if (dm > 0) saldoMin += (dm - TOPE);     // saldo neto (compensa días cortos con largos)
       aoa.push([d, D.entrada, D.salida_comida, D.vuelta_comida, D.salida,
@@ -16139,7 +16235,7 @@ function _fichajeAoaLegal(filas) {
     }
     aoa.push(['TOTAL', '', '', '', '', fmtm(totalMin), fmtm(totalOrd), fmtm(totalExt), '']);
     const saldoTxt = (saldoMin >= 0 ? '+' : '-') + fmtm(Math.abs(saldoMin));
-    aoa.push(['Saldo (sobre 8h/día):', '', '', '', '', saldoTxt, '', '', '']);
+    aoa.push(['Saldo (sobre ' + _fichajeTxtJornada(g.userId) + '/día):', '', '', '', '', saldoTxt, '', '', '']);
     aoa.push(['Firma trabajador:', '', '', '', 'Firma empresa:', '', '', '', '']);
 
     secciones.push({ nombre: g.trabajador || 'Trabajador', anio: g.anio, mesNum: g.mesNum, aoa });
