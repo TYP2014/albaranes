@@ -21584,8 +21584,11 @@ function renderCitasGlobalBanner() {
     { key:'pasada', color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA DE TALLER OFICIAL PASADA SIN CERRAR' },
     { key:'hoy',    color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE TALLER OFICIAL HOY' },
     { key:'d1',     color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE TALLER OFICIAL MAÑANA' },
-    { key:'d3',     color:'#ff9500', bg:'rgba(255,149,0,.12)',  icon:'🟠', titulo:'CITA DE TALLER OFICIAL EN 3 DÍAS O MENOS' },
-    { key:'d5',     color:'#ffd000', bg:'rgba(255,208,0,.12)',  icon:'🟡', titulo:'CITA DE TALLER OFICIAL EN 5 DÍAS O MENOS' }
+    // v543: el naranja y el amarillo VIVOS no se leian sobre el fondo claro de la app
+    // (JC: "apenas se ven, estan casi en el mismo color"). Se hace lo mismo que ya se
+    // hizo en la v361/v446: FONDO mas cargado y LETRA en la version OSCURA del color.
+    { key:'d3',     color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE TALLER OFICIAL EN 3 DÍAS O MENOS' },
+    { key:'d5',     color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE TALLER OFICIAL EN 5 DÍAS O MENOS' }
   ];
 
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -21608,8 +21611,8 @@ function renderCitasGlobalBanner() {
 
     html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
       ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
-      '<div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">' + n.icon +
-      ' <span style="color:' + n.color + ';font-weight:800">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+      '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
+      ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
         '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irACitasTaller()">📅 Ver citas</button>' +
         '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideCitasBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
