@@ -15924,8 +15924,21 @@ function _fichajeAoaLegal(filas) {
     _anulViejo.add((f.trabajador || '') + '||' + _fichajeFechaLocal(f.ts_corregido || f.ts) + '||' + t);
   });
 
+  // v547 — LAS CORRECCIONES SE APLICAN POR ORDEN DE APUNTE, IGUAL QUE EN LA PANTALLA.
+  // Si un mismo momento se corrige DOS VECES, manda la ULTIMA QUE SE APUNTO — que es
+  // lo que hace _fichajeEventosConHoraDia (ordena por created_at). Aqui se recorrian
+  // las filas por HORA, asi que mandaba la de hora mas tardia aunque se hubiera
+  // apuntado antes, y los dos papeles decian cosas distintas. Se recorre en dos
+  // pasadas: primero los fichajes directos (en hora, manda el primero de cada tipo,
+  // regla de la v546) y despues las correcciones ordenadas por cuando se apuntaron.
+  const _directas = filas.filter(f => f.tipo !== 'correccion')
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+  const _corrs = filas.filter(f => f.tipo === 'correccion')
+        .sort((a, b) => new Date(a.created_at || a.ts) - new Date(b.created_at || b.ts));
+  const _enOrden = _directas.concat(_corrs);
+
   const grupos = {}; // clave "trabajador||YYYY-MM" -> { info, dias:{1..31} }
-  filas.forEach(f => {
+  _enOrden.forEach(f => {
     if (f.tipo === 'correccion' && f.anulado) return; // anulaciones no pintan
     const esCorr = f.tipo === 'correccion';
     const refTs  = esCorr ? (f.ts_corregido || f.ts) : f.ts;
