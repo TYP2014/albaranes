@@ -14911,9 +14911,16 @@ function _fichajeIdentidad(fila) {
   const esCorreo = t => /@/.test(String(t || ''));
   const guardado = fila?.trabajador || '';
   const deFicha  = p.name || '';
+  // v553 — PARA EL NOMBRE MANDA LA FICHA, NO LO QUE SE GUARDO AQUEL DIA.
+  // La v552 lo hacia al reves y salio mal: al completar los apellidos en la ficha,
+  // los fichajes viejos se quedaron con el nombre corto y la misma persona salio en
+  // DOS pestañas del Excel legal ("CARLOS GARCIA" y "CARLOS GARCIA SEGURA").
+  // La diferencia con la EMPRESA es de fondo: la empresa SI es un dato de aquel dia
+  // (si alguien cambia de sociedad, su historico no se puede reescribir), pero el
+  // NOMBRE es la identidad de la persona - Carlos es el mismo en junio y hoy.
   let nombre;
-  if (guardado && !esCorreo(guardado))      nombre = guardado;      // lo de aquel dia manda
-  else if (deFicha && !esCorreo(deFicha))   nombre = deFicha;       // la ficha rellena el hueco
+  if (deFicha && !esCorreo(deFicha))        nombre = deFicha;       // la ficha manda
+  else if (guardado && !esCorreo(guardado)) nombre = guardado;      // si no hay ficha, lo guardado
   else                                      nombre = guardado || deFicha || '(sin nombre)';
   return {
     trabajador: nombre,
