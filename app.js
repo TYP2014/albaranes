@@ -15909,6 +15909,21 @@ function _fichajeAoaLegal(filas) {
   //    los 4 momentos (entrada/salida_comida/vuelta_comida/salida) y, si hay
   //    ausencia, su etiqueta. Las correcciones ya vienen resueltas en `filas`
   //    (usamos ts_corregido/tipo_corregido cuando es corrección no anulada).
+  // v546 — LAS FILAS ANULADAS TAMPOCO SALEN EN EL PAPEL LEGAL.
+  // Hasta ahora se saltaba la fila de ANULACION pero NO la fila ANULADA, asi
+  // que un fichaje que alguien dio por bueno... y luego anulo, seguia saliendo
+  // en el registro que se firma. Misma logica que la v544: se tacha POR ID
+  // (corrige_a) y, si la anulacion es antigua y no lo trae, por tipo dentro de
+  // SU dia y SU trabajador (nunca de un dia para otro ni de una persona a otra).
+  const _anulId = new Set();
+  const _anulViejo = new Set();   // "trabajador||YYYY-MM-DD||tipo"
+  filas.forEach(f => {
+    if (f.tipo !== 'correccion' || !f.anulado) return;
+    if (f.corrige_a) { _anulId.add(f.corrige_a); return; }
+    const t = f.tipo_corregido; if (!t) return;
+    _anulViejo.add((f.trabajador || '') + '||' + _fichajeFechaLocal(f.ts_corregido || f.ts) + '||' + t);
+  });
+
   const grupos = {}; // clave "trabajador||YYYY-MM" -> { info, dias:{1..31} }
   filas.forEach(f => {
     if (f.tipo === 'correccion' && f.anulado) return; // anulaciones no pintan
@@ -15917,6 +15932,11 @@ function _fichajeAoaLegal(filas) {
     const tipo   = esCorr ? (f.tipo_corregido || '') : f.tipo;
     if (!tipo) return;
     const fISO = _fichajeFechaLocal(refTs);       // YYYY-MM-DD
+    // v546: fuera las filas anuladas
+    if (!esCorr) {
+      if (_anulId.has(f.id)) return;
+      if (_anulViejo.has((f.trabajador || '') + '||' + fISO + '||' + f.tipo)) return;
+    }
     const [yy, mm, dd] = fISO.split('-');
     const claveMes = `${f.trabajador || ''}||${yy}-${mm}`;
     if (!grupos[claveMes]) {
@@ -15937,7 +15957,13 @@ function _fichajeAoaLegal(filas) {
     if (_fichajeEsAusencia(tipo)) {
       D.ausencia = (_FICHAJE_LABELS[tipo] || tipo).replace(/^[^\sA-Za-zÁÉÍÓÚáéíóúÑñ]+\s*/, '');
     } else if (tipo === 'entrada' || tipo === 'salida_comida' || tipo === 'vuelta_comida' || tipo === 'salida') {
-      D[tipo] = _fichajeHHMM(refTs);
+      // v546: si el mismo tipo se ficho VARIAS VECES ese dia (el boton repetido),
+      // manda LA PRIMERA — que es cuando de verdad se hizo la accion; las de
+      // detras son toques repetidos. Es lo MISMO que ya hace la pantalla, que
+      // recorre la lista al reves y se queda con la mas antigua; hasta ahora el
+      // Excel se quedaba con la ULTIMA y los dos papeles no coincidian.
+      // Las CORRECCIONES de hora si mandan siempre, se pongan antes o despues.
+      if (esCorr || !D[tipo]) D[tipo] = _fichajeHHMM(refTs);
     }
   });
 
