@@ -14016,6 +14016,9 @@ async function loadFactEmit() {
 }
 let _feFiltro = 'todas'; // todas / pendiente / cobrada
 let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
+// v555: filtros de FECHA DE FACTURA y CLIENTE (se suman al de empresa, en cascada)
+let _feDesde = '', _feHasta = '', _feCliente = 'TODOS';
+function _feKeyCli(s) { return String(s == null ? '' : s).toUpperCase().replace(/\s+/g, ' ').trim(); }
 function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
 function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
@@ -14023,8 +14026,27 @@ function renderFactEmit() {
   // v220: primero se filtra por EMPRESA; el "Pendiente de cobro" es el de la empresa elegida.
   const EMPS220 = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES 2014 IMPORT'];
   const base220 = (_factEmit || []).filter(f => _feEmpresa === 'TODAS' ? true : (f.empresa || '') === _feEmpresa);
-  const arr = base220.filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
-  const pend = base220.filter(f => (f.estado || 'pendiente') === 'pendiente');
+  // v555: FECHA de la factura. Si la fecha viene vacia o con formato raro NO se descarta, para no perder ninguna factura de vista.
+  const baseFe555 = base220.filter(f => {
+    const v = String(f.fecha || '');
+    if (!/^\d{4}-\d{2}-\d{2}/.test(v)) return true;
+    const d = v.slice(0, 10);
+    if (_feDesde && d < _feDesde) return false;
+    if (_feHasta && d > _feHasta) return false;
+    return true;
+  });
+  // v555: lista de CLIENTES de lo que queda tras empresa+fechas (cascada). Se agrupan las grafias distintas del mismo nombre.
+  const mapCli555 = new Map();
+  baseFe555.forEach(f => {
+    const k = _feKeyCli(f.cliente); if (!k) return;
+    const o = mapCli555.get(k); if (o) { o.n++; } else { mapCli555.set(k, { k: k, label: (f.cliente || '').trim(), n: 1 }); }
+  });
+  if (_feCliente !== 'TODOS' && !mapCli555.has(_feCliente)) mapCli555.set(_feCliente, { k: _feCliente, label: _feCliente, n: 0 });
+  const cli555 = Array.from(mapCli555.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  const baseFin555 = baseFe555.filter(f => _feCliente === 'TODOS' ? true : _feKeyCli(f.cliente) === _feCliente);
+  const hayFiltro555 = !!(_feDesde || _feHasta || _feCliente !== 'TODOS');
+  const arr = baseFin555.filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
+  const pend = baseFin555.filter(f => (f.estado || 'pendiente') === 'pendiente');
   const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
   let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
   ['TODAS'].concat(EMPS220).forEach(e => {
@@ -14032,8 +14054,22 @@ function renderFactEmit() {
     h += '<button class="btn ' + (_feEmpresa === e ? 'bp' : 'bs') + '" style="font-size:10px;padding:6px 12px" onclick="_feEmpresa=\'' + e + '\';renderFactEmit()">' + (e === 'TODAS' ? '\ud83c\udfe2 TODAS' : e) + ' (' + n + ')</button>';
   });
   h += '</div>';
+  // v555: fila de filtros por FECHA y CLIENTE
+  const inpSty555 = 'padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--s2);color:var(--tx);font-size:12px;font-family:var(--mn)';
+  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">';
+  h += '<span style="font-size:11px;color:var(--mu);font-weight:bold">FECHA FACTURA:</span>';
+  h += '<input type="date" value="' + esc2(_feDesde) + '" title="Desde esta fecha" onchange="_feDesde=this.value;renderFactEmit()" style="' + inpSty555 + '">';
+  h += '<span style="font-size:11px;color:var(--mu)">a</span>';
+  h += '<input type="date" value="' + esc2(_feHasta) + '" title="Hasta esta fecha" onchange="_feHasta=this.value;renderFactEmit()" style="' + inpSty555 + '">';
+  h += '<span style="font-size:11px;color:var(--mu);font-weight:bold;margin-left:10px">CLIENTE:</span>';
+  h += '<select onchange="_feCliente=this.value;renderFactEmit()" style="' + inpSty555 + ';max-width:320px">';
+  h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos (' + baseFe555.length + ')</option>';
+  cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>'; });
+  h += '</select>';
+  if (hayFiltro555) h += '<button class="btn bs" style="font-size:10px;padding:5px 10px" title="Quitar el filtro de fechas y de cliente" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';renderFactEmit()">\u2715 Limpiar</button>';
+  h += '</div>';
   h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
-  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:13px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
+  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:13px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + (hayFiltro555 ? ' \u00b7 <span style="color:var(--ac)">filtrado</span>' : '') + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
   ['todas', 'pendiente', 'cobrada'].forEach(f => {
     h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : '\u2705 Cobradas') + '</button>';
   });
