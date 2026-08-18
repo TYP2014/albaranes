@@ -14105,7 +14105,7 @@ function renderFactEmit() {
        + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle;margin-left:2px">' + _svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver PDF', 2) + '</a>' : '') + '</td>'
        + '<td style="padding:8px">' + fmtF(f.fecha) + '</td>'
        + '<td style="padding:8px">' + esc(f.empresa || '\u2014') + '</td>'
-       + '<td style="padding:8px">' + esc(f.cliente || '\u2014') + '</td>'
+       + '<td style="padding:8px">' + esc(f.cliente || '\u2014') + ((f.cliente && !_esClienteFEoficial(f.cliente)) ? ' <span title="Este nombre no esta en la lista oficial de clientes. Si es un cliente nuevo, avisa para a\u00f1adirlo." style="color:#b34700;font-size:11px;font-weight:bold;white-space:nowrap">\u26a0 no oficial</span>' : '') + '</td>'
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.base) + '</td>'
        + '<td style="padding:8px;text-align:right">' + _feFmt(f.iva) + '</td>'
        + '<td style="padding:8px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
@@ -14268,7 +14268,7 @@ async function factEmitSubir(files) {
       let url = null;
       try { url = await uploadFile(file, 'facturas_emitidas'); } catch (e2) { console.warn('[factemit] Storage:', e2); }
       const payload = {
-        numero: j.numero || null, fecha: j.fecha || null, cliente: j.cliente || null,
+        numero: j.numero || null, fecha: j.fecha || null, cliente: fixClienteFE(j.cliente) || null,
         empresa: j.empresa || null, base: j.base ?? null, iva: j.iva ?? null, total: j.total ?? null,
         vencimiento: j.vencimiento || null, estado: 'pendiente', file_url: url
       };
@@ -17258,6 +17258,43 @@ const _matchProveedor = makeCanonMatcher(PROVEEDORES_CANONICOS);
 // Si no, devuelve el original tal cual (no rompe nada para proveedores nuevos).
 function fixProveedor(p) {
   return _matchProveedor(p);
+}
+
+// ============================================================
+// v557: CLIENTES CANONICOS DE FACTURAS EMITIDAS (a quien FACTURAMOS)
+// Lista cerrada confirmada por JC el 18/08/2026 sobre las 102 facturas ya
+// subidas + los PDF de Quipu que faltaban por subir. NO tiene nada que ver
+// con el campo "cliente" de ALBARANES, que ahi puede ser el cliente de
+// nuestro cliente, una obra o una planta (Zona Franca, Montcada, La Roca...):
+// eso NO se toca, decision expresa de JC.
+// Regla de la casa: Cliente = a quien FACTURAMOS. Que ARIDFLOT y SATIG 79
+// esten tambien en los 13 transportistas oficiales es CORRECTO y no se mezcla:
+// a ellos les facturamos nosotros (cliente) y ellos nos facturan a nosotros
+// (transportista). Son dos listas distintas.
+const CLIENTES_FE_CANONICOS = [
+  { canon: 'ARIDFLOT, S.L.', alias: ['ARIDFLOT', 'ARIDFLOT SL'] },
+  { canon: 'CANTERAS CANRO, S.A.', alias: ['CANTERAS CANRO', 'CANTERAS CANRO SA'] },
+  { canon: 'CEMEX ESPA\u00d1A OPERACIONES, S.L.U.', alias: ['CEMEX', 'CEMEX ESPA\u00d1A', 'CEMEX ESPANA', 'CEMEX ESPA\u00d1A OPERACIONES'] },
+  { canon: 'CENTRE DE GESTIO MEDIAMBIENTAL, S.L.', alias: ['CENTRE DE GESTIO MEDIAMBIENTAL', 'CENTRE DE GESTI\u00d3 MEDIAMBIENTAL'] },
+  { canon: 'CONEXIS TRANSPORTES TERRESTRES, S.L.U.', alias: ['CONEXIS', 'CONEXIS TRANSPORTES TERRESTRES'] },
+  { canon: 'CONTINENTAL TIRES ESPA\u00d1A, S.L.', alias: ['CONTINENTAL TIRES', 'CONTINENTAL TIRES ESPA\u00d1A'] },
+  { canon: 'Control Demeter, S.L.', alias: ['CONTROL DEMETER'] },
+  { canon: 'CORPORACION CLD, SUTR, S.L.', alias: ['CORPORACION CLD', 'CORPORACI\u00d3N CLD', 'CORPORACION CLD SUTR'] },
+  { canon: 'HOLCIM ESPA\u00d1A, S.A.U.', alias: ['HOLCIM', 'HOLCIM ESPA\u00d1A', 'HOLCIM ESPANA'] },
+  { canon: 'LLANTADA E HIJOS, S.L.', alias: ['LLANTADA', 'LLANTADA E HIJOS', 'TRANSPORTES LLANTADA E HIJOS'] },
+  { canon: 'OP TRANS VALLES SL', alias: ['OP TRANS VALLES', 'OP TRANS VALL\u00c9S', 'OPTRANS VALLES'] },
+  { canon: 'SODIRA IBERICA, S.L.', alias: ['SODIRA', 'SODIRA IBERICA', 'SODIRA IB\u00c9RICA'] },
+  { canon: 'Transports Satig 79, S.L.', alias: ['SATIG 79', 'TRANSPORTS SATIG 79', 'TRANSPORTES SATIG 79', 'T SATIG 79'] },
+  { canon: 'TRANSPORTS ENRIC RIFE SL', alias: ['ENRIC RIFE', 'ENRIC RIF\u00c9', 'T ENRIC RIFE', 'TRANSPORTS ENRIC RIFE', 'TRANSPORTS ENRIC RIF\u00c9'] },
+  { canon: 'TRANSPORTS I EXCAVACIONS RIBERA, S.A.', alias: ['EXCAVACIONS RIBERA', 'TRANSPORTS I EXCAVACIONS RIBERA'] }
+];
+const _matchClienteFE = makeCanonMatcher(CLIENTES_FE_CANONICOS);
+// Devuelve el nombre OFICIAL si lo reconoce; si no, el original TAL CUAL
+// (un cliente nuevo NO se pierde ni se cambia, solo se marca en pantalla).
+function fixClienteFE(c) { return _matchClienteFE(c); }
+function _esClienteFEoficial(c) {
+  if (!c) return false;
+  return CLIENTES_FE_CANONICOS.some(x => x.canon === _matchClienteFE(c));
 }
 
 // ORÍGENES CANÓNICOS: plantas/canteras de salida del material
