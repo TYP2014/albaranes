@@ -14018,7 +14018,7 @@ let _feFiltro = 'todas'; // todas / pendiente / cobrada
 let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
 // v555: filtros de FECHA DE FACTURA y CLIENTE (se suman al de empresa, en cascada)
 let _feDesde = '', _feHasta = '', _feCliente = 'TODOS';
-function _feKeyCli(s) { return String(s == null ? '' : s).toUpperCase().replace(/\s+/g, ' ').trim(); }
+function _feKeyCli(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
 function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
@@ -14039,9 +14039,20 @@ function renderFactEmit() {
   const mapCli555 = new Map();
   baseFe555.forEach(f => {
     const k = _feKeyCli(f.cliente); if (!k) return;
-    const o = mapCli555.get(k); if (o) { o.n++; } else { mapCli555.set(k, { k: k, label: (f.cliente || '').trim(), n: 1 }); }
+    const g = (f.cliente || '').trim();
+    const o = mapCli555.get(k);
+    if (o) { o.n++; o.graf[g] = (o.graf[g] || 0) + 1; } else { const gg = {}; gg[g] = 1; mapCli555.set(k, { k: k, graf: gg, n: 1 }); }
   });
-  if (_feCliente !== 'TODOS' && !mapCli555.has(_feCliente)) mapCli555.set(_feCliente, { k: _feCliente, label: _feCliente, n: 0 });
+  if (_feCliente !== 'TODOS' && !mapCli555.has(_feCliente)) { const gg = {}; gg[_feCliente] = 1; mapCli555.set(_feCliente, { k: _feCliente, graf: gg, n: 0 }); }
+  // v556: de las varias formas de escribir el mismo cliente se ENSEÑA LA MEJOR ESCRITA (la que separa mas palabras) y, a igualdad, la mas repetida
+  mapCli555.forEach(o => {
+    let mejor = '', mp = -1, mn = -1;
+    Object.keys(o.graf).forEach(g => {
+      const pal = (g.match(/\s/g) || []).length, veces = o.graf[g];
+      if (pal > mp || (pal === mp && veces > mn)) { mp = pal; mn = veces; mejor = g; }
+    });
+    o.label = mejor || o.k;
+  });
   const cli555 = Array.from(mapCli555.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'));
   const baseFin555 = baseFe555.filter(f => _feCliente === 'TODOS' ? true : _feKeyCli(f.cliente) === _feCliente);
   const hayFiltro555 = !!(_feDesde || _feHasta || _feCliente !== 'TODOS');
