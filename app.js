@@ -21793,6 +21793,23 @@ function _tcitaDias(fechaStr) {
   return Math.round((f - hoy) / 86400000);
 }
 
+// v558 — ¿esta cita YA PASO de verdad? (fecha + hora + 1 hora de cortesia)
+// Lo pidio JC: "que no nos salgan, que se eliminen cuando ya han caducado,
+// porque la cita, si no vas, no puede ir retroactivamente... pon 1 hora de
+// margen y que no aparezca el aviso". Misma regla que ya usan las citas de
+// ITV desde la v539. La HORA se lee con manga ancha (06:00, 6:00, 14.30,
+// 8h30) y SI NO HAY HORA o no se entiende se toma el FINAL DEL DIA, o sea
+// que una cita sin hora se ve el dia entero y se calla al dia siguiente.
+function _tcitaYaPaso(c) {
+  if (!c || !c.fecha_cita) return false;
+  const lim = new Date(String(c.fecha_cita).slice(0, 10) + 'T00:00:00');
+  if (isNaN(lim.getTime())) return false;
+  const m = /^(\d{1,2})\s*[:.hH]\s*(\d{2})/.exec(String(c.hora_cita || '').trim());
+  lim.setHours(m ? Math.min(23, parseInt(m[1], 10)) : 23,
+               m ? Math.min(59, parseInt(m[2], 10)) : 59, 0, 0);
+  return Date.now() > lim.getTime() + 3600000;   // + 1 hora de cortesia
+}
+
 // Color y etiqueta segun lo que falte. UN SOLO SITIO donde se decide
 // el color, para que la tabla y el aviso global no puedan discrepar.
 function _tcitaSemaforo(c) {
@@ -22007,6 +22024,7 @@ function renderCitasGlobalBanner() {
   tallerCitas
     .filter(c => permitidas.includes(c.empresa))
     .filter(c => c.estado !== 'hecha' && c.estado !== 'anulada')
+    .filter(c => !_tcitaYaPaso(c))   // v558: una hora despues de la cita, el aviso se calla
     .forEach(c => {
       const s = _tcitaSemaforo(c);
       if (grupos[s.clave]) grupos[s.clave].push(c);
