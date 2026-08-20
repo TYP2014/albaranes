@@ -1526,10 +1526,38 @@ async function loadData() {
     }
     return out;
   };
+  // v559 (Juan Carlos 20/08/2026) — LO RECIEN SUBIDO SE TRAE SIEMPRE, AUNQUE LA FECHA ESTE MAL.
+  // El problema que lo motiva: los albaranes escritos A MANO los lee la IA con la fecha
+  // equivocada (2025 en vez de 2026, o un "4" que entra como abril en vez de agosto). Como la
+  // ventana de arriba filtra POR LA FECHA DEL TRANSPORTE, esa fila NO SE DESCARGABA de la BD: no
+  // es que estuviera escondida abajo del listado, es que no estaba. El que lo sube no lo ve, cree
+  // que no ha entrado y lo vuelve a subir cuatro y cinco veces (duplicados), y ademas nadie puede
+  // corregirle la fecha porque no aparece por ningun lado. Los gestores que no saben filtrar por
+  // fecha tampoco lo encuentran.
+  // ARREGLO: se añade UNA condicion mas al mismo OR de la ventana — created_at de las ultimas
+  // 24 HORAS. Es un OR, o sea que SUMA: sigue trayendo los 2 meses de siempre, y ademas todo lo
+  // subido hoy, mire la fecha lo que mire. Como el listado ya viene ordenado por SUBIDO
+  // descendente (sortCol='created_at', sortDir=-1), esas filas salen LAS PRIMERAS de la tabla,
+  // que es justo donde se miran despues de subir → se ve, se edita la fecha y ya entra sola en la
+  // ventana normal. Pasadas las 24 h, si la fecha sigue mal, vuelve a caerse de la vista (se
+  // recupera con "Ver todo el historico"), que es lo que se quiere: la red de seguridad es para
+  // el momento de subir, no un cajon que crece.
+  // POR QUE 24 H Y NO MAS: lo eligio JC. Se suben unos 165 albaranes al dia, asi que esto añade
+  // ~165 filas a las ~5.800 del arranque (un 3%) — no se nota. Y NO reabre el agujero de la v524:
+  // aquel filtraba TODO por created_at, asi que resubir un PDF de 777 lineas metia otra vez media
+  // tabla en la ventana para siempre; aqui created_at solo AÑADE lo de un dia y se vacia solo.
+  // El corte se calcula UNA SOLA VEZ (no dentro de cada llamada) para que el conteo y todas las
+  // paginas usen EXACTAMENTE el mismo instante y no se descuadre la paginacion.
+  // La fecha va SIN milisegundos a proposito ('...T06:00:00Z'): PostgREST parte cada condicion del
+  // OR por los puntos, y un valor con punto decimal puede romper el filtro entero.
+  const _HORAS_RECIEN_SUBIDO = 24;
+  const _desdeSubida = new Date(Date.now() - _HORAS_RECIEN_SUBIDO * 3600 * 1000)
+    .toISOString().replace(/\.\d{3}Z$/, 'Z');
   const _filtroVentana = (q) => {
     const ors = _mesesVentana().map(mm => 'fecha.like.%' + mm);
     ors.push('fecha.is.null');                                   // sin fecha: se trae siempre
     ors.push('fecha.not.like.__/__/____');                       // formato raro: se trae siempre
+    ors.push('created_at.gte.' + _desdeSubida);                  // v559: subido hace <24 h: se trae siempre
     return q.or(ors.join(','));
   };
   const _mkQuery = (desde, hasta) => {
@@ -1591,7 +1619,7 @@ async function loadData() {
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
     return;
   }
-  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD` + (window._cargarTodo ? ' (TODO el histórico)' : ' (v524: últimos ' + _MESES_VENTANA + ' meses por FECHA de transporte — ' + _mesesVentana().join(', ') + ')'));
+  console.log(`[loadData] Cargados ${allRows.length} albaranes desde BD` + (window._cargarTodo ? ' (TODO el histórico)' : ' (v524: últimos ' + _MESES_VENTANA + ' meses por FECHA de transporte — ' + _mesesVentana().join(', ') + ' — v559: + todo lo subido desde ' + _desdeSubida + ')'));
   // Asignar db_id e _id a cada registro (necesario para detección de duplicados)
   // v76: además, si la columna manual_edit=true en BD, marcamos _manual en memoria.
   // Así el albarán queda protegido contra reanálisis automáticos en TODA la sesión.
@@ -1764,9 +1792,12 @@ function _actualizarAvisoHistorico() {
     aviso.innerHTML = '';
   } else {
     aviso.style.display = '';
+    // v559: se avisa tambien de la red de seguridad de las 24 h, para que quien sube sepa que lo
+    // suyo esta ARRIBA del todo aunque la fecha haya salido mal, y no lo suba otra vez.
     aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos ' + (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2) + ' meses</b> (por fecha de transporte, para que la app abra rápido). '
       + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Ver todo el histórico</a> '
-      + '<span style="color:var(--mu)">· para fechas más antiguas, cárgalo aquí.</span>';
+      + '<span style="color:var(--mu)">· para fechas más antiguas, cárgalo aquí.</span><br>'
+      + '<span style="color:var(--mu)">🆕 Lo subido en las <b>últimas 24 h</b> se ve siempre arriba del todo, aunque la fecha se haya leído mal — corrígela ahí mismo.</span>';
   }
 }
 
