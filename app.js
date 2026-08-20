@@ -13008,12 +13008,13 @@ function renderTallerGlobalBanner() {
     : ['TYP2014','HISPALIS','TRANSMARGAZ'];
 
   // Agrupar vehículos por nivel: vencido / pronto / plan
+  // v560: se guarda también QUÉ le vence a cada uno, para escribirlo en el aviso.
   const grupos = { vencido: [], pronto: [], plan: [] };
   tallerVehiculos
     .filter(v => permitidas.includes(v.empresa))
     .forEach(v => {
       const e = _tallerEstadoVehiculo(v);
-      if (grupos[e.estado]) grupos[e.estado].push(v);
+      if (grupos[e.estado]) grupos[e.estado].push({ matricula: v.matricula, motivos: e.motivos || [] });
     });
 
   // Config visual de cada nivel. La key se usa para ocultar ese color por separado.
@@ -13031,11 +13032,16 @@ function renderTallerGlobalBanner() {
     // ¿Este color ocultado hoy? (clave separada por nivel)
     if (localStorage.getItem(TALLER_BANNER_HIDE_KEY + '_' + n.key) === today) continue;
 
+    // v560: cada matrícula va con QUÉ le vence detrás ("5258HYX (Aceite y filtros)").
     let mensaje;
     if (lista.length === 1) {
-      mensaje = `<strong>${n.icon} ${esc(lista[0].matricula)}</strong> · ${n.txt}`;
+      const q = _tallerMotivosTxt(lista[0].motivos);
+      mensaje = `<strong>${n.icon} ${esc(lista[0].matricula)}</strong>${q ? ` · <strong>${esc(q)}</strong>` : ''} · ${n.txt}`;
     } else {
-      const top3 = lista.slice(0, 3).map(v => `${n.icon} <strong>${esc(v.matricula)}</strong>`).join(' · ');
+      const top3 = lista.slice(0, 3).map(v => {
+        const q = _tallerMotivosTxt(v.motivos);
+        return `${n.icon} <strong>${esc(v.matricula)}</strong>${q ? ` <span style="font-weight:400">(${esc(q)})</span>` : ''}`;
+      }).join(' · ');
       const resto = lista.length > 3 ? ` · +${lista.length - 3} más` : '';
       mensaje = `<strong>${lista.length} ${n.txtPl}:</strong> ${top3}${resto}`;
     }
@@ -20706,54 +20712,59 @@ function _tallerEstadoVehiculo(v) {
   const kmActual = v.km_actual || 0;
   const orden = { vencido: 4, pronto: 3, plan: 2, sinmant: 2, ok: 1 };
 
-  // v107L10 (Juan Carlos 19/06/2026): el aviso combina DOS fuentes y muestra la MÁS URGENTE:
-  //   (A) AUTOMÁTICO — como antes: desde el último mantenimiento registrado + intervalo por defecto
-  //       (12 meses / 60.000 km). Solo si el vehículo tiene algún mantenimiento registrado.
-  //   (B) MANUAL — los vencimientos que se programan a mano (tabla taller_vencimientos).
-  // Umbrales iguales en ambos: fecha ≤15 días = pronto, ≤31 días = plan; km ≤5.000 = pronto,
-  // ≤10.000 = plan; pasado = vencido. Si no hay NI mantenimiento previo NI vencimientos → 'sinmant'.
-  const INT_MESES = 12, INT_KM = 60000;
+  // v560 (Juan Carlos 20/08/2026): SE ELIMINA la fuente AUTOMÁTICA. Hasta la v559 el aviso
+  // también se calculaba a partir del ÚLTIMO mantenimiento apuntado (de cualquier tipo) + 12
+  // meses / 60.000 km fijos. Eso hacía que apuntar CUALQUIER reparación (un espejo, una rueda)
+  // reiniciara el reloj y el aviso del aceite desapareciera solo. AHORA mandan ÚNICAMENTE los
+  // VENCIMIENTOS PROGRAMADOS que se ven en pantalla (tabla taller_vencimientos): lo que no está
+  // en la lista, no avisa; y lo que está en la lista, no se borra solo nunca.
+  // Umbrales: fecha ≤15 días = pronto, ≤31 días = plan; km ≤5.000 = pronto, ≤10.000 = plan;
+  // pasado = vencido. Sin vencimientos programados → 'sinmant' (bola blanca).
   let peor = 'ok', peorRank = 1, masUrgScore = Infinity, proxFecha = '—', proxKm = '—';
 
+  // v560: aplicaFecha/aplicaKm DEVUELVEN ahora el nivel que les toca ('ok'/'plan'/'pronto'/
+  // 'vencido'), para poder saber QUE vencimiento concreto es el que hace saltar el aviso y
+  // escribirlo en la barra de arriba ("5258HYX - Aceite y filtros"). El calculo es el mismo.
   const aplicaFecha = (fechaISO) => {
     const f = new Date(fechaISO + 'T00:00:00');
-    if (isNaN(f)) return;
+    if (isNaN(f)) return 'ok';
     const dias = Math.floor((f - hoy) / 86400000);
     let e = 'ok';
     if (dias < 0) e = 'vencido'; else if (dias <= 15) e = 'pronto'; else if (dias <= 31) e = 'plan';
     if (orden[e] > peorRank) { peorRank = orden[e]; peor = e; }
     if (e !== 'ok' && dias < masUrgScore) { masUrgScore = dias; proxFecha = fechaISO.split('-').reverse().join('/'); }
+    return e;
   };
   const aplicaKm = (kmLimite) => {
-    if (kmActual <= 0) return;
+    if (kmActual <= 0) return 'ok';
     const kmRest = kmLimite - kmActual;
     let e = 'ok';
     if (kmRest <= 0) e = 'vencido'; else if (kmRest <= 5000) e = 'pronto'; else if (kmRest <= 10000) e = 'plan';
     if (orden[e] > peorRank) { peorRank = orden[e]; peor = e; }
     if (e !== 'ok' && (kmRest / 100) < masUrgScore) { masUrgScore = kmRest / 100; proxKm = kmLimite.toLocaleString('es-ES') + ' km'; }
+    return e;
   };
 
-  // (A) AUTOMÁTICO desde el último mantenimiento
-  if (ultimo) {
-    if (ultimo.fecha) {
-      const f = new Date(ultimo.fecha + 'T00:00:00');
-      if (!isNaN(f)) { const lim = new Date(f); lim.setMonth(lim.getMonth() + INT_MESES); aplicaFecha(lim.toISOString().slice(0, 10)); }
-    }
-    if (ultimo.km != null) aplicaKm(ultimo.km + INT_KM);
-  }
-
-  // (B) MANUAL: vencimientos programados (lo que llegue antes en cada uno)
+  // v560: ÚNICA fuente — los vencimientos programados (avisa lo que llegue antes de cada uno).
+  // Se guarda el nivel de CADA UNO para poder decir luego cuál es el que está dando el aviso.
   const vencs = tallerVencimientos.filter(x => x.vehiculo_id === v.id);
+  const nivelPorVenc = [];
   for (const x of vencs) {
-    if (x.fecha_limite) aplicaFecha(x.fecha_limite);
-    if (x.km_limite != null) aplicaKm(x.km_limite);
+    const eF = x.fecha_limite ? aplicaFecha(x.fecha_limite) : 'ok';
+    const eK = x.km_limite != null ? aplicaKm(x.km_limite) : 'ok';
+    const eV = orden[eF] >= orden[eK] ? eF : eK;
+    nivelPorVenc.push({ desc: x.descripcion || 'Mantenimiento', nivel: eV });
   }
 
-  // Sin nada que vigilar → sin alarma
-  if (!ultimo && !vencs.length) {
+  // v560: sin vencimientos programados → bola BLANCA "sin programar", AUNQUE tenga
+  // mantenimientos apuntados. La app ya no se inventa ninguna fecha: si quieres que avise,
+  // hay que darle de alta el vencimiento.
+  if (!vencs.length) {
     return {
-      estado: 'sinmant', ultimaFecha: '—', ultimoKm: '—',
-      proxFecha: 'Sin programar', proxKm: '—', numMants: 0
+      estado: 'sinmant',
+      ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
+      ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
+      proxFecha: 'Sin programar', proxKm: '—', numMants: mants.length
     };
   }
 
@@ -20761,8 +20772,19 @@ function _tallerEstadoVehiculo(v) {
     estado: peor,
     ultimaFecha: ultimo?.fecha ? ultimo.fecha.split('-').reverse().join('/') : '—',
     ultimoKm: ultimo?.km != null ? ultimo.km.toLocaleString('es-ES') : '—',
-    proxFecha, proxKm, numMants: mants.length
+    proxFecha, proxKm, numMants: mants.length,
+    // v560: descripciones de los vencimientos que están EN ESE MISMO nivel (los culpables
+    // del color). Es lo que se escribe en la barra de avisos de arriba.
+    motivos: peor === 'ok' ? [] : nivelPorVenc.filter(x => x.nivel === peor).map(x => x.desc)
   };
+}
+
+// v560: texto corto de QUÉ le vence a un vehículo, para la barra de avisos.
+// Enseña hasta 2 y resume el resto ('Aceite y filtros + Correa + 1 más').
+function _tallerMotivosTxt(motivos) {
+  if (!Array.isArray(motivos) || !motivos.length) return '';
+  const vis = motivos.slice(0, 2).join(' + ');
+  return motivos.length > 2 ? vis + ' + ' + (motivos.length - 2) + ' más' : vis;
 }
 
 // v107AL: genera <option> de tiempo marcando el valor actual. Si el valor
@@ -20842,8 +20864,9 @@ function renderTallerAvisos() {
   const alertas = [];
   vs.forEach(v => {
     const e = _tallerEstadoVehiculo(v);
-    if (e.estado === 'vencido') alertas.push(`🔴 ${v.matricula} VENCIDO`);
-    else if (e.estado === 'pronto') alertas.push(`🟠 ${v.matricula} pronto`);
+    const q = _tallerMotivosTxt(e.motivos);   // v560: QUÉ le vence
+    if (e.estado === 'vencido') alertas.push(`🔴 ${v.matricula}${q ? ' (' + q + ')' : ''} VENCIDO`);
+    else if (e.estado === 'pronto') alertas.push(`🟠 ${v.matricula}${q ? ' (' + q + ')' : ''} pronto`);
   });
   if (!alertas.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
@@ -20899,7 +20922,7 @@ function tallerAbrirModal(vehId) {
     </div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">🔔 VENCIMIENTOS PROGRAMADOS</div>
-      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (te avisa por lo que llegue antes).</div>
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (te avisa por lo que llegue antes). Si le pones <b>cada cuánto se repite</b>, al marcarlo ✓ Hecho la app <b>programa sola el siguiente</b>.</div>
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
         <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Qué vence</label><br>
@@ -20908,6 +20931,19 @@ function tallerAbrirModal(vehId) {
           <input type="date" class="fi" id="tallerVencFecha" style="font-size:11px;padding:4px"></div>
         <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Km</label><br>
           <input type="number" class="fi" id="tallerVencKm" placeholder="km" style="width:90px;font-size:11px;padding:4px"></div>
+        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">🔁 Se repite cada</label><br>
+          <select class="fi" id="tallerVencRepMeses" style="font-size:11px;padding:4px">
+            <option value="">no se repite</option>
+            <option value="1">1 mes</option>
+            <option value="2">2 meses</option>
+            <option value="3">3 meses</option>
+            <option value="4">4 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12">12 meses</option>
+            <option value="24">24 meses</option>
+          </select></div>
+        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">… y/o cada (km)</label><br>
+          <input type="number" class="fi" id="tallerVencRepKm" placeholder="ej: 40000" style="width:100px;font-size:11px;padding:4px"></div>
         <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">➕ Añadir</button>
       </div>
       <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:var(--mn)">Rellenar fecha rápido:
@@ -21150,15 +21186,62 @@ function _tallerVencimientosHtml(vehId) {
     const f = x.fecha_limite ? x.fecha_limite.split('-').reverse().join('/') : '';
     const km = x.km_limite != null ? x.km_limite.toLocaleString('es-ES') + ' km' : '';
     const cuando = [f, km].filter(Boolean).join(' · ') || '—';
+    // v560: etiqueta de periodicidad. Si se repite, al marcarlo Hecho se reprograma solo.
+    const rep = _tallerRepTexto(x);
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px">
       <input type="checkbox" class="tVencChk" value="${x.id}" style="cursor:pointer">
-      <span style="flex:1;color:var(--tx)">🔧 <b>${esc(x.descripcion || '')}</b></span>
+      <span style="flex:1;color:var(--tx)">🔧 <b>${esc(x.descripcion || '')}</b>
+        <span style="font-size:10px;color:${rep ? 'var(--in)' : 'var(--mu)'}">${rep ? '🔁 ' + rep : 'una sola vez'}</span></span>
       <span style="color:var(--in);white-space:nowrap">${cuando}</span>
       <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--ac)" onclick="tallerVencHecho('${x.id}','${vehId}')">✓ Hecho</button>
       <button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarVencimiento('${x.id}','${vehId}')">🗑</button>
     </div>`;
   }).join('');
   return barra + filas;
+}
+
+// v560: texto corto de la periodicidad de un vencimiento ('cada 6 meses · cada 40.000 km').
+// Devuelve '' si no se repite (vencimiento de una sola vez).
+function _tallerRepTexto(x) {
+  const rm = x.repetir_meses != null ? parseInt(x.repetir_meses, 10) : null;
+  const rk = x.repetir_km != null ? parseInt(x.repetir_km, 10) : null;
+  const p = [];
+  if (rm) p.push('cada ' + rm + (rm === 1 ? ' mes' : ' meses'));
+  if (rk) p.push('cada ' + rk.toLocaleString('es-ES') + ' km');
+  return p.join(' · ');
+}
+
+// v560: calcula la SIGUIENTE ronda de un vencimiento que se repite, partiendo de la fecha y los
+// km REALES a los que se acaba de hacer. Devuelve null si el vencimiento es de una sola vez.
+// Detalle: al sumar meses se corrige el desbordamiento de fin de mes (31/01 + 1 mes = 28/02,
+// no 03/03) poniendo el último día del mes.
+function _tallerSiguienteVenc(venc, v, fechaRealISO, kmReal) {
+  const rm = venc.repetir_meses != null ? parseInt(venc.repetir_meses, 10) : null;
+  const rk = venc.repetir_km != null ? parseInt(venc.repetir_km, 10) : null;
+  if (!rm && !rk) return null;
+  let nuevaFecha = null;
+  if (rm) {
+    const base = new Date((fechaRealISO || new Date().toISOString().slice(0, 10)) + 'T00:00:00');
+    if (!isNaN(base)) {
+      const d0 = base.getDate();
+      base.setMonth(base.getMonth() + rm);
+      if (base.getDate() !== d0) base.setDate(0);
+      nuevaFecha = base.getFullYear() + '-' + String(base.getMonth() + 1).padStart(2, '0') + '-' + String(base.getDate()).padStart(2, '0');
+    }
+  }
+  let nuevoKm = null;
+  const kmBase = (kmReal != null && !isNaN(kmReal)) ? kmReal : (v.km_actual || null);
+  if (rk && kmBase != null && kmBase > 0) nuevoKm = kmBase + rk;
+  if (!nuevaFecha && nuevoKm == null) return null;
+  return {
+    vehiculo_id: venc.vehiculo_id, matricula: v.matricula, empresa: v.empresa,
+    descripcion: venc.descripcion,
+    fecha_limite: nuevaFecha, km_limite: nuevoKm,
+    repetir_meses: rm || null, repetir_km: rk || null,
+    activo: true,
+    user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null,
+    updated_at: new Date().toISOString()
+  };
 }
 
 // v107K75: marca/desmarca todas las casillas de vencimientos a la vez.
@@ -21207,7 +21290,17 @@ async function tallerVencBulkHecho(vehId) {
     if (e1) throw e1;
     const { error: e2 } = await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).in('id', ids);
     if (e2) throw e2;
-    toast(`✓ ${ids.length} guardado(s) en histórico y quitado(s) de los avisos`, 'ok');
+    // v560: los que tengan periodicidad se reprograman solos con la fecha/km reales.
+    const siguientes = ids
+      .map(id => tallerVencimientos.find(x => x.id === id))
+      .filter(Boolean)
+      .map(venc => _tallerSiguienteVenc(venc, v, hoyISO, kmVal))
+      .filter(Boolean);
+    if (siguientes.length) {
+      const { error: e3 } = await sb.from('taller_vencimientos').insert(siguientes);
+      if (e3) throw e3;
+    }
+    toast(`✓ ${ids.length} al histórico` + (siguientes.length ? ` · ${siguientes.length} reprogramado(s) solo(s)` : ''), 'ok');
     await _tallerRecargarVencimientos();
     await _tallerRecargarHistorico();
     _tallerRefrescarVencUI(vehId);
@@ -21250,6 +21343,9 @@ async function tallerAddVencimiento(vehId) {
   const desc = (document.getElementById('tallerVencDesc')?.value || '').trim();
   const fecha = document.getElementById('tallerVencFecha')?.value || '';
   const kmRaw = document.getElementById('tallerVencKm')?.value || '';
+  // v560: periodicidad opcional (vacío = de una sola vez)
+  const repMesesRaw = document.getElementById('tallerVencRepMeses')?.value || '';
+  const repKmRaw = document.getElementById('tallerVencRepKm')?.value || '';
   if (!desc) { toast('Pon qué vence (ej: Filtro y aceite motor)', 'err'); return; }
   if (!fecha && !kmRaw) { toast('Pon al menos una fecha o unos km', 'err'); return; }
   const row = {
@@ -21257,6 +21353,8 @@ async function tallerAddVencimiento(vehId) {
     descripcion: desc,
     fecha_limite: fecha || null,
     km_limite: kmRaw ? parseInt(kmRaw, 10) : null,
+    repetir_meses: repMesesRaw ? parseInt(repMesesRaw, 10) : null,
+    repetir_km: repKmRaw ? parseInt(repKmRaw, 10) : null,
     activo: true,
     user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null,
     updated_at: new Date().toISOString()
@@ -21268,7 +21366,7 @@ async function tallerAddVencimiento(vehId) {
     await _tallerRecargarVencimientos();
     const cont = document.getElementById('tallerVencLista');
     if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
-    ['tallerVencDesc', 'tallerVencFecha', 'tallerVencKm'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    ['tallerVencDesc', 'tallerVencFecha', 'tallerVencKm', 'tallerVencRepMeses', 'tallerVencRepKm'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
@@ -21301,22 +21399,31 @@ async function tallerVencHecho(id, vehId) {
   const kmReal = prompt(`¿A cuántos KM se ha hecho "${venc.descripcion}"?\n(déjalo vacío si no aplica)`, v.km_actual || '');
   if (kmReal === null) return; // canceló
   const hoyISO = new Date().toISOString().slice(0, 10);
+  const kmVal = (kmReal && !isNaN(parseInt(kmReal, 10))) ? parseInt(kmReal, 10) : null;
   try {
     const { error } = await sb.from('taller_venc_historico').insert({
       vehiculo_id: vehId, matricula: v.matricula, empresa: v.empresa,
       descripcion: venc.descripcion,
       fecha_real: hoyISO,
-      km_real: (kmReal && !isNaN(parseInt(kmReal, 10))) ? parseInt(kmReal, 10) : null,
+      km_real: kmVal,
       user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null
     });
     if (error) throw error;
     await sb.from('taller_vencimientos').update({ activo: false, updated_at: new Date().toISOString() }).eq('id', id);
-    toast('✓ Guardado en histórico. Reprograma el siguiente si toca.', 'ok');
+    // v560: si el vencimiento se repite, se PROGRAMA SOLO el siguiente (fecha real + N meses,
+    // km reales + N km). Así nunca desaparece un pendiente sin querer.
+    const sig = _tallerSiguienteVenc(venc, v, hoyISO, kmVal);
+    if (sig) {
+      const { error: e3 } = await sb.from('taller_vencimientos').insert(sig);
+      if (e3) throw e3;
+    }
+    toast(sig
+      ? '✓ Hecho. Siguiente programado: ' + (sig.fecha_limite ? sig.fecha_limite.split('-').reverse().join('/') : '') + (sig.km_limite ? ' · ' + sig.km_limite.toLocaleString('es-ES') + ' km' : '')
+      : '✓ Guardado en histórico. Era de una sola vez: no se reprograma.', 'ok');
     await _tallerRecargarVencimientos();
     await _tallerRecargarHistorico();
-    const cont = document.getElementById('tallerVencLista');
-    if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
-    const d = document.getElementById('tallerVencDesc'); if (d) { d.value = venc.descripcion; d.focus(); }
+    _tallerRefrescarVencUI(vehId);
+    if (!sig) { const d = document.getElementById('tallerVencDesc'); if (d) { d.value = venc.descripcion; d.focus(); } }
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
