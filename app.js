@@ -27679,10 +27679,25 @@ function _tacoParseCard(b) {
   // --- que hizo cada dia (0x0504) ---
   // Es un carrete que da la vuelta: se empieza en el dia mas viejo y se va
   // saltando con la longitud que indica cada registro, dando la vuelta al final.
-  const act = bloques['1284:2'] || bloques['1284:0'];
-  if (act) {
-    const ini = act.dp, viejo = _tacoU16(b, ini), nuevo = _tacoU16(b, ini + 2);
-    const B0 = ini + 4, N = act.ln - 4;
+  // v561: LA TARJETA GUARDA EL MISMO DIA DOS VECES - un bloque de GENERACION 1 y
+  // otro de GENERACION 2 - y NO SIEMPRE DICEN LO MISMO. Hasta ahora se cogia el de
+  // generacion 2 y si no habia, el de generacion 1. Probado con la tarjeta REAL de
+  // ANTON PERA BAELLA (fichero C_E78085436E000002_E_20260622_0313.TGD): el 15/06/2026
+  // a las 14:58 UTC el bloque de generacion 1 dice DESCANSO (tarjeta fuera, anotado a
+  // mano) y el de generacion 2 dice OTROS TRABAJOS. Manda el de GENERACION 1, y la
+  // prueba es la MEDIANOCHE: lo que hay al acabar un dia tiene que ser lo mismo que
+  // al empezar el siguiente. Generacion 1 acaba el 15/06 en DESCANSO y el 16/06
+  // arranca en DESCANSO (cuadra); generacion 2 acaba en OTROS TRABAJOS y arranca en
+  // DESCANSO (imposible). La fuente de contraste tambien lo da por descanso.
+  // NO SE CAMBIA UN BLOQUE POR OTRO: se leen LOS DOS y se juntan, porque el de
+  // generacion 2 puede traer algun dia mas por delante (en ese mismo fichero trae el
+  // 20/01/2026, que en generacion 1 no esta). Para cada dia manda generacion 1 y solo
+  // se coge de generacion 2 lo que generacion 1 no tenga, asi no se pierde ni un dia.
+  const _tacoCarrete = (blq) => {
+    const res = [];
+    if (!blq) return res;
+    const ini = blq.dp, viejo = _tacoU16(b, ini), nuevo = _tacoU16(b, ini + 2);
+    const B0 = ini + 4, N = blq.ln - 4;
     const g16 = i => (b[B0 + (i % N)] << 8) | b[B0 + ((i + 1) % N)];
     let i = viejo;
     for (let vueltas = 0; vueltas < 800; vueltas++) {
@@ -27695,11 +27710,29 @@ function _tacoParseCard(b) {
         const v = g16(i + 12 + k * 2);
         ev.push({ slot: (v >> 15) & 1, sin: (v >> 13) & 1, unk: (v >> 14) & 1, act: (v >> 11) & 3, min: v & 0x7FF });   // v409: bit14 = con tarjeta fuera, 1=sin anotar
       }
-      out.dias.push({ fecha, odo: null, km, cond: [], ev });
+      res.push({ fecha, odo: null, km, cond: [], ev });
       if (i === nuevo) break;
       i = (i + rl) % N;
     }
-  }
+    return res;
+  };
+  const _dG1 = _tacoCarrete(bloques['1284:0']);
+  const _dG2 = _tacoCarrete(bloques['1284:2']);
+  const _hayG1 = new Set(_dG1.map(x => x.fecha));
+  const _soloG2 = _dG2.filter(x => !_hayG1.has(x.fecha));
+  _dG1.concat(_soloG2).sort((x, y) => x.fecha - y.fecha).forEach(x => out.dias.push(x));
+  try {
+    let _dif = 0;
+    const _porFecha = new Map(_dG2.map(x => [x.fecha, x]));
+    _dG1.forEach(d1 => {
+      const d2 = _porFecha.get(d1.fecha);
+      if (!d2 || d2.ev.length !== d1.ev.length) return;
+      for (let k = 0; k < d1.ev.length; k++) if (d1.ev[k].act !== d2.ev[k].act) _dif++;
+    });
+    console.log(`[v561] actividad de la tarjeta: ${_dG1.length} dia(s) de generacion 1`
+      + ` + ${_soloG2.length} solo en generacion 2 = ${out.dias.length}.`
+      + ` Cambios de actividad en que los dos bloques NO coincidian: ${_dif} (manda generacion 1).`);
+  } catch (e) { /* el diagnostico nunca puede tumbar la lectura */ }
   return out;
 }
 
