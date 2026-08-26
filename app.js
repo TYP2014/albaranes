@@ -13126,7 +13126,7 @@ async function recambiosAvisoDia10() {
 
     // OJO: la columna `fecha` es DATE → nunca comparar con días inventados (31);
     // siempre "menor que el día 1 del mes siguiente".
-    const campos = 'id,tipo_doc,empresa,proveedor,proveedor_nif,num_documento,fecha,conciliado,lineas';
+    const campos = 'id,tipo_doc,empresa,proveedor,proveedor_nif,num_documento,fecha,conciliado,lineas,total';
     const [rWin, rAbo] = await Promise.all([
       sb.from('recambios_albaranes').select(campos).in('empresa', permitidas).gte('fecha', winIni),
       sb.from('recambios_albaranes').select(campos).in('empresa', permitidas)
@@ -13148,6 +13148,19 @@ async function recambiosAvisoDia10() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toUpperCase().replace(/[\s.\-_/,]/g, '').trim();
     const _fEs = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || ''); };
+    // v562: importe del abono (siempre en positivo: es dinero a nuestro favor)
+    const _impAb = a => {
+      const n = Number(a && a.total);
+      if (!isFinite(n) || n === 0) return '';
+      return ' · ' + Math.abs(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    };
+    // v562: cuantos meses lleva ese abono sin aplicarse
+    const _mesesAtras = f => {
+      const m = String(f || '').match(/^(\d{4})-(\d{2})/);
+      if (!m) return '';
+      const n = (hoy.getFullYear() - Number(m[1])) * 12 + (hoy.getMonth() + 1 - Number(m[2]));
+      return n >= 1 ? ' · hace ' + n + (n === 1 ? ' mes' : ' meses') : '';
+    };
 
     let cuerpo = '';
     let hayProblemas = false;
@@ -13210,10 +13223,25 @@ async function recambiosAvisoDia10() {
           cuerpo += fila(`📄 Albarán <strong>${esc(x.num)}</strong> de ${esc(x.prov || 'proveedor ?')}: viene en la factura ${esc(x.fac || '?')} pero NO está subido — buscar el papel y subirlo`));
         if (noSubidos.length > TOPE) cuerpo += fila(`… +${noSubidos.length - TOPE} albaranes más sin subir`);
       }
-      if (abonosPend.length) {
-        abonosPend.slice(0, TOPE).forEach(a =>
-          cuerpo += fila(`💶 Abono <strong>${esc(a.num_documento || '?')}</strong> de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)}): sin aplicar en ninguna factura`));
-        if (abonosPend.length > TOPE) cuerpo += fila(`… +${abonosPend.length - TOPE} abonos más pendientes`);
+      // v562: los abonos pendientes se parten en DOS bloques. Los del mes que se
+      // está cuadrando salen como siempre; los de MESES ANTERIORES que siguen sin
+      // aplicar se destacan aparte (rojo, negrita, cursiva y sangrados) porque son
+      // dinero nuestro que el proveedor no nos ha descontado en ninguna factura y
+      // no se pueden perder de vista al cambiar de mes.
+      const abonosMes = abonosPend.filter(a => a.fecha >= prevIni);
+      const abonosArr = abonosPend.filter(a => a.fecha < prevIni)
+        .sort((x, y) => String(x.fecha).localeCompare(String(y.fecha)));   // el más viejo, el primero
+      if (abonosMes.length) {
+        abonosMes.slice(0, TOPE).forEach(a =>
+          cuerpo += fila(`💶 Abono <strong>${esc(a.num_documento || '?')}</strong> de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)})${_impAb(a)}: sin aplicar en ninguna factura`));
+        if (abonosMes.length > TOPE) cuerpo += fila(`… +${abonosMes.length - TOPE} abonos más de ${mesNombre} sin aplicar`);
+      }
+      if (abonosArr.length) {
+        const filaArr = t => `<div style="margin:2px 0 2px 26px;line-height:1.5;color:#c0392b;font-weight:700;font-style:italic">${t}</div>`;
+        cuerpo += `<div style="margin:8px 0 2px 14px;color:#c0392b;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:.3px">🔴 Arrastre · ${abonosArr.length} abono${abonosArr.length === 1 ? '' : 's'} de meses anteriores TODAVÍA sin aplicar:</div>`;
+        abonosArr.slice(0, TOPE).forEach(a =>
+          cuerpo += filaArr(`💶 Abono ${esc(a.num_documento || '?')} de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)}${_mesesAtras(a.fecha)})${_impAb(a)}: SIGUE sin aplicar en ninguna factura`));
+        if (abonosArr.length > TOPE) cuerpo += filaArr(`… +${abonosArr.length - TOPE} abonos más arrastrados de meses anteriores`);
       }
     }
 
