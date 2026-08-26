@@ -19883,9 +19883,15 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
   //   · permiso_retribuido  (📋 Permiso retribuido)
   // OJO: al aplicar esto, el saldo de los trabajadores que YA tengan faltas
   // injustificadas registradas baja de golpe — es el efecto buscado, no un fallo.
-  const usadasVac = periodos
-    .filter(p => p.tipo === 'vacaciones' || p.tipo === 'falta_injustificada')
-    .reduce((s, p) => s + (p.dias_contados || 0), 0);
+  //
+  // v563 (26/08/2026): la regla NO cambia (las faltas siguen descontando), pero
+  // ahora se devuelven las DOS cifras por separado para poder enseñarlas
+  // desglosadas: antes "17/30" mezclaba 14 días de vacaciones de verdad con 3 de
+  // falta injustificada, y parecía que el trabajador se había cogido 17.
+  const _suma = t => periodos.filter(p => p.tipo === t).reduce((a, p) => a + (p.dias_contados || 0), 0);
+  const usadasVacSolo = Math.round(_suma('vacaciones') * 10) / 10;
+  const usadasFaltas  = Math.round(_suma('falta_injustificada') * 10) / 10;
+  const usadasVac = Math.round((usadasVacSolo + usadasFaltas) * 10) / 10;
   const usadasAP = periodos.filter(p => p.tipo === 'asuntos_propios').reduce((s, p) => s + (p.dias_contados || 0), 0);
   // v213: BOLSA disponible + GENERADO proporcional (30 días naturales/año, año natural).
   //  · Veterano (alta de años anteriores o sin fecha) → bolsa 30 completos.
@@ -19918,6 +19924,8 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
   }
   return {
     vac_disfrutadas: usadasVac,
+    vac_solo_vacaciones: usadasVacSolo,   // v563: días de VACACIONES de verdad
+    vac_faltas: usadasFaltas,             // v563: días de FALTA INJUSTIFICADA
     vac_restantes: Math.round((bolsa - usadasVac) * 10) / 10,
     bolsa,
     generado,
@@ -19980,6 +19988,7 @@ function renderVac() {
                 <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
               </div>
               <div style="font-size:12px;color:var(--mu);margin-top:5px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
+              ${s.vac_faltas > 0 ? `<div style="font-size:12px;color:#ff5252;margin-top:3px">❌ De esos ${s.vac_disfrutadas}: <strong>${s.vac_solo_vacaciones}</strong> de vacaciones + <strong>${s.vac_faltas}</strong> de falta injustificada</div>` : ''}
             </td>
             <td style="padding:11px 10px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
             <td style="padding:11px 10px">${s.periodos.length}</td>
@@ -20608,7 +20617,7 @@ function openVacTrabajadorDetalle(trabajadorId) {
   document.getElementById('vacDetalleTitulo').textContent = `${t.nombre} · ${vacAnioActivo}`;
   const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada' };
   let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:14px;color:var(--tx)">`
-        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.) · generado a hoy: ${s.generado}</span>`
+        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.)${s.vac_faltas > 0 ? ` <span style="color:#ff5252">= ${s.vac_solo_vacaciones} de vacaciones + ${s.vac_faltas} de falta injustificada</span>` : ''} · generado a hoy: ${s.generado}</span>`
         + `<span>🎯 Asuntos propios: <strong>${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS}</strong> (${s.ap_restantes} rest.)</span>`
         + `</div>`;
   if (!s.periodos.length) {
