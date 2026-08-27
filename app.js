@@ -7727,6 +7727,218 @@ Devuelve SOLO el array JSON, sin texto adicional, sin markdown.`;
 }
 
 // ============================================================
+// v570 · LECTOR DE FACTURA DE SERVICIO SOLEDAD (para el CUADRE)
+// ============================================================
+// OJO: NO confundir con callClaudeNeumFactura, que sigue intacto y lee OTRO
+// formato distinto — las facturas de COMPRA de almacen (cantidades grandes
+// tipo 16, 68, 64 unidades, con lineas de descuento negativas).
+//
+// Esta lee las facturas de SERVICIO por quincena: las que traen DENTRO la
+// lista de albaranes, uno detras de otro, con esta pinta:
+//
+//   ALB:D810004714 FECHA:05/05/2026        DOC: 2027829496
+//   MATR:9566NBR KMS:96901
+//     MANTENIMIENTO CAMION            1,00
+//     MONTAJE+FIJACION                4,00   17,84   71,36
+//     MONTA 4NEUMS.S/PROP             1,00
+//     315/80 CONTI HD5                1,00
+//     EN TRACCION                     1,00
+//
+// DE MOMENTO SOLO LEE Y ENSEÑA LO QUE HA ENTENDIDO. No guarda nada, no toca
+// el stock y no cruza todavia con los albaranes de la app. Es el primer paso
+// del cuadre que pidio JC: si el lector falla, todo lo de encima falla.
+async function callClaudeNeumFacturaServicio(b64, mediaType, isPdf, signal) {
+  const prompt = `Eres un OCR experto en FACTURAS DE SERVICIO de NEUMÁTICOS SOLEDAD (Grupo Soledad) emitidas a empresas de transporte en España.
+
+Esta factura contiene VARIOS ALBARANES, uno detrás de otro. Cada albarán empieza con una línea de cabecera así:
+"ALB:D810004714 FECHA:05/05/2026    DOC: 2027829496"
+y justo debajo otra línea con la matrícula:
+"MATR:9566NBR KMS:96901"
+Después vienen SUS líneas, hasta que empieza el siguiente "ALB:".
+
+Devuelve SIEMPRE un ARRAY JSON con UN OBJETO POR CADA ALBARÁN que aparezca en la factura, EN EL MISMO ORDEN. Incluye TODOS los albaranes, también los que no sean de neumáticos (esos se marcan, no se omiten).
+
+Para cada albarán devuelve:
+- "num_albaran": el código tal cual, letra por letra (ej. "D810004714", "D700003565", "D490004493"). SIN el prefijo "ALB:".
+- "fecha": la del albarán, en DD/MM/AAAA (la que va detrás de "FECHA:").
+- "matricula": la que va detrás de "MATR:", sin espacios (ej. "9566NBR", "R8407BDK"). Si viene VACÍA (ej. "MATR: KMS:97568"), devuelve "".
+- "es_neumatico": true si el albarán tiene AL MENOS UNA cubierta de CAMIÓN; false si no.
+- "motivo_descarte": si es_neumatico es false, explica en pocas palabras por qué (ej. "revisión de tacógrafo", "ruedas de turismo", "solo mano de obra"). Si es true, "".
+- "neumaticos": array con UNA entrada por cada medida distinta de cubierta de camión. Vacío [] si es_neumatico es false. Cada entrada:
+   · "cantidad": número ENTERO de cubiertas.
+   · "medida": normalizada con coma y X mayúscula: "315/80X22,5", "385/65X22,5", "315/70X22,5". Si ves "22.5" o "X225" → "22,5".
+   · "marca": MAYÚSCULAS. Todo lo que empiece por "CONT" ("CONTI", "CONTINEN", "CONT.H") → "CONTINENTAL". Si no se distingue, "".
+   · "modelo": corto, sin marca: "HD5", "HS5", "HT3 SR", "HS3+". Si no se distingue, "".
+   · "propiedad": "SU_PROPIEDAD" si en alguna línea de ESE albarán pone "S/PROP", "DE SU PROPIEDAD" o "DE SU STOCK"; si no, "COMPRA".
+- "total_cubiertas": la suma de las cantidades de "neumaticos" (0 si no hay).
+
+🔴 CÓMO SE LEE LA CANTIDAD DE CUBIERTAS (patrones reales, apréndelos):
+(a) "MONTA 4NEUMS.S/PROP" o "MONTA 1NEUM. S/PROP" → la cantidad es el número PEGADO a "NEUM"/"NEUMS", sea 1, 2, 3 o 4. Da igual singular o plural.
+(b) "SE MONTAN 2 385/65X22.5 CONTIN" → 2. "SE MONTA 1 315/80X22.5 CONTI H" → 1.
+(c) "MONTA 4) 315/80X22.5 CONTIENEN" → 4 (el número antes del paréntesis). Si más abajo hay otra línea "Y 2) 385/65X22.5 CONTI HT3+ DE" → son DOS entradas distintas en "neumaticos": 4 de una medida y 2 de otra. UN MISMO ALBARÁN PUEDE LLEVAR VARIAS MEDIDAS.
+(d) "MONTA 2) 385/65X22.5 CONTINENT" → 2.
+(e) Si la medida aparece en una línea suelta debajo (ej. "MONTA 4NEUMS.S/PROP" y en la línea siguiente "315/80 CONTI HD5"), esa medida es la de esas 4 cubiertas.
+
+🔴 NUNCA uses como cantidad de cubiertas:
+- La cantidad de las líneas de MANO DE OBRA, aunque coincida: "MONTAJE+FIJACION 4,00", "MONTAJE CAMION MAYOR 19.5 2,00", "MONTAJE FIJACIÓN(QUIT.PONER)CM", "MONTAJE+FIJACION+EQUILIBRADO", "MONTAJE CAMIÓN + FIJACIÓN".
+- Los KILÓMETROS: "KILOMETROS (diurno normal) 30,00" → 30 son KM, NO neumáticos.
+- Las horas de operario: "MANO OBRA UNID.MOVIL (diurno) 1,50".
+- Los KMS del vehículo de la cabecera ("KMS:96901").
+
+⛔ ALBARANES QUE NO SON DE NEUMÁTICOS (es_neumatico = false, "neumaticos": []):
+- Revisiones y calibrados de TACÓGRAFO: "REV. DTCO VDO 4.1", "KIT UNIFICADO PRECINTOS", "BATERIA LI 3.6V", "ACTUALIZACION SW/CARTOGR.".
+- Ruedas de TURISMO o moto: medidas de 17 pulgadas o parecidas ("225/45X17", "245/40X17"), "MICH.PS5", "MONTAJE TURISMO", "Equilibrado Turismo", "DIAGNOSIS BOSCH KTS".
+- Albaranes que solo llevan mano de obra, desplazamiento o kilómetros sin ninguna cubierta.
+
+⛔ LÍNEAS QUE NUNCA SON UNA CUBIERTA (ignóralas siempre, pero NO descartan el albarán si además hay cubiertas):
+"MANTENIMIENTO CAMIÓN", "MONTAJE+FIJACION", "MONTAJE CAMION MAYOR 19.5", "MONTAJE FIJACIÓN(QUIT.PONER)CM", "EQUILIBRADO CAMION CON ARENA", "DESPLAZAMIENTO(SALIDA) diurno", "MANO OBRA UNID.MOVIL (diurno)", "KILOMETROS (diurno normal)", "S.I.Gestión de NFU", "EN TRACCION", "EN DIRECCION", "EN 1er Y 3er EJE", "DE SU PROPIEDAD EN ULTIMO EJE", "PARTE 580680-28.04.26", "MATR.: R8205BDG", las líneas de KMS sueltas.
+
+Además, DEL ENCABEZADO DE LA FACTURA saca (los mismos valores en todos los objetos):
+- "num_factura": el número que va junto a "FACTURA" (ej. "N0000070137").
+- "fecha_factura": la de la factura, DD/MM/AAAA (ej. "15/05/2026").
+- "cif_cliente": el "N.I.F." del CLIENTE (ej. "B90172735"). NUNCA el de Neumáticos Soledad (B03260684).
+
+EJEMPLO REAL (factura N0000070137 de 15/05/2026, N.I.F. B90172735). Estos dos bloques:
+"ALB:D810004714 FECHA:05/05/2026 / MATR:9566NBR KMS:96901 / MANTENIMIENTO CAMIÓN 1,00 / MONTAJE+FIJACION 4,00 17,84 71,36 / MONTA 4NEUMS.S/PROP 1,00 / 315/80 CONTI HD5 1,00 / EN TRACCION 1,00"
+"ALB:D490004493 FECHA:04/05/2026 / MATR: KMS:97568 / 225/45X17 MICH.PS5 94Y XL 2,00 90,27 180,54 / 245/40X17 MICH.PS5 95Y XL 2,00 142,96 285,92 / MONTAJE TURISMO 4,00 / Equilibrado Turismo 4,00 / DIAGNOSIS BOSCH KTS 1,00"
+→ devuelven EXACTAMENTE:
+[{"num_albaran":"D810004714","fecha":"05/05/2026","matricula":"9566NBR","es_neumatico":true,"motivo_descarte":"","neumaticos":[{"cantidad":4,"medida":"315/80X22,5","marca":"CONTINENTAL","modelo":"HD5","propiedad":"SU_PROPIEDAD"}],"total_cubiertas":4,"num_factura":"N0000070137","fecha_factura":"15/05/2026","cif_cliente":"B90172735"},
+{"num_albaran":"D490004493","fecha":"04/05/2026","matricula":"","es_neumatico":false,"motivo_descarte":"ruedas de turismo","neumaticos":[],"total_cubiertas":0,"num_factura":"N0000070137","fecha_factura":"15/05/2026","cif_cliente":"B90172735"}]
+(Fíjate: en el primero la cantidad es 4 por "MONTA 4NEUMS.", NO por "MONTAJE+FIJACION 4,00", que es mano de obra. En el segundo la matrícula va vacía y se descarta por ser de turismo, pero SÍ aparece en el array.)
+
+Devuelve SOLO el array JSON, sin texto adicional, sin markdown.`;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  // Sonnet: es un documento financiero denso y de varias paginas.
+  const res = await fetch(IA_PROXY_URL, {
+    method: 'POST',
+    headers: await _iaCabeceras(),
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    signal: signal
+  });
+  if (!res.ok) {
+    let e = {};
+    try { e = await res.json(); } catch (_) {}
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (e) {
+    console.warn('[v570] callClaudeNeumFacturaServicio no devolvió JSON válido:', text.substring(0, 300));
+    return null;
+  }
+}
+
+// v570: subir la factura y ENSEÑAR lo entendido. No guarda nada.
+async function handleNeumCuadreFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const file = files[0];
+  if (files.length > 1) toast('De momento se analiza una factura cada vez; cojo la primera.', 'warn');
+
+  const box = document.getElementById('neumCuadreBox');
+  const card = document.getElementById('neumCuadreCard');
+  if (card) card.style.display = '';
+  if (box) box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px">Leyendo <strong>' + esc(file.name) + '</strong>… esto tarda un poco, es un documento de varias páginas.</div>';
+
+  const isPdf = (file.type === 'application/pdf') || /\.pdf$/i.test(file.name);
+  const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+  let b64;
+  try {
+    b64 = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(',')[1]);
+      fr.onerror = () => rej(new Error('No se pudo leer el archivo'));
+      fr.readAsDataURL(file);
+    });
+  } catch (e) {
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No se pudo abrir el archivo: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+
+  let alb = null;
+  try {
+    alb = await callClaudeNeumFacturaServicio(b64, mediaType, isPdf, null);
+  } catch (e) {
+    console.error('[v570] Error leyendo factura de servicio:', e);
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">Error leyendo la factura: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+  if (!alb || !alb.length) {
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he encontrado ningún albarán dentro de esta factura. ¿Seguro que es una factura de servicio de Soledad (de las que llevan los albaranes dentro)?</div>';
+    return;
+  }
+  _neumPintarCuadre(alb, file.name);
+}
+
+function dropNeumCuadre(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  _dragCounters.set(target, 0);
+  target.classList.remove('dzover');
+  handleNeumCuadreFiles(e.dataTransfer.files);
+}
+
+// v570: pinta lo que la IA ha entendido. SOLO informa.
+function _neumPintarCuadre(alb, nombreArchivo) {
+  const box = document.getElementById('neumCuadreBox');
+  if (!box) return;
+  const cab = alb[0] || {};
+  const conNeum = alb.filter(a => a.es_neumatico);
+  const sinNeum = alb.filter(a => !a.es_neumatico);
+  const totalCub = conNeum.reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0);
+
+  let h = '<div style="font-family:var(--mn);font-size:11px;padding:4px 0 12px 0;color:var(--mu)">' +
+    'Archivo: <strong>' + esc(nombreArchivo) + '</strong><br>' +
+    'Factura <strong>' + esc(cab.num_factura || '—') + '</strong> · fecha <strong>' + esc(cab.fecha_factura || '—') + '</strong> · N.I.F. cliente <strong>' + esc(cab.cif_cliente || '—') + '</strong>' +
+    '</div>';
+
+  h += '<div style="font-family:var(--mn);font-size:12px;font-weight:700;margin-bottom:8px">' +
+    alb.length + ' albarán(es) en la factura · ' + conNeum.length + ' de neumáticos (' + totalCub + ' cubiertas) · ' + sinNeum.length + ' descartado(s)</div>';
+
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
+    '<th style="padding:7px">ALBARÁN</th><th style="padding:7px">FECHA</th><th style="padding:7px">MATRÍCULA</th>' +
+    '<th style="padding:7px">CUBIERTAS</th><th style="padding:7px">DETALLE</th></tr></thead><tbody>';
+
+  alb.forEach(a => {
+    const ok = !!a.es_neumatico;
+    const fondo = ok ? 'transparent' : 'rgba(120,144,156,.12)';
+    const color = ok ? 'var(--tx)' : 'var(--mu)';
+    let detalle;
+    if (!ok) {
+      detalle = '<span style="color:var(--mu)">descartado — ' + esc(a.motivo_descarte || 'no es de neumáticos') + '</span>';
+    } else {
+      detalle = (a.neumaticos || []).map(n =>
+        esc(n.cantidad + ' × ' + (n.medida || '?') + ' ' + (n.marca || '') + ' ' + (n.modelo || '')) +
+        (n.propiedad === 'SU_PROPIEDAD' ? ' <span style="color:var(--ok)">(de su stock)</span>' : ' <span style="color:var(--in)">(compra)</span>')
+      ).join('<br>');
+    }
+    h += '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + ';color:' + color + '">' +
+      '<td style="padding:7px;font-weight:700;white-space:nowrap">' + esc(a.num_albaran || '—') + '</td>' +
+      '<td style="padding:7px;white-space:nowrap">' + esc(a.fecha || '—') + '</td>' +
+      '<td style="padding:7px;white-space:nowrap">' + esc(a.matricula || '—') + '</td>' +
+      '<td style="padding:7px;text-align:center;font-weight:700">' + (ok ? (a.total_cubiertas || 0) : '—') + '</td>' +
+      '<td style="padding:7px">' + detalle + '</td></tr>';
+  });
+
+  h += '</tbody></table></div>' +
+    '<div style="margin-top:12px;padding:10px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:11px;color:var(--mu)">' +
+    '⚠️ Esto <strong>solo comprueba la lectura</strong>. No se ha guardado nada, no se ha tocado el stock y todavía no se ha cruzado con los albaranes de la app. ' +
+    'Repasa que las cubiertas y las matrículas coincidan con el papel antes de que montemos el cuadre encima.</div>';
+
+  box.innerHTML = h;
+}
+
+// ============================================================
 // ANALYZE & RENDER
 // ============================================================
 // Normalización ultra-robusta: quita tildes, sufijos empresariales y TODO lo que no sea letra/número
