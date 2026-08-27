@@ -22146,9 +22146,41 @@ function renderTallerCitas() {
         '<td style="padding:7px">' + esc(c.motivo || '—') + '</td>' +
         '<td style="padding:7px;text-align:right;white-space:nowrap">' +
           (pend ? '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="tcitaMarcarHecha(\'' + c.id + '\')" title="Marcar que ya se ha hecho">✓ Hecha</button> ' : '') +
+          '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="tcitaWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
           '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="openTCitaModal(\'' + c.id + '\')">Editar</button>' +
         '</td></tr>';
     }).join('') + '</tbody></table>';
+}
+
+// v568 · RECORDATORIO DE LA CITA DE TALLER POR WHATSAPP.
+// Calcado del de ITV y del de reconocimientos medicos: se abre WhatsApp con el
+// texto ya escrito y solo queda elegir a quien mandarselo.
+// AQUI NO HACE FALTA LISTA DE DIRECCIONES FIJAS como en la ITV: la ficha de la
+// cita de taller YA tiene campo Direccion, y ademas el taller cambia cada vez
+// (IVECO, Larauto, FC Trailer...), asi que lo unico sensato es usar lo que
+// escriba JC. Si no hay direccion, se busca por el nombre del taller.
+// SIN EMOJIS, por la leccion de la v541: en el movil de JC y en el PC de la
+// oficina salian como rombos. Solo letras y la negrita de WhatsApp (*texto*).
+function _tcitaTexto(c) {
+  const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
+  let msg = '*RECORDATORIO: CITA DE TALLER*\n';
+  msg += 'Vehículo: ' + (c.matricula || '') + (c.marca ? ' (' + c.marca + ')' : '') + '\n';
+  msg += 'Día: ' + dia + (c.hora_cita ? ' a las ' + c.hora_cita : '') + '\n';
+  if (c.taller) msg += 'Taller: ' + c.taller + '\n';
+  if (c.motivo) msg += 'Motivo: ' + c.motivo + '\n';
+  // El enlace va en su propia linea y sin nada pegado detras, que si no
+  // WhatsApp no lo detecta como enlace y no se puede pinchar.
+  const sitio = String(c.direccion || '').trim() || (c.taller ? 'Taller ' + String(c.taller).trim() : '');
+  const mapa = _mapaLink(sitio);
+  if (mapa) msg += 'Cómo llegar: ' + mapa + '\n';
+  if (c.observaciones) msg += '\n' + c.observaciones;
+  return msg;
+}
+
+function tcitaWhatsApp(id) {
+  const c = tallerCitas.find(x => x.id === id);
+  if (!c) { toast('No encuentro esa cita', 'err'); return; }
+  window.open('https://wa.me/?text=' + encodeURIComponent(_tcitaTexto(c)), '_blank');
 }
 
 // === Modal de cita ===
