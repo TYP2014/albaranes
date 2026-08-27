@@ -13466,7 +13466,17 @@ const _ITV_DIRECCIONES = [
   { patron: /vilafranca|molanta|ol[eè]rdola/i,
     dir: 'ITV Applus, Avinguda Hostal Nou, Polígon Industrial Sant Pere Molanta, 08734 Olèrdola, Barcelona' }
 ];
-function _itvDireccionCentro(centro) {
+// v566: ahora manda LO QUE ESCRIBAS TU. La ficha de la cita de ITV tiene un
+// campo "Direccion" que hasta ahora el enlace del mapa se saltaba. Orden de
+// preferencia, de mas fiable a menos:
+//   1) la Direccion escrita a mano en la ficha de la cita  <-- MANDA
+//   2) la lista de direcciones fijas de aqui abajo (Vilafranca / Sant Pere Molanta)
+//   3) el nombre del centro con "ITV" delante (ultimo recurso)
+// Asi, la primera vez que vayas a una estacion nueva escribes su direccion en
+// la cita y ese enlace ya queda clavado para siempre, sin tocar el codigo.
+function _itvDireccionCentro(centro, direccion) {
+  const d = String(direccion || '').trim();
+  if (d) return d + (centro ? ', ' + String(centro).trim() : '');
   const c = String(centro || '').trim();
   if (!c) return '';
   for (const x of _ITV_DIRECCIONES) if (x.patron.test(c)) return x.dir;
@@ -13491,7 +13501,7 @@ function _itvCitaTexto(r) {
   if (r.centro) msg += 'Centro: ' + r.centro + '\n';
   // v564: enlace de ubicación. Va en su propia línea y SIN nada pegado
   // detrás, para que WhatsApp lo detecte como enlace y sea pinchable.
-  const _mapaItv = _mapaLink(_itvDireccionCentro(r.centro));
+  const _mapaItv = _mapaLink(_itvDireccionCentro(r.centro, r.direccion));
   if (_mapaItv) msg += 'Cómo llegar: ' + _mapaItv + '\n';
   // v540: antes de salir, COMPROBAR que la documentación está a bordo. JC:
   // "las tractoras la tienen en una carpeta y los semirremolques en una especie
