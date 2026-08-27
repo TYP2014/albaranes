@@ -13474,9 +13474,22 @@ const _ITV_DIRECCIONES = [
 //   3) el nombre del centro con "ITV" delante (ultimo recurso)
 // Asi, la primera vez que vayas a una estacion nueva escribes su direccion en
 // la cita y ese enlace ya queda clavado para siempre, sin tocar el codigo.
+// v567: helper para comparar textos sin que estorben las mayusculas ni los
+// acentos ("Olerdola" y "Olèrdola" tienen que contar como lo mismo).
+function _sinAcentos(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 function _itvDireccionCentro(centro, direccion) {
   const d = String(direccion || '').trim();
-  if (d) return d + (centro ? ', ' + String(centro).trim() : '');
+  if (d) {
+    // v567: solo se pega el nombre del centro detras de la direccion si NO
+    // esta ya dentro. Si no, salia repetido ("...Viladecans, Barcelona,
+    // Viladecans") porque la direccion escrita a mano suele llevar la ciudad.
+    const c = String(centro || '').trim();
+    if (!c || _sinAcentos(d).includes(_sinAcentos(c))) return d;
+    return d + ', ' + c;
+  }
   const c = String(centro || '').trim();
   if (!c) return '';
   for (const x of _ITV_DIRECCIONES) if (x.patron.test(c)) return x.dir;
