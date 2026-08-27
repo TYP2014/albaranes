@@ -13445,6 +13445,34 @@ function renderCitasTable() {
   _aplicarItvSoloLectura();
 }
 
+// v564: ENLACE DE UBICACIÓN para los recordatorios de WhatsApp.
+// Devuelve un enlace de Google Maps que se abre en el móvil del conductor
+// (Google Maps o Apple Maps, el que tenga) directamente con la ruta.
+// Se usa el buscador de Maps (?api=1&query=) en vez de coordenadas porque
+// así vale igual con una dirección escrita a mano que con un nombre.
+function _mapaLink(texto) {
+  const t = String(texto || '').trim();
+  if (!t) return '';
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t);
+}
+
+// v564: DIRECCIONES FIJAS DE LOS CENTROS DE ITV que usamos.
+// La cita de ITV solo guarda el NOMBRE del centro (no hay campo dirección),
+// y JC escribe "Vilafranca" aunque la estación está en Sant Pere Molanta
+// (Olèrdola). Buscar "ITV Vilafranca" en Maps lleva al pueblo, no a la
+// estación, así que la dirección real va escrita aquí. Si el centro no está
+// en esta lista, se busca por el nombre tal cual con "ITV" delante.
+const _ITV_DIRECCIONES = [
+  { patron: /vilafranca|molanta|ol[eè]rdola/i,
+    dir: 'ITV Applus, Avinguda Hostal Nou, Polígon Industrial Sant Pere Molanta, 08734 Olèrdola, Barcelona' }
+];
+function _itvDireccionCentro(centro) {
+  const c = String(centro || '').trim();
+  if (!c) return '';
+  for (const x of _ITV_DIRECCIONES) if (x.patron.test(c)) return x.dir;
+  return 'ITV ' + c;
+}
+
 // v444: recordatorio de la cita de ITV por WhatsApp (calcado del de
 // reconocimientos médicos: se abre WhatsApp con el texto ya escrito y
 // solo queda elegir a quién mandárselo).
@@ -13459,6 +13487,10 @@ function itvCitaWhatsApp(id) {
   msg += 'Vehículo: ' + (r.matricula || '') + '\n';
   msg += 'Día: ' + dia + (r.hora_cita ? ' a las ' + r.hora_cita : '') + '\n';
   if (r.centro) msg += 'Centro: ' + r.centro + '\n';
+  // v564: enlace de ubicación. Va en su propia línea y SIN nada pegado
+  // detrás, para que WhatsApp lo detecte como enlace y sea pinchable.
+  const _mapaItv = _mapaLink(_itvDireccionCentro(r.centro));
+  if (_mapaItv) msg += 'Cómo llegar: ' + _mapaItv + '\n';
   // v540: antes de salir, COMPROBAR que la documentación está a bordo. JC:
   // "las tractoras la tienen en una carpeta y los semirremolques en una especie
   // de tubo". No basta con decir "llevar" — hay que mirarlo antes de arrancar,
@@ -22505,6 +22537,11 @@ function recmedWhatsApp(id) {
   msg += (c.trabajador || '') + '\n';
   msg += '📅 ' + dia + finde + (c.hora_cita ? ' a las ' + c.hora_cita : '') + '\n';
   msg += '📍 ' + (c.centro || '') + (c.direccion ? ' — ' + c.direccion : '') + '\n';
+  // v564: enlace de ubicación. Se busca por dirección + centro (la mutua
+  // tiene la dirección guardada en la ficha de la cita); si no hubiera
+  // dirección, se busca solo por el nombre del centro.
+  const _mapaRm = _mapaLink([c.direccion, c.centro].filter(Boolean).join(', '));
+  if (_mapaRm) msg += 'Cómo llegar: ' + _mapaRm + '\n';
   if (c.telefono) msg += '📞 ' + c.telefono + '\n';
   msg += '⚠️ Hay que ir EN AYUNAS (mínimo 4 horas).\n';
   msg += 'Si estás de baja, no puede hacerse hasta tener el alta médica.';
