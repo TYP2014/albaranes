@@ -13438,7 +13438,7 @@ function renderCitasTable() {
       <td>${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
-      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button></td>
+      <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button>${hasValidUrl(r.file_url) ? ` <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:4px" onclick="event.stopPropagation();_compartirCita(event,${r.db_id})" title="Compartir la foto y el texto de una vez (móvil)">📤 Compartir</button>` : ''}</td>
     </tr>`;
   }).join('');
   // v107AF: re-aplicar blindaje solo-lectura (la tabla se acaba de regenerar)
@@ -13476,9 +13476,11 @@ function _itvDireccionCentro(centro) {
 // v444: recordatorio de la cita de ITV por WhatsApp (calcado del de
 // reconocimientos médicos: se abre WhatsApp con el texto ya escrito y
 // solo queda elegir a quién mandárselo).
-function itvCitaWhatsApp(id) {
-  const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
-  if (!r) return;
+// v565: el TEXTO del recordatorio se monta en su propia funcion, para que lo
+// usen IGUAL el boton de WhatsApp de siempre y el nuevo boton de Compartir.
+// Antes estaba dentro de itvCitaWhatsApp; si se hubiera copiado y pegado, un
+// dia se cambiaria uno y el otro no.
+function _itvCitaTexto(r) {
   const dia = r.fecha_cita ? r.fecha_cita.split('-').reverse().join('/') : '';
   // v541: SIN EMOJIS. En el movil de JC y en el PC de la oficina salian todos
   // como rombos, asi que no compensa: se usan solo letras, guiones y la negrita
@@ -13500,7 +13502,56 @@ function itvCitaWhatsApp(id) {
   msg += '- Tractora: en la carpeta de la documentación.\n';
   msg += '- Semirremolque: en el tubo portadocumentos.\n';
   msg += 'Llévala contigo a la estación de ITV.';
-  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  return msg;
+}
+
+function itvCitaWhatsApp(id) {
+  const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
+  if (!r) return;
+  window.open('https://wa.me/?text=' + encodeURIComponent(_itvCitaTexto(r)), '_blank');
+}
+
+// v565 · COMPARTIR LA FOTO Y EL TEXTO DE UNA VEZ.
+// Motor comun para las citas de ITV y las de reconocimiento medico.
+// EN EL MOVIL: baja el archivo y abre el menu de compartir del telefono con la
+// foto Y el texto ya juntos; eliges WhatsApp y el contacto y va todo de golpe.
+// EN EL PC: Chrome de escritorio NO deja compartir archivos, asi que se hace lo
+// de siempre (descargar el archivo + abrir WhatsApp con el texto). No se pierde
+// nada, solo son dos pasos como hasta ahora.
+async function _compartirCitaGenerico(texto, urlArchivo, nombreArchivo, alternativa) {
+  const hacerAlternativa = () => { try { alternativa(); } catch (e) {} };
+  // Si el navegador ni conoce el menu de compartir, ni lo intentamos.
+  if (!(navigator.share && navigator.canShare)) { hacerAlternativa(); return; }
+  let archivo = null;
+  try {
+    const resp = await fetch(urlArchivo);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      archivo = new File([blob], nombreArchivo, { type: blob.type || 'application/octet-stream' });
+    }
+  } catch (e) { /* sin red o sin permiso: se cae a la alternativa de abajo */ }
+  if (!archivo || !navigator.canShare({ files: [archivo] })) { hacerAlternativa(); return; }
+  try {
+    await navigator.share({ text: texto, files: [archivo] });
+  } catch (e) {
+    // AbortError = JC cerro el menu de compartir a proposito. NO es un fallo y
+    // NO hay que abrir WhatsApp por detras (seria muy molesto).
+    if (e && e.name === 'AbortError') return;
+    hacerAlternativa();
+  }
+}
+
+// v565: boton COMPARTIR de una cita de ITV (solo sale si la cita tiene foto).
+async function _compartirCita(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = (itvCitasRecords || []).find(x => String(x.db_id) === String(id) || String(x.id) === String(id));
+  if (!r) return;
+  if (!hasValidUrl(r.file_url)) { toast('Esta cita no tiene foto', 'err'); return; }
+  const nombre = _nombreArchivoDeUrl(r.file_url) || ('cita_' + String(r.matricula || id).replace(/[^\w.-]+/g, '_') + '.jpg');
+  await _compartirCitaGenerico(_itvCitaTexto(r), r.file_url, nombre, () => {
+    _descargarCita(null, id);
+    itvCitaWhatsApp(id);
+  });
 }
 
 // v107K82: descarga la foto (jpg) de una cita ITV.
@@ -22382,6 +22433,7 @@ function renderRecmed() {
         : '<span style="color:var(--mu);font-size:10px">sin doc.</span>') + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap;text-align:right">' +
         '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
+        (c.archivo_path ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedCompartir(\'' + c.id + '\')" title="Compartir el documento y el texto de una vez (móvil)">📤 Compartir</button> ' : '') +
         (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedMarcarHecha(\'' + c.id + '\')">✓ Hecha</button> ' : '') +
         '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="openRecmedEdit(\'' + c.id + '\')">✎ Editar</button>' +
       '</td></tr>';
@@ -22528,9 +22580,8 @@ async function recmedDescargar(id) {
 }
 
 // Recordatorio de WhatsApp ya escrito (se elige el contacto al abrirse)
-function recmedWhatsApp(id) {
-  const c = tallerRecmed.find(x => x.id === id);
-  if (!c) return;
+// v565: mismo desdoble que en ITV — el texto por un lado, el envio por otro.
+function _recmedTexto(c) {
   const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
   const finde = c.fecha_cita ? ' (' + _tacoDiaSemana(c.fecha_cita) + ')' : '';
   let msg = '🩺 Recordatorio: reconocimiento médico\n';
@@ -22546,7 +22597,38 @@ function recmedWhatsApp(id) {
   msg += '⚠️ Hay que ir EN AYUNAS (mínimo 4 horas).\n';
   msg += 'Si estás de baja, no puede hacerse hasta tener el alta médica.';
   if (c.notas) msg += '\n📝 ' + c.notas;
-  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  return msg;
+}
+
+function recmedWhatsApp(id) {
+  const c = tallerRecmed.find(x => x.id === id);
+  if (!c) return;
+  window.open('https://wa.me/?text=' + encodeURIComponent(_recmedTexto(c)), '_blank');
+}
+
+// v565: boton COMPARTIR de una cita medica (solo sale si tiene documento).
+// OJO, aqui el archivo NO tiene URL publica: vive en el bucket privado
+// `documentos`, asi que hay que pedir antes una URL firmada, igual que hace
+// recmedDescargar. Suele ser el PDF de la carta de la mutua (tambien vale).
+async function recmedCompartir(id) {
+  const c = tallerRecmed.find(x => x.id === id);
+  if (!c) return;
+  if (!c.archivo_path) { toast('Esta cita no tiene documento adjunto', 'warn'); return; }
+  let url = '';
+  try {
+    const { data, error } = await sb.storage.from('documentos').createSignedUrl(c.archivo_path, 3600);
+    if (error) throw error;
+    url = data.signedUrl;
+  } catch (e) {
+    console.error('[recmedCompartir]', e);
+    toast('No pude preparar el documento: ' + (e.message || e), 'err');
+    return;
+  }
+  const nombre = c.archivo_nombre || ('cita_' + String(c.trabajador || id).replace(/[^\w.-]+/g, '_') + '.pdf');
+  await _compartirCitaGenerico(_recmedTexto(c), url, nombre, () => {
+    try { window.open(url, '_blank'); } catch (e) {}
+    recmedWhatsApp(id);
+  });
 }
 
 // ---------- v443: LECTURA POR IA de la carta de la mutua ----------
