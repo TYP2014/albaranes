@@ -13450,9 +13450,24 @@ function renderCitasTable() {
 // (Google Maps o Apple Maps, el que tenga) directamente con la ruta.
 // Se usa el buscador de Maps (?api=1&query=) en vez de coordenadas porque
 // así vale igual con una dirección escrita a mano que con un nombre.
+// v569: ¿lo que hay escrito es YA un enlace? (empieza por http:// o https://)
+// Sirve para que JC pueda PEGAR directamente el enlace de Google Maps en el
+// campo Direccion. Se comprueba con una expresion sencilla en vez de con
+// new URL() porque aqui solo interesa distinguir "enlace" de "texto".
+function _esEnlace(t) {
+  return /^https?:\/\//i.test(String(t || '').trim());
+}
+
 function _mapaLink(texto) {
   const t = String(texto || '').trim();
   if (!t) return '';
+  // v569: si ya es un enlace (el de Compartir de Google Maps, un maps.app.goo.gl,
+  // o cualquier otro), se usa TAL CUAL. Es lo mas exacto que hay: apunta al
+  // punto que JC ha visto en el mapa, sin busquedas ni resultados a medias.
+  // Buscar un poligono industrial por su nombre saca varios sitios; un enlace
+  // no falla nunca. NO se le pega nada detras ni se le mete en un buscador,
+  // que eso lo romperia.
+  if (_esEnlace(t)) return t;
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t);
 }
 
@@ -13483,6 +13498,9 @@ function _sinAcentos(t) {
 function _itvDireccionCentro(centro, direccion) {
   const d = String(direccion || '').trim();
   if (d) {
+    // v569: si es un enlace pegado, se devuelve SOLO el enlace. Pegarle el
+    // nombre del centro detras lo romperia.
+    if (_esEnlace(d)) return d;
     // v567: solo se pega el nombre del centro detras de la direccion si NO
     // esta ya dentro. Si no, salia repetido ("...Viladecans, Barcelona,
     // Viladecans") porque la direccion escrita a mano suele llevar la ciudad.
@@ -22646,7 +22664,9 @@ function _recmedTexto(c) {
   // v564: enlace de ubicación. Se busca por dirección + centro (la mutua
   // tiene la dirección guardada en la ficha de la cita); si no hubiera
   // dirección, se busca solo por el nombre del centro.
-  const _mapaRm = _mapaLink([c.direccion, c.centro].filter(Boolean).join(', '));
+  // v569: si la direccion es un enlace pegado, se usa sola (sin juntarle el
+  // centro detras, que lo romperia).
+  const _mapaRm = _mapaLink(_esEnlace(c.direccion) ? c.direccion : [c.direccion, c.centro].filter(Boolean).join(', '));
   if (_mapaRm) msg += 'Cómo llegar: ' + _mapaRm + '\n';
   if (c.telefono) msg += '📞 ' + c.telefono + '\n';
   msg += '⚠️ Hay que ir EN AYUNAS (mínimo 4 horas).\n';
