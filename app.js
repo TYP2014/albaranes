@@ -7769,7 +7769,7 @@ Para cada albarán devuelve:
    · "medida": normalizada con coma y X mayúscula: "315/80X22,5", "385/65X22,5", "315/70X22,5". Si ves "22.5" o "X225" → "22,5".
    · "marca": MAYÚSCULAS. Todo lo que empiece por "CONT" ("CONTI", "CONTINEN", "CONT.H") → "CONTINENTAL". Si no se distingue, "".
    · "modelo": corto, sin marca: "HD5", "HS5", "HT3 SR", "HS3+". Si no se distingue, "".
-   · "propiedad": "SU_PROPIEDAD" si en alguna línea de ESE albarán pone "S/PROP", "DE SU PROPIEDAD" o "DE SU STOCK"; si no, "COMPRA".
+   · "propiedad": 🔴 SE DECIDE POR EL PRECIO, NO POR EL TEXTO. Mira la línea de la cubierta EN LA FACTURA: si esa línea NO tiene IMPORTE (ni precio unitario ni importe: las columnas están vacías o solo hay un "1,00" de cantidad), la cubierta NO se cobra → es del cliente → "SU_PROPIEDAD". Solo pon "COMPRA" si la línea de esa cubierta LLEVA UN IMPORTE EN EUROS. Que ponga "S/PROP", "DE SU PROPIEDAD" o "DE SU STOCK" confirma que es "SU_PROPIEDAD", pero su AUSENCIA no significa compra: hay muchos albaranes donde no lo escriben y la cubierta es igualmente del cliente. Ojo: los importes de MONTAJE, FIJACIÓN, EQUILIBRADO, DESPLAZAMIENTO o MANO DE OBRA son mano de obra, NO son el precio de la cubierta — no los cuentes como si la cubierta se vendiera.
 - "total_cubiertas": la suma de las cantidades de "neumaticos" (0 si no hay).
 
 🔴 CÓMO SE LEE LA CANTIDAD DE CUBIERTAS (patrones reales, apréndelos):
@@ -7805,6 +7805,14 @@ EJEMPLO REAL (factura N0000070137 de 15/05/2026, N.I.F. B90172735). Estos dos bl
 [{"num_albaran":"D810004714","fecha":"05/05/2026","matricula":"9566NBR","es_neumatico":true,"motivo_descarte":"","neumaticos":[{"cantidad":4,"medida":"315/80X22,5","marca":"CONTINENTAL","modelo":"HD5","propiedad":"SU_PROPIEDAD"}],"total_cubiertas":4,"num_factura":"N0000070137","fecha_factura":"15/05/2026","cif_cliente":"B90172735"},
 {"num_albaran":"D490004493","fecha":"04/05/2026","matricula":"","es_neumatico":false,"motivo_descarte":"ruedas de turismo","neumaticos":[],"total_cubiertas":0,"num_factura":"N0000070137","fecha_factura":"15/05/2026","cif_cliente":"B90172735"}]
 (Fíjate: en el primero la cantidad es 4 por "MONTA 4NEUMS.", NO por "MONTAJE+FIJACION 4,00", que es mano de obra. En el segundo la matrícula va vacía y se descarta por ser de turismo, pero SÍ aparece en el array.)
+
+🔴 ANTI-EJEMPLO REAL DE PROPIEDAD (albarán D700003565 de la misma factura — NO repitas este error). Sus líneas son:
+"MONTAJE CAMION MAYOR 19.5    2,00   18,54   37,08"
+"MONTAJE FIJACIÓN(QUIT.PONER)CM    2,00   17,14   34,28"
+"SE MONTAN 2 385/65X22.5 CONTIN    1,00"
+La respuesta CORRECTA es: {"num_albaran":"D700003565","fecha":"04/05/2026","matricula":"R8407BDK","es_neumatico":true,"motivo_descarte":"","neumaticos":[{"cantidad":2,"medida":"385/65X22,5","marca":"CONTINENTAL","modelo":"","propiedad":"SU_PROPIEDAD"}],"total_cubiertas":2,…}
+ERROR PROHIBIDO: marcarlo como "COMPRA" solo porque no pone "S/PROP". La línea "SE MONTAN 2 385/65X22.5 CONTIN" NO TIENE IMPORTE → esas dos cubiertas NO se cobran → son del cliente → "SU_PROPIEDAD". Los 37,08 y los 34,28 son el montaje y la fijación (mano de obra), no las cubiertas: dos cubiertas de camión jamás valdrían eso.
+Lo mismo pasa en "D700004044", "D700004045" y "D810004765" de esa factura: sus cubiertas van SIN importe → todas "SU_PROPIEDAD".
 
 Devuelve SOLO el array JSON, sin texto adicional, sin markdown.`;
 
