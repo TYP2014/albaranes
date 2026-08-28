@@ -7885,8 +7885,64 @@ async function handleNeumCuadreFiles(fileList) {
     return;
   }
   _neumPintarCuadre(alb, file.name);
+  // v576: se guarda la lectura ANTES de cruzar, para que el cruce ya pueda
+  // contar con ella y con las demas facturas del periodo.
+  await _neumGuardarFacturaLeida(alb, file.name);
   // v572: y a continuacion, el cruce contra lo que hay en la app.
   _neumCruzarCuadre(alb);
+}
+
+// v576 · GUARDAR LO LEIDO DE LA FACTURA (tabla neumaticos_facturas).
+// POR QUE: Soledad factura por QUINCENAS, dos facturas al mes. Un albaran del
+// dia 15 puede venir facturado en la segunda quincena; sin memoria, al mirar la
+// primera salia como "subido y no facturado" y no habia forma de saber que
+// luego quedaba facturado. Guardando la lectura, la app puede mirar TODAS las
+// facturas del periodo y cerrar el mes.
+// OJO: aqui se guarda la COMPROBACION, no datos de stock. No se crea ningun
+// albaran, no se mueve ni una cubierta. El albaran sigue siendo la verdad.
+async function _neumGuardarFacturaLeida(alb, nombreArchivo) {
+  const cab = alb[0] || {};
+  const cif = String(cab.cif_cliente || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const empresa = _NEUM_CIF_EMPRESA[cif] || null;
+  const numFactura = String(cab.num_factura || '').trim();
+  // Sin empresa o sin numero no se guarda: mejor no guardar que guardar mal.
+  if (!empresa || !numFactura) return null;
+
+  const aISO = (f) => {
+    const m = String(f || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? (m[3] + '-' + m[2] + '-' + m[1]) : null;
+  };
+  const conNeum = alb.filter(a => a.es_neumatico);
+  const fechas = conNeum.map(a => aISO(a.fecha)).filter(Boolean).sort();
+
+  const payload = {
+    empresa: empresa,
+    num_factura: numFactura,
+    fecha_factura: aISO(cab.fecha_factura),
+    cif_cliente: cif || null,
+    periodo_desde: fechas[0] || null,
+    periodo_hasta: fechas[fechas.length - 1] || null,
+    archivo_nombre: nombreArchivo || null,
+    total_albaranes: alb.length,
+    total_neumaticos: conNeum.length,
+    total_cubiertas: conNeum.reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0),
+    datos: alb,
+    user_id: currentUser ? currentUser.id : null,
+    updated_at: new Date().toISOString()
+  };
+  try {
+    // upsert por (empresa, num_factura): si se vuelve a subir la MISMA factura
+    // se actualiza la fila, NO se duplica. Asi JC puede resubirla sin miedo.
+    const { error } = await sb.from('neumaticos_facturas')
+      .upsert(payload, { onConflict: 'empresa,num_factura' });
+    if (error) throw error;
+    toast('Factura ' + numFactura + ' guardada para el cierre de mes', 'ok');
+    return true;
+  } catch (e) {
+    console.error('[v576] No se pudo guardar la factura leída:', e);
+    toast('Aviso: la comprobación se ha hecho, pero no he podido guardar la factura (' + (e.message || e) + ')', 'warn');
+    return false;
+  }
 }
 
 // v572 · CRUCE DE LA FACTURA CONTRA LOS ALBARANES DE LA APP.
@@ -8006,6 +8062,24 @@ async function _neumCruzarCuadre(alb) {
     else okey.push(a);
   });
 
+  // v576: albaranes que YA vienen en OTRA factura guardada de la misma empresa.
+  // Esto es lo que pidio JC: un albaran del dia 15 facturado en la segunda
+  // quincena ya NO debe salir como "subido y no facturado" al mirar la primera.
+  const enOtras = {};
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas')
+      .select('num_factura,datos').eq('empresa', empresa || '');
+    if (!error && data) {
+      data.forEach(f => {
+        if (String(f.num_factura || '').trim() === String(cab.num_factura || '').trim()) return;
+        (f.datos || []).forEach(x => {
+          if (!x || !x.es_neumatico || !x.num_albaran) return;
+          enOtras[String(x.num_albaran).trim().toUpperCase()] = f.num_factura;
+        });
+      });
+    }
+  } catch (e) { console.warn('[v576] No pude leer las otras facturas:', e); }
+
   // Subidos en esas fechas que NO vienen en la factura.
   const numsFac = new Set(nums.map(n => n.trim().toUpperCase()));
   const sobran = [];
@@ -8014,7 +8088,7 @@ async function _neumCruzarCuadre(alb) {
     const k = _numDeMov(m);
     if (!k || numsFac.has(k) || vistos.has(k)) return;
     vistos.add(k);
-    sobran.push(Object.assign({}, m, { num_albaran: k }));
+    sobran.push(Object.assign({}, m, { num_albaran: k, _otra: enOtras[k] || null }));
   });
 
   _neumPintarCruce({ faltan: faltan, descuadran: descuadran, okey: okey, sobran: sobran,
@@ -8067,6 +8141,8 @@ function _neumPintarCruce(r) {
   }
 
   // --- 3) SUBIDOS QUE NO VIENEN EN LA FACTURA ---
+  // v576: los que ya vienen en OTRA factura guardada se marcan en verde, para
+  // que JC vea de un vistazo que esos ya estan resueltos y no los reclame.
   if (r.sobran.length) {
     h += '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:12px">' +
       '<div style="font-family:var(--mn);font-size:12px;font-weight:700;margin-bottom:8px">🔵 ' + r.sobran.length + ' ALBARÁN(ES) SUBIDO(S) QUE NO VIENEN EN ESTA FACTURA</div>' +
@@ -8074,7 +8150,8 @@ function _neumPintarCruce(r) {
     r.sobran.forEach(m => {
       h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
         '<strong>' + esc(m.num_albaran) + '</strong> · ' + fmt(m.fecha) +
-        (m.tractora ? ' · ' + esc(m.tractora) : '') + ' · ' + Math.abs(Number(m.cantidad) || 0) + ' cubierta(s)</div>';
+        (m.tractora ? ' · ' + esc(m.tractora) : '') + ' · ' + Math.abs(Number(m.cantidad) || 0) + ' cubierta(s)' +
+        (m._otra ? ' <span style="color:var(--ok)">— ya facturado en ' + esc(m._otra) + '</span>' : '') + '</div>';
     });
     h += '</div>';
   }
