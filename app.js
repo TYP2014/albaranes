@@ -7884,6 +7884,30 @@ async function handleNeumCuadreFiles(fileList) {
     if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he encontrado ningún albarán dentro de esta factura. ¿Seguro que es una factura de servicio de Soledad (de las que llevan los albaranes dentro)?</div>';
     return;
   }
+  // v577 · FILTRO DEFENSIVO: UNA CUBIERTA SIN MEDIDA NO ES UNA CUBIERTA.
+  // Caso real cazado por JC (albaran D700005966 de la factura N0000103045):
+  // sus unicas lineas son "MONTAJE CAMION MAYOR 19.5" y "MONTAJE FIJACION",
+  // o sea SOLO mano de obra, sin ninguna cubierta. La IA lo leyo una vez bien
+  // (descartado) y otra vez mal, inventandose "1 x ?" sin medida — y eso lo
+  // mandaba al aviso ROJO como si faltara un albaran por subir.
+  // Regla de la casa: las reglas de prompt NO son fiables para logica
+  // determinista; el filtro va en CODIGO. Si no hay medida, no hay cubierta:
+  // en Soledad la medida SIEMPRE viene escrita (315/80X22,5, 385/65X22,5...).
+  // NO se descarta en silencio: el albaran queda marcado con el motivo, para
+  // que JC lo mire en el papel si alguna vez fuera un fallo de lectura.
+  alb.forEach(a => {
+    if (!a || !a.es_neumatico) return;
+    const buenas = (a.neumaticos || []).filter(n => String(n && n.medida || '').trim() && (Number(n.cantidad) || 0) > 0);
+    if (buenas.length !== (a.neumaticos || []).length) {
+      a.neumaticos = buenas;
+      a.total_cubiertas = buenas.reduce((t, n) => t + (Number(n.cantidad) || 0), 0);
+      if (!buenas.length) {
+        a.es_neumatico = false;
+        a.motivo_descarte = 'sin medida legible — compruébalo en el papel';
+      }
+    }
+  });
+
   _neumPintarCuadre(alb, file.name);
   // v576: se guarda la lectura ANTES de cruzar, para que el cruce ya pueda
   // contar con ella y con las demas facturas del periodo.
@@ -8156,12 +8180,25 @@ function _neumPintarCruce(r) {
     h += '</div>';
   }
 
-  // --- Resultado limpio ---
-  if (!r.faltan.length && !r.descuadran.length && !r.sobran.length) {
-    h += '<div style="border:2px solid var(--ok);border-radius:6px;padding:14px;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--ok)">' +
-      '✅ TODO CUADRA · los ' + r.okey.length + ' albaranes de la factura están subidos y coinciden.</div>';
-  } else {
-    h += '<div style="font-family:var(--mn);font-size:11px;color:var(--ok);padding:6px 0">✅ ' + r.okey.length + ' albarán(es) cuadran perfectamente.</div>';
+  // --- 4) LOS QUE CUADRAN ---
+  // v578: JC pidio verlos UNO A UNO, no un numero suelto: "en vez de poner
+  // cuatro albaranes, que salgan aunque sean pequeñitos, tal, tal, tal, estan
+  // bien, coincide". Con un contador no sabes CUALES cuatro.
+  if (r.okey.length) {
+    const todoBien = !r.faltan.length && !r.descuadran.length && !r.sobran.length;
+    h += '<div style="border:' + (todoBien ? '2px' : '1px') + ' solid var(--ok);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--ok);margin-bottom:8px">✅ ' +
+      (todoBien ? 'TODO CUADRA · los ' + r.okey.length + ' albaranes de la factura están subidos y coinciden'
+                : r.okey.length + ' ALBARÁN(ES) CUADRAN') + '</div>';
+    r.okey.forEach(a => {
+      const det = (a.neumaticos || []).map(n => n.cantidad + ' × ' + (n.medida || '?') + ' ' + (n.marca || '') + ' ' + (n.modelo || '')).join(' · ');
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(a.num_albaran) + '</strong> · ' + esc(a.fecha || '') +
+        (a.matricula ? ' · ' + esc(a.matricula) : '') + ' · ' + esc(det) + '</div>';
+    });
+    h += '</div>';
+  } else if (!r.faltan.length && !r.descuadran.length && !r.sobran.length) {
+    h += '<div style="font-family:var(--mn);font-size:12px;padding:10px">No hay nada que comparar en esta factura.</div>';
   }
 
   h += '<div style="margin-top:12px;padding:10px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:11px;color:var(--mu)">' +
