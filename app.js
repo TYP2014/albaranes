@@ -8329,6 +8329,210 @@ async function neumFacturaVerDetalle(id) {
   }
 }
 
+// v580 · RESUMEN POR MESES, CON ARRASTRE DE PENDIENTES.
+// Lo pidio JC: "que sea tan facil poder ver el mes de un clic, y a lo mejor me
+// pone: este albaran no esta subido, pues tengo que volverlo yo a reclamar,
+// porque a lo mejor tenemos mucho trabajo o lo hemos reclamado y no nos lo
+// envian, y se queda ahi como traspapelado en el olvido".
+// El mes se arma con la FECHA DE LA FACTURA (lo eligio JC): las DOS quincenas
+// de julio caen las dos en julio, aunque sus albaranes sean de finales de junio.
+// Lo ven tambien Marta y Maria del Mar: el modulo ya tiene sus permisos.
+async function neumResumenMes(mes) {
+  const card = document.getElementById('neumResumenCard');
+  const box = document.getElementById('neumResumenBox');
+  if (card) card.style.display = '';
+  if (box) box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px">Calculando…</div>';
+
+  let facturas = [];
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas')
+      .select('empresa,num_factura,fecha_factura,periodo_desde,periodo_hasta,datos')
+      .order('fecha_factura', { ascending: true });
+    if (error) throw error;
+    facturas = data || [];
+  } catch (e) {
+    console.error('[v580] Error leyendo facturas:', e);
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he podido leer las facturas: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+  if (!facturas.length) {
+    if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;padding:14px">Todavía no has subido ninguna factura al cuadre.</div>';
+    return;
+  }
+
+  // Selector de meses: los que tengan alguna factura.
+  const meses = [];
+  facturas.forEach(f => {
+    const m = String(f.fecha_factura || '').slice(0, 7);
+    if (m && meses.indexOf(m) === -1) meses.push(m);
+  });
+  meses.sort().reverse();
+  const mesActivo = mes && meses.indexOf(mes) >= 0 ? mes : meses[0];
+
+  const delMes = facturas.filter(f => String(f.fecha_factura || '').slice(0, 7) === mesActivo);
+
+  // Todos los albaranes de neumaticos facturados ESE mes.
+  const albMes = [];
+  delMes.forEach(f => {
+    (f.datos || []).forEach(a => {
+      if (!a || !a.es_neumatico || !a.num_albaran) return;
+      albMes.push(Object.assign({}, a, { _factura: f.num_factura, _empresa: f.empresa }));
+    });
+  });
+
+  // Que hay en la app de esos albaranes. Se busca el numero en la columna y,
+  // si esta vacia, dentro del texto de observaciones (mismo criterio que v574).
+  const _numDeMov = (m) => {
+    const col = String(m.num_albaran || '').trim();
+    if (col) return col.toUpperCase();
+    const mm = String(m.observaciones || '').match(/albar[áa]n\s+soledad\s+([A-Za-z0-9\-\/]+)/i);
+    return mm ? mm[1].toUpperCase() : '';
+  };
+  const empresas = Array.from(new Set(delMes.map(f => f.empresa).filter(Boolean)));
+  let movs = [];
+  try {
+    // Rango amplio: desde 45 dias antes del primer albaran facturado hasta 45
+    // despues. Hace falta ese margen porque un montaje de fin de mes se factura
+    // al mes siguiente, que es justo lo que JC quiere no perder de vista.
+    const fechasIso = albMes.map(a => {
+      const m = String(a.fecha || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? (m[3] + '-' + m[2] + '-' + m[1]) : null;
+    }).filter(Boolean).sort();
+    const mov = (iso, d) => { const x = new Date(iso + 'T00:00:00'); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
+    let q = sb.from('neumaticos_movimientos')
+      .select('num_albaran,observaciones,cantidad,tractora,fecha,tipo,empresa')
+      .eq('tipo', 'montaje');
+    if (empresas.length === 1) q = q.eq('empresa', empresas[0]);
+    if (fechasIso.length) q = q.gte('fecha', mov(fechasIso[0], -45)).lte('fecha', mov(fechasIso[fechasIso.length - 1], 45));
+    const r = await q;
+    if (r.error) throw r.error;
+    movs = r.data || [];
+  } catch (e) {
+    console.error('[v580] Error leyendo movimientos:', e);
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he podido leer los movimientos: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+
+  const porAlbApp = {};
+  movs.forEach(m => {
+    const k = _numDeMov(m);
+    if (!k) return;
+    if (!porAlbApp[k]) porAlbApp[k] = [];
+    porAlbApp[k].push(m);
+  });
+
+  // TODOS los albaranes facturados alguna vez (de cualquier mes), para saber si
+  // un albaran subido y no facturado en ESTE mes lo esta en otro.
+  const facturadoEn = {};
+  facturas.forEach(f => {
+    (f.datos || []).forEach(a => {
+      if (!a || !a.es_neumatico || !a.num_albaran) return;
+      const k = String(a.num_albaran).trim().toUpperCase();
+      if (!facturadoEn[k]) facturadoEn[k] = f.num_factura;
+    });
+  });
+
+  const porReclamar = [], noCuadran = [], bien = [];
+  albMes.forEach(a => {
+    const k = String(a.num_albaran).trim().toUpperCase();
+    const fl = porAlbApp[k];
+    if (!fl || !fl.length) { porReclamar.push(a); return; }
+    const enApp = Math.abs(fl.reduce((t, m) => t + (Number(m.cantidad) || 0), 0));
+    if (enApp !== (Number(a.total_cubiertas) || 0)) noCuadran.push({ a: a, enApp: enApp });
+    else bien.push(a);
+  });
+
+  // ARRASTRE: subidos que a dia de hoy NO estan en NINGUNA factura.
+  // Estos NO caen en ningun mes (el mes va por fecha de factura), asi que si no
+  // se sacaran aparte se perderian. Es lo que JC llama "que arrastre".
+  const sinFacturar = [];
+  const vistos = {};
+  movs.forEach(m => {
+    const k = _numDeMov(m);
+    if (!k || facturadoEn[k] || vistos[k]) return;
+    vistos[k] = 1;
+    sinFacturar.push(Object.assign({}, m, { num_albaran: k }));
+  });
+
+  _neumPintarResumen({ meses: meses, mesActivo: mesActivo, facturas: delMes,
+    porReclamar: porReclamar, noCuadran: noCuadran, bien: bien, sinFacturar: sinFacturar });
+}
+
+function _neumPintarResumen(r) {
+  const box = document.getElementById('neumResumenBox');
+  if (!box) return;
+  const fmt = (f) => String(f || '').split('T')[0].split('-').reverse().join('/');
+  const nombreMes = (m) => {
+    const N = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const p = String(m).split('-');
+    return (N[parseInt(p[1], 10) - 1] || m) + ' ' + p[0];
+  };
+
+  // Botones de mes
+  let h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">';
+  r.meses.forEach(m => {
+    const act = m === r.mesActivo;
+    h += '<button class="btn bs" style="font-size:10px;padding:5px 11px' + (act ? ';font-weight:700;border-color:var(--ac)' : '') + '" onclick="neumResumenMes(\'' + m + '\')">' + esc(nombreMes(m)) + '</button>';
+  });
+  h += '</div>';
+
+  const totalCub = r.bien.concat(r.porReclamar).reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0);
+  h += '<div style="font-family:var(--mn);font-size:12px;font-weight:700;margin-bottom:4px">' + esc(nombreMes(r.mesActivo).toUpperCase()) + '</div>' +
+    '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px">' +
+    r.facturas.length + ' factura(s): ' + r.facturas.map(f => esc(f.num_factura) + ' (' + fmt(f.fecha_factura) + ')').join(' · ') +
+    ' — ' + (r.bien.length + r.porReclamar.length + r.noCuadran.length) + ' albaranes de neumáticos, ' + totalCub + ' cubiertas</div>';
+
+  if (r.porReclamar.length) {
+    h += '<div style="border:2px solid var(--er);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--er);margin-bottom:6px">🔴 HAY QUE RECLAMAR ' + r.porReclamar.length + ' ALBARÁN(ES) A SOLEDAD</div>' +
+      '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:8px">Los facturaron pero nunca llegaron por correo, o llegaron y no se subieron. Su consumo NO se ha descontado del stock.</div>';
+    r.porReclamar.forEach(a => {
+      const det = (a.neumaticos || []).map(n => n.cantidad + ' × ' + (n.medida || '?') + ' ' + (n.marca || '')).join(' · ');
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(a.num_albaran) + '</strong> · ' + esc(a.fecha || '') + (a.matricula ? ' · ' + esc(a.matricula) : '') +
+        ' · ' + esc(det) + ' <span style="color:var(--mu)">— factura ' + esc(a._factura || '') + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  if (r.noCuadran.length) {
+    h += '<div style="border:2px solid var(--wn);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--wn);margin-bottom:8px">🟠 ' + r.noCuadran.length + ' NO CUADRAN</div>';
+    r.noCuadran.forEach(d => {
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(d.a.num_albaran) + '</strong> · ' + esc(d.a.fecha || '') + (d.a.matricula ? ' · ' + esc(d.a.matricula) : '') + '<br>' +
+        '<span style="color:var(--wn)">el albarán tiene ' + d.enApp + ' cubierta(s) y la factura ' + esc(d.a._factura || '') + ' cobra ' + (d.a.total_cubiertas || 0) + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  // ARRASTRE
+  if (r.sinFacturar.length) {
+    h += '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;margin-bottom:6px">🔵 ' + r.sinFacturar.length + ' ALBARÁN(ES) SUBIDO(S) QUE AÚN NO TE HAN FACTURADO</div>' +
+      '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:8px">Se arrastran mes a mes hasta que aparezcan en una factura. Un montaje de fin de mes suele facturarse al mes siguiente: eso es normal. Si lleva meses aquí, pregunta.</div>';
+    r.sinFacturar.forEach(m => {
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(m.num_albaran) + '</strong> · ' + fmt(m.fecha) + (m.tractora ? ' · ' + esc(m.tractora) : '') +
+        ' · ' + Math.abs(Number(m.cantidad) || 0) + ' cubierta(s)</div>';
+    });
+    h += '</div>';
+  }
+
+  if (r.bien.length) {
+    h += '<div style="border:' + (r.porReclamar.length || r.noCuadran.length ? '1px' : '2px') + ' solid var(--ok);border-radius:6px;padding:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--ok);margin-bottom:6px">✅ ' + r.bien.length + ' ALBARÁN(ES) CUADRAN</div>';
+    r.bien.forEach(a => {
+      const det = (a.neumaticos || []).map(n => n.cantidad + ' × ' + (n.medida || '?') + ' ' + (n.marca || '')).join(' · ');
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(a.num_albaran) + '</strong> · ' + esc(a.fecha || '') + (a.matricula ? ' · ' + esc(a.matricula) : '') + ' · ' + esc(det) + '</div>';
+    });
+    h += '</div>';
+  }
+
+  box.innerHTML = h;
+}
+
 function dropNeumCuadre(e) {
   e.preventDefault();
   const target = e.currentTarget;
