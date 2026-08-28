@@ -7885,6 +7885,183 @@ async function handleNeumCuadreFiles(fileList) {
     return;
   }
   _neumPintarCuadre(alb, file.name);
+  // v572: y a continuacion, el cruce contra lo que hay en la app.
+  _neumCruzarCuadre(alb);
+}
+
+// v572 · CRUCE DE LA FACTURA CONTRA LOS ALBARANES DE LA APP.
+// Da los TRES avisos que pidio JC. SOLO INFORMA: no crea, no borra y no
+// modifica NADA. Regla suya, y es la correcta: "el albaran es la verdad, la
+// factura es lo que se comprueba". Si la app creara el movimiento copiandolo
+// de la factura, estaria dando por bueno justo lo que se quiere verificar.
+async function _neumCruzarCuadre(alb) {
+  const box = document.getElementById('neumCruceBox');
+  const card = document.getElementById('neumCruceCard');
+  if (card) card.style.display = '';
+  if (box) box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px">Cruzando con los albaranes de la app…</div>';
+
+  // Solo entran los que llevan cubiertas. Los descartados (tacografo, turismo,
+  // solo mano de obra) NO se reclaman: no van al modulo de neumaticos.
+  const conNeum = alb.filter(a => a.es_neumatico && a.num_albaran);
+  if (!conNeum.length) {
+    if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;padding:14px">Esta factura no trae ningún albarán de neumáticos, así que no hay nada que cruzar.</div>';
+    return;
+  }
+
+  const cab = alb[0] || {};
+  const cif = String(cab.cif_cliente || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const empresa = _NEUM_CIF_EMPRESA[cif] || null;
+
+  // Rango de fechas de la factura, para buscar lo que hay subido en la app en
+  // esas mismas fechas (asi se detecta lo que esta subido y NO viene facturado).
+  const aFecha = (f) => {
+    const m = String(f || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? (m[3] + '-' + m[2] + '-' + m[1]) : null;
+  };
+  const fechas = conNeum.map(a => aFecha(a.fecha)).filter(Boolean).sort();
+  const desde = fechas[0] || null;
+  const hasta = fechas[fechas.length - 1] || null;
+
+  const nums = conNeum.map(a => String(a.num_albaran).trim());
+
+  let movs = [];
+  let enRango = [];
+  try {
+    const q1 = await sb.from('neumaticos_movimientos')
+      .select('num_albaran,cantidad,medida,marca,modelo,tractora,fecha,tipo,empresa')
+      .in('num_albaran', nums);
+    if (q1.error) throw q1.error;
+    movs = q1.data || [];
+
+    if (empresa && desde && hasta) {
+      const q2 = await sb.from('neumaticos_movimientos')
+        .select('num_albaran,cantidad,medida,tractora,fecha,tipo,empresa')
+        .eq('empresa', empresa).eq('tipo', 'montaje')
+        .gte('fecha', desde).lte('fecha', hasta);
+      if (q2.error) throw q2.error;
+      enRango = q2.data || [];
+    }
+  } catch (e) {
+    console.error('[v572] Error cruzando:', e);
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he podido consultar la base de datos: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+
+  // Agrupar lo que hay en la app por numero de albaran.
+  const porAlb = {};
+  movs.forEach(m => {
+    const k = String(m.num_albaran || '').trim();
+    if (!k) return;
+    if (!porAlb[k]) porAlb[k] = [];
+    porAlb[k].push(m);
+  });
+
+  const faltan = [];      // en la factura, no en la app  -> reclamar a Soledad
+  const descuadran = [];  // en los dos, pero no coinciden
+  const okey = [];        // cuadran
+
+  conNeum.forEach(a => {
+    const k = String(a.num_albaran).trim();
+    const filas = porAlb[k];
+    if (!filas || !filas.length) { faltan.push(a); return; }
+    const enApp = filas.reduce((t, m) => t + (Number(m.cantidad) || 0), 0);
+    const enFac = Number(a.total_cubiertas) || 0;
+    const motivos = [];
+    // Las cantidades del montaje se guardan en negativo (descuentan stock),
+    // por eso se compara en valor absoluto.
+    if (Math.abs(enApp) !== enFac) motivos.push('el albarán tiene ' + Math.abs(enApp) + ' cubierta(s) y la factura cobra ' + enFac);
+    const matApp = String((filas.find(m => m.tractora) || {}).tractora || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const matFac = String(a.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (matApp && matFac && matApp !== matFac) motivos.push('matrícula distinta: en el albarán ' + matApp + ', en la factura ' + matFac);
+    if (motivos.length) descuadran.push({ a: a, motivos: motivos, enApp: Math.abs(enApp) });
+    else okey.push(a);
+  });
+
+  // Subidos en esas fechas que NO vienen en la factura.
+  const numsFac = new Set(nums.map(n => n.toUpperCase()));
+  const sobran = [];
+  const vistos = new Set();
+  enRango.forEach(m => {
+    const k = String(m.num_albaran || '').trim();
+    if (!k || numsFac.has(k.toUpperCase()) || vistos.has(k)) return;
+    vistos.add(k);
+    sobran.push(m);
+  });
+
+  _neumPintarCruce({ faltan: faltan, descuadran: descuadran, okey: okey, sobran: sobran,
+    empresa: empresa, cif: cif, numFactura: cab.num_factura, desde: desde, hasta: hasta });
+}
+
+function _neumPintarCruce(r) {
+  const box = document.getElementById('neumCruceBox');
+  if (!box) return;
+  const fmt = (f) => String(f || '').split('T')[0].split('-').reverse().join('/');
+  let h = '';
+
+  if (!r.empresa) {
+    h += '<div style="padding:10px;margin-bottom:12px;border:1px solid var(--wn);border-radius:6px;font-family:var(--mn);font-size:11px">' +
+      '⚠️ No he reconocido la empresa por el N.I.F. <strong>' + esc(r.cif || '(vacío)') + '</strong>. ' +
+      'He podido comprobar los albaranes de la factura, pero <strong>no</strong> puedo decirte si hay albaranes subidos que falten en ella.</div>';
+  }
+
+  h += '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding-bottom:10px">' +
+    'Factura <strong>' + esc(r.numFactura || '—') + '</strong>' +
+    (r.empresa ? ' · empresa <strong>' + esc(r.empresa) + '</strong>' : '') +
+    (r.desde ? ' · del ' + fmt(r.desde) + ' al ' + fmt(r.hasta) : '') + '</div>';
+
+  // --- 1) FALTAN (lo que hay que reclamar) ---
+  if (r.faltan.length) {
+    h += '<div style="border:2px solid var(--er);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--er);margin-bottom:8px">🔴 FALTAN ' + r.faltan.length + ' ALBARÁN(ES) POR SUBIR — RECLÁMASELOS A SOLEDAD</div>' +
+      '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:8px">Vienen en la factura pero no están en la app. Su consumo NO se ha descontado del stock.</div>';
+    r.faltan.forEach(a => {
+      const det = (a.neumaticos || []).map(n => n.cantidad + ' × ' + (n.medida || '?') + ' ' + (n.marca || '') + ' ' + (n.modelo || '')).join(' · ');
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(a.num_albaran) + '</strong> · ' + esc(a.fecha || '') +
+        (a.matricula ? ' · ' + esc(a.matricula) : '') + ' · ' + esc(det) + '</div>';
+    });
+    h += '</div>';
+  }
+
+  // --- 2) DESCUADRAN ---
+  if (r.descuadran.length) {
+    h += '<div style="border:2px solid var(--wn);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;color:var(--wn);margin-bottom:8px">🟠 ' + r.descuadran.length + ' ALBARÁN(ES) NO CUADRAN</div>' +
+      '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:8px">Están en los dos sitios, pero algo no coincide. Compruébalo con el papel delante.</div>';
+    r.descuadran.forEach(d => {
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(d.a.num_albaran) + '</strong> · ' + esc(d.a.fecha || '') +
+        (d.a.matricula ? ' · ' + esc(d.a.matricula) : '') + '<br>' +
+        '<span style="color:var(--wn)">' + esc(d.motivos.join(' · ')) + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  // --- 3) SUBIDOS QUE NO VIENEN EN LA FACTURA ---
+  if (r.sobran.length) {
+    h += '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-family:var(--mn);font-size:12px;font-weight:700;margin-bottom:8px">🔵 ' + r.sobran.length + ' ALBARÁN(ES) SUBIDO(S) QUE NO VIENEN EN ESTA FACTURA</div>' +
+      '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:8px">Suele ser normal: irán en la factura siguiente. Míralos por si acaso.</div>';
+    r.sobran.forEach(m => {
+      h += '<div style="font-family:var(--mn);font-size:11px;padding:5px 0;border-top:1px solid var(--bd)">' +
+        '<strong>' + esc(m.num_albaran) + '</strong> · ' + fmt(m.fecha) +
+        (m.tractora ? ' · ' + esc(m.tractora) : '') + ' · ' + Math.abs(Number(m.cantidad) || 0) + ' cubierta(s)</div>';
+    });
+    h += '</div>';
+  }
+
+  // --- Resultado limpio ---
+  if (!r.faltan.length && !r.descuadran.length && !r.sobran.length) {
+    h += '<div style="border:2px solid var(--ok);border-radius:6px;padding:14px;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--ok)">' +
+      '✅ TODO CUADRA · los ' + r.okey.length + ' albaranes de la factura están subidos y coinciden.</div>';
+  } else {
+    h += '<div style="font-family:var(--mn);font-size:11px;color:var(--ok);padding:6px 0">✅ ' + r.okey.length + ' albarán(es) cuadran perfectamente.</div>';
+  }
+
+  h += '<div style="margin-top:12px;padding:10px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:11px;color:var(--mu)">' +
+    'Esto <strong>solo comprueba</strong>. No se ha creado, borrado ni modificado ningún movimiento: el albarán manda, y los albaranes se suben como siempre.</div>';
+
+  box.innerHTML = h;
 }
 
 function dropNeumCuadre(e) {
