@@ -7911,7 +7911,7 @@ async function handleNeumCuadreFiles(fileList) {
   _neumPintarCuadre(alb, file.name);
   // v576: se guarda la lectura ANTES de cruzar, para que el cruce ya pueda
   // contar con ella y con las demas facturas del periodo.
-  await _neumGuardarFacturaLeida(alb, file.name);
+  await _neumGuardarFacturaLeida(alb, file.name, file);
   // v572: y a continuacion, el cruce contra lo que hay en la app.
   _neumCruzarCuadre(alb);
 }
@@ -7924,7 +7924,7 @@ async function handleNeumCuadreFiles(fileList) {
 // facturas del periodo y cerrar el mes.
 // OJO: aqui se guarda la COMPROBACION, no datos de stock. No se crea ningun
 // albaran, no se mueve ni una cubierta. El albaran sigue siendo la verdad.
-async function _neumGuardarFacturaLeida(alb, nombreArchivo) {
+async function _neumGuardarFacturaLeida(alb, nombreArchivo, file) {
   const cab = alb[0] || {};
   const cif = String(cab.cif_cliente || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const empresa = _NEUM_CIF_EMPRESA[cif] || null;
@@ -7939,6 +7939,27 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo) {
   const conNeum = alb.filter(a => a.es_neumatico);
   const fechas = conNeum.map(a => aISO(a.fecha)).filter(Boolean).sort();
 
+  // v579: guardar tambien el PDF, para poder abrirlo luego desde la app sin
+  // ir al correo ni a Quipu. Va al bucket PRIVADO `documentos`; aqui solo se
+  // guarda la RUTA y la app pide una URL firmada cuando hay que abrirlo.
+  // El nombre lleva empresa + nº de factura, con upsert: si se resube la MISMA
+  // factura se REEMPLAZA el archivo, no se acumulan copias.
+  let archivoPath = null;
+  if (file) {
+    try {
+      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+      const limpio = numFactura.replace(/[^A-Za-z0-9_-]+/g, '');
+      archivoPath = 'neumaticos/facturas/' + empresa + '/' + limpio + '.' + ext;
+      const { error: upErr } = await sb.storage.from('documentos')
+        .upload(archivoPath, file, { upsert: true, contentType: file.type || 'application/pdf' });
+      if (upErr) throw upErr;
+    } catch (e) {
+      // No es critico: si falla la subida, la comprobacion y el resto se guardan igual.
+      console.warn('[v579] No se pudo guardar el PDF de la factura:', e.message || e);
+      archivoPath = null;
+    }
+  }
+
   const payload = {
     empresa: empresa,
     num_factura: numFactura,
@@ -7947,6 +7968,7 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo) {
     periodo_desde: fechas[0] || null,
     periodo_hasta: fechas[fechas.length - 1] || null,
     archivo_nombre: nombreArchivo || null,
+    archivo_path: archivoPath,
     total_albaranes: alb.length,
     total_neumaticos: conNeum.length,
     total_cubiertas: conNeum.reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0),
@@ -8221,6 +8243,90 @@ function neumCuadreLimpiar() {
   if (boxC) boxC.innerHTML = '';
   if (cardC) cardC.style.display = 'none';
   toast('Pantalla del cuadre limpia', 'ok');
+}
+
+// v579 · LISTA DE FACTURAS GUARDADAS.
+// Lo pidio JC para poder comprobar las cosas el mismo: "veo que hay dos
+// albaranes y voy a entrar y no tenga que irme a buscarlo yo en el email o en
+// el programa de contabilidad". Aqui ve TODAS las facturas que ha ido subiendo,
+// puede abrir el PDF original y volver a ver lo que la app leyo, sin tener que
+// subirla otra vez.
+async function neumFacturasGuardadas() {
+  const card = document.getElementById('neumFactListCard');
+  const box = document.getElementById('neumFactListBox');
+  if (card) card.style.display = '';
+  if (box) box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px">Buscando…</div>';
+  let filas = [];
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas')
+      .select('id,empresa,num_factura,fecha_factura,periodo_desde,periodo_hasta,total_albaranes,total_neumaticos,total_cubiertas,archivo_path,archivo_nombre')
+      .order('fecha_factura', { ascending: false });
+    if (error) throw error;
+    filas = data || [];
+  } catch (e) {
+    console.error('[v579] Error leyendo facturas guardadas:', e);
+    if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he podido leer las facturas: ' + esc(e.message || e) + '</div>';
+    return;
+  }
+  if (!filas.length) {
+    if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;padding:14px">Todavía no has subido ninguna factura al cuadre.</div>';
+    return;
+  }
+  const fmt = (f) => String(f || '').split('T')[0].split('-').reverse().join('/');
+  let h = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
+    '<th style="padding:7px">FACTURA</th><th style="padding:7px">FECHA</th><th style="padding:7px">EMPRESA</th>' +
+    '<th style="padding:7px">PERIODO</th><th style="padding:7px">ALBARANES</th><th style="padding:7px">CUBIERTAS</th>' +
+    '<th style="padding:7px"></th></tr></thead><tbody>';
+  filas.forEach(f => {
+    h += '<tr style="border-bottom:1px solid var(--bd)">' +
+      '<td style="padding:7px;font-weight:700;white-space:nowrap">' + esc(f.num_factura || '') + '</td>' +
+      '<td style="padding:7px;white-space:nowrap">' + fmt(f.fecha_factura) + '</td>' +
+      '<td style="padding:7px">' + esc(f.empresa || '') + '</td>' +
+      '<td style="padding:7px;white-space:nowrap">' + (f.periodo_desde ? fmt(f.periodo_desde) + ' — ' + fmt(f.periodo_hasta) : '—') + '</td>' +
+      '<td style="padding:7px;text-align:center">' + (f.total_neumaticos || 0) + ' de ' + (f.total_albaranes || 0) + '</td>' +
+      '<td style="padding:7px;text-align:center;font-weight:700">' + (f.total_cubiertas || 0) + '</td>' +
+      '<td style="padding:7px;white-space:nowrap">' +
+        '<button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="neumFacturaVerDetalle(\'' + f.id + '\')">VER DETALLE</button> ' +
+        (f.archivo_path ? '<button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="neumFacturaAbrirPdf(\'' + f.id + '\')">📄 PDF</button>' : '') +
+      '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  box.innerHTML = h;
+}
+
+// v579: abrir el PDF original. El bucket es PRIVADO, asi que hay que pedir una
+// URL firmada (1 hora), igual que se hace con los documentos de las citas.
+async function neumFacturaAbrirPdf(id) {
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas').select('archivo_path').eq('id', id).single();
+    if (error) throw error;
+    if (!data || !data.archivo_path) { toast('Esta factura no tiene PDF guardado', 'warn'); return; }
+    const r = await sb.storage.from('documentos').createSignedUrl(data.archivo_path, 3600);
+    if (r.error) throw r.error;
+    window.open(r.data.signedUrl, '_blank');
+  } catch (e) {
+    console.error('[v579] Error abriendo el PDF:', e);
+    toast('No pude abrir el PDF: ' + (e.message || e), 'err');
+  }
+}
+
+// v579: volver a ver lo que la app leyo de esa factura, SIN subirla otra vez
+// (el detalle esta guardado en la columna datos). Tambien vuelve a cruzarlo,
+// para que el estado sea el de HOY y no el del dia que se subio.
+async function neumFacturaVerDetalle(id) {
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas').select('datos,num_factura,archivo_nombre').eq('id', id).single();
+    if (error) throw error;
+    if (!data || !Array.isArray(data.datos) || !data.datos.length) { toast('No tengo el detalle de esa factura', 'warn'); return; }
+    _neumPintarCuadre(data.datos, data.archivo_nombre || ('Factura ' + data.num_factura));
+    _neumCruzarCuadre(data.datos);
+    const c = document.getElementById('neumCuadreCard');
+    if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    console.error('[v579] Error abriendo el detalle:', e);
+    toast('No pude abrir el detalle: ' + (e.message || e), 'err');
+  }
 }
 
 function dropNeumCuadre(e) {
