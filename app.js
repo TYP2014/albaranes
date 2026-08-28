@@ -7924,33 +7924,51 @@ async function _neumCruzarCuadre(alb) {
 
   const nums = conNeum.map(a => String(a.num_albaran).trim());
 
-  let movs = [];
-  let enRango = [];
-  try {
-    const q1 = await sb.from('neumaticos_movimientos')
-      .select('num_albaran,cantidad,medida,marca,modelo,tractora,fecha,tipo,empresa')
-      .in('num_albaran', nums);
-    if (q1.error) throw q1.error;
-    movs = q1.data || [];
+  // v574 · DONDE ESTA DE VERDAD EL NUMERO DE ALBARAN.
+  // Fallo de diseño de la v572: se buscaba por la columna num_albaran, pero el
+  // lector de albaranes NUNCA la rellena — guarda el numero DENTRO del texto de
+  // observaciones ("Albarán Soledad D700005822 (leído por IA, S/PROP)", ver
+  // app.js ~20005). Se buscaba en un cajon siempre vacio, asi que salian TODOS
+  // como si faltaran. Ahora se mira en los dos sitios: primero la columna (por
+  // si algun dia se rellena) y si no, dentro de las observaciones.
+  const _numDeMov = (m) => {
+    const col = String(m.num_albaran || '').trim();
+    if (col) return col.toUpperCase();
+    const mm = String(m.observaciones || '').match(/albar[áa]n\s+soledad\s+([A-Za-z0-9\-\/]+)/i);
+    return mm ? mm[1].toUpperCase() : '';
+  };
 
-    if (empresa && desde && hasta) {
-      const q2 = await sb.from('neumaticos_movimientos')
-        .select('num_albaran,cantidad,medida,tractora,fecha,tipo,empresa')
-        .eq('empresa', empresa).eq('tipo', 'montaje')
-        .gte('fecha', desde).lte('fecha', hasta);
-      if (q2.error) throw q2.error;
-      enRango = q2.data || [];
-    }
+  let filas = [];
+  try {
+    // Se trae TODO lo de esa empresa en el rango de fechas de la factura, con
+    // holgura de 15 dias por si un albarán se registro con fecha algo distinta.
+    const holgura = (iso, dias) => {
+      const d = new Date(iso + 'T00:00:00');
+      d.setDate(d.getDate() + dias);
+      return d.toISOString().slice(0, 10);
+    };
+    let q = sb.from('neumaticos_movimientos')
+      .select('num_albaran,observaciones,cantidad,medida,marca,modelo,tractora,fecha,tipo,empresa');
+    if (empresa) q = q.eq('empresa', empresa);
+    if (desde && hasta) q = q.gte('fecha', holgura(desde, -15)).lte('fecha', holgura(hasta, 15));
+    const r1 = await q;
+    if (r1.error) throw r1.error;
+    filas = r1.data || [];
   } catch (e) {
-    console.error('[v572] Error cruzando:', e);
+    console.error('[v574] Error cruzando:', e);
     if (box) box.innerHTML = '<div style="color:var(--er);padding:14px;font-size:12px">No he podido consultar la base de datos: ' + esc(e.message || e) + '</div>';
     return;
   }
 
+  // Solo los montajes descuentan stock: son los que hay que comparar con la
+  // factura. Las filas de "compra" del compra-y-monta duplicarian la cuenta.
+  const movs = filas.filter(m => m.tipo === 'montaje');
+  const enRango = movs;
+
   // Agrupar lo que hay en la app por numero de albaran.
   const porAlb = {};
   movs.forEach(m => {
-    const k = String(m.num_albaran || '').trim();
+    const k = _numDeMov(m);
     if (!k) return;
     if (!porAlb[k]) porAlb[k] = [];
     porAlb[k].push(m);
@@ -7961,16 +7979,16 @@ async function _neumCruzarCuadre(alb) {
   const okey = [];        // cuadran
 
   conNeum.forEach(a => {
-    const k = String(a.num_albaran).trim();
-    const filas = porAlb[k];
-    if (!filas || !filas.length) { faltan.push(a); return; }
-    const enApp = filas.reduce((t, m) => t + (Number(m.cantidad) || 0), 0);
+    const k = String(a.num_albaran).trim().toUpperCase();
+    const fl = porAlb[k];
+    if (!fl || !fl.length) { faltan.push(a); return; }
+    const enApp = fl.reduce((t, m) => t + (Number(m.cantidad) || 0), 0);
     const enFac = Number(a.total_cubiertas) || 0;
     const motivos = [];
     // Las cantidades del montaje se guardan en negativo (descuentan stock),
     // por eso se compara en valor absoluto.
     if (Math.abs(enApp) !== enFac) motivos.push('el albarán tiene ' + Math.abs(enApp) + ' cubierta(s) y la factura cobra ' + enFac);
-    const matApp = String((filas.find(m => m.tractora) || {}).tractora || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const matApp = String((fl.find(m => m.tractora) || {}).tractora || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const matFac = String(a.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (matApp && matFac && matApp !== matFac) motivos.push('matrícula distinta: en el albarán ' + matApp + ', en la factura ' + matFac);
     if (motivos.length) descuadran.push({ a: a, motivos: motivos, enApp: Math.abs(enApp) });
@@ -7978,14 +7996,14 @@ async function _neumCruzarCuadre(alb) {
   });
 
   // Subidos en esas fechas que NO vienen en la factura.
-  const numsFac = new Set(nums.map(n => n.toUpperCase()));
+  const numsFac = new Set(nums.map(n => n.trim().toUpperCase()));
   const sobran = [];
   const vistos = new Set();
   enRango.forEach(m => {
-    const k = String(m.num_albaran || '').trim();
-    if (!k || numsFac.has(k.toUpperCase()) || vistos.has(k)) return;
+    const k = _numDeMov(m);
+    if (!k || numsFac.has(k) || vistos.has(k)) return;
     vistos.add(k);
-    sobran.push(m);
+    sobran.push(Object.assign({}, m, { num_albaran: k }));
   });
 
   _neumPintarCruce({ faltan: faltan, descuadran: descuadran, okey: okey, sobran: sobran,
@@ -8064,6 +8082,22 @@ function _neumPintarCruce(r) {
   box.innerHTML = h;
 }
 
+// v573: dejar la pantalla del cuadre en blanco. Lo pidio JC: aunque al subir
+// otra factura se sobrescribe sola, si te levantas y vuelves no sabes si lo
+// que estas viendo es la nueva o la de antes. Mejor poder quitarlo a proposito.
+// Solo borra lo que hay en pantalla — no habia nada guardado que borrar.
+function neumCuadreLimpiar() {
+  const cardL = document.getElementById('neumCuadreCard');
+  const boxL = document.getElementById('neumCuadreBox');
+  const cardC = document.getElementById('neumCruceCard');
+  const boxC = document.getElementById('neumCruceBox');
+  if (boxL) boxL.innerHTML = '';
+  if (cardL) cardL.style.display = 'none';
+  if (boxC) boxC.innerHTML = '';
+  if (cardC) cardC.style.display = 'none';
+  toast('Pantalla del cuadre limpia', 'ok');
+}
+
 function dropNeumCuadre(e) {
   e.preventDefault();
   const target = e.currentTarget;
@@ -8081,7 +8115,8 @@ function _neumPintarCuadre(alb, nombreArchivo) {
   const sinNeum = alb.filter(a => !a.es_neumatico);
   const totalCub = conNeum.reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0);
 
-  let h = '<div style="font-family:var(--mn);font-size:11px;padding:4px 0 12px 0;color:var(--mu)">' +
+  let h = '<div style="text-align:right;margin-bottom:6px"><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="neumCuadreLimpiar()" title="Dejar la pantalla en blanco para subir otra factura">🧹 LIMPIAR</button></div>' +
+    '<div style="font-family:var(--mn);font-size:11px;padding:4px 0 12px 0;color:var(--mu)">' +
     'Archivo: <strong>' + esc(nombreArchivo) + '</strong><br>' +
     'Factura <strong>' + esc(cab.num_factura || '—') + '</strong> · fecha <strong>' + esc(cab.fecha_factura || '—') + '</strong> · N.I.F. cliente <strong>' + esc(cab.cif_cliente || '—') + '</strong>' +
     '</div>';
