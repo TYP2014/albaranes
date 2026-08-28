@@ -7963,7 +7963,18 @@ async function _neumCruzarCuadre(alb) {
   // Solo los montajes descuentan stock: son los que hay que comparar con la
   // factura. Las filas de "compra" del compra-y-monta duplicarian la cuenta.
   const movs = filas.filter(m => m.tipo === 'montaje');
-  const enRango = movs;
+
+  // v575 · LA LISTA AZUL SOLO MIRA EL PERIODO EXACTO DE LA FACTURA.
+  // La holgura de 15 dias de la v574 existe para BUSCAR (por si un albaran se
+  // registro con fecha algo distinta a la del papel), pero NO debe usarse para
+  // el aviso de "subido y no facturado": si no, salen albaranes de semanas
+  // antes o despues que no pintan nada ahi. Lo caz JC: en una factura del
+  // 07/07 al 15/07 le aparecian albaranes del 25/06 y del 27/07.
+  const soloDia = (f) => String(f || '').split('T')[0];
+  const enRango = movs.filter(m => {
+    const d = soloDia(m.fecha);
+    return d && (!desde || d >= desde) && (!hasta || d <= hasta);
+  });
 
   // Agrupar lo que hay en la app por numero de albaran.
   const porAlb = {};
