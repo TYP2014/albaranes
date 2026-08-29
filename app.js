@@ -10687,6 +10687,8 @@ function renderTable() {
   const totalFil = filtered.length;
   const lim = Math.min(window._limVisible, totalFil);
   const visibles = filtered.slice(0, lim);
+  // v581: se resuelve UNA sola vez por repintado, no una por fila.
+  const _puedeBorrarDup = (typeof _puedeSeleccionMultiple === 'function') ? _puedeSeleccionMultiple() : false;
   tbody.innerHTML = visibles.map(r => `
     <tr class="${r._dup ? 'row-dup' : r._quality === 'warn' || r._quality === 'ilegible' ? 'row-warn' : ''}"${r._posDup ? ' style="background:rgba(214,51,140,.10);box-shadow:inset 4px 0 0 #d6338c"' : r.creado_manual ? ' style="background:#e6f0ff;box-shadow:inset 4px 0 0 #2b6fff"' : ''} onclick="openModal('${r.db_id || r._id}')">
       <td class="celda-sel" style="display:none;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="chk-sel" data-id="${r.db_id || r._id}" onclick="event.stopPropagation();_selUno()" style="cursor:pointer;width:16px;height:16px"></td>
@@ -10703,7 +10705,7 @@ function renderTable() {
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}</td>
+      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:8px;cursor:pointer;border:1px solid var(--er);background:#fff;color:var(--er);border-radius:6px;padding:2px 7px;font-size:13px;line-height:1.3;vertical-align:middle">🗑</button>` : ''}</td>
     </tr>`).join('')
     + (totalFil > lim
       ? `<tr class="fila-vermas"><td colspan="15" style="text-align:center;padding:14px;background:var(--s2)">
@@ -12394,6 +12396,58 @@ function _quitarAlbaranDeMemoria(r) {
   applyFilters();
   updateStats();
   renderAlerts();
+}
+
+// ============================================================
+// v581 — BORRAR UN DUPLICADO DESDE SU PROPIA FILA
+// ============================================================
+// LO QUE PIDIO JC: "por que no nos pones un boton en el final de los albaranes
+// de duplicados para eliminar de uno en uno, ya se que tenemos uno arriba pero
+// por comodidad solo en duplicados... casi siempre son borrados los duplicados".
+// Hasta ahora, para quitar un duplicado habia que: abrir el albaran -> Eliminar
+// -> confirmar -> cerrar. O activar el modo Seleccion y marcar casillas. Para lo
+// que es el gesto mas repetido del dia (ver un duplicado rojo y quitarlo) eran
+// demasiados pasos.
+//
+// DONDE SALE: SOLO en las filas marcadas como duplicado REAL (las rojas, r._dup).
+// En las rosas de "posible duplicado" (_posDup) NO sale a proposito: esas hay que
+// mirarlas una a una antes de decidir, y un boton de borrar ahi invita al
+// accidente. Y solo lo ve quien ya podia borrar (admin, Marta, Maria del Mar):
+// el MISMO permiso del borrado multiple, no se abre a nadie mas.
+//
+// SEGURIDAD: pide confirmacion con el numero de albaran, la fecha y la matricula
+// dentro del propio aviso -> se ve QUE se va a borrar antes de aceptar. Por
+// dentro usa el mismo deleteRecordDB de siempre (que verifica con .select() que
+// la fila se borro de verdad) y la misma tolerancia a errores de RLS que el
+// boton Eliminar del modal.
+async function _borrarFilaDup(id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const btn = ev && ev.currentTarget;   // hay que cogerlo YA: tras el await es null
+  if (!_puedeSeleccionMultiple()) { toast('No tienes permiso para borrar albaranes.', 'err'); return; }
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No se encontró el albarán', 'err'); return; }
+  const desc = (r.albaran ? 'Nº ' + r.albaran : 'sin número')
+             + '\n' + (r.fecha || 'sin fecha') + '  ·  ' + (r.tractora || 'sin matrícula')
+             + (r.proveedor ? '  ·  ' + r.proveedor : '');
+  if (!confirm('¿Eliminar este albarán DUPLICADO?\n\n' + desc + '\n\nEsta acción no se puede deshacer.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    if (r.db_id) await deleteRecordDB(r.db_id);
+    _quitarAlbaranDeMemoria(r);
+    toast('✓ Duplicado eliminado');
+  } catch (e) {
+    console.error('[v581 _borrarFilaDup] Error:', e);
+    // Misma tolerancia que deleteRecord: a veces Supabase da error pero SI borro.
+    try {
+      if (r.db_id) {
+        const { data: sigue, error: eVerif } = await sb.from('albaranes')
+          .select('id').eq('id', r.db_id).maybeSingle();
+        if (!eVerif && !sigue) { _quitarAlbaranDeMemoria(r); toast('✓ Duplicado eliminado'); return; }
+      }
+    } catch (e2) { /* ignorar fallo en la verificación */ }
+    if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+    toast('Error eliminando: ' + (e.message || e), 'err');
+  }
 }
 
 async function deleteRecord() {
