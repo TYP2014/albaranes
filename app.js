@@ -10705,7 +10705,7 @@ function renderTable() {
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:8px;cursor:pointer;border:1px solid var(--er);background:#fff;color:var(--er);border-radius:6px;padding:2px 7px;font-size:13px;line-height:1.3;vertical-align:middle">🗑</button>` : ''}</td>
+      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:10px;cursor:pointer;border:2px solid #b71c1c;background:var(--er);color:#fff;font-weight:800;border-radius:8px;padding:5px 12px;font-size:15px;line-height:1.2;vertical-align:middle;box-shadow:0 2px 5px rgba(0,0,0,.28)">🗑 BORRAR</button>` : ''}</td>
     </tr>`).join('')
     + (totalFil > lim
       ? `<tr class="fila-vermas"><td colspan="15" style="text-align:center;padding:14px;background:var(--s2)">
@@ -12445,7 +12445,7 @@ async function _borrarFilaDup(id, ev) {
         if (!eVerif && !sigue) { _quitarAlbaranDeMemoria(r); toast('✓ Duplicado eliminado'); return; }
       }
     } catch (e2) { /* ignorar fallo en la verificación */ }
-    if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🗑 BORRAR'; }
     toast('Error eliminando: ' + (e.message || e), 'err');
   }
 }
