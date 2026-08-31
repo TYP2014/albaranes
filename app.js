@@ -20188,7 +20188,7 @@ function renderNeum() {
             <th style="padding:6px;text-align:right">UDS</th>
             <th style="padding:6px">MATRÍCULA</th>
             <th style="padding:6px">FACTURA / OBS</th>
-            <th style="padding:6px"></th>
+            <th style="padding:6px;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">ACCIONES</th>
           </tr>
         </thead>
         <tbody>
@@ -20208,8 +20208,8 @@ function renderNeum() {
             <td style="padding:6px">${esc(m.medida || '')} · ${esc(m.marca || '')} ${esc(m.modelo || '')}</td>
             <td style="padding:6px;text-align:right;color:${cantColor};font-weight:bold">${sign}${m.cantidad}</td>
             <td style="padding:6px">${esc(m.tractora || m.remolque || '')}</td>
-            <td style="padding:6px;color:var(--mu)">${m.file_url ? `<a href="${esc(m.file_url)}" target="_blank" class="btn bs" style="font-size:9px;padding:3px 8px;margin-right:6px;text-decoration:none;display:inline-block;vertical-align:middle" title="Ver el albarán/factura">👁 VER</a>` : ''}${extra}</td>
-            <td style="padding:6px"><button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openNeumMovimientoModal(null, '${m.id}')">Editar</button></td>
+            <td style="padding:6px;color:var(--mu);max-width:420px">${m.file_url ? `<a href="${esc(m.file_url)}" target="_blank" class="btn bs" style="font-size:9px;padding:3px 8px;margin-right:6px;text-decoration:none;display:inline-block;vertical-align:middle" title="Ver el albarán/factura">👁 VER</a>` : ''}${extra}</td>
+            <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)"><button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openNeumMovimientoModal(null, '${m.id}')" title="Corregir este movimiento">✏️ Editar</button><button class="btn br" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="neumBorrarMovDirecto('${m.id}')" title="Borrar este movimiento">🗑 Borrar</button></td>
           </tr>`;
         }).join('')}
         </tbody>
@@ -20782,6 +20782,29 @@ async function deleteNeumMov() {
   } catch (e) {
     console.error('[deleteNeumMov] Error:', e);
     toast('Error: ' + (e.message || e), 'err');
+  }
+}
+
+// v587: BORRAR un movimiento directamente desde su fila del historico, sin
+// tener que abrir antes el modal de edicion. Pide confirmacion mostrando el
+// movimiento completo (fecha, tipo, medida/modelo, uds y matricula) para que
+// no haya dudas de cual se borra. El stock se recalcula solo al recargar.
+async function neumBorrarMovDirecto(id) {
+  const m = (neumMovimientos || []).find(x => String(x.id) === String(id));
+  if (!m) { toast('No encuentro ese movimiento, refresca la pantalla', 'err'); return; }
+  const f = String(m.fecha || '').split('T')[0].split('-').reverse().join('/');
+  const prod = [m.medida, m.marca, m.modelo].filter(Boolean).join(' ');
+  const mat = m.tractora || m.remolque || '';
+  const desc = `${f} · ${m.tipo} · ${prod} · ${m.cantidad} ud${mat ? ' · ' + mat : ''}`;
+  if (!confirm(`¿Borrar este movimiento?\n\n${desc}\n\nEl stock se recalcula solo.\nEsta accion no se puede deshacer.`)) return;
+  try {
+    const { error } = await sb.from('neumaticos_movimientos').delete().eq('id', id);
+    if (error) throw error;
+    await loadNeumData();
+    toast('✓ Movimiento borrado');
+  } catch (e) {
+    console.error('[neumBorrarMovDirecto] Error:', e);
+    toast('Error borrando: ' + (e.message || e), 'err');
   }
 }
 

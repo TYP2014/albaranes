@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v588 (31/08/2026): NEUMATICOS - LAS TRES CAJAS DE SUBIDA EN UNA SOLA FILA. Lo pide JC: antes habia DOS tarjetas apiladas (arriba "SUBIR ALBARAN O FACTURA" con dos cajas, y debajo otra tarjeta entera solo para el CUADRE de la factura de servicio); entre las dos se comian media pantalla y no se veia el stock ni el historico sin bajar. AHORA: una sola tarjeta "SUBIR A NEUMATICOS - SOLEDAD" con las tres cajas en linea, numeradas 1-2-3, cada una con su titulo en MAYUSCULAS, en negrita y con una raya de su color debajo (verde=albaranes que descuentan, azul=facturas de compra que suman, naranja=cuadre que no toca nada). Cajas mas bajitas: padding 14px y min-height 112px en vez de 28px/140px, iconos a 26px y textos a 12/10px. En movil y tablet se siguen apilando solas (flex-wrap + min-width 250px). SOLO CAMBIA EL ASPECTO: los ids dzNeumAlb, dzNeumFactura y dzNeumCuadre y sus handlers (dropNeumAlb, dropNeumFactura, dropNeumCuadre, handleNeumAlbFiles, handleNeumFacturaFiles, handleNeumCuadreFiles) quedan EXACTAMENTE igual. SOLO index.html (app.js igual que la v587). NO requiere SQL. cache app.js?v=588. VUELTA ATRAS: resubir index.html de la v587. -->
+<!-- v587 (31/08/2026): NEUMATICOS - EDITAR Y BORRAR MOVIMIENTOS DESDE EL HISTORICO. Problema que reporta JC: cuando la IA lee mal un albaran de Soledad (ej. D490009261 del 27/08: el PDF pone MONTA 2) 385/65X22.5 CONTI HS5 y MONTA 4) 315/80X22.5 CONTI HD5, y la app grabo dos lineas de -2 de 315/80 HD5) no hay forma de corregirlo ni de borrarlo. El boton Editar YA existia, pero la tabla del historico es mas ancha que la tarjeta (la columna FACTURA/OBS se estira con el texto del robot) y la ultima columna se quedaba FUERA DE PANTALLA, hacia falta arrastrar la tabla a la derecha para verla; en movil directamente no aparecia. LA SOLUCION: la columna de acciones ahora es FIJA (position:sticky;right:0 con fondo var(--sf) y sombra), asi se ve siempre aunque se desplace la tabla; se le pone titulo ACCIONES; se anade un segundo boton 🗑 Borrar en cada fila que llama a la nueva funcion neumBorrarMovDirecto(id) — pide confirmacion mostrando fecha, tipo, medida/modelo, uds y matricula del movimiento que se va a borrar, y recarga solo despues; y se limita FACTURA/OBS a 420px para que la tabla no se estire tanto. NO se toca el lector de IA, ni el robot de correo, ni el calculo de stock, ni deleteNeumMov del modal (sigue igual). NO requiere SQL. cache app.js?v=587. VUELTA ATRAS: resubir app.js + index.html de la v586. -->
 <!-- v586 (29/08/2026): GASOIL - LAS CAJAS DE SUBIDA: EN LA FILA DE LAS EMPRESAS Y CENTRADAS EN EL ANCHO. Tercer intento, y el bueno. Lo que pedia JC eran DOS cosas A LA VEZ y en los intentos anteriores solo se cumplia una: v583/v585 -> centradas pero en linea PROPIA (banda de dos alturas); v584 -> en la fila de las empresas pero pegadas a la DERECHA. Su frase: "que esten arriba, en el centro pero a la altura de las empresas, para reducir esa banda". LA SOLUCION: en la MISMA fila (no se usa flex-basis:100%, asi no salta de linea) y centradas empujando por los DOS lados, margin-left:auto + margin-right:auto. Con solo margin-left:auto (v584) el hueco sobrante se lo comia la izquierda y las cajas se iban a la derecha; con auto a ambos lados el hueco se reparte y quedan centradas. Se conserva todo lo demas: letra 15px/12px, borde 2px, 34px de separacion, padding 8x26. SOLO CAMBIA EL ASPECTO: nada de gasFacDrop, gasKmDrop, addFiles, gasImportarKmExcel ni el reparto por CIF. Ids intactos. SOLO index.html (app.js igual que la v582). NO requiere SQL. cache app.js?v=586. VUELTA ATRAS: resubir index.html de la v582. -->
 <!-- v585 (29/08/2026): GASOIL - LAS CAJAS DE SUBIDA, CENTRADAS OTRA VEZ PERO SIN ENGORDAR LA BANDA. La v584 se paso de frenada: las llevo a la derecha, junto a las empresas, y JC dijo "te lo has llevado al mismo sitio, lo queria en el centro como antes". El sitio bueno era el de la v583 (linea propia, CENTRADAS); lo unico que sobraba era el alto de la banda. ASI QUEDA: centradas en su propia linea (v583) + cajas mas bajas, padding 8x26 (v584) + margen superior de 6px (v583 tenia 12) + margen inferior de la banda 10px (v583 tenia 14). Se conserva la letra grande (15px titulo, 12px aviso), el borde de 2px y los 34px de separacion. SOLO CAMBIA EL ASPECTO: ni gasFacDrop, ni gasKmDrop, ni addFiles, ni gasImportarKmExcel, ni el reparto por CIF, ni el arrastrar-soltar, ni el pinchar. Ids intactos. SOLO index.html (app.js igual que la v582). NO requiere SQL. cache app.js?v=585. VUELTA ATRAS: resubir index.html de la v582. -->
 <!-- v584 (29/08/2026): GASOIL - LAS CAJAS DE SUBIDA VUELVEN A LA FILA DE LAS EMPRESAS. JC probo la v583 y dijo: "esta casi perfecto, para que no sea tan grande el encabezado, subelos a la altura de los nombres de empresa y se estrecha esta banda". En la v583 las cajas bajaron a una linea propia y eso hacia el encabezado de DOS alturas. AHORA vuelven a la MISMA fila que los botones de empresa, empujadas a la derecha (margin-left:auto), pero CONSERVANDO lo que si le gusto de la v583: la letra grande (15px el titulo, 12px el aviso), el borde de 2px y los 34px de separacion entre las dos. Se reduce el alto: padding 8x26 (v583: 14x30) para que no engorden la fila, y el margen inferior de la banda baja de 14 a 10px. SOLO CAMBIA EL ASPECTO: nada de gasFacDrop, gasKmDrop, addFiles, gasImportarKmExcel, reparto por CIF, arrastrar-soltar ni pinchar-para-buscar. Ids intactos. SOLO index.html (app.js igual que la v582, se sube por el cache-buster). NO requiere SQL. cache app.js?v=584. VUELTA ATRAS: resubir index.html de la v582. -->
@@ -1770,49 +1772,49 @@ if (typeof pdfjsLib !== 'undefined') {
 
       <!-- Acciones rápidas -->
       <!-- v107I2: LECTOR AUTOMÁTICO de albaranes Soledad (descuenta stock con IA) -->
+      <!-- v588 (31/08/2026): las TRES casillas de subida en UNA SOLA FILA dentro de una
+           única tarjeta (antes: dos en una tarjeta + la del cuadre en otra tarjeta debajo,
+           que ocupaba media pantalla). Ids, handlers y textos INTACTOS: dzNeumAlb,
+           dzNeumFactura, dzNeumCuadre siguen llamando a lo mismo. Solo se hacen más
+           compactas (padding y alturas menores) y se marca mejor cada título con su color.
+           En móvil/tablet se apilan solas por el flex-wrap y el min-width. -->
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ok)"></div>SUBIR ALBARÁN (descuenta) O FACTURA (suma) — SOLEDAD</div>
+          <div class="st"><div class="dot" style="--c:var(--ok)"></div>SUBIR A NEUMÁTICOS — SOLEDAD</div>
         </div>
         <div class="card-bd">
-          <!-- v107K87 (Juan Carlos 17/06/2026): las dos casillas SEPARADAS en dos columnas
-               (izquierda = ALBARANES que descuentan; derecha = FACTURAS que suman) con
-               etiqueta de color, para que no se confundan al subir. En móvil se apilan solas.
-               Mismo arrastrar/soltar y clic de siempre (ids y handlers intactos). -->
-          <div style="display:flex;gap:28px;flex-wrap:wrap">
-            <div style="flex:1;min-width:280px">
-              <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:13px">⬅ ALBARANES SOLEDAD · DESCUENTAN stock</div>
-              <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)" style="border-color:var(--ok)">
-                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumAlbFiles(this.files); this.value='';">
-                <div class="dz-ic">🛞</div>
-                <div class="dz-t">Arrastra fotos o PDFs de albaranes Soledad · o <span class="hl">haz clic para seleccionar</span></div>
-                <div class="dz-s">La IA lee el albarán y, si pone "DE SU STOCK / S/PROP", descuenta del stock automáticamente · detecta la empresa por el CIF</div>
-              </div>
-            </div>
-            <div style="flex:1;min-width:280px">
-              <div style="font-weight:700;color:var(--in);margin-bottom:8px;font-size:13px">FACTURAS DE COMPRA · SUMAN stock ➡</div>
-              <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="border-color:var(--in)">
-                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
-                <div class="dz-ic">📄</div>
-                <div class="dz-t">Arrastra la FACTURA de compra Soledad (PDF) · o <span class="hl">haz clic para seleccionar</span></div>
-                <div class="dz-s">La IA lee las compras de almacén y SUMAN al stock · ignora descuentos y tasas · detecta la empresa por el CIF (Holding → TYP2014)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:stretch">
 
-      <!-- v570: CUADRE DE FACTURA DE SERVICIO (solo comprueba la lectura) -->
-      <div class="card" style="margin-top:14px">
-        <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--wn)"></div>CUADRE · FACTURA DE SERVICIO SOLEDAD (por quincena)</div>
-        </div>
-        <div class="card-bd">
-          <div class="dz" id="dzNeumCuadre" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumCuadre(event)" style="border-color:var(--wn)">
-            <input type="file" accept="image/*,.pdf" onchange="handleNeumCuadreFiles(this.files); this.value='';">
-            <div class="dz-ic">&#128269;</div>
-            <div class="dz-t">Arrastra la FACTURA de servicio (la que lleva los albaranes dentro) &middot; o <span class="hl">haz clic para seleccionar</span></div>
-            <div class="dz-s">De momento SOLO ense&ntilde;a lo que ha entendido: cada albar&aacute;n con su fecha, matr&iacute;cula y cubiertas &middot; NO guarda nada ni toca el stock</div>
+            <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
+              <div style="font-weight:800;color:var(--ok);margin-bottom:6px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ok);padding-bottom:4px">⬅ 1 · Albaranes · DESCUENTAN stock</div>
+              <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)" style="border-color:var(--ok);padding:14px 12px;min-height:112px;flex:1">
+                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumAlbFiles(this.files); this.value='';">
+                <div class="dz-ic" style="font-size:26px;margin-bottom:4px">🛞</div>
+                <div class="dz-t" style="font-size:12px">Arrastra fotos o PDFs de albaranes · o <span class="hl">haz clic</span></div>
+                <div class="dz-s" style="font-size:10px">Si pone "DE SU STOCK / S/PROP" descuenta solo · empresa por el CIF</div>
+              </div>
+            </div>
+
+            <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
+              <div style="font-weight:800;color:var(--in);margin-bottom:6px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--in);padding-bottom:4px">2 · Facturas de compra · SUMAN stock ➡</div>
+              <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="border-color:var(--in);padding:14px 12px;min-height:112px;flex:1">
+                <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
+                <div class="dz-ic" style="font-size:26px;margin-bottom:4px">📄</div>
+                <div class="dz-t" style="font-size:12px">Arrastra la FACTURA de compra (PDF) · o <span class="hl">haz clic</span></div>
+                <div class="dz-s" style="font-size:10px">Suma al stock · ignora descuentos y tasas · Holding → TYP2014</div>
+              </div>
+            </div>
+
+            <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
+              <div style="font-weight:800;color:var(--wnd);margin-bottom:6px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--wn);padding-bottom:4px">3 · Cuadre · Factura de servicio</div>
+              <div class="dz" id="dzNeumCuadre" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumCuadre(event)" style="border-color:var(--wn);padding:14px 12px;min-height:112px;flex:1">
+                <input type="file" accept="image/*,.pdf" onchange="handleNeumCuadreFiles(this.files); this.value='';">
+                <div class="dz-ic" style="font-size:26px;margin-bottom:4px">&#128269;</div>
+                <div class="dz-t" style="font-size:12px">Arrastra la FACTURA de servicio (la de la quincena) &middot; o <span class="hl">haz clic</span></div>
+                <div class="dz-s" style="font-size:10px">SOLO ense&ntilde;a lo le&iacute;do (fecha, matr&iacute;cula, cubiertas) &middot; NO guarda ni toca el stock</div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -2645,6 +2647,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v514 (Juan Carlos 11/08/2026): LOS REPASOS GUARDADOS DABAN "Cannot read properties of undefined (reading 'length') AL PULSAR VER O EXCEL. Culpa de la v512: por ahorrar sitio deje fuera de lo guardado los campos que venian vacios (difs, modo, y linea/rec cuando no habia). Pero el informe hace "a.difs.length" y el Excel hace "a.linea.tn" DANDO POR HECHO que existen, asi que al abrir un repaso guardado reventaba y los botones no hacian nada. Un objeto vacio ocupa 2 bytes: no se ahorraba nada y se rompia todo. Desde la v514 lo guardado tiene SIEMPRE la misma forma que lo recien cruzado (difs siempre array, modo siempre texto, linea y rec siempre objeto). IMPORTANTE: los repasos guardados con la v512/v513 se quedaron mal por dentro; hay que volver a cruzar el mes una vez para que se guarde bien. Solo app.js + index.html. NO requiere SQL. -->
 <!-- v515 (Juan Carlos 11/08/2026): TODAS LAS FAMILIAS A LA VISTA. Las pastillas de familia iban en una fila de tabla y salia barra de desplazamiento horizontal: habia que arrastrar para ver las ultimas. Ahora cada repaso es un bloque y las pastillas se reparten en varias lineas, todas visibles de golpe; los botones VER / EXCEL COMPLETO / X tambien bajan de linea si no caben. Va junto con el arreglo de la v514 (que no llego a subirse): los repasos guardados reventaban con "Cannot read properties of undefined (reading length)" porque la v512 dejaba fuera los campos vacios y el Excel hace a.difs.length dando por hecho que existen (traza confirmada por JC: factHolcimExcelPorMaterial linea 25582). Solo app.js + index.html. NO requiere SQL. IMPORTANTE: el repaso guardado con la v512/v513 esta mal por dentro; hay que quitarlo con la X y volver a cruzar el mes una vez. -->
 <!-- v516 (Juan Carlos 11/08/2026): REPARAR AL VUELO LOS REPASOS YA GUARDADOS. La v514/v515 arreglaron como se GUARDA, pero el repaso que JC ya tenia grabado con la v512 seguia mal por dentro y seguia reventando al pulsar EXCEL: solo salia bien "Nucleo Garraf -> Puerto Barcelona", la unica familia sin abonados y por eso la unica que nunca llegaba a la linea que peta (a.difs.length). Obligar a borrarlo con la X y volver a cruzar el mes entero es un apano, no un arreglo. Ahora, al abrir o exportar, lo guardado se REPARA en memoria antes de usarse: se le devuelve la forma que espera el informe (difs array, modo texto, linea y rec objeto). Funcionan igual los repasos nuevos y los viejos, sin que el usuario tenga que hacer nada. Solo app.js + index.html. NO requiere SQL. -->
-<script src="app.js?v=586"></script>
+<script src="app.js?v=588"></script>
 </body>
 </html>
