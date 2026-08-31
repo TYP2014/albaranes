@@ -20210,7 +20210,7 @@ function renderNeum() {
             <td style="padding:6px">${esc(m.medida || '')} · ${esc(m.marca || '')} ${esc(m.modelo || '')}</td>
             <td style="padding:6px;text-align:right;color:${cantColor};font-weight:bold">${sign}${m.cantidad}</td>
             <td style="padding:6px">${esc(m.tractora || m.remolque || '')}</td>
-            <td style="padding:6px;color:var(--mu)"><div style="max-width:460px;white-space:normal;overflow-wrap:anywhere">${m.file_url ? `<a href="${esc(m.file_url)}" target="_blank" class="btn bs" style="font-size:9px;padding:3px 8px;margin-right:6px;text-decoration:none;display:inline-block;vertical-align:middle" title="Ver el albarán/factura">👁 VER</a>` : ''}${extra}</div></td>
+            <td style="padding:6px;color:var(--mu)"><div style="max-width:780px;white-space:normal;overflow-wrap:anywhere">${m.file_url ? `<a href="${esc(m.file_url)}" target="_blank" class="btn bs" style="font-size:9px;padding:3px 8px;margin-right:6px;text-decoration:none;display:inline-block;vertical-align:middle" title="Ver el albarán/factura">👁 VER</a>` : ''}${extra}</div></td>
             <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)"><button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openNeumMovimientoModal(null, '${m.id}')" title="Corregir este movimiento">✏️ Editar</button><button class="btn br" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="neumBorrarMovDirecto('${m.id}')" title="Borrar este movimiento">🗑 Borrar</button></td>
           </tr>`;
         }).join('')}
