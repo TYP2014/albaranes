@@ -21031,13 +21031,13 @@ function renderVac() {
     box.innerHTML = `
       <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:13px">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">NOMBRE</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">EMPRESA</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🏖️ VACACIONES (usadas / bolsa)</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🎯 ASUNTOS PROPIOS</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">PERIODOS</th>
-            <th style="padding:11px 10px"></th>
+          <tr style="text-align:left;border-bottom:2px solid var(--bd);color:#000">
+            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">NOMBRE</th>
+            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">EMPRESA</th>
+            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">🏖️ VACACIONES (usadas / bolsa)</th>
+            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">🎯 ASUNTOS PROPIOS</th>
+            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">PERIODOS</th>
+            <th style="padding:13px 10px"></th>
           </tr>
         </thead>
         <tbody>
