@@ -33716,7 +33716,7 @@ async function anularDeca(id) {
 // Los acentos y la ñ sí entran; las flechas y comillas raras, no. Se limpian.
 function _decaTxt(v) {
   return String(v == null ? '' : v)
-    .replace(/[→➔]/g, '->').replace(/[·•]/g, '-')
+    .replace(/[→➔]/g, '->').replace(/[•]/g, '-')
     .replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[–—]/g, '-')
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
 }
@@ -33735,11 +33735,11 @@ async function _decaConstruirPDF(d, url) {
   const salto = n => { y -= (n || 14); };
 
   // Cabecera
-  txt('DOCUMENTO ELECTRONICO DE CONTROL ADMINISTRATIVO', M, 13, fB, azul); salto(15);
-  txt('Transporte publico de mercancias por carretera - Orden FOM/2861/2012', M, 8, fN, gris); salto(20);
+  txt('DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO', M, 13, fB, azul); salto(15);
+  txt('Transporte público de mercancías por carretera · Orden FOM/2861/2012', M, 8, fN, gris); salto(20);
   page.drawRectangle({ x: M, y: y, width: 595.28 - M * 2, height: 1.2, color: azul }); salto(20);
 
-  txt('N.o de documento', M, 8, fN, gris);
+  txt('Nº de documento', M, 8, fN, gris);
   txt('Fecha de carga', M + 250, 8, fN, gris); salto(13);
   txt(d.numero || '', M, 13, fB);
   txt(_decaFechaEs(d.fecha_carga), M + 250, 13, fB); salto(26);
@@ -33755,29 +33755,29 @@ async function _decaConstruirPDF(d, url) {
     page.drawText(_decaTxt(valor || '-'), { x: xx, y: y - 12, size: 10, font: fN, color: negro, maxWidth: ancho || 460 });
   };
 
-  bloque('1 - CARGADOR CONTRACTUAL');
-  campo('Nombre o razon social', d.carg_nombre); salto(30);
+  bloque('1 · CARGADOR CONTRACTUAL');
+  campo('Nombre o razón social', d.carg_nombre); salto(30);
   campo('NIF', d.carg_nif, M, 150); campo('Domicilio', d.carg_domicilio, M + 170, 330); salto(34);
 
-  bloque('2 - TRANSPORTISTA EFECTIVO');
-  campo('Nombre o razon social', d.trans_nombre); salto(30);
-  campo('NIF', d.trans_nif, M, 150); campo('N.o de autorizacion', d.trans_autorizacion, M + 170, 150);
+  bloque('2 · TRANSPORTISTA EFECTIVO');
+  campo('Nombre o razón social', d.trans_nombre); salto(30);
+  campo('NIF', d.trans_nif, M, 150); campo('Nº de autorización', d.trans_autorizacion, M + 170, 150);
   campo('Empresa del grupo', d.empresa, M + 340, 160); salto(30);
   campo('Domicilio', d.trans_domicilio); salto(34);
 
-  bloque('3 - MERCANCIA Y RECORRIDO');
+  bloque('3 · MERCANCÍA Y RECORRIDO');
   campo('Origen (lugar de carga)', d.origen, M, 230); campo('Destino (lugar de entrega)', d.destino, M + 250, 230); salto(30);
-  campo('Mercancia', d.mercancia); salto(30);
+  campo('Mercancía', d.mercancia); salto(30);
   campo('Peso (kg)', d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : '-', M, 150);
   campo('Bultos', d.bultos, M + 170, 150);
   campo('Fin del servicio', d.servicio_fin ? _decaFechaEs(d.servicio_fin) : '-', M + 340, 160); salto(34);
 
-  bloque('4 - VEHICULO');
-  campo('Matricula tractora', d.tractora, M, 150);
-  campo('Matricula semirremolque', d.semirremolque, M + 170, 150);
-  campo('Autorizacion especial', d.autorizacion_especial, M + 340, 160); salto(34);
+  bloque('4 · VEHÍCULO');
+  campo('Matrícula tractora', d.tractora, M, 150);
+  campo('Matrícula semirremolque', d.semirremolque, M + 170, 150);
+  campo('Autorización especial', d.autorizacion_especial, M + 340, 160); salto(34);
 
-  if (d.observaciones) { bloque('5 - OBSERVACIONES'); campo('', d.observaciones); salto(30); }
+  if (d.observaciones) { bloque('5 · OBSERVACIONES'); campo('', d.observaciones); salto(30); }
 
   // QR abajo a la derecha, dibujado como cuadraditos (vectorial, no imagen)
   try {
@@ -33798,13 +33798,13 @@ async function _decaConstruirPDF(d, url) {
     page.drawText('Escanea para descargar', { x: qx, y: qy - 18, size: 7.5, font: fN, color: gris });
   } catch (e) { console.warn('[deca QR]', e); }
 
-  page.drawText(_decaTxt('Documento generado electronicamente el ' + new Date().toLocaleString('es-ES') + '.'),
+  page.drawText(_decaTxt('Documento generado electrónicamente el ' + new Date().toLocaleString('es-ES') + '.'),
     { x: M, y: 70, size: 7.5, font: fN, color: gris });
-  page.drawText(_decaTxt('Conservacion: 1 ano. Descarga directa disponible durante el viaje y los 7 dias siguientes.'),
+  page.drawText(_decaTxt('Conservación: 1 año. Descarga directa disponible durante el viaje y los 7 días siguientes.'),
     { x: M, y: 58, size: 7.5, font: fN, color: gris });
 
   doc.setTitle('DeCA ' + (d.numero || ''));
-  doc.setSubject('Documento electronico de control administrativo');
+  doc.setSubject('Documento electrónico de control administrativo');
   doc.setAuthor(_decaTxt(d.trans_nombre || ''));
   doc.setProducer('App Albaranes TYP2014');
   doc.setCreator('App Albaranes TYP2014');
