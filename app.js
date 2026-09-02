@@ -33376,6 +33376,13 @@ const DECA_EMPRESAS = {
 let _decaLista = [];
 let _decaEditId = null;
 
+// v598: las matrículas se limpian solas al guardar. Fuera espacios, guiones, puntos y
+// cualquier signo raro, y todo a MAYÚSCULAS. Si no, el filtro de matrícula del listado
+// no encuentra nada y el PDF sale feo. Ejemplo: " 1234-abc " → "1234ABC".
+function _decaMatricula(v) {
+  return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 function _decaFechaEs(f) {
   const s = String(f || '');
   if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
@@ -33520,7 +33527,8 @@ function openDecaModal(id) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="fg"><label class="fl">Empresa del grupo (a quién pertenece)</label>
-        <select class="fi" id="decaF_empresa" onchange="_decaAutoTrans()">${opcEmp}</select></div>
+        <select class="fi" id="decaF_empresa" onchange="_decaAutoTrans('empresa')">${opcEmp}</select>
+        <div style="font-size:10px;color:var(--mu);margin-top:3px">Es la empresa que sale en el listado. Si el porte lo hace ella misma, el bloque 2 se rellena solo.</div></div>
       <div class="fg"><label class="fl">Fecha de carga</label>
         <input class="fi" type="date" id="decaF_fecha_carga" value="${v('fecha_carga', hoy)}"></div>
     </div>
@@ -33535,7 +33543,8 @@ function openDecaModal(id) {
 
     <div style="font-weight:800;color:var(--ok);font-size:12px;border-bottom:2px solid var(--ok);padding-bottom:4px;margin-bottom:10px">2 · TRANSPORTISTA EFECTIVO (quien hace el porte)</div>
     <div class="fg" style="margin-bottom:10px"><label class="fl">¿Quién lo hace?</label>
-      <select class="fi" id="decaF_transSel" onchange="_decaAutoTrans()">${opcTrans}</select></div>
+      <select class="fi" id="decaF_transSel" onchange="_decaAutoTrans('trans')">${opcTrans}</select>
+      <div style="font-size:10px;color:var(--mu);margin-top:3px">Si eliges una empresa nuestra, arriba se pone la misma. Elige OTRO para un subcontratado.</div></div>
     <div class="fg" style="margin-bottom:10px"><label class="fl">Nombre o razón social</label>
       <input class="fi" id="decaF_trans_nombre" value="${v('trans_nombre')}"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -33570,7 +33579,7 @@ function openDecaModal(id) {
   // Empresa seleccionada (el <select> ya viene marcado, pero en alta forzamos la primera)
   if (!d) {
     document.getElementById('decaF_empresa').value = Object.keys(DECA_EMPRESAS)[0];
-    _decaAutoTrans();
+    _decaAutoTrans('empresa');
   }
   // Lista de cargadores ya usados, para escribir menos
   const dl = document.getElementById('decaCargadores');
@@ -33582,9 +33591,23 @@ function openDecaModal(id) {
 }
 
 // Rellena solo los datos del transportista efectivo cuando es una empresa nuestra.
-function _decaAutoTrans() {
+// v598 (02/09/2026): los DOS desplegables van ENLAZADOS. Antes iban por libre y se
+// prestaban a confusión (lo vio JC en la prueba DECA-2026-0002): eligió PORTES en
+// "¿Quién lo hace?" pero arriba se quedó TYP2014, así que el listado seguía diciendo
+// TYP2014. Lógica nueva: si el porte lo hace una empresa NUESTRA, el DeCA es de esa
+// empresa, y los dos desplegables se ponen iguales solos. Si es un SUBCONTRATADO
+// (opción OTRO), el de arriba NO se toca: el documento sigue perteneciendo a la
+// empresa del grupo que contrata el viaje.
+// origen = 'empresa' cuando lo dispara el de arriba, 'trans' cuando el de abajo.
+function _decaAutoTrans(origen) {
   const sel = document.getElementById('decaF_transSel');
+  const selEmp = document.getElementById('decaF_empresa');
   if (!sel) return;
+  if (origen === 'empresa' && selEmp && DECA_EMPRESAS[selEmp.value]) {
+    sel.value = selEmp.value;                 // arriba manda: el transportista le sigue
+  } else if (origen === 'trans' && selEmp && DECA_EMPRESAS[sel.value]) {
+    selEmp.value = sel.value;                 // abajo manda: el documento es de esa empresa
+  }
   const k = sel.value;
   const bloquear = k !== '_OTRO';
   const e = DECA_EMPRESAS[k];
@@ -33612,7 +33635,7 @@ async function saveDeca() {
     carg_nombre: g('carg_nombre').trim(), carg_nif: g('carg_nif').trim(), carg_domicilio: g('carg_domicilio').trim(),
     trans_nombre: g('trans_nombre').trim(), trans_nif: g('trans_nif').trim(), trans_domicilio: g('trans_domicilio').trim(),
     origen: g('origen').trim(), destino: g('destino').trim(), mercancia: g('mercancia').trim(),
-    tractora: g('tractora').trim().toUpperCase()
+    tractora: _decaMatricula(g('tractora'))
   };
   const faltan = Object.keys(obl).filter(k => !obl[k]);
   if (faltan.length) {
@@ -33623,7 +33646,7 @@ async function saveDeca() {
     trans_autorizacion: g('trans_autorizacion').trim() || null,
     peso_kg: g('peso_kg') !== '' ? Number(g('peso_kg')) : null,
     bultos: g('bultos').trim() || null,
-    semirremolque: g('semirremolque').trim().toUpperCase() || null,
+    semirremolque: _decaMatricula(g('semirremolque')) || null,
     autorizacion_especial: g('autorizacion_especial').trim() || null,
     servicio_fin: g('servicio_fin') || null,
     observaciones: g('observaciones').trim() || null
