@@ -15964,14 +15964,19 @@ function switchTab(tab) {
     if (tabEl) tabEl.classList.toggle('active', t === tab);
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
-  // En la pestaña Subir, mostrar solo la zona que toca según _lastMainTab
+  // v595 (02/09/2026): SUBIR es SIEMPRE para albaranes, vengas de donde vengas.
+  // Antes esto repartía según _lastMainTab: si venías de Gasoil te enseñaba la caja
+  // de tickets de gasoil, y ahí se colaban albaranes de VIAJE que acababan guardados
+  // como gasoil (lo vio Marta el 02/09/2026). Como los tickets sueltos de gasoil ya
+  // no se suben — el gasoil entra por las FACTURAS, desde dentro de la pestaña
+  // Gasoil — esa caja sobra y solo servía para equivocarse.
   if (tab === 'subir') {
     const subir = document.getElementById('tabContentSubir');
     if (subir) {
-      const albCard = subir.querySelectorAll('.card')[0]; // SUBIR ALBARANES
-      const gasCard = subir.querySelectorAll('.card')[1]; // SUBIR TICKETS GASOIL
-      if (albCard) albCard.style.display = (_lastMainTab === 'gas') ? 'none' : '';
-      if (gasCard) gasCard.style.display = (_lastMainTab === 'alb') ? 'none' : '';
+      const albCard = document.getElementById('cardSubirAlb') || subir.querySelectorAll('.card')[0];
+      const gasCard = document.getElementById('cardSubirGas');
+      if (albCard) albCard.style.display = '';      // albaranes: SIEMPRE visible
+      if (gasCard) gasCard.style.display = 'none';  // gasoil: retirada
     }
   }
   if (tab === 'admin') loadUsers();
