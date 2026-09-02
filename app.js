@@ -6030,6 +6030,8 @@ Cómo encontrar el campo "Obra:" correcto:
 
   Ejemplo A (Molienda Tarragona): albarán 31041061104. Bajo "Obra:" pone "CE10T / Molienda Tarragona / Pol.Ind. Entrevies-Camí vell / 43006 Tarragona". El DESTINO es "Molienda Tarragona" — NUNCA "Tarragona" (eso es la ciudad del CP), NUNCA "CE10T" (es el código).
 
+  🔴 VALLCARCA (v601, 02/09/2026 — error real de lectura): otro destino de CLÍNKER que carga en "Fábrica Montcada". Se escribe SIEMPRE "Vallcarca", con DOS ELES y con R: V-A-L-L-C-A-R-C-A. Léelo letra a letra. Errores reales cometidos con este mismo destino, que NUNCA debes repetir: "Valcarca" y "ValLcarca" (falta una L), "Valcance", "Valcanca", "Valcanco" y "Vallcanca" (la R se convierte en N). Si lees algo parecido a Valcarca / Valcance / Vallcance, el destino correcto es "Vallcarca". Es la planta de Sitges (Garraf).
+
   🔴🔴🔴 CLÍNKER MONTCADA ↔ MOLIENDA TARRAGONA (v593, 02/09/2026 — error real: TODO agosto salió invertido). El clínker viaja EN LOS DOS SENTIDOS, según el día. NUNCA des por hecho el sentido, NUNCA lo deduzcas: LÉELO del papel, que lo dice clarísimo en dos campos:
         "Punto expedición:"  = ORIGEN          "Obra:"  = DESTINO
   Anti-ejemplo real 1 (sentido Montcada → Tarragona, el que salía mal): albarán 31041062276, 12/08/2026, matrícula 5174LJR. "Punto expedición: Fábrica Montcada" y "Obra: CE10T / Molienda Tarragona / Pol.Ind. Entrevies-Camí vell / 43006 Tarragona" → ORIGEN = "Fábrica Montcada", DESTINO = "Molienda Tarragona". Se estaba guardando justo al revés.
@@ -19122,6 +19124,18 @@ const DESTINOS_CANONICOS = [
   // OJO: NO se pone "Tarragona" a secas como alias — ese es otro destino distinto
   // (Planta Ferran-Riera, 43008 Tarragona) y se mezclarian.
   { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'MOLIENDA TARRAGONA', 'Holcim Tarragona', 'Molleda Tarragona', 'Mollenda Tarragona', 'Molienda Tarragoma', 'Mollienda Tarragona', 'Moliensa Tarragona', 'CE10T', 'CE10T Molienda Tarragona'] },
+  // v601 (02/09/2026): VALLCARCA. Destino de CLINKER que CARGA en Fábrica Montcada
+  // (confirmado por JC 02/09/2026). Es la planta de Sitges/Garraf. No estaba en
+  // ninguna lista, y por eso en el filtro salían SIETE destinos distintos para el
+  // mismo sitio: VALLCARCA, Vallcarca, Valcarca, Valcance... No son solo mayúsculas:
+  // la IA se come una L o cambia la R por una N al leer el papel. Todas esas erratas
+  // van aquí como alias para que se unifiquen solas de ahora en adelante.
+  { canon: 'Vallcarca', alias: [
+    'VALLCARCA', 'Valcarca', 'VALCARCA', 'Valcance', 'VALCANCE', 'Vallcance', 'VALLCANCE',
+    'Vallcanca', 'VALLCANCA', 'Valcanca', 'VALCANCA', 'Valcanco', 'VALCANCO',
+    'Valcarça', 'Vallcarça', 'Vall Carca', 'VALL CARCA', 'Vallcarca Sitges', 'VALLCARCA SITGES',
+    'Balcarca', 'Ballcarca', 'Vallcarca (Sitges)', 'Planta Vallcarca', 'Cementos Vallcarca'
+  ] },
   // v107BU: unificación destino Montcada (cemento Holcim, código CE44K).
   // Juan Carlos: NO quiere que albaranes del MISMO origen acaben con
   // destinos distintos. Antes el mismo camión Holcim de Montcada salía unas
