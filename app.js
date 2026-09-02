@@ -33484,6 +33484,8 @@ function _decaRender() {
             <td style="padding:6px;${est}">${mat}</td>
             <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">
               <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openDecaModal('${d.id}')">✏️ Ver / editar</button>
+              ${anul ? '' : `<button class="btn bi" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="abrirDecaPDF('${d.id}')" title="${d.file_url ? 'Abrir el PDF' : 'Generar el PDF con el QR'}">📄 ${d.file_url ? 'Ver PDF' : 'Generar PDF'}</button>`}
+              ${anul ? '' : `<button class="btn bs" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="compartirDecaPDF('${d.id}')" title="Copia el enlace y abre WhatsApp">🔗 Enviar</button>`}
               ${anul ? '' : `<button class="btn br" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="anularDeca('${d.id}')" title="Marcar como anulado (no se borra)">🚫 Anular</button>`}
             </td>
           </tr>`;
@@ -33653,6 +33655,12 @@ async function saveDeca() {
   });
   try {
     if (_decaEditId) {
+      // v599: si se edita un DeCA que ya tenía PDF, ese PDF se queda viejo y NO
+      // vale (llevaría datos distintos a los guardados). Se borra la referencia
+      // para que haya que generarlo otra vez. El fichero anterior se queda en el
+      // bucket, que por ley hay que conservar lo emitido.
+      fila.file_path = null;
+      fila.file_url = null;
       const { error } = await sb.from('deca').update(fila).eq('id', _decaEditId);
       if (error) throw error;
       toast('✓ DeCA actualizado');
@@ -33688,6 +33696,176 @@ async function anularDeca(id) {
     console.error('[anularDeca]', e);
     toast('Error anulando: ' + (e.message || e), 'err');
   }
+}
+
+
+// ============================================================
+// v599 (02/09/2026) — DeCA · PDF NATIVO CON QR
+// ------------------------------------------------------------
+// La norma pide un PDF NATIVO DIGITAL (nunca un escaneo), de menos de 5 MB,
+// con un QR que lleve a una URL https de DESCARGA DIRECTA, sin login ni pasos
+// intermedios. Por eso el bucket `deca` es público (el `documentos` sigue
+// privado). No hace falta app móvil: vale que el conductor lo enseñe en el
+// teléfono o lo lleve impreso, así que mandarlo por WhatsApp es válido.
+//
+// El PDF se dibuja con pdf-lib (que ya cargaba la app) y el QR con
+// qrcode-generator, pintado como cuadraditos vectoriales. Todo nativo.
+// ============================================================
+
+// pdf-lib usa las fuentes estándar (WinAnsi), que no admiten cualquier signo.
+// Los acentos y la ñ sí entran; las flechas y comillas raras, no. Se limpian.
+function _decaTxt(v) {
+  return String(v == null ? '' : v)
+    .replace(/[→➔]/g, '->').replace(/[·•]/g, '-')
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[–—]/g, '-')
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+}
+
+async function _decaConstruirPDF(d, url) {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595.28, 841.89]);           // A4
+  const fN = await doc.embedFont(StandardFonts.Helvetica);
+  const fB = await doc.embedFont(StandardFonts.HelveticaBold);
+  const negro = rgb(0.09, 0.13, 0.18), gris = rgb(0.42, 0.47, 0.53), azul = rgb(0.17, 0.48, 0.82);
+  const M = 42;
+  let y = 800;
+
+  const txt = (s, x, size, font, color) => page.drawText(_decaTxt(s), { x, y, size, font: font || fN, color: color || negro });
+  const salto = n => { y -= (n || 14); };
+
+  // Cabecera
+  txt('DOCUMENTO ELECTRONICO DE CONTROL ADMINISTRATIVO', M, 13, fB, azul); salto(15);
+  txt('Transporte publico de mercancias por carretera - Orden FOM/2861/2012', M, 8, fN, gris); salto(20);
+  page.drawRectangle({ x: M, y: y, width: 595.28 - M * 2, height: 1.2, color: azul }); salto(20);
+
+  txt('N.o de documento', M, 8, fN, gris);
+  txt('Fecha de carga', M + 250, 8, fN, gris); salto(13);
+  txt(d.numero || '', M, 13, fB);
+  txt(_decaFechaEs(d.fecha_carga), M + 250, 13, fB); salto(26);
+
+  // Bloques
+  const bloque = (titulo) => {
+    page.drawRectangle({ x: M, y: y - 4, width: 595.28 - M * 2, height: 16, color: rgb(0.93, 0.96, 0.99) });
+    txt(titulo, M + 6, 9, fB, azul); salto(24);
+  };
+  const campo = (etiqueta, valor, x, ancho) => {
+    const xx = x == null ? M : x;
+    page.drawText(_decaTxt(etiqueta), { x: xx, y: y, size: 7.5, font: fN, color: gris });
+    page.drawText(_decaTxt(valor || '-'), { x: xx, y: y - 12, size: 10, font: fN, color: negro, maxWidth: ancho || 460 });
+  };
+
+  bloque('1 - CARGADOR CONTRACTUAL');
+  campo('Nombre o razon social', d.carg_nombre); salto(30);
+  campo('NIF', d.carg_nif, M, 150); campo('Domicilio', d.carg_domicilio, M + 170, 330); salto(34);
+
+  bloque('2 - TRANSPORTISTA EFECTIVO');
+  campo('Nombre o razon social', d.trans_nombre); salto(30);
+  campo('NIF', d.trans_nif, M, 150); campo('N.o de autorizacion', d.trans_autorizacion, M + 170, 150);
+  campo('Empresa del grupo', d.empresa, M + 340, 160); salto(30);
+  campo('Domicilio', d.trans_domicilio); salto(34);
+
+  bloque('3 - MERCANCIA Y RECORRIDO');
+  campo('Origen (lugar de carga)', d.origen, M, 230); campo('Destino (lugar de entrega)', d.destino, M + 250, 230); salto(30);
+  campo('Mercancia', d.mercancia); salto(30);
+  campo('Peso (kg)', d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : '-', M, 150);
+  campo('Bultos', d.bultos, M + 170, 150);
+  campo('Fin del servicio', d.servicio_fin ? _decaFechaEs(d.servicio_fin) : '-', M + 340, 160); salto(34);
+
+  bloque('4 - VEHICULO');
+  campo('Matricula tractora', d.tractora, M, 150);
+  campo('Matricula semirremolque', d.semirremolque, M + 170, 150);
+  campo('Autorizacion especial', d.autorizacion_especial, M + 340, 160); salto(34);
+
+  if (d.observaciones) { bloque('5 - OBSERVACIONES'); campo('', d.observaciones); salto(30); }
+
+  // QR abajo a la derecha, dibujado como cuadraditos (vectorial, no imagen)
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const n = qr.getModuleCount();
+    const lado = 120, celda = lado / n;
+    const qx = 595.28 - M - lado, qy = 92;
+    page.drawRectangle({ x: qx - 6, y: qy - 6, width: lado + 12, height: lado + 12, color: rgb(1, 1, 1), borderColor: rgb(0.85, 0.88, 0.92), borderWidth: 1 });
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (qr.isDark(r, c)) {
+          page.drawRectangle({ x: qx + c * celda, y: qy + (n - 1 - r) * celda, width: celda, height: celda, color: rgb(0, 0, 0) });
+        }
+      }
+    }
+    page.drawText('Escanea para descargar', { x: qx, y: qy - 18, size: 7.5, font: fN, color: gris });
+  } catch (e) { console.warn('[deca QR]', e); }
+
+  page.drawText(_decaTxt('Documento generado electronicamente el ' + new Date().toLocaleString('es-ES') + '.'),
+    { x: M, y: 70, size: 7.5, font: fN, color: gris });
+  page.drawText(_decaTxt('Conservacion: 1 ano. Descarga directa disponible durante el viaje y los 7 dias siguientes.'),
+    { x: M, y: 58, size: 7.5, font: fN, color: gris });
+
+  doc.setTitle('DeCA ' + (d.numero || ''));
+  doc.setSubject('Documento electronico de control administrativo');
+  doc.setAuthor(_decaTxt(d.trans_nombre || ''));
+  doc.setProducer('App Albaranes TYP2014');
+  doc.setCreator('App Albaranes TYP2014');
+  doc.setCreationDate(new Date());
+  doc.setModificationDate(new Date());
+  return await doc.save();
+}
+
+// Genera el PDF, lo sube al bucket público y guarda la URL en la fila.
+async function generarDecaPDF(id, abrir) {
+  const d = _decaLista.find(x => String(x.id) === String(id));
+  if (!d) return;
+  if (typeof PDFLib === 'undefined' || typeof qrcode === 'undefined') {
+    toast('No han cargado las librerías del PDF. Recarga la página.', 'err');
+    return;
+  }
+  toast('Generando el PDF…');
+  try {
+    // La ruta se decide ANTES para que el QR pueda apuntar a ella.
+    const ruta = (d.numero || 'DECA') + '_' + Date.now() + '.pdf';
+    const url = sb.storage.from('deca').getPublicUrl(ruta).data.publicUrl;
+
+    const bytes = await _decaConstruirPDF(d, url);
+    if (bytes.length > 5 * 1024 * 1024) { toast('El PDF pasa de 5 MB, avísame', 'err'); return; }
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+
+    const { error: eUp } = await sb.storage.from('deca').upload(ruta, blob, { contentType: 'application/pdf' });
+    if (eUp) throw eUp;
+
+    const { error: eDb } = await sb.from('deca').update({ file_path: ruta, file_url: url }).eq('id', id);
+    if (eDb) throw eDb;
+
+    d.file_path = ruta; d.file_url = url;
+    _decaRender();
+    toast('✓ PDF generado');
+    if (abrir !== false) window.open(url, '_blank');
+  } catch (e) {
+    console.error('[generarDecaPDF]', e);
+    toast('Error generando el PDF: ' + (e.message || e), 'err');
+  }
+}
+
+function abrirDecaPDF(id) {
+  const d = _decaLista.find(x => String(x.id) === String(id));
+  if (!d) return;
+  if (d.file_url) window.open(d.file_url, '_blank');
+  else generarDecaPDF(id, true);
+}
+
+// Copia el enlace y abre WhatsApp con el mensaje listo para el conductor.
+async function compartirDecaPDF(id) {
+  const d = _decaLista.find(x => String(x.id) === String(id));
+  if (!d) return;
+  if (!d.file_url) { await generarDecaPDF(id, false); }
+  const d2 = _decaLista.find(x => String(x.id) === String(id));
+  if (!d2 || !d2.file_url) return;
+  const msg = 'DeCA ' + (d2.numero || '') + ' - ' + _decaFechaEs(d2.fecha_carga) + '\n' +
+    (d2.origen || '') + ' -> ' + (d2.destino || '') + '\n' +
+    'Matricula: ' + (d2.tractora || '') + '\n\n' + d2.file_url;
+  try { await navigator.clipboard.writeText(d2.file_url); toast('✓ Enlace copiado'); } catch (e) {}
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
 
