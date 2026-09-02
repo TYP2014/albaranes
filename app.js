@@ -424,7 +424,8 @@ async function loadUserMap() {
         const _permITV    = !!userMap[currentUser.id]?.puede_ver_itv;
         const _permTaller = !!userMap[currentUser.id]?.puede_ver_taller;
         const _ocultarFinal = ['tabPreli', 'tabGas', 'tabNeum', 'tabVac',
-          'tabProduccion', 'tabAdmin'];
+          'tabProduccion', 'tabAdmin',
+          'tabDeca'];   // v594: el DeCA es cosa de oficina (los 4 de _veTodo)
         if (!_permITV)    _ocultarFinal.push('tabItv');
         if (!_permTaller) _ocultarFinal.push('tabTaller');
         if (!userMap[currentUser.id]?.puede_ver_tacografo) _ocultarFinal.push('tabTaco');   // v368
@@ -467,6 +468,11 @@ async function loadUserMap() {
         // Solo re-mostramos Gasoil.
         const tabGasShow = document.getElementById('tabGas');
         if (tabGasShow) tabGasShow.style.display = '';
+        // v594: la pestaña DeCA la ven los cuatro de oficina (admin, María del
+        // Mar, Marta y Logística/Transmargaz). Nadie más: ni conductores, ni
+        // subcontratados, ni el usuario TALLER.
+        const _tabDecaShow = document.getElementById('tabDeca');
+        if (_tabDecaShow) _tabDecaShow.style.display = '';
       }
       // ============================================================
 
@@ -15952,7 +15958,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit','taco'].forEach(t => {
+  ['alb','preli','gas','itv','deca','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit','taco'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -15975,6 +15981,8 @@ function switchTab(tab) {
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
+  // v594: cargar DeCA al entrar en su pestaña
+  if (tab === 'deca') { loadDecaData(); }
   // v108: cargar Incidencias al entrar en su pestaña
   if (tab === 'incidencias') { loadIncidenciasData(); }
   // v105: cargar tabla de producción al entrar en su pestaña
@@ -33326,6 +33334,332 @@ function tacoSoltar(files) {
     }
   };
   fr.readAsArrayBuffer(f);
+}
+
+
+// ============================================================
+// v594 (02/09/2026) — DeCA · DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO
+// ------------------------------------------------------------
+// Obligatorio desde el 5/10/2026 para el transporte interior de mercancías.
+// Esta versión monta la PESTAÑA, el FORMULARIO en blanco y el LISTADO con
+// filtros. El PDF nativo con el QR va en la versión siguiente.
+// Tabla `deca` (26 columnas, ya creada en Supabase el 01/09/2026). NO hay
+// política de DELETE a propósito: un DeCA se conserva un año, y para
+// retirarlo se marca `anulado = true`.
+// ============================================================
+
+// Datos fijos de nuestras cuatro empresas (autorización serie MDPE-NACIONAL).
+const DECA_EMPRESAS = {
+  'TYP2014': {
+    nombre: 'TRANSPORTES Y PORTES 2014, S.L.', nif: 'B90172735',
+    dom: 'C/ Jarcha, 11 - 41100 Coria del Río (Sevilla)', aut: '11581087-3'
+  },
+  'HISPALIS': {
+    nombre: 'TRANSPORTES HISPALIS 2016, S.L.', nif: 'B90286337',
+    dom: 'C/ Jarcha, 11 - 41100 Coria del Río (Sevilla)', aut: '11540155-2'
+  },
+  'TRANSMARGAZ': {
+    nombre: 'TRANSMARGAZ 2018, S.L.', nif: 'B67316752',
+    dom: 'C/ Mossèn Damià, 10 - 08769 Castellví de Rosanes (Barcelona)', aut: '11489021-3'
+  },
+  'PORTES 2014 IMPORT': {
+    nombre: 'PORTES 2014 IMPORT, S.L.', nif: 'B02657435',
+    dom: 'C/ Jarcha, 11 - 41100 Coria del Río (Sevilla)', aut: '12666398-1'
+  }
+};
+
+let _decaLista = [];
+let _decaEditId = null;
+
+function _decaFechaEs(f) {
+  const s = String(f || '');
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  const p = s.slice(0, 10).split('-');
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+async function loadDecaData() {
+  const box = document.getElementById('decaListaBox');
+  if (box) box.innerHTML = '<div style="padding:16px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando…</div>';
+  try {
+    const { data, error } = await sb.from('deca')
+      .select('*')
+      .order('fecha_carga', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+    _decaLista = data || [];
+    _decaPintarFiltros();
+    _decaRender();
+  } catch (e) {
+    console.error('[loadDecaData]', e);
+    if (box) box.innerHTML = '<div style="padding:16px;text-align:center;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando DeCA: ' + esc(e.message || e) + '</div>';
+  }
+}
+
+// Rellena el desplegable de meses con los que existen de verdad.
+function _decaPintarFiltros() {
+  const sel = document.getElementById('decaFiltroMes');
+  if (!sel) return;
+  const actual = sel.value;
+  const meses = [...new Set(_decaLista
+    .map(d => String(d.fecha_carga || '').slice(0, 7))
+    .filter(m => /^\d{4}-\d{2}$/.test(m)))].sort().reverse();
+  sel.innerHTML = '<option value="">Todos los meses</option>' +
+    meses.map(m => {
+      const p = m.split('-');
+      return '<option value="' + m + '">' + p[1] + '/' + p[0] + '</option>';
+    }).join('');
+  if (actual) sel.value = actual;
+}
+
+function _decaRender() {
+  const box = document.getElementById('decaListaBox');
+  if (!box) return;
+  const fEmp = (document.getElementById('decaFiltroEmpresa') || {}).value || '';
+  const fMes = (document.getElementById('decaFiltroMes') || {}).value || '';
+  const fMat = ((document.getElementById('decaFiltroMatricula') || {}).value || '').toUpperCase().replace(/\s/g, '');
+  const verAnul = !!(document.getElementById('decaVerAnulados') || {}).checked;
+
+  const filas = _decaLista.filter(d => {
+    if (!verAnul && d.anulado) return false;
+    if (fEmp && d.empresa !== fEmp) return false;
+    if (fMes && String(d.fecha_carga || '').slice(0, 7) !== fMes) return false;
+    if (fMat) {
+      const t = (String(d.tractora || '') + String(d.semirremolque || '')).toUpperCase().replace(/\s/g, '');
+      if (!t.includes(fMat)) return false;
+    }
+    return true;
+  });
+
+  const cont = document.getElementById('decaContador');
+  if (cont) cont.textContent = filas.length + (filas.length === 1 ? ' documento' : ' documentos');
+
+  if (!filas.length) {
+    box.innerHTML = '<div style="padding:22px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px">No hay ningún DeCA con esos filtros.<br>Usa <strong>➕ NUEVO DeCA</strong> para crear el primero.</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--bd);color:var(--ac);text-align:left">
+          <th style="padding:6px">Nº</th>
+          <th style="padding:6px">FECHA</th>
+          <th style="padding:6px">EMPRESA</th>
+          <th style="padding:6px">CARGADOR</th>
+          <th style="padding:6px">ORIGEN → DESTINO</th>
+          <th style="padding:6px">MERCANCÍA</th>
+          <th style="padding:6px;text-align:right">KG</th>
+          <th style="padding:6px">MATRÍCULA</th>
+          <th style="padding:6px;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">ACCIONES</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas.map(d => {
+          const anul = !!d.anulado;
+          const est = anul ? 'opacity:.55;text-decoration:line-through' : '';
+          const mat = esc(d.tractora || '') + (d.semirremolque ? ' / ' + esc(d.semirremolque) : '');
+          return `
+          <tr style="border-bottom:1px solid var(--bd)">
+            <td style="padding:6px;${est}"><strong>${esc(d.numero || '—')}</strong>${anul ? ' <span style="color:var(--er);text-decoration:none">ANULADO</span>' : ''}</td>
+            <td style="padding:6px;${est}">${esc(_decaFechaEs(d.fecha_carga))}</td>
+            <td style="padding:6px;${est}">${esc(d.empresa || '')}</td>
+            <td style="padding:6px;${est}"><div style="max-width:220px;overflow-wrap:anywhere">${esc(d.carg_nombre || '')}</div></td>
+            <td style="padding:6px;${est}"><div style="max-width:260px;overflow-wrap:anywhere">${esc(d.origen || '')} → ${esc(d.destino || '')}</div></td>
+            <td style="padding:6px;${est}"><div style="max-width:220px;overflow-wrap:anywhere">${esc(d.mercancia || '')}</div></td>
+            <td style="padding:6px;text-align:right;${est}">${d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : ''}</td>
+            <td style="padding:6px;${est}">${mat}</td>
+            <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">
+              <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openDecaModal('${d.id}')">✏️ Ver / editar</button>
+              ${anul ? '' : `<button class="btn br" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="anularDeca('${d.id}')" title="Marcar como anulado (no se borra)">🚫 Anular</button>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+// Número correlativo por año: DECA-2026-0001
+function _decaNumeroNuevo(fecha) {
+  const anio = String(fecha || '').slice(0, 4) || String(new Date().getFullYear());
+  let max = 0;
+  _decaLista.forEach(d => {
+    const m = String(d.numero || '').match(/^DECA-(\d{4})-(\d+)$/);
+    if (m && m[1] === anio) max = Math.max(max, parseInt(m[2], 10));
+  });
+  return 'DECA-' + anio + '-' + String(max + 1).padStart(4, '0');
+}
+
+function openDecaModal(id) {
+  _decaEditId = id || null;
+  const d = id ? _decaLista.find(x => String(x.id) === String(id)) : null;
+  const v = (k, def) => esc(d && d[k] != null ? d[k] : (def != null ? def : ''));
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  const opcEmp = Object.keys(DECA_EMPRESAS).map(k =>
+    `<option value="${k}"${d && d.empresa === k ? ' selected' : ''}>${k}</option>`).join('');
+  // El transportista efectivo puede ser una de nuestras empresas o un subcontratado.
+  const esNuestro = !d || Object.keys(DECA_EMPRESAS).some(k => DECA_EMPRESAS[k].nif === d.trans_nif);
+  const opcTrans = Object.keys(DECA_EMPRESAS).map(k =>
+    `<option value="${k}"${d && DECA_EMPRESAS[k].nif === d.trans_nif ? ' selected' : ''}>${k}</option>`).join('') +
+    `<option value="_OTRO"${!esNuestro ? ' selected' : ''}>OTRO (subcontratado, a mano)</option>`;
+
+  document.getElementById('decaModalTitulo').textContent = d
+    ? 'DeCA ' + (d.numero || '') + (d.anulado ? ' · ANULADO' : '')
+    : 'NUEVO DeCA';
+
+  document.getElementById('decaModalFields').innerHTML = `
+    ${d && d.anulado ? '<div style="background:#fdecea;border:1px solid var(--er);color:var(--erd);padding:8px 10px;border-radius:8px;margin-bottom:12px;font-size:12px"><strong>Este DeCA está ANULADO.</strong> Se conserva por obligación legal, pero no vale como documento de control.</div>' : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="fg"><label class="fl">Empresa del grupo (a quién pertenece)</label>
+        <select class="fi" id="decaF_empresa" onchange="_decaAutoTrans()">${opcEmp}</select></div>
+      <div class="fg"><label class="fl">Fecha de carga</label>
+        <input class="fi" type="date" id="decaF_fecha_carga" value="${v('fecha_carga', hoy)}"></div>
+    </div>
+
+    <div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin-bottom:10px">1 · CARGADOR CONTRACTUAL (quien contrata el transporte)</div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Nombre o razón social</label>
+      <input class="fi" id="decaF_carg_nombre" value="${v('carg_nombre')}" list="decaCargadores" placeholder="Ej. HOLCIM ESPAÑA, S.A.U."></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:14px">
+      <div class="fg"><label class="fl">NIF</label><input class="fi" id="decaF_carg_nif" value="${v('carg_nif')}" placeholder="A08001725"></div>
+      <div class="fg"><label class="fl">Domicilio</label><input class="fi" id="decaF_carg_domicilio" value="${v('carg_domicilio')}" placeholder="Calle, nº, CP y población"></div>
+    </div>
+
+    <div style="font-weight:800;color:var(--ok);font-size:12px;border-bottom:2px solid var(--ok);padding-bottom:4px;margin-bottom:10px">2 · TRANSPORTISTA EFECTIVO (quien hace el porte)</div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">¿Quién lo hace?</label>
+      <select class="fi" id="decaF_transSel" onchange="_decaAutoTrans()">${opcTrans}</select></div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Nombre o razón social</label>
+      <input class="fi" id="decaF_trans_nombre" value="${v('trans_nombre')}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">NIF</label><input class="fi" id="decaF_trans_nif" value="${v('trans_nif')}"></div>
+      <div class="fg"><label class="fl">Nº autorización</label><input class="fi" id="decaF_trans_autorizacion" value="${v('trans_autorizacion')}"></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px"><label class="fl">Domicilio</label>
+      <input class="fi" id="decaF_trans_domicilio" value="${v('trans_domicilio')}"></div>
+
+    <div style="font-weight:800;color:var(--wnd);font-size:12px;border-bottom:2px solid var(--wn);padding-bottom:4px;margin-bottom:10px">3 · EL VIAJE</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Origen (lugar de carga)</label><input class="fi" id="decaF_origen" value="${v('origen')}"></div>
+      <div class="fg"><label class="fl">Destino (lugar de entrega)</label><input class="fi" id="decaF_destino" value="${v('destino')}"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label class="fl">Mercancía</label>
+      <input class="fi" id="decaF_mercancia" value="${v('mercancia')}" placeholder="Ej. Cemento a granel"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Peso (kg)</label><input class="fi" type="number" step="1" id="decaF_peso_kg" value="${v('peso_kg')}"></div>
+      <div class="fg"><label class="fl">Bultos (si los hay)</label><input class="fi" id="decaF_bultos" value="${v('bultos')}" placeholder="opcional"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" value="${v('tractora')}" style="text-transform:uppercase"></div>
+      <div class="fg"><label class="fl">Matrícula semirremolque</label><input class="fi" id="decaF_semirremolque" value="${v('semirremolque')}" style="text-transform:uppercase" placeholder="opcional"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Autorización especial (si la lleva)</label><input class="fi" id="decaF_autorizacion_especial" value="${v('autorizacion_especial')}" placeholder="opcional"></div>
+      <div class="fg"><label class="fl">Fin del servicio</label><input class="fi" type="date" id="decaF_servicio_fin" value="${v('servicio_fin')}"></div>
+    </div>
+    <div class="fg" style="margin-bottom:4px"><label class="fl">Observaciones</label>
+      <input class="fi" id="decaF_observaciones" value="${v('observaciones')}" placeholder="opcional"></div>`;
+
+  // Empresa seleccionada (el <select> ya viene marcado, pero en alta forzamos la primera)
+  if (!d) {
+    document.getElementById('decaF_empresa').value = Object.keys(DECA_EMPRESAS)[0];
+    _decaAutoTrans();
+  }
+  // Lista de cargadores ya usados, para escribir menos
+  const dl = document.getElementById('decaCargadores');
+  if (dl) {
+    const nombres = [...new Set(_decaLista.map(x => x.carg_nombre).filter(Boolean))].sort();
+    dl.innerHTML = nombres.map(n => '<option value="' + esc(n) + '"></option>').join('');
+  }
+  document.getElementById('ovDeca').classList.add('open');
+}
+
+// Rellena solo los datos del transportista efectivo cuando es una empresa nuestra.
+function _decaAutoTrans() {
+  const sel = document.getElementById('decaF_transSel');
+  if (!sel) return;
+  const k = sel.value;
+  const bloquear = k !== '_OTRO';
+  const e = DECA_EMPRESAS[k];
+  ['trans_nombre', 'trans_nif', 'trans_domicilio', 'trans_autorizacion'].forEach(c => {
+    const el = document.getElementById('decaF_' + c);
+    if (el) el.readOnly = bloquear;
+  });
+  if (e) {
+    document.getElementById('decaF_trans_nombre').value = e.nombre;
+    document.getElementById('decaF_trans_nif').value = e.nif;
+    document.getElementById('decaF_trans_domicilio').value = e.dom;
+    document.getElementById('decaF_trans_autorizacion').value = e.aut;
+  }
+}
+
+function closeDecaModal() {
+  document.getElementById('ovDeca').classList.remove('open');
+  _decaEditId = null;
+}
+
+async function saveDeca() {
+  const g = id => (document.getElementById('decaF_' + id) || {}).value || '';
+  const obl = {
+    empresa: g('empresa'), fecha_carga: g('fecha_carga'),
+    carg_nombre: g('carg_nombre').trim(), carg_nif: g('carg_nif').trim(), carg_domicilio: g('carg_domicilio').trim(),
+    trans_nombre: g('trans_nombre').trim(), trans_nif: g('trans_nif').trim(), trans_domicilio: g('trans_domicilio').trim(),
+    origen: g('origen').trim(), destino: g('destino').trim(), mercancia: g('mercancia').trim(),
+    tractora: g('tractora').trim().toUpperCase()
+  };
+  const faltan = Object.keys(obl).filter(k => !obl[k]);
+  if (faltan.length) {
+    toast('Faltan datos obligatorios: ' + faltan.join(', ').replace(/_/g, ' '), 'err');
+    return;
+  }
+  const fila = Object.assign({}, obl, {
+    trans_autorizacion: g('trans_autorizacion').trim() || null,
+    peso_kg: g('peso_kg') !== '' ? Number(g('peso_kg')) : null,
+    bultos: g('bultos').trim() || null,
+    semirremolque: g('semirremolque').trim().toUpperCase() || null,
+    autorizacion_especial: g('autorizacion_especial').trim() || null,
+    servicio_fin: g('servicio_fin') || null,
+    observaciones: g('observaciones').trim() || null
+  });
+  try {
+    if (_decaEditId) {
+      const { error } = await sb.from('deca').update(fila).eq('id', _decaEditId);
+      if (error) throw error;
+      toast('✓ DeCA actualizado');
+    } else {
+      fila.numero = _decaNumeroNuevo(fila.fecha_carga);
+      fila.anulado = false;
+      if (currentUser && currentUser.id) fila.creado_por = currentUser.id;
+      const { error } = await sb.from('deca').insert(fila);
+      if (error) throw error;
+      toast('✓ DeCA ' + fila.numero + ' creado');
+    }
+    closeDecaModal();
+    await loadDecaData();
+  } catch (e) {
+    console.error('[saveDeca]', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
+  }
+}
+
+// No se borra nunca: se marca anulado (la tabla no tiene política de DELETE).
+async function anularDeca(id) {
+  const d = _decaLista.find(x => String(x.id) === String(id));
+  if (!d) return;
+  if (!confirm('¿Anular el DeCA ' + (d.numero || '') + '?\n\n' +
+    _decaFechaEs(d.fecha_carga) + ' · ' + (d.origen || '') + ' → ' + (d.destino || '') + ' · ' + (d.tractora || '') +
+    '\n\nNo se borra: por ley hay que conservarlo un año. Queda marcado como anulado.')) return;
+  try {
+    const { error } = await sb.from('deca').update({ anulado: true }).eq('id', id);
+    if (error) throw error;
+    toast('✓ DeCA anulado');
+    await loadDecaData();
+  } catch (e) {
+    console.error('[anularDeca]', e);
+    toast('Error anulando: ' + (e.message || e), 'err');
+  }
 }
 
 
