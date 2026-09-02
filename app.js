@@ -4599,38 +4599,40 @@ async function _processOne(it, type, key, timeoutMs) {
           // (ej. albarán 31005003780 → SANT BOI). Esa condición pisaba el destino real.
           // Ahora la regla SOLO actúa cuando el material es CLÍNKER de verdad. Si sale de
           // Tarragona pero NO es clínker, se respeta el destino que leyó del papel (Obra:).
-          // 🔴 v594 (01/09/2026 — Juan Carlos): FORZADO DESACTIVADO.
-          // La regla original (v107EÑ, 26/05/2026) daba por hecho que el clínker
-          // SIEMPRE viajaba de Molienda Tarragona a Fábrica Montcada, y por eso
-          // machacaba origen y destino aunque la IA los hubiera leído BIEN.
-          // Juan Carlos confirma 01/09/2026 que el viaje va en LOS DOS SENTIDOS:
-          // unas veces se carga en Fábrica Montcada y se descarga en Molienda
-          // Tarragona, y otras al revés. El papel lo dice claro en cada albarán
-          // ("Punto expedición:" = origen / "Obra:" = destino).
-          // Caso real que destapó el fallo: albarán 31041062324 del 13/08/2026
-          // (matrícula 7131JJT): "Punto expedición: Fábrica Montcada" +
-          // "Obra: CE10T Molienda Tarragona" → esta regla lo guardaba justo al
-          // revés. Todo el mes de agosto salió invertido por esto.
-          // A partir de ahora MANDA EL PAPEL: no se toca ni el origen ni el
-          // destino. Se conserva solo el log de diagnóstico de arriba.
+          // ============================================================
+          // v593 (02/09/2026) — FORZADO DESACTIVADO. MANDA EL PAPEL.
+          // ------------------------------------------------------------
+          // La premisa de la v107EÑ ("el clínker SIEMPRE va de Molienda
+          // Tarragona a Fábrica Montcada") dejó de ser cierta: el clínker
+          // viaja en LOS DOS SENTIDOS según el día. Con la regla puesta,
+          // todos los albaranes del sentido Montcada → Tarragona se
+          // guardaban AL REVÉS aunque la IA los hubiera leído bien.
+          // Todo agosto 2026 salió invertido (44 albaranes corregidos por
+          // SQL el 01/09/2026).
+          // Confirmado por Juan Carlos 01/09/2026, y el papel no engaña:
+          //     "Punto expedición:" = ORIGEN     ·     "Obra:" = DESTINO
+          // Ejemplos reales, uno de cada sentido:
+          //   31041062276 (12/08, 5174LJR): Fábrica Montcada → Molienda Tarragona (CE10T)
+          //   31005004285 (17/06, 4201JWR): Molienda Tarragona → Fábrica Montcada (CE104)
+          // Ya NO se toca ni el origen ni el destino: se conserva solo el
+          // log de diagnóstico de arriba.
+          // ============================================================
 
-          // v595 (01/09/2026, Juan Carlos): estos albaranes se guardan con el NOMBRE
-          // COMPLETO que pone el papel: "Molienda Tarragona", NUNCA "Tarragona" a secas.
-          // La IA a veces coge el pueblo del código postal ("43006 Tarragona") en vez del
-          // nombre de la línea de "Obra:" / "Punto expedición:". Caso real: albarán
-          // 31041062440 del 28/08/2026 (matrícula 1213JCD), donde Obra decía
-          // "CE10T Molienda Tarragona" y se guardó el destino como "Tarragona".
-          // SOLO actúa en albaranes de CLINKER (ahí "Tarragona" a secas no existe como
-          // sitio real). Los demás albaranes con destino u origen "Tarragona" (Planta
-          // Ferran-Riera, 43008 Tarragona) NO se tocan.
+          // Única red de seguridad que SÍ se mantiene (v595): en albaranes de
+          // CLÍNKER, si el origen o el destino se quedaron en "Tarragona" a
+          // secas, es que la IA se bajó a la línea del código postal
+          // ("43006 Tarragona") en vez de quedarse con el nombre del sitio.
+          // Se completa a "Molienda Tarragona". Ojo: SOLO en clínker — hay
+          // albaranes con destino "Tarragona" de verdad (Planta Ferran-Riera,
+          // 43008 Tarragona) que NO se deben tocar.
           if (_esClinker) {
-            if (/^TARRAGONA$/i.test(String(data.obra || '').trim())) {
-              console.log('[v595 cl\u00ednker] DESTINO "Tarragona" \u2192 "Molienda Tarragona"');
-              data.obra = 'Molienda Tarragona';
-            }
             if (/^TARRAGONA$/i.test(String(data.planta || '').trim())) {
-              console.log('[v595 cl\u00ednker] ORIGEN "Tarragona" \u2192 "Molienda Tarragona"');
+              console.log('[v593 clínker] ORIGEN "Tarragona" a secas → "Molienda Tarragona"');
               data.planta = 'Molienda Tarragona';
+            }
+            if (/^TARRAGONA$/i.test(String(data.obra || '').trim())) {
+              console.log('[v593 clínker] DESTINO "Tarragona" a secas → "Molienda Tarragona"');
+              data.obra = 'Molienda Tarragona';
             }
           }
         }
@@ -5996,7 +5998,7 @@ Hay TRES SUBTIPOS según el MATERIAL transportado, pero TODOS COMPARTEN las MISM
   SUBTIPO C — ÁRIDOS: material es "AG-X/Y-T-C", "AF-X/Y-T-C" (ej. AG-4/11-T-C, AF-0/4-T-C), "ECOPlanet CEM" + áridos, "CALIZA GARRAF ZAHORRA", "Caliza Cemex/Foj/Promsa", "Árido reciclado", "Árido siderúrgico". Una sola fila clásica: producto = texto del material; tm = cantidad NETA en toneladas.
 
 REGLAS COMUNES A LOS 3 SUBTIPOS (mismas siempre, sin excepción):
-  · planta (ORIGEN) ← el TEXTO del campo "Punto expedición:", limpio. Si pone "Puesto exp. Cantera de Garraf" el origen es "Cantera de Garraf" (sin el prefijo "Puesto exp."). Si pone "Fábrica Montcada" → "Fábrica Montcada". Si pone "Montcada Mortero" → "Montcada Mortero". Si pone "Molienda Tarragona" → "Molienda Tarragona". NUNCA uses el campo "Planta:" (ese siempre dice "Fábrica Montcada" porque es la planta administrativa de facturación, NO el origen real del camión). 🔴🔴🔴 **v594 (01/09/2026, Juan Carlos) — CLÍNKER MONTCADA ↔ MOLIENDA TARRAGONA: EL VIAJE VA EN LOS DOS SENTIDOS. NUNCA des por hecho un sentido fijo. En estos "Albarán de traslado" de CLINKER el ORIGEN es SIEMPRE lo que ponga "Punto expedición:" y el DESTINO es SIEMPRE la línea bajo "Obra:", leídos letra a letra, cada uno del suyo. ERROR REAL a evitar (albarán 31041062324 del 13/08/2026, matrícula 7131JJT): el papel ponía "Punto expedición: Fábrica Montcada" y "Obra: CE10T Molienda Tarragona", y se guardó justo al revés (origen "Molienda Tarragona" y destino "Fábrica Montcada"). Lo correcto en ese albarán es origen = "Fábrica Montcada" y destino = "Molienda Tarragona". Y cuando el papel diga "Punto expedición: Molienda Tarragona" con "Obra: ... Fábrica Montcada", entonces sí es origen = "Molienda Tarragona" y destino = "Fábrica Montcada". Los DOS sentidos son normales: manda SIEMPRE lo que esté escrito en ESE albarán, nunca lo que recuerdes de otros.** 📌 **LOS DOS CASOS REALES, uno de cada sentido, para que no haya duda: (SENTIDO A) albarán 31041062276 del 12/08/2026, matrícula 5174LJR: "Planta: Fábrica Montcada" + "Punto expedición: Fábrica Montcada" + "Obra: CE10T Molienda Tarragona" → origen = "Fábrica Montcada", destino = "Molienda Tarragona". (SENTIDO B) albarán 31005004285 del 17/06/2026, matrícula 4201JWR: "Planta: Molienda Tarragona" + "Punto expedición: Molienda Tarragona" + "Obra: CE104 LH ESPAÑA S.A.U. (Montcada)" → origen = "Molienda Tarragona", destino = "Fábrica Montcada" (el código CE104 y el nombre "LH ESPAÑA S.A.U. (Montcada)" son la Fábrica de Montcada). Fijándote SOLO en "Punto expedición:" y en "Obra:" aciertas siempre en los dos casos.** ⚠️ **NOMBRE COMPLETO, NUNCA EL PUEBLO DEL CÓDIGO POSTAL: en estos albaranes de clínker el sitio se llama "Molienda Tarragona" y así hay que escribirlo, tanto si sale como origen ("Punto expedición:") como si sale como destino ("Obra:"). NUNCA lo acortes a "Tarragona" a secas. Debajo de la línea "Molienda Tarragona" el albarán trae la dirección ("Pol.Ind. Entrevies-Camí vell" y "43006 Tarragona") — esa última línea es el código postal, NO se usa. ERROR REAL: albarán 31041062440 del 28/08/2026 (matrícula 1213JCD), la Obra ponía "CE10T Molienda Tarragona" y se guardó el destino como "Tarragona" — mal. Lo correcto es "Molienda Tarragona", copiado letra a letra de la línea de Obra. Lo mismo vale en el otro sentido: si "Obra:" pone "CE104 LH ESPAÑA S.A.U. (Montcada)", el destino es la Fábrica de Montcada, NO "Montcada" el pueblo del CP 08110.** 🔎 **PISTA DE COMPROBACIÓN POR EL NÚMERO DE ALBARÁN (v596, Juan Carlos 01/09/2026) — es solo una COMPROBACIÓN, NO manda: en la práctica los números que empiezan por 31041… son los que SALEN de Fábrica Montcada (destino Molienda Tarragona, código de obra CE10T), y los que empiezan por 31005… son los que SALEN de Molienda Tarragona (destino Fábrica Montcada / LH ESPAÑA S.A.U., código de obra CE104). ÚSALO SOLO PARA REVISARTE: cuando ya tengas leídos el "Punto expedición:" y la "Obra:", mira el número; si no encajan, vuelve a mirar esos dos campos del papel con calma. Pero si el papel dice una cosa y el número sugiere otra, GANA SIEMPRE EL PAPEL ("Punto expedición:" = origen, "Obra:" = destino) — el número es una ayuda, nunca la decisión.**
+  · planta (ORIGEN) ← el TEXTO del campo "Punto expedición:", limpio. Si pone "Puesto exp. Cantera de Garraf" el origen es "Cantera de Garraf" (sin el prefijo "Puesto exp."). Si pone "Fábrica Montcada" → "Fábrica Montcada". Si pone "Montcada Mortero" → "Montcada Mortero". Si pone "Molienda Tarragona" → "Molienda Tarragona". NUNCA uses el campo "Planta:" (ese siempre dice "Fábrica Montcada" porque es la planta administrativa de facturación, NO el origen real del camión).
   · obra (DESTINO) ← ⚠️ LEE ESTA SECCIÓN ENTERA ANTES DE DECIDIR EL DESTINO. ⚠️
 
 🔴 v107E1 — REGLA DE ORO ABSOLUTA SOBRE EL DESTINO 🔴
@@ -6021,6 +6023,13 @@ Cómo encontrar el campo "Obra:" correcto:
 🎯 EJEMPLOS REALES — aplica EXACTAMENTE este razonamiento:
 
   Ejemplo A (Molienda Tarragona): albarán 31041061104. Bajo "Obra:" pone "CE10T / Molienda Tarragona / Pol.Ind. Entrevies-Camí vell / 43006 Tarragona". El DESTINO es "Molienda Tarragona" — NUNCA "Tarragona" (eso es la ciudad del CP), NUNCA "CE10T" (es el código).
+
+  🔴🔴🔴 CLÍNKER MONTCADA ↔ MOLIENDA TARRAGONA (v593, 02/09/2026 — error real: TODO agosto salió invertido). El clínker viaja EN LOS DOS SENTIDOS, según el día. NUNCA des por hecho el sentido, NUNCA lo deduzcas: LÉELO del papel, que lo dice clarísimo en dos campos:
+        "Punto expedición:"  = ORIGEN          "Obra:"  = DESTINO
+  Anti-ejemplo real 1 (sentido Montcada → Tarragona, el que salía mal): albarán 31041062276, 12/08/2026, matrícula 5174LJR. "Punto expedición: Fábrica Montcada" y "Obra: CE10T / Molienda Tarragona / Pol.Ind. Entrevies-Camí vell / 43006 Tarragona" → ORIGEN = "Fábrica Montcada", DESTINO = "Molienda Tarragona". Se estaba guardando justo al revés.
+  Anti-ejemplo real 2 (sentido Tarragona → Montcada): albarán 31005004285, 17/06/2026, matrícula 4201JWR. "Punto expedición: Molienda Tarragona" y "Obra: CE104 / LH ESPAÑA S.A.U. / ... / 08110 Montcada" → ORIGEN = "Molienda Tarragona", DESTINO = "Fábrica Montcada".
+  🔴 EL NOMBRE COMPLETO, NUNCA EL PUEBLO DEL CÓDIGO POSTAL: el sitio se llama "Molienda Tarragona", tanto de origen como de destino. NUNCA lo dejes en "Tarragona" a secas (eso es la línea del CP "43006 Tarragona", que NO se usa; además existe otro destino distinto que sí es "Tarragona": Planta Ferran-Riera). Error real: albarán 31041062440 (28/08/2026, matrícula 1213JCD) puso "Obra: CE10T Molienda Tarragona" y se guardó "Tarragona". Igual en el otro sentido: "CE104 LH ESPAÑA S.A.U." es la "Fábrica Montcada", NUNCA el pueblo del CP 08110.
+  🔎 PISTA DEL NÚMERO DE ALBARÁN (es una COMPROBACIÓN, NO una decisión): los 31041… suelen SALIR de Fábrica Montcada hacia Molienda Tarragona (obra CE10T); los 31005… suelen SALIR de Molienda Tarragona hacia Fábrica Montcada / LH ESPAÑA (obra CE104). Úsalo SOLO para revisarte después de haber leído "Punto expedición:" y "Obra:": si no encaja, vuelve a mirar esos dos campos con calma. 🔴 Si el papel y el número se contradicen, GANA EL PAPEL.
 
   Ejemplo B (VIC): albarán 31041060954. Bajo "Obra:" pone "0101785097 / VIC / Carrer dela Laura, 59 / 08500 Vic". El DESTINO es "VIC" — NUNCA "Monzón" (eso es donde está BIGMAT OCHOA, sale del "Facturar a:"), NUNCA "Vic" (escríbelo tal cual aparece, en MAYÚSCULAS). **Caso real v107E6**: también aplica al albarán 31042168893 donde "Obra: 0100526662 / VIC" y "Facturar a: 0000153545 / JULIAN ARUMI S.L. / CR RIBAS (TRAVESIA INTERIOR) / 08500 VIC" — destino = "VIC" (de Obra:), NUNCA el nombre del cliente JULIAN ARUMI ni la calle CR RIBAS.
 
@@ -19046,21 +19055,6 @@ function inferDestino(data) {
 
 // DESTINOS CANÓNICOS: localidades de las obras
 const DESTINOS_CANONICOS = [
-  // v594 (01/09/2026, Juan Carlos): MOLIENDA TARRAGONA como DESTINO oficial. Ya estaba en la
-  // lista de ORÍGENES, pero no en la de destinos, y por eso los albaranes de traslado de clínker
-  // que van DE Fábrica Montcada A Molienda Tarragona salían con el aviso amarillo "no oficial".
-  // El viaje va en los dos sentidos, así que Molienda Tarragona tiene que existir como origen Y
-  // como destino. OJO: NO se pone "Tarragona" a secas como alias — "Tarragona" a secas es otro
-  // destino distinto (Planta Ferran-Riera, 43008 Tarragona) y se mezclarían.
-  { canon: 'Molienda Tarragona', alias: [
-    'MOLIENDA TARRAGONA', 'molienda tarragona',
-    'Molienda de Tarragona', 'MOLIENDA DE TARRAGONA',
-    'Holcim Tarragona', 'HOLCIM TARRAGONA',
-    'Molleda Tarragona', 'Molleda de Tarragona',
-    'Mollenda Tarragona', 'Mollenda de Tarragona',
-    'Molienda Tarragoma', 'Mollienda Tarragona',
-    'CE10T'
-  ] },
   // v264 (08/07/2026): Obra Coca Cola — obra de Canteras Canro (cliente Ribera). El código v208 la
   // pone automáticamente cuando el albarán Canro trae destino vacío, pero al editarla a mano se
   // colaron variantes de mayúsculas ("Obra coca cola", "Obra Coca cola") que salían como destinos
@@ -19108,6 +19102,13 @@ const DESTINOS_CANONICOS = [
   // es DISTINTA de la planta de hormigón "Montcada (Hormig)". Añadidos alias para que el clinker que
   // llega de Molienda Tarragona se canonice aquí y NO en la planta de hormigón.
   { canon: 'Fábrica Montcada', alias: ['Fabrica Montcada', 'Fábrica de Montcada', 'Fabrica de Montcada', 'Holcim Montcada', 'LH España', 'LH ESPAÑA', 'LH Espana', 'LH España S.A.U.', 'LH ESPAÑA S.A.U.', 'LH España SAU', 'LH ESPAÑA SAU', 'CE104'] },
+  // v593 (02/09/2026): "Molienda Tarragona" tambien es DESTINO. Estaba solo en la lista
+  // de ORIGENES, y por eso al editar un albaran del sentido Montcada -> Tarragona salia
+  // el aviso amarillo de destino "no oficial". El clinker va en los dos sentidos, asi que
+  // el sitio tiene que existir en las DOS listas. Alias CE10T = su codigo de obra.
+  // OJO: NO se pone "Tarragona" a secas como alias — ese es otro destino distinto
+  // (Planta Ferran-Riera, 43008 Tarragona) y se mezclarian.
+  { canon: 'Molienda Tarragona', alias: ['Molienda de Tarragona', 'MOLIENDA TARRAGONA', 'Holcim Tarragona', 'Molleda Tarragona', 'Mollenda Tarragona', 'Molienda Tarragoma', 'Mollienda Tarragona', 'Moliensa Tarragona', 'CE10T', 'CE10T Molienda Tarragona'] },
   // v107BU: unificación destino Montcada (cemento Holcim, código CE44K).
   // Juan Carlos: NO quiere que albaranes del MISMO origen acaben con
   // destinos distintos. Antes el mismo camión Holcim de Montcada salía unas
@@ -21064,13 +21065,13 @@ function renderVac() {
     box.innerHTML = `
       <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:13px">
         <thead>
-          <tr style="text-align:left;border-bottom:2px solid var(--bd);color:#000">
-            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">NOMBRE</th>
-            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">EMPRESA</th>
-            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">🏖️ VACACIONES (usadas / bolsa)</th>
-            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">🎯 ASUNTOS PROPIOS</th>
-            <th style="padding:13px 10px;font-size:17px;letter-spacing:.4px;color:#000;font-weight:800">PERIODOS</th>
-            <th style="padding:13px 10px"></th>
+          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">NOMBRE</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">EMPRESA</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🏖️ VACACIONES (usadas / bolsa)</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🎯 ASUNTOS PROPIOS</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">PERIODOS</th>
+            <th style="padding:11px 10px"></th>
           </tr>
         </thead>
         <tbody>
