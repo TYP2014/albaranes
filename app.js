@@ -33390,6 +33390,27 @@ const DECA_EMPRESAS = {
 let _decaLista = [];
 let _decaEditId = null;
 
+// v603 (03/09/2026): SUBCONTRATADOS HABITUALES. Tabla `deca_transportistas` con
+// razón social, NIF, domicilio y nº de autorización de los transportistas que nos
+// trabajan a menudo. Salen en el desplegable "¿Quién lo hace?" y se rellenan solos.
+// `nombre` es el nombre corto CANÓNICO (el mismo que usa TRANSPORTISTAS_OFICIALES y
+// matriculas_aprendidas), así la matrícula tractora encuentra al transportista.
+let _decaSubs = [];
+
+async function _decaCargarSubs() {
+  try {
+    const { data, error } = await sb.from('deca_transportistas')
+      .select('*').order('nombre');
+    if (error) { console.warn('[v603] deca_transportistas:', error.message); return; }
+    _decaSubs = data || [];
+  } catch (e) { console.warn('[v603] _decaCargarSubs', e); }
+}
+
+// Nombre corto canónico de nuestras empresas (como sale en matriculas_aprendidas)
+// → clave de DECA_EMPRESAS. PORTES no está en la lista de transportistas.
+const _DECA_NUESTRAS = { 'TYP2014': 'TYP2014', 'TTES HISPALIS 2016': 'HISPALIS', 'TRANSMARGAZ 2018': 'TRANSMARGAZ' };
+function _decaNrm(t) { return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, ''); }
+
 // v598: las matrículas se limpian solas al guardar. Fuera espacios, guiones, puntos y
 // cualquier signo raro, y todo a MAYÚSCULAS. Si no, el filtro de matrícula del listado
 // no encuentra nada y el PDF sale feo. Ejemplo: " 1234-abc " → "1234ABC".
@@ -33414,6 +33435,7 @@ async function loadDecaData() {
       .limit(1000);
     if (error) throw error;
     _decaLista = data || [];
+    await _decaCargarSubs();   // v603
     _decaPintarFiltros();
     _decaRender();
   } catch (e) {
@@ -33530,9 +33552,14 @@ function openDecaModal(id) {
     `<option value="${k}"${d && d.empresa === k ? ' selected' : ''}>${k}</option>`).join('');
   // El transportista efectivo puede ser una de nuestras empresas o un subcontratado.
   const esNuestro = !d || Object.keys(DECA_EMPRESAS).some(k => DECA_EMPRESAS[k].nif === d.trans_nif);
-  const opcTrans = Object.keys(DECA_EMPRESAS).map(k =>
-    `<option value="${k}"${d && DECA_EMPRESAS[k].nif === d.trans_nif ? ' selected' : ''}>${k}</option>`).join('') +
-    `<option value="_OTRO"${!esNuestro ? ' selected' : ''}>OTRO (subcontratado, a mano)</option>`;
+  // v603: subcontratado habitual reconocido por NIF (o por razón social si el NIF está vacío)
+  const subSel = d && !esNuestro ? _decaSubs.find(x => (x.nif && x.nif === d.trans_nif) || (!x.nif && x.razon_social === d.trans_nombre)) : null;
+  const opcSubs = _decaSubs.filter(x => x.activo !== false).map(x =>
+    `<option value="S:${x.id}"${subSel && subSel.id === x.id ? ' selected' : ''}>${esc(x.nombre)}${x.nif ? '' : ' (faltan datos)'}</option>`).join('');
+  const opcTrans = `<optgroup label="Nuestras empresas">` + Object.keys(DECA_EMPRESAS).map(k =>
+    `<option value="${k}"${d && DECA_EMPRESAS[k].nif === d.trans_nif ? ' selected' : ''}>${k}</option>`).join('') + `</optgroup>` +
+    (opcSubs ? `<optgroup label="Subcontratados habituales">${opcSubs}</optgroup>` : '') +
+    `<option value="_OTRO"${!esNuestro && !subSel ? ' selected' : ''}>OTRO (a mano)</option>`;
 
   document.getElementById('decaModalTitulo').textContent = d
     ? 'DeCA ' + (d.numero || '') + (d.anulado ? ' · ANULADO' : '')
@@ -33560,7 +33587,11 @@ function openDecaModal(id) {
     <div style="font-weight:800;color:var(--ok);font-size:12px;border-bottom:2px solid var(--ok);padding-bottom:4px;margin-bottom:10px">2 · TRANSPORTISTA EFECTIVO (quien hace el porte)</div>
     <div class="fg" style="margin-bottom:10px"><label class="fl">¿Quién lo hace?</label>
       <select class="fi" id="decaF_transSel" onchange="_decaAutoTrans('trans')">${opcTrans}</select>
-      <div style="font-size:10px;color:var(--mu);margin-top:3px">Si eliges una empresa nuestra, arriba se pone la misma. Elige OTRO para un subcontratado.</div></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:3px">Si eliges una empresa nuestra, arriba se pone la misma. Los subcontratados habituales se rellenan solos (se mantienen en 👥 Subcontratados). OTRO para uno ocasional.</div>
+      <div id="decaSubAviso" style="display:none;background:#fff8e1;border:1px solid var(--wn);border-radius:8px;padding:8px 10px;font-size:11px;margin-top:8px">
+        <strong>Subcontratación:</strong> el cargador contractual pasas a ser tú (la empresa del grupo de arriba). El cliente final (planta, cantera u obra) va en Observaciones.
+        <button type="button" class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="_decaMiEmpresaCargador()">Poner mi empresa en el bloque 1</button>
+      </div></div>
     <div class="fg" style="margin-bottom:10px"><label class="fl">Nombre o razón social</label>
       <input class="fi" id="decaF_trans_nombre" value="${v('trans_nombre')}"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -33582,7 +33613,7 @@ function openDecaModal(id) {
       <div class="fg"><label class="fl">Bultos (si los hay)</label><input class="fi" id="decaF_bultos" value="${v('bultos')}" placeholder="opcional"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" value="${v('tractora')}" style="text-transform:uppercase"></div>
+      <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" value="${v('tractora')}" style="text-transform:uppercase" onchange="_decaPorMatricula()"></div>
       <div class="fg"><label class="fl">Matrícula semirremolque</label><input class="fi" id="decaF_semirremolque" value="${v('semirremolque')}" style="text-transform:uppercase" placeholder="opcional"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -33625,8 +33656,11 @@ function _decaAutoTrans(origen) {
     selEmp.value = sel.value;                 // abajo manda: el documento es de esa empresa
   }
   const k = sel.value;
-  const bloquear = k !== '_OTRO';
   const e = DECA_EMPRESAS[k];
+  // v603: subcontratado habitual → se rellena con sus datos pero se deja EDITABLE
+  // (por si falta el NIF o la autorización y hay que completarlo en el momento).
+  const sub = k.startsWith('S:') ? _decaSubs.find(x => 'S:' + x.id === k) : null;
+  const bloquear = !!e;
   ['trans_nombre', 'trans_nif', 'trans_domicilio', 'trans_autorizacion'].forEach(c => {
     const el = document.getElementById('decaF_' + c);
     if (el) el.readOnly = bloquear;
@@ -33636,6 +33670,100 @@ function _decaAutoTrans(origen) {
     document.getElementById('decaF_trans_nif').value = e.nif;
     document.getElementById('decaF_trans_domicilio').value = e.dom;
     document.getElementById('decaF_trans_autorizacion').value = e.aut;
+  } else if (sub) {
+    document.getElementById('decaF_trans_nombre').value = sub.razon_social || sub.nombre || '';
+    document.getElementById('decaF_trans_nif').value = sub.nif || '';
+    document.getElementById('decaF_trans_domicilio').value = sub.domicilio || '';
+    document.getElementById('decaF_trans_autorizacion').value = sub.autorizacion || '';
+    if (!sub.nif || !sub.autorizacion) toast('A ' + sub.nombre + ' le faltan datos (NIF/autorización). Complétalos aquí o en 👥 Subcontratados', 'warn');
+  }
+  const aviso = document.getElementById('decaSubAviso');
+  if (aviso) aviso.style.display = e ? 'none' : '';
+}
+
+// v603: en subcontratación, el cargador contractual somos nosotros (la empresa
+// del grupo elegida arriba). Este botón rellena el bloque 1 con esos datos.
+function _decaMiEmpresaCargador() {
+  const selEmp = document.getElementById('decaF_empresa');
+  const e = selEmp && DECA_EMPRESAS[selEmp.value];
+  if (!e) return;
+  document.getElementById('decaF_carg_nombre').value = e.nombre;
+  document.getElementById('decaF_carg_nif').value = e.nif;
+  document.getElementById('decaF_carg_domicilio').value = e.dom;
+  toast('Bloque 1 rellenado con ' + selEmp.value);
+}
+
+// v603: al escribir la matrícula tractora, si está en matriculas_aprendidas se elige
+// solo el transportista (empresa nuestra o subcontratado habitual). Solo avisa, no
+// impide corregirlo a mano después.
+function _decaPorMatricula() {
+  const mat = _decaMatricula((document.getElementById('decaF_tractora') || {}).value);
+  const sel = document.getElementById('decaF_transSel');
+  if (!mat || !sel || typeof MATRICULAS_APRENDIDAS === 'undefined') return;
+  const t = MATRICULAS_APRENDIDAS[mat];
+  if (!t) return;
+  const nuestra = Object.keys(_DECA_NUESTRAS).find(n => _decaNrm(n) === _decaNrm(t));
+  if (nuestra) {
+    sel.value = _DECA_NUESTRAS[nuestra];
+  } else {
+    const sub = _decaSubs.find(x => x.activo !== false && _decaNrm(x.nombre) === _decaNrm(t));
+    if (!sub) { toast('Matrícula ' + mat + ' es de ' + t + ', pero no está en 👥 Subcontratados', 'warn'); return; }
+    sel.value = 'S:' + sub.id;
+  }
+  _decaAutoTrans('trans');
+  toast('Matrícula ' + mat + ' → ' + t);
+}
+
+// ---- v603: mantenimiento de la lista de subcontratados habituales ----
+function openDecaSubs() {
+  const box = document.getElementById('decaSubsBox');
+  if (!box) return;
+  const fila = (x, i) => `
+    <tr data-id="${x.id || ''}" data-i="${i}">
+      <td><input class="fi" style="font-size:11px" value="${esc(x.nombre || '')}" data-c="nombre" placeholder="Nombre corto (como en Albaranes)"></td>
+      <td><input class="fi" style="font-size:11px" value="${esc(x.razon_social || '')}" data-c="razon_social" placeholder="Razón social completa"></td>
+      <td><input class="fi" style="font-size:11px;width:110px" value="${esc(x.nif || '')}" data-c="nif" placeholder="NIF"></td>
+      <td><input class="fi" style="font-size:11px" value="${esc(x.domicilio || '')}" data-c="domicilio" placeholder="Domicilio"></td>
+      <td><input class="fi" style="font-size:11px;width:110px" value="${esc(x.autorizacion || '')}" data-c="autorizacion" placeholder="Nº autorización"></td>
+      <td style="text-align:center"><input type="checkbox" data-c="activo"${x.activo === false ? '' : ' checked'}></td>
+    </tr>`;
+  box.innerHTML = `
+    <div style="font-size:11px;color:var(--mu);margin-bottom:8px">El <strong>nombre corto</strong> debe ser el mismo que en Albaranes (ej. "JOSE MIGUEL VALLDEPEREZ"): así la matrícula lo encuentra sola. Desmarca "activo" para ocultar uno sin borrarlo.</div>
+    <div style="overflow:auto"><table class="tbl" style="width:100%;font-size:11px"><thead><tr>
+      <th>Nombre corto</th><th>Razón social</th><th>NIF</th><th>Domicilio</th><th>Autorización</th><th>Activo</th></tr></thead>
+      <tbody id="decaSubsBody">${_decaSubs.map(fila).join('')}</tbody></table></div>
+    <button class="btn bs" style="margin-top:8px;font-size:10px" onclick="_decaSubsAddFila()">➕ Añadir otro</button>`;
+  document.getElementById('ovDecaSubs').classList.add('open');
+}
+function _decaSubsAddFila() {
+  const tb = document.getElementById('decaSubsBody');
+  if (!tb) return;
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-id', '');
+  tr.innerHTML = ['nombre', 'razon_social', 'nif', 'domicilio', 'autorizacion'].map(c =>
+    `<td><input class="fi" style="font-size:11px" data-c="${c}"></td>`).join('') +
+    `<td style="text-align:center"><input type="checkbox" data-c="activo" checked></td>`;
+  tb.appendChild(tr);
+}
+function closeDecaSubs() { document.getElementById('ovDecaSubs').classList.remove('open'); }
+async function saveDecaSubs() {
+  const filas = [...document.querySelectorAll('#decaSubsBody tr')].map(tr => {
+    const g = c => { const el = tr.querySelector('[data-c="' + c + '"]'); return el ? (c === 'activo' ? el.checked : el.value.trim()) : ''; };
+    const r = { nombre: g('nombre').toUpperCase(), razon_social: g('razon_social'), nif: g('nif').toUpperCase() || null,
+      domicilio: g('domicilio') || null, autorizacion: g('autorizacion') || null, activo: g('activo') };
+    if (tr.getAttribute('data-id')) r.id = tr.getAttribute('data-id');
+    return r;
+  }).filter(r => r.nombre);
+  for (const r of filas) if (!r.razon_social) r.razon_social = r.nombre;
+  try {
+    const { error } = await sb.from('deca_transportistas').upsert(filas, { onConflict: 'id' });
+    if (error) throw error;
+    await _decaCargarSubs();
+    closeDecaSubs();
+    toast('✓ ' + filas.length + ' subcontratados guardados');
+  } catch (e) {
+    console.error('[saveDecaSubs]', e);
+    toast('Error guardando: ' + (e.message || e), 'err');
   }
 }
 
