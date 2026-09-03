@@ -33699,9 +33699,11 @@ function _decaMiEmpresaCargador() {
 function _decaPorMatricula() {
   const mat = _decaMatricula((document.getElementById('decaF_tractora') || {}).value);
   const sel = document.getElementById('decaF_transSel');
-  if (!mat || !sel || typeof MATRICULAS_APRENDIDAS === 'undefined') return;
-  const t = MATRICULAS_APRENDIDAS[mat];
-  if (!t) return;
+  if (!mat || !sel) return;
+  // v604: getTransportista() mira la lista fija del código Y las aprendidas en BD
+  // (la v603 solo miraba las aprendidas y 4556JKS, que está en la fija, no saltaba).
+  const t = (typeof getTransportista === 'function') ? getTransportista(mat) : null;
+  if (!t) { toast('Matrícula ' + mat + ' no está en el mapa de transportistas', 'warn'); return; }
   const nuestra = Object.keys(_DECA_NUESTRAS).find(n => _decaNrm(n) === _decaNrm(t));
   if (nuestra) {
     sel.value = _DECA_NUESTRAS[nuestra];
