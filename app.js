@@ -10448,7 +10448,9 @@ function girarImg(elId) {
   // v107GP: si es una IMAGEN (no canvas/PDF) y está girada, ofrecemos GUARDAR el giro,
   // para que quede enderezada para siempre y todos la vean bien. El botón aparece solo
   // cuando hay giro pendiente (ang !== 0).
-  if (el.tagName === 'IMG') {
+  // v605: también para el CANVAS del PDF (pdfPreviewCanvas). Al guardar, la página se
+  // convierte a JPG enderezado (archivo nuevo); el PDF original no se toca.
+  if (el.tagName === 'IMG' || el.id === 'pdfPreviewCanvas') {
     _mostrarBotonGuardarGiro(el, ang);
   }
 }
@@ -10485,19 +10487,39 @@ async function _guardarGiroImagen(img) {
   const btn = document.getElementById('btnGuardarGiro');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
   try {
-    // 1) Cargar la imagen original en un canvas y rotarla los grados pendientes.
+    // 1) Cargar la fuente original y rotarla los grados pendientes.
+    //    v605: si es el canvas del PDF, re-renderizamos esa página del PDF a buena
+    //    resolución (escala 2) en un canvas aparte y giramos eso. Si es imagen, como antes.
     const src = r.file_url;
-    const imgEl = new Image();
-    imgEl.crossOrigin = 'anonymous';
-    await new Promise((res, rej) => { imgEl.onload = res; imgEl.onerror = () => rej(new Error('No se pudo cargar la imagen')); imgEl.src = src; });
+    const esPdf = (img.tagName === 'CANVAS');
+    let fuente, fw, fh;
+    if (esPdf) {
+      if (typeof pdfjsLib === 'undefined') throw new Error('Visor PDF no disponible');
+      const pageMatch = String(src).match(/#page=(\d+)/);
+      const pageNum = pageMatch ? parseInt(pageMatch[1]) : 1;
+      const cleanUrl = String(src).split('#')[0];
+      const pdf = await pdfjsLib.getDocument(_pdfOpts({ url: cleanUrl })).promise;
+      const page = await pdf.getPage(pageNum > 0 && pageNum <= pdf.numPages ? pageNum : 1);
+      const vp = page.getViewport({ scale: 2 });
+      const tmp = document.createElement('canvas');
+      tmp.width = vp.width; tmp.height = vp.height;
+      await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+      fuente = tmp; fw = tmp.width; fh = tmp.height;
+    } else {
+      const imgEl = new Image();
+      imgEl.crossOrigin = 'anonymous';
+      await new Promise((res, rej) => { imgEl.onload = res; imgEl.onerror = () => rej(new Error('No se pudo cargar la imagen')); imgEl.src = src; });
+      fuente = imgEl; fw = imgEl.naturalWidth; fh = imgEl.naturalHeight;
+    }
     const rad = ang * Math.PI / 180;
     const canvas = document.createElement('canvas');
-    if (ang === 90 || ang === 270) { canvas.width = imgEl.naturalHeight; canvas.height = imgEl.naturalWidth; }
-    else { canvas.width = imgEl.naturalWidth; canvas.height = imgEl.naturalHeight; }
+    if (ang === 90 || ang === 270) { canvas.width = fh; canvas.height = fw; }
+    else { canvas.width = fw; canvas.height = fh; }
     const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(rad);
-    ctx.drawImage(imgEl, -imgEl.naturalWidth / 2, -imgEl.naturalHeight / 2);
+    ctx.drawImage(fuente, -fw / 2, -fh / 2);
     // 2) Convertir a JPEG.
     const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
     if (!blob) throw new Error('No se pudo generar la imagen girada');
@@ -10507,13 +10529,15 @@ async function _guardarGiroImagen(img) {
     // (…_giro<timestamp>.jpg) y luego actualizamos el albarán para que apunte a este.
     let pathBase = r.storage_path;
     if (!pathBase) {
-      const m = String(src).match(/\/documentos\/(.+?)(\?|$)/);
-      pathBase = m ? decodeURIComponent(m[1]) : null;
+      // v605: _docPartir corta en '?' Y en '#' (el regex antiguo se tragaba #page=N).
+      const _p = _docPartir(src);
+      pathBase = _p ? _p.ruta : null;
     }
     if (!pathBase) throw new Error('No se encontró la ruta del archivo');
-    // nombre nuevo: misma carpeta, sufijo _giroNNN.jpg
+    // nombre nuevo: misma carpeta, sufijo _giroNNN.jpg (en PDF, con la página: _pN_giroNNN.jpg)
     const sinExt = pathBase.replace(/\.[^./]+$/, '');
-    const nuevoPath = sinExt + '_giro' + Date.now() + '.jpg';
+    const _pgm = esPdf ? String(src).match(/#page=(\d+)/) : null;
+    const nuevoPath = sinExt + (_pgm ? '_p' + _pgm[1] : '') + '_giro' + Date.now() + '.jpg';
     const { error: upErr } = await sb.storage.from('documentos').upload(nuevoPath, blob, { contentType: 'image/jpeg' });
     if (upErr) throw upErr;
     const { data: pub } = sb.storage.from('documentos').getPublicUrl(nuevoPath);
@@ -10531,11 +10555,34 @@ async function _guardarGiroImagen(img) {
     // pero en memoria y en el <img> va la firmada, que es la que se ve.
     const _urlVista = await firmarUno(nuevaUrl);
     r.file_url = _urlVista;
-    img.src = _urlVista;
-    img.style.transform = 'rotate(0deg)';
-    img.style.margin = '0 auto';
     window._rotState[img.id] = 0;
     if (btn) btn.remove();
+    if (esPdf) {
+      // v605: el albarán ya es una imagen JPG → repintamos el visor como imagen
+      // (con sus botones de zoom/giro de imagen) sin cerrar el modal ni perder lo editado.
+      const _prev = document.getElementById('mPreview');
+      if (_prev) {
+        _prev.innerHTML = `
+        <div id="pdfZoomWrap" class="pdf-zoom-wrap" data-is-img="1">
+          <div class="pdf-zoom-controls">
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrap',-1)" title="Reducir">🔍−</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgReset('pdfZoomWrap')" title="Tamaño original">↺</button>
+            <button class="pdf-zoom-btn" onclick="zoomImgBtn('pdfZoomWrap',1)" title="Ampliar">🔍+</button>
+            <button class="pdf-zoom-btn" onclick="girarImg('zoomedImg')" title="Girar 90°">🔄</button>
+            <span class="pdf-zoom-info">100%</span>
+          </div>
+          <img src="${_urlVista}" id="zoomedImg" alt="Albarán" style="display:block;margin:0 auto;max-width:100%;height:auto;cursor:pointer;transition:transform .15s" onclick="window.open('${_urlVista}','_blank')">
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">🔍 Usa los botones <strong style="color:var(--ac)">+</strong> y <strong style="color:var(--ac)">−</strong> para hacer zoom</span>
+          <a href="${_urlVista}" target="_blank" class="preview-btn">📄 Abrir documento original</a>
+        </div>`;
+      }
+    } else {
+      img.src = _urlVista;
+      img.style.transform = 'rotate(0deg)';
+      img.style.margin = '0 auto';
+    }
     toast('✅ Giro guardado. El albarán queda enderezado para todos.', 'ok');
   } catch (e) {
     console.error('[v107GP] Error guardando giro:', e);
