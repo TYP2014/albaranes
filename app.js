@@ -5843,7 +5843,20 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
         body: JSON.stringify(bodyEsteIntento),
         signal: signal
       });
-      if (res.ok) return res;
+      if (res.ok) {
+        // v606 (05/09/2026): CHIVATO DE CACHÉ. Solo informa en la consola (F12) de cuánto
+        // del prompt se ESCRIBIÓ en caché, cuánto se LEYÓ de caché y cuánto fue sin caché.
+        // Se lee una COPIA de la respuesta (clone) para no gastar el cuerpo que usa quien
+        // llama. No cambia nada de lo que se manda ni de lo que se devuelve.
+        try {
+          res.clone().json().then(d => {
+            const u = d && d.usage;
+            if (!u) return;
+            console.log(`[v606 caché IA${etiqueta ? ' ' + etiqueta : ''}] modelo ${modeloActual || '?'} · escrito en caché: ${u.cache_creation_input_tokens || 0} · LEÍDO de caché: ${u.cache_read_input_tokens || 0} · sin caché: ${u.input_tokens || 0} · salida: ${u.output_tokens || 0}`);
+          }).catch(() => {});
+        } catch (e) {}
+        return res;
+      }
       // 529 = Overloaded, 429 = Rate limit, 500/503 = errores temporales del servidor
       const esTemporal = res.status === 529 || res.status === 429 || res.status === 500 || res.status === 503;
       if (esTemporal && intento < esperasBase.length) {
