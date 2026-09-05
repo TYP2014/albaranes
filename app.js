@@ -5852,7 +5852,8 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
           res.clone().json().then(d => {
             const u = d && d.usage;
             if (!u) return;
-            console.log(`[v606 caché IA${etiqueta ? ' ' + etiqueta : ''}] modelo ${modeloActual || '?'} · escrito en caché: ${u.cache_creation_input_tokens || 0} · LEÍDO de caché: ${u.cache_read_input_tokens || 0} · sin caché: ${u.input_tokens || 0} · salida: ${u.output_tokens || 0}`);
+            const cc = u.cache_creation || {};
+            console.log(`[v606 caché IA${etiqueta ? ' ' + etiqueta : ''}] modelo ${modeloActual || '?'} · escrito en caché: ${u.cache_creation_input_tokens || 0} (1h: ${cc.ephemeral_1h_input_tokens || 0} · 5m: ${cc.ephemeral_5m_input_tokens || 0}) · LEÍDO de caché: ${u.cache_read_input_tokens || 0} · sin caché: ${u.input_tokens || 0} · salida: ${u.output_tokens || 0}`);
           }).catch(() => {});
         } catch (e) {}
         return res;
@@ -6216,10 +6217,13 @@ SOLO JSON válido, sin markdown.`;
     // v450: si la página venía de un PDF con texto, va detrás de la imagen como
     // CHULETA. Manda la IMAGEN salvo que en ella no se lea algo: entonces el texto
     // desempata. Así se recuperan los PDFs que se pintan en garabatos.
+    // v607 (05/09/2026): ttl '1h'. Medido con la v606: el manual son 36.869 tokens y la
+    // caché de 5 min solo acierta cuando dos albaranes van seguidos; con 1 hora, casi
+    // todos los de la jornada entran en una caché ya escrita (escribir cuesta 2x, leer 0,1x).
     { model: modelo, max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: (
       textoPdf
-        ? [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock, { type: 'text', text: 'TEXTO INTERNO DEL PDF (copiado tal cual del fichero, sin pasar por la foto). Úsalo SOLO como APOYO: manda lo que se ve en la imagen, pero si en la imagen algún dato sale ilegible o con símbolos raros, cógelo de aquí. Ojo: aquí el orden de las palabras puede estar desordenado, así que no deduzcas posiciones ni "lo de arriba/abajo" de este texto, solo valores sueltos (matrículas, nº de albarán, fechas, pesos, nombres).\n\n' + textoPdf }]
-        : [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }, contentBlock]
+        ? [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral', ttl: '1h' } }, contentBlock, { type: 'text', text: 'TEXTO INTERNO DEL PDF (copiado tal cual del fichero, sin pasar por la foto). Úsalo SOLO como APOYO: manda lo que se ve en la imagen, pero si en la imagen algún dato sale ilegible o con símbolos raros, cógelo de aquí. Ojo: aquí el orden de las palabras puede estar desordenado, así que no deduzcas posiciones ni "lo de arriba/abajo" de este texto, solo valores sueltos (matrículas, nº de albarán, fechas, pesos, nombres).\n\n' + textoPdf }]
+        : [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral', ttl: '1h' } }, contentBlock]
     ) }] },
     key, signal, 'callClaudeAlb ' + modelo
   );
