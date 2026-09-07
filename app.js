@@ -14013,6 +14013,87 @@ function hideItvBannerToday() {
   toast('Aviso ITV ocultado hasta mañana');
 }
 
+// ============================================================
+// v608 — AVISO GLOBAL DE LAS CITAS DE ITV YA COGIDAS (HOY / MAÑANA / 2 / 3 DÍAS).
+// JC (07/09/2026): "tenemos los avisos de las ITV caducadas, pero no nos salen
+// los avisos de las citas ya cogidas... que a 3, 2 y 1 día nos avise".
+// Calcado del aviso de citas de taller oficial (renderCitasGlobalBanner, v358/v543):
+// una linea por nivel, de lo mas urgente a lo menos, con ✕ que oculta ESE nivel
+// hasta mañana y boton que salta directo a la lista de citas dentro de ITV.
+// Usa _citaEstado (el mismo semaforo de la tabla de citas), asi la barra y la
+// tabla no pueden discrepar. Las citas pasadas ya se borran solas (v537/v539).
+// ============================================================
+const ITVCITA_BANNER_HIDE_KEY = 'itvcita_banner_hidden_date';
+
+function irACitasItv() {
+  try { switchTab('itv'); } catch (e) {}
+  setTimeout(() => {
+    const box = document.getElementById('citasTableBox');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 350);
+}
+
+function hideItvCitasBannerToday(nivel) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (nivel) localStorage.setItem(ITVCITA_BANNER_HIDE_KEY + '_' + nivel, hoy);
+  else ['hoy','d1','d2','d3'].forEach(k => localStorage.setItem(ITVCITA_BANNER_HIDE_KEY + '_' + k, hoy));
+  renderItvCitasBanner();
+}
+
+function renderItvCitasBanner() {
+  const banner = document.getElementById('itvCitasBanner');
+  if (!banner) return;
+  if (!window._tieneITV) { banner.style.display = 'none'; return; }
+  if (!Array.isArray(itvCitasRecords) || !itvCitasRecords.length) { banner.style.display = 'none'; return; }
+
+  const grupos = { hoy: [], d1: [], d2: [], d3: [] };
+  itvCitasRecords.forEach(r => {
+    const e = _citaEstado(r);
+    if (e.dias === null || e.dias < 0) return;
+    if (e.dias === 0) grupos.hoy.push(r);
+    else if (e.dias === 1) grupos.d1.push(r);
+    else if (e.dias === 2) grupos.d2.push(r);
+    else if (e.dias === 3) grupos.d3.push(r);
+  });
+
+  // Mismos colores que el aviso de citas de taller (v543: fondo cargado + letra oscura, que se lea)
+  const niveles = [
+    { key:'hoy', color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE ITV HOY' },
+    { key:'d1',  color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE ITV MAÑANA' },
+    { key:'d2',  color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE ITV EN 2 DÍAS' },
+    { key:'d3',  color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE ITV EN 3 DÍAS' }
+  ];
+
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  let html = '';
+  for (const n of niveles) {
+    const lista = grupos[n.key];
+    if (!lista.length) continue;
+    if (localStorage.getItem(ITVCITA_BANNER_HIDE_KEY + '_' + n.key) === hoyStr) continue;
+
+    const detalle = lista.slice(0, 3).map(r => {
+      const cuando = r.fecha_cita ? String(r.fecha_cita).slice(0, 10).split('-').reverse().join('/') : '';
+      const hora = r.hora_cita ? ' ' + esc(r.hora_cita) : '';
+      const donde = r.centro ? ' · ' + esc(r.centro) : '';
+      return '<strong>' + esc(r.matricula || '¿?') + '</strong> (' + cuando + hora + donde + ')';
+    }).join(' · ');
+    const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
+    const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
+
+    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
+      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
+      '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
+      ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irACitasItv()">🛡️ Ver citas ITV</button>' +
+        '<button class="btn" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid ' + n.color + ';color:' + n.color + ';font-weight:700;line-height:1" onclick="hideItvCitasBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
+      '</div></div>';
+  }
+  if (!html) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  banner.innerHTML = html;
+  banner.style.display = 'block';
+}
+
 // v107AL: banner global de avisos de TALLER (mantenimientos vencidos o próximos).
 // Mismo patrón visual que el de ITV. Solo se muestra a quien tiene acceso a Taller.
 // Recorre TODAS las empresas que el usuario puede ver (no solo la subpestaña activa).
@@ -14383,6 +14464,7 @@ async function loadItvCitas() {
     itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id)).map(r => ({ ...r, db_id: r.id, _id: r.id }));
     try { await firmarCampo(itvCitasRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado citas:', e); }
     applyCitasFilters();
+    renderItvCitasBanner();   // v608: aviso global de las citas de ITV ya cogidas
     if (_borradas.length) {
       // Se dice QUE se ha borrado, no solo cuantas: si algun dia se cuela una
       // cita con el año mal escrito, JC la vera desaparecer y sabra cual era.
