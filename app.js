@@ -5742,7 +5742,7 @@ const MATRICULAS_VALIDAS = [
   '4586HTZ','4601KDV','4816LNY','5099LNP','5860JJK','6058JJJ','6558HWG','6892JXH','8046JJW','8180JJM',
   '8280NHJ','8466NGN','8554HWD','8680LPR','9217HWN','9346MNY','9632JLW',
   // Conductores autónomos
-  '2965JHW','4556JKS','6269HZZ','7007JML','4305JTZ','1365MNH',
+  '2965JHW','4556JKS','6269HZZ','7007JML','4305JTZ','1365MNH','3031MMJ',
   // ARIDFLOT
   '1213JCD','1437LDV','5174LJR','8585NBC','1532NHN',
   // T. REFRIGERADOS DOMINGUEZ
@@ -17920,7 +17920,8 @@ async function updateRole(uid, role) {
 const TRANSPORTISTAS_OFICIALES = [
   'TYP2014','TTES HISPALIS 2016','TRANSMARGAZ 2018','JOSE MIGUEL VALLDEPEREZ','FRANCISCO OCAÑA',
   'CIPRIAN IOAN BUSILA','ANTONIO MARTIN','JOAQUIN CAÑAS','MIGUEL A. GARCIA','ARIDFLOT',
-  'T. REFRIGERADOS DOMINGUEZ','T. SATIG 79','OP TRANS V.'
+  'T. REFRIGERADOS DOMINGUEZ','T. SATIG 79','OP TRANS V.',
+  'CARLOS ALACIO'  // v609 (08/09/2026): autónomo subcontratado por TYP2014, tractora 3031MMJ
 ];
 
 // v107K94 (Juan Carlos 17/06/2026): abreviaturas del transportista SOLO para la columna visual
@@ -17939,7 +17940,8 @@ const _ABREV_TRANSP = {
   'ARIDFLOT': 'Aridflot',
   'T. REFRIGERADOS DOMINGUEZ': 'R. Domínguez',
   'T. SATIG 79': 'Satig',
-  'OP TRANS V.': 'OP Trans'
+  'OP TRANS V.': 'OP Trans',
+  'CARLOS ALACIO': 'C. Alacio'  // v609
 };
 function _abrevTransp(t) {
   if (!t) return '—';
@@ -17988,6 +17990,7 @@ function fixTransportista(t) {
   if (/\bREFRIGERADOS\s*DOMI[NG]+UEZ\b|\bT\.\s*REFRIGERADOS\b/.test(u)) return 'T. REFRIGERADOS DOMINGUEZ';
   if (/\bSATIG\b/.test(u)) return 'T. SATIG 79';
   if (/\bOP\s*TRANS\b/.test(u)) return 'OP TRANS V.';
+  if (/\bALACIO\b/.test(u)) return 'CARLOS ALACIO';  // v609
   // No se reconoce → devolver tal cual (quedará marcado como "no oficial" en el modal)
   return t;
 }
@@ -18044,6 +18047,7 @@ let MATRICULAS_APRENDIDAS = {};
 // 116 matrículas mapeadas a los 13 transportistas oficiales. Cuando la IA procesa un albarán,
 // si la matrícula está aquí, sobrescribimos lo que leyó por el transportista oficial.
 const TRANSPORTISTAS = {
+  '3031MMJ':'CARLOS ALACIO',  // v609 (08/09/2026) autónomo, subcontratado por TYP2014
   '0001JBS':'OP TRANS V.','0444MYX':'T. REFRIGERADOS DOMINGUEZ','0471MKV':'T. SATIG 79',
   '0554NKM':'T. SATIG 79','0555NKM':'T. SATIG 79','0705JBB':'TRANSMARGAZ 2018',
   '0732NLY':'TRANSMARGAZ 2018','0742KMB':'TTES HISPALIS 2016','0755KMB':'TYP2014',
