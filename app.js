@@ -319,7 +319,9 @@ async function loadUserMap() {
       // SÍ deben poder subir ITV y crear citas. Las excluimos por id de usuario.
       const _ID_MARTA_ITV = '6f657be7-1edd-4d5d-9895-cc6777ebbca1';
       const _ID_MARIADELMAR_ITV = '5059731a-3e41-4578-b61e-96f20b6d8cc8';
-      const _esOficinaITV = (currentUser?.id === _ID_MARTA_ITV || currentUser?.id === _ID_MARIADELMAR_ITV);
+      // v611 (09/09/2026): Logística (Manuel, socio) también gestiona ITV: registros y citas.
+      const _ID_LOGISTICA_ITV = '92687ba2-a91f-401b-b08b-f1231b83dca9';
+      const _esOficinaITV = (currentUser?.id === _ID_MARTA_ITV || currentUser?.id === _ID_MARIADELMAR_ITV || currentUser?.id === _ID_LOGISTICA_ITV);
       window._itvSoloLectura = tienePermisoTaller && rolActual !== 'admin' && !_esOficinaITV;
       if (window._itvSoloLectura) {
         // Aplicar el blindaje en cuanto el DOM esté listo
