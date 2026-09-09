@@ -2128,6 +2128,8 @@ function _toggleModoSel() {
   // Excel de lo seleccionado: disponible para cualquiera que esté en modo selección.
   const btnExSel = document.getElementById('btnExcelSel');
   if (btnExSel) btnExSel.style.display = window._modoSel ? 'flex' : 'none';
+  const btnAnxSel = document.getElementById('btnAnexosSel'); // v616: anexos de los seleccionados en ZIP
+  if (btnAnxSel) btnAnxSel.style.display = window._modoSel ? 'flex' : 'none';
   // v107K26: "Nos han facturado" / "Pendiente de facturarnos" — solo Admin/Marta/María del Mar.
   const btnRec = document.getElementById('btnRecibidaSel');
   if (btnRec) btnRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
@@ -2169,6 +2171,8 @@ function _selUno() {
   if (spanFija) spanFija.textContent = n;
   const spanQFija = document.getElementById('selCountQFija'); // v277
   if (spanQFija) spanQFija.textContent = n;
+  const spanAnx = document.getElementById('selCountAnexos'); // v616
+  if (spanAnx) spanAnx.textContent = n;
 }
 
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
@@ -10800,7 +10804,7 @@ function renderTable() {
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
-      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : ''}" ${r.revisar_pago ? 'title="🟠 REVISAR ANTES DE ABONAR (sustituto ya pagado)"' : ''}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:1px;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver anexo', 2)}${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:700;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a>` : ''}</td>
+      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : ''}" ${r.revisar_pago ? 'title="🟠 REVISAR ANTES DE ABONAR (sustituto ya pagado)"' : ''}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : ''}">${r.albaran || '—'}</span>${(Array.isArray(r.anexos) && r.anexos.length > 0) ? `<a href="${esc(r.anexos[0].url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Ver anexo${r.anexos.length>1 ? ` (1 de ${r.anexos.length})` : ''}: ${esc(r.anexos[0].nombre || '')}" style="margin-left:6px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:1px;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver anexo', 2)}${r.anexos.length>1 ? `<sup style='color:var(--ac);font-size:10px;font-weight:700;margin-left:1px'>${r.anexos.length}</sup>` : ''}</a><span onclick="event.stopPropagation();_descargarAnexosAlb('${r.db_id || r._id}')" title="Descargar anexo${r.anexos.length>1 ? 's (ZIP)' : ''} directamente" style="cursor:pointer;margin-left:3px;vertical-align:middle">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--ac)', 'Descargar anexo', 2.2)}</span>` : ''}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
@@ -10930,6 +10934,115 @@ async function _descargarAlb(ev, id) {
     try { window.open(r.file_url, '_blank'); } catch (e2) {}
     toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v616 — DESCARGA DIRECTA DE ANEXOS (sin abrir el modal ni la pestaña).
+// JC: "ya sé que lo quiero descargar; tener que abrirlo y luego descargarlo
+// me lleva mucho tiempo, a mí y a cualquiera". Tres puertas:
+//   1) Lista: icono ⬇ junto al clip 📎 → descarga los anexos de ese albarán
+//      (1 anexo = fichero suelto; varios = ZIP).
+//   2) Modal: botón "⬇ Descargar" en cada anexo + "Descargar todos (ZIP)".
+//   3) Selección: botón "📎 Anexos ZIP (N)" → un ZIP con los anexos de todos
+//      los albaranes marcados, una carpeta por albarán.
+// Los anexos vienen ya FIRMADOS al cargar (firmarAdjuntos): usamos
+// a._urlFirmada || a.url. Sin permisos nuevos: quien ve el albarán ve el anexo.
+// ═══════════════════════════════════════════════════════════════════════
+function _anexoUrl(a) { return (a && (a._urlFirmada || a.url)) || ''; }
+function _lmpNombre(s) { return String(s || '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, ''); }
+function _carpetaAlb(r) {
+  return [_lmpNombre(r.albaran || 'sinNum'), _lmpNombre(r.tractora || ''), _lmpNombre(String(r.fecha || '').replace(/\//g, '-'))].filter(Boolean).join('_') || 'albaran';
+}
+function _bajarBlob(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+}
+async function _fetchAnexo(a) {
+  const u = _anexoUrl(a);
+  if (!u) throw new Error('sin url');
+  const resp = await fetch(u);
+  if (!resp.ok) throw new Error('descarga ' + resp.status);
+  return await resp.blob();
+}
+// Descarga uno o varios anexos: 1 → fichero suelto, varios → ZIP.
+async function _descargarAnexosDe(r, cuales) {
+  const lista = (Array.isArray(cuales) ? cuales : []).filter(a => _anexoUrl(a));
+  if (!lista.length) { toast('Este albarán no tiene anexos', 'err'); return; }
+  const carpeta = _carpetaAlb(r);
+  try {
+    if (lista.length === 1) {
+      const a = lista[0];
+      const blob = await _fetchAnexo(a);
+      const nombre = carpeta + '_' + _lmpNombre(a.nombre || 'anexo.pdf');
+      _bajarBlob(blob, nombre);
+      toast('⬇️ Descargando ' + nombre, 'ok');
+      return;
+    }
+    if (typeof JSZip === 'undefined') { toast('No se puede crear el ZIP (librería no cargada). Descarga los anexos uno a uno.', 'err'); return; }
+    toast('📦 Preparando ZIP con ' + lista.length + ' anexos…');
+    const zip = new JSZip();
+    let ok = 0;
+    for (let i = 0; i < lista.length; i++) {
+      try { zip.file(_lmpNombre(lista[i].nombre || ('anexo-' + (i + 1))), await _fetchAnexo(lista[i])); ok++; }
+      catch (e) { console.warn('Anexo no descargado', lista[i], e); }
+    }
+    if (!ok) throw new Error('ningún anexo descargado');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    _bajarBlob(blob, 'ANEXOS_' + carpeta + '.zip');
+    toast('⬇️ ZIP con ' + ok + ' anexo' + (ok === 1 ? '' : 's'), 'ok');
+  } catch (e) {
+    console.error('_descargarAnexosDe', e);
+    try { window.open(_anexoUrl(lista[0]), '_blank'); } catch (e2) {}
+    toast('Se abrió en otra pestaña (descarga directa no disponible)', 'warn');
+  }
+}
+// 1) Desde la LISTA (icono ⬇ junto al clip).
+async function _descargarAnexosAlb(id) {
+  try { await window._docFirmadoInicial; } catch (e) {}
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  await _descargarAnexosDe(r, Array.isArray(r.anexos) ? r.anexos : []);
+}
+// 2) Desde el MODAL: i = índice del anexo, o -1 = todos.
+async function _descargarAnexoModal(i) {
+  if (!editId) { toast('No hay albarán abierto', 'err'); return; }
+  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r) { toast('No hay albarán abierto', 'err'); return; }
+  const anexos = Array.isArray(r.anexos) ? r.anexos : [];
+  if (i === -1) return _descargarAnexosDe(r, anexos);
+  if (!anexos[i]) { toast('Anexo no encontrado', 'err'); return; }
+  return _descargarAnexosDe(r, [anexos[i]]);
+}
+// 3) Desde la SELECCIÓN: ZIP con los anexos de todos los marcados (carpeta por albarán).
+async function _descargarAnexosSeleccionados() {
+  const marcados = Array.from(document.querySelectorAll('.chk-sel:checked'));
+  const ids = marcados.map(c => c.getAttribute('data-id')).filter(Boolean);
+  if (!ids.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  if (typeof JSZip === 'undefined') { toast('No se puede crear el ZIP (librería no cargada).', 'err'); return; }
+  try { await window._docFirmadoInicial; } catch (e) {}
+  const conAnexos = ids.map(id => records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)))
+    .filter(r => r && Array.isArray(r.anexos) && r.anexos.some(a => _anexoUrl(a)));
+  if (!conAnexos.length) { toast('Ninguno de los ' + ids.length + ' albaranes marcados tiene anexos.', 'err'); return; }
+  const totalAnx = conAnexos.reduce((n, r) => n + r.anexos.filter(a => _anexoUrl(a)).length, 0);
+  toast('📦 Preparando ZIP: ' + totalAnx + ' anexos de ' + conAnexos.length + ' albaranes…');
+  const zip = new JSZip();
+  let ok = 0, fallos = 0;
+  for (const r of conAnexos) {
+    const carpeta = zip.folder(_carpetaAlb(r));
+    const anx = r.anexos.filter(a => _anexoUrl(a));
+    for (let i = 0; i < anx.length; i++) {
+      try { carpeta.file(_lmpNombre(anx[i].nombre || ('anexo-' + (i + 1))), await _fetchAnexo(anx[i])); ok++; }
+      catch (e) { fallos++; console.warn('Anexo no descargado', r.albaran, anx[i], e); }
+    }
+  }
+  if (!ok) { toast('No se pudo descargar ningún anexo.', 'err'); return; }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const hoy = new Date().toISOString().slice(0, 10);
+  _bajarBlob(blob, 'ANEXOS_' + conAnexos.length + '_albaranes_' + hoy + '.zip');
+  toast('⬇️ ZIP con ' + ok + ' anexos de ' + conAnexos.length + ' albaranes' + (fallos ? ' (' + fallos + ' fallaron)' : ''), 'ok');
 }
 
 
@@ -12068,7 +12181,8 @@ function openModal(id) {
           : '';
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--s2);border-radius:6px;margin-bottom:4px">
           <span style="flex:1;color:var(--fg);font-size:13px;display:flex;align-items:center;gap:6px">${_svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Anexo', 2)}<span>${nombre} ${fecha ? `<span style="color:var(--mu);font-size:11px">(${fecha})</span>` : ''}</span></span>
-          <a href="${esc(a._urlFirmada || a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">📥 Ver</a>
+          <a href="${esc(a._urlFirmada || a.url)}" target="_blank" rel="noopener" class="bm" style="background:#1f2a3a;color:#7cb8fc;border:1px solid #2f3a4a;border-radius:6px;padding:3px 8px;font-size:11px;text-decoration:none">👁 Ver</a>
+          <button type="button" class="bm" onclick="_descargarAnexoModal(${i})" title="Descargar este anexo sin abrirlo" style="background:#1f3a2a;color:#7cfcb0;border:1px solid #2f4a3a;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;margin-left:6px">⬇ Descargar</button>
           ${btnDel}
         </div>`;
       }).join('');
@@ -12086,6 +12200,7 @@ function openModal(id) {
   document.getElementById('mFields').innerHTML += `<div class="fg full" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--s3)">
     <label class="fl" style="font-size:13px;font-weight:600;color:var(--fg)">📎 ANEXOS <span style="color:var(--mu);font-weight:400">(${anexos.length})</span></label>
     <div id="anexosList">${anexosHTML}</div>
+    ${anexos.length > 1 ? `<button type="button" class="btn bs" onclick="_descargarAnexoModal(-1)" title="Descargar todos los anexos de este albarán en un ZIP" style="font-size:12px;padding:6px 12px;margin-right:8px">⬇ Descargar todos (ZIP)</button>` : ''}
     ${btnAnexo}
   </div>`;
   let footer = `<button class="btn br" id="btnDel" onclick="deleteRecord()">Eliminar</button>`;
