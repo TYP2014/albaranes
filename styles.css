@@ -584,3 +584,42 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #ovTallerMant [style*="font-size:11px"]{font-size:13px !important}
 #ovTallerMant [style*="font-size:12px"]{font-size:13.5px !important}
 #ovTallerMant [style*="font-size:14px"]{font-size:16px !important}
+/* v612: foto real de la ITV con la moneda APTO / NO APTO animada (Registro: cae y se queda en verde; Citas: gira sin decidirse) */
+.itvFoto{position:relative;width:100%;max-width:420px;aspect-ratio:1024/559;margin:0 auto 10px;border-radius:10px;overflow:hidden;box-shadow:0 6px 16px rgba(30,41,51,.18)}
+.itvFoto img{display:block;width:100%;height:100%;object-fit:cover}
+.itvCoinMove{position:absolute;width:15.6%;aspect-ratio:1;left:26.4%;top:12.5%}
+.itvCoinSpin{position:relative;width:100%;height:100%}
+.itvCoinFace{position:absolute;inset:0;transform:scaleX(1)}
+.itvCoinFace svg{width:100%;height:100%;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+.itvCoinBack{transform:scaleX(0)}
+/* REGISTRO: sale del pulgar, tres vueltas, cae con rebote y se queda en APTO */
+.itvFotoReg .itvCoinMove{animation:itvRegMueve 6s linear infinite}
+.itvFotoReg .itvCoinFace{animation:itvRegCaraA 6s ease-in-out infinite}
+.itvFotoReg .itvCoinBack{animation:itvRegCaraB 6s ease-in-out infinite}
+@keyframes itvRegMueve{
+  0%,6%{left:26.4%;top:12.5%}
+  13.5%{left:28.5%;top:7.4%}
+  20%{left:30.3%;top:3.7%}
+  33%{left:34%;top:.9%}
+  46%{left:37.6%;top:5%}
+  53%{left:39.5%;top:9.6%}
+  60%{left:41.5%;top:15.2%}
+  66%{left:41.5%;top:12%}
+  72%,100%{left:41.5%;top:15.2%}
+}
+@keyframes itvRegCaraA{0%{transform:scaleX(1)}6%{transform:scaleX(1)}10.5%{transform:scaleX(0)}19.5%{transform:scaleX(0)}24.0%{transform:scaleX(1)}28.5%{transform:scaleX(0)}37.5%{transform:scaleX(0)}42.0%{transform:scaleX(1)}46.5%{transform:scaleX(0)}55.5%{transform:scaleX(0)}60.0%{transform:scaleX(1)}100%{transform:scaleX(1)}}
+@keyframes itvRegCaraB{0%{transform:scaleX(0)}6%{transform:scaleX(0)}10.5%{transform:scaleX(0)}15.0%{transform:scaleX(1)}19.5%{transform:scaleX(0)}28.5%{transform:scaleX(0)}33.0%{transform:scaleX(1)}37.5%{transform:scaleX(0)}46.5%{transform:scaleX(0)}51.0%{transform:scaleX(1)}55.5%{transform:scaleX(0)}100%{transform:scaleX(0)}}
+/* CITAS: sube al aire y se queda girando sin decidirse */
+.itvFotoCita .itvCoinMove{animation:itvCitaSube 1.2s ease-out forwards,itvCitaFlota 3s ease-in-out 1.2s infinite}
+.itvFotoCita .itvCoinFace{animation:itvCitaCaraA 1.4s ease-in-out infinite}
+.itvFotoCita .itvCoinBack{animation:itvCitaCaraB 1.4s ease-in-out infinite}
+@keyframes itvCitaSube{from{left:26.4%;top:12.5%}to{left:41%;top:6%}}
+@keyframes itvCitaFlota{0%,100%{translate:0 0}50%{translate:0 -7%}}
+@keyframes itvCitaCaraA{0%{transform:scaleX(1)}25%{transform:scaleX(0)}75%{transform:scaleX(0)}100%{transform:scaleX(1)}}
+@keyframes itvCitaCaraB{0%{transform:scaleX(0)}25%{transform:scaleX(0)}50%{transform:scaleX(1)}75%{transform:scaleX(0)}100%{transform:scaleX(0)}}
+.dz:hover .itvFotoReg .itvCoinMove,.dz:hover .itvFotoReg .itvCoinFace{animation-duration:3.5s}
+@media (prefers-reduced-motion:reduce){
+  .itvFotoReg .itvCoinMove,.itvFotoCita .itvCoinMove{animation:none;left:41.5%;top:15.2%}
+  .itvFotoReg .itvCoinFace,.itvFotoCita .itvCoinFace{animation:none;transform:scaleX(1)}
+  .itvFotoReg .itvCoinBack,.itvFotoCita .itvCoinBack{animation:none;transform:scaleX(0)}
+}
