@@ -619,7 +619,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .itvFotoCita .itvCoinMove{animation:itvCitaSube 1.2s ease-out forwards,itvCitaFlota 3s ease-in-out 1.2s infinite}
 .itvFotoCita .itvCoinFace{animation:itvCitaCaraA 1.4s ease-in-out infinite}
 .itvFotoCita .itvCoinBack{animation:itvCitaCaraB 1.4s ease-in-out infinite}
-@keyframes itvCitaSube{from{left:26.4%;top:15.5%}to{left:41%;top:7.4%}}
+/* v615: en Citas la moneda ya no sale del pulgar; flota en el centro del halo de la foto nueva */
+.itvFotoCita .itvCoinMove{width:22%}
+@keyframes itvCitaSube{from{left:39%;top:21%}to{left:39%;top:21%}}
 @keyframes itvCitaFlota{0%,100%{translate:0 0}50%{translate:0 -7%}}
 @keyframes itvCitaCaraA{0%{transform:scaleX(1)}25%{transform:scaleX(0)}75%{transform:scaleX(0)}100%{transform:scaleX(1)}}
 @keyframes itvCitaCaraB{0%{transform:scaleX(0)}25%{transform:scaleX(0)}50%{transform:scaleX(1)}75%{transform:scaleX(0)}100%{transform:scaleX(0)}}
@@ -627,5 +629,6 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 @media (prefers-reduced-motion:reduce){
   .itvFotoReg .itvCoinMove,.itvFotoCita .itvCoinMove{animation:none;left:41.5%;top:18.8%}
   .itvFotoReg .itvCoinFace,.itvFotoCita .itvCoinFace{animation:none;transform:scaleX(1)}
+  .itvFotoCita .itvCoinMove{left:39%;top:21%}
   .itvFotoReg .itvCoinBack,.itvFotoCita .itvCoinBack{animation:none;transform:scaleX(0)}
 }
