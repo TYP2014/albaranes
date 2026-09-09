@@ -632,3 +632,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
   .itvFotoCita .itvCoinMove{left:39%;top:21%}
   .itvFotoReg .itvCoinBack,.itvFotoCita .itvCoinBack{animation:none;transform:scaleX(0)}
 }
+/* v617: boton de descarga directa de anexos en la lista de albaranes */
+.btn-anexo{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:999px;border:1px solid var(--ac);background:rgba(0,232,122,.10);color:var(--ac);font-family:var(--mn);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;line-height:1.3}
+.btn-anexo:hover{background:var(--ac);color:#0b1410}
+.btn-anexo b{font-size:11px}
