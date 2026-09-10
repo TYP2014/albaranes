@@ -21809,6 +21809,7 @@ async function saveTrabModal() {
     }
     closeTrabModal();
     await loadVacData();
+    if (typeof tacoPintarDesconocidos === 'function') { _tacoTrabajadores = null; tacoPintarDesconocidos(); }   // v620
   } catch (e) {
     console.error('[saveTrabModal] Error:', e);
     toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
@@ -29046,7 +29047,8 @@ function _tacoParseVU_G1(b) {
       for (let k = 0; k < niw; k++) {
         const r = p + k * 129;
         const ape = _tacoTxt(b, r, 36), nom = _tacoTxt(b, r + 36, 36);
-        cond.push({ nombre: (nom + ' ' + ape).trim(), entra: _tacoU32(b, r + 94), sale: _tacoU32(b, r + 102) });
+        // v620: ademas el TIPO (72: 1=conductor) y el Nº de tarjeta (74..89), para saber si esta de alta
+        cond.push({ nombre: (nom + ' ' + ape).trim(), entra: _tacoU32(b, r + 94), sale: _tacoU32(b, r + 102), ctipo: b[r + 72], tarj: _tacoTxt(b, r + 74, 16) });
       }
       p += niw * 129;
       const nac = _tacoU16(b, p); p += 2;
@@ -29159,7 +29161,7 @@ function _tacoParseVU_G2(b) {
               if (e > 500000000) entra = e;
               if (s2 > 500000000) sale = s2;
             }
-            cond.push({ nombre: (nom + ' ' + ape).trim(), entra, sale });
+            cond.push({ nombre: (nom + ' ' + ape).trim(), entra, sale, ctipo: b[r + 72], tarj: _tacoTxt(b, r + 74, 16) });   // v620
           }
         }
         if (a.rt === 0x01) {
@@ -29475,6 +29477,122 @@ async function _tacoRellenarTarjeta(r) {
 }
 
 // ============================================================
+// v620 (10/09/2026) · CONDUCTORES QUE NO ESTAN DADOS DE ALTA
+//
+// Control legal: nadie debe conducir un camion sin estar de alta. Cada vez
+// que se guarda una descarga (de tarjeta o de camion, la suba quien la
+// suba: JC, Marta o un robot remoto), se cruzan TODAS las tarjetas que
+// aparecen contra la tabla trabajadores (Vacaciones). Las que no cruzan
+// ni por nº de tarjeta ni por nombre se apuntan en tacografo_desconocidos
+// y salen en un CARTEL ROJO arriba de la pestaña Tacografo hasta que se
+// da de alta a esa persona (o se marca "ignorar": inspector, taller...).
+// Solo cuentan tarjetas de CONDUCTOR (tipo 1). Nunca se inventa nada.
+// ============================================================
+function _tacoRaiz14(x) { return (x || '').toUpperCase().replace(/\s/g, '').slice(0, 14); }
+
+async function _tacoApuntarDesconocidos(r, empresa) {
+  try {
+    if (!r) return;
+    const vistos = new Map();   // raiz -> { num, nombre, matricula, fecha }
+    if (r.tipo === 'conductor' && r.tarjeta_num) {
+      const R = _tacoRaiz14(r.tarjeta_num);
+      if (R.length === 14) vistos.set(R, { num: r.tarjeta_num.toUpperCase(), nombre: r.conductor || '', matricula: null, fecha: _tacoISO(r.hasta) });
+    } else if (r.tipo === 'vehiculo') {
+      (r.dias || []).forEach(d => {
+        const iso = _tacoISO(d.fecha);
+        (d.cond || []).forEach(c => {
+          if (c.ctipo !== undefined && c.ctipo !== 1) return;   // solo tarjetas de conductor
+          const R = _tacoRaiz14(c.tarj);
+          if (R.length !== 14 || !c.nombre) return;
+          const a = vistos.get(R);
+          if (!a || (iso || '') > (a.fecha || '')) vistos.set(R, { num: (c.tarj || '').toUpperCase(), nombre: c.nombre, matricula: r.matricula || null, fecha: iso });
+        });
+      });
+    }
+    if (!vistos.size) return;
+    _tacoTrabajadores = null;                       // fresco: por si se acaba de dar de alta a alguien
+    const trab = await _tacoCargarTrabajadores();
+    const conocidas = new Set(trab.map(t => _tacoRaiz14(t.tarjeta_num)).filter(x => x.length === 14));
+    for (const [R, v] of vistos) {
+      if (conocidas.has(R)) continue;
+      if (trab.some(t => _tacoMismoNombre(t.nombre, v.nombre))) continue;   // esta de alta, solo le falta el nº
+      const { data: ya } = await sb.from('tacografo_desconocidos').select('id, ultima_fecha, veces').eq('tarjeta_raiz', R).maybeSingle();
+      if (ya) {
+        const upd = { nombre: v.nombre, tarjeta_num: v.num, empresa: empresa || null, ultima_vez: new Date().toISOString(), veces: (ya.veces || 0) + 1, resuelto: false };
+        if ((v.fecha || '') >= (ya.ultima_fecha || '')) { upd.ultima_fecha = v.fecha; upd.ultima_matricula = v.matricula; }
+        await sb.from('tacografo_desconocidos').update(upd).eq('id', ya.id);
+      } else {
+        await sb.from('tacografo_desconocidos').insert({ tarjeta_raiz: R, tarjeta_num: v.num, nombre: v.nombre, empresa: empresa || null,
+          ultima_matricula: v.matricula, ultima_fecha: v.fecha, veces: 1 });
+      }
+      console.warn('[v620] CONDUCTOR SIN DAR DE ALTA:', v.nombre, v.num, v.matricula || '(tarjeta)', v.fecha);
+    }
+  } catch (e) {
+    console.warn('[v620] no se pudieron apuntar los desconocidos:', e.message || e);
+  }
+}
+
+async function tacoPintarDesconocidos() {
+  const box = document.getElementById('tacoDesconocidos');
+  if (!box) return;
+  try {
+    const { data, error } = await sb.from('tacografo_desconocidos').select('*').eq('ignorado', false).order('ultima_fecha', { ascending: false });
+    if (error) throw error;
+    const trab = await _tacoCargarTrabajadores();
+    const conocidas = new Set(trab.map(t => _tacoRaiz14(t.tarjeta_num)).filter(x => x.length === 14));
+    const lista = [];
+    for (const d of (data || [])) {
+      // si ya lo han dado de alta (por nº o por nombre), se cierra solo
+      if (conocidas.has(d.tarjeta_raiz) || trab.some(t => _tacoMismoNombre(t.nombre, d.nombre))) {
+        if (!d.resuelto) sb.from('tacografo_desconocidos').update({ resuelto: true, resuelto_el: new Date().toISOString() }).eq('id', d.id).then(() => {});
+        continue;
+      }
+      if (!_tacoEmpPasa(d)) continue;
+      lista.push(d);
+    }
+    if (!lista.length) { box.innerHTML = ''; return; }
+    const dmy = iso => iso ? iso.split('-').reverse().join('/') : '—';
+    box.innerHTML = `<div style="background:rgba(199,54,49,.09);border:2px solid rgba(199,54,49,.55);border-radius:11px;padding:12px 16px;margin-bottom:14px">
+      <div style="font-family:var(--ss);font-size:13px;font-weight:800;color:#9d2b27;letter-spacing:.6px;margin-bottom:8px">
+        ⛔ ${lista.length === 1 ? 'CONDUCTOR' : lista.length + ' CONDUCTORES'} SIN DAR DE ALTA — han metido su tarjeta en un camión y no están en Empleados</div>
+      ${lista.map(d => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:7px 0;border-top:1px solid rgba(199,54,49,.2);font-family:var(--ss);font-size:13px">
+          <b style="font-size:14px">${esc(d.nombre || '¿sin nombre?')}</b>
+          <span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">tarjeta ${esc(d.tarjeta_num || d.tarjeta_raiz)}</span>
+          <span>${d.ultima_matricula ? `🚛 <b>${esc(d.ultima_matricula)}</b> el ${dmy(d.ultima_fecha)}` : `📇 descarga de su tarjeta, hasta el ${dmy(d.ultima_fecha)}`}${d.empresa ? ` · ${_TACO_EMP_NOM[d.empresa] || d.empresa}` : ''}${(d.veces || 1) > 1 ? ` · visto ${d.veces} veces` : ''}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn bp" style="font-size:11.5px;padding:6px 10px" onclick="tacoDarDeAlta('${d.id}')">➕ Dar de alta</button>
+            <button class="btn bs" style="font-size:11.5px;padding:6px 10px" title="No es un conductor nuestro (inspector, taller, prueba...)" onclick="tacoIgnorarDesconocido('${d.id}')">Ignorar</button>
+          </span></div>`).join('')}
+    </div>`;
+  } catch (e) {
+    console.warn('[v620] no se pudo pintar el cartel de desconocidos:', e.message || e);
+    box.innerHTML = '';
+  }
+}
+
+async function tacoDarDeAlta(id) {
+  try {
+    const { data: d, error } = await sb.from('tacografo_desconocidos').select('*').eq('id', id).single();
+    if (error) throw error;
+    if (typeof openTrabajadorModal !== 'function') { toast('No tienes acceso a Empleados', 'err'); return; }
+    openTrabajadorModal(null);
+    const set = (k, v) => { const el = document.getElementById(k); if (el && v) el.value = v; };
+    set('trabF_nombre', d.nombre || '');
+    set('trabF_tarjeta', d.tarjeta_num || '');
+    set('trabF_empresa', d.empresa || '');
+    set('trabF_rol', 'Conductor');
+    toast('Ficha rellenada con los datos de la tarjeta: revisa, pon la empresa y guarda');
+  } catch (e) { toast('No se pudo abrir la ficha: ' + (e.message || e), 'err'); }
+}
+
+async function tacoIgnorarDesconocido(id) {
+  if (!confirm('¿Marcar esta tarjeta como "no es conductor nuestro"? Dejará de avisar.')) return;
+  const { error } = await sb.from('tacografo_desconocidos').update({ ignorado: true, resuelto_el: new Date().toISOString() }).eq('id', id);
+  if (error) { toast('No se pudo marcar: ' + error.message, 'err'); return; }
+  tacoPintarDesconocidos();
+}
+
+// ============================================================
 // TACOGRAFO — v385 (31/07/2026) · GUARDAR EL DIA A DIA
 //
 // Hasta ahora se guardaba el fichero y su ficha. Los dias se leian
@@ -29644,6 +29762,7 @@ function tacoEmpGlobal(emp) {
   if (document.getElementById('tacoRJquien')) tacoRepJornadasUI();   // informe abierto
   tacoSubTab(emp);                          // el ARCHIVO se pone en la misma empresa
   tacoPintarAvisos();                       // los avisos de descargas, tambien
+  tacoPintarDesconocidos();                 // v620
   // v460: VENCIMIENTOS tambien. Se me quedo fuera en la v457 y por eso al
   // cambiar de empresa seguian saliendo los camiones de todas mezclados
   // (cazado por JC: "estan mezclados, no diferencia empresa").
@@ -30299,6 +30418,7 @@ async function tacoGuardar() {
     }
 
     await _tacoRellenarTarjeta(r);          // v383
+    await _tacoApuntarDesconocidos(r, empresa);   // v620
     const nDias = await _tacoGuardarDias(r, empresa, dIns?.id);   // v385
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
@@ -30418,6 +30538,7 @@ async function tacoCargarLista() {
     });
     tacoPintarLista();
     tacoPintarAvisos();          // v377
+    tacoPintarDesconocidos();    // v620
   } catch (e) {
     console.error('[v374 tacografo] lista:', e);
     cont.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--erd);padding:14px">No se ha podido cargar el archivo: ${e.message || e}</div>`;
@@ -30540,6 +30661,7 @@ async function _tacoGuardarUno(it) {
       // v423: mismo agujero que en el flujo de uno en uno — el duplicado se iba
       // sin apuntar los dias. Ahora se (re)apuntan con la empresa YA guardada.
       await _tacoRellenarTarjeta(r);
+      await _tacoApuntarDesconocidos(r, ya.empresa || it.empresa);   // v620
       // v456: EL MISMO AGUJERO, OTRA VEZ, EN EL OTRO CAMINO. La v455 hizo que
       // los ficheros "que ya estaban" apuntaran la fecha de proxima revision,
       // pero solo en el flujo de UNO EN UNO. JC sube SIEMPRE varios a la vez,
@@ -30581,6 +30703,7 @@ async function _tacoGuardarUno(it) {
       throw eI;
     }
     await _tacoRellenarTarjeta(r);          // v383
+    await _tacoApuntarDesconocidos(r, it.empresa);   // v620
     it.nDias = await _tacoGuardarDias(r, it.empresa, dI?.id);   // v385
     return 'guardado';
   } catch (e) {
