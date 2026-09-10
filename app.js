@@ -15366,7 +15366,10 @@ REGLAS GENERALES
 ═══════════════════════════════════════════════════════════════
 
 ✅ Matrícula española formato moderno: 4 dígitos + 3 letras (ej: "1234BCD"). Convertir a mayúsculas, quitar espacios y paréntesis sufijos como "(E)".
+✅ SEMIRREMOLQUES: la matrícula EMPIEZA POR "R" seguida de 4 dígitos + 3 letras (ej: "R0000XXX"). La "R" FORMA PARTE de la matrícula: NUNCA la quites. Si el documento pone "R5090BDT(E)" la matrícula es "R5090BDT", NO "5090BDT". Copia la matrícula del documento, no estos ejemplos.
+✅ FECHAS ESPAÑOLAS: el orden es DÍA/MES/AÑO, SIEMPRE. "10/09/2026" es el 10 de SEPTIEMBRE de 2026 → "2026-09-10". NUNCA lo conviertas en "2026-10-09" (eso sería el 9 de octubre, formato americano, que NO se usa aquí). Cuando los dos números sean ≤ 12, el PRIMERO es el día.
 ✅ TODAS las fechas en formato ISO YYYY-MM-DD (convertir desde DD/MM/YYYY o DD-MM-YYYY).
+✅ Devuelve ADEMÁS las fechas TAL CUAL están escritas en el documento en "fecha_itv_texto" y "fecha_caducidad_texto" (ej: "10/09/2026"), sin convertir.
 ✅ Si una pegatina tiene "Caduca: 28/05/2026" → fecha_caducidad = "2026-05-28".
 ✅ NO inventes datos. Si no encuentras un campo claramente, ponlo a null.
 ✅ "tipo_documento" debe ser EXACTAMENTE uno de: "pegatina", "informe", "permiso".
@@ -15379,7 +15382,9 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 {
   "matricula": "1968JFV",
   "fecha_itv": "2025-11-11",
+  "fecha_itv_texto": "11/11/2025",
   "fecha_caducidad": "2026-05-28",
+  "fecha_caducidad_texto": "28/05/2026",
   "tipo_documento": "pegatina"
 }`;
 
@@ -15407,12 +15412,39 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   let text = data.content?.[0]?.text || '';
   // Limpiar markdown si lo hay
   text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  let out;
   try {
-    return JSON.parse(text);
+    out = JSON.parse(text);
   } catch (e) {
     console.error('[callClaudeItv] No se pudo parsear:', text);
     throw new Error('Respuesta IA inválida');
   }
+  // v623 (10/09/2026): FILTROS DEFENSIVOS EN CÓDIGO (el prompt no es fiable para
+  // lógica determinista). Caso real: informe con "10/09/2026" guardado como 2026-10-09
+  // (día y mes cambiados) y "R5090BDT(E)" guardado sin la R.
+  // 1) Las fechas se recalculan en código a partir del texto literal DD/MM/YYYY que
+  //    la IA devuelve en *_texto; si hay texto válido, MANDA sobre la conversión de la IA.
+  const _deTexto = t => {
+    const m = String(t || '').match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (!m) return null;
+    const d = +m[1], mo = +m[2];
+    if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+    return `${m[3]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  };
+  ['fecha_itv', 'fecha_caducidad'].forEach(k => {
+    const iso = _deTexto(out[k + '_texto']);
+    if (iso && iso !== out[k]) { console.warn(`[v623 ITV] ${k}: IA dijo ${out[k]}, el texto "${out[k + '_texto']}" manda → ${iso}`); out[k] = iso; }
+  });
+  // 2) Si aun así la caducidad queda ANTES de la fecha de ITV, es que van cambiados día/mes: se giran.
+  const _gira = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return (m && +m[3] <= 12) ? `${m[1]}-${m[3]}-${m[2]}` : iso; };
+  if (out.fecha_itv && out.fecha_caducidad && out.fecha_caducidad < out.fecha_itv) {
+    console.warn('[v623 ITV] caducidad anterior a la ITV, se giran día/mes:', out.fecha_itv, out.fecha_caducidad);
+    out.fecha_itv = _gira(out.fecha_itv); out.fecha_caducidad = _gira(out.fecha_caducidad);
+  }
+  // 3) Matrícula: mayúsculas, sin espacios ni "(E)". No se toca nada más: la R del
+  //    semirremolque la pone el prompt; si la IA la sigue quitando, se corrige a mano.
+  if (out.matricula) out.matricula = String(out.matricula).toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '');
+  return out;
 }
 
 // v212: FACTURAS EMITIDAS — Fase 2 (pestaña + lista). La subida por IA llegará en Fase 3.
