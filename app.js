@@ -9708,6 +9708,11 @@ function buildMultiSelect(listId, sumId, values, selectedSet, allLabel, plural) 
   const list = document.getElementById(listId);
   const sum = document.getElementById(sumId);
   if (!list || !sum) return;
+  // v621: orden ALFABÉTICO "humano" en TODOS los filtros: sin distinguir mayúsculas
+  // ni acentes (ÀRIDS junto a la A, Élite junto a la E) y con los números en orden
+  // natural (2 antes que 10). Antes era el orden de ordenador (mayúsculas primero,
+  // acentos al final) y no había quien encontrara nada.
+  values = [...values].sort((a, b) => String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' }));
   // Limpiar selecciones huérfanas (valores que ya no existen en los datos)
   [...selectedSet].forEach(v => { if (!values.includes(v)) selectedSet.delete(v); });
   let html = `<div class="fil-multi-actions">
@@ -18563,6 +18568,12 @@ const PROVEEDORES_CANONICOS = [
     'Tecnocatalana de Runes SL', 'Tecnocatalana de Runes',
     'TECNOCATALANA DE RUNES, SL', 'Tecnocatalana de Runes, SL',
     'Tecnocatalana'
+  ] },
+  // v621 (10/09/2026): Hercal Zero S.L. — proveedor (planta Hercal). JC lo tenía
+  // escrito a mano y salía "no oficial"; se incorpora a la lista.
+  { canon: 'Hercal Zero S.L.', alias: [
+    'HERCAL ZERO S.L.', 'HERCAL ZERO SL', 'Hercal Zero SL', 'Hercal Zero, S.L.', 'HERCAL ZERO, S.L.',
+    'Hercal Zero', 'HERCAL ZERO'
   ] },
   // v102: Sodira Iberia, S.L. — proveedor de áridos desde Cantera de Garraf a obra externa
   // (Puerto de Barcelona). Cabecera del albarán "SÔDIRA ROCAS INDUSTRIALES" (con acento
