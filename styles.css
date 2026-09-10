@@ -636,3 +636,14 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .btn-anexo{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:999px;border:1px solid var(--ac);background:rgba(0,232,122,.10);color:var(--ac);font-family:var(--mn);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;line-height:1.3}
 .btn-anexo:hover{background:var(--ac);color:#0b1410}
 .btn-anexo b{font-size:11px}
+
+/* v625: escena animada "el albaran salta a la nube" en la caja SUBIR ALBARANES (imagen de JC + personaje recortado) */
+.albFoto{position:relative;width:100%;max-width:640px;aspect-ratio:1040/685;margin:0 auto 12px;border-radius:14px;overflow:hidden;container-type:inline-size;box-shadow:0 6px 16px rgba(30,41,51,.14)}
+.albFoto .albBg{display:block;width:100%;height:100%;object-fit:cover}
+.albChar{position:absolute;left:0;top:0;width:24cqw;animation:albRun 8s ease-in-out infinite;will-change:transform}
+.albChar img{display:block;width:100%;height:auto;animation:albBob 8s linear infinite;transform-origin:50% 100%}
+.albGlow{position:absolute;left:70.5cqw;top:23cqw;width:18cqw;height:15cqw;border-radius:30%;background:radial-gradient(closest-side,rgba(120,200,255,.55),rgba(120,200,255,0));opacity:0;animation:albGlow 8s linear infinite}
+@keyframes albRun{0%,6%{transform:translate(-1.4cqw,21.3cqw) scale(1);opacity:1}24%{transform:translate(10.1cqw,21.1cqw) scale(1)}27%{transform:translate(13.5cqw,17.5cqw)}30%{transform:translate(16.8cqw,19.8cqw)}34%{transform:translate(27.5cqw,10cqw)}37%{transform:translate(38.5cqw,14cqw)}41%{transform:translate(45.5cqw,3.5cqw)}44%{transform:translate(52.9cqw,7.3cqw)}48%{transform:translate(60.5cqw,-5cqw) scale(.95)}52%{transform:translate(68cqw,-.5cqw) scale(.82);opacity:1}57%{transform:translate(69cqw,1cqw) scale(.6);opacity:0}58%{transform:translate(-1.4cqw,21.3cqw) scale(1);opacity:0}64%,100%{transform:translate(-1.4cqw,21.3cqw) scale(1);opacity:1}}
+@keyframes albBob{0%,6%{transform:translateY(0) rotate(0)}9%{transform:translateY(-1.2cqw) rotate(-3deg)}12%{transform:translateY(0) rotate(0)}15%{transform:translateY(-1.2cqw) rotate(-3deg)}18%{transform:translateY(0) rotate(0)}21%{transform:translateY(-1.2cqw) rotate(-3deg)}24%{transform:translateY(0) rotate(0)}27%{transform:rotate(6deg)}30%{transform:rotate(0) scaleY(.94)}31%{transform:scaleY(1)}34%{transform:rotate(8deg)}37%{transform:rotate(0) scaleY(.94)}38%{transform:scaleY(1)}41%{transform:rotate(8deg)}44%{transform:rotate(0) scaleY(.94)}45%{transform:scaleY(1)}48%{transform:rotate(10deg)}52%,100%{transform:rotate(0)}}
+@keyframes albGlow{0%,50%{opacity:0}53%{opacity:1}60%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.albChar,.albChar img,.albGlow{animation:none}.albChar{transform:translate(-1.4cqw,21.3cqw)}}
