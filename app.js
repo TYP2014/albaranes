@@ -21743,6 +21743,13 @@ function openTrabajadorModal(id) {
       <div class="fg"><label class="fl">Rol/Puesto</label><input class="fi" id="trabF_rol" value="${v('rol')}" placeholder="Conductor"></div>
       <div class="fg"><label class="fl">Fecha alta</label><input class="fi" type="date" id="trabF_alta" value="${t?.fecha_alta || ''}"></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">📞 Teléfono</label><input class="fi" type="tel" id="trabF_telefono" value="${v('telefono')}" placeholder="600 000 000"></div>
+      <div class="fg"><label class="fl">✉️ Email</label><input class="fi" type="email" id="trabF_email" value="${v('email')}" placeholder="nombre@correo.com"></div>
+    </div>
+    <div class="fg full" style="margin-bottom:10px"><label class="fl">🏠 Dirección (donde vive de verdad, aunque no coincida con el DNI)</label>
+      <input class="fi" id="trabF_direccion" value="${v('direccion')}" placeholder="Calle, nº, piso · CP · Población">
+    </div>
     <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">Nº tarjeta tacógrafo</label>
         <input class="fi" id="trabF_tarjeta" value="${v('tarjeta_num')}" placeholder="E49932334R000001"
@@ -21784,6 +21791,9 @@ async function saveTrabModal() {
     fecha_baja: document.getElementById('trabF_baja')?.value || null,
     rol: (document.getElementById('trabF_rol').value || '').trim() || null,
     fecha_alta: document.getElementById('trabF_alta').value || null,
+    telefono: (document.getElementById('trabF_telefono')?.value || '').trim() || null,   // v619
+    email: (document.getElementById('trabF_email')?.value || '').trim().toLowerCase() || null,   // v619
+    direccion: (document.getElementById('trabF_direccion')?.value || '').trim() || null,   // v619
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
     updated_at: new Date().toISOString()
   };
