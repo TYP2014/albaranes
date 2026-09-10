@@ -18569,6 +18569,12 @@ const PROVEEDORES_CANONICOS = [
     'TECNOCATALANA DE RUNES, SL', 'Tecnocatalana de Runes, SL',
     'Tecnocatalana'
   ] },
+  // v622 (10/09/2026): Control Demeter — ya era cliente oficial; JC pide tenerlo
+  // también como PROVEEDOR. Mismo nombre y alias que en CLIENTES_CANONICOS.
+  { canon: 'Control Demeter, S.L.', alias: [
+    'Control Demeter', 'CONTROL DEMETER', 'Control Demeter SL',
+    'Control Demeter S.L.', 'CONTROL DEMETER, S.L.', 'CONTROL DEMETER SL', 'CONTROL DEMETER,SL'
+  ] },
   // v621 (10/09/2026): Hercal Zero S.L. — proveedor (planta Hercal). JC lo tenía
   // escrito a mano y salía "no oficial"; se incorpora a la lista.
   { canon: 'Hercal Zero S.L.', alias: [
