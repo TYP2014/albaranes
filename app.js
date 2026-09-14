@@ -16325,7 +16325,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
+  if (tab === 'facturacion') { try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); factCargarMesesSodira(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
@@ -23227,6 +23227,7 @@ function factLiqDrop(ev, proveedor) {
   const pdfs = Array.from(files).filter(f => /\.pdf$/i.test(f.name || '') || (f.type || '') === 'application/pdf');
   if (!pdfs.length) { toast('Arrastra la liquidación en PDF', 'warn'); return; }
   if (proveedor === 'HOLCIM') factSubirAutofacturaHolcim(pdfs);
+  else if (proveedor === 'SODIRA') factSubirDepositoSodira(pdfs); // v631
   else factSubirAutofactura(pdfs);
 }
 
@@ -25504,7 +25505,7 @@ function _factContarArchivos(data) {
 // Pensado para cuando solo estás subiendo y quieres comprobar cuáles llevas / cuáles faltan.
 async function factVerSubidas(mes, proveedor) {
   const esHolcim = (proveedor === 'HOLCIM');
-  const estado = document.getElementById(esHolcim ? 'factHolcimEstado' : 'factAutoEstado');
+  const estado = document.getElementById(esHolcim ? 'factHolcimEstado' : (proveedor === 'SODIRA' ? 'factSodiraEstado' : 'factAutoEstado')); // v631
   const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
   setEstado('⏳ Cargando la lista de subidas…');
   let data;
@@ -34528,3 +34529,373 @@ async function compartirDecaPDF(id) {
 
 // Init
 initApp();
+// ============================================================
+// v631 (14/09/2026) — DEPÓSITOS SODIRA (Garraf). Mismo patrón que CEMEX/Holcim.
+// Sodira Iberia nos liquida los portes del Garraf (UTE 4ª Fase / Sacyr Puerto) con un
+// "Depósito" por empresa (TYP2014, Híspalis, Transmargaz), nº de pedido TR2026/NNN.
+// Se sube el PDF, la IA lee cada línea (fecha, nº albarán 01718/NNNNNN, obra, TN, importe),
+// se guarda por mes en autofacturas_lineas (proveedor='SODIRA') y se cruza con los albaranes
+// por el nº de albarán ENTERO: papel "01718/131357" ↔ app "1/01718/131357" (los 5+6 dígitos
+// tienen que coincidir; NO se cruza solo por la cola). Los que casan se marcan facturados
+// con factura_ref = "Sodira TR2026/NNN". Además saca el Excel del cruce y una hoja aparte
+// con los portes de Híspalis/Transmargaz que Sodira pagó a TYP2014 (para que le facturen).
+// ============================================================
+let _factSodiraUltimo = null;
+let _factSodiraMesActual = '';
+let _factSodiraArchivos = [];
+
+// CIF → empresa del grupo (la cabecera "Proveedor" del depósito).
+const _SODIRA_CIF = { 'B90172735': 'TYP2014', 'B90286337': 'HISPALIS', 'B67316752': 'TRANSMARGAZ', 'B02657435': 'PORTES 2014 IMPORT' };
+
+// Clave de cruce: "01718/131357" (5 dígitos + "/" + 6 dígitos). Vale para el papel
+// ("01718/131357") y para la app ("1/01718/131357"): se exige el bloque entero.
+function _sodiraClave(s) {
+  const m = String(s || '').replace(/\s+/g, '').match(/(\d{5})\/(\d{6})(?!\d)/);
+  return m ? (m[1] + '/' + m[2]) : '';
+}
+
+async function callClaudeDepositoSodira(b64, key, signal) {
+  const prompt = 'Eres un OCR experto en los "Depósitos" (liquidaciones) que SODIRA IBERIA, S.L. (logo "SÔDIRA ROCAS INDUSTRIALES", CIF B87730180, Madrid) emite a sus transportistas. Sodira paga al transportista por cada porte. Es un PDF de una o varias páginas con una tabla.\n\n'
+    + 'CABECERA (arriba a la derecha, se repite en cada página): "Proveedor" = el transportista (TRANSPORTES Y PORTES 2014 SL / TRANSPORTES HISPALIS 2016 SL / TRANSMARGAZ 2018 S.L.) con su "CIF/NIF: Bnnnnnnnn"; "Nº pedido(D): TR2026/519" (o "Nº pedido: TR2026/519"); "Fecha: DD/MM/YYYY".\n\n'
+    + 'TABLA, columnas en este orden: Fecha | Nº Albarán | Obra | Toneladas | Precio (€/Tm) | Total.\n\n'
+    + 'Devuelve SIEMPRE un ARRAY JSON, un objeto por CADA fila de la tabla que tenga un Nº Albarán. De cada fila saca:\n'
+    + '- numero_albaran: el "Nº Albarán" TAL CUAL, formato "01718/131357" (5 dígitos, barra, 6 dígitos). Es el dato MÁS importante. Cópialo entero, sin tocar, sin quitar los ceros de delante, sin inventar.\n'
+    + '- fecha: la columna Fecha en formato DD/MM/YYYY (en el papel viene DD/MM/YY, ej. "10/08/26" → "10/08/2026").\n'
+    + '- obra: el texto de la columna Obra TAL CUAL (ej. "GARRAF-UTE 4ªFASE J54000 / YL99- SA - SATO Y", "SACYR PUERTO DE BARCELONA GARRAF -").\n'
+    + '- tn: la columna Toneladas con punto decimal (ej. "28,86" → 28.86).\n'
+    + '- precio: la columna Precio (€/Tm) con punto decimal (ej. 5.2).\n'
+    + '- importe: la columna Total en euros con punto decimal (ej. "150,07" → 150.07).\n'
+    + '- cif: el CIF de la cabecera "Proveedor" de ESA página (ej. "B90172735"). Repítelo en todas las filas.\n'
+    + '- pedido: el "Nº pedido" de la cabecera (ej. "TR2026/519"). Repítelo en todas las filas.\n\n'
+    + 'REGLAS:\n'
+    + '- Recorre TODAS las páginas y TODAS las filas. Puede haber cientos. No te dejes ninguna. Es PREFERIBLE repetir una fila de más a dejarte una.\n'
+    + '- IGNORA cabeceras, "Suma y sigue", "Sumas anteriores", la caja final de Base imponible/IVA/Total depósito, "Forma de pago", "Documento de pago", direcciones y números de página.\n'
+    + '- NO te inventes números. Si un dato no se ve, ponlo null (pero numero_albaran y fecha deben verse).\n'
+    + '- Al pasar de página la tabla continúa con el mismo orden de columnas aunque la cabecera se repita o no: lee esas filas igual.\n'
+    + '- TOTAL DE CONTROL: si en ESTE PDF ves la caja final con "Base imponible", añade al final del array UN objeto especial: {"_control": true, "base": BASE_IMPONIBLE, "total": TOTAL_DEPOSITO}. Si no aparece, no lo añadas.\n\n'
+    + 'SOLO JSON válido (array), sin markdown ni explicaciones.';
+
+  const res = await fetch(IA_PROXY_URL, {
+    method: 'POST',
+    headers: await _iaCabeceras(),
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 32000,
+      messages: [{ role: 'user', content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: prompt }
+      ] }]
+    }),
+    signal: signal
+  });
+  if (!res.ok) {
+    let e = {}; try { e = await res.json(); } catch (_) {}
+    const err = new Error(e.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const d = await res.json();
+  const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    const lastObj = text.lastIndexOf('}');
+    if (lastObj > -1) {
+      let t2 = text.slice(0, lastObj + 1);
+      if (!t2.trim().startsWith('[')) t2 = '[' + t2;
+      parsed = JSON.parse(t2 + ']');
+      console.warn('[v631] respuesta de Sodira recuperada parcialmente (PDF largo).');
+    } else { throw e; }
+  }
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+// Subir un depósito Sodira (PDF). Lee, guarda por mes (proveedor='SODIRA') y cruza el mes.
+async function factSubirDepositoSodira(files) {
+  const file = files && files[0];
+  const inp = document.getElementById('factSodiraFileInput');
+  if (inp) inp.value = '';
+  if (!file) return;
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso para facturación', 'err'); return; }
+  const key = getKey();
+  if (!key) { toast('Falta la clave de IA (API key)', 'err'); return; }
+
+  const estado = document.getElementById('factSodiraEstado');
+  const setEstado = (html) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = html; } };
+
+  const _fich = (file && file.name) || '';
+  if (_fich) {
+    const ya = await _factYaSubida(_fich, 'SODIRA');
+    if (ya > 0 && !confirm('Este depósito ya lo tienes subido:\n"' + _fich + '" (' + ya + ' líneas).\n\n¿Volver a leerlo de todas formas?')) {
+      setEstado('✅ No lo he vuelto a leer: ya estaba subido (' + ya + ' líneas). Pulsa 📅 para revisar el mes.');
+      return;
+    }
+  }
+
+  setEstado('⏳ Leyendo el depósito Sodira… (si tiene muchas páginas tarda un poco)');
+  let lineas;
+  try {
+    lineas = await _leerAutofacturaGrande(file, key, callClaudeDepositoSodira, setEstado);
+  } catch (e) {
+    setEstado('❌ No se pudo leer el depósito: ' + (e.message || e));
+    return;
+  }
+  // Filtro defensivo: solo filas con nº "01718/NNNNNN" válido (la regla de prompt no basta).
+  const portes = [];
+  let descartadas = 0;
+  (lineas || []).forEach(L => {
+    if (!L || typeof L !== 'object') return;
+    const clave = _sodiraClave(L.numero_albaran);
+    if (!clave) { descartadas++; return; }
+    const cif = String(L.cif || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const empresa = _SODIRA_CIF[cif] || (L.empresa || '') || '';
+    const pedido = String(L.pedido || '').trim().replace(/\s+/g, '');
+    // Se guarda en la tabla compartida: concepto = obra, destino = empresa del depósito, origen = nº pedido.
+    portes.push({
+      numero_albaran: clave,
+      fecha: normFecha(L.fecha),
+      matricula: null,
+      concepto: L.obra || null,
+      destino: empresa || null,
+      origen: pedido || null,
+      tn: L.tn,
+      importe: L.importe,
+      _parte: L._parte
+    });
+  });
+  if (!portes.length) {
+    setEstado('⚠️ No he encontrado líneas de porte en este PDF. ¿Seguro que es un depósito de Sodira?');
+    return;
+  }
+  if (window._factPartesFallidas && window._factPartesFallidas.length) {
+    toast('⚠️ No pude leer la(s) parte(s) ' + window._factPartesFallidas.join(', ') + ' de este PDF. Vuelve a subirlo para completarlo.', 'err');
+  }
+  // Duplicado de borde entre trozos (misma clave leída dos veces en partes consecutivas): quitar una.
+  const vistos = new Map();
+  const portesLimpios = [];
+  portes.forEach(P => {
+    const k = P.numero_albaran;
+    const antes = vistos.get(k);
+    if (antes !== undefined && (P._parte == null || antes == null || Math.abs(P._parte - antes) <= 1)) return;
+    vistos.set(k, P._parte);
+    portesLimpios.push(P);
+  });
+  // Control: cuadre de la base imponible con la suma leída (aviso, no bloquea).
+  let sumaImp = 0; portesLimpios.forEach(P => { const n = _factNum(P.importe); if (!isNaN(n)) sumaImp += n; });
+  const ctrl = window._factControl;
+  let avisoCtrl = '';
+  if (ctrl && !isNaN(_factNum(ctrl.base))) {
+    const base = _factNum(ctrl.base);
+    if (Math.abs(base - sumaImp) > 0.05) avisoCtrl = ' ⚠️ La suma de líneas leídas (' + sumaImp.toFixed(2) + '€) NO cuadra con la base del depósito (' + base.toFixed(2) + '€): puede faltar alguna línea, revisa el PDF.';
+    else avisoCtrl = ' ✅ Suma de líneas = base del depósito (' + base.toFixed(2) + '€).';
+  }
+  if (descartadas) console.warn('[v631] Sodira: ' + descartadas + ' filas descartadas por nº inválido');
+
+  const mesDoc = _factMesDeLineas(portesLimpios) || _factMesDeFichero(file && file.name) || 'sin-mes';
+  setEstado('⏳ Guardando el depósito de ' + _factMesBonito(mesDoc) + '…');
+  const urlPdf = await _factSubirPdf(file, 'SODIRA', mesDoc);
+  try {
+    await _factGuardarEnTabla(portesLimpios, mesDoc, (file && file.name) || ('deposito_sodira_' + Date.now()), 'SODIRA', urlPdf);
+  } catch (e) { setEstado('❌ No se pudo guardar: ' + (e.message || e)); return; }
+  if (avisoCtrl) toast(avisoCtrl.trim(), avisoCtrl.indexOf('⚠️') > -1 ? 'err' : 'ok');
+  factCargarMesesSodira();
+  await factConciliarMesSodira(mesDoc);
+}
+
+// Botones de meses con depósito Sodira guardado.
+async function factCargarMesesSodira() {
+  const cont = document.getElementById('factMesesBarSodira');
+  if (!cont) return;
+  const _mesesSet = new Set();
+  try {
+    const PAG = 1000;
+    for (let desde = 0; ; desde += PAG) {
+      const r = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'SODIRA').order('mes', { ascending: true }).range(desde, desde + PAG - 1);
+      if (r.error) throw r.error;
+      const lote = r.data || [];
+      lote.forEach(x => { if (x.mes) _mesesSet.add(x.mes); });
+      if (lote.length < PAG) break;
+      if (desde > 200000) break;
+    }
+  } catch (e) { cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--er)">No se pudieron cargar los meses: ' + (e.message || e) + '</span>'; return; }
+  const meses = [..._mesesSet].sort().reverse();
+  if (!meses.length) {
+    cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay depósitos de Sodira guardados. Sube uno y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
+    return;
+  }
+  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesSodira(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'SODIRA\')">📎 Ver subidas</button>').join(' ');
+}
+
+// Revisar un mes: carga TODO lo guardado de Sodira ese mes y lo cruza con los albaranes.
+async function factConciliarMesSodira(mes) {
+  const estado = document.getElementById('factSodiraEstado');
+  const setEstado = (h) => { if (estado) { estado.style.display = 'block'; estado.innerHTML = h; } };
+  setEstado('⏳ Cargando todos tus albaranes y los depósitos de Sodira de ' + _factMesBonito(mes) + '…');
+  try { await cargarTodoHistorico(); } catch (e) { console.warn('[v631] cargar histórico antes del cruce Sodira:', e); }
+  let data;
+  try {
+    data = await _factTraerLineas(mes, 'SODIRA', '*');
+  } catch (e) { setEstado('❌ No pude cargar el mes: ' + (e.message || e)); return; }
+  if (!data || !data.length) { setEstado('No hay depósitos de Sodira guardados de ' + _factMesBonito(mes) + '. Sube uno.'); return; }
+  _factSodiraMesActual = mes;
+  _factSodiraArchivos = _factContarArchivos(data);
+  const lineas = data.filter(L => !L.es_ajuste && _sodiraClave(L.numero_albaran));
+  _factProcesarYMostrarSodira(lineas, setEstado);
+}
+
+function _factProcesarYMostrarSodira(lineas, setEstado) {
+  setEstado = setEstado || function () {};
+  // Índice de TUS albaranes por clave 01718/NNNNNN.
+  const porClave = new Map();
+  records.forEach(r => {
+    const k = _sodiraClave(r.albaran);
+    if (!k) return;
+    if (!porClave.has(k)) porClave.set(k, []);
+    porClave.get(k).push(r);
+  });
+
+  const abonados = [], sinCopia = [], duplicados = [];
+  const idsAbonados = new Set();
+  const mesesPapel = new Set();
+  const _mesDe = (s) => { const f = normFecha(s); const m = f.match(/^\d{1,2}\/(\d{2}\/\d{4})$/); return m ? m[1] : ''; };
+
+  lineas.forEach(L => {
+    const k = _sodiraClave(L.numero_albaran);
+    const mm = _mesDe(L.fecha); if (mm) mesesPapel.add(mm);
+    const cand = porClave.get(k);
+    if (!cand || !cand.length) { sinCopia.push(L); return; }
+    // v629: si hay varios con el mismo nº, el válido es el que NO es duplicado; si no se sabe, el primero.
+    let match = cand.find(r => !r._dup) || cand[0];
+    const difs = [];
+    const fL = normFecha(L.fecha), fR = normFecha(match.fecha);
+    if (fL && fR && fL !== fR) difs.push('fecha (tú: ' + fR + ' / Sodira: ' + fL + ')');
+    const tnL = _factNum(L.tn), tnR = _factNum(match.tm);
+    if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) > 0.05) difs.push('TN (tú: ' + match.tm + ' / Sodira: ' + L.tn + ')');
+    if (cand.length > 1) duplicados.push({ linea: L, recs: cand });
+    abonados.push({ linea: L, rec: match, difs: difs });
+    if (match.db_id) idsAbonados.add(String(match.db_id));
+  });
+
+  // NO ABONADOS: albaranes tuyos de Sodira (clave 01718/) del/los mes(es) del papel que no han salido
+  // en ningún depósito y no están ya facturados por otro.
+  const noAbonados = [];
+  records.forEach(r => {
+    if (r.db_id && idsAbonados.has(String(r.db_id))) return;
+    if (r.estado_facturacion === 'facturado') return;
+    if (r._dup) return;
+    if (!_sodiraClave(r.albaran)) return;
+    if (mesesPapel.size > 0) { const mr = _mesDe(r.fecha); if (mr && !mesesPapel.has(mr)) return; }
+    noAbonados.push(r);
+  });
+
+  _factSodiraUltimo = { abonados, noAbonados, sinCopia, duplicados, mes: _factSodiraMesActual, fecha: new Date() };
+
+  // Marcar facturados (memoria + Supabase en 2º plano), con la ref del depósito.
+  let marcados = 0;
+  for (const a of abonados) {
+    const r = a.rec;
+    if (r.db_id && r.estado_facturacion !== 'facturado') {
+      const ref = 'Sodira ' + (a.linea.origen || '');
+      r.estado_facturacion = 'facturado';
+      r.factura_fecha = new Date().toISOString();
+      r.factura_ref = ref.trim();
+      r.factura_tipo = 'autofactura';
+      marcados++;
+      const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+      if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+      sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha, factura_ref: r.factura_ref, factura_tipo: 'autofactura' }).eq('id', r.db_id)
+        .then(({ error }) => { if (error) console.warn('[v631] guardar facturado Sodira:', error); });
+    }
+  }
+
+  setEstado('✅ Listo. ' + _factMesBonito(_factSodiraMesActual) + ': ' + abonados.length + ' abonados (' + marcados + ' marcados ahora), ' + noAbonados.length + ' no abonados, ' + sinCopia.length + ' sin copia en la app.');
+  _factSodiraMostrarInforme();
+  toast(_factMesBonito(_factSodiraMesActual) + ': ' + abonados.length + ' abonados, ' + noAbonados.length + ' no abonados, ' + sinCopia.length + ' sin copia', 'ok');
+}
+
+// Informe en la propia tarjeta (debajo del estado), con botón de Excel.
+function _factSodiraMostrarInforme() {
+  const u = _factSodiraUltimo;
+  const cont = document.getElementById('factSodiraInforme');
+  if (!u || !cont) return;
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const conDifs = u.abonados.filter(a => a.difs.length);
+  const _porEmp = {};
+  u.abonados.forEach(a => { const e = a.linea.destino || '—'; _porEmp[e] = (_porEmp[e] || 0) + 1; });
+  const _subc = u.abonados.filter(a => (a.linea.destino || '') === 'TYP2014' && a.rec.transportista && a.rec.transportista !== 'TYP2014');
+
+  let h = '<div style="margin-top:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px;font-size:12px;line-height:1.6">';
+  h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
+    + '<strong>DEPÓSITOS SODIRA — ' + esc(_factMesBonito(u.mes)) + '</strong>'
+    + '<button class="btn bs" style="font-size:11px" onclick="factSodiraExcel()">📊 DESCARGAR EXCEL</button>'
+    + '<button class="btn bs" style="font-size:11px" onclick="document.getElementById(\'factSodiraInforme\').innerHTML=\'\'">✖ Cerrar</button></div>';
+  h += _factBloqueArchivos(_factSodiraArchivos, esc);
+  h += '<div style="font-weight:700;color:var(--ok)">🟢 ABONADOS (' + u.abonados.length + ')</div>';
+  h += '<div style="color:var(--mu);font-size:11px;margin-bottom:6px">Por depósito: ' + Object.keys(_porEmp).map(e => esc(e) + ' ' + _porEmp[e]).join(' · ') + '. Quedan marcados como facturados con la ref del depósito.</div>';
+  if (conDifs.length) {
+    h += '<div style="font-weight:700;color:#e0a000">⚠️ Cuadran por nº pero con diferencias (' + conDifs.length + ')</div>';
+    conDifs.forEach(a => {
+      h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(a.linea.numero_albaran) + ' · ' + esc(a.linea.fecha) + ' · ' + esc(a.rec.tractora || '') + ' · <span style="color:#e0a000">' + a.difs.map(esc).join(' y ') + '</span></div>';
+    });
+  }
+  if (u.duplicados.length) {
+    h += '<div style="font-weight:700;color:#ff9500;margin-top:8px">🔁 Nº repetido en la app (' + u.duplicados.length + ')</div>';
+    u.duplicados.forEach(d => { h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(d.linea.numero_albaran) + ' · ' + d.recs.length + ' albaranes con ese nº (' + d.recs.map(r => esc(r.fecha) + ' ' + esc(r.tractora || '')).join(' | ') + ')</div>'; });
+  }
+  h += '<div style="font-weight:700;color:#e0a000;margin-top:8px">⚠️ NO ABONADOS (' + u.noAbonados.length + ')</div>';
+  h += '<div style="color:var(--mu);font-size:11px;margin-bottom:6px">Albaranes tuyos de Sodira (01718/…) de este mes que NO salen en ningún depósito subido.</div>';
+  if (!u.noAbonados.length) h += '<div style="color:var(--mu)">Ninguno.</div>';
+  u.noAbonados.forEach(r => { h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(r.albaran) + ' · ' + esc(r.tractora || '') + ' · ' + esc(r.fecha) + ' · ' + esc(r.tm) + ' TN · ' + esc(r.transportista || '') + ' · ' + esc(r.obra || r.destino || '') + '</div>'; });
+  h += '<div style="font-weight:700;color:#7cc4ff;margin-top:8px">📋 PAGADOS SIN COPIA EN LA APP (' + u.sinCopia.length + ')</div>';
+  h += '<div style="color:var(--mu);font-size:11px;margin-bottom:6px">Sodira los paga pero no tienes el albarán subido. Súbelos y vuelve a pulsar el mes: se marcarán solos.</div>';
+  if (!u.sinCopia.length) h += '<div style="color:var(--mu)">Ninguno.</div>';
+  u.sinCopia.forEach(L => { h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(L.numero_albaran) + ' · ' + esc(L.fecha) + ' · ' + esc(L.tn) + ' TN · ' + esc(L.importe) + '€ · ' + esc(L.destino || '') + ' ' + esc(L.origen || '') + ' · ' + esc(L.concepto || '') + '</div>'; });
+  if (_subc.length) {
+    const _g = {};
+    _subc.forEach(a => { const t = a.rec.transportista; if (!_g[t]) _g[t] = { n: 0, tn: 0 }; _g[t].n++; const x = _factNum(a.linea.tn); if (!isNaN(x)) _g[t].tn += x; });
+    h += '<div style="font-weight:700;color:#b48be8;margin-top:8px">🤝 PAGADOS A TYP2014 PERO TRANSPORTADOS POR OTRO (' + _subc.length + ')</div>';
+    h += '<div style="color:var(--mu);font-size:11px;margin-bottom:6px">Sodira los ha pagado en el depósito de TYP2014; el transportista se los factura a TYP2014. Detalle en la hoja "Facturar a TYP2014" del Excel.</div>';
+    Object.keys(_g).forEach(t => { h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(t) + ': ' + _g[t].n + ' albaranes · ' + _g[t].tn.toFixed(2) + ' TN</div>'; });
+  }
+  h += '</div>';
+  cont.innerHTML = h;
+}
+
+// Excel del cruce Sodira: hoja Cruce (todo con ESTADO) + hoja Facturar a TYP2014.
+function factSodiraExcel() {
+  const u = _factSodiraUltimo;
+  if (!u) { toast('No hay datos que exportar', 'err'); return; }
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const wb = XLSX.utils.book_new();
+  const aoa = [['ESTADO', 'DEPÓSITO (empresa)', 'Nº PEDIDO', 'Fecha papel', 'Nº albarán papel', 'Obra', 'TN papel', 'Importe €', 'Nº albarán app', 'Fecha app', 'TN app', 'Matrícula', 'Transportista', 'Observación']];
+  u.abonados.forEach(a => {
+    aoa.push(['🟢 Abonado', a.linea.destino || '', a.linea.origen || '', a.linea.fecha || '', a.linea.numero_albaran || '', a.linea.concepto || '', a.linea.tn || '', a.linea.importe || '',
+      a.rec.albaran || '', a.rec.fecha || '', a.rec.tm || '', a.rec.tractora || '', a.rec.transportista || '', a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']);
+  });
+  u.noAbonados.forEach(r => {
+    aoa.push(['⚠️ NO abonado', '', '', '', '', r.obra || r.destino || '', '', '', r.albaran || '', r.fecha || '', r.tm || '', r.tractora || '', r.transportista || '', 'No está en ningún depósito subido de este mes']);
+  });
+  u.sinCopia.forEach(L => {
+    aoa.push(['📋 Sin copia', L.destino || '', L.origen || '', L.fecha || '', L.numero_albaran || '', L.concepto || '', L.tn || '', L.importe || '', '', '', '', '', '', 'Pagado por Sodira sin albarán en la app']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [14, 18, 12, 11, 16, 40, 9, 10, 17, 11, 9, 11, 20, 40].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Cruce');
+
+  const sub = u.abonados.filter(a => (a.linea.destino || '') === 'TYP2014' && a.rec.transportista && a.rec.transportista !== 'TYP2014')
+    .sort((a, b) => (a.rec.transportista + a.linea.fecha).localeCompare(b.rec.transportista + b.linea.fecha));
+  const aoa2 = [['Transportista', 'Fecha', 'Matrícula', 'Remolque', 'Nº albarán', 'Obra', 'TN', 'Precio €/TN Sodira', 'Importe Sodira €']];
+  sub.forEach(a => {
+    const tn = _factNum(a.linea.tn), imp = _factNum(a.linea.importe);
+    aoa2.push([a.rec.transportista, a.linea.fecha || '', a.rec.tractora || '', a.rec.remolque || '', a.rec.albaran || '', a.linea.concepto || '', isNaN(tn) ? '' : tn, (!isNaN(tn) && !isNaN(imp) && tn) ? Math.round(imp / tn * 100) / 100 : '', isNaN(imp) ? '' : imp]);
+  });
+  if (!sub.length) aoa2.push(['(ninguno)']);
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [22, 11, 11, 11, 17, 40, 9, 16, 14].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws2, 'Facturar a TYP2014');
+
+  XLSX.writeFile(wb, 'Depositos_SODIRA_' + (u.mes || '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast('Excel descargado (hoja Cruce + hoja Facturar a TYP2014)', 'ok');
+}
