@@ -23991,6 +23991,16 @@ async function recmedDescargar(id) {
 
 // Recordatorio de WhatsApp ya escrito (se elige el contacto al abrirse)
 // v565: mismo desdoble que en ITV — el texto por un lado, el envio por otro.
+// v628: nombre de archivo limpio para compartir la cita medica.
+// Sin acentos ni simbolos raros (WhatsApp/Android los rompen), extension la
+// del archivo original (pdf o jpg), y sin el nombre larguisimo de la mutua.
+function _recmedNombreArchivo(c, id) {
+  const ext = (String(c.archivo_nombre || '').match(/\.([a-z0-9]{2,4})$/i) || [, 'pdf'])[1].toLowerCase();
+  const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('-') : '';
+  const quien = _sinAcentos(c.trabajador || id).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return 'Cita_medica' + (dia ? '_' + dia : '') + (quien ? '_' + quien : '') + '.' + ext;
+}
+
 function _recmedTexto(c) {
   const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '';
   const finde = c.fecha_cita ? ' (' + _tacoDiaSemana(c.fecha_cita) + ')' : '';
@@ -24036,7 +24046,11 @@ async function recmedCompartir(id) {
     toast('No pude preparar el documento: ' + (e.message || e), 'err');
     return;
   }
-  const nombre = c.archivo_nombre || ('cita_' + String(c.trabajador || id).replace(/[^\w.-]+/g, '_') + '.pdf');
+  // v628: el nombre del archivo se monta AQUI, limpio y corto. Antes se usaba
+  // c.archivo_nombre (el de la carta de Prevenjobs) y en WhatsApp salia
+  // "citaciÃ³n mÃ©dica" (acentos rotos) y ademas tan largo que se cortaba.
+  // Ahora: Cita_medica_15-09-2026_JOSE_ANTONIO_SANCHEZ.pdf (sin acentos).
+  const nombre = _recmedNombreArchivo(c, id);
   await _compartirCitaGenerico(_recmedTexto(c), url, nombre, () => {
     try { window.open(url, '_blank'); } catch (e) {}
     recmedWhatsApp(id);
