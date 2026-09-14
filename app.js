@@ -34785,7 +34785,8 @@ function _factProcesarYMostrarSodira(lineas, setEstado) {
     if (r.db_id && idsAbonados.has(String(r.db_id))) return;
     if (r.estado_facturacion === 'facturado') return;
     if (r._dup) return;
-    if (!_sodiraClave(r.albaran)) return;
+    const kr = _sodiraClave(r.albaran);
+    if (!kr || kr.indexOf('01718/') !== 0) return; // v632: solo Sodira (01718/…); un CEMEX viejo 77469/248934 también tiene 5+6 cifras
     if (mesesPapel.size > 0) { const mr = _mesDe(r.fecha); if (mr && !mesesPapel.has(mr)) return; }
     noAbonados.push(r);
   });
