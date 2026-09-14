@@ -8729,7 +8729,14 @@ function analyzeRecords() {
   records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; r._posDup = false; r._posDupOf = null; });
   const seenA = {}, seenB = {}, seenC = {};
 
-  records.forEach((r, idx) => {
+  // v630 (14/09/2026, JC): EL PRIMERO QUE SE SUBE ES EL VÁLIDO; el que llega después es el Dup.
+  // Antes se recorrían los albaranes tal como están en pantalla (más reciente arriba) y el válido
+  // era la copia NUEVA. Ahora se recorren por orden de subida (created_at ascendente): la copia
+  // antigua (la que ya lleva facturado, cliente, correcciones...) manda y la repetida sale Dup.
+  // Solo cambia el orden del recorrido; los criterios A/B/C son los mismos.
+  const _tsSub = r => { const t = r.created_at || r._ts; const n = t ? new Date(t).getTime() : 0; return isNaN(n) ? 0 : n; };
+  const _porSubida = records.map((r, i) => ({ r, i })).sort((a, b) => (_tsSub(a.r) - _tsSub(b.r)) || (a.i - b.i));
+  _porSubida.forEach(({ r, i: idx }) => {
     if (!r.albaran) return;
     // Quitar ceros iniciales del nº albarán para comparación robusta (0069243348 = 69243348)
     const albNorm = normStr(r.albaran).replace(/^0+/, '');
