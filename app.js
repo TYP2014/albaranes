@@ -8788,6 +8788,30 @@ function analyzeRecords() {
     r._dup = false; r._dupOf = null;
   });
 
+  // v629 (14/09/2026, JC): UN DUPLICADO NUNCA "LLEVA" LA FACTURACIÓN. Caso real 0072555691:
+  // se subió la foto (02/09), el cruce de Holcim la marcó facturada, y luego se subió el mismo
+  // albarán escaneado (14/09): la foto pasó a ⛔ Dup pero seguía luciendo "✓ Facturado" y liaba.
+  // Regla: el estado de facturación es del VIAJE, y lo enseña SOLO la copia válida. Aquí, si la
+  // copia Dup está "facturado" y la válida no (pendiente o sin estado), se PASA el facturado a la
+  // válida (memoria + Supabase en 2º plano) para que el viaje bueno nunca se quede sin facturar.
+  // NO se limpia el estado en BD del Dup a propósito: el Dup se decide al vuelo por orden de
+  // subida; si mañana se borra la copia válida, la otra pasa a válida y conserva su facturado.
+  // Lo que sí cambia es que el Dup ya no enseña la chapa (factIcon / modal / filtro).
+  records.forEach(r => {
+    if (!r._dup || r.estado_facturacion !== 'facturado') return;
+    const o = records.find(x => String(x.db_id) === String(r._dupOf) || String(x._id) === String(r._dupOf));
+    if (!o || !o.db_id || o._dup) return;
+    const eo = o.estado_facturacion || 'pendiente';
+    if (eo !== 'pendiente') return; // facturado ya, o no_facturable a mano: no se toca
+    o.estado_facturacion = 'facturado';
+    o.factura_fecha = r.factura_fecha || new Date().toISOString();
+    if (r.fact_fija) o.fact_fija = true;
+    const upd = { estado_facturacion: 'facturado', factura_fecha: o.factura_fecha };
+    if (r.fact_fija) upd.fact_fija = true;
+    sb.from('albaranes').update(upd).eq('id', o.db_id)
+      .then(({ error }) => { if (error) console.warn('[v629] pasar facturado del Dup a la copia válida:', error); else console.log('[v629] facturado pasado del Dup', r.db_id, 'a la copia válida', o.db_id, '(' + (o.albaran || '') + ')'); });
+  });
+
   // Log a consola del navegador (F12) para verificar que está funcionando
   const dupCount = records.filter(r => r._dup).length;
   console.log(`[analyzeRecords] ${records.length} registros, ${dupCount} duplicados detectados`);
@@ -9945,6 +9969,7 @@ function applyFilters() {
     // v107J93: filtro por estado de FACTURACIÓN (facturado / pendiente / no_facturable).
     // El que no tiene estado guardado cuenta como 'pendiente' (no facturado).
     if (fFact) {
+      if (r._dup) return false; // v629: el Dup no tiene estado de facturación propio
       const est = r.estado_facturacion || 'pendiente';
       if (est !== fFact) return false;
     }
@@ -10298,6 +10323,8 @@ function _pillOut(txt, color, title) {
 }
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
+  // v629: un ⛔ Dup no enseña estado de facturación (lo lleva la copia válida).
+  if (r._dup) return _pillOut('—', '#9ca3af', 'Duplicado: la facturación se ve en la copia válida');
   const est = r.estado_facturacion || 'pendiente';
   // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
   if (est === 'facturado')      return r.fact_fija
@@ -10361,6 +10388,10 @@ async function marcarFacturacion(id, val) {
 // Muestra el estado actual y 3 botones para cambiarlo. El botón del
 // estado actual sale resaltado.
 function _facturacionModalHtml(r) {
+  // v629: en un ⛔ Dup no se enseñan ni el estado ni los botones de facturación.
+  if (r._dup) return `
+    <div style="font-weight:600;color:#7cc4ff;margin-bottom:8px;font-size:13px">🧾 Facturación a cliente</div>
+    <div style="font-size:12px;color:var(--mu)">⛔ Duplicado: la facturación se lleva en la copia válida de este albarán. Si el bueno es este, pulsa <strong>✓ Marcar válido</strong> abajo.</div>`;
   const est = r.estado_facturacion || 'pendiente';
   const id = r.db_id || r._id;
   const fechaTxt = (est === 'facturado' && r.factura_fecha)
