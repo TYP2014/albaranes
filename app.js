@@ -23493,7 +23493,7 @@ function _tcitaSemaforo(c) {
   const d = _tcitaDias(c.fecha_cita);
   if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',          orden: 8 };
   if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
-  if (d === 0)                return { clave:'hoy',     color:'#ffffff', fondo:'#b71c1c',               txt:'🔴 HOY',     orden: 1 };
+  if (d === 0)                return { clave:'hoy',     color:'#b71c1c', fondo:'rgba(255,59,48,.22)',   txt:'🔴 HOY',     orden: 1 };
   if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.16)',   txt:'MAÑANA',     orden: 2 };
   if (d <= 3)                 return { clave:'d3',      color:'#e8841a', fondo:'rgba(232,132,26,.16)',  txt:'En ' + d + ' días', orden: 3 };
   if (d <= 5)                 return { clave:'d5',      color:'#b58900', fondo:'rgba(245,197,24,.20)',  txt:'En ' + d + ' días', orden: 4 };
@@ -24208,7 +24208,7 @@ function _recmedSemaforo(c) {
   const d = _tcitaDias(c.fecha_cita);
   if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',         orden: 8 };
   if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
-  if (d === 0)                return { clave:'hoy',     color:'#ffffff', fondo:'#b71c1c',               txt:'🔴 HOY',    orden: 1 };
+  if (d === 0)                return { clave:'hoy',     color:'#b71c1c', fondo:'rgba(255,59,48,.22)',   txt:'🔴 HOY',    orden: 1 };
   if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.18)',   txt:'MAÑANA · falta 1 día', orden: 2 };
   if (d === 2)                return { clave:'d2',      color:'#e8841a', fondo:'rgba(232,132,26,.18)',  txt:'Faltan 2 días', orden: 3 };
   if (d === 3)                return { clave:'d3',      color:'#c9a100', fondo:'rgba(245,197,24,.22)',  txt:'Faltan 3 días', orden: 4 };
