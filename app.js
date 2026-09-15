@@ -14516,7 +14516,7 @@ async function recambiosAvisoDia10() {
       const color = hayProblemas ? '#ff9500' : '#2ecc71';
       const bg = hayProblemas ? 'rgba(255,149,0,.10)' : 'rgba(46,204,113,.10)';
       html = `
-      <div style="order:99;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
+      <div style="order:99;grid-column:1 / -1;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
           <div style="display:flex;gap:6px">
