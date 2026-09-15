@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- v633 (15/09/2026): AVISOS GLOBALES EN DOS COLUMNAS. JC (captura con 8 avisos): "se come media pagina y tengo que hacer scroll; dividelos a izquierda y derecha, los que caducan antes los mas visibles, y la letra un poquito mas grande". Los 7 contenedores de avisos (ITV caducadas, citas ITV, taller vencido, citas taller oficial, reconocimientos, vencimientos tacografo/tarjeta, cuadre recambios) van ahora dentro de #avisosGrid (rejilla CSS de 2 columnas, 1 columna por debajo de 1100px). Cada tarjeta lleva order = dias que faltan (0 = hoy/caducado/vencido; recambios 99): el grid las coloca por urgencia mezclando los tipos, de izquierda a derecha y de arriba abajo. Letra de 12 a 13,5px en las tarjetas pequeñas (recmed y vencimientos ya iban a 14/15). Los botones ✕ / Ver..., el ocultar hasta mañana y las funciones NO cambian. app.js + index.html. NO requiere SQL. cache app.js?v=633. VUELTA ATRAS: resubir los dos de la v632. -->
 <!-- v632 (14/09/2026): FACTURACION - DEPOSITOS SODIRA: el aviso "NO ABONADOS" solo mira albaranes que empiezan por 01718/ (Sodira). Caso real de la 1ª prueba de JC con agosto: salia como "no abonado" el 77469/248934 (CEMEX viejo de Transmargaz, 14/08), porque la clave 5+6 cifras tambien encaja con ese formato. El cruce/marcado no cambia (papel y app tienen que coincidir enteros). Solo app.js. NO requiere SQL. cache app.js?v=632. VUELTA ATRAS: resubir los dos de la v631. -->
 <!-- v631 (14/09/2026): FACTURACION - NUEVA TARJETA "DEPOSITOS SODIRA" (Garraf), entre CEMEX y Holcim, visible para quien ve Facturacion (como CEMEX). JC: "que no te lo tenga que poner aqui, sino subir directamente a la app y que los marques y me diga lo diferente, igual que Holcim/CEMEX; este con el nº de albaran se saca bien". Sube el PDF del Deposito de Sodira (uno por empresa), la IA (Haiku, lector callClaudeDepositoSodira, por trozos si es largo) lee fecha / nº albaran 01718-NNNNNN / obra / TN / importe / CIF / nº pedido; filtro defensivo en codigo (solo nº con formato 5+6 digitos); control de suma de lineas contra la base imponible del papel (aviso). Se guarda en autofacturas_lineas con proveedor=SODIRA (concepto=obra, destino=empresa del deposito por CIF, origen=nº pedido). Cruce por nº ENTERO 01718/NNNNNN (papel "01718/131357" = app "1/01718/131357"); NO por cola. Los que casan se marcan facturado + factura_tipo autofactura + factura_ref "Sodira TR2026/NNN" (memoria + Supabase). Informe en la propia tarjeta: abonados (con difs de fecha/TN), nº repetidos en app, NO abonados (los tuyos 01718/ del mes sin deposito), pagados SIN COPIA, y pagados a TYP2014 pero transportados por Hispalis/Transmargaz. Excel: hoja Cruce + hoja "Facturar a TYP2014". Enganches minimos en codigo existente: factLiqDrop (rama SODIRA), factVerSubidas (pinta en factSodiraEstado), carga de meses al entrar en Facturacion. NO requiere SQL (tabla autofacturas_lineas y columnas factura_ref/factura_tipo ya existen). Sube app.js + index.html. cache app.js?v=631. VUELTA ATRAS: resubir los dos de la v630. -->
 <!-- v630 (14/09/2026): ALBARANES - DUPLICADOS: EL PRIMERO QUE SE SUBE ES EL VALIDO, el que llega despues es el Dup. JC: "el primero que se sube se queda, el segundo es el duplicado y no facturado". analyzeRecords recorria records tal como estan en pantalla (mas reciente arriba) y el valido era la copia NUEVA; ahora recorre una copia ordenada por created_at ascendente (empate: orden del array). Criterios A/B/C sin cambios. Afecta a TODAS las parejas de duplicados (solo pantalla, no toca datos). Pendiente conocido: "Marcar valido" no se mantiene (recalcula y vuelve al orden). Solo app.js. NO requiere SQL. cache app.js?v=630. VUELTA ATRAS: resubir los dos de la v629. -->
@@ -899,6 +900,19 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="tab" id="tabPreli" onclick="switchTab('preli')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9e9e9e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg> Preliquidaciones <span class="tab-badge" id="tabPreliCount">0</span></div>
     </div>
 
+    <!-- v633 (15/09/2026): TODOS los avisos globales van dentro de #avisosGrid, en DOS
+         COLUMNAS (izquierda/derecha) ordenados por urgencia (order = días que faltan;
+         0 = hoy/caducado). Así ocupan la mitad de alto y no hay que hacer scroll.
+         Cada contenedor pasa a display:contents cuando su JS lo pone en 'block', y
+         sus tarjetas se colocan directamente en la rejilla. En pantallas estrechas
+         vuelve a una sola columna. -->
+    <style>
+      #avisosGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:8px 0}
+      #avisosGrid:empty{display:none}
+      #avisosGrid > div[style*="block"]{display:contents!important}
+      @media (max-width:1100px){#avisosGrid{grid-template-columns:1fr}}
+    </style>
+    <div id="avisosGrid">
     <!-- v101b: banner GLOBAL de avisos ITV. Visible en TODAS las pestañas para usuarios con
          acceso ITV. Se actualiza al cargar y al cambiar de pestaña. Botón ✕ oculta hasta
          el día siguiente (mañana al recargar vuelve a aparecer). -->
@@ -917,6 +931,7 @@ if (typeof pdfjsLib !== 'undefined') {
     <div id="vencBanner" style="display:none"></div>
     <!-- v337: cuadre mensual de recambios (aviso a partir del día 10) -->
     <div id="recambDia10Banner" style="display:none"></div>
+    </div><!-- /avisosGrid -->
 
     <!-- TAB ALBARANES -->
     <div id="tabContentAlb" class="wrap">
@@ -2836,6 +2851,6 @@ if (typeof pdfjsLib !== 'undefined') {
 <!-- v514 (Juan Carlos 11/08/2026): LOS REPASOS GUARDADOS DABAN "Cannot read properties of undefined (reading 'length') AL PULSAR VER O EXCEL. Culpa de la v512: por ahorrar sitio deje fuera de lo guardado los campos que venian vacios (difs, modo, y linea/rec cuando no habia). Pero el informe hace "a.difs.length" y el Excel hace "a.linea.tn" DANDO POR HECHO que existen, asi que al abrir un repaso guardado reventaba y los botones no hacian nada. Un objeto vacio ocupa 2 bytes: no se ahorraba nada y se rompia todo. Desde la v514 lo guardado tiene SIEMPRE la misma forma que lo recien cruzado (difs siempre array, modo siempre texto, linea y rec siempre objeto). IMPORTANTE: los repasos guardados con la v512/v513 se quedaron mal por dentro; hay que volver a cruzar el mes una vez para que se guarde bien. Solo app.js + index.html. NO requiere SQL. -->
 <!-- v515 (Juan Carlos 11/08/2026): TODAS LAS FAMILIAS A LA VISTA. Las pastillas de familia iban en una fila de tabla y salia barra de desplazamiento horizontal: habia que arrastrar para ver las ultimas. Ahora cada repaso es un bloque y las pastillas se reparten en varias lineas, todas visibles de golpe; los botones VER / EXCEL COMPLETO / X tambien bajan de linea si no caben. Va junto con el arreglo de la v514 (que no llego a subirse): los repasos guardados reventaban con "Cannot read properties of undefined (reading length)" porque la v512 dejaba fuera los campos vacios y el Excel hace a.difs.length dando por hecho que existen (traza confirmada por JC: factHolcimExcelPorMaterial linea 25582). Solo app.js + index.html. NO requiere SQL. IMPORTANTE: el repaso guardado con la v512/v513 esta mal por dentro; hay que quitarlo con la X y volver a cruzar el mes una vez. -->
 <!-- v516 (Juan Carlos 11/08/2026): REPARAR AL VUELO LOS REPASOS YA GUARDADOS. La v514/v515 arreglaron como se GUARDA, pero el repaso que JC ya tenia grabado con la v512 seguia mal por dentro y seguia reventando al pulsar EXCEL: solo salia bien "Nucleo Garraf -> Puerto Barcelona", la unica familia sin abonados y por eso la unica que nunca llegaba a la linea que peta (a.difs.length). Obligar a borrarlo con la X y volver a cruzar el mes entero es un apano, no un arreglo. Ahora, al abrir o exportar, lo guardado se REPARA en memoria antes de usarse: se le devuelve la forma que espera el informe (difs array, modo texto, linea y rec objeto). Funcionan igual los repasos nuevos y los viejos, sin que el usuario tenga que hacer nada. Solo app.js + index.html. NO requiere SQL. -->
-<script src="app.js?v=632"></script>
+<script src="app.js?v=633"></script>
 </body>
 </html>

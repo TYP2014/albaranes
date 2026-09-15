@@ -14159,7 +14159,7 @@ function renderItvGlobalBanner() {
   }
   banner.style.display = 'block';
   banner.innerHTML = `
-    <div style="background:${nivelTop.bg};border:1px solid ${nivelTop.color};border-left:4px solid ${nivelTop.color};border-radius:6px;padding:10px 14px;margin:10px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+    <div style="order:${Math.max(0, avisos[0].est.dias)};background:${nivelTop.bg};border:1px solid ${nivelTop.color};border-left:4px solid ${nivelTop.color};border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
       <div style="flex:1;color:#fff;line-height:1.5">${mensajeHtml}</div>
       <div style="display:flex;gap:6px">
         <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('itv')">🛡️ Ver ITV</button>
@@ -14221,10 +14221,10 @@ function renderItvCitasBanner() {
 
   // Mismos colores que el aviso de citas de taller (v543: fondo cargado + letra oscura, que se lea)
   const niveles = [
-    { key:'hoy', color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE ITV HOY' },
-    { key:'d1',  color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE ITV MAÑANA' },
-    { key:'d2',  color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE ITV EN 2 DÍAS' },
-    { key:'d3',  color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE ITV EN 3 DÍAS' }
+    { key:'hoy', orden:0, color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE ITV HOY' },
+    { key:'d1',  orden:1, color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE ITV MAÑANA' },
+    { key:'d2',  orden:2, color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE ITV EN 2 DÍAS' },
+    { key:'d3',  orden:3, color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE ITV EN 3 DÍAS' }
   ];
 
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -14243,8 +14243,8 @@ function renderItvCitasBanner() {
     const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
 
-    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
+    html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
+      ';border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -14285,9 +14285,9 @@ function renderTallerGlobalBanner() {
 
   // Config visual de cada nivel. La key se usa para ocultar ese color por separado.
   const niveles = [
-    { key: 'vencido', icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'MANTENIMIENTO DE TALLER VENCIDO',  txtPl: 'vehículos con el MANTENIMIENTO DE TALLER VENCIDO' },
-    { key: 'pronto',  icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)' },
-    { key: 'plan',    icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)' }
+    { key: 'vencido', orden: 0, icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'MANTENIMIENTO DE TALLER VENCIDO',  txtPl: 'vehículos con el MANTENIMIENTO DE TALLER VENCIDO' },
+    { key: 'pronto',  orden: 15, icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)' },
+    { key: 'plan',    orden: 30, icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)' }
   ];
 
   const today = new Date().toISOString().slice(0, 10);
@@ -14312,7 +14312,7 @@ function renderTallerGlobalBanner() {
       mensaje = `<strong>${lista.length} ${n.txtPl}:</strong> ${top3}${resto}`;
     }
     html += `
-      <div style="background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">
+      <div style="order:${n.orden};background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
         <div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">🔧 ${mensaje}</div>
         <div style="display:flex;gap:6px">
           <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
@@ -14516,7 +14516,7 @@ async function recambiosAvisoDia10() {
       const color = hayProblemas ? '#ff9500' : '#2ecc71';
       const bg = hayProblemas ? 'rgba(255,149,0,.10)' : 'rgba(46,204,113,.10)';
       html = `
-      <div style="background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:8px 0;font-family:var(--mn);font-size:12px">
+      <div style="order:99;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
           <div style="display:flex;gap:6px">
@@ -23739,14 +23739,14 @@ function renderCitasGlobalBanner() {
 
   // De lo mas urgente a lo menos. Mismos colores que la tabla.
   const niveles = [
-    { key:'pasada', color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA DE TALLER OFICIAL PASADA SIN CERRAR' },
-    { key:'hoy',    color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE TALLER OFICIAL HOY' },
-    { key:'d1',     color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE TALLER OFICIAL MAÑANA' },
+    { key:'pasada', orden:0, color:'#a855f7', bg:'rgba(168,85,247,.14)', icon:'⚠️', titulo:'CITA DE TALLER OFICIAL PASADA SIN CERRAR' },
+    { key:'hoy',    orden:0, color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE TALLER OFICIAL HOY' },
+    { key:'d1',     orden:1, color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE TALLER OFICIAL MAÑANA' },
     // v543: el naranja y el amarillo VIVOS no se leian sobre el fondo claro de la app
     // (JC: "apenas se ven, estan casi en el mismo color"). Se hace lo mismo que ya se
     // hizo en la v361/v446: FONDO mas cargado y LETRA en la version OSCURA del color.
-    { key:'d3',     color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE TALLER OFICIAL EN 3 DÍAS O MENOS' },
-    { key:'d5',     color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE TALLER OFICIAL EN 5 DÍAS O MENOS' }
+    { key:'d3',     orden:3, color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE TALLER OFICIAL EN 3 DÍAS O MENOS' },
+    { key:'d5',     orden:5, color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE TALLER OFICIAL EN 5 DÍAS O MENOS' }
   ];
 
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -23767,8 +23767,8 @@ function renderCitasGlobalBanner() {
       ? n.titulo
       : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
 
-    html += '<div style="background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:12px">' +
+    html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
+      ';border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -24246,9 +24246,9 @@ function renderRecmedGlobalBanner() {
     });
   // v446: colores VIVOS (el aviso se camuflaba con el fondo, captura de JC)
   const niveles = [
-    { key: 'd1',     color: '#b71c1c', bg: 'rgba(255,59,48,.42)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA · FALTA 1 DÍA' },
-    { key: 'd2',     color: '#e65100', bg: 'rgba(255,140,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 2 DÍAS' },
-    { key: 'd3',     color: '#b58900', bg: 'rgba(255,208,0,.36)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS' }
+    { key: 'd1',     orden: 1, color: '#b71c1c', bg: 'rgba(255,59,48,.42)',  icon: '🩺', titulo: 'RECONOCIMIENTO MAÑANA · FALTA 1 DÍA' },
+    { key: 'd2',     orden: 2, color: '#e65100', bg: 'rgba(255,140,0,.34)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 2 DÍAS' },
+    { key: 'd3',     orden: 3, color: '#b58900', bg: 'rgba(255,208,0,.36)',  icon: '🩺', titulo: 'RECONOCIMIENTO EN 3 DÍAS' }
   ];
   const hoyStr = new Date().toISOString().slice(0, 10);
   let html = '';
@@ -24263,8 +24263,8 @@ function renderRecmedGlobalBanner() {
     }).join(' · ');
     const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('RECONOCIMIENTO', 'RECONOCIMIENTOS');
-    html += '<div style="background:' + n.bg + ';border:2px solid ' + n.color + ';border-left:7px solid ' + n.color +
-      ';border-radius:7px;padding:13px 16px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:14px">' +
+    html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:2px solid ' + n.color + ';border-left:7px solid ' + n.color +
+      ';border-radius:7px;padding:13px 16px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:14px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="font-size:18px;vertical-align:-2px">' + n.icon + '</span>' +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -31683,8 +31683,8 @@ function renderVencBanner() {
     const cab = e.clave === 'vencido'
       ? (g.lista.length === 1 ? 'YA VENCIDO' : g.lista.length + ' YA VENCIDOS')
       : 'VENCE EN ' + e.txt;
-    html += '<div style="background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
-      + ';border-radius:7px;padding:14px 18px;margin:8px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
+    html += '<div style="order:' + Math.max(0, e.max) + ';background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
+      + ';border-radius:7px;padding:14px 18px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
       + '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">⏱</span> '
       + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
       + _vencBotonera(e) + '</div>';
