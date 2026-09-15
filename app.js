@@ -1503,6 +1503,7 @@ async function loadData() {
                        || currentUser?.id === _ID_MARIADELMAR
                        || currentUser?.id === _ID_TRANSMARGAZ);
   const _aplicaFiltro = (currentRole === 'gestor' && !_gestorInterno);
+  window._aplicaFiltroAlb = _aplicaFiltro; // v638: lo reutiliza buscarHistorico() (misma privacidad)
   // v524 (Juan Carlos 12/08/2026) — LA VENTANA DE 3 MESES AHORA VA POR LA FECHA DEL TRANSPORTE,
   // NO POR LA FECHA EN QUE SE SUBIO EL ALBARAN. Aqui estaba el motivo de que el arranque fuera cada vez
   // mas lento y de que "lo de los 3 meses" durase apenas un mes: el filtro miraba created_at, o sea
@@ -1776,6 +1777,104 @@ async function loadData() {
 // v107J51 (FASE 3) — BOTÓN "VER TODO EL HISTÓRICO". Cuando JC necesita un albarán antiguo
 // (cosa puntual), pulsa el aviso y esto recarga TODOS los albaranes (sin el filtro de 3
 // meses). A partir de ahí ya está todo en memoria, como antes de la Fase 3.
+// v638 (JC 15/09/2026) — BUSCAR EN EL HISTORICO SIN CARGARLO ENTERO.
+// Antes, para ver un albaran de julio habia que pulsar "Ver todo el historico" y eso traia la tabla
+// completa (~17.000 filas hoy, una barbaridad dentro de dos años). Ahora el aviso sobre la tabla lleva
+// una caja con fecha desde/hasta (a dia), matricula, origen, destino y nº de albaran. Se rellena lo
+// que se sepa, se pulsa Buscar y se pide a Supabase SOLO lo que cumple eso; lo que llega SE SUMA a lo
+// que ya hay en memoria (sin volver a cargar nada) y se pasa por el mismo tratamiento que loadData
+// (db_id, _manual, firmado de enlaces, duplicados, estadisticas). "Ver todo" queda como ultimo recurso.
+// COMO SE FILTRA POR FECHA: 'fecha' es TEXTO DD/MM/AAAA. Un mes entero dentro del rango se pide con
+// 'fecha LIKE %MM/AAAA' (una condicion); los trozos de mes se piden dia a dia con 'fecha = DD/MM/AAAA'.
+// Tope: 366 dias de rango y 5.000 filas por busqueda (aviso si se corta).
+window._busqHist = window._busqHist || {};
+function _busqHistLeer() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  window._busqHist = { desde: g('bhDesde'), hasta: g('bhHasta'), mat: g('bhMat'), origen: g('bhOrigen'), destino: g('bhDestino'), alb: g('bhAlb') };
+  return window._busqHist;
+}
+function _busqHistCondFecha(desde, hasta) {
+  const d0 = new Date(desde + 'T00:00:00'), d1 = new Date(hasta + 'T00:00:00');
+  if (isNaN(d0) || isNaN(d1) || d1 < d0) return null;
+  if ((d1 - d0) / 86400000 > 366) return 'RANGO';
+  const p2 = n => String(n).padStart(2, '0');
+  const ors = [];
+  let m = new Date(d0.getFullYear(), d0.getMonth(), 1);
+  while (m <= d1) {
+    const ini = new Date(m.getFullYear(), m.getMonth(), 1), fin = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+    const mm = p2(m.getMonth() + 1) + '/' + m.getFullYear();
+    if (d0 <= ini && d1 >= fin) {
+      ors.push('fecha.like.%' + mm);
+    } else {
+      for (let d = new Date(Math.max(ini, d0)); d <= fin && d <= d1; d.setDate(d.getDate() + 1)) {
+        ors.push('fecha.eq.' + p2(d.getDate()) + '/' + mm);
+      }
+    }
+    m = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+  }
+  return ors.join(',');
+}
+async function buscarHistorico() {
+  const c = _busqHistLeer();
+  const limpiar = v => v.replace(/[,()"']/g, ' ').replace(/\s+/g, ' ').trim();
+  c.mat = limpiar(c.mat); c.origen = limpiar(c.origen); c.destino = limpiar(c.destino); c.alb = limpiar(c.alb);
+  if (c.desde && !c.hasta) c.hasta = c.desde;
+  if (c.hasta && !c.desde) c.desde = c.hasta;
+  if (!c.desde && !c.mat && !c.origen && !c.destino && !c.alb) { toast('Pon al menos una fecha, matrícula, origen, destino o nº de albarán', 'err'); return; }
+  let condFecha = null;
+  if (c.desde) {
+    condFecha = _busqHistCondFecha(c.desde, c.hasta);
+    if (condFecha === null) { toast('Fechas no válidas (la "hasta" debe ser igual o posterior a la "desde")', 'err'); return; }
+    if (condFecha === 'RANGO') { toast('Máximo un año de rango por búsqueda', 'err'); return; }
+  }
+  const btn = document.getElementById('bhBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+  const PAGE_B = 1000, TOPE = 5000;
+  let traidas = [];
+  try {
+    for (let desde = 0; desde < TOPE; desde += PAGE_B) {
+      let q = sb.from('albaranes').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }).range(desde, desde + PAGE_B - 1);
+      if (window._aplicaFiltroAlb) q = q.eq('user_id', currentUser.id);
+      if (condFecha) q = q.or(condFecha);
+      if (c.mat) q = q.ilike('tractora', '%' + c.mat + '%');
+      if (c.origen) q = q.ilike('planta', '%' + c.origen + '%');
+      if (c.destino) q = q.ilike('obra', '%' + c.destino + '%');
+      if (c.alb) q = q.ilike('albaran', '%' + c.alb + '%');
+      const { data, error } = await q;
+      if (error) throw error;
+      if (data && data.length) traidas = traidas.concat(data);
+      if (!data || data.length < PAGE_B) break;
+    }
+    const ya = new Set(records.map(r => r.db_id || r.id));
+    const nuevas = traidas.filter(r => !ya.has(r.id)).map(r => ({
+      ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()), _manual: r.manual_edit === true,
+      _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
+      _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
+    }));
+    if (nuevas.length) {
+      try { await Promise.all([firmarCampo(nuevas, 'file_url'), firmarAdjuntos(nuevas, 'anexos')]); } catch (e) { console.warn('[v638] firmado búsqueda:', e); }
+      records = records.concat(nuevas);
+    }
+    console.log('[v638] buscarHistorico: ' + traidas.length + ' encontrados en BD, ' + nuevas.length + ' nuevos en memoria', c);
+    // Dejar los filtros de la tabla apuntando a lo buscado, para que se vea directamente.
+    const fD = document.getElementById('fDesde'), fH = document.getElementById('fHasta'), fA = document.getElementById('fAlbaran');
+    if (fD && c.desde) fD.value = c.desde;
+    if (fH && c.hasta) fH.value = c.hasta;
+    if (fA && c.alb) fA.value = c.alb;
+    try { analyzeRecords(); } catch (e) { console.warn('[v638] analyzeRecords:', e); }
+    try { applyFilters(); } catch (e) { console.warn('[v638] applyFilters:', e); }
+    try { updateStats(); } catch (e) {}
+    try { renderAlerts(); } catch (e) {}
+    try { document.getElementById('tabAlbCount').textContent = records.filter(r => !r._dup).length; } catch (e) {}
+    window._busqHist.ultima = traidas.length + ' encontrados' + (traidas.length >= TOPE ? ' (tope de ' + TOPE + ' — afina la búsqueda)' : '') + ', ' + nuevas.length + ' añadidos a la tabla';
+    toast('✓ ' + window._busqHist.ultima, traidas.length ? 'ok' : 'err');
+  } catch (e) {
+    console.error('[v638] buscarHistorico:', e);
+    toast('Error buscando en el histórico: ' + (e.message || e), 'err');
+  } finally {
+    try { _actualizarAvisoHistorico(); } catch (e) {}
+  }
+}
 async function cargarTodoHistorico() {
   if (window._cargarTodo) return; // ya está todo cargado
   const aviso = document.getElementById('avisoHistorico');
@@ -1802,9 +1901,19 @@ function _actualizarAvisoHistorico() {
     aviso.style.display = '';
     // v559: se avisa tambien de la red de seguridad de las 24 h, para que quien sube sepa que lo
     // suyo esta ARRIBA del todo aunque la fecha haya salido mal, y no lo suba otra vez.
+    // v638: caja "Buscar en el histórico" (trae solo lo que cumple los criterios); "ver todo" en pequeño.
+    const b = window._busqHist || {};
+    const inp = (id, ph, val, extra) => '<input id="' + id + '" ' + (extra || '') + ' placeholder="' + ph + '" value="' + esc(val || '') + '" style="font-family:var(--mn);font-size:11px;padding:3px 5px;border:1px solid var(--bd);border-radius:4px;background:var(--s1);color:var(--tx)">';
     aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos ' + (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2) + ' meses</b> (por fecha de transporte, para que la app abra rápido). '
-      + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Ver todo el histórico</a> '
-      + '<span style="color:var(--mu)">· para fechas más antiguas, cárgalo aquí.</span><br>'
+      + '<span style="color:var(--mu)">¿Algo más antiguo? Búscalo aquí y se añade a la tabla sin cargar todo.</span>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px">'
+      + '<b>🔎 Histórico:</b> '
+      + inp('bhDesde', 'desde', b.desde, 'type="date" title="Fecha de transporte desde"') + inp('bhHasta', 'hasta', b.hasta, 'type="date" title="Fecha de transporte hasta (vacía = solo ese día)"')
+      + inp('bhMat', 'Matrícula', b.mat, 'size="9"') + inp('bhOrigen', 'Origen', b.origen, 'size="12"') + inp('bhDestino', 'Destino', b.destino, 'size="12"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
+      + '<button type="button" id="bhBtn" onclick="buscarHistorico()" style="font-family:var(--mn);font-size:11px;padding:3px 10px;cursor:pointer;font-weight:700">Buscar</button>'
+      + (b.ultima ? '<span style="color:var(--mu)">· ' + esc(b.ultima) + '</span>' : '')
+      + '<span style="color:var(--mu)">· o <a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--mu);text-decoration:underline;cursor:pointer">ver todo el histórico</a> (lento)</span>'
+      + '</div>'
       + '<span style="color:var(--mu)">🆕 Lo subido en las <b>últimas 24 h</b> se ve siempre arriba del todo, aunque la fecha se haya leído mal — corrígela ahí mismo.</span>';
   }
 }
@@ -9868,8 +9977,11 @@ function applyFilters() {
       const aviso = document.getElementById('avisoHistorico');
       if (aviso) {
         aviso.style.display = '';
+        // v638: en vez de "carga todo", se ofrece traer SOLO ese rango de fechas.
+        const _h = document.getElementById('fHasta')?.value || '';
         aviso.innerHTML = '⚠️ Estás filtrando una fecha de hace más de 3 meses. Esos albaranes aún no están cargados. '
-          + '<a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Cargar todo el histórico</a> para verlos.';
+          + '<a href="#" onclick="window._busqHist={desde:\'' + desde + '\',hasta:\'' + _h + '\'};_actualizarAvisoHistorico();buscarHistorico();return false;" style="color:var(--ac);font-weight:700;text-decoration:underline;cursor:pointer">Traer solo esas fechas</a>'
+          + '<span style="color:var(--mu)"> · o </span><a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--mu);text-decoration:underline;cursor:pointer">todo el histórico</a>.';
       }
     }
   }
