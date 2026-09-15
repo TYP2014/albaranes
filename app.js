@@ -1814,6 +1814,22 @@ function _busqHistCondFecha(desde, hasta) {
   }
   return ors.join(',');
 }
+// v639: listas de sugerencias para la caja de busqueda del historico.
+function _bhDatalists() {
+  const opts = (id, vals) => '<datalist id="' + id + '">' + vals.map(v => '<option value="' + esc(v) + '">').join('') + '</datalist>';
+  const mats = new Set(), origs = new Set(), dests = new Set();
+  try {
+    (records || []).forEach(r => {
+      const m = (typeof matriculaPrincipal === 'function') ? matriculaPrincipal(r.tractora || '') : (r.tractora || '');
+      if (m) mats.add(String(m).trim().toUpperCase());
+      if (r.planta) origs.add(String(r.planta).trim());
+      if (r.obra) dests.add(String(r.obra).trim());
+    });
+    if (typeof MATRICULAS_APRENDIDAS === 'object' && MATRICULAS_APRENDIDAS) Object.keys(MATRICULAS_APRENDIDAS).forEach(m => mats.add(m));
+  } catch (e) { console.warn('[v639] datalists:', e); }
+  const ord = set => [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+  return opts('bhMatList', ord(mats)) + opts('bhOrigenList', ord(origs)) + opts('bhDestinoList', ord(dests));
+}
 async function buscarHistorico() {
   const c = _busqHistLeer();
   const limpiar = v => v.replace(/[,()"']/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1909,7 +1925,11 @@ function _actualizarAvisoHistorico() {
       + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px">'
       + '<b>🔎 Histórico:</b> '
       + inp('bhDesde', 'desde', b.desde, 'type="date" title="Fecha de transporte desde"') + inp('bhHasta', 'hasta', b.hasta, 'type="date" title="Fecha de transporte hasta (vacía = solo ese día)"')
-      + inp('bhMat', 'Matrícula', b.mat, 'size="9"') + inp('bhOrigen', 'Origen', b.origen, 'size="12"') + inp('bhDestino', 'Destino', b.destino, 'size="12"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
+      // v639: sugerencias al escribir (datalist) con lo que la app ya conoce: matriculas de lo cargado +
+      // diccionario MATRICULAS_APRENDIDAS; origenes (planta) y destinos (obra) de lo cargado. Texto libre
+      // sigue valiendo: si se escribe algo que no esta en la lista, se busca igual en BD.
+      + inp('bhMat', 'Matrícula', b.mat, 'size="9" list="bhMatList" autocomplete="off"') + inp('bhOrigen', 'Origen', b.origen, 'size="12" list="bhOrigenList" autocomplete="off"') + inp('bhDestino', 'Destino', b.destino, 'size="12" list="bhDestinoList" autocomplete="off"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
+      + _bhDatalists()
       + '<button type="button" id="bhBtn" onclick="buscarHistorico()" style="font-family:var(--mn);font-size:11px;padding:3px 10px;cursor:pointer;font-weight:700">Buscar</button>'
       + (b.ultima ? '<span style="color:var(--mu)">· ' + esc(b.ultima) + '</span>' : '')
       + '<span style="color:var(--mu)">· o <a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--mu);text-decoration:underline;cursor:pointer">ver todo el histórico</a> (lento)</span>'
