@@ -14159,7 +14159,7 @@ function renderItvGlobalBanner() {
   }
   banner.style.display = 'block';
   banner.innerHTML = `
-    <div style="order:${Math.max(0, avisos[0].est.dias)};background:${nivelTop.bg};border:1px solid ${nivelTop.color};border-left:4px solid ${nivelTop.color};border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
+    <div style="order:${Math.max(0, avisos[0].est.dias)};background:${nivelTop.bg};border:1px solid ${nivelTop.color};border-left:4px solid ${nivelTop.color};border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
       <div style="flex:1;color:#fff;line-height:1.5">${mensajeHtml}</div>
       <div style="display:flex;gap:6px">
         <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('itv')">🛡️ Ver ITV</button>
@@ -14244,7 +14244,7 @@ function renderItvCitasBanner() {
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
 
     html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
+      ';border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -14312,7 +14312,7 @@ function renderTallerGlobalBanner() {
       mensaje = `<strong>${lista.length} ${n.txtPl}:</strong> ${top3}${resto}`;
     }
     html += `
-      <div style="order:${n.orden};background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
+      <div style="order:${n.orden};background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
         <div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">🔧 ${mensaje}</div>
         <div style="display:flex;gap:6px">
           <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>
@@ -14516,7 +14516,7 @@ async function recambiosAvisoDia10() {
       const color = hayProblemas ? '#ff9500' : '#2ecc71';
       const bg = hayProblemas ? 'rgba(255,149,0,.10)' : 'rgba(46,204,113,.10)';
       html = `
-      <div style="order:99;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:10px 14px;margin:0;font-family:var(--mn);font-size:13.5px">
+      <div style="order:99;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
           <div style="display:flex;gap:6px">
@@ -23768,7 +23768,7 @@ function renderCitasGlobalBanner() {
       : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
 
     html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:10px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
+      ';border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -24264,7 +24264,7 @@ function renderRecmedGlobalBanner() {
     const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('RECONOCIMIENTO', 'RECONOCIMIENTOS');
     html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:2px solid ' + n.color + ';border-left:7px solid ' + n.color +
-      ';border-radius:7px;padding:13px 16px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:14px">' +
+      ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:14px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="font-size:18px;vertical-align:-2px">' + n.icon + '</span>' +
       ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
@@ -31684,7 +31684,7 @@ function renderVencBanner() {
       ? (g.lista.length === 1 ? 'YA VENCIDO' : g.lista.length + ' YA VENCIDOS')
       : 'VENCE EN ' + e.txt;
     html += '<div style="order:' + Math.max(0, e.max) + ';background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
-      + ';border-radius:7px;padding:14px 18px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
+      + ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
       + '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">⏱</span> '
       + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
       + _vencBotonera(e) + '</div>';
