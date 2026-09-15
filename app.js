@@ -34742,10 +34742,10 @@ async function factConciliarMesSodira(mes) {
   _factSodiraMesActual = mes;
   _factSodiraArchivos = _factContarArchivos(data);
   const lineas = data.filter(L => !L.es_ajuste && _sodiraClave(L.numero_albaran));
-  _factProcesarYMostrarSodira(lineas, setEstado);
+  await _factProcesarYMostrarSodira(lineas, setEstado);
 }
 
-function _factProcesarYMostrarSodira(lineas, setEstado) {
+async function _factProcesarYMostrarSodira(lineas, setEstado) {
   setEstado = setEstado || function () {};
   // Índice de TUS albaranes por clave 01718/NNNNNN.
   const porClave = new Map();
@@ -34793,21 +34793,40 @@ function _factProcesarYMostrarSodira(lineas, setEstado) {
 
   _factSodiraUltimo = { abonados, noAbonados, sinCopia, duplicados, mes: _factSodiraMesActual, fecha: new Date() };
 
-  // Marcar facturados (memoria + Supabase en 2º plano), con la ref del depósito.
+  // v637: marcar facturados MANDANDO LA BD, no la memoria. Caso real (JC 15/09/2026): quitó la marca a
+  // los de Híspalis en otra pestaña, volvió a subir el depósito y la app dijo "0 marcados ahora" porque en
+  // memoria seguían como facturados (cargarTodoHistorico no recarga si ya cargó). Ahora el UPDATE va
+  // por lotes con la condición "estado <> facturado" en el propio Supabase y devuelve los ids que ha
+  // tocado: ese es el "marcados ahora" de verdad. Después la memoria y la tabla se ponen al día.
+  const _porRef = new Map();
+  abonados.forEach(a => {
+    const r = a.rec; if (!r.db_id) return;
+    const ref = ('Sodira ' + (a.linea.origen || '')).trim();
+    if (!_porRef.has(ref)) _porRef.set(ref, []);
+    _porRef.get(ref).push(a);
+  });
   let marcados = 0;
-  for (const a of abonados) {
-    const r = a.rec;
-    if (r.db_id && r.estado_facturacion !== 'facturado') {
-      const ref = 'Sodira ' + (a.linea.origen || '');
-      r.estado_facturacion = 'facturado';
-      r.factura_fecha = new Date().toISOString();
-      r.factura_ref = ref.trim();
-      r.factura_tipo = 'autofactura';
-      marcados++;
-      const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
-      if (celda) celda.innerHTML = _celdaEstadoHtml(r);
-      sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: r.factura_fecha, factura_ref: r.factura_ref, factura_tipo: 'autofactura' }).eq('id', r.db_id)
-        .then(({ error }) => { if (error) console.warn('[v631] guardar facturado Sodira:', error); });
+  const _ahora = new Date().toISOString();
+  for (const [ref, lista] of _porRef) {
+    for (let k = 0; k < lista.length; k += 100) {
+      const trozo = lista.slice(k, k + 100);
+      const ids = trozo.map(a => a.rec.db_id);
+      try {
+        const { data: hechos, error } = await sb.from('albaranes')
+          .update({ estado_facturacion: 'facturado', factura_fecha: _ahora, factura_ref: ref, factura_tipo: 'autofactura' })
+          .in('id', ids).neq('estado_facturacion', 'facturado').select('id');
+        if (error) { console.warn('[v637] guardar facturado Sodira (' + ref + '):', error); toast('No pude marcar ' + ids.length + ' albaranes (' + ref + '): ' + (error.message || error), 'err'); continue; }
+        marcados += (hechos || []).length;
+      } catch (e) { console.warn('[v637] guardar facturado Sodira:', e); }
+      // Memoria y tabla al día (estén como estén): la BD ya los tiene facturados.
+      trozo.forEach(a => {
+        const r = a.rec;
+        if (r.estado_facturacion !== 'facturado') { r.estado_facturacion = 'facturado'; r.factura_fecha = _ahora; }
+        if (!r.factura_ref) r.factura_ref = ref;
+        if (!r.factura_tipo) r.factura_tipo = 'autofactura';
+        const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+        if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+      });
     }
   }
 
