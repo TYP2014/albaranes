@@ -1814,10 +1814,52 @@ function _busqHistCondFecha(desde, hasta) {
   }
   return ors.join(',');
 }
+// v640: carga UNA vez la vista v_historico_rutas (resumen de todo el historico). Sin SQL en la app:
+// la vista ya existe en Supabase (creada 15/09/2026) y respeta el RLS de albaranes.
+window._bhDim = window._bhDim || null;
+async function _bhCargarDim() {
+  if (window._bhDim || window._bhDimCargando) return;
+  window._bhDimCargando = true;
+  try {
+    let filas = [];
+    for (let d = 0; d < 20000; d += 1000) {
+      const { data, error } = await sb.from('v_historico_rutas').select('matricula,origen,destino,viajes').range(d, d + 999);
+      if (error) throw error;
+      if (data && data.length) filas = filas.concat(data);
+      if (!data || data.length < 1000) break;
+    }
+    window._bhDim = filas;
+    console.log('[v640] v_historico_rutas cargada: ' + filas.length + ' combinaciones');
+    _bhRefrescar();
+  } catch (e) {
+    console.warn('[v640] no se pudo cargar v_historico_rutas (sigue sin cascada):', e.message || e);
+    window._bhDim = null;
+  } finally { window._bhDimCargando = false; }
+}
+// v640: reescribe las tres datalist segun lo escrito en las otras casillas (cascada).
+function _bhRefrescar() {
+  const cont = document.getElementById('bhDatalists');
+  if (!cont) return;
+  cont.innerHTML = _bhDatalists(true);
+}
 // v639: listas de sugerencias para la caja de busqueda del historico.
-function _bhDatalists() {
+// v640: con la vista cargada, cascada entre casillas; sin ella, lo de memoria como en v639.
+function _bhDatalists(soloInterior) {
   const opts = (id, vals) => '<datalist id="' + id + '">' + vals.map(v => '<option value="' + esc(v) + '">').join('') + '</datalist>';
   const mats = new Set(), origs = new Set(), dests = new Set();
+  const ord = set => [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+  const wrap = h => soloInterior ? h : '<span id="bhDatalists">' + h + '</span>';
+  if (window._bhDim) {
+    const g = id => (document.getElementById(id)?.value || '').trim().toLowerCase();
+    const vm = g('bhMat'), vo = g('bhOrigen'), vd = g('bhDestino');
+    const ok = (val, txt) => !txt || String(val || '').toLowerCase().includes(txt);
+    window._bhDim.forEach(r => {
+      if (ok(r.origen, vo) && ok(r.destino, vd) && r.matricula) mats.add(r.matricula);
+      if (ok(r.matricula, vm) && ok(r.destino, vd) && r.origen) origs.add(r.origen);
+      if (ok(r.matricula, vm) && ok(r.origen, vo) && r.destino) dests.add(r.destino);
+    });
+    return wrap(opts('bhMatList', ord(mats)) + opts('bhOrigenList', ord(origs)) + opts('bhDestinoList', ord(dests)));
+  }
   try {
     (records || []).forEach(r => {
       const m = (typeof matriculaPrincipal === 'function') ? matriculaPrincipal(r.tractora || '') : (r.tractora || '');
@@ -1827,8 +1869,7 @@ function _bhDatalists() {
     });
     if (typeof MATRICULAS_APRENDIDAS === 'object' && MATRICULAS_APRENDIDAS) Object.keys(MATRICULAS_APRENDIDAS).forEach(m => mats.add(m));
   } catch (e) { console.warn('[v639] datalists:', e); }
-  const ord = set => [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
-  return opts('bhMatList', ord(mats)) + opts('bhOrigenList', ord(origs)) + opts('bhDestinoList', ord(dests));
+  return wrap(opts('bhMatList', ord(mats)) + opts('bhOrigenList', ord(origs)) + opts('bhDestinoList', ord(dests)));
 }
 async function buscarHistorico() {
   const c = _busqHistLeer();
@@ -1928,7 +1969,10 @@ function _actualizarAvisoHistorico() {
       // v639: sugerencias al escribir (datalist) con lo que la app ya conoce: matriculas de lo cargado +
       // diccionario MATRICULAS_APRENDIDAS; origenes (planta) y destinos (obra) de lo cargado. Texto libre
       // sigue valiendo: si se escribe algo que no esta en la lista, se busca igual en BD.
-      + inp('bhMat', 'Matrícula', b.mat, 'size="9" list="bhMatList" autocomplete="off"') + inp('bhOrigen', 'Origen', b.origen, 'size="12" list="bhOrigenList" autocomplete="off"') + inp('bhDestino', 'Destino', b.destino, 'size="12" list="bhDestinoList" autocomplete="off"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
+      // v640: cascada real. Al tocar una casilla se carga (una sola vez) la vista v_historico_rutas de
+      // Supabase (matricula→origen→destino de TODO el historico, pocas miles de filas) y las sugerencias
+      // de cada casilla se estrechan con lo escrito en las otras dos. Si la vista falla, sigue el v639.
+      + inp('bhMat', 'Matrícula', b.mat, 'size="9" list="bhMatList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhOrigen', 'Origen', b.origen, 'size="12" list="bhOrigenList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhDestino', 'Destino', b.destino, 'size="12" list="bhDestinoList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
       + _bhDatalists()
       + '<button type="button" id="bhBtn" onclick="buscarHistorico()" style="font-family:var(--mn);font-size:11px;padding:3px 10px;cursor:pointer;font-weight:700">Buscar</button>'
       + (b.ultima ? '<span style="color:var(--mu)">· ' + esc(b.ultima) + '</span>' : '')
