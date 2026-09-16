@@ -402,6 +402,7 @@ async function loadUserMap() {
       const _esMarta       = (_emailFinal === 'marta@typ2014.local');
       const _esLogistica   = (_emailFinal === 'logistica@ttesyportes.2014');
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esMarta || _esLogistica;
+      try { window._veOficina = !!_veTodo; } catch (e) {}   // v646: tarjeta Papelera solo para los 4 de oficina
       // v241: el botón "➕ Albarán a mano" solo lo ven/usan esos 4 (oficina). Nadie más.
       try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = _veTodo ? 'flex' : 'none'; } catch (e) {}
 
@@ -2257,6 +2258,7 @@ async function _papeleraMotivo(dbIds, motivo) {
       if (error) console.warn('[v645 papelera] motivo no guardado:', error.message);
     }
   } catch (e) { console.warn('[v645 papelera]', e); }
+  try { _papeleraContar(true); } catch (e) {}   // v646
 }
 
 async function deleteRecordDB(dbId) {
@@ -11949,7 +11951,9 @@ function updateStats() {
       <div class="stat"><div class="stat-l">Este mes</div><div class="stat-v">${mes}</div><div class="stat-s">${M[now.getMonth()]} ${now.getFullYear()}</div></div>
       <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
       <div class="stat" style="--c:var(--erd)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--erd)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
-      <div class="stat" style="--c:var(--wnd)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wnd)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`;
+      <div class="stat" style="--c:var(--wnd)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wnd)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`
+      + (window._veOficina ? `<div class="stat" id="statPapelera" onclick="abrirPapelera()" style="--c:#5f5e5a;cursor:pointer" title="Ver la papelera de albaranes"><div class="stat-l">🗑 Papelera</div><div class="stat-v" id="statPapeleraN">${_papeleraN === null ? '…' : _papeleraN}</div><div class="stat-s">últimos 90 días</div></div>` : '');
+    if (window._veOficina) _papeleraContar();   // v646
     const hdrInfo = document.getElementById('hdrInfo');
     if (hdrInfo) hdrInfo.textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
     console.log(`[updateStats] OK: ${valid.length} válidos, ${tm.toFixed(1)} TN, ${dups.length} dups, ${warns.length} revisar`);
@@ -11958,6 +11962,132 @@ function updateStats() {
     console.error('[updateStats] Error:', e);
     const box = document.getElementById('statsBox');
     if (box) box.innerHTML = `<div class="stat" style="grid-column:1/-1"><div class="stat-l">⚠️ Error calculando estadísticas</div><div class="stat-v" style="font-size:14px;color:var(--er)">${e.message}</div><div class="stat-s">Abrir F12 (consola) y enviar captura</div></div>`;
+  }
+}
+
+// ============================================================
+// v646 (16/09/2026): PAPELERA DE ALBARANES EN LA APP (parte B2).
+// Tarjeta "Papelera" en la fila de arriba (solo los 4 de oficina) con el
+// numero de borrados de los ultimos 90 dias; al pinchar, panel con la lista
+// (quien, cuando, nº, fecha, matricula, duplicado, motivo, fichero) y boton
+// Restaurar (RPC papelera_restaurar, SQL parte B2).
+// ============================================================
+let _papeleraN = null, _papeleraUlt = 0, _papeleraFiltro = 'todos', _papeleraFilas = [];
+async function _papeleraContar(forzar) {
+  try {
+    if (!window._veOficina) return;
+    if (!forzar && Date.now() - _papeleraUlt < 60000) return;
+    _papeleraUlt = Date.now();
+    const { count, error } = await sb.from('albaranes_papelera')
+      .select('id', { count: 'exact', head: true }).is('restaurado_en', null);
+    if (error) { console.warn('[v646 papelera] contar:', error.message); return; }
+    _papeleraN = count || 0;
+    const el = document.getElementById('statPapeleraN');
+    if (el) el.textContent = _papeleraN;
+  } catch (e) { console.warn('[v646 papelera]', e); }
+}
+function _papeleraPanel() {
+  let p = document.getElementById('papeleraPanel');
+  if (!p) {
+    const box = document.getElementById('statsBox');
+    if (!box) return null;
+    p = document.createElement('div');
+    p.id = 'papeleraPanel';
+    p.style.cssText = 'display:none;margin:0 0 14px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:12px 14px';
+    box.insertAdjacentElement('afterend', p);
+  }
+  return p;
+}
+async function abrirPapelera() {
+  const p = _papeleraPanel(); if (!p) return;
+  if (p.style.display !== 'none') { p.style.display = 'none'; return; }
+  p.style.display = '';
+  p.innerHTML = '<div style="color:var(--mu);font-size:13px">Cargando papelera…</div>';
+  await _papeleraCargar();
+}
+function cerrarPapelera() { const p = document.getElementById('papeleraPanel'); if (p) p.style.display = 'none'; }
+async function _papeleraCargar() {
+  const p = _papeleraPanel(); if (!p) return;
+  try {
+    const { data, error } = await sb.from('albaranes_papelera')
+      .select('id,albaran_id,numero_albaran,fecha,matricula,filename,file_url,borrado_en,borrado_por_nombre,duplicado,motivo')
+      .is('restaurado_en', null).order('borrado_en', { ascending: false }).limit(500);
+    if (error) throw error;
+    _papeleraFilas = data || [];
+    _papeleraN = _papeleraFilas.length;
+    const el = document.getElementById('statPapeleraN'); if (el) el.textContent = _papeleraN;
+    _papeleraPintar();
+  } catch (e) {
+    p.innerHTML = '<div style="color:var(--er);font-size:13px">No se pudo cargar la papelera: ' + esc(e.message || e) + '</div>';
+  }
+}
+function _papeleraSetFiltro(v) { _papeleraFiltro = v; _papeleraPintar(); }
+function _papeleraPintar() {
+  const p = _papeleraPanel(); if (!p) return;
+  let filas = _papeleraFilas;
+  if (_papeleraFiltro === 'dup') filas = filas.filter(f => /^S/i.test(f.duplicado || ''));
+  else if (_papeleraFiltro === 'sinmotivo') filas = filas.filter(f => !f.motivo);
+  const fmt = iso => { try { const d = new Date(iso); return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || ''; } };
+  const corto = f => { const n = f || ''; return n.length > 34 ? '…' + n.slice(-32) : n; };
+  let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
+    + '<div style="font-weight:700;font-size:14px">🗑 Papelera de albaranes · ' + _papeleraFilas.length + ' en los últimos 90 días</div>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + '<select onchange="_papeleraSetFiltro(this.value)" style="font-size:12px;padding:4px 6px">'
+    + '<option value="todos"' + (_papeleraFiltro === 'todos' ? ' selected' : '') + '>Todos</option>'
+    + '<option value="dup"' + (_papeleraFiltro === 'dup' ? ' selected' : '') + '>Solo duplicados</option>'
+    + '<option value="sinmotivo"' + (_papeleraFiltro === 'sinmotivo' ? ' selected' : '') + '>Sin motivo</option></select>'
+    + '<button class="btn btn-sm" onclick="_papeleraCargar()" title="Recargar">🔄</button>'
+    + '<button class="btn btn-sm" onclick="cerrarPapelera()" title="Cerrar">✕</button></div></div>';
+  if (!filas.length) {
+    h += '<div style="color:var(--mu);font-size:13px;padding:8px 0">Nada en la papelera' + (_papeleraFiltro !== 'todos' ? ' con ese filtro' : '') + '.</div>';
+  } else {
+    h += '<div style="overflow-x:auto"><table style="width:100%;font-size:12px;border-collapse:collapse;min-width:760px">'
+      + '<tr style="color:var(--mu);text-align:left"><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Borrado</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Quién</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Nº albarán</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Fecha · matrícula</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Dup.</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Motivo</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)">Fichero</th><th style="padding:5px 4px;border-bottom:1px solid var(--bd)"></th></tr>';
+    for (const f of filas) {
+      const dup = /^S/i.test(f.duplicado || '');
+      h += '<tr>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd);white-space:nowrap">' + esc(fmt(f.borrado_en)) + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd)">' + esc(f.borrado_por_nombre || '—') + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd);font-weight:600">' + esc(f.numero_albaran || '—') + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd);white-space:nowrap">' + esc((f.fecha || '—') + ' · ' + (f.matricula || '—')) + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd)"><span style="padding:2px 8px;border-radius:8px;font-weight:700;' + (dup ? 'background:rgba(255,59,48,.15);color:#b71c1c' : 'background:var(--sf2,#eee);color:var(--mu)') + '" title="' + esc2(f.duplicado || '') + '">' + (dup ? 'SÍ' : 'NO') + '</span></td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd)">' + (f.motivo ? esc(f.motivo) : '<span style="color:var(--mu)">—</span>') + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd)">' + (f.file_url ? '<a href="#" onclick="_papeleraAbrirFichero(' + f.id + ');return false" title="' + esc2(f.filename || '') + '">' + esc(corto(f.filename)) + '</a>' : '—') + '</td>'
+        + '<td style="padding:5px 4px;border-bottom:1px solid var(--bd);white-space:nowrap"><button class="btn btn-sm" onclick="_papeleraRestaurar(' + f.id + ', this)">♻️ Restaurar</button></td>'
+        + '</tr>';
+    }
+    h += '</table></div>';
+  }
+  h += '<div style="font-size:11px;color:var(--mu);margin-top:8px">Se vacía sola a los 90 días. El fichero abre el PDF o la foto original.</div>';
+  p.innerHTML = h;
+}
+async function _papeleraAbrirFichero(id) {
+  const f = _papeleraFilas.find(x => x.id === id); if (!f || !f.file_url) return;
+  try {
+    const parte = (typeof _docPartir === 'function') ? _docPartir(f.file_url) : null;
+    if (parte && parte.ruta) {
+      const { data, error } = await sb.storage.from('documentos').createSignedUrl(parte.ruta, 3600);
+      if (!error && data && data.signedUrl) { window.open(_docAbsoluta(data.signedUrl), '_blank'); return; }
+    }
+    window.open(f.file_url, '_blank');
+  } catch (e) { toast('No se pudo abrir el fichero: ' + (e.message || e), 'err'); }
+}
+async function _papeleraRestaurar(id, btn) {
+  const f = _papeleraFilas.find(x => x.id === id); if (!f) return;
+  if (!confirm('¿Restaurar el albarán ' + (f.numero_albaran || '(sin nº)') + ' del ' + (f.fecha || '?') + ' · ' + (f.matricula || '?') + '?\n\nVolverá a la tabla de albaranes.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const { data, error } = await sb.rpc('papelera_restaurar', { p_id: id });
+    if (error) throw error;
+    toast('✓ Restaurado ' + (f.numero_albaran || ''));
+    _papeleraFilas = _papeleraFilas.filter(x => x.id !== id);
+    _papeleraN = _papeleraFilas.length;
+    _papeleraPintar();
+    try { await loadData(); } catch (e) { console.warn('[v646] loadData tras restaurar:', e); }
+    const el = document.getElementById('statPapeleraN'); if (el) el.textContent = _papeleraN;
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '♻️ Restaurar'; }
+    toast('No se pudo restaurar: ' + (e.message || e), 'err');
   }
 }
 
