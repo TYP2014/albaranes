@@ -2226,6 +2226,39 @@ async function saveGasRecord(data) {
 // reaparecía en la siguiente carga de datos. Esa era la causa real del bug que
 // la v83c tapó recargando TODA la base tras cada borrado (mismo diagnóstico que
 // v107GZ hizo para el UPDATE un mes después; el DELETE se quedó sin arreglar).
+// ============================================================
+// v645 (16/09/2026): PAPELERA DE ALBARANES - MOTIVO + FRENO.
+// La BD ya guarda copia de todo lo borrado (trigger trg_albaranes_papelera,
+// parte A, 16/09). Aqui: (1) se pide el MOTIVO al borrar y se apunta en la
+// papelera; (2) borrado multiple de mas de 10: hay que TECLEAR el numero.
+// ============================================================
+const _PAPELERA_FRENO = 10;
+function _pedirMotivoBorrado(defecto) {
+  const t = prompt('MOTIVO del borrado (para la papelera):\n\n'
+    + '1 = Duplicado\n'
+    + '2 = Lo vuelvo a subir / prueba\n'
+    + '3 = Error, no debia estar\n'
+    + '4 = No se factura\n'
+    + 'o escribe el motivo a mano', defecto || '1');
+  if (t === null) return null;               // Cancelar = no se borra
+  const m = { '1': 'Duplicado', '2': 'Resubir / prueba', '3': 'Error', '4': 'No se factura' };
+  const k = String(t).trim();
+  return m[k] || (k ? k.slice(0, 80) : 'Sin motivo');
+}
+async function _papeleraMotivo(dbIds, motivo) {
+  try {
+    const ids = (dbIds || []).filter(Boolean).map(String);
+    if (!ids.length || !motivo) return;
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await sb.from('albaranes_papelera')
+        .update({ motivo: motivo })
+        .in('albaran_id', ids.slice(i, i + 200))
+        .is('motivo', null);
+      if (error) console.warn('[v645 papelera] motivo no guardado:', error.message);
+    }
+  } catch (e) { console.warn('[v645 papelera]', e); }
+}
+
 async function deleteRecordDB(dbId) {
   const { data: borrado, error } = await sb.from('albaranes').delete().eq('id', dbId).select();
   if (error) throw error;
@@ -2528,10 +2561,22 @@ async function _borrarSeleccionados() {
     toast('No has marcado ningún albarán.', 'err');
     return;
   }
-  // Confirmación obligatoria con el número EXACTO.
+  // v645: FRENO. Mas de _PAPELERA_FRENO -> hay que TECLEAR el numero exacto
+  // (un Enter distraido ya no borra miles). Debajo, siempre, confirmacion.
+  if (ids.length > _PAPELERA_FRENO) {
+    const tec = prompt('⚠️ ATENCION: vas a BORRAR ' + ids.length + ' albaranes.\n\n'
+      + 'Para continuar, escribe el numero EXACTO (' + ids.length + '):');
+    if (tec === null) return;
+    if (String(tec).trim() !== String(ids.length)) {
+      toast('Numero incorrecto. No se ha borrado nada.', 'err');
+      return;
+    }
+  }
   const ok = confirm('Vas a BORRAR ' + ids.length + ' albarán(es) marcados.\n\n'
-    + 'Esta acción NO se puede deshacer.\n\n¿Seguro que quieres continuar?');
+    + 'Quedan 90 dias en la papelera (Supabase).\n\n¿Seguro que quieres continuar?');
   if (!ok) return;
+  const motivoSel = _pedirMotivoBorrado('1');
+  if (motivoSel === null) return;
 
   let okN = 0, errN = 0;
   const idsBorrar = [];
@@ -2565,6 +2610,7 @@ async function _borrarSeleccionados() {
       errN++;
     }
   }
+  await _papeleraMotivo(idsBorrar, motivoSel);   // v645
   // CLAVE (copiado de deleteRecord, que sí funciona): recargar TODO desde
   // la BD en vez de fiarse de la memoria. Garantiza que lo borrado no
   // reaparece y que la vista refleja la realidad.
@@ -12926,7 +12972,7 @@ async function _borrarFilaDup(id, ev) {
   if (!confirm('¿Eliminar este albarán DUPLICADO?\n\n' + desc + '\n\nEsta acción no se puede deshacer.')) return;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    if (r.db_id) await deleteRecordDB(r.db_id);
+    if (r.db_id) { await deleteRecordDB(r.db_id); await _papeleraMotivo([r.db_id], 'Duplicado'); }   // v645
     _quitarAlbaranDeMemoria(r);
     toast('✓ Duplicado eliminado');
   } catch (e) {
@@ -12951,12 +12997,14 @@ async function deleteRecord() {
   const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
   if (!r) { toast('No se encontró el albarán', 'err'); return; }
   const desc = r.albaran ? `albarán Nº ${r.albaran}` : 'este albarán';
-  if (!confirm(`¿Eliminar ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
+  if (!confirm(`¿Eliminar ${desc}?\n\nQueda 90 dias en la papelera.`)) return;
+  const motivoSel = _pedirMotivoBorrado('1');   // v645
+  if (motivoSel === null) return;
   // Bloquear el botón para evitar doble click mientras procesa
   const btn = document.getElementById('btnDel');
   if (btn) { btn.disabled = true; btn.textContent = 'Eliminando...'; }
   try {
-    if (r.db_id) await deleteRecordDB(r.db_id);
+    if (r.db_id) { await deleteRecordDB(r.db_id); await _papeleraMotivo([r.db_id], motivoSel); }
     // v331: FUERA el `await loadData()` que puso la v83c. Recargar los 13.000+
     // albaranes tras CADA borrado era lo que hacía lento el botón Eliminar.
     // Ya no hace falta: deleteRecordDB confirma con .select() que la fila se
