@@ -5763,11 +5763,18 @@ async function _processOne(it, type, key, timeoutMs) {
           const _nf = String(data.num_factura || '').trim().toLowerCase();
           const _nalb = String(data.albaran_interno || '').trim().toLowerCase();
           const _tp = String(data.tipo || '').trim().toLowerCase();
+          // v642 (16/09/2026): la clave lleva también los LITROS. Un mismo
+          // albarán Soledad puede traer DOS repostajes de gasoil (el surtidor
+          // corta y sigue: 36,53 L + 577,26 L en alb. 2028413425, 6521NHV,
+          // fact. I0000025034) y con solo factura+albarán+tipo el segundo se
+          // omitía como duplicado. Con litros distintos → repostaje distinto.
+          const _lt = Math.round((parseFloat(data.litros) || 0) * 100);
           if (_nf && _nalb) {
             const _yaExiste = gasoilRecords.some(r =>
               String(r.num_factura || '').trim().toLowerCase() === _nf &&
               String(r.albaran_interno || '').trim().toLowerCase() === _nalb &&
-              String(r.tipo || '').trim().toLowerCase() === _tp
+              String(r.tipo || '').trim().toLowerCase() === _tp &&
+              Math.round((parseFloat(r.litros) || 0) * 100) === _lt
             );
             if (_yaExiste) {
               _facturaDupOmitidos++;
