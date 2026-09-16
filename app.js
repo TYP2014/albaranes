@@ -11953,6 +11953,7 @@ function updateStats() {
       <div class="stat" style="--c:var(--erd)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--erd)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
       <div class="stat" style="--c:var(--wnd)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wnd)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`
       + (window._veOficina ? `<div class="stat" id="statPapelera" onclick="abrirPapelera()" style="--c:#5f5e5a;cursor:pointer" title="Ver la papelera de albaranes"><div class="stat-l">🗑 Papelera</div><div class="stat-v" id="statPapeleraN">${_papeleraN === null ? '…' : _papeleraN}</div><div class="stat-s">últimos 90 días</div></div>` : '');
+    box.classList.toggle('stats-7', !!window._veOficina);   // v647: 7 columnas si esta la Papelera
     if (window._veOficina) _papeleraContar();   // v646
     const hdrInfo = document.getElementById('hdrInfo');
     if (hdrInfo) hdrInfo.textContent = valid.length ? `${valid.length} alb · ${tm.toFixed(1)} TN` : '';
