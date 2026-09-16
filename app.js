@@ -28574,6 +28574,7 @@ function _factProcesarYMostrarHolcim(setEstado) {
   // Solo toca albaranes del repaso Holcim y dentro de la ventana del mes (noAbonados ya viene filtrado).
   for (const r of noAbonados) {
     if (r.fact_fija) continue; // v277 — candado 🔒: fijado a mano por la oficina, el cruce NO lo toca
+    if (/^Sodira\b/i.test(String(r.factura_ref || ''))) continue; // v641 — pagado por SODIRA (depósito): no es de Holcim, el cruce Holcim NO lo desmarca
     if (r.db_id && r.estado_facturacion === 'facturado') {
       r.estado_facturacion = 'pendiente';
       r.factura_fecha = null;
