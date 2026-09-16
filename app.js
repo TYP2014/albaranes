@@ -5061,6 +5061,23 @@ async function _processOne(it, type, key, timeoutMs) {
             console.log('[v107AX CEMEX cisterna] cemento a granel detectado (origen='
               + (data.planta || '?') + ', destino=' + (data.obra || '?') + ')');
           }
+          // v643 (Juan Carlos 16/09/2026): ÁRIDOS CEMEX a Montcada. La regla v107K84 de arriba
+          // solo salta en cisternas de cemento; los áridos (AG-T-4/12-C, etc., Ref CemexGo M469...)
+          // que van a "Datos Obra: HORMIGON MONTCADA" se quedaban como "Montcada" a secas
+          // (caso real M4690000250184). Unificamos también aquí a "HORMIGON MONTCADA".
+          // NO toca: "Fábrica Montcada" (Caliza Cemex/TODO UNO de Holcim) ni albaranes que no sean CEMEX.
+          if (_esCemex && !_esCementoGranel) {
+            const _dAr = String(data.obra || '').toLowerCase()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const _cliAr = String(data.cliente || '').toLowerCase();
+            const _esMontcadaHormigon = (_dAr === 'montcada' || /hormigon\s*montcada/.test(_dAr))
+                                       && !/fabrica/.test(_dAr)
+                                       && /cemex/.test(_cliAr);
+            if (_esMontcadaHormigon && data.obra !== 'HORMIGON MONTCADA') {
+              console.log('[v643 CEMEX árido destino] "' + data.obra + '" → "HORMIGON MONTCADA"');
+              data.obra = 'HORMIGON MONTCADA';
+            }
+          }
         }
         // v107AT: COBRO POR VIAJE (no por tonelada). Hay transportes que se
         // facturan a tanto el viaje, NO por toneladas. En esos casos guardamos
