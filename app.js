@@ -6977,6 +6977,36 @@ SOLO JSON válido, sin markdown.`;
     console.log(`[v107I7] Sonnet ajustó ${recO} origen(es) y ${recD} destino(s) Promsa`);
   }
 
+  // v644 (Juan Carlos 16/09/2026): PROMSA QUE COMPRA HOLCIM (Caliza Promsa → Fábrica Montcada).
+  // Albarán de VENTA de Molins/Promsa (cabecera Molins, CENTRAL "PROMSA GARRAF") pero con
+  // CLIENT "HOLCIM ESPAÑA S A.U." y OBRA "FABRICA MONTCADA": es la caliza que Holcim compra a
+  // Promsa (caso real 113457-N, 15/09/2026, 9566NBR, producto "M-0/40-C RZO REBUIG 0/40 CALCARI").
+  // Igual que con Caliza Cemex: en nuestra casa ese material es "Caliza Promsa", origen
+  // "Garraf/Promsa" (NO "PROMSA GARRAF", que es el canon de la venta a terceros) y destino
+  // "Fábrica Montcada". Va DESPUÉS de la relectura Sonnet v107I7 para que no lo pise.
+  // Solo salta si el cliente es Holcim; las ventas Promsa a otros clientes no se tocan.
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const _provH = String(r.proveedor || '');
+    const _cliH  = String(r.cliente || '').toLowerCase();
+    const _obH   = String(r.obra || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const _prodH = String(r.producto || '');
+    const _esPromsaH = /Promotora\s+Mediterr[aá]nea|\bMolins\b|\bPromsa\b/i.test(_provH);
+    const _esHolcimH = /holcim/.test(_cliH);
+    const _esFabMontcadaH = /fabrica\s*montcada/.test(_obH) || /rebuig|calcari/i.test(_prodH);
+    if (_esPromsaH && _esHolcimH && _esFabMontcadaH) {
+      const _antes = `${r.planta || ''} → ${r.obra || ''} / ${_prodH}`;
+      if (!/caliza\s+promsa/i.test(_prodH) && _prodH.trim()) {
+        r.observaciones = ((r.observaciones || '') + ' Material Promsa: ' + _prodH.trim()).trim();
+      }
+      r.planta = 'Garraf/Promsa';
+      r.obra = 'Fábrica Montcada';
+      r.producto = 'Caliza Promsa';
+      r.cliente = 'Holcim España, S.A.U.';
+      console.log(`[v644 Promsa→Holcim] albarán ${i + 1}: "${_antes}" → "Garraf/Promsa → Fábrica Montcada / Caliza Promsa"`);
+    }
+  }
+
   return results;
 }
 
