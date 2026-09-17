@@ -8922,8 +8922,8 @@ function _neumPintarCuadre(alb, nombreArchivo) {
 
   h += '</tbody></table></div>' +
     '<div style="margin-top:12px;padding:10px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:11px;color:var(--mu)">' +
-    '⚠️ Esto <strong>solo comprueba la lectura</strong>. No se ha guardado nada, no se ha tocado el stock y todavía no se ha cruzado con los albaranes de la app. ' +
-    'Repasa que las cubiertas y las matrículas coincidan con el papel antes de que montemos el cuadre encima.</div>';
+    '⚠️ Esto es <strong>solo lo leído en la factura</strong> (v649). No se ha guardado nada ni se ha tocado el stock. ' +
+    'Repasa que las cubiertas y las matrículas coincidan con el papel. El cruce con los albaranes de la app sale en la tarjeta de <strong>abajo</strong>: «CUADRE · RESULTADO DE LA COMPROBACIÓN».</div>';
 
   box.innerHTML = h;
 }
