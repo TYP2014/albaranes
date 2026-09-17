@@ -12146,7 +12146,7 @@ async function abrirHistoricoPrecios() {
   try {
     let todas = [], desde = 0; const LOTE = 1000;
     for (let i = 0; i < 60; i++) {
-      const r = await sb.from('autofacturas_lineas').select('proveedor,mes,origen,destino,tn,importe,es_ajuste,numero_albaran').order('mes', { ascending: true }).range(desde, desde + LOTE - 1);
+      const r = await sb.from('autofacturas_lineas').select('proveedor,mes,origen,destino,tn,importe,es_ajuste,numero_albaran,fecha,matricula,concepto').order('mes', { ascending: true }).range(desde, desde + LOTE - 1);
       if (r.error) throw r.error;
       const d = r.data || [];
       todas = todas.concat(d);
@@ -12158,25 +12158,54 @@ async function abrirHistoricoPrecios() {
     // buena la sacamos del ALBARÁN enlazando por el nº. Vale igual para CEMEX y HOLCIM.
     cont.innerHTML = '<div style="color:var(--mu);font-size:13px;padding:10px">Cruzando con los albaranes…</div>';
     const mapaRuta = {};
+    // v651: PLAN B para la MATERIA PRIMA de Holcim (caliza/arena/yeso/arcilla/limonita). Esas lineas traen
+    // el nº SEMANAL de Holcim ("35W2026-..."), no el nuestro, asi que por numero NUNCA casan y se quedaban
+    // sin ruta. Indice matricula|fecha → albaranes, para enlazarlas igual que el cruce de Facturacion.
+    const idxMFT = {};
+    const _h651Fecha = (f) => { const t = String(f || '').trim(); const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[3] + '/' + m[2] + '/' + m[1]) : _factFechaBarra(t); };
+    const _h651Txt = (t) => String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     let d2 = 0;
     for (let i = 0; i < 60; i++) {
-      const r2 = await sb.from('albaranes').select('albaran,planta,obra').range(d2, d2 + 1000 - 1);
+      const r2 = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,tm,producto').range(d2, d2 + 1000 - 1);
       if (r2.error) break;
       const rows = r2.data || [];
       rows.forEach(a => { const k = _factNormAlb(a.albaran); if (k) mapaRuta[k] = { origen: String(a.planta || '').trim(), destino: String(a.obra || '').trim() }; });
+      rows.forEach(a => {
+        const mt = _factNormMat(a.tractora), fe = _h651Fecha(a.fecha), tnA = _factNum(a.tm);
+        if (!mt || !fe || !(tnA > 0)) return;
+        const kk = mt + '|' + fe;
+        (idxMFT[kk] = idxMFT[kk] || []).push({ tn: tnA, prod: _h651Txt(a.producto), origen: String(a.planta || '').trim(), destino: String(a.obra || '').trim() });
+      });
       if (rows.length < 1000) break;
       d2 += 1000;
     }
     const agg = { CEMEX: {}, HOLCIM: {} };
     const mesesSet = new Set();
     const rutasSet = { CEMEX: new Set(), HOLCIM: new Set() };
+    const _h651 = { mp: 0, ok: 0 };
     todas.forEach(L => {
       if (L.es_ajuste) return;
       const tn = Number(L.tn), imp = Number(L.importe);
       if (!(tn > 0) || isNaN(imp)) return;
       const prov = String(L.proveedor || '').toUpperCase();
       if (prov !== 'CEMEX' && prov !== 'HOLCIM') return;
-      const alb = mapaRuta[_factNormAlb(L.numero_albaran)];
+      let alb = mapaRuta[_factNormAlb(L.numero_albaran)];
+      // v651: PLAN B — solo HOLCIM, solo si el nº NO casa y solo MATERIA PRIMA. Misma regla que el cruce:
+      // matricula + FECHA EXACTA + TN (±0,05) + MISMO material. Si no hay albaran asi, se queda como estaba.
+      if (!alb && prov === 'HOLCIM') {
+        const tipoMP = (_h651Txt(L.concepto).match(/CALIZA|ARENA|YESO|ARCILLA|LIMONITA/) || [''])[0];
+        if (tipoMP) {
+          _h651.mp++;
+          const cands = idxMFT[_factNormMat(_corregirMatAutof(L.matricula)) + '|' + _h651Fecha(L.fecha)] || [];
+          let mejor = null, mejorD = Infinity;
+          cands.forEach(c => { if (c.prod.indexOf(tipoMP) === -1) return; const d = Math.abs(c.tn - tn); if (d <= 0.05 && d < mejorD) { mejor = c; mejorD = d; } });
+          if (mejor && (mejor.origen || mejor.destino)) {
+            // el material va en el nombre de la ruta para NO mezclar su €/TN con el de aridos de la misma ruta
+            alb = { origen: mejor.origen, destino: (mejor.destino || '?') + ' (' + tipoMP + ')' };
+            _h651.ok++;
+          }
+        }
+      }
       const o = (alb && alb.origen) ? alb.origen : String(L.origen || '').trim();
       const de = (alb && alb.destino) ? alb.destino : String(L.destino || '').trim();
       if (!o && !de) return;
@@ -12189,6 +12218,7 @@ async function abrirHistoricoPrecios() {
       agg[prov][ruta][mes].imp += imp;
       agg[prov][ruta][mes].viajes += 1;
     });
+    console.log('[v651] Historico de precios · materia prima Holcim sin nº propio: ' + _h651.mp + ' lineas · enlazadas por matricula+fecha+TN: ' + _h651.ok + ' · sin albaran igual: ' + (_h651.mp - _h651.ok));
     _histPrecios = { agg, meses: [...mesesSet].sort(), rutas: { CEMEX: [...rutasSet.CEMEX].sort(), HOLCIM: [...rutasSet.HOLCIM].sort() } };
     if (!_histPrecios.rutas.CEMEX.length && _histPrecios.rutas.HOLCIM.length) _histProv = 'HOLCIM';
     _renderHistPreciosUI();
