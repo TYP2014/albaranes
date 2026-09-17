@@ -8291,7 +8291,31 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo, file) {
     } catch (e) {
       // No es critico: si falla la subida, la comprobacion y el resto se guardan igual.
       console.warn('[v579] No se pudo guardar el PDF de la factura:', e.message || e);
-      archivoPath = null;
+      // v650 · SI EL PDF YA ESTABA GUARDADO, NO SE PIERDE LA RUTA.
+      // Lo cazo JC el 17/09/2026 con la N0000134601 de Hispalis: al RESUBIR una
+      // factura, el almacen no deja REEMPLAZAR el archivo (deja crear, no
+      // machacar) y la subida falla. Hasta la v649 eso dejaba archivo_path en
+      // null y el upsert de abajo PISABA la ruta buena de la primera subida:
+      // la factura se quedaba sin boton PDF aunque el archivo seguia ahi.
+      // Ahora: si falla, se mira si el archivo YA ESTA en el almacen. Si esta,
+      // se conserva la ruta. Si no se puede comprobar, se deja sin ruta nueva,
+      // pero (ver abajo) tampoco se borra la que hubiera.
+      let _yaEsta650 = false;
+      try {
+        if (archivoPath) {
+          const _carp650 = archivoPath.split('/').slice(0, -1).join('/');
+          const _nom650 = archivoPath.split('/').pop();
+          const { data: _lst650, error: _lsErr650 } = await sb.storage.from('documentos')
+            .list(_carp650, { search: _nom650, limit: 100 });
+          if (!_lsErr650 && Array.isArray(_lst650)) _yaEsta650 = _lst650.some(o => o && o.name === _nom650);
+        }
+      } catch (e2) { /* si no se puede mirar, se trata como que no esta */ }
+      if (_yaEsta650) {
+        console.log('[v650] El PDF ya estaba en el almacen → conservo la ruta:', archivoPath);
+      } else {
+        console.warn('[v650] El PDF no esta en el almacen (o no he podido mirarlo) → no anoto ruta nueva, pero NO borro la que hubiera guardada');
+        archivoPath = null;
+      }
     }
   }
 
@@ -8303,7 +8327,6 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo, file) {
     periodo_desde: fechas[0] || null,
     periodo_hasta: fechas[fechas.length - 1] || null,
     archivo_nombre: nombreArchivo || null,
-    archivo_path: archivoPath,
     total_albaranes: alb.length,
     total_neumaticos: conNeum.length,
     total_cubiertas: conNeum.reduce((t, a) => t + (Number(a.total_cubiertas) || 0), 0),
@@ -8311,6 +8334,10 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo, file) {
     user_id: currentUser ? currentUser.id : null,
     updated_at: new Date().toISOString()
   };
+  // v650: la ruta del PDF SOLO viaja si hay una buena. Si no la hay, el campo
+  // no se manda y el upsert deja intacta la que ya estuviera guardada en la
+  // fila (en una factura nueva se queda vacia, como antes).
+  if (archivoPath) payload.archivo_path = archivoPath;
   try {
     // upsert por (empresa, num_factura): si se vuelve a subir la MISMA factura
     // se actualiza la fila, NO se duplica. Asi JC puede resubirla sin miedo.
