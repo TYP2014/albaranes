@@ -15615,7 +15615,7 @@ function renderItvTable() {
     const tipoLbl = r.tipo_documento === 'pegatina' ? 'Pegatina' : (r.tipo_documento === 'informe' ? 'Informe' : (r.tipo_documento === 'permiso' ? 'Permiso circ.' : '—'));
     return `<tr onclick="openItvModal(${r.db_id})" style="cursor:pointer">
       <td style="font-size:14px">${est.icon}</td>
-      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}${String(r.observaciones || '').startsWith(_ITV_MARCA_REVISAR) ? ` <span title="${esc(r.observaciones)}" style="color:var(--wnd)">⚠️</span>` : ''}</td>
       <td>${fmtDate(r.fecha_itv)}</td>
       <td style="font-weight:600">${fmtDate(r.fecha_caducidad)}</td>
       <td>${diasTxt}</td>
@@ -15690,8 +15690,11 @@ async function saveItvModal() {
   const fecha_itv = document.getElementById('itvFecha').value || null;
   const fecha_caducidad = document.getElementById('itvCaducidad').value || null;
   const tipo_documento = document.getElementById('itvTipo').value || null;
-  const observaciones = (document.getElementById('itvObs').value || '').trim() || null;
+  let observaciones = (document.getElementById('itvObs').value || '').trim() || null;
   if (!matricula) { toast('Matrícula requerida', 'err'); return; }
+  // v655: si la nota automática de "REVISAR MATRÍCULA" sigue ahí y JC ha cambiado la matrícula, la nota se quita sola.
+  const _rAnt = itvRecords.find(x => String(x.db_id) === String(editItvId));
+  if (observaciones && observaciones.startsWith(_ITV_MARCA_REVISAR) && _rAnt && String(_rAnt.matricula || '').toUpperCase() !== matricula) observaciones = null;
   try {
     const { error } = await sb.from('itv')
       .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
@@ -15723,6 +15726,32 @@ async function deleteItvRecord() {
 // v101d: re-procesar el documento con IA. Útil cuando la primera lectura tuvo errores.
 // Descarga el archivo de Storage, lo manda otra vez a Claude y actualiza los campos del modal
 // (sin guardar todavía — el usuario revisa y luego pulsa Guardar).
+// v655 (18/09/2026): AVISO DE MATRÍCULA "CASI IGUAL" A UNA DE LA FLOTA. Caso real: el informe
+// de R3249BBV se leyó como "R3249BBY" (V↔Y); parece válida, así que el filtro v654 no la caza.
+// Si la matrícula leída NO está en la flota (registro de ITV + vehículos de Taller cargados)
+// y hay UNA SOLA que se diferencia en 1 carácter (o es la misma con la "R" delante), se AVISA.
+// NO se corrige sola (lo eligió JC): puede ser un vehículo nuevo con matrícula vecina.
+const _ITV_MARCA_REVISAR = '⚠️ REVISAR MATRÍCULA';
+function _itvMatriculaParecida(mat) {
+  const m = String(mat || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!m) return null;
+  const flota = new Set();
+  (itvRecords || []).forEach(r => { const x = String(r.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (x && !/^DESCONOCIDA/.test(x)) flota.add(x); });
+  try { (tallerVehiculos || []).forEach(v => { const x = String(v.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (x) flota.add(x); }); } catch (e) {}
+  if (flota.has(m)) return null;  // existe tal cual → nada que avisar
+  const cand = [];
+  flota.forEach(x => {
+    if (x === 'R' + m) { cand.push(x); return; }
+    if (x.length !== m.length) return;
+    let dif = 0;
+    for (let i = 0; i < m.length && dif < 2; i++) if (x[i] !== m[i]) dif++;
+    if (dif === 1) cand.push(x);
+  });
+  console.log('[v655 ITV] matrícula leída', m, 'no está en la flota; parecidas:', cand);
+  return cand.length === 1 ? cand[0] : null;
+}
+function _toastLargo(msg, tipo) { toast(msg, tipo); clearTimeout(toastT); toastT = setTimeout(() => document.getElementById('toast').classList.remove('show'), 15000); }
+
 async function reanalizarItv() {
   const r = itvRecords.find(x => String(x.db_id) === String(editItvId));
   if (!r || !r.file_url) { toast('Sin documento para reanalizar', 'err'); return; }
@@ -15748,7 +15777,9 @@ async function reanalizarItv() {
     if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
     if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
     if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
-    if (datos.matricula) toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+    const _par = datos.matricula ? _itvMatriculaParecida(datos.matricula) : null;  // v655
+    if (_par) _toastLargo(`⚠️ OJO: la IA ha leído ${datos.matricula}, que NO está en tu flota, pero sí ${_par}. Mira el PDF antes de Guardar.`, 'warn');
+    else if (datos.matricula) toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
     else toast('⚠️ Reanalizado, pero la IA no ha leído una matrícula fiable: compruébala a mano antes de Guardar.', 'warn');  // v654
   } catch (e) {
     console.error('[reanalizarItv] Error:', e);
@@ -15810,9 +15841,13 @@ async function handleItvFiles(files) {
         updated_at: new Date().toISOString()
       };
       // UPSERT por matricula (si existe, actualiza; si no, inserta)
+      // v655: si la matrícula leída no está en la flota pero hay UNA casi igual → se avisa (no se corrige).
+      const _par = matricula ? _itvMatriculaParecida(matricula) : null;
+      if (_par) rec.observaciones = `${_ITV_MARCA_REVISAR}: la IA leyó ${matricula}, que no está en la flota. ¿No será ${_par}? Mira el PDF.`;
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
-      toast(`✓ ${matricula} procesada`);
+      if (_par) _toastLargo(`⚠️ ${f.name}: leída ${matricula}, que NO está en tu flota, pero sí ${_par}. Ábrela y compruébala.`, 'warn');
+      else toast(`✓ ${matricula} procesada`);
     } catch (e) {
       console.error('[handleItvFiles] Error procesando', f.name, ':', e);
       toast(`✗ Error en ${f.name}: ${e.message || e}`, 'err');
