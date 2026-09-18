@@ -25055,7 +25055,7 @@ async function recambiosSubir(files, tipoForzado) {
   const emp = tallerEmpresaActiva || 'TYP2014';
   const colaBox = document.getElementById('recambiosColaBox');
   const arr = [...files];
-  let ok = 0, err = 0;
+  let ok = 0, err = 0, banco = 0;
   if (colaBox) { colaBox.style.display = 'block'; }
 
   for (let i = 0; i < arr.length; i++) {
@@ -25076,6 +25076,19 @@ async function recambiosSubir(files, tipoForzado) {
       const parsed = await callClaudeRecambio(b64, f.type || (isPdf ? 'application/pdf' : 'image/jpeg'), key, isPdf);
       const docs = Array.isArray(parsed) ? parsed : [parsed];
       for (const doc of docs) {
+        // v653: CANDADO ANTI-BANCO (el mismo que ya tiene el robot del correo).
+        // Caso real 18/09/2026: una liquidacion del confirming de "Santander Factoring
+        // y Confirming S.A. EFC" (36.683,31 EUR) entro en Recambios como "abono".
+        // Si el EMISOR leido es un banco -> NO se guarda, solo se avisa.
+        {
+          const _bancoTxt = (String((doc && doc.proveedor) || '') + ' ' + String((doc && doc.proveedor_nif) || '')).toUpperCase();
+          if (/BILBAO VIZCAYA|\bBBVA\b|A48265169|BANCO SANTANDER|SANTANDER FACTORING|SANTANDER CONSUMER|CAIXABANK|BANKINTER|UNICAJA|BANCO SABADELL|BANCO DE SABADELL/.test(_bancoTxt)) {
+            console.warn('[v653 recambios] documento del BANCO ignorado: "' + (doc.proveedor || '?') + '" · ' + (doc.num_documento || '?') + ' (' + f.name + ')');
+            toast('🏦 ' + (doc.proveedor || 'Banco') + ': es un papel del BANCO, no un recambio. NO se guarda.', 'warn');
+            banco++;
+            continue;
+          }
+        }
         // tipoForzado viene del botón pulsado; si la IA detecta factura y se subió como
         // albarán (o viceversa) respetamos lo que diga la IA salvo que no esté claro.
         let tipo = tipoForzado;
@@ -25181,7 +25194,7 @@ async function recambiosSubir(files, tipoForzado) {
     colaBox.innerHTML = `<div style="background:${err ? 'rgba(255,140,0,.08)' : 'rgba(0,232,122,.06)'};border:1px solid ${err ? 'rgba(255,140,0,.3)' : 'rgba(0,232,122,.25)'};border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">✅ ${ok} guardados${err ? ` · ⚠️ ${err} con error (revisar consola)` : ''}</div>`;
     setTimeout(() => { colaBox.style.display = 'none'; }, 6000);
   }
-  toast(`Recambios: ${ok} guardados${err ? `, ${err} con error` : ''}`, err ? 'warn' : 'ok');
+  toast(`Recambios: ${ok} guardados${banco ? `, ${banco} del banco ignorados` : ''}${err ? `, ${err} con error` : ''}`, (err || banco) ? 'warn' : 'ok');
   // Limpiar inputs
   ['recambiosFileAlb','recambiosFileFac'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await loadRecambiosData();
