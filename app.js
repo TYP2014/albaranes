@@ -15750,6 +15750,38 @@ function _itvMatriculaParecida(mat) {
   console.log('[v655 ITV] matrícula leída', m, 'no está en la flota; parecidas:', cand);
   return cand.length === 1 ? cand[0] : null;
 }
+// v656 (18/09/2026): SEGUNDA LECTURA CON SONNET EN LOS CASOS DUDOSOS. Haiku leyó "R3249BBY" dos
+// veces seguidas en el informe de R3249BBV (la V de Applus le parece una Y). Cuando la v655 detecta
+// "leída X, no está en la flota, pero sí Y", se le pregunta a Sonnet qué pone EXACTAMENTE en el PDF.
+// Solo si Sonnet LEE en el documento la matrícula de la flota se usa esa; si lee otra cosa o falla,
+// se queda el aviso naranja de la v655. No es corregir a ciegas: es leer otra vez con el modelo bueno.
+async function _itvSegundaLectura(b64, mediaType, leida, candidata) {
+  try {
+    const texto = `Este documento es de una ITV española (pegatina, informe de inspección o permiso de circulación). Necesito SOLO la matrícula del vehículo, leída con el máximo cuidado, carácter a carácter.
+- En un informe está en la casilla "(2) Matrícula actual" (puede llevar "(E)" al final: quítalo). NO es la casilla "Classificació vehicle".
+- En una pegatina es la matrícula en grande. En un permiso de circulación es el campo "A".
+Una primera lectura automática dio "${leida}". Otra lectura posible es "${candidata}". Se diferencian en muy poco. Puede que sea una de las dos o NINGUNA: NO elijas por parecido, mira el documento y copia lo que pone de verdad. Fíjate bien en letras que se confunden (V/Y, B/8, D/0, S/5, Z/2, M/N, F/P).
+Responde SOLO con un JSON válido, sin explicaciones: {"matricula": "..."}`;
+    const body = {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: [
+        { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+        { type: 'text', text: texto }
+      ] }]
+    };
+    const resp = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error('API ' + resp.status);
+    const data = await resp.json();
+    let t = (data.content?.[0]?.text || '').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const m2 = String(JSON.parse(t).matricula || '').toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '');
+    console.log(`[v656 ITV] segunda lectura (Sonnet): Haiku="${leida}" · flota="${candidata}" · Sonnet lee="${m2}"`);
+    return m2 || null;
+  } catch (e) {
+    console.warn('[v656 ITV] la segunda lectura falló, se queda el aviso de la v655:', e.message || e);
+    return null;
+  }
+}
 function _toastLargo(msg, tipo) { toast(msg, tipo); clearTimeout(toastT); toastT = setTimeout(() => document.getElementById('toast').classList.remove('show'), 15000); }
 
 async function reanalizarItv() {
@@ -15777,8 +15809,15 @@ async function reanalizarItv() {
     if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
     if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
     if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
-    const _par = datos.matricula ? _itvMatriculaParecida(datos.matricula) : null;  // v655
-    if (_par) _toastLargo(`⚠️ OJO: la IA ha leído ${datos.matricula}, que NO está en tu flota, pero sí ${_par}. Mira el PDF antes de Guardar.`, 'warn');
+    let _par = datos.matricula ? _itvMatriculaParecida(datos.matricula) : null;  // v655
+    let _corrDe = null;
+    if (_par) {  // v656: segunda lectura con Sonnet
+      toast('🔎 Matrícula dudosa: segunda lectura con Sonnet...');
+      const m2 = await _itvSegundaLectura(b64, isPdf ? 'application/pdf' : (blob.type || 'image/jpeg'), datos.matricula, _par);
+      if (m2 && m2 === _par) { _corrDe = datos.matricula; document.getElementById('itvMatricula').value = _par; _par = null; }
+    }
+    if (_corrDe) _toastLargo(`✓ Reanalizado. La primera lectura dio ${_corrDe}; Sonnet ha leído ${document.getElementById('itvMatricula').value} en el documento (está en tu flota). Revisa y pulsa Guardar.`);
+    else if (_par) _toastLargo(`⚠️ OJO: la IA ha leído ${datos.matricula}, que NO está en tu flota, pero sí ${_par}. Mira el PDF antes de Guardar.`, 'warn');
     else if (datos.matricula) toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
     else toast('⚠️ Reanalizado, pero la IA no ha leído una matrícula fiable: compruébala a mano antes de Guardar.', 'warn');  // v654
   } catch (e) {
@@ -15827,7 +15866,7 @@ async function handleItvFiles(files) {
       toast(`🤖 Analizando ${f.name}...`);
       const datos = await callClaudeItv(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'));
       // 4. Guardar en BD (UPSERT por matrícula — si ya existe, sustituye)
-      const matricula = (datos.matricula || '').trim().toUpperCase();
+      let matricula = (datos.matricula || '').trim().toUpperCase();
       if (!matricula) {
         toast(`⚠️ No se detectó matrícula en ${f.name}. Edítalo a mano.`, 'warn');
       }
@@ -15842,11 +15881,18 @@ async function handleItvFiles(files) {
       };
       // UPSERT por matricula (si existe, actualiza; si no, inserta)
       // v655: si la matrícula leída no está en la flota pero hay UNA casi igual → se avisa (no se corrige).
-      const _par = matricula ? _itvMatriculaParecida(matricula) : null;
+      let _par = matricula ? _itvMatriculaParecida(matricula) : null;
+      let _corrDe = null;
+      if (_par) {  // v656: segunda lectura con Sonnet antes de guardar
+        toast(`🔎 ${f.name}: matrícula dudosa, segunda lectura con Sonnet...`);
+        const m2 = await _itvSegundaLectura(b64, isPdf ? 'application/pdf' : (f.type || 'image/jpeg'), matricula, _par);
+        if (m2 && m2 === _par) { _corrDe = matricula; matricula = _par; rec.matricula = _par; _par = null; }
+      }
       if (_par) rec.observaciones = `${_ITV_MARCA_REVISAR}: la IA leyó ${matricula}, que no está en la flota. ¿No será ${_par}? Mira el PDF.`;
       const { error: upsErr } = await sb.from('itv').upsert(rec, { onConflict: 'matricula' });
       if (upsErr) throw upsErr;
-      if (_par) _toastLargo(`⚠️ ${f.name}: leída ${matricula}, que NO está en tu flota, pero sí ${_par}. Ábrela y compruébala.`, 'warn');
+      if (_corrDe) _toastLargo(`✓ ${matricula} procesada. (La primera lectura dio ${_corrDe}; Sonnet ha leído ${matricula} en el documento y está en tu flota.)`);
+      else if (_par) _toastLargo(`⚠️ ${f.name}: leída ${matricula}, que NO está en tu flota, pero sí ${_par}. Ábrela y compruébala.`, 'warn');
       else toast(`✓ ${matricula} procesada`);
     } catch (e) {
       console.error('[handleItvFiles] Error procesando', f.name, ':', e);
