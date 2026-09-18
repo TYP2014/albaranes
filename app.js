@@ -15748,7 +15748,8 @@ async function reanalizarItv() {
     if (datos.fecha_itv) document.getElementById('itvFecha').value = datos.fecha_itv;
     if (datos.fecha_caducidad) document.getElementById('itvCaducidad').value = datos.fecha_caducidad;
     if (datos.tipo_documento) document.getElementById('itvTipo').value = datos.tipo_documento;
-    toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+    if (datos.matricula) toast('✓ Reanalizado. Revisa los datos y pulsa Guardar.');
+    else toast('⚠️ Reanalizado, pero la IA no ha leído una matrícula fiable: compruébala a mano antes de Guardar.', 'warn');  // v654
   } catch (e) {
     console.error('[reanalizarItv] Error:', e);
     toast('Error reanalizando: ' + (e.message || e), 'err');
@@ -15850,6 +15851,7 @@ Datos a extraer:
 Documento oficial completo de Applus Iteuve / Generalitat de Catalunya. Cabecera con logos "Generalitat de Catalunya" y "Applus Iteuve". Tabla grande con muchos campos.
 Datos a extraer (campos numerados entre paréntesis):
   • "(2) Matrícula actual" → matricula (formato puede ser "4839NBF(E)" — quitar el "(E)")
+  • ⛔ OJO (v654): la casilla "Classificació vehicle" / "Clasificación vehículo" trae un código de SOLO 4 CIFRAS SIN LETRAS. ESO NO ES LA MATRÍCULA, NUNCA. Caso real que salió MAL: un informe de semirremolque se guardó con la matrícula igual al código de clasificación (4 cifras) cuando la casilla "(2) Matrícula actual" ponía la matrícula de verdad, empezando por "R" y con 3 letras al final. Una matrícula SIEMPRE lleva LETRAS. Devuelve ese código aparte en "clasificacion_vehiculo".
   • "(3) Data d'inspecció" → fecha_itv (DD/MM/YYYY)
   • "(8) Data propera inspecció" → fecha_caducidad (DD/MM/YYYY)
   • "(7) Resultat de la inspecció: FAVORABLE" → confirmar que es válido
@@ -15889,39 +15891,67 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
   "fecha_itv_texto": "11/11/2025",
   "fecha_caducidad": "2026-05-28",
   "fecha_caducidad_texto": "28/05/2026",
-  "tipo_documento": "pegatina"
+  "tipo_documento": "pegatina",
+  "clasificacion_vehiculo": null
 }`;
 
-  const body = {
-    model: 'claude-haiku-4-5',
-    max_tokens: 500,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
-        { type: 'text', text: prompt }
-      ]
-    }]
+  // v654: la llamada va en una función interna para poder repetirla con Sonnet si la matrícula sale mal.
+  const _pedir = async (modelo, textoPrompt) => {
+    const body = {
+      model: modelo,
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: mediaType === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+          { type: 'text', text: textoPrompt }
+        ]
+      }]
+    };
+    const resp = await fetch(IA_PROXY_URL, {
+      method: 'POST',
+      headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Error API: ${resp.status} - ${txt.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    let text = data.content?.[0]?.text || '';
+    // Limpiar markdown si lo hay
+    text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('[callClaudeItv] No se pudo parsear:', text);
+      throw new Error('Respuesta IA inválida');
+    }
   };
-  const resp = await fetch(IA_PROXY_URL, {
-    method: 'POST',
-    headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Error API: ${resp.status} - ${txt.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  let text = data.content?.[0]?.text || '';
-  // Limpiar markdown si lo hay
-  text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-  let out;
-  try {
-    out = JSON.parse(text);
-  } catch (e) {
-    console.error('[callClaudeItv] No se pudo parsear:', text);
-    throw new Error('Respuesta IA inválida');
+  let out = await _pedir('claude-haiku-4-5', prompt);
+  // v654 (18/09/2026): LA MATRÍCULA TIENE QUE PARECER UNA MATRÍCULA. Caso real R3249BBV
+  // (informe Applus 18/09/2026): Haiku devolvió "4317", que es la casilla "Classificació
+  // vehicle", y JC llevaba toda la semana corrigiéndolas a mano. Además, como la subida
+  // hace upsert por matrícula, dos semirremolques leídos como "4317" SE PISABAN entre sí.
+  // Regla: una matrícula lleva letras Y cifras, 6-9 caracteres, y no es el código de
+  // clasificación. Si no cumple → se relee UNA vez con Sonnet; si tampoco → null
+  // (mejor "no detectada, edítala a mano" que una matrícula falsa que pisa a otra).
+  const _limpiaMat = m => String(m || '').toUpperCase().replace(/\(.*?\)/g, '').replace(/[^A-Z0-9]/g, '');
+  const _matOk = o => {
+    const m = _limpiaMat(o && o.matricula);
+    if (!m || m.length < 6 || m.length > 9) return false;
+    if (!/[A-Z]/.test(m) || !/\d/.test(m)) return false;
+    if (o.clasificacion_vehiculo && m === _limpiaMat(o.clasificacion_vehiculo)) return false;
+    return true;
+  };
+  if (!_matOk(out)) {
+    console.warn('[v654 ITV] matrícula sospechosa de Haiku:', out.matricula, '→ releo con Sonnet');
+    let out2 = null;
+    try {
+      out2 = await _pedir('claude-sonnet-4-6', prompt + `\n\n⚠️ AVISO: en una primera lectura de ESTE MISMO documento se devolvió como matrícula "${_limpiaMat(out.matricula)}", que NO es una matrícula válida (probablemente es el código de "Classificació vehicle"). Busca la casilla "(2) Matrícula actual" (informe), la matrícula en grande (pegatina) o el campo "A" (permiso) y devuelve ESA.`);
+    } catch (e2) { console.warn('[v654 ITV] la relectura con Sonnet falló:', e2.message || e2); }
+    if (out2 && _matOk(out2)) { console.warn('[v654 ITV] Sonnet corrige la matrícula →', out2.matricula); out = out2; }
+    else { console.warn('[v654 ITV] tampoco con Sonnet: matrícula a null para no guardar una falsa'); out.matricula = null; }
   }
   // v623 (10/09/2026): FILTROS DEFENSIVOS EN CÓDIGO (el prompt no es fiable para
   // lógica determinista). Caso real: informe con "10/09/2026" guardado como 2026-10-09
