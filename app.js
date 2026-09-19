@@ -24381,7 +24381,9 @@ function switchEmpleadosVista(v) {
   const rb = document.getElementById('empVistaRecmedBox');
   const bv = document.getElementById('empVistaVac');
   const br = document.getElementById('empVistaRecmed');
-  [[vb,bv],[rb,br]].forEach(([caja,boton]) => {
+  const pb = document.getElementById('empVistaPrimasBox');   // v659
+  const bpr = document.getElementById('empVistaPrimas');     // v659
+  [[vb,bv],[rb,br],[pb,bpr]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -24389,11 +24391,365 @@ function switchEmpleadosVista(v) {
     if (rb) rb.style.display = '';
     if (br) { br.classList.remove('bs'); br.classList.add('bp'); }
     loadRecmed();
+  } else if (v === 'primas') {   // v659
+    if (pb) pb.style.display = '';
+    if (bpr) { bpr.classList.remove('bs'); bpr.classList.add('bp'); }
+    primasInit();
   } else {
     if (vb) vb.style.display = '';
     if (bv) { bv.classList.remove('bs'); bv.classList.add('bp'); }
   }
 }
+
+
+// ============================================================
+// v659: EMPLEADOS > 💶 PRIMAS DE PRODUCTIVIDAD — FASE 1: PARTE DE TRABAJO
+// Sustituye a los Excel por camion (8678NGL.xlsx, 9499LHT.xlsx, 4210NGF.xlsx).
+// Una fila por TRABAJADOR y DIA: vehiculo que llevo, lo que dice el conductor,
+// trabajo realizado (se puede traer contando albaranes), notas y PRIMA DEL DIA
+// (SIEMPRE a mano en esta fase). El PLUS SEMANAL lo calcula la app:
+//   4 dias (L-V) con prima > 0 → 50 € · 5 dias → 75 € · menos → 0
+// y se puede pisar a mano (casilla "a mano"). Una semana partida entre dos
+// meses cuenta en el mes donde cae su MIERCOLES (asi lo hacia JC en los Excel:
+// la semana 27/04-01/05 se pago en abril, la del 31/08 en septiembre).
+// Tabla: primas_partes (SQL primas_partes_v659.sql, VA ANTES que el codigo).
+// Permisos: los de EMPLEADOS (_tieneVac) + RLS heredada de trabajadores.
+// ============================================================
+let primasRows = {};        // 'YYYY-MM-DD' -> fila de primas_partes
+let primasTrabId = '';
+let primasMes = '';         // 'YYYY-MM'
+let primasHabitual = '';    // vehiculo habitual del trabajador (el mas repetido ultimamente)
+const PRIMAS_PLUS_4 = 50, PRIMAS_PLUS_5 = 75;
+const _PRIMAS_DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+
+function _primasISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _primasDate(iso) { const p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function _primasMas(iso, n) { const d = _primasDate(iso); d.setDate(d.getDate() + n); return _primasISO(d); }
+function _primasLunes(iso) { const d = _primasDate(iso); const w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return _primasISO(d); }
+function _primasNum(v) { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : 0; }
+function _primasEur(n) { return (Math.round(n * 100) / 100).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €'; }
+function _primasMat(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function _primasAttr(s) { return esc(s == null ? '' : s).replace(/"/g, '&quot;'); }
+
+// Rango del mes y de las semanas que lo tocan (para el plus hacen falta dias del mes vecino)
+function _primasRango() {
+  const p = primasMes.split('-'); const y = +p[0], m = +p[1];
+  const ini = _primasISO(new Date(y, m - 1, 1));
+  const fin = _primasISO(new Date(y, m, 0));
+  return { ini, fin, desde: _primasLunes(ini), hasta: _primasMas(_primasLunes(fin), 6) };
+}
+
+function primasInit() {
+  const sel = document.getElementById('primasTrab');
+  const mes = document.getElementById('primasMes');
+  if (!sel || !mes) return;
+  if (!mes.value) mes.value = _primasISO(new Date()).slice(0, 7);
+  const emps = (typeof _recmedEmpresas === 'function') ? _recmedEmpresas() : ['TYP2014', 'HISPALIS', 'PORTES'];
+  const activos = (vacTrabajadores || []).filter(t => !t.archivado && (!t.empresa || emps.includes(t.empresa)));
+  const porEmp = {};
+  activos.forEach(t => { const e = t.empresa || 'SIN EMPRESA'; (porEmp[e] = porEmp[e] || []).push(t); });
+  let ultimo = '';
+  try { ultimo = localStorage.getItem('primas_last_trab') || ''; } catch (e) {}
+  const previo = sel.value || ultimo;
+  let html = '<option value="">— Elige trabajador —</option>';
+  Object.keys(porEmp).sort().forEach(e => {
+    html += '<optgroup label="' + _primasAttr(e) + '">';
+    porEmp[e].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es')).forEach(t => {
+      html += '<option value="' + _primasAttr(t.id) + '"' + (String(t.id) === String(previo) ? ' selected' : '') + '>' + esc(t.nombre || '') + '</option>';
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+  loadPrimas();
+}
+
+function primasMesMover(n) {
+  const mes = document.getElementById('primasMes');
+  if (!mes) return;
+  const p = (mes.value || _primasISO(new Date()).slice(0, 7)).split('-');
+  const d = new Date(+p[0], +p[1] - 1 + n, 1);
+  mes.value = _primasISO(d).slice(0, 7);
+  loadPrimas();
+}
+
+async function loadPrimas() {
+  if (!window._tieneVac) return;
+  const box = document.getElementById('primasBox');
+  const sel = document.getElementById('primasTrab');
+  const mes = document.getElementById('primasMes');
+  if (!box || !sel || !mes) return;
+  primasTrabId = sel.value || '';
+  primasMes = mes.value || _primasISO(new Date()).slice(0, 7);
+  if (!primasTrabId) {
+    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">Elige un trabajador para ver su parte de trabajo del mes.</div>';
+    return;
+  }
+  try { localStorage.setItem('primas_last_trab', primasTrabId); } catch (e) {}
+  box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px">Cargando parte...</div>';
+  try {
+    const r = _primasRango();
+    const q1 = await sb.from('primas_partes').select('*').eq('trabajador_id', primasTrabId).gte('fecha', r.desde).lte('fecha', r.hasta);
+    if (q1.error) throw q1.error;
+    primasRows = {};
+    (q1.data || []).forEach(f => { primasRows[String(f.fecha).slice(0, 10)] = f; });
+    // Vehiculo habitual = el mas repetido en sus ultimos 60 partes con vehiculo
+    const q2 = await sb.from('primas_partes').select('vehiculo,fecha').eq('trabajador_id', primasTrabId)
+      .not('vehiculo', 'is', null).order('fecha', { ascending: false }).limit(60);
+    const cuenta = {};
+    (q2.data || []).forEach(f => { const v = _primasMat(f.vehiculo); if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
+    primasHabitual = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || '';
+    renderPrimas();
+  } catch (e) {
+    console.error('[v659 loadPrimas]', e);
+    const msg = String(e.message || e);
+    box.innerHTML = '<div style="color:var(--er,#c62828);font-family:var(--mn);font-size:11px;padding:16px">Error cargando primas: ' + esc(msg) +
+      (/primas_partes/.test(msg) ? '<br><strong>Falta ejecutar el SQL primas_partes_v659.sql en Supabase.</strong>' : '') + '</div>';
+  }
+}
+
+// Plus de la semana que empieza el lunes `lun`. Devuelve {dias, auto, manual, valor}
+function _primasPlusSemana(lun) {
+  let dias = 0;
+  for (let i = 0; i < 5; i++) { const f = primasRows[_primasMas(lun, i)]; if (f && _primasNum(f.prima) > 0) dias++; }
+  const auto = dias >= 5 ? PRIMAS_PLUS_5 : (dias === 4 ? PRIMAS_PLUS_4 : 0);
+  const dom = primasRows[_primasMas(lun, 6)];
+  const manual = (dom && dom.plus_manual != null) ? _primasNum(dom.plus_manual) : null;
+  return { dias, auto, manual, valor: manual != null ? manual : auto };
+}
+// ¿La semana del lunes `lun` se paga en el mes abierto? (manda el miercoles)
+function _primasSemanaEsDelMes(lun) { return _primasMas(lun, 2).slice(0, 7) === primasMes; }
+
+function renderPrimas() {
+  const box = document.getElementById('primasBox');
+  if (!box) return;
+  const r = _primasRango();
+  const hoy = _primasISO(new Date());
+  const inS = 'font-family:var(--mn);font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box';
+  let filas = '';
+  const filaPlus = (lun, nota) => {
+    const dom = _primasMas(lun, 6);
+    return '<tr style="background:rgba(46,125,50,.10);border-bottom:2px solid var(--bd)">' +
+      '<td colspan="5" style="padding:7px 8px;text-align:right;font-weight:800">PLUS SEMANA ' + lun.slice(8) + '/' + lun.slice(5, 7) +
+      ' <span id="prPlusInfo_' + lun + '" style="font-weight:400;color:var(--mu)"></span>' + (nota ? ' <span style="font-weight:400;color:var(--mu)">' + nota + '</span>' : '') + '</td>' +
+      '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusVal_' + lun + '"></strong>' +
+      ' <input class="fi" id="prPlusMan_' + lun + '" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app. Escribe un importe solo si esta semana hay una excepción." style="' + inS + ';width:70px;display:inline-block" value="' +
+      ((primasRows[dom] && primasRows[dom].plus_manual != null) ? _primasAttr(primasRows[dom].plus_manual) : '') + '" onchange="primasSavePlus(\'' + lun + '\')"></td><td></td></tr>';
+  };
+  for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) {
+    const d = _primasDate(iso); const w = d.getDay();
+    const f = primasRows[iso] || {};
+    const finde = (w === 0 || w === 6);
+    filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
+      '<td style="padding:5px 8px;white-space:nowrap;font-weight:700">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
+      '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_vehiculo_' + iso + '" style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;min-width:200px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
+      '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea></td>' +
+      '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:80px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5" style="' + inS + ';text-align:right;font-weight:800" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:10px;padding:3px 7px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button></td></tr>';
+    // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
+    const lun = _primasLunes(iso);
+    if (w === 0 || iso === r.fin) {
+      if (_primasSemanaEsDelMes(lun)) {
+        filas += filaPlus(lun, (w !== 0 ? '· la semana acaba el mes que viene; cuenta aquí' : (lun < r.ini ? '· incluye días del mes anterior' : '')));
+      } else if (iso === r.fin && w !== 0) {
+        filas += '<tr><td colspan="7" style="padding:6px 8px;text-align:right;color:var(--mu);font-size:10px">La semana del ' + lun.slice(8) + '/' + lun.slice(5, 7) + ' se cuenta en el mes siguiente.</td></tr>';
+      }
+    }
+  }
+  box.innerHTML =
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
+    '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+    '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:12px;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
+  _primasPintaTotales();
+}
+
+// Repinta SOLO los plus y el total (sin tocar las casillas, para no perder el cursor)
+function _primasPintaTotales() {
+  const r = _primasRango();
+  let sumaDias = 0, sumaPlus = 0, diasConPrima = 0;
+  for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) {
+    const p = _primasNum((primasRows[iso] || {}).prima);
+    sumaDias += p; if (p > 0) diasConPrima++;
+  }
+  for (let lun = r.desde; lun <= r.hasta; lun = _primasMas(lun, 7)) {
+    if (!_primasSemanaEsDelMes(lun)) continue;
+    const s = _primasPlusSemana(lun);
+    sumaPlus += s.valor;
+    const v = document.getElementById('prPlusVal_' + lun), i = document.getElementById('prPlusInfo_' + lun);
+    if (v) v.textContent = _primasEur(s.valor);
+    if (i) i.textContent = '· ' + s.dias + ' día' + (s.dias === 1 ? '' : 's') + ' con prima (L-V)' + (s.manual != null ? ' · PUESTO A MANO (la app daría ' + _primasEur(s.auto) + ')' : '');
+  }
+  const t = document.getElementById('primasTotales');
+  if (t) t.innerHTML =
+    '<span>Días con prima: <strong>' + diasConPrima + '</strong></span>' +
+    '<span>Primas diarias: <strong>' + _primasEur(sumaDias) + '</strong></span>' +
+    '<span>Plus semanales: <strong>' + _primasEur(sumaPlus) + '</strong></span>' +
+    '<span style="font-size:15px">TOTAL PRIMA PRODUCTIVIDAD: <strong style="color:var(--ok,#2e7d32)">' + _primasEur(sumaDias + sumaPlus) + '</strong></span>';
+}
+
+function _primasEstado(txt, err) {
+  const el = document.getElementById('primasEstado');
+  if (el) { el.textContent = txt; el.style.color = err ? 'var(--er,#c62828)' : 'var(--mu)'; }
+}
+
+function _primasQuien() {
+  try { return (typeof userMap !== 'undefined' && currentUser && userMap[currentUser.id] && userMap[currentUser.id].name) || (currentUser && currentUser.email) || null; } catch (e) { return null; }
+}
+
+async function _primasUpsert(filas) {
+  const { data, error } = await sb.from('primas_partes').upsert(filas, { onConflict: 'trabajador_id,fecha' }).select();
+  if (error) throw error;
+  (data || []).forEach(f => { primasRows[String(f.fecha).slice(0, 10)] = f; });
+}
+
+async function primasSaveRow(iso) {
+  if (!primasTrabId) return;
+  const g = (k) => { const el = document.getElementById('pr_' + k + '_' + iso); return el ? String(el.value || '').trim() : ''; };
+  const previa = primasRows[iso];
+  let veh = _primasMat(g('vehiculo'));
+  const parte = g('parte_conductor'), trabajo = g('trabajo'), notas = g('notas'), primaTxt = g('prima');
+  const hayAlgo = !!(veh || parte || trabajo || notas || primaTxt);
+  if (!hayAlgo && !previa) return;                 // fila vacia que nunca existio: nada que guardar
+  if (!veh && hayAlgo && (trabajo || primaTxt)) veh = primasHabitual;   // deja escrito con que camion fue
+  const fila = {
+    trabajador_id: primasTrabId, fecha: iso,
+    vehiculo: veh || null, parte_conductor: parte || null, trabajo: trabajo || null, notas: notas || null,
+    prima: _primasNum(primaTxt),
+    plus_manual: previa ? previa.plus_manual : null,
+    editado_por: _primasQuien(), updated_at: new Date().toISOString()
+  };
+  try {
+    _primasEstado('Guardando...');
+    await _primasUpsert([fila]);
+    const elV = document.getElementById('pr_vehiculo_' + iso);
+    if (elV && veh && !elV.value) elV.value = veh;
+    if (!primasHabitual && veh) {
+      primasHabitual = veh;
+      document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
+    }
+    _primasPintaTotales();
+    _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  } catch (e) {
+    console.error('[v659 primasSaveRow]', iso, e);
+    _primasEstado('✗ NO guardado: ' + (e.message || e), true);
+    toast('No se pudo guardar el día ' + iso.slice(8) + ': ' + (e.message || e), 'err');
+  }
+}
+
+// El plus puesto a mano se guarda en la fila del DOMINGO de esa semana (como en el Excel)
+async function primasSavePlus(lun) {
+  if (!primasTrabId) return;
+  const dom = _primasMas(lun, 6);
+  const el = document.getElementById('prPlusMan_' + lun);
+  const txt = el ? String(el.value || '').trim() : '';
+  const previa = primasRows[dom] || {};
+  const fila = {
+    trabajador_id: primasTrabId, fecha: dom,
+    vehiculo: previa.vehiculo || null, parte_conductor: previa.parte_conductor || null, trabajo: previa.trabajo || null, notas: previa.notas || null,
+    prima: _primasNum(previa.prima),
+    plus_manual: txt === '' ? null : _primasNum(txt),
+    editado_por: _primasQuien(), updated_at: new Date().toISOString()
+  };
+  try {
+    _primasEstado('Guardando...');
+    await _primasUpsert([fila]);
+    _primasPintaTotales();
+    _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  } catch (e) {
+    console.error('[v659 primasSavePlus]', lun, e);
+    _primasEstado('✗ NO guardado: ' + (e.message || e), true);
+    toast('No se pudo guardar el plus: ' + (e.message || e), 'err');
+  }
+}
+
+// Fecha de un albaran (la columna es TEXTO: DD/MM/YYYY o YYYY-MM-DD) → ISO
+function _primasFechaAlb(s) {
+  const t = String(s || '').trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = t.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (!m) return '';
+  return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+}
+
+// Cuenta los albaranes del vehiculo de cada dia y escribe el resumen en TRABAJO REALIZADO.
+//  · sin parametro: todo el mes, SOLO rellena los dias que estan vacios (nunca pisa lo escrito)
+//  · con un dia: ese dia; si ya hay texto pregunta antes de cambiarlo
+async function primasTraerAlbaranes(soloIso) {
+  if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
+  const r = _primasRango();
+  const hoy = _primasISO(new Date());
+  const dias = [];
+  for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if (!soloIso || soloIso === iso) dias.push(iso);
+  const vehDe = (iso) => { const el = document.getElementById('pr_vehiculo_' + iso); return _primasMat(el && el.value) || _primasMat((primasRows[iso] || {}).vehiculo) || primasHabitual; };
+  const vehs = Array.from(new Set(dias.map(vehDe).filter(Boolean)));
+  if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }
+  const p = primasMes.split('-'); const mm = p[1], m1 = String(+p[1]), yy = p[0];
+  const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
+  _primasEstado('Buscando albaranes...');
+  try {
+    const porVehDia = {};   // veh|iso -> { 'ORIGEN → DESTINO': n }
+    for (const veh of vehs) {
+      const vistos = new Set();
+      for (let desde = 0; desde < 5000; desde += 1000) {
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        if (q.error) throw q.error;
+        (q.data || []).forEach(a => {
+          const iso = _primasFechaAlb(a.fecha); if (!iso) return;
+          const clave = String(a.albaran || '') + '|' + iso;
+          if (a.albaran && vistos.has(clave)) return;   // mismo albaran subido dos veces: cuenta una
+          vistos.add(clave);
+          const ruta = (String(a.planta || '?').trim() + ' → ' + String(a.obra || '?').trim()).toUpperCase();
+          const k = veh + '|' + iso;
+          porVehDia[k] = porVehDia[k] || {};
+          porVehDia[k][ruta] = (porVehDia[k][ruta] || 0) + 1;
+        });
+        if ((q.data || []).length < 1000) break;
+      }
+    }
+    const aGuardar = [];
+    let sinAlb = 0;
+    for (const iso of dias) {
+      const veh = vehDe(iso); if (!veh) continue;
+      const rutas = porVehDia[veh + '|' + iso];
+      if (!rutas) { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
+      const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
+      const el = document.getElementById('pr_trabajo_' + iso);
+      const actual = el ? String(el.value || '').trim() : String((primasRows[iso] || {}).trabajo || '');
+      if (actual && actual !== resumen) {
+        if (!soloIso) continue;                       // en bloque NUNCA se pisa lo escrito
+        if (!confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) continue;
+      }
+      if (actual === resumen) continue;
+      if (el) el.value = resumen;
+      const previa = primasRows[iso] || {};
+      const g = (k) => { const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };
+      aGuardar.push({
+        trabajador_id: primasTrabId, fecha: iso, vehiculo: veh,
+        parte_conductor: g('parte_conductor') || null, trabajo: resumen, notas: g('notas') || null,
+        prima: _primasNum(g('prima')), plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
+        editado_por: _primasQuien(), updated_at: new Date().toISOString()
+      });
+      const elV = document.getElementById('pr_vehiculo_' + iso); if (elV && !elV.value) elV.value = veh;
+    }
+    if (aGuardar.length) await _primasUpsert(aGuardar);
+    _primasPintaTotales();
+    const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? 'Ese día no hay albaranes de ' + vehs[0] : 'Nada nuevo que rellenar');
+    _primasEstado('✓ ' + msg);
+    toast(msg + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
+    console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
+  } catch (e) {
+    console.error('[v659 primasTraerAlbaranes]', e);
+    _primasEstado('✗ Error buscando albaranes: ' + (e.message || e), true);
+    toast('Error buscando albaranes: ' + (e.message || e), 'err');
+  }
+}
+// ===== fin v659 PRIMAS =====
 
 // Empresas que este usuario puede ver aquí. Mismas que en Taller
 // + PORTES para quien ve el grupo (TYP2014/HISPALIS). Transmargaz
