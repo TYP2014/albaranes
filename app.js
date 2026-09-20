@@ -24839,7 +24839,7 @@ const PRIMAS_MARGEN = { HISPALIS: 20 };   // resto de empresas: 10
 const _PC_NUM = ['dias_lab', 'noches', 'sabados', 'domingos', 'tardes', 'horas', 'extras', 'festivos', 'parking', 'otro', 'descuento', 'adelanto'];
 const _PC_TXT = ['otro_concepto', 'descuento_concepto'];
 const _PC_MAN = ['efectivo_manual', 'tarjeta_manual'];
-const _PC_DETALLE = ['noches', 'sabados', 'domingos', 'tardes', 'horas', 'festivos', 'parking'];
+const _PC_DETALLE = ['noches', 'sabados', 'domingos', 'tardes', 'horas', 'festivos', 'parking', 'otro_concepto', 'otro', 'descuento_concepto', 'descuento'];   // v662: en compacto van a la ventanita ✎
 
 function _pcCeil10(x) { return x <= 0 ? 0 : Math.ceil((x - 1e-7) / 10) * 10; }
 function _pcR2(x) { return Math.round(x * 100) / 100; }
@@ -24910,8 +24910,8 @@ async function loadPrimasCuadrante() {
   if (!box || !mes) return;
   primasMes = mes.value || _primasISO(new Date()).slice(0, 7);
   if (primasCuadCompacto === null || primasCuadCompacto._emp !== primasEmpresa) {
-    let g = null; try { g = localStorage.getItem('primas_cuad_compacto_' + primasEmpresa); } catch (e) {}
-    const val = g === null ? (primasEmpresa === 'HISPALIS') : g === '1';
+    let g = null; try { g = localStorage.getItem('primas_cuad_compacto2_' + primasEmpresa); } catch (e) {}
+    const val = g === null ? true : g === '1';   // v662: compacto por defecto en todas
     primasCuadCompacto = { v: val, _emp: primasEmpresa };
   }
   box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px">Cargando cuadrante...</div>';
@@ -24956,7 +24956,7 @@ async function loadPrimasCuadrante() {
 function primasCuadToggleCompacto() {
   if (!primasCuadCompacto) return;
   primasCuadCompacto.v = !primasCuadCompacto.v;
-  try { localStorage.setItem('primas_cuad_compacto_' + primasEmpresa, primasCuadCompacto.v ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('primas_cuad_compacto2_' + primasEmpresa, primasCuadCompacto.v ? '1' : '0'); } catch (e) {}
   renderPrimasCuadrante();
 }
 
@@ -24967,28 +24967,30 @@ function renderPrimasCuadrante() {
   const compacto = !!(primasCuadCompacto && primasCuadCompacto.v);
   const chk = document.getElementById('primasCuadCompactoChk'); if (chk) chk.checked = !compacto;
   const ver = (k) => !(compacto && _PC_DETALLE.includes(k));
-  const inS = 'font-family:var(--mn);font-size:11px;padding:3px 4px;box-sizing:border-box;text-align:right;width:56px';
-  const th = (txt, tit, extra) => '<th style="padding:6px 5px;white-space:nowrap;' + (extra || '') + '"' + (tit ? ' title="' + _primasAttr(tit) + '"' : '') + '>' + txt + '</th>';
+  const inS = 'font-family:var(--mn);font-size:11px;padding:3px 3px;box-sizing:border-box;text-align:right;width:50px';   // v662: mas estrecho
+  const th = (txt, tit, extra) => '<th style="padding:5px 4px;white-space:normal;line-height:1.2;vertical-align:bottom;max-width:64px;' + (extra || '') + '"' + (tit ? ' title="' + _primasAttr(tit) + '"' : '') + '>' + txt + '</th>';
   const COLS = [['dias_lab', 'DÍAS LAB.'], ['noches', 'NOCHES'], ['sabados', 'SÁB.'], ['domingos', 'DOM.'], ['tardes', 'TARDES'], ['horas', 'HORAS'],
-    ['extras', 'FIJO / EXTRAS €'], ['__prima', 'PRIMA PARTE €'], ['festivos', 'FESTIVOS €'], ['parking', 'PARKING €'], ['otro_concepto', 'OTRO CONCEPTO'], ['otro', 'OTRO €'],
-    ['descuento_concepto', 'DESCUENTO CONCEPTO'], ['descuento', 'DESCUENTO €']];
+    ['extras', 'FIJO / EXTRAS'], ['__prima', 'PRIMA PARTE'], ['festivos', 'FESTIVOS €'], ['parking', 'PARKING €'], ['otro_concepto', 'OTRO CONCEPTO'], ['otro', 'OTRO €'],
+    ['descuento_concepto', 'DESCUENTO CONCEPTO'], ['descuento', 'DESC. €']];
   let head = '<th style="padding:6px 8px;text-align:left;position:sticky;left:0;background:var(--sf,#fff);z-index:1">EMPLEADO</th>';
   COLS.forEach(c => { if (ver(c[0])) head += th(c[1], c[0] === '__prima' ? 'Viene sola del parte diario (primas de cada día + plus semanales). Se cambia en el Parte, no aquí.' : ''); });
-  head += th('DIETAS €', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
-  if (!compacto) head += th('PLUSES €', 'Noches + sábados + domingos + tardes + horas', 'background:rgba(25,118,210,.08)');
+  // v662: en compacto, PLUSES y OTROS salen como importe ya calculado; el detalle se edita con el ✎
+  head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el ✎' : ''), 'background:rgba(25,118,210,.08)');
+  if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el ✎', 'background:rgba(25,118,210,.08)');
+  head += th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('COMPLEM.', 'Total − dietas', 'background:rgba(25,118,210,.08)') +
-    th('EFECTIVO €', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO €', 'Adelanto o deuda ya cobrada este mes: RESTA de lo que queda por pagar', 'background:rgba(46,125,50,.10)') +
-    th('TARJETA €', 'Recarga de tarjeta. En gris = lo que propone la app (resto redondeado a 10 hacia arriba).', 'background:rgba(46,125,50,.10)') +
+    th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto o deuda ya cobrada este mes: RESTA de lo que queda por pagar', 'background:rgba(46,125,50,.10)') +
+    th('TARJETA', 'Recarga de tarjeta. En gris = lo que propone la app (resto redondeado a 10 hacia arriba).', 'background:rgba(46,125,50,.10)') +
     th('DE MÁS', 'Lo abonado de más por el redondeo', 'background:rgba(46,125,50,.10)') + th('TOTAL FINAL', '', 'background:rgba(46,125,50,.10)') + th('CUADRE') + th('');
   let filas = '';
   trabs.forEach(t => {
     const row = primasCuadRows[t.id], v = _pcEntrada(t, row), id = t.id;
     const numIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + '" value="' + (v[k] ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
-    const txtIn = (k) => '<td style="padding:2px 3px"><input class="fi" id="pc_' + k + '_' + id + '" style="' + inS + ';text-align:left;width:120px" value="' + _primasAttr(v[k]) + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
-    const manIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + ';width:66px;font-weight:800" value="' + (v[k] != null ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
+    const txtIn = (k) => '<td style="padding:2px 3px"><input class="fi" id="pc_' + k + '_' + id + '" style="' + inS + ';text-align:left;width:96px" value="' + _primasAttr(v[k]) + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
+    const manIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + ';width:58px;font-weight:800" value="' + (v[k] != null ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
     const calc = (n, fuerte) => '<td id="pcc_' + n + '_' + id + '" style="padding:4px 6px;text-align:right;white-space:nowrap' + (fuerte ? ';font-weight:800' : '') + '"></td>';
     let tr = '<tr id="pcr_' + id + '" style="border-bottom:1px solid var(--bd)">' +
-      '<td style="padding:5px 8px;white-space:nowrap;font-weight:700;position:sticky;left:0;background:var(--sf,#fff);z-index:1">' + esc(t.nombre || '') +
+      '<td style="padding:4px 6px;font-weight:700;position:sticky;left:0;background:var(--sf,#fff);z-index:1;max-width:170px;line-height:1.15">' + esc(t.nombre || '') +
       (t.vehiculo_habitual ? ' <span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(t.vehiculo_habitual) + '</span>' : '') + '</td>';
     COLS.forEach(c => {
       if (!ver(c[0])) return;
@@ -24996,9 +24998,11 @@ function renderPrimasCuadrante() {
       else if (_PC_TXT.includes(c[0])) tr += txtIn(c[0]);
       else tr += numIn(c[0]);
     });
-    tr += calc('dietas'); if (!compacto) tr += calc('pluses');
+    tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietas');   // v662
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) +
-      '<td style="padding:2px 4px"><button class="btn bs" style="font-size:10px;padding:3px 7px" title="Fijo mensual y tarifas especiales de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙</button></td></tr>';
+      '<td style="padding:2px 4px;white-space:nowrap">' +
+      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">✎</button> ' +
+      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Fijo mensual y tarifas especiales de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙</button></td></tr>';
     filas += tr;
   });
   if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:var(--mu);text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
@@ -25015,6 +25019,11 @@ function _pcPintaFila(t) {
   const eur = (x) => c.activo || x ? _primasEur(x) : '';
   set('prima', c.prima ? _primasEur(c.prima) : '');
   set('dietas', eur(c.dietas)); set('pluses', c.pluses ? _primasEur(c.pluses) : '');
+  const _otros = _pcR2(c.v.festivos + c.v.parking + c.v.otro - c.v.descuento);   // v662
+  const _hayOtros = c.v.festivos || c.v.parking || c.v.otro || c.v.descuento;
+  set('otros', _hayOtros ? _primasEur(_otros) : '', _otros < 0 ? 'var(--er,#c62828)' : '');
+  const _elO = document.getElementById('pcc_otros_' + id);
+  if (_elO) _elO.title = [c.v.otro_concepto ? 'Otro: ' + c.v.otro_concepto : '', c.v.descuento_concepto ? 'Descuento: ' + c.v.descuento_concepto : ''].filter(Boolean).join(' · ');
   set('total', eur(c.total)); set('complemento', eur(c.complemento), c.complemento < 0 ? 'var(--er,#c62828)' : '');
   set('demas', c.activo ? _primasEur(c.demas) : ''); set('totalFinal', eur(c.totalFinal));
   set('cuadre', c.cuadre, c.cuadre === 'OK' ? 'var(--ok,#2e7d32)' : 'var(--er,#c62828)');
@@ -25160,6 +25169,58 @@ async function primasCfgGuardar(id) {
     console.error('[v661 primasCfgGuardar]', e);
     const msg = String(e.message || e);
     toast('No se pudo guardar' + (/primas_config/.test(msg) ? ' — falta ejecutar el SQL primas_v661.sql' : ': ' + msg), 'err');
+  }
+}
+
+// ---------- v662: ✎ Detalle del mes de un trabajador (lo que en compacto no cabe en la tabla) ----------
+function primasDetAbrir(id) {
+  const t = (vacTrabajadores || []).find(x => String(x.id) === String(id));
+  if (!t) return;
+  const fila = _pcFilaDesdePantalla(t), tf = _pcTarifas(t, primasCuadRows[id]);
+  let ov = document.getElementById('primasDetOv'); if (ov) ov.remove();
+  ov = document.createElement('div'); ov.id = 'primasDetOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const num = (k, txt, tarifa) => '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:7px"><span>' + txt +
+    (tarifa != null ? ' <span style="color:var(--mu);font-size:10px">× ' + _primasEur(tarifa) + '</span>' : '') + '</span>' +
+    '<input class="fi" type="number" step="any" id="primasDet_' + k + '" value="' + (fila[k] ? _primasAttr(fila[k]) : '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></label>';
+  const txt = (k, ph) => '<input class="fi" id="primasDet_' + k + '" placeholder="' + ph + '" value="' + _primasAttr(fila[k]) + '" style="flex:1;min-width:0;font-size:12px;padding:5px 8px">';
+  const par = (kt, kn, titulo, ph) => '<div style="margin-bottom:7px"><div style="margin-bottom:3px">' + titulo + '</div><div style="display:flex;gap:8px">' + txt(kt, ph) +
+    '<input class="fi" type="number" step="any" id="primasDet_' + kn + '" placeholder="€" value="' + (fila[kn] ? _primasAttr(fila[kn]) : '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></div></div>';
+  ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:12px;padding:18px 20px;max-width:400px;width:100%;max-height:90vh;overflow:auto;font-family:var(--mn);font-size:12px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
+    '<div style="font-weight:800;margin-bottom:2px">✎ ' + esc(t.nombre || '') + '</div>' +
+    '<div style="color:var(--mu);font-size:10px;margin-bottom:12px">Detalle de ' + primasMes.split('-').reverse().join('/') + '. Las tarifas (×) se cambian en el ⚙ del trabajador.</div>' +
+    num('noches', 'Noches fuera', tf.noche) + num('sabados', 'Sábados trabajados', tf.sabado) + num('domingos', 'Domingos trabajados', tf.domingo) +
+    num('tardes', 'Tardes/noche', tf.tarde) + num('horas', 'Horas extra', tf.hora) +
+    '<div style="border-top:1px solid var(--bd);margin:10px 0"></div>' +
+    num('festivos', 'Festivos €') + num('parking', 'Parking €') +
+    par('otro_concepto', 'otro', 'Otro concepto (SUMA)', 'ej. camarote, recambios…') +
+    par('descuento_concepto', 'descuento', 'Descuento (RESTA · importe en positivo)', 'ej. material, multa…') +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px"><button class="btn bs" style="font-size:11px" onclick="document.getElementById(\'primasDetOv\').remove()">Cancelar</button>' +
+    '<button class="btn bp" style="font-size:11px" onclick="primasDetGuardar(\'' + id + '\')">💾 Guardar</button></div></div>';
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+async function primasDetGuardar(id) {
+  const t = (vacTrabajadores || []).find(x => String(x.id) === String(id));
+  if (!t) return;
+  const fila = _pcFilaDesdePantalla(t);
+  ['noches', 'sabados', 'domingos', 'tardes', 'horas', 'festivos', 'parking', 'otro', 'descuento'].forEach(k => {
+    const el = document.getElementById('primasDet_' + k); if (el) fila[k] = _primasNum(el.value);
+  });
+  ['otro_concepto', 'descuento_concepto'].forEach(k => {
+    const el = document.getElementById('primasDet_' + k); if (el) fila[k] = String(el.value || '').trim() || null;
+  });
+  try {
+    _primasEstado('Guardando...');
+    await _pcUpsert([fila]);
+    const ov = document.getElementById('primasDetOv'); if (ov) ov.remove();
+    renderPrimasCuadrante();
+    _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  } catch (e) {
+    console.error('[v662 primasDetGuardar]', id, e);
+    _primasEstado('✗ NO guardado: ' + (e.message || e), true);
+    toast('No se pudo guardar el detalle de ' + (t.nombre || '') + ': ' + (e.message || e), 'err');
   }
 }
 // ===== fin v661 CUADRANTE =====
