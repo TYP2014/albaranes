@@ -24976,8 +24976,8 @@ function renderPrimasCuadrante() {
   let head = '<th style="padding:6px 8px;text-align:left;position:sticky;left:0;background:var(--sf,#fff);z-index:1">EMPLEADO</th>';
   COLS.forEach(c => { if (ver(c[0])) head += th(c[1], c[0] === '__prima' ? 'Viene sola del parte diario (primas de cada día + plus semanales). Se cambia en el Parte, no aquí.' : ''); });
   // v662: en compacto, PLUSES y OTROS salen como importe ya calculado; el detalle se edita con el ✎
-  head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el ✎' : ''), 'background:rgba(25,118,210,.08)');
-  if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el ✎', 'background:rgba(25,118,210,.08)');
+  head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el botón 📝 Detalle' : ''), 'background:rgba(25,118,210,.08)');
+  if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón 📝 Detalle', 'background:rgba(25,118,210,.08)');
   head += th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('COMPLEM.', 'Total − dietas', 'background:rgba(25,118,210,.08)') +
     th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto o deuda ya cobrada este mes: RESTA de lo que queda por pagar', 'background:rgba(46,125,50,.10)') +
@@ -25002,9 +25002,9 @@ function renderPrimasCuadrante() {
     tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietas');   // v662
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) +
       '<td style="padding:2px 4px;white-space:nowrap">' +
-      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">✎</button> ' +
-      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Fijo mensual y tarifas especiales de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙</button> ' +
-      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨</button></td></tr>';
+      '<button class="btn bs" style="font-size:10px;padding:4px 9px;margin-left:4px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">📝 Detalle</button>' +
+      '<button class="btn bs" style="font-size:10px;padding:4px 9px;margin-left:4px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙️ Ficha</button>' +
+      '<button class="btn bs" style="font-size:10px;padding:4px 9px;margin-left:4px;white-space:nowrap" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨️ Certificado</button></td></tr>';   // v666: botones con nombre
     filas += tr;
   });
   if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:var(--mu);text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
@@ -25127,7 +25127,7 @@ function primasCfgAbrir(id) {
   const campo = (k, txt, def) => '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">' + txt +
     '<input class="fi" type="number" step="any" id="primasCfg_' + k + '" placeholder="' + (def != null ? def : '') + '" value="' + (cfg[k] != null && cfg[k] !== '' ? _primasAttr(cfg[k]) : '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></label>';
   ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:12px;padding:18px 20px;max-width:420px;width:100%;max-height:92vh;overflow:auto;font-family:var(--mn);font-size:12px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
-    '<div style="font-weight:800;margin-bottom:4px">⚙ ' + esc(t.nombre || '') + '</div>' +
+    '<div style="font-weight:800;margin-bottom:4px">⚙️ Ficha de primas · ' + esc(t.nombre || '') + '</div>' +
     '<div style="color:var(--mu);font-size:10px;margin-bottom:12px">Se guarda en su ficha y sale solo todos los meses. Deja vacío lo que vaya con la tarifa general (en gris). Los meses ya guardados NO cambian.</div>' +
     campo('fijo', 'Fijo mensual de extras €', 0) + campo('noche', 'Noche fuera €', PRIMAS_TARIFAS_DEF.noche) + campo('sabado', 'Sábado trabajado €', PRIMAS_TARIFAS_DEF.sabado) +
     campo('domingo', 'Domingo trabajado €', PRIMAS_TARIFAS_DEF.domingo) + campo('tarde', 'Tarde/noche €', PRIMAS_TARIFAS_DEF.tarde) + campo('hora', 'Hora extra €', PRIMAS_TARIFAS_DEF.hora) +
@@ -25199,8 +25199,8 @@ function primasDetAbrir(id) {
   const par = (kt, kn, titulo, ph) => '<div style="margin-bottom:7px"><div style="margin-bottom:3px">' + titulo + '</div><div style="display:flex;gap:8px">' + txt(kt, ph) +
     '<input class="fi" type="number" step="any" id="primasDet_' + kn + '" placeholder="€" value="' + (fila[kn] ? _primasAttr(fila[kn]) : '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></div></div>';
   ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:12px;padding:18px 20px;max-width:400px;width:100%;max-height:90vh;overflow:auto;font-family:var(--mn);font-size:12px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
-    '<div style="font-weight:800;margin-bottom:2px">✎ ' + esc(t.nombre || '') + '</div>' +
-    '<div style="color:var(--mu);font-size:10px;margin-bottom:12px">Detalle de ' + primasMes.split('-').reverse().join('/') + '. Las tarifas (×) se cambian en el ⚙ del trabajador.</div>' +
+    '<div style="font-weight:800;margin-bottom:2px">📝 Detalle · ' + esc(t.nombre || '') + '</div>' +
+    '<div style="color:var(--mu);font-size:10px;margin-bottom:12px">Detalle de ' + primasMes.split('-').reverse().join('/') + '. Las tarifas (×) se cambian en ⚙️ Ficha.</div>' +
     num('noches', 'Noches fuera', tf.noche) + num('sabados', 'Sábados trabajados', tf.sabado) + num('domingos', 'Domingos trabajados', tf.domingo) +
     num('tardes', 'Tardes/noche', tf.tarde) + num('horas', 'Horas extra', tf.hora) +
     '<div style="border-top:1px solid var(--bd);margin:10px 0"></div>' +
