@@ -24848,6 +24848,7 @@ function _pcTrabajadores() {
     .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
 }
 function _pcCfg(t) { const c = t && t.primas_config; return (c && typeof c === 'object') ? c : {}; }
+function _pcPrestamo(t) { const p = _pcCfg(t).prestamo; return (p && typeof p === 'object') ? p : {}; }   // v665
 // Tarifas que valen para esta fila: foto guardada > ficha del trabajador > generales
 function _pcTarifas(t, row) {
   const cfg = _pcCfg(t), out = {};
@@ -25125,7 +25126,7 @@ function primasCfgAbrir(id) {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   const campo = (k, txt, def) => '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">' + txt +
     '<input class="fi" type="number" step="any" id="primasCfg_' + k + '" placeholder="' + (def != null ? def : '') + '" value="' + (cfg[k] != null && cfg[k] !== '' ? _primasAttr(cfg[k]) : '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></label>';
-  ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:12px;padding:18px 20px;max-width:380px;width:100%;font-family:var(--mn);font-size:12px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
+  ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:12px;padding:18px 20px;max-width:420px;width:100%;max-height:92vh;overflow:auto;font-family:var(--mn);font-size:12px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
     '<div style="font-weight:800;margin-bottom:4px">⚙ ' + esc(t.nombre || '') + '</div>' +
     '<div style="color:var(--mu);font-size:10px;margin-bottom:12px">Se guarda en su ficha y sale solo todos los meses. Deja vacío lo que vaya con la tarifa general (en gris). Los meses ya guardados NO cambian.</div>' +
     campo('fijo', 'Fijo mensual de extras €', 0) + campo('noche', 'Noche fuera €', PRIMAS_TARIFAS_DEF.noche) + campo('sabado', 'Sábado trabajado €', PRIMAS_TARIFAS_DEF.sabado) +
@@ -25134,6 +25135,12 @@ function primasCfgAbrir(id) {
     '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 0 14px">El resto se le paga en' +
     '<select class="fi" id="primasCfg_resto" style="font-size:12px;padding:5px 8px"><option value="">' + (t.empresa === 'HISPALIS' ? 'Efectivo (general Híspalis)' : 'Tarjeta (general)') + '</option>' +
     '<option value="efectivo"' + (cfg.resto === 'efectivo' ? ' selected' : '') + '>Efectivo</option></select></label>' +
+    '<div style="border-top:1px solid var(--bd);margin:4px 0 10px;padding-top:10px;font-weight:800">Préstamo / deuda con la empresa <span style="font-weight:400;color:var(--mu);font-size:10px">(opcional · v665)</span></div>' +
+    '<div style="color:var(--mu);font-size:10px;margin-bottom:8px">Si lo rellenas, lo que pongas cada mes en ADELANTO cuenta como descuento de esta deuda y el certificado saca el cuadro de DEUDA PENDIENTE con lo que queda.</div>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">Préstamo inicial €<input class="fi" type="number" step="any" id="primasCfg_pr_inicial" value="' + (_pcPrestamo(t).inicial || '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></label>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">Fecha del préstamo<input class="fi" id="primasCfg_pr_fecha" placeholder="9 de septiembre de 2024" value="' + _primasAttr(_pcPrestamo(t).fecha || '') + '" style="width:190px;font-size:12px;padding:5px 8px"></label>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">Ya descontado ANTES de llevarlo en la app €<input class="fi" type="number" step="any" id="primasCfg_pr_previo" value="' + (_pcPrestamo(t).previo || '') + '" style="width:90px;text-align:right;font-size:12px;padding:5px 8px"></label>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px">La app cuenta descuentos desde el mes<input class="fi" type="month" id="primasCfg_pr_desde" value="' + _primasAttr(_pcPrestamo(t).desde || primasMes) + '" style="font-size:12px;padding:5px 8px"></label>' +
     '<label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="primasCfg_aplicar" checked> Aplicar también a ' + primasMes.split('-').reverse().join('/') + ' (el mes abierto)</label>' +
     '<div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn bs" style="font-size:11px" onclick="document.getElementById(\'primasCfgOv\').remove()">Cancelar</button>' +
     '<button class="btn bp" style="font-size:11px" onclick="primasCfgGuardar(\'' + id + '\')">💾 Guardar</button></div></div>';
@@ -25150,6 +25157,9 @@ async function primasCfgGuardar(id) {
     if (x !== '') cfg[k] = _primasNum(x);
   });
   const rs = document.getElementById('primasCfg_resto'); if (rs && rs.value) cfg.resto = rs.value;
+  // v665: prestamo / deuda
+  const _pv = (k) => { const el = document.getElementById('primasCfg_pr_' + k); return el ? String(el.value || '').trim() : ''; };
+  if (_primasNum(_pv('inicial')) > 0) cfg.prestamo = { inicial: _primasNum(_pv('inicial')), fecha: _pv('fecha'), previo: _primasNum(_pv('previo')), desde: _pv('desde') || primasMes };
   const aplicar = !!(document.getElementById('primasCfg_aplicar') || {}).checked;
   try {
     const { error } = await sb.from('trabajadores').update({ primas_config: cfg }).eq('id', id);
@@ -25300,7 +25310,7 @@ function _pcFechaCertCargar() {
   el.value = g; el.placeholder = _pcFechaCertDef();
 }
 
-function _pcCertHtml(t, c) {
+function _pcCertHtml(t, c, deudaAntes) {
   const p = primasMes.split('-'); const mesMin = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0];
   const periodo = mesMin.charAt(0).toUpperCase() + mesMin.slice(1).replace(' de ', ' ');
   const emp = (_PRIMAS_EMP_LEGAL[t.empresa || primasEmpresa] || primasEmpresa).replace(', S.L.', ' S.L.');
@@ -25343,12 +25353,32 @@ function _pcCertHtml(t, c) {
     '<tr><td ' + td + ' colspan="3"><strong>TOTAL DEVENGADO</strong></td><td ' + tdr + '><strong>' + e2(c.total) + '</strong></td></tr></table>' +
     '<h3>FORMA DE PAGO</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Detalle</th><th ' + thr + '>Importe</th></tr>' + fPago +
     '<tr><td ' + td + ' colspan="3"><strong>TOTAL ABONADO</strong></td><td ' + tdr + '><strong>' + e2(c.totalFinal) + '</strong></td></tr></table>' + nota +
+    _pcCertDeuda(t, c, deudaAntes) +
     '<p style="margin-top:22px">Mediante este documento se reconoce que se han abonado las horas extras realizadas en el mes de ' + mesMin + '.</p>' +
     '<table class="firma"><tr><td>El trabajador<br><br><br><br>' + esc(t.nombre || '') + '</td><td>La empresa<br><br><br><br>' + esc(emp) + '</td></tr></table></div>';
 }
 
+// v665: cuadro DEUDA PENDIENTE (como en los certificados de Barrero, Marcelo y Edward del Excel)
+function _pcCertDeuda(t, c, deudaAntes) {
+  const pr = _pcPrestamo(t);
+  if (!(_primasNum(pr.inicial) > 0)) return '';
+  const e2 = (x) => _pcR2(x).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const p = primasMes.split('-'); const sig = new Date(+p[0], +p[1], 1);
+  const mesAct = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0], mesSig = _PRIMAS_MESES_MIN[sig.getMonth()] + ' de ' + sig.getFullYear();
+  const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
+  const antes = _primasNum(pr.previo) + _primasNum(deudaAntes), esteMes = cuenta ? c.v.adelanto : 0;
+  const queda = _pcR2(_primasNum(pr.inicial) - antes - esteMes);
+  const td = 'style="padding:6px 8px;border:1px solid #999"', tdr = 'style="padding:6px 8px;border:1px solid #999;text-align:right;white-space:nowrap"';
+  const th = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:left"', thr = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:right"';
+  return '<h3>DEUDA PENDIENTE</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Fecha / Detalle</th><th ' + thr + '>Importe</th></tr>' +
+    '<tr><td ' + td + '>Préstamo inicial</td><td ' + tdr + ' colspan="2">' + esc(pr.fecha || '—') + '</td><td ' + tdr + '>' + e2(pr.inicial) + '</td></tr>' +
+    '<tr><td ' + td + '>Descontado en meses anteriores</td><td ' + tdr + ' colspan="2">—</td><td ' + tdr + '>' + e2(-antes) + '</td></tr>' +
+    '<tr><td ' + td + '>Descontado este mes</td><td ' + tdr + ' colspan="2">' + esc(mesAct) + '</td><td ' + tdr + '>' + e2(-esteMes) + '</td></tr>' +
+    '<tr><td ' + td + '><strong>DEUDA PENDIENTE</strong></td><td ' + tdr + ' colspan="2">' + (queda > 0 ? 'Queda pendiente para ' + esc(mesSig) : 'Deuda saldada') + '</td><td ' + tdr + '><strong>' + e2(Math.max(queda, 0)) + '</strong></td></tr></table>';
+}
+
 // id = un trabajador; sin id = todos los que tienen importe en el cuadrante abierto
-function primasCertImprimir(id) {
+async function primasCertImprimir(id) {
   if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
   const lista = [];
   _pcTrabajadores().forEach(t => { if (id && String(t.id) !== String(id)) return; const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) lista.push({ t, c }); });
@@ -25358,16 +25388,28 @@ function primasCertImprimir(id) {
   const sinDni = lista.filter(x => !x.t.dni).map(x => x.t.nombre);
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador ha bloqueado la ventana. Permite las ventanas emergentes para esta página.', 'err'); return; }
+  // v665: descuentos de deuda de MESES ANTERIORES (la ventana ya esta abierta: asi el navegador no la bloquea)
+  const deudaAntes = {};
+  try {
+    const conPr = lista.filter(x => _primasNum(_pcPrestamo(x.t).inicial) > 0);
+    if (conPr.length) {
+      w.document.write('<p style="font-family:Arial;padding:20px">Preparando certificados...</p>');
+      const q = await sb.from('primas_cuadrante').select('trabajador_id,mes,adelanto').in('trabajador_id', conPr.map(x => x.t.id)).lt('mes', primasMes);
+      if (q.error) throw q.error;
+      (q.data || []).forEach(f => { const t = conPr.find(x => String(x.t.id) === String(f.trabajador_id)); if (!t) return; const d = _pcPrestamo(t.t).desde || ''; if (d && f.mes < d) return; deudaAntes[f.trabajador_id] = (deudaAntes[f.trabajador_id] || 0) + _primasNum(f.adelanto); });
+      w.document.open();
+    }
+  } catch (e) { console.error('[v665 primas] deuda', e); w.close(); toast('No se pudo calcular la deuda pendiente: ' + (e.message || e), 'err'); return; }
   const css = 'body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#111;margin:0}.cert{padding:18mm 16mm;page-break-after:always}.cert:last-child{page-break-after:auto}' +
     'h1{font-size:18px;text-align:center;margin:0 0 4px}h2{font-size:14px;text-align:center;margin:0 0 18px;font-weight:600}h3{font-size:12.5px;margin:20px 0 6px}' +
     'table{border-collapse:collapse;width:100%}.t{table-layout:fixed}.t th:first-child,.t td:first-child{width:46%}.cab td{padding:5px 8px;border:1px solid #999}.cab{margin-bottom:16px}p{line-height:1.5;text-align:justify}' +
     '.firma{margin-top:46px}.firma td{width:50%;vertical-align:top;padding:0 8px}' +
     '.barra{position:sticky;top:0;background:#1976d2;color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;font-size:13px}.barra button{font-size:13px;padding:6px 14px;cursor:pointer}' +
-    '@media print{.barra{display:none}.cert{padding:0}@page{size:A4;margin:16mm}}';
+    '@media print{.barra{display:none}.cert{padding:16mm}@page{size:A4;margin:0}}';   // v665: margin 0 = Chrome no imprime "20/9/26 ... about:blank"
   w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Certificados ' + esc(primasEmpresa) + ' ' + esc(primasMes) + '</title><style>' + css + '</style></head><body>' +
     '<div class="barra"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button><span>' + lista.length + ' certificado' + (lista.length === 1 ? '' : 's') + ' · uno por página' +
     (sinDni.length ? ' · ⚠ SIN DNI en su ficha: ' + esc(sinDni.join(', ')) : '') + '</span></div>' +
-    lista.map(x => _pcCertHtml(x.t, x.c)).join('') + '</body></html>');
+    lista.map(x => _pcCertHtml(x.t, x.c, deudaAntes[x.t.id])).join('') + '</body></html>');
   w.document.close();
   console.log('[v664 primas] certificados', lista.length, 'sin DNI:', sinDni.length);
 }
