@@ -25223,6 +25223,60 @@ async function primasDetGuardar(id) {
     toast('No se pudo guardar el detalle de ' + (t.nombre || '') + ': ' + (e.message || e), 'err');
   }
 }
+
+// ---------- v663: EXCEL DEL CUADRANTE ----------
+//  · primasCuadExcel('gestor')   → SOLO lo que necesita la gestoria: dias de dieta y dietas por transferencia
+//  · primasCuadExcel('completo') → el cuadrante entero, de uso INTERNO (lleva efectivo y tarjeta)
+const _PRIMAS_EMP_LEGAL = { TYP2014: 'Transportes y Portes 2014, S.L.', HISPALIS: 'Transportes Híspalis 2016, S.L.', PORTES: 'Portes 2014 Import, S.L.', TRANSMARGAZ: 'Transmargaz 2018, S.L.' };
+const _PRIMAS_MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+function primasCuadExcel(tipo) {
+  if (typeof XLSX === 'undefined') { toast('No está cargada la librería de Excel', 'err'); return; }
+  if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
+  const p = primasMes.split('-'); const mesTxt = _PRIMAS_MESES[+p[1] - 1] + ' ' + p[0];
+  const empTxt = _PRIMAS_EMP_LEGAL[primasEmpresa] || primasEmpresa;
+  const filas = [];
+  _pcTrabajadores().forEach(t => { const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) filas.push({ t, c }); });
+  if (!filas.length) { toast('No hay ningún trabajador con importe en ' + mesTxt, 'warn'); return; }
+  const revisar = filas.filter(f => f.c.cuadre !== 'OK').length;
+  if (revisar && !confirm('Hay ' + revisar + ' trabajador' + (revisar === 1 ? '' : 'es') + ' con el cuadre en REVISAR.\n\n¿Sacar el Excel de todas formas?')) return;
+  let aoa, cols, nombre, eurCols;
+  if (tipo === 'gestor') {
+    aoa = [['DIETAS — ' + empTxt], [mesTxt], [], ['EMPLEADO', 'DNI', 'DÍAS DE DIETA', '€ / DÍA', 'DIETAS (€)']];
+    let sd = 0, st = 0;
+    filas.forEach(({ t, c }) => { if (!(c.v.dias_lab > 0)) return; aoa.push([t.nombre || '', t.dni || '', c.v.dias_lab, c.tf.dieta, c.dietas]); sd += c.v.dias_lab; st += c.dietas; });
+    if (aoa.length === 4) { toast('Nadie tiene días de dieta puestos en ' + mesTxt, 'warn'); return; }
+    aoa.push([]); aoa.push(['TOTAL', '', sd, '', _pcR2(st)]);
+    cols = [38, 13, 15, 10, 14]; eurCols = [3, 4];
+    nombre = 'DIETAS_GESTOR_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+  } else {
+    const cab = ['EMPLEADO', 'DNI', 'VEHÍCULO', 'DÍAS LAB.', 'NOCHES', 'SÁBADOS', 'DOMINGOS', 'TARDES', 'HORAS', 'FIJO / EXTRAS (€)', 'PRIMA PARTE (€)', 'FESTIVOS (€)', 'PARKING (€)',
+      'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO/DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE'];
+    aoa = [['DIETAS Y PLUSES — ' + empTxt + ' — USO INTERNO'], [mesTxt], [], cab];
+    const S = { dietas: 0, pluses: 0, total: 0, ef: 0, ad: 0, ta: 0, dm: 0, fin: 0 };
+    filas.forEach(({ t, c }) => {
+      const v = c.v;
+      aoa.push([t.nombre || '', t.dni || '', t.vehiculo_habitual || '', v.dias_lab || '', v.noches || '', v.sabados || '', v.domingos || '', v.tardes || '', v.horas || '',
+        v.extras || '', c.prima || '', v.festivos || '', v.parking || '', v.otro_concepto || '', v.otro || '', v.descuento_concepto || '', v.descuento || '',
+        c.dietas, c.pluses, c.total, c.complemento, c.efectivo, v.adelanto || '', c.tarjeta, c.demas, c.totalFinal, c.cuadre]);
+      S.dietas += c.dietas; S.pluses += c.pluses; S.total += c.total; S.ef += c.efectivo; S.ad += v.adelanto; S.ta += c.tarjeta; S.dm += c.demas; S.fin += c.totalFinal;
+    });
+    aoa.push([]);
+    const tot = new Array(cab.length).fill(''); tot[0] = 'TOTAL';
+    tot[17] = _pcR2(S.dietas); tot[18] = _pcR2(S.pluses); tot[19] = _pcR2(S.total); tot[21] = _pcR2(S.ef); tot[22] = _pcR2(S.ad); tot[23] = _pcR2(S.ta); tot[24] = _pcR2(S.dm); tot[25] = _pcR2(S.fin);
+    aoa.push(tot);
+    cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 18, 13, 16, 14, 10];
+    eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
+    nombre = 'CUADRANTE_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = cols.map(w => ({ wch: w }));
+  for (let r = 4; r < aoa.length; r++) eurCols.forEach(cI => { const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (cel && typeof cel.v === 'number') cel.z = '#,##0.00'; });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, (tipo === 'gestor' ? 'DIETAS ' : 'CUADRANTE ') + _PRIMAS_MESES[+p[1] - 1].slice(0, 3) + p[0]);
+  XLSX.writeFile(wb, nombre);
+  console.log('[v663 primas] Excel', tipo, nombre, 'filas:', filas.length);
+  toast('Excel descargado: ' + nombre, 'ok');
+}
 // ===== fin v661 CUADRANTE =====
 
 // Empresas que este usuario puede ver aquí. Mismas que en Taller
