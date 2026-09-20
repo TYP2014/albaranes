@@ -24610,9 +24610,9 @@ function renderPrimas() {
       '<td style="padding:5px 8px;white-space:nowrap;font-weight:700">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
       '<td style="padding:3px 4px;width:96px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;min-width:200px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
-      '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea></td>' +
+      '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="font-size:10px;margin-top:2px;line-height:1.3">' + _primasInfoDia(f) + '</div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
-      '<td style="padding:3px 4px;width:80px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5" style="' + inS + ';text-align:right;font-weight:800" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:80px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:10px;padding:3px 7px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button></td></tr>';
     // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
     const lun = _primasLunes(iso);
@@ -24685,6 +24685,7 @@ async function primasSaveRow(iso) {
     trabajador_id: primasTrabId, fecha: iso,
     vehiculo: veh || null, parte_conductor: parte || null, trabajo: trabajo || null, notas: notas || null,
     prima: _primasNum(primaTxt),
+    prima_auto: !!(previa && previa.prima_auto && _primasNum(previa.prima) === _primasNum(primaTxt) && _primasNum(primaTxt) !== 0),   // v670: tecleada a mano → ya no es de la app
     plus_manual: previa ? previa.plus_manual : null,
     editado_por: _primasQuien(), updated_at: new Date().toISOString()
   };
@@ -24693,6 +24694,9 @@ async function primasSaveRow(iso) {
     await _primasUpsert([fila]);
     const elV = document.getElementById('pr_vehiculo_' + iso);
     if (elV && veh && !elV.value) elV.value = veh;
+    const _elP = document.getElementById('pr_prima_' + iso), _fN = primasRows[iso] || {};   // v670
+    if (_elP) { _elP.style.color = _fN.prima_auto ? '#1565c0' : ''; _elP.title = _fN.prima_auto ? 'Puesta por la app según los albaranes. Escribe encima para cambiarla.' : ''; }
+    const _elI = document.getElementById('pr_info_' + iso); if (_elI) _elI.innerHTML = _primasInfoDia(_fN);
     if (!primasHabitual && veh) {   // (solo si no tiene habitual ni en ficha ni en historico)
       primasHabitual = veh;
       document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
@@ -24732,6 +24736,92 @@ async function primasSavePlus(lun) {
   }
 }
 
+
+// ============================================================
+// v670: LA APP PROPONE LA PRIMA DEL DIA a partir de los albaranes (SIEMPRE editable).
+// Reglas sacadas de lo que JC PAGO de verdad (partes 4210NGF / 9566NBR / 8678NGL, feb-ago 2026)
+// cruzado con el Excel Completo de albaranes jul-sep 2026 (8.215 filas): cuando una regla encaja
+// acierta exacto el 80 % y a ±5 € el 98 %. Encaja en ~2 de cada 3 dias; en los dias "raros"
+// (mezclas sin regla) la app NO inventa: enseña el desglose y la prima se pone a mano.
+// Cada viaje se clasifica por ORIGEN / DESTINO / MATERIAL / REMOLQUE:
+//   CALIZA  = caliza o rechazo a Fabrica Montcada (Garraf, Promsa, Foj, Adec...)  · JC: "valen todas igual"
+//   BEGUES  = Charly o Caliza Cemex (salen de Begues) a Fabrica Montcada          · JC: "valen algo mas"
+//   LARGO   = CALIZA + BEGUES (se usa en las reglas como suma)
+// Una regla = prima + minimos por tipo. Gana la regla cumplida de MAYOR prima.
+// ============================================================
+function _primasSinAcentos(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
+const PRIMAS_REMOLQUES_PLATAFORMA = ['R4665BCD', 'R8672BCN'];   // OJO: la tractora NO vale de pista (8735MYM y 9499LHT tambien llevan cisterna)
+const PRIMAS_VEHICULOS_FIJO_DIA = { '1270LST': 25 };             // camion grua: 25 € el dia que trabaja
+function _primasClase(al) {
+  const o = _primasSinAcentos(al.planta), d = _primasSinAcentos(al.obra), m = _primasSinAcentos(al.producto), r = _primasMat(al.remolque);
+  if (/PALET|\bSAC\b|SACOS|PAL PLAS|ENSACAD|\d+ ?KG/.test(m) || PRIMAS_REMOLQUES_PLATAFORMA.some(x => r.indexOf(x) === 0)) return 'PLATAFORMA';
+  if (d.indexOf('HORAS') >= 0 || m.indexOf('HORAS') >= 0) return 'HORAS';
+  if (m.indexOf('CLINKER') >= 0) return d.indexOf('TARRAGONA') >= 0 ? 'CLINKER TARRAGONA' : 'CLINKER';
+  if (d.indexOf('ZONA FRANCA') >= 0) return 'ZONA FRANCA';
+  if (d.indexOf('PUERTO') >= 0 || d.indexOf('SODIRA') >= 0) return 'PUERTO';
+  if (d.indexOf('SANT JUST') >= 0) return 'SANT JUST';
+  if (m.indexOf('ESCOMBRO') >= 0 || m.indexOf('FANGO') >= 0) return 'ESCOMBROS';
+  if (o.indexOf('TECNOCATALANA') >= 0 || d.indexOf('TECNOCATALANA') >= 0 || o.indexOf('SANT FOST') >= 0 || o.indexOf('PAPIOL') >= 0 || m.indexOf('ARCILLA') >= 0) return 'CORTO';
+  if (d.indexOf('FABRICA MONTCADA') >= 0) {
+    if (o.indexOf('MARTORELL') >= 0) return 'MARTORELL';
+    if (m.indexOf('YESO') >= 0 || o.indexOf('JORBA') >= 0) return 'YESO';
+    return o.indexOf('BEGUES') >= 0 ? 'BEGUES' : 'CALIZA';
+  }
+  if (o.indexOf('OLESA') >= 0) return 'OLESA';
+  if (o.indexOf('LLINARS') >= 0 || d.indexOf('LLINARS') >= 0) return 'LLINARS';
+  if (d.indexOf('MONTCADA') >= 0) return 'H.MONTCADA';
+  return 'OTRO';
+}
+const PRIMAS_REGLAS = [
+  [40, { 'CLINKER': 3, 'LARGO': 3 }],
+  [30, { 'ZONA FRANCA': 7 }],                                 // 1 caliza + 7 Zona Franca (a veces la caliza no esta subida)
+  [30, { 'MARTORELL': 4, 'LARGO': 1, 'CLINKER': 1 }],
+  [30, { 'BEGUES': 2, 'CALIZA': 2, 'CORTO': 1 }],
+  [25, { 'PLATAFORMA': 1 }],                                  // JC: plataforma = 25 € el dia, haga 1 o 7 viajes
+  [25, { 'LARGO': 5 }],                                       // JC: 5 calizas = 25
+  [25, { 'BEGUES': 3, 'LARGO': 4 }],                          // JC: 3 de Begues + 1 caliza = 25
+  [25, { 'LARGO': 3, 'CLINKER': 2 }],
+  [25, { 'PUERTO': 5, 'LARGO': 1 }],
+  [25, { 'H.MONTCADA': 4, 'LARGO': 1 }],
+  [25, { 'MARTORELL': 4, 'LARGO': 1 }],
+  [25, { 'YESO': 3, 'LARGO': 1 }],
+  [20, { 'BEGUES': 2, 'LARGO': 4 }],                          // JC: 2 de Begues + 2 calizas = 20 (con 1 + 3, NO)
+  [20, { 'LARGO': 4, 'CORTO': 1 }],                           // JC: 4 largos + 1 corto = 20 (4 calizas SOLAS no llevan prima)
+  [20, { 'ZONA FRANCA': 6, 'LARGO': 1 }],
+  [20, { 'YESO': 2, 'LARGO': 2 }],
+  [20, { 'SANT JUST': 5 }],                                   // JC: 5 Begues/Cemex → Sant Just = 20
+  [20, { 'OLESA': 5 }],
+  [20, { 'OLESA': 3, 'LLINARS': 1 }],
+  [20, { 'PUERTO': 4, 'LARGO': 1 }]
+];
+// cuenta = { CALIZA: 3, BEGUES: 1, ... } → { prima, tipos:'3 CALIZA + 1 BEGUES', viajes }
+function _primasPropone(cuenta, vehiculo) {
+  const c = Object.assign({}, cuenta); c.LARGO = (c.CALIZA || 0) + (c.BEGUES || 0);
+  let prima = 0;
+  PRIMAS_REGLAS.forEach(r => { if (Object.keys(r[1]).every(k => (c[k] || 0) >= r[1][k])) prima = Math.max(prima, r[0]); });
+  const fijoDia = PRIMAS_VEHICULOS_FIJO_DIA[_primasMat(vehiculo)];
+  if (fijoDia) prima = Math.max(prima, fijoDia);
+  const claves = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a] || a.localeCompare(b));
+  return { prima, viajes: claves.reduce((s, k) => s + cuenta[k], 0), tipos: claves.map(k => cuenta[k] + ' ' + k).join(' + ') };
+}
+// Cuantos viajes dice el conductor en su mensaje (orientativo): suma los numeros sueltos + 1 si dice "el cargado"
+function _primasViajesConductor(txt) {
+  const t = _primasSinAcentos(txt); if (!t) return null;
+  let n = 0; (t.match(/\b\d{1,2}\b(?! ?(H|HORAS|:|\/))/g) || []).forEach(x => { const v = parseInt(x, 10); if (v >= 1 && v <= 12) n += v; });
+  if (/CARGADO/.test(t)) n += 1;
+  return n || null;
+}
+// Linea pequeña bajo TRABAJO REALIZADO: desglose por tipos, propuesta y aviso si no cuadra con el conductor
+function _primasInfoDia(f) {
+  if (!f || !f.tipos) return '';
+  const nAlb = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
+  const nCond = _primasViajesConductor(f.parte_conductor);
+  const p = _primasNum(f.prima_sugerida);
+  let h = '<span style="color:var(--mu)">🧮 ' + esc(f.tipos) + '</span> → ' + (p > 0 ? '<strong style="color:#1565c0">la app propone ' + _primasEur(p) + '</strong>' : '<span style="color:#e65100">sin regla para este día: pon la prima a mano</span>');
+  if (nCond != null && nCond !== nAlb) h += ' <span style="color:#e65100;font-weight:700">⚠ conductor dice ' + nCond + ' viaje' + (nCond === 1 ? '' : 's') + ' · albaranes ' + nAlb + '</span>';
+  return h;
+}
+
 // Fecha de un albaran (la columna es TEXTO: DD/MM/YYYY o YYYY-MM-DD) → ISO
 function _primasFechaAlb(s) {
   const t = String(s || '').trim();
@@ -24758,11 +24848,11 @@ async function primasTraerAlbaranes(soloIso) {
   const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
   _primasEstado('Buscando albaranes...');
   try {
-    const porVehDia = {};   // veh|iso -> { 'ORIGEN → DESTINO': n }
+    const porVehDia = {};   // veh|iso -> { rutas: { 'ORIGEN → DESTINO': n }, cuenta: { CALIZA: n, ... } }   (v670)
     for (const veh of vehs) {
       const vistos = new Set();
       for (let desde = 0; desde < 5000; desde += 1000) {
-        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,producto,remolque').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
         if (q.error) throw q.error;
         (q.data || []).forEach(a => {
           const iso = _primasFechaAlb(a.fecha); if (!iso) return;
@@ -24771,45 +24861,60 @@ async function primasTraerAlbaranes(soloIso) {
           vistos.add(clave);
           const ruta = (String(a.planta || '?').trim() + ' → ' + String(a.obra || '?').trim()).toUpperCase();
           const k = veh + '|' + iso;
-          porVehDia[k] = porVehDia[k] || {};
-          porVehDia[k][ruta] = (porVehDia[k][ruta] || 0) + 1;
+          porVehDia[k] = porVehDia[k] || { rutas: {}, cuenta: {} };
+          porVehDia[k].rutas[ruta] = (porVehDia[k].rutas[ruta] || 0) + 1;
+          const _cl = _primasClase(a);                                   // v670
+          porVehDia[k].cuenta[_cl] = (porVehDia[k].cuenta[_cl] || 0) + 1;
         });
         if ((q.data || []).length < 1000) break;
       }
     }
     const aGuardar = [];
-    let sinAlb = 0;
+    let sinAlb = 0, nAuto = 0, nSinRegla = 0;
     for (const iso of dias) {
       const veh = vehDe(iso); if (!veh) continue;
-      const rutas = porVehDia[veh + '|' + iso];
-      if (!rutas) { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
-      const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
-      const el = document.getElementById('pr_trabajo_' + iso);
-      const actual = el ? String(el.value || '').trim() : String((primasRows[iso] || {}).trabajo || '');
-      if (actual && actual !== resumen) {
-        if (!soloIso) continue;                       // en bloque NUNCA se pisa lo escrito
-        if (!confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) continue;
-      }
-      if (actual === resumen) continue;
-      if (el) el.value = resumen;
       const previa = primasRows[iso] || {};
       const g = (k) => { const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };
+      let dia = porVehDia[veh + '|' + iso];
+      if (!dia) {
+        // v670: el camion grua no suele tener albaranes; si ese dia hay trabajo apuntado, cuenta igual
+        if (PRIMAS_VEHICULOS_FIJO_DIA[veh] && (g('trabajo') || g('parte_conductor'))) dia = { rutas: {}, cuenta: {} };
+        else { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
+      }
+      const rutas = dia.rutas;
+      const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
+      const prop = _primasPropone(dia.cuenta, veh);
+      const tipos = prop.tipos || (PRIMAS_VEHICULOS_FIJO_DIA[veh] ? 'CAMIÓN GRÚA' : '');
+      // (a) TRABAJO REALIZADO: en bloque NUNCA se pisa lo escrito; de uno en uno pregunta
+      const actual = g('trabajo');
+      let trabajo = actual;
+      if (resumen && !actual) trabajo = resumen;
+      else if (resumen && actual !== resumen && soloIso && confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) trabajo = resumen;
+      // (b) PRIMA: la app solo la pone/cambia si esta vacia o si la habia puesto ella. Lo tecleado a mano NO se toca
+      const primaAct = _primasNum(g('prima')), eraAuto = !!previa.prima_auto;
+      let prima = primaAct, primaAuto = eraAuto && primaAct !== 0;
+      if (prop.prima > 0 && (primaAct === 0 || eraAuto)) { prima = prop.prima; primaAuto = true; }
+      else if (prop.prima === 0 && eraAuto) { prima = 0; primaAuto = false; }     // ya no encaja ninguna regla (llegaron mas albaranes)
+      if (prop.prima > 0 && primaAuto) nAuto++; else if (prop.prima === 0) nSinRegla++;
+      const cambia = trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
+      if (!cambia) continue;
       aGuardar.push({
         trabajador_id: primasTrabId, fecha: iso, vehiculo: veh,
-        parte_conductor: g('parte_conductor') || null, trabajo: resumen, notas: g('notas') || null,
-        prima: _primasNum(g('prima')), plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
+        parte_conductor: g('parte_conductor') || null, trabajo: trabajo || null, notas: g('notas') || null,
+        prima: prima, prima_auto: primaAuto, tipos: tipos || null, prima_sugerida: prop.prima,
+        plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
         editado_por: _primasQuien(), updated_at: new Date().toISOString()
       });
-      const elV = document.getElementById('pr_vehiculo_' + iso); if (elV && !elV.value) elV.value = veh;
     }
-    if (aGuardar.length) await _primasUpsert(aGuardar);
+    if (aGuardar.length) { await _primasUpsert(aGuardar); renderPrimas(); }   // v670: repinta para enseñar desglose y primas puestas por la app
     _primasPintaTotales();
     const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? 'Ese día no hay albaranes de ' + vehs[0] : 'Nada nuevo que rellenar');
     _primasEstado('✓ ' + msg);
-    toast(msg + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
+    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
     console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
   } catch (e) {
     console.error('[v659 primasTraerAlbaranes]', e);
+    if (/prima_auto|prima_sugerida|tipos/.test(String(e.message || e))) toast('Falta ejecutar el SQL primas_v670.sql en Supabase', 'err');   // v670
     _primasEstado('✗ Error buscando albaranes: ' + (e.message || e), true);
     toast('Error buscando albaranes: ' + (e.message || e), 'err');
   }
