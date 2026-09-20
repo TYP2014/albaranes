@@ -24437,6 +24437,19 @@ function _primasEur(n) {   // v661: 512,40 y no 512,4 · v668: punto de millar s
   return (neg ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] === '00' ? '' : ',' + p[1]) + ' €';
 }
 function _primasMat(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+// v671: VARIOS vehiculos el mismo dia. "4210NGF + 6420JZT", "4210ngf, 6420-jzt", "4210NGF 6420JZT"... → ['4210NGF','6420JZT']
+function _primasMats(s) {
+  const t = String(s || '').toUpperCase();
+  const out = [];
+  t.split(/[+,;\/]|\sY\s/).forEach(trozo => {
+    const limpio = trozo.replace(/[^A-Z0-9 ]/g, '');
+    const m = limpio.replace(/ /g, '').match(/\d{4}[A-Z]{3}/g);                 // matriculas normales (aunque vengan pegadas)
+    if (m) m.forEach(x => { if (!out.includes(x)) out.push(x); });
+    else { const x = limpio.replace(/ /g, ''); if (x.length >= 5 && !out.includes(x)) out.push(x); }   // formatos antiguos/especiales
+  });
+  return out;
+}
+function _primasMatsTxt(s) { return _primasMats(s).join(' + '); }
 function _primasAttr(s) { return esc(s == null ? '' : s).replace(/"/g, '&quot;'); }
 
 // Rango del mes y de las semanas que lo tocan (para el plus hacen falta dias del mes vecino)
@@ -24557,7 +24570,7 @@ async function loadPrimas() {
     const q2 = await sb.from('primas_partes').select('vehiculo,fecha').eq('trabajador_id', primasTrabId)
       .not('vehiculo', 'is', null).order('fecha', { ascending: false }).limit(60);
     const cuenta = {};
-    (q2.data || []).forEach(f => { const v = _primasMat(f.vehiculo); if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
+    (q2.data || []).forEach(f => { _primasMats(f.vehiculo).forEach(v => { cuenta[v] = (cuenta[v] || 0) + 1; }); });   // v671
     primasHabitual = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || '';
     // v660: manda el vehiculo habitual de su FICHA; lo de arriba queda solo de respaldo
     const _t660 = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
@@ -24608,7 +24621,7 @@ function renderPrimas() {
     const finde = (w === 0 || w === 6);
     filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:5px 8px;white-space:nowrap;font-weight:700">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
-      '<td style="padding:3px 4px;width:96px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:150px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;min-width:200px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="font-size:10px;margin-top:2px;line-height:1.3">' + _primasInfoDia(f) + '</div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
@@ -24676,7 +24689,7 @@ async function primasSaveRow(iso) {
   if (!primasTrabId) return;
   const g = (k) => { const el = document.getElementById('pr_' + k + '_' + iso); return el ? String(el.value || '').trim() : ''; };
   const previa = primasRows[iso];
-  let veh = _primasMat(g('vehiculo'));
+  let veh = _primasMatsTxt(g('vehiculo'));   // v671: puede llevar varios
   const parte = g('parte_conductor'), trabajo = g('trabajo'), notas = g('notas'), primaTxt = g('prima');
   const hayAlgo = !!(veh || parte || trabajo || notas || primaTxt);
   if (!hayAlgo && !previa) return;                 // fila vacia que nunca existio: nada que guardar
@@ -24799,8 +24812,7 @@ function _primasPropone(cuenta, vehiculo) {
   const c = Object.assign({}, cuenta); c.LARGO = (c.CALIZA || 0) + (c.BEGUES || 0);
   let prima = 0;
   PRIMAS_REGLAS.forEach(r => { if (Object.keys(r[1]).every(k => (c[k] || 0) >= r[1][k])) prima = Math.max(prima, r[0]); });
-  const fijoDia = PRIMAS_VEHICULOS_FIJO_DIA[_primasMat(vehiculo)];
-  if (fijoDia) prima = Math.max(prima, fijoDia);
+  (Array.isArray(vehiculo) ? vehiculo : _primasMats(vehiculo)).forEach(v1 => { const fd = PRIMAS_VEHICULOS_FIJO_DIA[v1]; if (fd) prima = Math.max(prima, fd); });   // v671: varios vehiculos
   const claves = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a] || a.localeCompare(b));
   return { prima, viajes: claves.reduce((s, k) => s + cuenta[k], 0), tipos: claves.map(k => cuenta[k] + ' ' + k).join(' + ') };
 }
@@ -24841,8 +24853,9 @@ async function primasTraerAlbaranes(soloIso) {
   const hoy = _primasISO(new Date());
   const dias = [];
   for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if (!soloIso || soloIso === iso) dias.push(iso);
-  const vehDe = (iso) => { const el = document.getElementById('pr_vehiculo_' + iso); return _primasMat(el && el.value) || _primasMat((primasRows[iso] || {}).vehiculo) || primasHabitual; };
-  const vehs = Array.from(new Set(dias.map(vehDe).filter(Boolean)));
+  // v671: cada dia puede llevar VARIOS vehiculos → se suman los albaranes de todos
+  const vehsDe = (iso) => { const el = document.getElementById('pr_vehiculo_' + iso); let l = _primasMats(el && el.value); if (!l.length) l = _primasMats((primasRows[iso] || {}).vehiculo); if (!l.length && primasHabitual) l = [primasHabitual]; return l; };
+  const vehs = Array.from(new Set([].concat.apply([], dias.map(vehsDe))));
   if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }
   const p = primasMes.split('-'); const mm = p[1], m1 = String(+p[1]), yy = p[0];
   const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
@@ -24872,19 +24885,27 @@ async function primasTraerAlbaranes(soloIso) {
     const aGuardar = [];
     let sinAlb = 0, nAuto = 0, nSinRegla = 0;
     for (const iso of dias) {
-      const veh = vehDe(iso); if (!veh) continue;
+      const lista = vehsDe(iso); if (!lista.length) continue;
+      const veh = lista.join(' + ');
       const previa = primasRows[iso] || {};
       const g = (k) => { const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };
-      let dia = porVehDia[veh + '|' + iso];
+      let dia = null;
+      lista.forEach(v1 => {                                   // v671: suma de todos los camiones que llevo ese dia
+        const d1 = porVehDia[v1 + '|' + iso]; if (!d1) return;
+        dia = dia || { rutas: {}, cuenta: {} };
+        Object.keys(d1.rutas).forEach(k => { dia.rutas[k] = (dia.rutas[k] || 0) + d1.rutas[k]; });
+        Object.keys(d1.cuenta).forEach(k => { dia.cuenta[k] = (dia.cuenta[k] || 0) + d1.cuenta[k]; });
+      });
+      const esFijoDia = lista.some(v1 => PRIMAS_VEHICULOS_FIJO_DIA[v1]);
       if (!dia) {
         // v670: el camion grua no suele tener albaranes; si ese dia hay trabajo apuntado, cuenta igual
-        if (PRIMAS_VEHICULOS_FIJO_DIA[veh] && (g('trabajo') || g('parte_conductor'))) dia = { rutas: {}, cuenta: {} };
+        if (esFijoDia && (g('trabajo') || g('parte_conductor'))) dia = { rutas: {}, cuenta: {} };
         else { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
       }
       const rutas = dia.rutas;
       const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
-      const prop = _primasPropone(dia.cuenta, veh);
-      const tipos = prop.tipos || (PRIMAS_VEHICULOS_FIJO_DIA[veh] ? 'CAMIÓN GRÚA' : '');
+      const prop = _primasPropone(dia.cuenta, lista);
+      const tipos = prop.tipos || (esFijoDia ? 'CAMIÓN GRÚA' : '');
       // (a) TRABAJO REALIZADO: en bloque NUNCA se pisa lo escrito; de uno en uno pregunta
       const actual = g('trabajo');
       let trabajo = actual;
@@ -24896,7 +24917,7 @@ async function primasTraerAlbaranes(soloIso) {
       if (prop.prima > 0 && (primaAct === 0 || eraAuto)) { prima = prop.prima; primaAuto = true; }
       else if (prop.prima === 0 && eraAuto) { prima = 0; primaAuto = false; }     // ya no encaja ninguna regla (llegaron mas albaranes)
       if (prop.prima > 0 && primaAuto) nAuto++; else if (prop.prima === 0) nSinRegla++;
-      const cambia = trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
+      const cambia = veh !== _primasMatsTxt(previa.vehiculo) || trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
       if (!cambia) continue;
       aGuardar.push({
         trabajador_id: primasTrabId, fecha: iso, vehiculo: veh,
