@@ -24418,7 +24418,10 @@ function switchEmpleadosVista(v) {
 let primasRows = {};        // 'YYYY-MM-DD' -> fila de primas_partes
 let primasTrabId = '';
 let primasMes = '';         // 'YYYY-MM'
-let primasHabitual = '';    // vehiculo habitual del trabajador (el mas repetido ultimamente)
+let primasHabitual = '';    // vehiculo habitual del trabajador (v660: el de su ficha; si no tiene, el mas repetido)
+let primasEmpresa = '';     // v660: sub-pestaña de empresa abierta en Primas
+let primasMatsCargadas = false;   // v660: lista de tractoras para el desplegable en cascada
+const _PRIMAS_EMP_NOM = { TYP2014: '🏢 TYP2014', HISPALIS: '🚚 HISPALIS', TRANSMARGAZ: '🚛 TRANSMARGAZ', PORTES: '📦 PORTES 2014 IMPORT' };
 const PRIMAS_PLUS_4 = 50, PRIMAS_PLUS_5 = 75;
 const _PRIMAS_DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
@@ -24446,23 +24449,74 @@ function primasInit() {
   const mes = document.getElementById('primasMes');
   if (!sel || !mes) return;
   if (!mes.value) mes.value = _primasISO(new Date()).slice(0, 7);
-  const emps = (typeof _recmedEmpresas === 'function') ? _recmedEmpresas() : ['TYP2014', 'HISPALIS', 'PORTES'];
-  const activos = (vacTrabajadores || []).filter(t => !t.archivado && (!t.empresa || emps.includes(t.empresa)));
-  const porEmp = {};
-  activos.forEach(t => { const e = t.empresa || 'SIN EMPRESA'; (porEmp[e] = porEmp[e] || []).push(t); });
+  // v660: sub-pestañas por empresa (las mismas que este usuario ve en Empleados)
+  const orden = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+  const emps = ((typeof _recmedEmpresas === 'function') ? _recmedEmpresas() : ['TYP2014', 'HISPALIS', 'PORTES']).slice().sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+  if (!primasEmpresa || !emps.includes(primasEmpresa)) {
+    let ult = ''; try { ult = localStorage.getItem('primas_last_emp') || ''; } catch (e) {}
+    primasEmpresa = emps.includes(ult) ? ult : (emps[0] || 'TYP2014');
+  }
+  const tabs = document.getElementById('primasSubtabs');
+  if (tabs) tabs.innerHTML = emps.map(e => '<button class="btn ' + (e === primasEmpresa ? 'bp' : 'bs') + '" onclick="switchPrimasEmpresa(\'' + e + '\')" style="font-size:11px">' + (_PRIMAS_EMP_NOM[e] || e) + '</button>').join('');
+  const lista = (vacTrabajadores || []).filter(t => !t.archivado && (t.empresa === primasEmpresa || !t.empresa))
+    .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
   let ultimo = '';
-  try { ultimo = localStorage.getItem('primas_last_trab') || ''; } catch (e) {}
-  const previo = sel.value || ultimo;
-  let html = '<option value="">— Elige trabajador —</option>';
-  Object.keys(porEmp).sort().forEach(e => {
-    html += '<optgroup label="' + _primasAttr(e) + '">';
-    porEmp[e].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es')).forEach(t => {
-      html += '<option value="' + _primasAttr(t.id) + '"' + (String(t.id) === String(previo) ? ' selected' : '') + '>' + esc(t.nombre || '') + '</option>';
-    });
-    html += '</optgroup>';
+  try { ultimo = localStorage.getItem('primas_last_trab_' + primasEmpresa) || ''; } catch (e) {}
+  let html = '<option value="">— Elige trabajador (' + lista.length + ') —</option>';
+  lista.forEach(t => {
+    html += '<option value="' + _primasAttr(t.id) + '"' + (String(t.id) === String(ultimo) ? ' selected' : '') + '>' + esc(t.nombre || '') +
+      (t.vehiculo_habitual ? ' · ' + esc(t.vehiculo_habitual) : '') + (!t.empresa ? ' (sin empresa)' : '') + '</option>';
   });
   sel.innerHTML = html;
+  _primasCargarMatriculas();
   loadPrimas();
+}
+
+function switchPrimasEmpresa(e) {
+  primasEmpresa = e;
+  try { localStorage.setItem('primas_last_emp', e); } catch (err) {}
+  primasInit();
+}
+
+// v660: tractoras de la flota para el desplegable en cascada (tecleas "86" y sale 8678NGL).
+// Si este usuario no puede leer taller_vehiculos no pasa nada: simplemente no sugiere.
+async function _primasCargarMatriculas() {
+  if (primasMatsCargadas) return;
+  primasMatsCargadas = true;
+  const dl = document.getElementById('primasMatList');
+  if (!dl) return;
+  const mats = new Set();
+  try {
+    const q = await sb.from('taller_vehiculos').select('matricula,tipo_vehiculo,activo').eq('activo', true);
+    (q.data || []).forEach(v => { if ((v.tipo_vehiculo || 'tractora') === 'tractora') { const m = _primasMat(v.matricula); if (m) mats.add(m); } });
+  } catch (e) { console.warn('[v660 primas] sin lista de taller_vehiculos', e); }
+  (vacTrabajadores || []).forEach(t => { const m = _primasMat(t.vehiculo_habitual); if (m) mats.add(m); });
+  dl.innerHTML = Array.from(mats).sort().map(m => '<option value="' + _primasAttr(m) + '">').join('');
+  console.log('[v660 primas] matrículas en el desplegable:', mats.size);
+}
+
+// v660: guarda el vehiculo habitual EN LA FICHA del trabajador (se pone una vez y ya sale solo)
+async function primasSaveHabitual() {
+  if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
+  const el = document.getElementById('primasVehHab');
+  const veh = _primasMat(el && el.value);
+  if (el) el.value = veh;
+  try {
+    const { error } = await sb.from('trabajadores').update({ vehiculo_habitual: veh || null }).eq('id', primasTrabId);
+    if (error) throw error;
+    const t = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
+    if (t) t.vehiculo_habitual = veh || null;
+    primasHabitual = veh;
+    document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
+    const opt = document.querySelector('#primasTrab option[value="' + primasTrabId + '"]');
+    if (opt && t) opt.textContent = (t.nombre || '') + (veh ? ' · ' + veh : '');
+    _primasEstado('✓ Vehículo habitual guardado' + (veh ? ': ' + veh : ' (vacío)'));
+  } catch (e) {
+    console.error('[v660 primasSaveHabitual]', e);
+    const msg = String(e.message || e);
+    _primasEstado('✗ NO guardado: ' + msg, true);
+    toast('No se pudo guardar el vehículo habitual' + (/vehiculo_habitual/.test(msg) ? ' — falta ejecutar el SQL primas_v660.sql' : ': ' + msg), 'err');
+  }
 }
 
 function primasMesMover(n) {
@@ -24483,10 +24537,11 @@ async function loadPrimas() {
   primasTrabId = sel.value || '';
   primasMes = mes.value || _primasISO(new Date()).slice(0, 7);
   if (!primasTrabId) {
+    const _eh = document.getElementById('primasVehHab'); if (_eh) _eh.value = '';   // v660
     box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">Elige un trabajador para ver su parte de trabajo del mes.</div>';
     return;
   }
-  try { localStorage.setItem('primas_last_trab', primasTrabId); } catch (e) {}
+  try { localStorage.setItem('primas_last_trab_' + primasEmpresa, primasTrabId); } catch (e) {}
   box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px">Cargando parte...</div>';
   try {
     const r = _primasRango();
@@ -24500,6 +24555,12 @@ async function loadPrimas() {
     const cuenta = {};
     (q2.data || []).forEach(f => { const v = _primasMat(f.vehiculo); if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
     primasHabitual = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || '';
+    // v660: manda el vehiculo habitual de su FICHA; lo de arriba queda solo de respaldo
+    const _t660 = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
+    const _fichaVeh = _primasMat(_t660 && _t660.vehiculo_habitual);
+    if (_fichaVeh) primasHabitual = _fichaVeh;
+    const _elHab = document.getElementById('primasVehHab');
+    if (_elHab) _elHab.value = _fichaVeh;
     renderPrimas();
   } catch (e) {
     console.error('[v659 loadPrimas]', e);
@@ -24543,7 +24604,7 @@ function renderPrimas() {
     const finde = (w === 0 || w === 6);
     filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:5px 8px;white-space:nowrap;font-weight:700">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
-      '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_vehiculo_' + iso + '" style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:96px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;min-width:200px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
@@ -24628,7 +24689,7 @@ async function primasSaveRow(iso) {
     await _primasUpsert([fila]);
     const elV = document.getElementById('pr_vehiculo_' + iso);
     if (elV && veh && !elV.value) elV.value = veh;
-    if (!primasHabitual && veh) {
+    if (!primasHabitual && veh) {   // (solo si no tiene habitual ni en ficha ni en historico)
       primasHabitual = veh;
       document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
     }
