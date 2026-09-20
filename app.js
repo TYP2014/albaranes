@@ -24432,7 +24432,10 @@ function _primasDate(iso) { const p = iso.split('-'); return new Date(+p[0], +p[
 function _primasMas(iso, n) { const d = _primasDate(iso); d.setDate(d.getDate() + n); return _primasISO(d); }
 function _primasLunes(iso) { const d = _primasDate(iso); const w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return _primasISO(d); }
 function _primasNum(v) { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : 0; }
-function _primasEur(n) { const r = Math.round(n * 100) / 100; return r.toLocaleString('es-ES', { minimumFractionDigits: Number.isInteger(r) ? 0 : 2, maximumFractionDigits: 2 }) + ' €'; }   // v661: 512,40 y no 512,4
+function _primasEur(n) {   // v661: 512,40 y no 512,4 · v668: punto de millar siempre (1.100 € y no 1100 €)
+  const r = Math.round(n * 100) / 100, neg = r < 0, p = Math.abs(r).toFixed(2).split('.');
+  return (neg ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] === '00' ? '' : ',' + p[1]) + ' €';
+}
 function _primasMat(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _primasAttr(s) { return esc(s == null ? '' : s).replace(/"/g, '&quot;'); }
 
@@ -24834,6 +24837,7 @@ let primasVista = 'parte';        // 'parte' | 'cuad'
 let primasCuadRows = {};          // trabajador_id -> fila de primas_cuadrante del mes abierto
 let primasCuadPrima = {};         // trabajador_id -> total de su parte diario ese mes (primas + plus)
 let primasCuadCompacto = null;    // true = oculta noches/sabados/... (por defecto en HISPALIS)
+let primasCuadDeudaAntes = {};    // v668: trabajador_id -> ADELANTOS de meses anteriores que cuentan contra su prestamo
 const PRIMAS_TARIFAS_DEF = { dieta: 24.40, noche: 45, sabado: 130, domingo: 150, tarde: 12, hora: 20 };
 const PRIMAS_MARGEN = { HISPALIS: 20 };   // resto de empresas: 10
 const _PC_NUM = ['dias_lab', 'noches', 'sabados', 'domingos', 'tardes', 'horas', 'extras', 'festivos', 'parking', 'otro', 'descuento', 'adelanto'];
@@ -24849,6 +24853,15 @@ function _pcTrabajadores() {
 }
 function _pcCfg(t) { const c = t && t.primas_config; return (c && typeof c === 'object') ? c : {}; }
 function _pcPrestamo(t) { const p = _pcCfg(t).prestamo; return (p && typeof p === 'object') ? p : {}; }   // v665
+// v668: UNA sola formula de la deuda. adelantoMes = lo puesto en ADELANTO el mes abierto; antesApp = suma de ADELANTO de meses anteriores
+function _pcDeuda(t, adelantoMes, antesApp) {
+  const pr = _pcPrestamo(t), inicial = _primasNum(pr.inicial);
+  if (!(inicial > 0)) return null;
+  const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
+  const antes = _pcR2(_primasNum(pr.previo) + _primasNum(antesApp)), esteMes = cuenta ? _primasNum(adelantoMes) : 0;
+  return { inicial, antes, esteMes, queda: _pcR2(inicial - antes - esteMes), fecha: pr.fecha || '' };
+}
+function _pcMesSiguienteTxt() { const p = primasMes.split('-'); const s = new Date(+p[0], +p[1], 1); return _PRIMAS_MESES_MIN[s.getMonth()] + ' de ' + s.getFullYear(); }
 // Tarifas que valen para esta fila: foto guardada > ficha del trabajador > generales
 function _pcTarifas(t, row) {
   const cfg = _pcCfg(t), out = {};
@@ -24919,8 +24932,15 @@ async function loadPrimasCuadrante() {
   try {
     const trabs = _pcTrabajadores();
     const ids = trabs.map(t => t.id);
-    primasCuadRows = {}; primasCuadPrima = {};
+    primasCuadRows = {}; primasCuadPrima = {}; primasCuadDeudaAntes = {};
     if (ids.length) {
+      // v668: para la columna DEUDA PENDIENTE
+      const conPr = trabs.filter(t => _primasNum(_pcPrestamo(t).inicial) > 0);
+      if (conPr.length) {
+        const q0 = await sb.from('primas_cuadrante').select('trabajador_id,mes,adelanto').in('trabajador_id', conPr.map(t => t.id)).lt('mes', primasMes);
+        if (q0.error) throw q0.error;
+        (q0.data || []).forEach(f => { const t = conPr.find(x => String(x.id) === String(f.trabajador_id)); if (!t) return; const d = _pcPrestamo(t).desde || ''; if (d && f.mes < d) return; primasCuadDeudaAntes[f.trabajador_id] = (primasCuadDeudaAntes[f.trabajador_id] || 0) + _primasNum(f.adelanto); });
+      }
       const q1 = await sb.from('primas_cuadrante').select('*').eq('mes', primasMes).in('trabajador_id', ids);
       if (q1.error) throw q1.error;
       (q1.data || []).forEach(f => { primasCuadRows[f.trabajador_id] = f; });
@@ -24968,6 +24988,7 @@ function renderPrimasCuadrante() {
   const compacto = !!(primasCuadCompacto && primasCuadCompacto.v);
   const chk = document.getElementById('primasCuadCompactoChk'); if (chk) chk.checked = !compacto;
   const ver = (k) => !(compacto && _PC_DETALLE.includes(k));
+  const hayDeuda = trabs.some(t => _primasNum(_pcPrestamo(t).inicial) > 0);   // v668
   const inS = 'font-family:var(--mn);font-size:12.5px;padding:5px 5px;box-sizing:border-box;text-align:right;width:62px';   // v667: mas grande (hay sitio)
   const th = (txt, tit, extra) => '<th style="padding:7px 6px;white-space:normal;line-height:1.2;vertical-align:bottom;max-width:80px;' + (extra || '') + '"' + (tit ? ' title="' + _primasAttr(tit) + '"' : '') + '>' + txt + '</th>';
   const COLS = [['dias_lab', 'DÍAS LAB.'], ['noches', 'NOCHES'], ['sabados', 'SÁB.'], ['domingos', 'DOM.'], ['tardes', 'TARDES'], ['horas', 'HORAS'],
@@ -24982,7 +25003,9 @@ function renderPrimasCuadrante() {
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('COMPLEM.', 'Total − dietas', 'background:rgba(25,118,210,.08)') +
     th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto o deuda ya cobrada este mes: RESTA de lo que queda por pagar', 'background:rgba(46,125,50,.10)') +
     th('TARJETA', 'Recarga de tarjeta. En gris = lo que propone la app (resto redondeado a 10 hacia arriba).', 'background:rgba(46,125,50,.10)') +
-    th('DE MÁS', 'Lo abonado de más por el redondeo', 'background:rgba(46,125,50,.10)') + th('TOTAL FINAL', '', 'background:rgba(46,125,50,.10)') + th('CUADRE') + th('', '', 'width:1%');
+    th('DE MÁS', 'Lo abonado de más por el redondeo', 'background:rgba(46,125,50,.10)') + th('TOTAL FINAL', '', 'background:rgba(46,125,50,.10)') + th('CUADRE') +
+    (hayDeuda ? th('DEUDA PTE. ' + _pcMesSiguienteTxt().split(' de ')[0].toUpperCase(), 'Lo que le queda por devolver de su préstamo DESPUÉS del descuento de este mes (lo que pongas en ADELANTO). Es lo mismo que saldrá en su certificado.', 'background:rgba(230,81,0,.10);max-width:110px') : '') +
+    th('', '', 'width:1%');
   let filas = '';
   trabs.forEach(t => {
     const row = primasCuadRows[t.id], v = _pcEntrada(t, row), id = t.id;
@@ -25000,7 +25023,7 @@ function renderPrimasCuadrante() {
       else tr += numIn(c[0]);
     });
     tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietas');   // v662
-    tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) +
+    tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) + (hayDeuda ? calc('deuda', true) : '') +
       '<td style="padding:3px 0 3px 12px;white-space:nowrap;text-align:right;width:1%">' +   // v667: pegados a la derecha
       '<button class="btn bs" style="font-size:12px;padding:6px 12px;margin-left:6px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">📝 Detalle</button>' +
       '<button class="btn bs" style="font-size:12px;padding:6px 12px;margin-left:6px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙️ Ficha</button>' +
@@ -25030,6 +25053,10 @@ function _pcPintaFila(t) {
   set('total', eur(c.total)); set('complemento', eur(c.complemento), c.complemento < 0 ? 'var(--er,#c62828)' : '');
   set('demas', c.activo ? _primasEur(c.demas) : ''); set('totalFinal', eur(c.totalFinal));
   set('cuadre', c.cuadre, c.cuadre === 'OK' ? 'var(--ok,#2e7d32)' : 'var(--er,#c62828)');
+  const _d = _pcDeuda(t, c.v.adelanto, primasCuadDeudaAntes[id]);   // v668
+  set('deuda', !_d ? '' : (_d.queda > 0 ? _primasEur(_d.queda) : 'Saldada ✓'), !_d ? '' : (_d.queda > 0 ? '#e65100' : 'var(--ok,#2e7d32)'));
+  const _elD = document.getElementById('pcc_deuda_' + id);
+  if (_elD) _elD.title = _d ? ('Préstamo ' + _primasEur(_d.inicial) + (_d.fecha ? ' (' + _d.fecha + ')' : '') + ' − descontado antes ' + _primasEur(_d.antes) + ' − este mes ' + _primasEur(_d.esteMes) + ' = queda ' + _primasEur(Math.max(_d.queda, 0)) + ' para ' + _pcMesSiguienteTxt()) : '';
   const ef = document.getElementById('pc_efectivo_manual_' + id), ta = document.getElementById('pc_tarjeta_manual_' + id);
   if (ef) ef.placeholder = (c.activo && c.v.efectivo_manual == null) ? String(c.efectivo) : '';
   if (ta) ta.placeholder = (c.activo && c.v.tarjeta_manual == null) ? String(c.tarjeta) : '';
@@ -25038,9 +25065,11 @@ function _pcPintaFila(t) {
 }
 
 function _pcPintaTotales() {
-  const s = { n: 0, dietas: 0, total: 0, efectivo: 0, adelanto: 0, tarjeta: 0, final: 0, revisar: 0 };
+  const s = { n: 0, dietas: 0, total: 0, efectivo: 0, adelanto: 0, tarjeta: 0, final: 0, revisar: 0, deuda: 0, nDeuda: 0 };
   _pcTrabajadores().forEach(t => {
-    const c = _pcCalc(t, primasCuadRows[t.id]); if (!c.activo) return;
+    const c = _pcCalc(t, primasCuadRows[t.id]);
+    const _d = _pcDeuda(t, c.v.adelanto, primasCuadDeudaAntes[t.id]); if (_d && _d.queda > 0) { s.deuda += _d.queda; s.nDeuda++; }   // v668
+    if (!c.activo) return;
     s.n++; s.dietas += c.dietas; s.total += c.total; s.efectivo += c.efectivo; s.adelanto += c.v.adelanto; s.tarjeta += c.tarjeta; s.final += c.totalFinal; if (c.cuadre !== 'OK') s.revisar++;
   });
   const el = document.getElementById('primasCuadTotales');
@@ -25049,6 +25078,7 @@ function _pcPintaTotales() {
     '<span>Efectivo: <strong>' + _primasEur(s.efectivo) + '</strong></span>' +
     '<span>Tarjeta: <strong>' + _primasEur(s.tarjeta) + '</strong></span>' +
     (s.adelanto ? '<span>Adelantos: <strong>' + _primasEur(s.adelanto) + '</strong></span>' : '') +
+    (s.nDeuda ? '<span style="color:#e65100">Préstamos pendientes (' + s.nDeuda + '): <strong>' + _primasEur(s.deuda) + '</strong></span>' : '') +
     '<span>Total devengado: <strong>' + _primasEur(s.total) + '</strong></span>' +
     '<span style="font-size:14px">TOTAL FINAL: <strong style="color:var(--ok,#2e7d32)">' + _primasEur(s.final) + '</strong></span>' +
     (s.revisar ? '<span style="color:var(--er,#c62828);font-weight:800">⚠ ' + s.revisar + ' a REVISAR</span>' : '');
@@ -25272,22 +25302,23 @@ function primasCuadExcel(tipo) {
     nombre = 'DIETAS_GESTOR_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   } else {
     const cab = ['EMPLEADO', 'DNI', 'VEHÍCULO', 'DÍAS LAB.', 'NOCHES', 'SÁBADOS', 'DOMINGOS', 'TARDES', 'HORAS', 'FIJO / EXTRAS (€)', 'PRIMA PARTE (€)', 'FESTIVOS (€)', 'PARKING (€)',
-      'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO/DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE'];
+      'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO/DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE', 'DEUDA PENDIENTE (€)'];
     aoa = [['DIETAS Y PLUSES — ' + empTxt + ' — USO INTERNO'], [mesTxt], [], cab];
     const S = { dietas: 0, pluses: 0, total: 0, ef: 0, ad: 0, ta: 0, dm: 0, fin: 0 };
     filas.forEach(({ t, c }) => {
       const v = c.v;
       aoa.push([t.nombre || '', t.dni || '', t.vehiculo_habitual || '', v.dias_lab || '', v.noches || '', v.sabados || '', v.domingos || '', v.tardes || '', v.horas || '',
         v.extras || '', c.prima || '', v.festivos || '', v.parking || '', v.otro_concepto || '', v.otro || '', v.descuento_concepto || '', v.descuento || '',
-        c.dietas, c.pluses, c.total, c.complemento, c.efectivo, v.adelanto || '', c.tarjeta, c.demas, c.totalFinal, c.cuadre]);
+        c.dietas, c.pluses, c.total, c.complemento, c.efectivo, v.adelanto || '', c.tarjeta, c.demas, c.totalFinal, c.cuadre,
+        (() => { const d = _pcDeuda(t, v.adelanto, primasCuadDeudaAntes[t.id]); return d ? Math.max(d.queda, 0) : ''; })()]);   // v668
       S.dietas += c.dietas; S.pluses += c.pluses; S.total += c.total; S.ef += c.efectivo; S.ad += v.adelanto; S.ta += c.tarjeta; S.dm += c.demas; S.fin += c.totalFinal;
     });
     aoa.push([]);
     const tot = new Array(cab.length).fill(''); tot[0] = 'TOTAL';
     tot[17] = _pcR2(S.dietas); tot[18] = _pcR2(S.pluses); tot[19] = _pcR2(S.total); tot[21] = _pcR2(S.ef); tot[22] = _pcR2(S.ad); tot[23] = _pcR2(S.ta); tot[24] = _pcR2(S.dm); tot[25] = _pcR2(S.fin);
     aoa.push(tot);
-    cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 18, 13, 16, 14, 10];
-    eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25];
+    cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 18, 13, 16, 14, 10, 20];
+    eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27];
     nombre = 'CUADRANTE_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -25377,14 +25408,12 @@ function _pcCertHtml(t, c, deudaAntes) {
 
 // v665: cuadro DEUDA PENDIENTE (como en los certificados de Barrero, Marcelo y Edward del Excel)
 function _pcCertDeuda(t, c, deudaAntes) {
-  const pr = _pcPrestamo(t);
-  if (!(_primasNum(pr.inicial) > 0)) return '';
+  const d = _pcDeuda(t, c.v.adelanto, deudaAntes);   // v668: formula unica
+  if (!d) return '';
   const e2 = (x) => _pcEurCert(x);
-  const p = primasMes.split('-'); const sig = new Date(+p[0], +p[1], 1);
-  const mesAct = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0], mesSig = _PRIMAS_MESES_MIN[sig.getMonth()] + ' de ' + sig.getFullYear();
-  const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
-  const antes = _primasNum(pr.previo) + _primasNum(deudaAntes), esteMes = cuenta ? c.v.adelanto : 0;
-  const queda = _pcR2(_primasNum(pr.inicial) - antes - esteMes);
+  const p = primasMes.split('-');
+  const mesAct = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0], mesSig = _pcMesSiguienteTxt();
+  const pr = { fecha: d.fecha, inicial: d.inicial }, antes = d.antes, esteMes = d.esteMes, queda = d.queda;
   const td = 'style="padding:6px 8px;border:1px solid #999"', tdr = 'style="padding:6px 8px;border:1px solid #999;text-align:right;white-space:nowrap"';
   const th = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:left"', thr = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:right"';
   return '<h3>DEUDA PENDIENTE</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Fecha / Detalle</th><th ' + thr + '>Importe</th></tr>' +
