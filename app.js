@@ -21241,9 +21241,9 @@ function openNeumMovimientoModal(tipo, id) {
   let camposComunes = `
     <div class="fg" style="margin-bottom:10px"><label class="fl">Empresa</label>
       <select class="fi" id="neumF_empresa">
-        <option value="TYP2014"${empresaActual==='TYP2014'?' selected':''}>🏢 TYP2014</option>
-        <option value="HISPALIS"${empresaActual==='HISPALIS'?' selected':''}>🚚 HISPALIS</option>
-        <option value="TRANSMARGAZ"${empresaActual==='TRANSMARGAZ'?' selected':''}>🚛 TRANSMARGAZ</option>
+        <option value="TYP2014"${empresaActual==='TYP2014'?' selected':''}>TYP2014</option>
+        <option value="HISPALIS"${empresaActual==='HISPALIS'?' selected':''}>HISPALIS</option>
+        <option value="TRANSMARGAZ"${empresaActual==='TRANSMARGAZ'?' selected':''}>TRANSMARGAZ</option>
       </select>
     </div>
     <div class="fg" style="margin-bottom:10px"><label class="fl">Fecha</label>
@@ -24421,7 +24421,7 @@ let primasMes = '';         // 'YYYY-MM'
 let primasHabitual = '';    // vehiculo habitual del trabajador (v660: el de su ficha; si no tiene, el mas repetido)
 let primasEmpresa = '';     // v660: sub-pestaña de empresa abierta en Primas
 let primasMatsCargadas = false;   // v660: lista de tractoras para el desplegable en cascada
-const _PRIMAS_EMP_NOM = { TYP2014: '🏢 TYP2014', HISPALIS: '🚚 HISPALIS', TRANSMARGAZ: '🚛 TRANSMARGAZ', PORTES: '📦 PORTES 2014 IMPORT' };
+const _PRIMAS_EMP_NOM = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };   // v673: sin iconos (JC: "no los representan")
 const PRIMAS_PLUS_4 = 50, PRIMAS_PLUS_5 = 75;
 const _PRIMAS_DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
@@ -35018,7 +35018,7 @@ function _kmPintar() {
     });
     bloques += '<div style="margin-bottom:18px">'
       + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:6px">'
-      + '<b style="font-family:var(--mn);font-size:13px">🏢 ' + g.nom + '</b>'
+      + '<b style="font-family:var(--mn);font-size:13px">' + g.nom + '</b>'
       + '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + g.filas.length + ' vehículos · <b style="color:var(--tx)">' + nf(g.km) + ' km</b></span></div>'
       + '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse">'
       + '<tr style="background:var(--s2)">' + th('MATRÍCULA') + th('FECHA INICIO') + th('KM INICIO', 1) + th('FECHA FIN') + th('KM FIN', 1) + th('DIFERENCIA', 1) + th('AVISO') + '</tr>'
