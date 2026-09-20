@@ -25002,7 +25002,8 @@ function renderPrimasCuadrante() {
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) +
       '<td style="padding:2px 4px;white-space:nowrap">' +
       '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">✎</button> ' +
-      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Fijo mensual y tarifas especiales de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙</button></td></tr>';
+      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Fijo mensual y tarifas especiales de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙</button> ' +
+      '<button class="btn bs" style="font-size:10px;padding:3px 7px" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨</button></td></tr>';
     filas += tr;
   });
   if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:var(--mu);text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
@@ -25011,6 +25012,7 @@ function renderPrimasCuadrante() {
     '<div id="primasCuadTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:12px;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   trabs.forEach(t => _pcPintaFila(t));
   _pcPintaTotales();
+  _pcFechaCertCargar();   // v664
 }
 
 function _pcPintaFila(t) {
@@ -25276,6 +25278,98 @@ function primasCuadExcel(tipo) {
   XLSX.writeFile(wb, nombre);
   console.log('[v663 primas] Excel', tipo, nombre, 'filas:', filas.length);
   toast('Excel descargado: ' + nombre, 'ok');
+}
+
+// ---------- v664: CERTIFICADOS DE PAGO (lo que hacian las pestañas CERT de los libros) ----------
+// Mismo texto y misma estructura que el certificado del Excel: detalle del devengado + forma de pago.
+// Se abren en una ventana nueva lista para imprimir (uno por pagina). NO guardan nada: salen del cuadrante.
+const _PRIMAS_MESES_MIN = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function _pcFechaCertDef() { const d = new Date(); return String(d.getDate()).padStart(2, '0') + ' de ' + _PRIMAS_MESES_MIN[d.getMonth()] + ' de ' + d.getFullYear(); }
+function _pcFechaCert() {
+  const el = document.getElementById('primasCertFecha');
+  const v = el ? String(el.value || '').trim() : '';
+  return v || _pcFechaCertDef();
+}
+function primasCertFechaGuardar() {
+  const el = document.getElementById('primasCertFecha'); if (!el) return;
+  try { localStorage.setItem('primas_cert_fecha_' + primasEmpresa + '_' + primasMes, String(el.value || '').trim()); } catch (e) {}
+}
+function _pcFechaCertCargar() {
+  const el = document.getElementById('primasCertFecha'); if (!el) return;
+  let g = ''; try { g = localStorage.getItem('primas_cert_fecha_' + primasEmpresa + '_' + primasMes) || ''; } catch (e) {}
+  el.value = g; el.placeholder = _pcFechaCertDef();
+}
+
+function _pcCertHtml(t, c) {
+  const p = primasMes.split('-'); const mesMin = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0];
+  const periodo = mesMin.charAt(0).toUpperCase() + mesMin.slice(1).replace(' de ', ' ');
+  const emp = (_PRIMAS_EMP_LEGAL[t.empresa || primasEmpresa] || primasEmpresa).replace(', S.L.', ' S.L.');
+  const e2 = (x) => _pcR2(x).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const n = (x) => _pcR2(x).toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  const v = c.v, tf = c.tf;
+  const dev = [];   // [concepto, cantidad, tarifa, importe]
+  if (v.extras) dev.push(['Extras', '—', '—', v.extras]);
+  if (c.prima) dev.push(['Prima de productividad', 'según viajes del mes', '—', c.prima]);
+  if (v.noches) dev.push(['Noches fuera de casa', n(v.noches), e2(tf.noche), v.noches * tf.noche]);
+  if (v.sabados) dev.push(['Sábados trabajados', n(v.sabados), e2(tf.sabado), v.sabados * tf.sabado]);
+  if (v.domingos) dev.push(['Domingos trabajados', n(v.domingos), e2(tf.domingo), v.domingos * tf.domingo]);
+  if (v.tardes) dev.push(['Tardes / noches', n(v.tardes), e2(tf.tarde), v.tardes * tf.tarde]);
+  if (v.horas) dev.push(['Horas extra', n(v.horas), e2(tf.hora), v.horas * tf.hora]);
+  if (v.festivos) dev.push(['Festivos', '—', '—', v.festivos]);
+  if (v.parking) dev.push(['Parking', '—', '—', v.parking]);
+  if (v.otro) dev.push([v.otro_concepto || 'Otro concepto', '—', '—', v.otro]);
+  if (v.descuento) dev.push(['Descuento: ' + (v.descuento_concepto || 'material / otros'), '—', '—', -v.descuento]);
+  const pago = [];  // [concepto, detalle, importe]
+  if (c.dietas) pago.push(['Dietas (transferidas con la nómina)', n(v.dias_lab) + ' días', c.dietas]);
+  if (c.efectivo) pago.push(['Efectivo', '—', c.efectivo]);
+  if (v.adelanto) pago.push(['Adelanto / descuento de deuda (no es efectivo)', 'ya entregado o descontado', v.adelanto]);
+  if (c.tarjeta) pago.push(['Recarga tarjeta ChequeMotiva', '—', c.tarjeta]);
+  const td = 'style="padding:6px 8px;border:1px solid #999"', tdr = 'style="padding:6px 8px;border:1px solid #999;text-align:right;white-space:nowrap"';
+  const fDev = dev.map(r => '<tr><td ' + td + '>' + esc(r[0]) + '</td><td ' + tdr + '>' + esc(r[1]) + '</td><td ' + tdr + '>' + esc(r[2]) + '</td><td ' + tdr + '>' + e2(r[3]) + '</td></tr>').join('');
+  const fPago = pago.map(r => '<tr><td ' + td + '>' + esc(r[0]) + '</td><td ' + tdr + ' colspan="2">' + esc(r[1]) + '</td><td ' + tdr + '>' + e2(r[2]) + '</td></tr>').join('');
+  let nota = '';
+  if (Math.abs(c.demas) >= 0.01) {
+    nota = '<p style="font-size:11px;color:#333;margin:10px 0 0">ⓘ ' + (c.demas > 0 ? 'Se abona de más ' : 'Diferencia de ') + '<strong>' + e2(Math.abs(c.demas)) + '</strong> respecto al total devengado' +
+      (c.dietas ? ', por encaje fiscal de las dietas (' + n(v.dias_lab) + ' días × ' + e2(tf.dieta) + '/día)' : '') + ' y redondeo del pago a múltiplos de 10 €.</p>';
+  }
+  const th = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:left"', thr = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:right"';
+  return '<div class="cert">' +
+    '<h1>CERTIFICADO DE PAGO DE SALARIO</h1><h2>' + esc(emp) + '</h2>' +
+    '<table class="cab"><tr><td><strong>Trabajador</strong></td><td>' + esc(t.nombre || '') + '</td><td><strong>DNI</strong></td><td>' + esc(t.dni || '') + '</td></tr>' +
+    '<tr><td><strong>Periodo</strong></td><td>' + esc(periodo) + '</td><td><strong>Fecha</strong></td><td>' + esc(_pcFechaCert()) + '</td></tr>' +
+    (t.vehiculo_habitual ? '<tr><td><strong>Vehículo</strong></td><td colspan="3">' + esc(t.vehiculo_habitual) + '</td></tr>' : '') + '</table>' +
+    '<p>' + esc(emp.toUpperCase()) + ' certifica que ha satisfecho en tiempo y forma la nómina correspondiente al mes de ' + mesMin + ', así como todas las anteriores de este año, reconociendo que la empresa no adeuda nada al trabajador hasta la fecha.</p>' +
+    '<h3>DETALLE DEL DEVENGADO</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + '>Cantidad</th><th ' + thr + '>Tarifa</th><th ' + thr + '>Importe</th></tr>' + fDev +
+    '<tr><td ' + td + ' colspan="3"><strong>TOTAL DEVENGADO</strong></td><td ' + tdr + '><strong>' + e2(c.total) + '</strong></td></tr></table>' +
+    '<h3>FORMA DE PAGO</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Detalle</th><th ' + thr + '>Importe</th></tr>' + fPago +
+    '<tr><td ' + td + ' colspan="3"><strong>TOTAL ABONADO</strong></td><td ' + tdr + '><strong>' + e2(c.totalFinal) + '</strong></td></tr></table>' + nota +
+    '<p style="margin-top:22px">Mediante este documento se reconoce que se han abonado las horas extras realizadas en el mes de ' + mesMin + '.</p>' +
+    '<table class="firma"><tr><td>El trabajador<br><br><br><br>' + esc(t.nombre || '') + '</td><td>La empresa<br><br><br><br>' + esc(emp) + '</td></tr></table></div>';
+}
+
+// id = un trabajador; sin id = todos los que tienen importe en el cuadrante abierto
+function primasCertImprimir(id) {
+  if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
+  const lista = [];
+  _pcTrabajadores().forEach(t => { if (id && String(t.id) !== String(id)) return; const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) lista.push({ t, c }); });
+  if (!lista.length) { toast(id ? 'Ese trabajador no tiene importe este mes' : 'No hay ningún trabajador con importe este mes', 'warn'); return; }
+  const revisar = lista.filter(x => x.c.cuadre !== 'OK');
+  if (revisar.length && !confirm((id ? 'Este certificado tiene' : 'Hay ' + revisar.length + ' certificado' + (revisar.length === 1 ? '' : 's') + ' con') + ' el cuadre en REVISAR (lo abonado no coincide con lo devengado).\n\n¿Imprimir de todas formas?')) return;
+  const sinDni = lista.filter(x => !x.t.dni).map(x => x.t.nombre);
+  const w = window.open('', '_blank');
+  if (!w) { toast('El navegador ha bloqueado la ventana. Permite las ventanas emergentes para esta página.', 'err'); return; }
+  const css = 'body{font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:#111;margin:0}.cert{padding:18mm 16mm;page-break-after:always}.cert:last-child{page-break-after:auto}' +
+    'h1{font-size:18px;text-align:center;margin:0 0 4px}h2{font-size:14px;text-align:center;margin:0 0 18px;font-weight:600}h3{font-size:12.5px;margin:20px 0 6px}' +
+    'table{border-collapse:collapse;width:100%}.t{table-layout:fixed}.t th:first-child,.t td:first-child{width:46%}.cab td{padding:5px 8px;border:1px solid #999}.cab{margin-bottom:16px}p{line-height:1.5;text-align:justify}' +
+    '.firma{margin-top:46px}.firma td{width:50%;vertical-align:top;padding:0 8px}' +
+    '.barra{position:sticky;top:0;background:#1976d2;color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;font-size:13px}.barra button{font-size:13px;padding:6px 14px;cursor:pointer}' +
+    '@media print{.barra{display:none}.cert{padding:0}@page{size:A4;margin:16mm}}';
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Certificados ' + esc(primasEmpresa) + ' ' + esc(primasMes) + '</title><style>' + css + '</style></head><body>' +
+    '<div class="barra"><button onclick="window.print()">🖨 Imprimir / Guardar PDF</button><span>' + lista.length + ' certificado' + (lista.length === 1 ? '' : 's') + ' · uno por página' +
+    (sinDni.length ? ' · ⚠ SIN DNI en su ficha: ' + esc(sinDni.join(', ')) : '') + '</span></div>' +
+    lista.map(x => _pcCertHtml(x.t, x.c)).join('') + '</body></html>');
+  w.document.close();
+  console.log('[v664 primas] certificados', lista.length, 'sin DNI:', sinDni.length);
 }
 // ===== fin v661 CUADRANTE =====
 
