@@ -25143,7 +25143,7 @@ function primasCfgAbrir(id) {
     '<div style="font-weight:800;margin-bottom:6px">Préstamo / deuda con la empresa <span style="font-weight:400;color:var(--mu);font-size:12px">(opcional)</span></div>' +
     '<div style="color:var(--mu);font-size:12px;margin-bottom:14px;line-height:1.4">Si lo rellenas, lo que pongas cada mes en ADELANTO cuenta como descuento de esta deuda y el certificado saca el cuadro de DEUDA PENDIENTE con lo que queda.</div>' +
     '<label style="' + _lb + '">Préstamo inicial €<input class="fi" type="number" step="any" id="primasCfg_pr_inicial" value="' + (_pcPrestamo(t).inicial || '') + '" style="width:130px;text-align:right;' + _in + '"></label>' +
-    '<label style="' + _lb + '">Fecha del préstamo<input class="fi" id="primasCfg_pr_fecha" placeholder="9 de septiembre de 2024" value="' + _primasAttr(_pcPrestamo(t).fecha || '') + '" style="width:230px;' + _in + '"></label>' +
+    '<label style="' + _lb + '">Fecha del préstamo<input class="fi" id="primasCfg_pr_fecha" placeholder="escríbela aquí…" value="' + _primasAttr(_pcPrestamo(t).fecha || '') + '" style="width:230px;' + _in + '"></label>' +
     '<label style="' + _lb + '">Ya descontado ANTES de llevarlo en la app €<input class="fi" type="number" step="any" id="primasCfg_pr_previo" value="' + (_pcPrestamo(t).previo || '') + '" style="width:130px;text-align:right;' + _in + '"></label>' +
     '<label style="' + _lb + '">La app cuenta descuentos desde el mes<input class="fi" type="month" id="primasCfg_pr_desde" value="' + _primasAttr(_pcPrestamo(t).desde || primasMes) + '" style="' + _in + '"></label>' +
     '</div></div>' +
@@ -25304,6 +25304,11 @@ function primasCuadExcel(tipo) {
 // Mismo texto y misma estructura que el certificado del Excel: detalle del devengado + forma de pago.
 // Se abren en una ventana nueva lista para imprimir (uno por pagina). NO guardan nada: salen del cuadrante.
 const _PRIMAS_MESES_MIN = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+// v667: importe para certificados, SIEMPRE con punto de millar y dos decimales (1.900,00 €)
+function _pcEurCert(x) {
+  const r = _pcR2(x), neg = r < 0, p = Math.abs(r).toFixed(2).split('.');
+  return (neg ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1] + ' €';
+}
 function _pcFechaCertDef() { const d = new Date(); return String(d.getDate()).padStart(2, '0') + ' de ' + _PRIMAS_MESES_MIN[d.getMonth()] + ' de ' + d.getFullYear(); }
 function _pcFechaCert() {
   const el = document.getElementById('primasCertFecha');
@@ -25324,7 +25329,7 @@ function _pcCertHtml(t, c, deudaAntes) {
   const p = primasMes.split('-'); const mesMin = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0];
   const periodo = mesMin.charAt(0).toUpperCase() + mesMin.slice(1).replace(' de ', ' ');
   const emp = (_PRIMAS_EMP_LEGAL[t.empresa || primasEmpresa] || primasEmpresa).replace(', S.L.', ' S.L.');
-  const e2 = (x) => _pcR2(x).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const e2 = (x) => _pcEurCert(x);
   const n = (x) => _pcR2(x).toLocaleString('es-ES', { maximumFractionDigits: 2 });
   const v = c.v, tf = c.tf;
   const dev = [];   // [concepto, cantidad, tarifa, importe]
@@ -25342,7 +25347,9 @@ function _pcCertHtml(t, c, deudaAntes) {
   const pago = [];  // [concepto, detalle, importe]
   if (c.dietas) pago.push(['Dietas (transferidas con la nómina)', n(v.dias_lab) + ' días', c.dietas]);
   if (c.efectivo) pago.push(['Efectivo', '—', c.efectivo]);
-  if (v.adelanto) pago.push(['Adelanto / descuento de deuda (no es efectivo)', 'ya entregado o descontado', v.adelanto]);
+  if (v.adelanto) pago.push(_primasNum(_pcPrestamo(t).inicial) > 0
+    ? ['Descuento aplicado a deuda pendiente (no es efectivo)', 'ver cuadro de deuda ↓', v.adelanto]      // v667: como en el Excel
+    : ['Adelanto entregado durante el mes (no es efectivo)', 'ya cobrado por el trabajador', v.adelanto]);
   if (c.tarjeta) pago.push(['Recarga tarjeta ChequeMotiva', '—', c.tarjeta]);
   const td = 'style="padding:6px 8px;border:1px solid #999"', tdr = 'style="padding:6px 8px;border:1px solid #999;text-align:right;white-space:nowrap"';
   const fDev = dev.map(r => '<tr><td ' + td + '>' + esc(r[0]) + '</td><td ' + tdr + '>' + esc(r[1]) + '</td><td ' + tdr + '>' + esc(r[2]) + '</td><td ' + tdr + '>' + e2(r[3]) + '</td></tr>').join('');
@@ -25372,7 +25379,7 @@ function _pcCertHtml(t, c, deudaAntes) {
 function _pcCertDeuda(t, c, deudaAntes) {
   const pr = _pcPrestamo(t);
   if (!(_primasNum(pr.inicial) > 0)) return '';
-  const e2 = (x) => _pcR2(x).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const e2 = (x) => _pcEurCert(x);
   const p = primasMes.split('-'); const sig = new Date(+p[0], +p[1], 1);
   const mesAct = _PRIMAS_MESES_MIN[+p[1] - 1] + ' de ' + p[0], mesSig = _PRIMAS_MESES_MIN[sig.getMonth()] + ' de ' + sig.getFullYear();
   const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
