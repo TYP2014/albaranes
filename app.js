@@ -25351,11 +25351,11 @@ function renderPrimasCuadrante() {
   const chk = document.getElementById('primasCuadCompactoChk'); if (chk) chk.checked = !compacto;
   const ver = (k) => !(compacto && _PC_DETALLE.includes(k));
   const hayDeuda = trabs.some(t => _primasNum(_pcPrestamo(t).inicial) > 0);   // v668
-  const inS = 'font-family:var(--mn);font-size:12.5px;padding:5px 5px;box-sizing:border-box;text-align:right;width:62px';   // v667: mas grande (hay sitio)
+  const inS = 'font-family:var(--mn);font-size:14.5px;font-weight:700;color:#111;padding:6px 5px;box-sizing:border-box;text-align:right;width:66px';   // v667: mas grande (hay sitio)
   // v669: cabecera fija. El fondo tiene que ser OPACO (si no, las filas se transparentan por debajo al bajar)
   const _thFijo = (extra) => { const e = extra || ''; const bg = (e.match(/background:([^;]+)/) || [])[1]; const resto = e.replace(/background:[^;]+;?/, '');
     return 'position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--bd);background:' + (bg ? 'linear-gradient(' + bg + ',' + bg + '),' : '') + 'var(--sf,#fff);' + resto; };
-  const th = (txt, tit, extra) => '<th style="padding:7px 6px;white-space:normal;line-height:1.2;vertical-align:bottom;max-width:80px;' + _thFijo(extra) + '"' + (tit ? ' title="' + _primasAttr(tit) + '"' : '') + '>' + txt + '</th>';
+  const th = (txt, tit, extra) => '<th style="padding:8px 6px;white-space:normal;line-height:1.2;vertical-align:bottom;max-width:86px;' + _thFijo(extra) + '"' + (tit ? ' title="' + _primasAttr(tit) + '"' : '') + '>' + txt + '</th>';
   const COLS = [['dias_lab', 'DÍAS LAB.'], ['noches', 'NOCHES'], ['sabados', 'SÁB.'], ['domingos', 'DOM.'], ['tardes', 'TARDES'], ['horas', 'HORAS'],
     ['extras', 'FIJO / EXTRAS'], ['__prima', 'PRIMA PARTE'], ['festivos', 'FESTIVOS €'], ['parking', 'PARKING €'], ['otro_concepto', 'OTRO CONCEPTO'], ['otro', 'OTRO €'],
     ['descuento_concepto', 'DESCUENTO CONCEPTO'], ['descuento', 'DESC. €']];
@@ -25376,12 +25376,12 @@ function renderPrimasCuadrante() {
   trabs.forEach(t => {
     const row = primasCuadRows[t.id], v = _pcEntrada(t, row), id = t.id;
     const numIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + '" value="' + (v[k] ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
-    const txtIn = (k) => '<td style="padding:2px 3px"><input class="fi" id="pc_' + k + '_' + id + '" style="' + inS + ';text-align:left;width:96px" value="' + _primasAttr(v[k]) + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
-    const manIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + ';width:72px;font-weight:800" value="' + (v[k] != null ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
-    const calc = (n, fuerte) => '<td id="pcc_' + n + '_' + id + '" style="padding:6px 8px;text-align:right;white-space:nowrap' + (fuerte ? ';font-weight:800' : '') + '"></td>';
+    const txtIn = (k) => '<td style="padding:2px 3px"><input class="fi" id="pc_' + k + '_' + id + '" style="' + inS + ';text-align:left;width:120px" value="' + _primasAttr(v[k]) + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
+    const manIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + ';width:76px;font-weight:800" value="' + (v[k] != null ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
+    const calc = (n, fuerte) => '<td id="pcc_' + n + '_' + id + '" style="padding:7px 7px;text-align:right;white-space:nowrap;color:#111;font-weight:600' + (fuerte ? ';font-weight:800' : '') + '"></td>';
     let tr = '<tr id="pcr_' + id + '" style="border-bottom:1px solid var(--bd)">' +
-      '<td style="padding:6px 8px;font-weight:700;position:sticky;left:0;background:var(--sf,#fff);z-index:1;max-width:210px;line-height:1.15">' + esc(t.nombre || '') +
-      (t.vehiculo_habitual ? ' <span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(t.vehiculo_habitual) + '</span>' : '') + '</td>';
+      '<td style="padding:7px 9px;font-weight:800;color:#111;font-size:14px;position:sticky;left:0;background:var(--sf,#fff);z-index:1;max-width:250px;white-space:normal;line-height:1.2">' + esc(t.nombre || '') +
+      (t.vehiculo_habitual ? ' <span style="color:#333;font-weight:600;font-size:12px">' + esc(t.vehiculo_habitual) + '</span>' : '') + '</td>';
     COLS.forEach(c => {
       if (!ver(c[0])) return;
       if (c[0] === '__prima') tr += calc('prima');
@@ -25391,15 +25391,15 @@ function renderPrimasCuadrante() {
     tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietas');   // v662
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + (hayDeuda ? (_primasNum(_pcPrestamo(t).inicial) > 0 ? numIn('descuento_deuda') : '<td></td>') : '') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) + (hayDeuda ? calc('deuda', true) : '') +
       '<td style="padding:3px 0 3px 12px;white-space:nowrap;text-align:right;width:1%">' +   // v667: pegados a la derecha
-      '<button class="btn bs" style="font-size:12px;padding:6px 12px;margin-left:6px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">📝 Detalle</button>' +
-      '<button class="btn bs" style="font-size:12px;padding:6px 12px;margin-left:6px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙️ Ficha</button>' +
-      '<button class="btn bs" style="font-size:12px;padding:6px 12px;margin-left:6px;white-space:nowrap" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨️ Certificado</button></td></tr>';   // v666: botones con nombre
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">📝 Detalle</button>' +
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙️ Ficha</button>' +
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨️ Certificado</button></td></tr>';   // v666: botones con nombre
     filas += tr;
   });
-  if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:var(--mu);text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
-  box.innerHTML = '<style>#primasCuadBox td{border-bottom:1px solid var(--bd)}</style><div style="overflow:auto;max-height:72vh;border:1px solid var(--bd);border-radius:8px"><table style="border-collapse:separate;border-spacing:0;font-family:var(--mn);font-size:12.5px;width:100%;min-width:100%">' +   // v667 · v669: caja con su propio desplazamiento → cabecera fija
-    '<thead><tr style="border-bottom:1px solid var(--bd);color:var(--mu);font-size:11px;text-align:right">' + head + '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
-    '<div id="primasCuadTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:12px;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
+  if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:#222;font-weight:600;text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
+  box.innerHTML = '<style>#primasCuadBox td{border-bottom:1px solid var(--bd)}#primasCuadBox th{color:#111;font-weight:800;font-size:12.5px}#primasCuadBox input::placeholder{color:#333;opacity:1;font-weight:600}</style><div style="overflow:auto;max-height:72vh;border:1px solid var(--bd);border-radius:8px"><table style="border-collapse:separate;border-spacing:0;font-family:var(--mn);font-size:14.5px;color:#111;width:100%;min-width:100%">' +   // v667 · v669: caja con su propio desplazamiento → cabecera fija
+    '<thead><tr style="border-bottom:1px solid var(--bd);color:#111;font-size:12.5px;text-align:right">' + head + '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+    '<div id="primasCuadTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   trabs.forEach(t => _pcPintaFila(t));
   _pcPintaTotales();
   _pcFechaCertCargar();   // v664
@@ -25427,7 +25427,8 @@ function _pcPintaFila(t) {
   if (ef) ef.placeholder = (c.activo && c.v.efectivo_manual == null) ? String(c.efectivo) : '';
   if (ta) ta.placeholder = (c.activo && c.v.tarjeta_manual == null) ? String(c.tarjeta) : '';
   const tr = document.getElementById('pcr_' + id);
-  if (tr) { tr.style.opacity = c.activo ? '1' : '.55'; tr.title = (c.activo && c.complemento < 0) ? 'Las dietas superan lo devengado: baja los días de dieta.' : ''; }
+  if (tr) { tr.style.opacity = c.activo ? '1' : '.8';   // v676: antes .55, en la television casi no se leian
+    tr.title = (c.activo && c.complemento < 0) ? 'Las dietas superan lo devengado: baja los días de dieta.' : ''; }
 }
 
 function _pcPintaTotales() {
