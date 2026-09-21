@@ -24600,6 +24600,9 @@ let primasEmpresa = '';     // v660: sub-pestaña de empresa abierta en Primas
 let primasMatsCargadas = false;   // v660: lista de tractoras para el desplegable en cascada
 const _PRIMAS_EMP_NOM = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };   // v673: sin iconos (JC: "no los representan")
 const PRIMAS_PLUS_4 = 50, PRIMAS_PLUS_5 = 75;
+// v675: PLUS DEL MES (JC 21/09/2026): si en TODAS las semanas del mes consigue el plus semanal (minimo 4 dias con prima) → 75 €;
+// si tiene prima TODOS los dias laborables del mes → 150 € (en vez de los 75, no se suman). Se puede pisar a mano.
+const PRIMAS_PLUS_MES_SEMANAS = 75, PRIMAS_PLUS_MES_TODOS = 150;
 const _PRIMAS_DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
 function _primasISO(d) {
@@ -24814,6 +24817,12 @@ function renderPrimas() {
       }
     }
   }
+  // v675: PLUS DEL MES, ultima fila de la tabla
+  filas += '<tr style="background:rgba(25,118,210,.12);border-top:2px solid var(--bd)">' +
+    '<td colspan="5" style="padding:9px 8px;text-align:right;font-weight:800">PLUS DEL MES <span id="prPlusMesInfo" style="font-weight:600;color:#222"></span></td>' +
+    '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusMesVal"></strong>' +
+    ' <input class="fi" id="prPlusMesMan" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app (75 € si consigue el plus TODAS las semanas · 150 € si tiene prima TODOS los días laborables). Escribe un importe solo si este mes hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
+    ((primasRows[r.fin] && primasRows[r.fin].plus_mes_manual != null) ? _primasAttr(primasRows[r.fin].plus_mes_manual) : '') + '" onchange="primasSavePlusMes()"></td><td></td></tr>';
   box.innerHTML =
     '<style>#primasBox input::placeholder,#primasBox textarea::placeholder{color:#333;opacity:1;font-weight:600}#primasBox th{color:#111;font-weight:800;font-size:12.5px}</style>' +   // v672: la matricula habitual "de fondo" en oscuro
     '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +   // v672: grande y en negro
@@ -24822,6 +24831,29 @@ function renderPrimas() {
     '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   _primasPintaTotales();
+}
+
+// v675: plus del mes abierto, calculado sobre primasRows. Devuelve { semanas, semanasOk, dias, diasOk, auto, manual, valor }
+//  · semanas = las que cuentan en este mes (regla del miercoles) · semanasOk = las que tienen 4 o mas dias L-V con prima
+//  · dias = laborables L-V del mes SIN contar los marcados FESTIVO (en trabajo, notas o lo que dice el conductor) · diasOk = con prima > 0
+//  · el importe puesto a mano se guarda en la fila del ULTIMO dia del mes (columna plus_mes_manual)
+function _primasPlusMes() {
+  const r = _primasRango();
+  let semanas = 0, semanasOk = 0, dias = 0, diasOk = 0;
+  for (let lun = r.desde; lun <= r.hasta; lun = _primasMas(lun, 7)) {
+    if (!_primasSemanaEsDelMes(lun)) continue;
+    semanas++; if (_primasPlusSemana(lun).dias >= 4) semanasOk++;
+  }
+  for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) {
+    const w = _primasDate(iso).getDay(); if (w === 0 || w === 6) continue;
+    const f = primasRows[iso] || {};
+    if (/FESTIV/i.test(String(f.trabajo || '') + ' ' + String(f.notas || '') + ' ' + String(f.parte_conductor || ''))) continue;
+    dias++; if (_primasNum(f.prima) > 0) diasOk++;
+  }
+  const auto = (dias > 0 && diasOk === dias) ? PRIMAS_PLUS_MES_TODOS : ((semanas > 0 && semanasOk === semanas) ? PRIMAS_PLUS_MES_SEMANAS : 0);
+  const ult = primasRows[r.fin];
+  const manual = (ult && ult.plus_mes_manual != null) ? _primasNum(ult.plus_mes_manual) : null;
+  return { semanas, semanasOk, dias, diasOk, auto, manual, valor: manual != null ? manual : auto };
 }
 
 // Repinta SOLO los plus y el total (sin tocar las casillas, para no perder el cursor)
@@ -24840,12 +24872,18 @@ function _primasPintaTotales() {
     if (v) v.textContent = _primasEur(s.valor);
     if (i) i.textContent = '· ' + s.dias + ' día' + (s.dias === 1 ? '' : 's') + ' con prima (L-V)' + (s.manual != null ? ' · PUESTO A MANO (la app daría ' + _primasEur(s.auto) + ')' : '');
   }
+  const pm = _primasPlusMes();   // v675
+  const vM = document.getElementById('prPlusMesVal'), iM = document.getElementById('prPlusMesInfo');
+  if (vM) vM.textContent = _primasEur(pm.valor);
+  if (iM) iM.textContent = '· semanas con plus: ' + pm.semanasOk + ' de ' + pm.semanas + ' · días con prima: ' + pm.diasOk + ' de ' + pm.dias + ' laborables' +
+    (pm.manual != null ? ' · PUESTO A MANO (la app daría ' + _primasEur(pm.auto) + ')' : (pm.auto === PRIMAS_PLUS_MES_TODOS ? ' · TODOS los días → ' + PRIMAS_PLUS_MES_TODOS + ' €' : (pm.auto === PRIMAS_PLUS_MES_SEMANAS ? ' · TODAS las semanas → ' + PRIMAS_PLUS_MES_SEMANAS + ' €' : ' · aún no lo consigue')));
   const t = document.getElementById('primasTotales');
   if (t) t.innerHTML =
     '<span>Días con prima: <strong>' + diasConPrima + '</strong></span>' +
     '<span>Primas diarias: <strong>' + _primasEur(sumaDias) + '</strong></span>' +
     '<span>Plus semanales: <strong>' + _primasEur(sumaPlus) + '</strong></span>' +
-    '<span style="font-size:15px">TOTAL PRIMA PRODUCTIVIDAD: <strong style="color:var(--ok,#2e7d32)">' + _primasEur(sumaDias + sumaPlus) + '</strong></span>';
+    '<span>Plus del mes: <strong>' + _primasEur(pm.valor) + '</strong></span>' +
+    '<span style="font-size:15px">TOTAL PRIMA PRODUCTIVIDAD: <strong style="color:var(--ok,#2e7d32)">' + _primasEur(sumaDias + sumaPlus + pm.valor) + '</strong></span>';
 }
 
 function _primasEstado(txt, err) {
@@ -25010,6 +25048,25 @@ function _primasInfoDia(f) {
   let h = '<span style="color:#111">🧮 ' + esc(f.tipos) + '</span> → ' + (p > 0 ? '<strong style="color:#1565c0">la app propone ' + _primasEur(p) + '</strong>' : '<span style="color:#e65100">sin regla para este día: pon la prima a mano</span>');
   if (nCond != null && nCond !== nAlb) h += ' <span style="color:#e65100;font-weight:700">⚠ conductor dice ' + nCond + ' viaje' + (nCond === 1 ? '' : 's') + ' · albaranes ' + nAlb + '</span>';
   return h;
+}
+
+// v675: el plus del mes puesto a mano se guarda en la fila del ULTIMO dia del mes
+async function primasSavePlusMes() {
+  if (!primasTrabId) return;
+  const r = _primasRango();
+  const el = document.getElementById('prPlusMesMan');
+  const txt = el ? String(el.value || '').trim() : '';
+  try {
+    _primasEstado('Guardando...');
+    await _primasUpsert([{ trabajador_id: primasTrabId, fecha: r.fin, plus_mes_manual: txt === '' ? null : _primasNum(txt), editado_por: _primasQuien(), updated_at: new Date().toISOString() }]);
+    _primasPintaTotales();
+    _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  } catch (e) {
+    console.error('[v675 primasSavePlusMes]', e);
+    const msg = String(e.message || e);
+    _primasEstado('✗ NO guardado: ' + msg, true);
+    toast(/plus_mes_manual/.test(msg) ? 'Falta ejecutar el SQL primas_v675.sql en Supabase' : 'No se pudo guardar el plus del mes: ' + msg, 'err');
+  }
 }
 
 // Fecha de un albaran (la columna es TEXTO: DD/MM/YYYY o YYYY-MM-DD) → ISO
@@ -25252,7 +25309,7 @@ async function loadPrimasCuadrante() {
       const r = _primasRango();
       const porTrab = {};
       for (let desde = 0; desde < 20000; desde += 1000) {
-        const q2 = await sb.from('primas_partes').select('trabajador_id,fecha,prima,plus_manual').in('trabajador_id', ids)
+        const q2 = await sb.from('primas_partes').select('trabajador_id,fecha,prima,plus_manual,plus_mes_manual,trabajo,notas,parte_conductor').in('trabajador_id', ids)
           .gte('fecha', r.desde).lte('fecha', r.hasta).order('fecha', { ascending: true }).range(desde, desde + 999);
         if (q2.error) throw q2.error;
         (q2.data || []).forEach(f => { (porTrab[f.trabajador_id] = porTrab[f.trabajador_id] || {})[String(f.fecha).slice(0, 10)] = f; });
@@ -25265,6 +25322,7 @@ async function loadPrimasCuadrante() {
           let suma = 0;
           for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) suma += _primasNum((primasRows[iso] || {}).prima);
           for (let lun = r.desde; lun <= r.hasta; lun = _primasMas(lun, 7)) if (_primasSemanaEsDelMes(lun)) suma += _primasPlusSemana(lun).valor;
+          suma += _primasPlusMes().valor;   // v675: plus del mes
           primasCuadPrima[id] = _pcR2(suma);
         });
       } finally { primasRows = guardado; }
