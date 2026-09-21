@@ -24779,6 +24779,9 @@ function _primasPlusSemana(lun) {
 // ¿La semana del lunes `lun` se paga en el mes abierto? (manda el miercoles)
 function _primasSemanaEsDelMes(lun) { return _primasMas(lun, 2).slice(0, 7) === primasMes; }
 
+// v678: la caja de texto crece hasta enseñar todo su contenido (sin barra ni texto escondido)
+function _primasAutoAlto(el) { if (!el || !el.style) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
+
 function renderPrimas() {
   const box = document.getElementById('primasBox');
   if (!box) return;
@@ -24801,9 +24804,9 @@ function renderPrimas() {
     const finde = (w === 0 || w === 6);
     filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
-      '<td style="padding:3px 4px;width:190px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
-      '<td style="padding:3px 4px;min-width:200px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
-      '<td style="padding:3px 4px;min-width:240px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div></td>' +
+      '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
+      '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:14px;padding:5px 10px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button></td></tr>';
@@ -24831,6 +24834,7 @@ function renderPrimas() {
     '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   _primasPintaTotales();
+  document.querySelectorAll('#primasBox textarea').forEach(_primasAutoAlto);   // v678: que se lea entero lo que dice el conductor
 }
 
 // v675: plus del mes abierto, calculado sobre primasRows. Devuelve { semanas, semanasOk, dias, diasOk, auto, manual, valor }
@@ -25062,8 +25066,7 @@ function _primasInfoDia(f) {
   const _aus = _primasAusente(f.parte_conductor, f.notas);   // v677
   if (_aus) {
     const _n = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
-    return '<span style="color:#e65100;font-weight:700">⚠ Pone ' + esc(_aus) + ', pero su camión tiene ' + _n + (_n === 1 ? ' albarán' : ' albaranes') + ' este día (' + esc(f.tipos) + '): lo llevó OTRO conductor. ' +
-      'Borra aquí el trabajo y pon esta matrícula ese día en el parte de quien lo llevó. La app no propone prima.</span>';
+    return '<span style="color:#e65100;font-weight:700">⚠ Pone ' + esc(_aus) + ', pero su camión tiene ' + _n + (_n === 1 ? ' albarán' : ' albaranes') + ' (' + esc(f.tipos) + '): lo llevó OTRO conductor. Borra este trabajo y apúntalo en el parte de quien lo llevó.</span>';
   }
   const nAlb = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
   const nCond = _primasViajesConductor(f.parte_conductor);
