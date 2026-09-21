@@ -24995,7 +24995,7 @@ function _primasClase(al) {
   if (/PALET|\bSAC\b|SACOS|PAL PLAS|ENSACAD|\d+ ?KG/.test(m) || PRIMAS_REMOLQUES_PLATAFORMA.some(x => r.indexOf(x) === 0)) return 'PLATAFORMA';
   if (d.indexOf('HORAS') >= 0 || m.indexOf('HORAS') >= 0) return 'HORAS';
   if (m.indexOf('CLINKER') >= 0) return d.indexOf('TARRAGONA') >= 0 ? 'CLINKER TARRAGONA' : 'CLINKER';
-  if (d.indexOf('ZONA FRANCA') >= 0) return 'ZONA FRANCA';
+  if (d.indexOf('ZONA FRANCA') >= 0) return o.indexOf('OLESA') >= 0 ? 'OLESA ZF' : 'ZONA FRANCA';   // v679: Olesa → Zona Franca II es ruta propia
   if (d.indexOf('PUERTO') >= 0 || d.indexOf('SODIRA') >= 0) return 'PUERTO';
   if (d.indexOf('SANT JUST') >= 0) return 'SANT JUST';
   if (m.indexOf('ESCOMBRO') >= 0 || m.indexOf('FANGO') >= 0) return 'ESCOMBROS';
@@ -25012,7 +25012,8 @@ function _primasClase(al) {
 }
 const PRIMAS_REGLAS = [
   [40, { 'CLINKER': 3, 'LARGO': 3 }],
-  [30, { 'ZONA FRANCA': 7 }],                                 // 1 caliza + 7 Zona Franca (a veces la caliza no esta subida)
+  [30, { 'ZONA FRANCA': 7, 'LARGO': 1 }],                     // v679 · JC: 1 caliza (el "rechazo" de Garraf o Promsa) + 7 Zona Franca = 30
+  [20, { 'ZONA FRANCA': 7 }],                                 // v679 · JC: 7 Zona Franca SOLOS = 20 (antes la app daba 30)
   [30, { 'MARTORELL': 4, 'LARGO': 1, 'CLINKER': 1 }],
   [30, { 'BEGUES': 2, 'CALIZA': 2, 'CORTO': 1 }],
   [25, { 'PLATAFORMA': 1 }],                                  // JC: plataforma = 25 € el dia, haga 1 o 7 viajes
@@ -25023,20 +25024,23 @@ const PRIMAS_REGLAS = [
   [25, { 'H.MONTCADA': 4, 'LARGO': 1 }],
   [25, { 'MARTORELL': 4, 'LARGO': 1 }],
   [25, { 'YESO': 3, 'LARGO': 1 }],
+  [25, { 'OLESA': 3, 'LLINARS': 1 }, '2026-09-01'],           // v679 · JC 21/09/2026: 3 Olesa → Montcada + 1 Llinars = 25 DESDE SEPTIEMBRE 2026 (antes 20)
   [20, { 'BEGUES': 2, 'LARGO': 4 }],                          // JC: 2 de Begues + 2 calizas = 20 (con 1 + 3, NO)
   [20, { 'LARGO': 4, 'CORTO': 1 }],                           // JC: 4 largos + 1 corto = 20 (4 calizas SOLAS no llevan prima)
-  [20, { 'ZONA FRANCA': 6, 'LARGO': 1 }],
+  [20, { 'ZONA FRANCA': 6, 'LARGO': 1 }],                     // hasta agosto 2026
+  [25, { 'ZONA FRANCA': 6, 'LARGO': 1 }, '2026-09-01'],       // v679 · JC: 1 caliza + 6 Zona Franca = 25 DESDE SEPTIEMBRE (el de Garraf → Montcada es mas largo)
   [20, { 'YESO': 2, 'LARGO': 2 }],
   [20, { 'SANT JUST': 5 }],                                   // JC: 5 Begues/Cemex → Sant Just = 20
   [20, { 'OLESA': 5 }],
-  [20, { 'OLESA': 3, 'LLINARS': 1 }],
+  [20, { 'OLESA': 3, 'LLINARS': 1 }],                         // hasta agosto 2026
+  [20, { 'OLESA ZF': 5 }],                                    // v679 · JC: 5 Olesa → Zona Franca II = 20
   [20, { 'PUERTO': 4, 'LARGO': 1 }]
 ];
 // cuenta = { CALIZA: 3, BEGUES: 1, ... } → { prima, tipos:'3 CALIZA + 1 BEGUES', viajes }
-function _primasPropone(cuenta, vehiculo) {
+function _primasPropone(cuenta, vehiculo, iso) {   // v679: iso = dia (las reglas con fecha solo valen desde esa fecha)
   const c = Object.assign({}, cuenta); c.LARGO = (c.CALIZA || 0) + (c.BEGUES || 0);
   let prima = 0;
-  PRIMAS_REGLAS.forEach(r => { if (Object.keys(r[1]).every(k => (c[k] || 0) >= r[1][k])) prima = Math.max(prima, r[0]); });
+  PRIMAS_REGLAS.forEach(r => { if (r[2] && iso && iso < r[2]) return; if (Object.keys(r[1]).every(k => (c[k] || 0) >= r[1][k])) prima = Math.max(prima, r[0]); });
   (Array.isArray(vehiculo) ? vehiculo : _primasMats(vehiculo)).forEach(v1 => { const fd = PRIMAS_VEHICULOS_FIJO_DIA[v1]; if (fd) prima = Math.max(prima, fd); });   // v671: varios vehiculos
   const claves = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a] || a.localeCompare(b));
   return { prima, viajes: claves.reduce((s, k) => s + cuenta[k], 0), tipos: claves.map(k => cuenta[k] + ' ' + k).join(' + ') };
@@ -25165,7 +25169,7 @@ async function primasTraerAlbaranes(soloIso) {
       }
       const rutas = dia.rutas;
       const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
-      const prop = _primasPropone(dia.cuenta, lista);
+      const prop = _primasPropone(dia.cuenta, lista, iso);
       const ausente = _primasAusente(g('parte_conductor'), g('notas'));   // v677: vacaciones / baja / festivo...
       if (ausente) prop.prima = 0;
       const tipos = prop.tipos || (esFijoDia ? 'CAMIÓN GRÚA' : '');
