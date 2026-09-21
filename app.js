@@ -24907,14 +24907,19 @@ async function primasSaveRow(iso) {
   const previa = primasRows[iso];
   let veh = _primasMatsTxt(g('vehiculo'));   // v671: puede llevar varios
   const parte = g('parte_conductor'), trabajo = g('trabajo'), notas = g('notas'), primaTxt = g('prima');
-  const hayAlgo = !!(veh || parte || trabajo || notas || primaTxt);
+  let primaTxtV677 = primaTxt;
+  if (_primasAusente(parte, notas) && previa && previa.prima_auto) {   // v677: la prima azul era de viajes que no son suyos
+    primaTxtV677 = '';
+    const _ep = document.getElementById('pr_prima_' + iso); if (_ep) _ep.value = '';
+  }
+  const hayAlgo = !!(veh || parte || trabajo || notas || primaTxtV677);
   if (!hayAlgo && !previa) return;                 // fila vacia que nunca existio: nada que guardar
-  if (!veh && hayAlgo && (trabajo || primaTxt)) veh = primasHabitual;   // deja escrito con que camion fue
+  if (!veh && hayAlgo && (trabajo || primaTxtV677)) veh = primasHabitual;   // deja escrito con que camion fue
   const fila = {
     trabajador_id: primasTrabId, fecha: iso,
     vehiculo: veh || null, parte_conductor: parte || null, trabajo: trabajo || null, notas: notas || null,
-    prima: _primasNum(primaTxt),
-    prima_auto: !!(previa && previa.prima_auto && _primasNum(previa.prima) === _primasNum(primaTxt) && _primasNum(primaTxt) !== 0),   // v670: tecleada a mano → ya no es de la app
+    prima: _primasNum(primaTxtV677),
+    prima_auto: !!(previa && previa.prima_auto && _primasNum(previa.prima) === _primasNum(primaTxtV677) && _primasNum(primaTxtV677) !== 0),   // v670: tecleada a mano → ya no es de la app
     plus_manual: previa ? previa.plus_manual : null,
     editado_por: _primasQuien(), updated_at: new Date().toISOString()
   };
@@ -25039,9 +25044,27 @@ function _primasViajesConductor(txt) {
   if (/CARGADO/.test(t)) n += 1;
   return n || null;
 }
+// v677: ¿ese dia el conductor NO trabajaba? (lo dice "Lo que dice el conductor" o las notas). Devuelve 'VACACIONES', 'BAJA', 'FESTIVO'... o ''
+function _primasAusente(parteConductor, notas) {
+  for (const campo of [parteConductor, notas]) {
+    const t = _primasSinAcentos(campo);
+    if (!t) continue;
+    const m = t.match(/\b(VACACIONES|VACACION|FESTIVO|FESTIU|DIA PERSONAL|ASUNTOS PROPIOS|PERMISO|EXCEDENCIA)\b/);
+    if (m) return m[1] === 'VACACION' ? 'VACACIONES' : (m[1] === 'FESTIU' ? 'FESTIVO' : m[1]);
+    // "BAJA" solo si es la ausencia ("baja", "de baja", "baja medica"), no el verbo ("baja 3 viajes a Garraf")
+    if (/^BAJA$|\bDE BAJA\b|\bBAJA (MEDICA|LABORAL|POR )/.test(t)) return 'BAJA';
+  }
+  return '';
+}
 // Linea pequeña bajo TRABAJO REALIZADO: desglose por tipos, propuesta y aviso si no cuadra con el conductor
 function _primasInfoDia(f) {
   if (!f || !f.tipos) return '';
+  const _aus = _primasAusente(f.parte_conductor, f.notas);   // v677
+  if (_aus) {
+    const _n = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
+    return '<span style="color:#e65100;font-weight:700">⚠ Pone ' + esc(_aus) + ', pero su camión tiene ' + _n + (_n === 1 ? ' albarán' : ' albaranes') + ' este día (' + esc(f.tipos) + '): lo llevó OTRO conductor. ' +
+      'Borra aquí el trabajo y pon esta matrícula ese día en el parte de quien lo llevó. La app no propone prima.</span>';
+  }
   const nAlb = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
   const nCond = _primasViajesConductor(f.parte_conductor);
   const p = _primasNum(f.prima_sugerida);
@@ -25118,7 +25141,7 @@ async function primasTraerAlbaranes(soloIso) {
       }
     }
     const aGuardar = [];
-    let sinAlb = 0, nAuto = 0, nSinRegla = 0;
+    let sinAlb = 0, nAuto = 0, nSinRegla = 0, nAusente = 0;
     for (const iso of dias) {
       const lista = vehsDe(iso); if (!lista.length) continue;
       const veh = lista.join(' + ');
@@ -25140,18 +25163,20 @@ async function primasTraerAlbaranes(soloIso) {
       const rutas = dia.rutas;
       const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
       const prop = _primasPropone(dia.cuenta, lista);
+      const ausente = _primasAusente(g('parte_conductor'), g('notas'));   // v677: vacaciones / baja / festivo...
+      if (ausente) prop.prima = 0;
       const tipos = prop.tipos || (esFijoDia ? 'CAMIÓN GRÚA' : '');
       // (a) TRABAJO REALIZADO: en bloque NUNCA se pisa lo escrito; de uno en uno pregunta
       const actual = g('trabajo');
       let trabajo = actual;
-      if (resumen && !actual) trabajo = resumen;
+      if (resumen && !actual && !ausente) trabajo = resumen;   // v677: si no trabajaba, esos viajes no son suyos
       else if (resumen && actual !== resumen && soloIso && confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) trabajo = resumen;
       // (b) PRIMA: la app solo la pone/cambia si esta vacia o si la habia puesto ella. Lo tecleado a mano NO se toca
       const primaAct = _primasNum(g('prima')), eraAuto = !!previa.prima_auto;
       let prima = primaAct, primaAuto = eraAuto && primaAct !== 0;
       if (prop.prima > 0 && (primaAct === 0 || eraAuto)) { prima = prop.prima; primaAuto = true; }
       else if (prop.prima === 0 && eraAuto) { prima = 0; primaAuto = false; }     // ya no encaja ninguna regla (llegaron mas albaranes)
-      if (prop.prima > 0 && primaAuto) nAuto++; else if (prop.prima === 0) nSinRegla++;
+      if (ausente) nAusente++; else if (prop.prima > 0 && primaAuto) nAuto++; else if (prop.prima === 0) nSinRegla++;
       const cambia = veh !== _primasMatsTxt(previa.vehiculo) || trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
       if (!cambia) continue;
       aGuardar.push({
@@ -25166,7 +25191,7 @@ async function primasTraerAlbaranes(soloIso) {
     _primasPintaTotales();
     const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? 'Ese día no hay albaranes de ' + vehs[0] : 'Nada nuevo que rellenar');
     _primasEstado('✓ ' + msg);
-    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
+    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (nAusente ? ' · ⚠ ' + nAusente + ' día(s) de vacaciones/baja con albaranes de su camión' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
     console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
   } catch (e) {
     console.error('[v659 primasTraerAlbaranes]', e);
