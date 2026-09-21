@@ -8345,6 +8345,8 @@ async function _neumGuardarFacturaLeida(alb, nombreArchivo, file) {
       .upsert(payload, { onConflict: 'empresa,num_factura' });
     if (error) throw error;
     toast('Factura ' + numFactura + ' guardada para el cierre de mes', 'ok');
+    // v674: la 2a guia de stock bebe de estas facturas → refrescar las tarjetas.
+    try { await _neumCargarFacturasG2(); if (document.getElementById('neumStockBox')) renderNeum(); } catch (e674) { console.warn('[v674] refresco guia 2:', e674); }
     return true;
   } catch (e) {
     console.error('[v576] No se pudo guardar la factura leída:', e);
@@ -21008,6 +21010,7 @@ let neumMovimientos = [];      // todos los movimientos cargados de BD
 let neumModelos = [];          // catálogo de modelos (marca+modelo+medida → uso)
 let neumAlertasConfig = [];    // umbrales configurables
 let neumOcultos = [];          // v356: fichas de stock ocultas (modelos descatalogados)
+let neumFacturasG2 = [];       // v674: facturas de servicio Soledad leidas en el cuadre (para la 2a guia de stock)
 let neumEmpresaActiva = 'TYP2014';   // qué subpestaña se ve
 let editNeumMovId = null;      // ID del movimiento que se está editando
 
@@ -21047,6 +21050,8 @@ async function loadNeumData() {
     if (eMov) throw eMov;
     neumMovimientos = dMov || [];
     try { await firmarCampo(neumMovimientos, 'file_url'); } catch (e) { console.warn('[v322] firmado neumáticos:', e); }
+    // 4) v674: facturas de servicio Soledad ya leidas (solo lectura) para la 2a guia de stock.
+    await _neumCargarFacturasG2();
     // Badge: nº de avisos activos (stock bajo) de la empresa actual
     const avisos = _neumCalcularAvisos(neumEmpresaActiva).length;
     const badge = document.getElementById('tabNeumCount');
@@ -21079,23 +21084,104 @@ function switchNeumEmpresa(emp) {
 // Devuelve el stock actual para una empresa, agrupado por (medida + modelo).
 // Suma cantidad de todos los movimientos: positivos suman (inventario, compra),
 // negativos restan (montaje, baja). Devuelve array de {medida, marca, modelo, uso, stock, precio_neto_unitario_ultimo}.
+// ============================================================
+// v674 (21/09/2026) · CORTE DE STOCK + SEGUNDA GUIA "STOCK SOLEDAD".
+// Pedido por JC: "que tengamos un stock real... con las facturas de neumaticos
+// de Soledad... y asi tener las dos guias y saber que me falta".
+//
+// (A) CORTE. Si una empresa tiene movimientos de tipo inventario_inicial cuya
+//     observacion empieza por "CORTE STOCK", la fecha MAS RECIENTE de esos es
+//     el corte. Desde ahi el stock = esas filas de corte + todo lo de fecha
+//     POSTERIOR. Lo anterior sigue en el historico pero ya no suma ni resta.
+//     Empresa SIN filas de corte (Transmargaz) → todo funciona como siempre.
+// (B) GUIA 2. SOLO INFORMA, no crea ni toca ningun movimiento (regla de JC: el
+//     albaran es la verdad). Parte del mismo stock y corrige dos cosas:
+//       + albaranes S/PROP subidos tras el corte que Soledad AUN NO ha facturado
+//       − cubiertas S/PROP que Soledad SI ha facturado y cuyo albaran NO esta
+//     Se cruza por NUMERO DE ALBARAN, no por nombre de cubierta: el SELECT del
+//     21/09 enseño que la factura nombra mal ("HybHS5", "HT3", marca vacia).
+//     Solo para los albaranes que faltan hay que fiarse del nombre de la
+//     factura; se intenta casar con una ficha de la misma medida y, si no se
+//     puede, NO se descarta: sale aparte en "sin identificar".
+// ============================================================
+const _NEUM_CORTE_MARCA = /^\s*CORTE STOCK/i;
+function _neumDia(f) { return String(f || '').split('T')[0]; }
+function _neumFechaCorte(empresa) {
+  let c = null;
+  neumMovimientos.forEach(m => {
+    if (m.empresa !== empresa || m.tipo !== 'inventario_inicial') return;
+    if (!_NEUM_CORTE_MARCA.test(String(m.observaciones || ''))) return;
+    const d = _neumDia(m.fecha);
+    if (d && (!c || d > c)) c = d;
+  });
+  return c;
+}
+// ¿Este movimiento cuenta para el stock? (sin corte → todos, como siempre)
+function _neumCuentaMov(m, corte) {
+  if (!corte) return true;
+  const d = _neumDia(m.fecha);
+  if (d > corte) return true;
+  return d === corte && m.tipo === 'inventario_inicial' && _NEUM_CORTE_MARCA.test(String(m.observaciones || ''));
+}
+function _neumNumAlbDeMov(m) {
+  const col = String(m.num_albaran || '').trim();
+  if (col) return col.toUpperCase();
+  const mm = String(m.observaciones || '').match(/albar[áa]n\s+soledad\s+([A-Za-z0-9\-\/]+)/i);
+  return mm ? mm[1].toUpperCase() : '';
+}
+async function _neumCargarFacturasG2() {
+  try {
+    const { data, error } = await sb.from('neumaticos_facturas').select('empresa,num_factura,fecha_factura,datos');
+    if (error) throw error;
+    neumFacturasG2 = data || [];
+  } catch (e) {
+    neumFacturasG2 = [];
+    console.warn('[v674] No he podido leer neumaticos_facturas (la 2a guia no saldra):', e.message || e);
+  }
+}
+function _neumNormModelo(t) {
+  return String(t || '').toUpperCase().replace(/\s+/g, '')
+    .replace(/^(CONTINENTAL|CONTI)/, '').replace(/^(HYBRID|HYBR|HYB|ECO)/, '');
+}
+// Casa una cubierta leida en la FACTURA con una ficha de stock de la misma medida.
+function _neumCasarFicha(fichas, n) {
+  const med = _neumTxtCmp(n.medida);
+  const marca = _neumTxtCmp(n.marca);
+  const mod = _neumNormModelo(n.modelo);
+  if (!med || !mod) return null;
+  const cand = fichas.filter(s => _neumTxtCmp(s.medida) === med && (!marca || !s.marca || _neumTxtCmp(s.marca) === marca));
+  const exact = cand.filter(s => _neumNormModelo(s.modelo) === mod);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  const aprox = cand.filter(s => { const k = _neumNormModelo(s.modelo); return k && (k.startsWith(mod) || mod.startsWith(k)); });
+  return aprox.length === 1 ? aprox[0] : null;
+}
+
 function _neumCalcularStock(empresa) {
+  const corte = _neumFechaCorte(empresa);
   const map = {};   // clave = "medida|marca|modelo"
-  neumMovimientos.filter(m => m.empresa === empresa).forEach(m => {
-    const key = `${m.medida || '?'}|${m.marca || '?'}|${m.modelo || '?'}`;
+  const deEmpresa = neumMovimientos.filter(m => m.empresa === empresa);
+  const keyDe = (m) => `${m.medida || '?'}|${m.marca || '?'}|${m.modelo || '?'}`;
+  deEmpresa.forEach(m => {
+    if (!_neumCuentaMov(m, corte)) return;
+    const key = keyDe(m);
     if (!map[key]) {
       map[key] = {
         medida: m.medida, marca: m.marca, modelo: m.modelo, uso: m.uso,
         stock: 0, precio_neto_unitario_ultimo: null, fecha_ultimo: null
       };
     }
+    if (!map[key].uso && m.uso) map[key].uso = m.uso;
     map[key].stock += (m.cantidad || 0);
-    // Guardar precio neto de la última compra (para mostrarlo en la tarjeta)
-    if (m.tipo === 'compra' && m.precio_neto_unitario) {
-      if (!map[key].fecha_ultimo || m.fecha > map[key].fecha_ultimo) {
-        map[key].fecha_ultimo = m.fecha;
-        map[key].precio_neto_unitario_ultimo = m.precio_neto_unitario;
-      }
+  });
+  // Precio neto de la ultima compra: se mira en TODO el historico (tambien lo
+  // anterior al corte), porque es solo informativo y no mueve stock.
+  deEmpresa.forEach(m => {
+    const s = map[keyDe(m)];
+    if (!s || m.tipo !== 'compra' || !m.precio_neto_unitario) return;
+    if (!s.fecha_ultimo || m.fecha > s.fecha_ultimo) {
+      s.fecha_ultimo = m.fecha;
+      s.precio_neto_unitario_ultimo = m.precio_neto_unitario;
     }
   });
   // Ordenar por medida, luego por uso (motriz / dirección / remolque)
@@ -21103,6 +21189,68 @@ function _neumCalcularStock(empresa) {
     if (a.medida !== b.medida) return (a.medida || '').localeCompare(b.medida || '');
     return (a.uso || '').localeCompare(b.uso || '');
   });
+}
+
+// v674 · SEGUNDA GUIA. Devuelve null si la empresa no tiene corte.
+// { corte, porFicha: { key: {sinFacturar:[{num,uds}], sinAlbaran:[{num,uds,factura}]} }, sinIdentificar:[...] }
+function _neumCalcularGuiaSoledad(empresa, fichas) {
+  const corte = _neumFechaCorte(empresa);
+  if (!corte) return null;
+  const keyDe = (m) => `${m.medida || '?'}|${m.marca || '?'}|${m.modelo || '?'}`;
+  const aISO = (f) => { const m = String(f || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? (m[3] + '-' + m[2] + '-' + m[1]) : null; };
+  const res = { corte: corte, porFicha: {}, sinIdentificar: [] };
+  const hueco = (k) => (res.porFicha[k] || (res.porFicha[k] = { sinFacturar: [], sinAlbaran: [] }));
+
+  // Lo que Soledad ha facturado (todas las facturas de la empresa, cualquier fecha).
+  const facturado = {};   // num albaran -> { a, factura }
+  neumFacturasG2.filter(f => f.empresa === empresa).forEach(f => {
+    (Array.isArray(f.datos) ? f.datos : []).forEach(a => {
+      const k = String((a && a.num_albaran) || '').trim().toUpperCase();
+      if (k && a.es_neumatico) facturado[k] = { a: a, factura: f.num_factura };
+    });
+  });
+
+  // Albaranes que hay en la app (cualquier fecha) y los de DESPUES del corte.
+  const enApp = {};
+  const trasCorte = {};   // num -> { key -> neto }
+  neumMovimientos.forEach(m => {
+    if (m.empresa !== empresa) return;
+    const k = _neumNumAlbDeMov(m);
+    if (!k) return;
+    enApp[k] = true;
+    if (_neumDia(m.fecha) > corte) {
+      const o = trasCorte[k] || (trasCorte[k] = {});
+      const key = keyDe(m);
+      o[key] = (o[key] || 0) + (Number(m.cantidad) || 0);
+    }
+  });
+
+  // (+) subidos tras el corte y todavia NO facturados → Soledad aun no los ha descontado.
+  Object.keys(trasCorte).forEach(num => {
+    if (facturado[num]) return;
+    Object.keys(trasCorte[num]).forEach(key => {
+      const neto = trasCorte[num][key];        // S/PROP: -N · compra-y-monta: 0
+      if (neto < 0) hueco(key).sinFacturar.push({ num: num, uds: -neto });
+    });
+  });
+
+  // (−) facturados tras el corte cuyo albaran NO esta en la app.
+  Object.keys(facturado).forEach(num => {
+    if (enApp[num]) return;
+    const a = facturado[num].a;
+    const d = aISO(a.fecha);
+    if (!d || d <= corte) return;
+    (Array.isArray(a.neumaticos) ? a.neumaticos : []).forEach(n => {
+      if (String(n.propiedad || '') !== 'SU_PROPIEDAD') return;
+      const uds = Math.abs(parseInt(n.cantidad) || 0);
+      if (!uds || !String(n.medida || '').trim()) return;
+      const ficha = _neumCasarFicha(fichas, n);
+      const item = { num: num, uds: uds, factura: facturado[num].factura, texto: [n.medida, n.marca, n.modelo].filter(Boolean).join(' ') };
+      if (ficha) hueco(keyDe(ficha)).sinAlbaran.push(item);
+      else res.sinIdentificar.push(item);
+    });
+  });
+  return res;
 }
 
 // Obtiene el umbral aplicable a una combinación (lo más específico que encaje).
@@ -21147,6 +21295,9 @@ function renderNeum() {
   // v356: quitar de la vista las fichas marcadas como descatalogadas (solo las que estan a 0).
   const stock = stockTodo.filter(s => !_neumEstaOculto(neumEmpresaActiva, s));
   const box = document.getElementById('neumStockBox');
+  // v674: segunda guia (null si la empresa no tiene corte → no se pinta nada nuevo)
+  const _g2 = _neumCalcularGuiaSoledad(neumEmpresaActiva, stockTodo);
+  const _g2Fecha = _g2 ? _g2.corte.split('-').reverse().join('/') : '';
   if (stockTodo.length && !stock.length) {
     box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:14px;text-align:center">Todas las fichas de <strong>${esc(neumEmpresaActiva)}</strong> estan ocultas (modelos descatalogados a 0). El historico de movimientos sigue completo abajo.</div>`;
   } else if (!stock.length) {
@@ -21160,14 +21311,39 @@ function renderNeum() {
       const precio = s.precio_neto_unitario_ultimo
         ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">~${parseFloat(s.precio_neto_unitario_ultimo).toFixed(2)} €/ud</div>` : '';
       const usoLabel = s.uso ? `<span style="font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase">${esc(s.uso)}</span>` : '';
+      // v674 · bloque "SEGUN SOLEDAD" (solo con corte). Informativo.
+      let g2Html = '';
+      if (_g2) {
+        const d = _g2.porFicha[`${s.medida || '?'}|${s.marca || '?'}|${s.modelo || '?'}`] || { sinFacturar: [], sinAlbaran: [] };
+        const mas = d.sinFacturar.reduce((t, x) => t + x.uds, 0);
+        const menos = d.sinAlbaran.reduce((t, x) => t + x.uds, 0);
+        const sol = s.stock + mas - menos;
+        const lista = (arr) => arr.map(x => esc(x.num) + ' (' + x.uds + ')').join(', ');
+        g2Html = `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd);font-family:var(--mn);font-size:11px">
+            <div style="display:flex;justify-content:space-between;color:var(--mu)"><span>MIS ALBARANES</span><strong style="color:var(--tx)">${s.stock} ud</strong></div>
+            <div style="display:flex;justify-content:space-between;color:var(--mu)"><span>SEGÚN SOLEDAD</span><strong style="color:${menos ? '#e53935' : 'var(--tx)'}">${sol} ud</strong></div>
+            ${mas ? `<div style="margin-top:4px;color:#4a90d9;font-size:10px;line-height:1.35">🔵 ${mas} montada(s) que Soledad aún no ha facturado: ${lista(d.sinFacturar)}</div>` : ''}
+            ${menos ? `<div style="margin-top:4px;color:#e53935;font-size:10px;line-height:1.35">🔴 ${menos} facturada(s) SIN albarán en la app — reclamar: ${lista(d.sinAlbaran)}</div>` : ''}
+            ${(!mas && !menos) ? `<div style="margin-top:4px;color:var(--ok);font-size:10px">✓ Las dos guías coinciden</div>` : ''}
+          </div>`;
+      }
       return `
         <div style="border:1px solid ${color};border-radius:8px;padding:12px;background:rgba(0,0,0,.15)">
           <div style="font-family:var(--mn);font-size:13px;font-weight:600;color:var(--fg)">${esc(s.medida || '—')} · ${usoLabel}</div>
           <div style="font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
           <div style="font-size:28px;font-weight:bold;color:${color};margin-top:6px">${icon} ${s.stock} ud</div>
           ${precio}
+          ${g2Html}
         </div>`;
     }).join('');
+  }
+  // v674 · cabecera del corte + cubiertas facturadas que no se han podido casar con ninguna ficha.
+  if (_g2) {
+    let extra = `<div style="grid-column:1/-1;font-family:var(--mn);font-size:11px;color:var(--mu);padding:2px 2px 6px">📌 Stock contado desde el <strong style="color:var(--tx)">corte del ${esc(_g2Fecha)}</strong>. Lo anterior sigue en el histórico (en gris) pero ya no suma ni resta. <strong>SEGÚN SOLEDAD</strong> = lo que sale de las facturas subidas al cuadre (v674).</div>`;
+    if (_g2.sinIdentificar.length) {
+      extra += `<div style="grid-column:1/-1;border:1px solid #e53935;border-radius:8px;padding:10px;font-family:var(--mn);font-size:11px;color:#e53935">🔴 Soledad ha facturado cubiertas de tu stock SIN albarán en la app y no sé a qué ficha restarlas (la factura no dice bien el modelo):<br>${_g2.sinIdentificar.map(x => '· ' + esc(x.num) + ' — ' + x.uds + ' × ' + esc(x.texto) + ' (factura ' + esc(x.factura || '') + ')').join('<br>')}</div>`;
+    }
+    box.innerHTML = extra + box.innerHTML;
   }
   // Histórico
   const hist = neumMovimientos.filter(m => m.empresa === neumEmpresaActiva);
@@ -21199,7 +21375,8 @@ function renderNeum() {
           const sign = m.cantidad > 0 ? '+' : '';
           const cantColor = m.cantidad > 0 ? 'var(--ok)' : 'var(--er)';
           const extra = m.tipo === 'compra' ? esc(m.num_factura || m.proveedor || '') : esc(m.observaciones || m.conductor || '');
-          return `<tr style="border-bottom:1px solid var(--bd)">
+          const _fuera674 = _g2 && !_neumCuentaMov(m, _g2.corte);   // v674: anterior al corte → no cuenta
+          return `<tr style="border-bottom:1px solid var(--bd)${_fuera674 ? ';opacity:.45' : ''}"${_fuera674 ? ' title="Anterior al corte de stock: ya no cuenta"' : ''}>
             <td style="padding:6px;white-space:nowrap">${esc((m.fecha || '').split('T')[0].split('-').reverse().join('/'))}</td>
             <td style="padding:6px;white-space:nowrap">${tipoIcon} ${tipoLbl}</td>
             <td style="padding:6px">${esc(m.medida || '')} · ${esc(m.marca || '')} ${esc(m.modelo || '')}</td>
