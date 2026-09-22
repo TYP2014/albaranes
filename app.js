@@ -29274,6 +29274,13 @@ async function _factPapelHolcim(file) {
     // luego cada fila con el suyo (ver mas abajo el cuadre pedido a pedido).
     const _pedidos = [];
     { const _rp = /Pedido de compras\s*(\d{6,})/g; let _mp; while ((_mp = _rp.exec(full)) !== null) _pedidos.push({ pos: _mp.index, po: _mp[1] }); }
+    // v687 (Juan Carlos 22/09/2026) — EL GARRAF NO TRAE "Pedido de compras": SU BLOQUE SE ABRE CON
+    // "Contrato Marco 5500121754". Sin esto, las 841 filas del INVOIC 3311018328 quedaban SIN pedido
+    // ('?') mientras la hoja de totales declaraba 841 en el 5500121754 -> "NO CUADRA" -> el cuadre contra
+    // el papel (v501/v522) NUNCA se aplicaba en el Garraf y se guardaba lo que leyera la IA: se perdieron
+    // las paginas 8-11 enteras (111 viajes que la app marcaba NO ABONADO estando abonados). Solo actua si
+    // el PDF NO trae ningun "Pedido de compras" (ARIDOS, 577, Charly... no cambian en nada).
+    if (!_pedidos.length) { const _rc = /Contrato\s+Marco\s*(\d{6,})/g; let _mc; while ((_mc = _rc.exec(full)) !== null) _pedidos.push({ pos: _mc.index, po: _mc[1] }); if (_pedidos.length) console.log('[v687] PDF sin "Pedido de compras": bloques por "Contrato Marco" -> ' + _pedidos.map(x => x.po).join(', ')); }
     const _poDe = (pos) => { let cur = null; for (let i = 0; i < _pedidos.length; i++) { if (_pedidos[i].pos <= pos) cur = _pedidos[i].po; else break; } return cur; };
     const filas = [];
     let m, _fuera = 0;
