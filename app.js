@@ -30961,6 +30961,41 @@ function factHolcimExcelPorMaterial() {
     po.sort((x, y) => _cmpTMF(_trAb(x), x.linea.matricula, x.linea.fecha, _trAb(y), y.linea.matricula, y.linea.fecha));
     no.sort((x, y) => _cmpTMF(_trNo(x), x.tractora, x.fecha, _trNo(y), y.tractora, y.fecha));
     sin.sort((x, y) => _cmpTMF(_trSin(x), x.matricula, x.fecha, _trSin(y), y.matricula, y.fecha));
+    // v689 (Juan Carlos 22/09/2026) — ERRATAS PROBABLES: lo que se hizo a mano con el Garraf de agosto.
+    // Un viaje NO ABONADO y una linea SIN COPIA suelen ser EL MISMO viaje con un dato mal leido en
+    // NUESTRO albaran (fecha corrida, una letra de la matricula o una cifra de las toneladas). Se buscan
+    // parejas con 3 reglas, de la mas segura a la menos, y SOLO se sugiere si hay UN UNICO candidato:
+    //   1) misma matricula + mismas TN, fecha distinta (hasta 12 dias)  -> revisa la FECHA
+    //   2) misma fecha + mismas TN, la matricula difiere en 1 caracter  -> revisa la MATRICULA
+    //   3) misma fecha + misma matricula, las TN difieren en 1 cifra     -> revisa las TONELADAS
+    // No cambia NADA en la BD: solo escribe la pista en la columna Observacion (en amarillo).
+    const _sugNo = new Map(), _sugSin = new Map();
+    {
+      const _m7 = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+      const _dia = (f) => { const m = String(f || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? Date.UTC(+m[3], +m[2] - 1, +m[1]) / 86400000 : NaN; };
+      const _t3 = (x) => { const v = parseFloat(String(x == null ? '' : x).replace(',', '.')); return isNaN(v) ? null : v.toFixed(3); };
+      const _uno = (a, b) => !!a && !!b && a.length === b.length && [...a].filter((c, i) => c !== b[i]).length === 1;
+      const _tnTxt = (x) => { const t = _t3(x); return t ? t.replace('.', ',') : '?'; };
+      const _reglas = [
+        (r, L) => (_m7(r.tractora) === _m7(L.matricula) && _t3(r.tm) !== null && _t3(r.tm) === _t3(L.tn) && _dia(r.fecha) !== _dia(L.fecha) && Math.abs(_dia(r.fecha) - _dia(L.fecha)) <= 12) ? 'la FECHA' : null,
+        (r, L) => (_dia(r.fecha) === _dia(L.fecha) && _t3(r.tm) !== null && _t3(r.tm) === _t3(L.tn) && _uno(_m7(r.tractora), _m7(L.matricula))) ? 'la MATRICULA' : null,
+        (r, L) => (_dia(r.fecha) === _dia(L.fecha) && _m7(r.tractora) === _m7(L.matricula) && _uno(_t3(r.tm), _t3(L.tn))) ? 'las TONELADAS' : null
+      ];
+      const _libres = new Set(sin);
+      _reglas.forEach(regla => {
+        no.forEach(r => {
+          if (_sugNo.has(r)) return;
+          const cands = [..._libres].filter(L => regla(r, L));
+          if (cands.length !== 1) return;                 // 0 o varios candidatos: no se sugiere nada
+          const L = cands[0], que = regla(r, L);
+          _libres.delete(L);
+          _sugNo.set(r, '¿ERRATA? Holcim lo liquida como ' + (L.fecha || '') + ' · ' + (L.matricula || '') + ' · ' + _tnTxt(L.tn) + ' T (sale como SIN COPIA) → revisa ' + que + ' de tu albarán');
+          _sugSin.set(L, '¿Es tu albarán ' + (r.albaran || '') + ' (' + (r.fecha || '') + ' · ' + (r.tractora || '') + ' · ' + _tnTxt(r.tm) + ' T)? Revisa ' + que);
+        });
+      });
+      if (_sugNo.size) console.log('[v689] ' + mat + ': ' + _sugNo.size + ' errata(s) probable(s) NO ABONADO ↔ SIN COPIA sugeridas en la columna Observación.');
+    }
+    const _amar = [];   // v689: filas con pista de errata (se pinta la Observación en amarillo)
     const aoa = [];
     // v527 (Juan Carlos 12/08/2026) — LAS MARCAS QUE PONE JC A MANO, TAMBIEN EN ESTE EXCEL.
     // Pedido suyo: "cuando saco el Excel por familia o por transportista no me aparecen los albaranes
@@ -30975,7 +31010,7 @@ function factHolcimExcelPorMaterial() {
     const _naranja = [], _azul = [];
     const _apunta = (rec) => {
       if (!rec) return;
-      const _f = aoa.length;                     // fila que se acaba de escribir (0 = cabecera)
+      const _f = aoa.length - 1;                 // v689: fila que se acaba de escribir (antes aoa.length -> pintaba la de DEBAJO)
       if (rec.revisar_pago) _naranja.push(_f);
       else if (rec.manual_edit === true || rec._manual === true) _azul.push(_f);
     };
@@ -30984,8 +31019,8 @@ function factHolcimExcelPorMaterial() {
     aoa.push(['ESTADO', 'Nº Entrega/Albarán', 'Matrícula', 'Fecha', 'TN', 'PRECIO (€/TN)', 'TOTAL (€)', 'Material', 'Origen', 'Destino', 'Transportista', 'Observación']);
     const _celTotal = (tn, pr) => { const row = aoa.length + 1; return { t: 'n', f: 'E' + row + '*F' + row, v: Math.round((tn || 0) * (pr || 0) * 100) / 100 }; };
     ab.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['ABONADO', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), a.difs.length ? ('Coincide todo menos ' + a.difs.join(' y ')) : 'OK']); _apunta(a.rec); });
-    no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), '']); _apunta(r); });
-    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), 'Sin copia (no lo tenemos)']); });
+    no.forEach(r => { const pr = _precio(r); const tn = parseFloat(r.tm || 0) || 0; aoa.push(['NO ABONADO', r.albaran || '', r.tractora || '', r.fecha || '', tn, pr, _celTotal(tn, pr), r.producto || '', r.planta || r.origen || '', r.obra || r.destino || '', _trNo(r), _sugNo.get(r) || '']); if (_sugNo.has(r)) _amar.push(aoa.length - 1); _apunta(r); });
+    sin.forEach(L => { const tn = parseFloat(L.tn || 0) || 0; aoa.push(['SIN COPIA', L.num_entrega || '', L.matricula || '', L.fecha || '', tn, 0, _celTotal(tn, 0), L.material || '', L.origen || _origenLinea(L), (/yeso|caliza\s*cemex|caliza\s*foj|arcilla|martorell|promsa|garraf\s*zahorra/i.test(String(L.material || '')) ? 'Fábrica Montcada' : _titulo(L.destino)), _trSin(L), _sugSin.get(L) || 'Sin copia (no lo tenemos)']); if (_sugSin.has(L)) _amar.push(aoa.length - 1); });
     po.forEach(a => { const pr = _precio(a.rec); const tn = parseFloat((a.rec && a.rec.tm) || a.linea.tn || 0) || 0; aoa.push(['A REVISAR', (a.rec && a.rec.albaran) || a.linea.num_entrega || '', (a.rec && a.rec.tractora) || a.linea.matricula || '', (a.rec && a.rec.fecha) || a.linea.fecha || '' /* v284: fecha de la APP */, tn, pr, _celTotal(tn, pr), (a.rec && a.rec.producto) || a.linea.material || '', (a.rec && (a.rec.planta || a.rec.origen)) || '', (a.rec && (a.rec.obra || a.rec.destino)) || '', _trAb(a), 'Tu albarán: ' + (a.rec.albaran || '') + ' (' + (a.rec.fecha || '') + ' · ' + (a.rec.tm || '') + ' TN)' + (a.confirmado ? ' — CONFIRMADO' : '')]); _apunta(a.rec); });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -31021,6 +31056,12 @@ function factHolcimExcelPorMaterial() {
       if (!_c.s) _c.s = {};
       _c.s.fill = { patternType: 'solid', fgColor: { rgb: '1E88E5' } };
       _c.s.font = { bold: true, sz: 12, color: { rgb: 'FFFFFF' } };
+    });
+    _amar.forEach(_f => {   // v689: pista de errata en AMARILLO en la columna Observación (L)
+      const _c = ws[XLSX.utils.encode_cell({ r: _f, c: 11 })]; if (!_c) return;
+      if (!_c.s) _c.s = {};
+      _c.s.fill = { patternType: 'solid', fgColor: { rgb: 'FFF176' } };
+      _c.s.font = { bold: true, color: { rgb: '000000' } };
     });
     _marcNar += _naranja.length; _marcAzu += _azul.length;
     let nombre = _hoja(mat);
