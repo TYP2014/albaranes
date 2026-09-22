@@ -30119,6 +30119,52 @@ async function _factSubirAutofacturaHolcim0(files) {
     }
   }
 
+  // v688 (Juan Carlos 22/09/2026) — CANDADO FINAL ANTES DE GUARDAR: "que no vuelva a pasar".
+  // Todo lo anterior (IA, tijera v287, cuadre v522...) puede equivocarse o no aplicarse, y hasta hoy
+  // la app podia decir "✅ No falta ninguna" solo porque el NUMERO de lineas cuadraba (Garraf agosto:
+  // 841 = 841, pero faltaban 115 viajes y sobraban 115 repetidos). AHORA, justo antes de guardar, se
+  // relee el PDF SIN IA y se compara la lista FINAL linea a linea con el papel por FECHA + MATRICULA +
+  // TONELADAS (contando repeticiones). Si hay UNA SOLA diferencia, NO se guarda sin que JC lo confirme,
+  // y se le ensenan las filas que faltan y sobran. Si el PDF no se puede leer sin IA (escaneo), avisa.
+  try {
+    const _pap = await _factPapelHolcim(file);
+    if (_pap && _pap.length) {
+      const _k = (mat, fec, tn) => [_factNormMat(_corregirMatAutof(mat)), _factFechaBarra(fec),
+        (isNaN(_factNum(tn)) ? '' : _factNum(tn).toFixed(3))].join(' · ');
+      const _cont = new Map();
+      _pap.concat(Array.isArray(_pap.sub) ? _pap.sub : []).forEach(f => { const k = _k(f.matricula, f.fecha, f.tn); _cont.set(k, (_cont.get(k) || 0) + 1); });
+      const _nPap = [..._cont.values()].reduce((a, b) => a + b, 0);
+      const _sobran = [];
+      let _nApp = 0;
+      lineas.forEach(L => {
+        if (!L || L._control) return;
+        _nApp++;
+        const k = _k(L.matricula, L.fecha, L.tn);
+        const c = _cont.get(k) || 0;
+        if (c > 0) _cont.set(k, c - 1); else _sobran.push(k);
+      });
+      const _faltan = [];
+      _cont.forEach((c, k) => { for (let i = 0; i < c; i++) _faltan.push(k); });
+      if (!_faltan.length && !_sobran.length) {
+        console.log('[v688] CANDADO FINAL OK: las ' + _nApp + ' lineas a guardar son IDENTICAS al papel (fecha + matricula + TN).');
+      } else {
+        console.warn('[v688] CANDADO FINAL: NO coincide con el papel. Papel ' + _nPap + ' / app ' + _nApp + '. Faltan ' + _faltan.length + ':', _faltan, ' Sobran ' + _sobran.length + ':', _sobran);
+        const _ej = (arr) => arr.slice(0, 6).join('\n   ') + (arr.length > 6 ? '\n   … y ' + (arr.length - 6) + ' mas' : '');
+        const _ok = confirm('🚨 ESTA LIQUIDACION NO CUADRA CON EL PAPEL\n\n' +
+          'Fichero: ' + ((file && file.name) || '') + '\n' +
+          'Papel: ' + _nPap + ' lineas · App: ' + _nApp + ' lineas\n\n' +
+          (_faltan.length ? 'FALTAN ' + _faltan.length + ' (estan en el PDF y NO se guardarian):\n   ' + _ej(_faltan) + '\n\n' : '') +
+          (_sobran.length ? 'SOBRAN ' + _sobran.length + ' (NO estan en el PDF):\n   ' + _ej(_sobran) + '\n\n' : '') +
+          'Aceptar = guardar IGUALMENTE (no recomendado)\nCancelar = NO guardar y avisar a Claude con captura F12');
+        if (!_ok) { setEstado('🛑 NO guardado: la lectura no cuadra con el papel (faltan ' + _faltan.length + ', sobran ' + _sobran.length + '). Captura F12 → [v688].'); return; }
+        toast('⚠️ Guardada SIN cuadrar con el papel por decision tuya (faltan ' + _faltan.length + ', sobran ' + _sobran.length + ').', 'err');
+      }
+    } else {
+      toast('⚠️ No he podido leer este PDF sin IA (¿escaneo?): NO puedo garantizar que la liquidacion este completa. Revisala a mano.', 'err');
+      console.warn('[v688] CANDADO FINAL: papel no legible sin IA, no se puede comprobar.');
+    }
+  } catch (e) { console.warn('[v688] candado final no pudo ejecutarse:', e); }
+
   // J27: guardar PERMANENTE por mes (proveedor HOLCIM) y conciliar el mes entero.
   // v107J42: el "destino/cliente" de cada línea (La Roca, Zona Franca, Montcada, Molienda
   // Tarragona, Grao Castellón…) se guarda en la columna `origen` (que estaba libre/null),
