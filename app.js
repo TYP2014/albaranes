@@ -4558,15 +4558,36 @@ async function _processOne(it, type, key, timeoutMs) {
             window._v218Tanda = window._v218Tanda || {};
             const _matV218 = matriculaPrincipal(data.tractora || '');
             const _prevV218 = window._v218Tanda[_numV218];
+            // v691 (22/09/2026, Juan Carlos): si la matrícula leída solo se diferencia en UNA letra
+            // de la del albarán que ya tiene ese número (caso real 1/00218/108488: un ✓ a boli
+            // encima de la V hizo leer 1437LDW en vez de 1437LDV), NO es otro camión: es un error
+            // de lectura de la matrícula. Se CONSERVA el número del papel y se pone la matrícula
+            // buena (la del albarán ya guardado). Así sale como duplicado normal y no como "SN-…".
+            // El vaciado de antes se mantiene solo cuando la matrícula es claramente OTRA.
+            const _unaLetraV691 = (a, b) => {
+              a = String(a || ''); b = String(b || '');
+              if (!a || !b || a === b || a.length !== b.length) return false;
+              let d = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+              return d === 1;
+            };
+            const _mismoNumV691 = (typeof records !== 'undefined' && records || []).find(r =>
+              String(r.albaran || '').trim() === _numV218 && _unaLetraV691(matriculaPrincipal(r.tractora || ''), _matV218));
+            if (_mismoNumV691) {
+              const _buenaV691 = String(_mismoNumV691.tractora || '').trim();
+              console.warn(`[v691] nº "${_numV218}": matrícula leída "${data.tractora}" → corregida a "${_buenaV691}" (solo cambiaba 1 letra)`);
+              data.observaciones = ((data.observaciones || '') + ' 🔤 Matrícula leída "' + data.tractora + '" corregida a "' + _buenaV691 + '" (mismo nº de albarán, 1 letra distinta)').trim();
+              data.tractora = _buenaV691;
+            }
+            const _matV218b = matriculaPrincipal(data.tractora || '');
             const _choqueBD = (typeof records !== 'undefined' && records || []).some(r =>
-              String(r.albaran || '').trim() === _numV218 && matriculaPrincipal(r.tractora || '') !== _matV218);
-            const _choqueTanda = _prevV218 && _prevV218 !== _matV218;
+              String(r.albaran || '').trim() === _numV218 && matriculaPrincipal(r.tractora || '') !== _matV218b);
+            const _choqueTanda = _prevV218 && _prevV218 !== _matV218b;
             if (_choqueBD || _choqueTanda) {
               console.warn(`[v218] nº albarán "${_numV218}" ya existe con OTRA matrícula → vaciado para revisión manual`);
               data.observaciones = ((data.observaciones || '') + ' ⚠ nº repetido leído por IA ("' + _numV218 + '") — comprobar en el papel').trim();
               data.albaran = '';
             } else {
-              window._v218Tanda[_numV218] = _matV218;
+              window._v218Tanda[_numV218] = _matV218b;
             }
           }
         }
