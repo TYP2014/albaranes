@@ -26479,6 +26479,110 @@ async function recambiosDescargarDoc(id) {
   }
 }
 
+
+// ============================================================
+// v694 (23/09/2026): CUADRE DE RECAMBIOS - "QUE FALTA Y DE QUIEN ES LA CULPA".
+// Pedido JC + Marta: miedo a que abonos NO se descuenten y a pagar sin saber que
+// falta. Es un INVENTARIO de SOLO LECTURA (no escribe nada en la BD) que cruza TODOS
+// los documentos de la empresa por proveedor y separa en 3 cajas:
+//  🟦 NOS FALTA SUBIR (culpa nuestra): nº de albaran que sale en una factura/FA
+//     del proveedor pero que NO tenemos subido.
+//  🟧 NO HA LLEGADO LA FACTURA: albaranes de MESES CERRADOS que no estan en
+//     ninguna factura (proveedor no la manda, email mal puesto, o no se subio).
+//     Caso real: Tot Frens desde julio (le dimos mal el email).
+//  🟥 ABONOS SIN DESCONTAR (reclamar): albaranes de abono de meses cerrados que
+//     NO aparecen en ninguna factura ni factura de abono.
+// Un documento cuenta como "en factura" si su nº sale en las lineas de alguna
+// factura/FA del mismo proveedor, o si ya esta marcado conciliado (auto o a mano).
+// El mes en curso NO se reclama (es normal que aun no este facturado).
+// Solo ultimos 6 meses, para no llenarlo de historico viejo.
+// ============================================================
+function _recCuadreHTML(todos) {
+  const hoy = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const curIni = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-01`;
+  const lim = new Date(hoy.getFullYear(), hoy.getMonth() - 6, 1);
+  const limIni = `${lim.getFullYear()}-${pad(lim.getMonth() + 1)}-01`;
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const mesTxt = f => { const m = /^(\d{4})-(\d{2})/.exec(f || ''); return m ? `${MESES[+m[2] - 1]} ${m[1]}` : 'sin fecha'; };
+  const fch = f => f ? f.split('-').reverse().join('/') : '—';
+  const eur = v => (isNaN(v) ? 0 : v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const base = d => { const b = Number(d.base_imponible); if (!isNaN(b) && b !== 0) return b; const t = Number(d.total); return isNaN(t) ? 0 : t; };
+  const casa = (a, b) => a && b && (a === b || (a.length >= 5 && b.length >= 5 && (a.includes(b) || b.includes(a))));
+  const piezas = d => (d.lineas || []).map(l => `<div style="display:flex;gap:10px;font-size:11px;padding:1px 0"><span style="color:var(--mu);min-width:110px">${esc(l.codigo || '')}</span><span style="flex:1">${esc(l.descripcion || '?')}</span><span style="min-width:40px;text-align:right">${l.cantidad != null ? esc(String(l.cantidad)) : ''}</span><span style="min-width:80px;text-align:right">${l.importe != null ? eur(Number(l.importe)) : ''}</span></div>`).join('') || '<div style="font-size:11px;color:var(--mu)">(sin líneas leídas)</div>';
+
+  const docs = todos.filter(d => d.fecha && d.fecha >= limIni && (!_recProvChip || _recProvKey(d.proveedor || '') === _recProvChip));
+  const grupos = {};
+  docs.forEach(d => { const k = _recProvKey(d.proveedor || '') || '?'; (grupos[k] = grupos[k] || { nombre: d.proveedor || '?', docs: [] }).docs.push(d); });
+
+  const faltaSubir = [], sinFactura = [], abonosSin = [];
+  let facPend = 0, enCurso = 0;
+  Object.values(grupos).forEach(g => {
+    const facs = g.docs.filter(d => d.tipo_doc === 'factura' || _recEsFacturaAbono(d));
+    const numsFac = []; // {num, fac}
+    facs.forEach(f => {
+      if (f.tipo_doc === 'factura' && !f.conciliado) facPend++;
+      const propio = _recambNorm(f.num_documento);
+      const vistos = new Set();
+      (f.lineas || []).forEach(l => {
+        const n = _recambNorm(l.albaran);
+        if (!n || n === propio || vistos.has(n)) return;
+        vistos.add(n);
+        numsFac.push({ n, fac: f, lineas: (f.lineas || []).filter(x => _recambNorm(x.albaran) === n) });
+      });
+    });
+    const subidos = g.docs.filter(d => d.tipo_doc === 'albaran' || (d.tipo_doc === 'abono' && !_recEsFacturaAbono(d)));
+    const enFactura = d => d.conciliado || numsFac.some(x => casa(_recambNorm(d.num_documento), x.n));
+    // 🟦 en factura pero no subido
+    numsFac.forEach(x => {
+      if (!subidos.some(d => casa(_recambNorm(d.num_documento), x.n))) faltaSubir.push({ prov: g.nombre, ...x });
+    });
+    // 🟧 / 🟥 meses cerrados sin factura
+    subidos.forEach(d => {
+      if (enFactura(d)) return;
+      if (d.fecha >= curIni) { enCurso++; return; }
+      if (d.tipo_doc === 'abono') abonosSin.push({ prov: g.nombre, d });
+      else sinFactura.push({ prov: g.nombre, d });
+    });
+  });
+
+  // 🟧 agrupar por proveedor + mes
+  const gSin = {};
+  sinFactura.forEach(x => { const k = x.prov + '|' + mesTxt(x.d.fecha); (gSin[k] = gSin[k] || { prov: x.prov, mes: mesTxt(x.d.fecha), ini: x.d.fecha, docs: [] }).docs.push(x.d); if (x.d.fecha < gSin[k].ini) gSin[k].ini = x.d.fecha; });
+  const listaSin = Object.values(gSin).sort((a, b) => a.ini.localeCompare(b.ini));
+  const totAb = abonosSin.reduce((s, x) => s + Math.abs(base(x.d)), 0);
+
+  const caja = (color, fondo, titulo, quien, n, cuerpo) => `
+    <details style="border:1px solid ${color};background:${fondo};border-radius:8px;padding:8px 12px;margin-bottom:8px"${n ? '' : ''}>
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--tx)">${titulo} — <span style="color:${color}">${n}</span> <span style="font-weight:400;color:var(--mu)">· ${quien}</span></summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${n ? cuerpo : '<div style="font-size:12px;color:var(--mu)">✅ Nada pendiente aquí.</div>'}</div>
+    </details>`;
+  const item = (cab, det) => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:12px">${cab}</summary><div style="margin-top:6px">${det}</div></details>`;
+
+  const cuerpoAzul = faltaSubir.map(x => item(
+    `<b>${esc(x.prov)}</b> · albarán <b>${esc(x.n)}</b> · viene en ${x.fac.tipo_doc === 'abono' ? 'la factura de abono' : 'la factura'} <b>${esc(x.fac.num_documento || '?')}</b> (${fch(x.fac.fecha)})`,
+    `<div style="font-size:11px;color:var(--mu);margin-bottom:4px">Lo que dice la factura de ese albarán:</div>` + piezas({ lineas: x.lineas }) +
+    `<div style="font-size:11px;color:#2f6fd6;margin-top:4px">👉 Buscadlo en el correo o pedídselo al proveedor y subidlo.</div>`)).join('');
+
+  const cuerpoNaranja = listaSin.map(g => item(
+    `<b>${esc(g.prov)}</b> · <b>${esc(g.mes)}</b> · ${g.docs.length} albarán(es) sin factura · ${eur(g.docs.reduce((s, d) => s + base(d), 0))} sin IVA`,
+    g.docs.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `<div style="border-top:1px dashed var(--bd);padding-top:4px;margin-top:4px"><div style="font-size:12px"><b>${esc(d.num_documento || '?')}</b> · ${fch(d.fecha)} · ${eur(base(d))}</div>${piezas(d)}</div>`).join('') +
+    `<div style="font-size:11px;color:#c77700;margin-top:6px">👉 Si la factura la tenéis, subidla. Si no, pedídsela al proveedor (y comprobad a qué email la mandan).</div>`)).join('');
+
+  const cuerpoRojo = abonosSin.sort((a, b) => a.d.fecha.localeCompare(b.d.fecha)).map(x => item(
+    `<b>${esc(x.prov)}</b> · abono <b>${esc(x.d.num_documento || '?')}</b> · ${fch(x.d.fecha)} · <b style="color:#d63030">${eur(Math.abs(base(x.d)))}</b> sin IVA`,
+    piezas(x.d) + `<div style="font-size:11px;color:#d63030;margin-top:4px">👉 Este dinero NO aparece descontado en ninguna factura ni factura de abono subida. Si tenéis su factura de abono, subidla; si no, RECLAMAD. Si ya sabéis que está descontado, pulsad ✓ A MANO en su fila.</div>`)).join('');
+
+  return `
+  <div style="border:2px solid #2f6fd6;border-radius:10px;padding:10px 12px;margin-bottom:12px;background:rgba(47,111,214,.04)">
+    <div style="font-family:var(--mn);font-size:13px;font-weight:700;margin-bottom:4px">📋 CUADRE — qué falta y de quién es${_recProvChip ? ' (solo el proveedor elegido)' : ''}</div>
+    <div style="font-size:11px;color:var(--mu);margin-bottom:8px">Meses cerrados de los últimos 6 meses. Pincha cada caja para ver el detalle y las piezas. ${facPend ? `· ⚪ ${facPend} factura(s) sin conciliar.` : ''} ${enCurso ? `· ⏳ ${enCurso} doc(s) de este mes aún sin facturar (normal).` : ''}</div>
+    ${caja('#2f6fd6', 'rgba(47,111,214,.06)', '🟦 NOS FALTA SUBIR', 'está en la factura del proveedor pero no lo tenemos subido (culpa nuestra)', faltaSubir.length, cuerpoAzul)}
+    ${caja('#e08a00', 'rgba(224,138,0,.06)', '🟧 NO HA LLEGADO LA FACTURA', 'albaranes de meses cerrados sin factura (no la mandan o no se ha subido)', listaSin.length ? `${listaSin.length} grupo(s), ${sinFactura.length} albaranes` : 0, cuerpoNaranja)}
+    ${caja('#d63030', 'rgba(214,48,48,.06)', '🟥 ABONOS SIN DESCONTAR', `no aparecen en ninguna factura (reclamar) · total ${eur(totAb)}`, abonosSin.length, cuerpoRojo)}
+  </div>`;
+}
+
 function renderRecambios() {
   const body = document.getElementById('recambiosTablaBody');
   if (!body) return;
@@ -26507,6 +26611,17 @@ function renderRecambios() {
     };
     chipsCont.innerHTML = chip('TODOS', '') + provChips.map(p => chip(p.label, p.k)).join('');
   }
+
+  // v694: caja de CUADRE encima de los chips (solo oficina / Transmargaz; no Taller)
+  try {
+    let _cuadre = document.getElementById('recambiosCuadre');
+    if (!_cuadre && chipsCont && chipsCont.parentNode) {
+      _cuadre = document.createElement('div');
+      _cuadre.id = 'recambiosCuadre';
+      chipsCont.parentNode.insertBefore(_cuadre, chipsCont);
+    }
+    if (_cuadre) _cuadre.innerHTML = (!_recambiosEsTaller() && recambiosDocs.length) ? _recCuadreHTML(recambiosDocs) : '';
+  } catch (e) { console.warn('[v694 cuadre]', e); }
 
   let docs = [...recambiosDocs];
   if (fTipo) docs = docs.filter(d => d.tipo_doc === fTipo);
