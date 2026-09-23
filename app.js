@@ -26706,7 +26706,7 @@ async function _recCuadreFacturasDif(todos) {
   };
   const lista = (t, arr) => arr.length ? `<div style="font-size:11px;font-weight:700;margin-top:4px">${t}</div>` + arr.map(a => `<div style="font-size:11px;padding-left:8px">${esc(typeof a === 'string' ? a : (a.motivo || ''))}</div>`).join('') : '';
   const cuerpo = filas.map(x => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px">
-      <summary style="cursor:pointer;font-size:12px"><b>${esc(x.f.proveedor || '?')}</b> · ${x.f.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} <b>${esc(x.f.num_documento || '?')}</b> (${fch(x.f.fecha)}) — <span style="color:#a07800">${esc(motivos(x))}</span></summary>
+      <summary style="cursor:pointer;font-size:12px"><b>${esc(x.f.proveedor || '?')}</b> · ${x.f.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} <b>${esc(x.f.num_documento || '?')}</b> (${fch(x.f.fecha)}) — <span style="color:#a07800">${esc(motivos(x))}</span>${(_recambiosEsOficina() || (_recambiosEsTransmargaz() && x.f.empresa === 'TRANSMARGAZ')) ? `<button class="btn bp" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="event.preventDefault();event.stopPropagation();recambiosConciliar('${x.f.id}')">🔍 Conciliar</button>` : ''}</summary>
       <div style="margin-top:4px">
         ${lista('🟦 Albaranes que vienen en la factura y no están subidos:', x.inf.albNoSubidos.map(n => 'Albarán ' + n))}
         ${lista('⚠️ Diferencias:', x.inf.avisos)}
