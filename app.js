@@ -26568,7 +26568,7 @@ function renderRecambios() {
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
-    const puedeConciliar = d.tipo_doc === 'factura' && (
+    const puedeConciliar = (d.tipo_doc === 'factura' || _recEsFacturaAbono(d)) && ( // v692
       _recambiosEsOficina() ||
       (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
     );
@@ -27090,10 +27090,22 @@ function _recProvKey(s) {
   return t.split(/\s+/).filter(w => w && !STOP.has(w)).join('');
 }
 
+// v692: FACTURA DE ABONO (caso real RS TURIA FA26005367, -300 EUR): es un abono pero
+// funciona como una factura en negativo que AGRUPA albaranes de abono (AV26104267 y
+// AV26110386, devolucion de cascos). Se reconoce porque es tipo 'abono', sus lineas
+// traen nº de albaran, y su propio nº NO es de albaran (no empieza por AV/AL).
+function _recEsFacturaAbono(d) {
+  if (!d || d.tipo_doc !== 'abono') return false;
+  const num = _recambNorm(d.num_documento);
+  if (!num || /^(AV|AL)/.test(num)) return false;
+  return (d.lineas || []).some(l => { const a = _recambNorm(l.albaran); return a && a !== num; });
+}
+
 async function recambiosConciliar(facturaId) {
   const factura = recambiosDocs.find(d => d.id === facturaId);
   if (!factura) { toast('Factura no encontrada', 'err'); return; }
-  if (factura.tipo_doc !== 'factura') { toast('Solo se concilian facturas', 'err'); return; }
+  const _esFA = _recEsFacturaAbono(factura); // v692
+  if (factura.tipo_doc !== 'factura' && !_esFA) { toast('Solo se concilian facturas (o facturas de abono)', 'err'); return; }
 
   // Traer TODOS los albaranes de la misma empresa (no filtrados por privacidad,
   // admin los ve todos) para cruzarlos con la factura.
@@ -27102,9 +27114,9 @@ async function recambiosConciliar(facturaId) {
     const { data, error } = await sb.from('recambios_albaranes')
       .select('*')
       .eq('empresa', factura.empresa)
-      .eq('tipo_doc', 'albaran');
+      .eq('tipo_doc', _esFA ? 'abono' : 'albaran'); // v692: la factura de abono se cruza con albaranes de ABONO
     if (error) throw error;
-    albaranes = data || [];
+    albaranes = (data || []).filter(a => a.id !== factura.id && !_recEsFacturaAbono(a));
   } catch (e) {
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
     return;
@@ -27159,6 +27171,19 @@ async function recambiosConciliar(facturaId) {
         lineasDeEste = lineasFac;
         modoCruce = 'importe (total albarán = base de la factura, sin IVA)';
         informe.ok.push(`🔗 ${alb.num_documento || '?'} cruzado por IMPORTE: total albarán ${tA.toFixed(2)}€ = base factura ${bF.toFixed(2)}€ (el IVA no se compara)`);
+      }
+    }
+    // v692: en FACTURA DE ABONO, si la IA leyo en la linea el nº del albaran ORIGINAL
+    // ("Material abonado Albaran Nº ...") en vez del del abono, se casa por REFERENCIA +
+    // IMPORTE (sin signo): misma pieza y mismo dinero = mismo abono.
+    if (!lineasDeEste.length && _esFA) {
+      const _abs = v => Math.abs(Number(v));
+      const refsA = (alb.lineas || []).map(l => ({ r: _recambNorm(l.codigo), i: _abs(l.importe != null ? l.importe : (Number(l.cantidad) * Number(l.precio))) })).filter(x => x.r);
+      const cand = lineasFac.filter(lF => refsA.some(x => x.r === _recambNorm(lF.codigo) && !isNaN(x.i) && Math.abs(x.i - _abs(lF.importe != null ? lF.importe : (Number(lF.cantidad) * Number(lF.precio)))) <= 0.05));
+      if (cand.length) {
+        lineasDeEste = cand;
+        modoCruce = 'referencia + importe';
+        informe.ok.push(`🔗 ${alb.num_documento || '?'} cruzado por REFERENCIA + IMPORTE (misma pieza, mismo importe)`);
       }
     }
     if (!lineasDeEste.length) {
