@@ -27314,6 +27314,25 @@ function _recEsFacturaAbono(d) {
   return (d.lineas || []).some(l => { const a = _recambNorm(l.albaran); return a && a !== num; });
 }
 
+// v697: DESCRIPCIONES PARECIDAS = MISMA PIEZA. Caso real Larauto F/001507: albaran
+// "PILOTO INTERMITENTE SX STRALIS 2013 EL305" vs factura "PILOTO INTERMITENTE SX STRALIS
+// 2013" -> antes exigia texto IDENTICO y salia como pieza que falta + cargo sin albaran.
+// Ahora casan si: son iguales, una contiene a la otra (8+ letras), o comparten al menos
+// el 75% de las palabras (de 3+ letras) de la descripcion mas corta, con 2+ palabras.
+function _recDescCasa(a, b) {
+  const na = _recambNorm(a), nb = _recambNorm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (Math.min(na.length, nb.length) >= 8 && (na.includes(nb) || nb.includes(na))) return true;
+  const pal = s => new Set(String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/[^A-Z0-9]+/).filter(w => w.length >= 3));
+  const A = pal(a), B = pal(b);
+  const [menor, mayor] = A.size <= B.size ? [A, B] : [B, A];
+  if (menor.size < 2) return false;
+  let comunes = 0; menor.forEach(w => { if (mayor.has(w)) comunes++; });
+  return comunes / menor.size >= 0.75;
+}
+
 async function recambiosConciliar(facturaId, opts) {
   const _auto = !!(opts && opts.auto); // v693: conciliacion automatica (al subir la factura)
   const _idsLimpios = []; // v693: albaranes casados SIN ninguna diferencia
@@ -27416,6 +27435,7 @@ async function recambiosConciliar(facturaId, opts) {
       // Emparejar: primero por referencia, si no por descripción
       let match = lineasDeEste.find(lF => refA && _recambNorm(lF.codigo) === refA);
       if (!match) match = lineasDeEste.find(lF => descA && _recambNorm(lF.descripcion) === descA);
+      if (!match) match = lineasDeEste.find(lF => _recDescCasa(lAlb.descripcion, lF.descripcion)); // v697
       if (!match) {
         informe.avisos.push(`⚠️ ${alb.num_documento || ''}: "${lAlb.descripcion || lAlb.codigo || '?'}" del albarán NO aparece en la factura`);
         continue;
@@ -27504,9 +27524,14 @@ async function recambiosConciliar(facturaId, opts) {
   for (const lF of lineasFac) {
     const refF = _recambNorm(lF.codigo);
     const descF = _recambNorm(lF.descripcion);
+    // v697: las lineas de un albaran que YA sale como "falta subir" no se repiten como
+    // cargo sin albaran (antes se avisaba dos veces de lo mismo).
+    const _albLF = _recambNorm(lF.albaran);
+    if (_albLF && informe.albNoSubidos.some(n => n === _albLF || n.includes(_albLF) || _albLF.includes(n))) continue;
     const casa = todasLineasAlb.some(lA =>
       (refF && _recambNorm(lA.codigo) === refF) ||
-      (descF && _recambNorm(lA.descripcion) === descF)
+      (descF && _recambNorm(lA.descripcion) === descF) ||
+      _recDescCasa(lA.descripcion, lF.descripcion) // v697
     );
     if (!casa && (refF || descF)) {
       const imp = lF.importe != null ? ` (${Number(lF.importe).toFixed(2)}€)` : '';
