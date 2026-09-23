@@ -26699,18 +26699,20 @@ function _recPiezasHTML(piezas, mesTxt, fch, eur) {
   piezas.forEach(p => { const k = String(p.fecha || '').slice(0, 7) || '0000-00'; (meses[k] = meses[k] || []).push(p); });
   const keys = Object.keys(meses).sort().reverse();
   const cuenta = (arr, ini) => arr.filter(p => p.est.startsWith(ini)).length;
+  // v705: estilo EXPLICITO en cada celda (la app tiene un estilo general que no deja partir texto)
+  const td = (extra) => `padding:4px 6px;font-size:11px;white-space:normal;overflow-wrap:anywhere;vertical-align:top;${extra || ''}`;
   const fila = p => `<tr style="border-top:1px solid var(--bd)">
-      <td style="padding:3px 6px;white-space:nowrap">${fch(p.fecha)}</td>
-      <td style="padding:3px 6px;overflow-wrap:anywhere">${esc(p.prov)}</td>
-      <td style="padding:3px 6px;overflow-wrap:anywhere;${String(p.l.descripcion || '').length > 55 ? 'font-size:10px;line-height:1.25' : ''}"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
-      <td style="padding:3px 6px;text-align:right">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
-      <td style="padding:3px 6px;text-align:right;white-space:nowrap">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
-      <td style="padding:3px 6px;color:var(--mu);font-size:10px;overflow-wrap:anywhere">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
-      <td style="padding:3px 6px;color:${p.col};font-weight:600;overflow-wrap:anywhere">${esc(p.est)}</td></tr>`;
+      <td style="${td('white-space:nowrap')}">${fch(p.fecha)}</td>
+      <td style="${td()}">${esc(p.prov)}</td>
+      <td style="${td(String(p.l.descripcion || '').length > 55 ? 'font-size:10px;line-height:1.3' : '')}"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
+      <td style="${td('text-align:right')}">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
+      <td style="${td('text-align:right;white-space:nowrap')}">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
+      <td style="${td('color:var(--mu);font-size:10px')}">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
+      <td style="${td('color:' + p.col + ';font-weight:600')}">${esc(p.est)}</td></tr>`;
   const cuerpo = keys.map(k => {
     const arr = meses[k].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
     _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px;table-layout:fixed">
-        <colgroup><col style="width:82px"><col style="width:150px"><col><col style="width:48px"><col style="width:82px"><col style="width:110px"><col style="width:215px"></colgroup>
+        <colgroup><col style="width:92px"><col style="width:175px"><col><col style="width:52px"><col style="width:92px"><col style="width:120px"><col style="width:250px"></colgroup>
         <tr style="text-align:left;color:var(--mu);font-size:10px"><th style="padding:3px 6px">FECHA</th><th style="padding:3px 6px">PROVEEDOR</th><th style="padding:3px 6px">PIEZA</th><th style="padding:3px 6px;text-align:right">CANT.</th><th style="padding:3px 6px;text-align:right">IMPORTE</th><th style="padding:3px 6px">ALBARÁN</th><th style="padding:3px 6px">ESTADO</th></tr>
         ${arr.map(fila).join('')}</table></div>`;
     const res = [
