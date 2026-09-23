@@ -26668,6 +26668,7 @@ function recambiosDrop(ev, tipo) {
 }
 
 async function recambiosSubir(files, tipoForzado) {
+  const _v693NuevosIds = []; // v693
   if (!files || !files.length) return;
   const key = getKey();
   if (!key) { toast('Falta la API key de Anthropic (config)', 'err'); return; }
@@ -26800,9 +26801,11 @@ async function recambiosSubir(files, tipoForzado) {
             if (!segir) { continue; }
           }
         }
-        const { error } = await sb.from('recambios_albaranes').insert(reg);
+        const { data: _insData, error } = await sb.from('recambios_albaranes').insert(reg).select('id');
         if (error) throw error;
         ok++;
+        // v693: guardar el id de las facturas y abonos nuevos para conciliarlos solos al final
+        if ((reg.tipo_doc === 'factura' || reg.tipo_doc === 'abono') && _insData && _insData[0] && _insData[0].id) _v693NuevosIds.push(_insData[0].id);
       }
     } catch (e) {
       console.error('[recambiosSubir]', f.name, e);
@@ -26817,6 +26820,24 @@ async function recambiosSubir(files, tipoForzado) {
   // Limpiar inputs
   ['recambiosFileAlb','recambiosFileFac'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await loadRecambiosData();
+  // v693: CONCILIACION AUTOMATICA de las facturas (y facturas de abono) recien subidas.
+  if (_v693NuevosIds.length) {
+    let _limp = 0, _dif = 0;
+    for (const _id of _v693NuevosIds) {
+      const _d = recambiosDocs.find(x => x.id === _id);
+      if (!_d || (_d.tipo_doc !== 'factura' && !_recEsFacturaAbono(_d))) continue;
+      const _puede = _recambiosEsOficina() || (_recambiosEsTransmargaz() && _d.empresa === 'TRANSMARGAZ');
+      if (!_puede) continue;
+      try {
+        const r = await recambiosConciliar(_id, { auto: true });
+        if (r) { if (r.limpio) _limp++; else _dif++; }
+      } catch (e) { console.warn('[v693 auto-conciliar]', e); }
+    }
+    if (_limp || _dif) {
+      await loadRecambiosData();
+      toast(`🤖 Conciliación automática: ${_limp} factura(s) cuadran y quedan conciliadas${_dif ? ` · ${_dif} con diferencias (se quedan PENDIENTES para revisar)` : ''}`, _dif ? 'warn' : 'ok');
+    }
+  }
 }
 
 function _fileToB64(file) {
@@ -27101,7 +27122,9 @@ function _recEsFacturaAbono(d) {
   return (d.lineas || []).some(l => { const a = _recambNorm(l.albaran); return a && a !== num; });
 }
 
-async function recambiosConciliar(facturaId) {
+async function recambiosConciliar(facturaId, opts) {
+  const _auto = !!(opts && opts.auto); // v693: conciliacion automatica (al subir la factura)
+  const _idsLimpios = []; // v693: albaranes casados SIN ninguna diferencia
   const factura = recambiosDocs.find(d => d.id === facturaId);
   if (!factura) { toast('Factura no encontrada', 'err'); return; }
   const _esFA = _recEsFacturaAbono(factura); // v692
@@ -27219,6 +27242,7 @@ async function recambiosConciliar(facturaId) {
     }
     if (!informe.avisos.some(a => a.includes(alb.num_documento || '\u0000'))) {
       informe.ok.push(`✅ ${alb.num_documento || '?'} (${(alb.lineas || []).length} líneas) cuadra`);
+      if (alb.id) _idsLimpios.push(alb.id); // v693
     }
   }
 
@@ -27255,7 +27279,7 @@ async function recambiosConciliar(facturaId) {
           if (!isNaN(v) && v > 0 && Math.abs(v - resto) <= 0.05) {
             informe.albNoEnFactura.splice(i, 1);
             albCruzados.add(_recambNorm(albR.num_documento));
-            if (albR.id) _idsAlbCruzados.push(albR.id);
+            if (albR.id) { _idsAlbCruzados.push(albR.id); _idsLimpios.push(albR.id); } // v693
             informe.ok.push(`🔗 ${albR.num_documento || '?'} cruzado por IMPORTE: su base ${v.toFixed(2)}€ completa la base de la factura (${bF.toFixed(2)}€). La IA no leyó su nº dentro de la factura — revisa que sea correcto.`);
             console.log(`[v309 conciliar] rescate por resto: albarán ${albR.num_documento} (${v.toFixed(2)}€) casado con ${factura.num_documento} (resto era ${resto.toFixed(2)}€)`);
             resto -= v;
@@ -27305,6 +27329,35 @@ async function recambiosConciliar(facturaId) {
     if (!informe.totalCuadra) {
       informe.avisos.push(`⚠️ El total de la factura no cuadra: base ${factura.base_imponible.toFixed(2)}€ + IVA ${factura.iva.toFixed(2)}€ = ${calc.toFixed(2)}€, pero la factura pone ${factura.total.toFixed(2)}€`);
     }
+  }
+
+  // v693: MODO AUTOMATICO (al subir la factura). Solo se marca lo que cuadra LIMPIO:
+  //  - Todo limpio (sin diferencias, sin albaranes por subir, sin cargos sin albaran y
+  //    total OK) -> se marcan la factura y sus albaranes, y NO sale ninguna ventana.
+  //  - Con diferencias -> la factura se queda PENDIENTE; solo se marcan los albaranes
+  //    que cuadran sin fallo; y se abre el informe para revisarlo.
+  //  Los "albaranes subidos que no estan en la factura" NO cuentan como fallo: casi
+  //  siempre son de otro mes/otra factura.
+  //  El boton CONCILIAR manual sigue EXACTAMENTE igual que antes.
+  if (_auto) {
+    const _limpio = !informe.avisos.length && !informe.albNoSubidos.length &&
+      !(informe.fantasma || []).length && informe.totalCuadra !== false && _idsAlbCruzados.length > 0;
+    try {
+      const _ahora = new Date().toISOString();
+      if (_limpio) {
+        await sb.from('recambios_albaranes').update({ conciliado: true, updated_at: _ahora }).eq('id', facturaId);
+        await sb.from('recambios_albaranes').update({ conciliado: true, updated_at: _ahora }).in('id', _idsAlbCruzados);
+      } else if (_idsLimpios.length) {
+        await sb.from('recambios_albaranes').update({ conciliado: true, updated_at: _ahora }).in('id', _idsLimpios);
+      }
+    } catch (e) { console.warn('[v693 auto-conciliar] no se pudo marcar:', e); }
+    console.log(`[v693 auto-conciliar] ${factura.num_documento}: ${_limpio ? 'LIMPIA -> conciliada' : 'CON DIFERENCIAS -> pendiente'} (${_idsAlbCruzados.length} casados, ${_idsLimpios.length} sin fallo)`);
+    if (!_limpio) {
+      _recambiosMostrarInforme(factura, informe, albProv.length);
+      const _b = document.getElementById('recambiosInfBody');
+      if (_b) _b.innerHTML = `<div style="background:rgba(80,140,255,.10);border:1px solid #5a8cff;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--tx)">🤖 <b>Conciliación automática al subir.</b> Como hay diferencias, la factura <b>se queda PENDIENTE</b>. Solo se han marcado los albaranes que cuadran sin fallo (${_idsLimpios.length}). Cuando lo revises, pulsa CONCILIAR en la factura.</div>` + _b.innerHTML;
+    }
+    return { limpio: _limpio, casados: _idsAlbCruzados.length };
   }
 
   _recambiosMostrarInforme(factura, informe, albProv.length);
