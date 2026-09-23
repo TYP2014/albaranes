@@ -14845,6 +14845,47 @@ function hideTallerBannerToday(nivel) {
 // no marca, no cambia y no guarda nada. La conciliación una a una sigue igual
 // (botón Conciliar). 1 consulta al día (caché en memoria).
 // ============================================================================
+// v696: BARRIDO AUTOMATICO desde el dia 8 (pedido JC + Marta: no conciliar de una en
+// una). Una vez al dia, al abrir la app, repasa TODAS las facturas y facturas de abono
+// SIN conciliar de los ultimos 6 meses, de las empresas permitidas, y las concilia en
+// modo automatico (v693): solo marca lo que cuadra LIMPIO; lo que tiene diferencias se
+// queda PENDIENTE (sin abrir ventanas) y sale en la caja CUADRE. Cubre tambien las
+// facturas que entran por el ROBOT DEL CORREO y los albaranes subidos DESPUES de su
+// factura. Solo oficina (admin, Marta, Mª del Mar) y Transmargaz (solo lo suyo).
+const RECAMB_BARRIDO_KEY = 'recambBarridoV696';
+async function recambiosBarridoAuto() {
+  const hoy = new Date();
+  if (hoy.getDate() < 8) return;
+  if (!window._tieneTaller) return;
+  const esOfi = _recambiosEsOficina(), esTmg = _recambiosEsTransmargaz();
+  if (!esOfi && !esTmg) return;
+  const today = hoy.toISOString().slice(0, 10);
+  try { if (localStorage.getItem(RECAMB_BARRIDO_KEY) === today) return; } catch (e) {}
+  const pad = n => String(n).padStart(2, '0');
+  const lim = new Date(hoy.getFullYear(), hoy.getMonth() - 6, 1);
+  const limIni = `${lim.getFullYear()}-${pad(lim.getMonth() + 1)}-01`;
+  let permitidas = window._empresaTaller ? window._empresaTaller.split(',').map(x => x.trim()) : ['TYP2014', 'HISPALIS', 'TRANSMARGAZ'];
+  if (!esOfi) permitidas = permitidas.filter(e => e === 'TRANSMARGAZ');
+  if (!permitidas.length) return;
+  const { data, error } = await sb.from('recambios_albaranes').select('*')
+    .in('empresa', permitidas).in('tipo_doc', ['factura', 'abono'])
+    .eq('conciliado', false).gte('fecha', limIni);
+  if (error) { console.warn('[v696 barrido]', error); return; }
+  const pend = (data || []).filter(d => d.tipo_doc === 'factura' || _recEsFacturaAbono(d));
+  let limp = 0, dif = 0;
+  for (const d of pend) {
+    try {
+      const r = await recambiosConciliar(d.id, { auto: true, silencioso: true, doc: d });
+      if (r) { if (r.limpio) limp++; else dif++; }
+    } catch (e) { console.warn('[v696 barrido]', d.num_documento, e); }
+  }
+  try { localStorage.setItem(RECAMB_BARRIDO_KEY, today); } catch (e) {}
+  _recambD10Cache = null; // que el aviso del dia 10 se recalcule con lo recien conciliado
+  console.log(`[v696 barrido] ${pend.length} facturas pendientes repasadas: ${limp} conciliadas, ${dif} con diferencias (siguen pendientes)`);
+  if (pend.length) toast(`🤖 Repaso automático de recambios: ${limp} factura(s) conciliadas${dif ? ` · ${dif} con diferencias → mirar la caja 📋 CUADRE o pulsar CONCILIAR` : ''}`, dif ? 'warn' : 'ok');
+  if (limp && recambiosDocs && recambiosDocs.length) { try { await loadRecambiosData(); } catch (e) {} }
+}
+
 const RECAMB_D10_HIDE_KEY = 'recambDia10Hide';
 let _recambD10Cache = null;   // { dia:'YYYY-MM-DD', html:string }
 
@@ -22989,7 +23030,11 @@ async function loadTallerData() {
     renderTallerGlobalBanner();  // v107AL: banner global visible en todas las pestañas
     // v337: cuadre mensual de recambios (día 10). Sin await a propósito: no debe
     // retrasar la carga de Taller; con caché diaria, solo consulta 1 vez al día.
-    try { recambiosAvisoDia10(); } catch (e) { console.warn('[v337]', e); }
+    // v696: primero el BARRIDO automatico (1 vez al dia, desde el dia 8) y despues el aviso.
+    (async () => {
+      try { await recambiosBarridoAuto(); } catch (e) { console.warn('[v696]', e); }
+      try { recambiosAvisoDia10(); } catch (e) { console.warn('[v337]', e); }
+    })();
     // v358: cargar las citas de servicio oficial para que el AVISO GLOBAL salga
     // aunque el usuario no haya entrado nunca en la vista. Sin await: no debe
     // retrasar la carga de Taller.
@@ -27272,8 +27317,9 @@ function _recEsFacturaAbono(d) {
 async function recambiosConciliar(facturaId, opts) {
   const _auto = !!(opts && opts.auto); // v693: conciliacion automatica (al subir la factura)
   const _idsLimpios = []; // v693: albaranes casados SIN ninguna diferencia
-  const factura = recambiosDocs.find(d => d.id === facturaId);
-  if (!factura) { toast('Factura no encontrada', 'err'); return; }
+  const _silencio = !!(opts && opts.silencioso); // v696: barrido del dia 8, sin ventanas
+  const factura = (opts && opts.doc) || recambiosDocs.find(d => d.id === facturaId); // v696: el barrido pasa el doc (puede ser de otra empresa)
+  if (!factura) { if (!_silencio) toast('Factura no encontrada', 'err'); return; }
   const _esFA = _recEsFacturaAbono(factura); // v692
   if (factura.tipo_doc !== 'factura' && !_esFA) { toast('Solo se concilian facturas (o facturas de abono)', 'err'); return; }
 
@@ -27499,7 +27545,7 @@ async function recambiosConciliar(facturaId, opts) {
       }
     } catch (e) { console.warn('[v693 auto-conciliar] no se pudo marcar:', e); }
     console.log(`[v693 auto-conciliar] ${factura.num_documento}: ${_limpio ? 'LIMPIA -> conciliada' : 'CON DIFERENCIAS -> pendiente'} (${_idsAlbCruzados.length} casados, ${_idsLimpios.length} sin fallo)`);
-    if (!_limpio) {
+    if (!_limpio && !_silencio) {
       _recambiosMostrarInforme(factura, informe, albProv.length);
       const _b = document.getElementById('recambiosInfBody');
       if (_b) _b.innerHTML = `<div style="background:rgba(80,140,255,.10);border:1px solid #5a8cff;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--tx)">🤖 <b>Conciliación automática al subir.</b> Como hay diferencias, la factura <b>se queda PENDIENTE</b>. Solo se han marcado los albaranes que cuadran sin fallo (${_idsLimpios.length}). Cuando lo revises, pulsa CONCILIAR en la factura.</div>` + _b.innerHTML;
