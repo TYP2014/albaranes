@@ -26580,6 +26580,7 @@ function _recCuadreHTML(todos) {
   docs.forEach(d => { const k = _recProvKey(d.proveedor || '') || '?'; (grupos[k] = grupos[k] || { nombre: d.proveedor || '?', docs: [] }).docs.push(d); });
 
   const faltaSubir = [], sinFactura = [], abonosSin = [];
+  const _piezas = []; // v702: VISTA POR PIEZAS (una fila por linea de albaran/abono)
   let facPend = 0, enCurso = 0;
   Object.values(grupos).forEach(g => {
     const facs = g.docs.filter(d => d.tipo_doc === 'factura' || _recEsFacturaAbono(d));
@@ -26601,6 +26602,30 @@ function _recCuadreHTML(todos) {
     numsFac.forEach(x => {
       if (!subidos.some(d => casa(_recambNorm(d.num_documento), x.n))) faltaSubir.push({ prov: g.nombre, ...x });
     });
+    // v702: VISTA POR PIEZAS - estado de CADA pieza con el mismo cruce del cuadre
+    subidos.forEach(d => {
+      const nD = _recambNorm(d.num_documento);
+      const x = numsFac.find(y => casa(nD, y.n));
+      (d.lineas && d.lineas.length ? d.lineas : [{ descripcion: '(sin líneas leídas)' }]).forEach(l => {
+        let est, col;
+        if (x) {
+          const r = _recambNorm(l.codigo);
+          const esta = x.lineas.some(lF => (r && _recambNorm(lF.codigo) === r) || _recDescCasa(l.descripcion, lF.descripcion));
+          const fNum = x.fac.num_documento || '?';
+          if (esta) { est = (d.tipo_doc === 'abono' || x.fac.tipo_doc === 'abono') ? `↩️ abonada en ${fNum}` : `✅ facturada en ${fNum}`; col = '#1e9e5a'; }
+          else { est = `⚠️ NO aparece en la factura ${fNum}`; col = '#d67a00'; }
+        } else if (d.conciliado) { est = '✅ conciliada'; col = '#1e9e5a'; }
+        else if (d.fecha >= curIni) { est = '⏳ mes en curso'; col = 'var(--mu)'; }
+        else if (d.tipo_doc === 'abono') { est = '🟥 abono sin descontar'; col = '#d63030'; }
+        else { est = '🟧 sin factura'; col = '#e08a00'; }
+        _piezas.push({ fecha: d.fecha, prov: g.nombre, doc: d.num_documento || '?', abono: d.tipo_doc === 'abono', l, est, col });
+      });
+    });
+    numsFac.forEach(x => {
+      if (subidos.some(d => casa(_recambNorm(d.num_documento), x.n))) return;
+      x.lineas.forEach(l => _piezas.push({ fecha: x.fac.fecha, prov: g.nombre, doc: x.n, abono: x.fac.tipo_doc === 'abono', l, est: `🟦 albarán NO subido (en ${x.fac.num_documento || '?'})`, col: '#2f6fd6' }));
+    });
+
     // 🟧 / 🟥 meses cerrados sin factura
     subidos.forEach(d => {
       if (enFactura(d)) return;
@@ -26658,7 +26683,45 @@ function _recCuadreHTML(todos) {
     ${caja('#e08a00', 'rgba(224,138,0,.06)', '🟧 NO HA LLEGADO LA FACTURA', 'albaranes de meses cerrados sin factura (no la mandan o no se ha subido)', listaSin.length ? `${listaSin.length} grupo(s), ${sinFactura.length} albaranes` : 0, cuerpoNaranja)}
     <div id="recCuadreFacDif"><div style="font-size:11px;color:var(--mu);margin-bottom:8px">⏳ 🟨 Revisando facturas sin conciliar…</div></div>
     ${caja('#d63030', 'rgba(214,48,48,.06)', '🟥 ABONOS SIN DESCONTAR', `no aparecen en ninguna factura (reclamar) · total ${eur(totAb)}`, abonosSin.length, cuerpoRojo)}
+    ${_recPiezasHTML(_piezas, mesTxt, fch, eur)}
   </div>`;
+}
+
+// v702: VISTA POR PIEZAS (idea de Marta). Una fila por PIEZA (no por codigo AV/FV), por
+// meses, con su estado segun el MISMO cruce del CUADRE: facturada en X / abonada en X /
+// NO aparece en la factura X / albaran no subido / sin factura / abono sin descontar /
+// mes en curso. Los meses se pintan SOLO al abrirlos (para que no pese).
+let _recPiezasMes = {};
+function _recPiezasHTML(piezas, mesTxt, fch, eur) {
+  _recPiezasMes = {};
+  if (!piezas.length) return '';
+  const meses = {};
+  piezas.forEach(p => { const k = String(p.fecha || '').slice(0, 7) || '0000-00'; (meses[k] = meses[k] || []).push(p); });
+  const keys = Object.keys(meses).sort().reverse();
+  const cuenta = (arr, ini) => arr.filter(p => p.est.startsWith(ini)).length;
+  const fila = p => `<tr style="border-top:1px solid var(--bd)">
+      <td style="padding:3px 6px;white-space:nowrap">${fch(p.fecha)}</td>
+      <td style="padding:3px 6px">${esc(p.prov)}</td>
+      <td style="padding:3px 6px"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
+      <td style="padding:3px 6px;text-align:right">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
+      <td style="padding:3px 6px;text-align:right;white-space:nowrap">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
+      <td style="padding:3px 6px;color:var(--mu);font-size:10px">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
+      <td style="padding:3px 6px;color:${p.col};font-weight:600;white-space:nowrap">${esc(p.est)}</td></tr>`;
+  const cuerpo = keys.map(k => {
+    const arr = meses[k].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+    _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="text-align:left;color:var(--mu);font-size:10px"><th style="padding:3px 6px">FECHA</th><th style="padding:3px 6px">PROVEEDOR</th><th style="padding:3px 6px">PIEZA</th><th style="padding:3px 6px;text-align:right">CANT.</th><th style="padding:3px 6px;text-align:right">IMPORTE</th><th style="padding:3px 6px">ALBARÁN</th><th style="padding:3px 6px">ESTADO</th></tr>
+        ${arr.map(fila).join('')}</table></div>`;
+    const res = [
+      ['✅', cuenta(arr, '✅') + cuenta(arr, '↩️')], ['⚠️', cuenta(arr, '⚠️')], ['🟦', cuenta(arr, '🟦')],
+      ['🟧', cuenta(arr, '🟧')], ['🟥', cuenta(arr, '🟥')], ['⏳', cuenta(arr, '⏳')]
+    ].filter(x => x[1]).map(x => `${x[0]} ${x[1]}`).join(' · ');
+    return `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px" ontoggle="if(this.open&&!this.dataset.ok){this.querySelector('.recPzC').innerHTML=_recPiezasMes['${k}']||'';this.dataset.ok='1'}">
+        <summary style="cursor:pointer;font-size:12px"><b>${esc(mesTxt(k + '-01'))}</b> · ${arr.length} pieza(s) — ${res}</summary><div class="recPzC"></div></details>`;
+  }).join('');
+  return `<details style="border:1px solid #6b5bd6;background:rgba(107,91,214,.06);border-radius:8px;padding:8px 12px;margin-bottom:8px">
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--tx)">🔧 VISTA POR PIEZAS <span style="font-weight:400;color:var(--mu)">· cada pieza y en qué factura está (✅ facturada · ⚠️ no está en su factura · 🟦 albarán no subido · 🟧 sin factura · 🟥 abono sin descontar · ⏳ mes en curso)</span></summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${cuerpo}</div></details>`;
 }
 
 // v698: 4ª CAJA DEL CUADRE - "FACTURAS QUE NO CUADRAN Y POR QUE". Pedido JC tras el
