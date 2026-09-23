@@ -26701,15 +26701,16 @@ function _recPiezasHTML(piezas, mesTxt, fch, eur) {
   const cuenta = (arr, ini) => arr.filter(p => p.est.startsWith(ini)).length;
   const fila = p => `<tr style="border-top:1px solid var(--bd)">
       <td style="padding:3px 6px;white-space:nowrap">${fch(p.fecha)}</td>
-      <td style="padding:3px 6px">${esc(p.prov)}</td>
-      <td style="padding:3px 6px;max-width:320px;word-break:break-word"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
+      <td style="padding:3px 6px;overflow-wrap:anywhere">${esc(p.prov)}</td>
+      <td style="padding:3px 6px;overflow-wrap:anywhere;${String(p.l.descripcion || '').length > 55 ? 'font-size:10px;line-height:1.25' : ''}"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
       <td style="padding:3px 6px;text-align:right">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
       <td style="padding:3px 6px;text-align:right;white-space:nowrap">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
-      <td style="padding:3px 6px;color:var(--mu);font-size:10px">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
-      <td style="padding:3px 6px;color:${p.col};font-weight:600;min-width:170px;white-space:normal">${esc(p.est)}</td></tr>`;
+      <td style="padding:3px 6px;color:var(--mu);font-size:10px;overflow-wrap:anywhere">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
+      <td style="padding:3px 6px;color:${p.col};font-weight:600;overflow-wrap:anywhere">${esc(p.est)}</td></tr>`;
   const cuerpo = keys.map(k => {
     const arr = meses[k].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
-    _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:11px">
+    _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px;table-layout:fixed">
+        <colgroup><col style="width:82px"><col style="width:150px"><col><col style="width:48px"><col style="width:82px"><col style="width:110px"><col style="width:215px"></colgroup>
         <tr style="text-align:left;color:var(--mu);font-size:10px"><th style="padding:3px 6px">FECHA</th><th style="padding:3px 6px">PROVEEDOR</th><th style="padding:3px 6px">PIEZA</th><th style="padding:3px 6px;text-align:right">CANT.</th><th style="padding:3px 6px;text-align:right">IMPORTE</th><th style="padding:3px 6px">ALBARÁN</th><th style="padding:3px 6px">ESTADO</th></tr>
         ${arr.map(fila).join('')}</table></div>`;
     const res = [
