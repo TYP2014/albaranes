@@ -27458,9 +27458,22 @@ async function recambiosConciliar(facturaId, opts) {
     let lineasDeEste = numAlb ? lineasFac.filter(l => l._alb && (l._alb === numAlb || l._alb.includes(numAlb) || numAlb.includes(l._alb))) : [];
     // Si la factura no trae nº de albarán, cruzar por proveedor+fecha
     let modoCruce = 'nº albarán';
+    // v699: FACTURA SIN Nº DE ALBARAN. Antes se cruzaban TODOS los albaranes del proveedor
+    // de CUALQUIER mes (la "fecha" no se miraba) -> caso real Tot Frens B2601000015415:
+    // "125 piezas que no se facturan". AHORA solo entran los albaranes de los 45 DIAS
+    // ANTERIORES a la factura (hasta su fecha) y que NO esten ya conciliados con otra.
     if (!lineasDeEste.length && !numsAlbEnFactura.length) {
-      lineasDeEste = lineasFac;  // factura sin desglose por albarán → comparar todo
-      modoCruce = 'proveedor+fecha';
+      const _fF = String(factura.fecha || '').slice(0, 10), _fA = String(alb.fecha || '').slice(0, 10);
+      let _enVentana = false;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(_fF) && /^\d{4}-\d{2}-\d{2}$/.test(_fA)) {
+        const _ini = new Date(_fF + 'T12:00:00'); _ini.setDate(_ini.getDate() - 45);
+        const _iniTxt = _ini.toISOString().slice(0, 10);
+        _enVentana = _fA >= _iniTxt && _fA <= _fF;
+      }
+      if (_enVentana && !alb.conciliado) {
+        lineasDeEste = lineasFac;  // factura sin desglose por albarán → comparar con los de su periodo
+        modoCruce = 'proveedor+fecha (45 días antes de la factura)';
+      }
     }
     // v258: RESCATE POR IMPORTE — la factura trae números pero NO el de este albarán (o la
     // IA no los leyó bien). Si el TOTAL del albarán (que va SIN IVA) coincide con la BASE
