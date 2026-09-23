@@ -26656,8 +26656,68 @@ function _recCuadreHTML(todos) {
     <div style="font-size:11px;color:var(--mu);margin-bottom:8px">Meses cerrados de los últimos 6 meses. Pincha cada caja para ver el detalle y las piezas. ${facPend ? `· ⚪ ${facPend} factura(s) sin conciliar.` : ''} ${enCurso ? `· ⏳ ${enCurso} doc(s) de este mes aún sin facturar (normal).` : ''}</div>
     ${caja('#2f6fd6', 'rgba(47,111,214,.06)', '🟦 NOS FALTA SUBIR', `está en la factura del proveedor pero no lo tenemos subido (culpa nuestra)${Object.keys(gAz).length ? ` · ${Object.keys(gAz).length} proveedor(es)` : ''}`, faltaSubir.length, cuerpoAzul)}
     ${caja('#e08a00', 'rgba(224,138,0,.06)', '🟧 NO HA LLEGADO LA FACTURA', 'albaranes de meses cerrados sin factura (no la mandan o no se ha subido)', listaSin.length ? `${listaSin.length} grupo(s), ${sinFactura.length} albaranes` : 0, cuerpoNaranja)}
+    <div id="recCuadreFacDif"><div style="font-size:11px;color:var(--mu);margin-bottom:8px">⏳ 🟨 Revisando facturas sin conciliar…</div></div>
     ${caja('#d63030', 'rgba(214,48,48,.06)', '🟥 ABONOS SIN DESCONTAR', `no aparecen en ninguna factura (reclamar) · total ${eur(totAb)}`, abonosSin.length, cuerpoRojo)}
   </div>`;
+}
+
+// v698: 4ª CAJA DEL CUADRE - "FACTURAS QUE NO CUADRAN Y POR QUE". Pedido JC tras el
+// barrido (0 de 39 limpias): ver de un vistazo el MOTIVO de cada factura pendiente, sin
+// abrirlas una a una. Usa el MISMO cruce que CONCILIAR en modo solo calculo (no escribe
+// nada) con los documentos ya cargados (sin consultas a la BD). Se rellena un instante
+// despues de pintar la caja CUADRE.
+let _recCuadreTok = 0;
+async function _recCuadreFacturasDif(todos) {
+  const tok = ++_recCuadreTok;
+  const cont = document.getElementById('recCuadreFacDif');
+  if (!cont) return;
+  const hoy = new Date(); const pad = n => String(n).padStart(2, '0');
+  const lim = new Date(hoy.getFullYear(), hoy.getMonth() - 6, 1);
+  const limIni = `${lim.getFullYear()}-${pad(lim.getMonth() + 1)}-01`;
+  const fch = f => f ? f.split('-').reverse().join('/') : '—';
+  const facs = todos.filter(d => !d.conciliado && d.fecha && d.fecha >= limIni &&
+    (d.tipo_doc === 'factura' || _recEsFacturaAbono(d)) &&
+    (!_recProvChip || _recProvKey(d.proveedor || '') === _recProvChip))
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  const filas = []; let limpias = 0;
+  for (const f of facs) {
+    let r = null;
+    try { r = await recambiosConciliar(f.id, { soloCalculo: true, doc: f, docsPrecargados: todos }); } catch (e) { console.warn('[v698]', e); }
+    if (tok !== _recCuadreTok) return; // se ha vuelto a pintar mientras tanto
+    if (!r) continue;
+    if (r.limpio) { limpias++; continue; }
+    filas.push({ f, inf: r.informe, casados: r.casados });
+  }
+  const c = document.getElementById('recCuadreFacDif');
+  if (!c || tok !== _recCuadreTok) return;
+  const motivos = x => {
+    const i = x.inf, m = [];
+    if (i.albNoSubidos.length) m.push(`🟦 faltan ${i.albNoSubidos.length} albarán(es) por subir`);
+    const noFac = i.avisos.filter(a => a.includes('NO aparece en la factura')).length;
+    const prec = i.avisos.filter(a => a.includes(': precio albarán')).length;
+    const cant = i.avisos.filter(a => a.includes(': cantidad albarán')).length;
+    if (noFac) m.push(`${noFac} pieza(s) del albarán que NO se facturan`);
+    if (prec) m.push(`💶 ${prec} precio(s) distinto(s)`);
+    if (cant) m.push(`${cant} cantidad(es) distinta(s)`);
+    if ((i.fantasma || []).length) m.push(`💸 ${(i.fantasma || []).length} cargo(s) sin albarán`);
+    if (i.totalCuadra === false) m.push('⚠️ el total de la factura no cuadra');
+    if (!x.casados) m.push('ningún albarán subido casa con esta factura');
+    return m.join(' · ') || 'revisar';
+  };
+  const lista = (t, arr) => arr.length ? `<div style="font-size:11px;font-weight:700;margin-top:4px">${t}</div>` + arr.map(a => `<div style="font-size:11px;padding-left:8px">${esc(typeof a === 'string' ? a : (a.motivo || ''))}</div>`).join('') : '';
+  const cuerpo = filas.map(x => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px">
+      <summary style="cursor:pointer;font-size:12px"><b>${esc(x.f.proveedor || '?')}</b> · ${x.f.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} <b>${esc(x.f.num_documento || '?')}</b> (${fch(x.f.fecha)}) — <span style="color:#a07800">${esc(motivos(x))}</span></summary>
+      <div style="margin-top:4px">
+        ${lista('🟦 Albaranes que vienen en la factura y no están subidos:', x.inf.albNoSubidos.map(n => 'Albarán ' + n))}
+        ${lista('⚠️ Diferencias:', x.inf.avisos)}
+        ${lista('💸 Cargos en la factura sin albarán:', x.inf.fantasma || [])}
+        ${lista('✅ Albaranes que sí cuadran:', x.inf.ok)}
+      </div></details>`).join('');
+  c.innerHTML = `
+    <details style="border:1px solid #c9a000;background:rgba(201,160,0,.07);border-radius:8px;padding:8px 12px;margin-bottom:8px">
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:12px;font-weight:700;color:var(--tx)">🟨 FACTURAS QUE NO CUADRAN — <span style="color:#a07800">${filas.length}</span> <span style="font-weight:400;color:var(--mu)">· sin conciliar, con el motivo de cada una${limpias ? ` · ✅ ${limpias} ya cuadran (se conciliarán en el próximo repaso)` : ''}</span></summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${filas.length ? cuerpo : '<div style="font-size:12px;color:var(--mu)">✅ Ninguna factura pendiente con diferencias.</div>'}</div>
+    </details>`;
 }
 
 function renderRecambios() {
@@ -26698,6 +26758,7 @@ function renderRecambios() {
       chipsCont.parentNode.insertBefore(_cuadre, chipsCont);
     }
     if (_cuadre) _cuadre.innerHTML = (!_recambiosEsTaller() && recambiosDocs.length) ? _recCuadreHTML(recambiosDocs) : '';
+    if (_cuadre && _cuadre.innerHTML) _recCuadreFacturasDif(recambiosDocs); // v698 (asincrono, no bloquea)
   } catch (e) { console.warn('[v694 cuadre]', e); }
 
   let docs = [...recambiosDocs];
@@ -27346,11 +27407,17 @@ async function recambiosConciliar(facturaId, opts) {
   // admin los ve todos) para cruzarlos con la factura.
   let albaranes = [];
   try {
-    const { data, error } = await sb.from('recambios_albaranes')
-      .select('*')
-      .eq('empresa', factura.empresa)
-      .eq('tipo_doc', _esFA ? 'abono' : 'albaran'); // v692: la factura de abono se cruza con albaranes de ABONO
-    if (error) throw error;
+    let data;
+    if (opts && opts.docsPrecargados) { // v698: la caja CUADRE ya tiene los documentos, sin ir a la BD
+      data = opts.docsPrecargados.filter(a => a.empresa === factura.empresa && a.tipo_doc === (_esFA ? 'abono' : 'albaran'));
+    } else {
+      const r = await sb.from('recambios_albaranes')
+        .select('*')
+        .eq('empresa', factura.empresa)
+        .eq('tipo_doc', _esFA ? 'abono' : 'albaran'); // v692: la factura de abono se cruza con albaranes de ABONO
+      if (r.error) throw r.error;
+      data = r.data;
+    }
     albaranes = (data || []).filter(a => a.id !== factura.id && !_recEsFacturaAbono(a));
   } catch (e) {
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
@@ -27557,6 +27624,14 @@ async function recambiosConciliar(facturaId, opts) {
   //  Los "albaranes subidos que no estan en la factura" NO cuentan como fallo: casi
   //  siempre son de otro mes/otra factura.
   //  El boton CONCILIAR manual sigue EXACTAMENTE igual que antes.
+  // v698: MODO SOLO CALCULO (caja CUADRE): devuelve el resultado sin escribir nada ni abrir ventanas.
+  if (opts && opts.soloCalculo) {
+    return {
+      limpio: !informe.avisos.length && !informe.albNoSubidos.length && !(informe.fantasma || []).length &&
+        informe.totalCuadra !== false && _idsAlbCruzados.length > 0,
+      informe, casados: _idsAlbCruzados.length
+    };
+  }
   if (_auto) {
     const _limpio = !informe.avisos.length && !informe.albNoSubidos.length &&
       !(informe.fantasma || []).length && informe.totalCuadra !== false && _idsAlbCruzados.length > 0;
