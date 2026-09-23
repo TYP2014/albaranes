@@ -26702,11 +26702,11 @@ function _recPiezasHTML(piezas, mesTxt, fch, eur) {
   const fila = p => `<tr style="border-top:1px solid var(--bd)">
       <td style="padding:3px 6px;white-space:nowrap">${fch(p.fecha)}</td>
       <td style="padding:3px 6px">${esc(p.prov)}</td>
-      <td style="padding:3px 6px"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
+      <td style="padding:3px 6px;max-width:320px;word-break:break-word"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--mu);font-size:10px">${esc(p.l.codigo)}</div>` : ''}</td>
       <td style="padding:3px 6px;text-align:right">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
       <td style="padding:3px 6px;text-align:right;white-space:nowrap">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
       <td style="padding:3px 6px;color:var(--mu);font-size:10px">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
-      <td style="padding:3px 6px;color:${p.col};font-weight:600;white-space:nowrap">${esc(p.est)}</td></tr>`;
+      <td style="padding:3px 6px;color:${p.col};font-weight:600;min-width:170px;white-space:normal">${esc(p.est)}</td></tr>`;
   const cuerpo = keys.map(k => {
     const arr = meses[k].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
     _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:11px">
