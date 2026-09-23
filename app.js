@@ -26497,7 +26497,26 @@ async function recambiosDescargarDoc(id) {
 // El mes en curso NO se reclama (es normal que aun no este facturado).
 // Solo ultimos 6 meses, para no llenarlo de historico viejo.
 // ============================================================
+// v695: textos listos para pegar en un email (se rellenan al pintar la caja de CUADRE)
+let _recCuadreCopias = {};
+function _recCuadreCopiar(k) {
+  const txt = _recCuadreCopias[k];
+  if (!txt) return;
+  const ok = () => toast('📋 Lista copiada. Pégala en el email al proveedor (Ctrl+V).', 'ok');
+  const fallback = () => {
+    const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); ok(); } catch (e) { alert(txt); }
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(fallback);
+  else fallback();
+}
 function _recCuadreHTML(todos) {
+  _recCuadreCopias = {};
+  const _empNom = { 'TYP2014': 'TRANSPORTES Y PORTES 2014, S.L. (B90172735)', 'HISPALIS': 'TRANSPORTES HISPALIS 2016, S.L. (B90286337)', 'TRANSMARGAZ': 'TRANSMARGAZ 2018 (B67316752)' };
+  const _emp = _empNom[(todos[0] && todos[0].empresa) || ''] || ((todos[0] && todos[0].empresa) || '');
+  const _btnCopiar = (k, txt, label) => { _recCuadreCopias[k] = txt; return `<button onclick="event.preventDefault();event.stopPropagation();_recCuadreCopiar('${k}')" style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid var(--bd);background:#fff;cursor:pointer">📋 ${label}</button>`; };
   const hoy = new Date();
   const pad = n => String(n).padStart(2, '0');
   const curIni = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-01`;
@@ -26559,13 +26578,26 @@ function _recCuadreHTML(todos) {
     </details>`;
   const item = (cab, det) => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:12px">${cab}</summary><div style="margin-top:6px">${det}</div></details>`;
 
-  const cuerpoAzul = faltaSubir.map(x => item(
+  // v695: AZUL agrupado por PROVEEDOR (con boton para copiar la lista y pedirselos)
+  const gAz = {};
+  faltaSubir.forEach(x => { (gAz[x.prov] = gAz[x.prov] || []).push(x); });
+  const cuerpoAzul = Object.keys(gAz).sort((a, b) => gAz[b].length - gAz[a].length).map((prov, i) => {
+    const lst = gAz[prov].sort((a, b) => String(a.fac.fecha || '').localeCompare(String(b.fac.fecha || '')));
+    const nFac = new Set(lst.map(x => x.fac.num_documento)).size;
+    const txt = `Hola,\n\nPor favor, enviadnos COPIA de los siguientes albaranes a nombre de ${_emp}. Aparecen en vuestras facturas pero no los tenemos:\n\n` +
+      lst.map(x => `- Albarán ${x.n} (en ${x.fac.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} ${x.fac.num_documento || '?'} del ${fch(x.fac.fecha)})`).join('\n') +
+      `\n\nGracias.`;
+    return `<details style="background:#fff;border:1px solid #2f6fd6;border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:12px"><b>${esc(prov)}</b> · <b>${lst.length}</b> albarán(es) sin subir, en ${nFac} factura(s)${_btnCopiar('az' + i, txt, 'Copiar lista para pedírselos')}</summary><div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">` +
+      lst.map(x => item(
     `<b>${esc(x.prov)}</b> · albarán <b>${esc(x.n)}</b> · viene en ${x.fac.tipo_doc === 'abono' ? 'la factura de abono' : 'la factura'} <b>${esc(x.fac.num_documento || '?')}</b> (${fch(x.fac.fecha)})`,
     `<div style="font-size:11px;color:var(--mu);margin-bottom:4px">Lo que dice la factura de ese albarán:</div>` + piezas({ lineas: x.lineas }) +
-    `<div style="font-size:11px;color:#2f6fd6;margin-top:4px">👉 Buscadlo en el correo o pedídselo al proveedor y subidlo.</div>`)).join('');
+    `<div style="font-size:11px;color:#2f6fd6;margin-top:4px">👉 Buscadlo en el correo o pedídselo al proveedor y subidlo.</div>`)).join('') + `</div></details>`;
+  }).join('');
 
-  const cuerpoNaranja = listaSin.map(g => item(
-    `<b>${esc(g.prov)}</b> · <b>${esc(g.mes)}</b> · ${g.docs.length} albarán(es) sin factura · ${eur(g.docs.reduce((s, d) => s + base(d), 0))} sin IVA`,
+  const cuerpoNaranja = listaSin.map((g, i) => item(
+    `<b>${esc(g.prov)}</b> · <b>${esc(g.mes)}</b> · ${g.docs.length} albarán(es) sin factura · ${eur(g.docs.reduce((s, d) => s + base(d), 0))} sin IVA` +
+      _btnCopiar('na' + i, `Hola,\n\nNo hemos recibido la FACTURA de ${g.mes} a nombre de ${_emp}. Por favor, enviádnosla. Corresponde a estos albaranes:\n\n` +
+        g.docs.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `- Albarán ${d.num_documento || '?'} del ${fch(d.fecha)}`).join('\n') + `\n\nGracias.`, 'Copiar para pedir la factura'),
     g.docs.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `<div style="border-top:1px dashed var(--bd);padding-top:4px;margin-top:4px"><div style="font-size:12px"><b>${esc(d.num_documento || '?')}</b> · ${fch(d.fecha)} · ${eur(base(d))}</div>${piezas(d)}</div>`).join('') +
     `<div style="font-size:11px;color:#c77700;margin-top:6px">👉 Si la factura la tenéis, subidla. Si no, pedídsela al proveedor (y comprobad a qué email la mandan).</div>`)).join('');
 
@@ -26577,7 +26609,7 @@ function _recCuadreHTML(todos) {
   <div style="border:2px solid #2f6fd6;border-radius:10px;padding:10px 12px;margin-bottom:12px;background:rgba(47,111,214,.04)">
     <div style="font-family:var(--mn);font-size:13px;font-weight:700;margin-bottom:4px">📋 CUADRE — qué falta y de quién es${_recProvChip ? ' (solo el proveedor elegido)' : ''}</div>
     <div style="font-size:11px;color:var(--mu);margin-bottom:8px">Meses cerrados de los últimos 6 meses. Pincha cada caja para ver el detalle y las piezas. ${facPend ? `· ⚪ ${facPend} factura(s) sin conciliar.` : ''} ${enCurso ? `· ⏳ ${enCurso} doc(s) de este mes aún sin facturar (normal).` : ''}</div>
-    ${caja('#2f6fd6', 'rgba(47,111,214,.06)', '🟦 NOS FALTA SUBIR', 'está en la factura del proveedor pero no lo tenemos subido (culpa nuestra)', faltaSubir.length, cuerpoAzul)}
+    ${caja('#2f6fd6', 'rgba(47,111,214,.06)', '🟦 NOS FALTA SUBIR', `está en la factura del proveedor pero no lo tenemos subido (culpa nuestra)${Object.keys(gAz).length ? ` · ${Object.keys(gAz).length} proveedor(es)` : ''}`, faltaSubir.length, cuerpoAzul)}
     ${caja('#e08a00', 'rgba(224,138,0,.06)', '🟧 NO HA LLEGADO LA FACTURA', 'albaranes de meses cerrados sin factura (no la mandan o no se ha subido)', listaSin.length ? `${listaSin.length} grupo(s), ${sinFactura.length} albaranes` : 0, cuerpoNaranja)}
     ${caja('#d63030', 'rgba(214,48,48,.06)', '🟥 ABONOS SIN DESCONTAR', `no aparecen en ninguna factura (reclamar) · total ${eur(totAb)}`, abonosSin.length, cuerpoRojo)}
   </div>`;
