@@ -26814,8 +26814,9 @@ function renderRecambios() {
       _recambiosEsOficina() ||
       (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
     );
+    const _puedeQuitar = _puedeMano || (d.tipo_doc === 'factura' && (_recambiosEsOficina() || (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ'))); // v700
     const est = d.conciliado
-      ? (_puedeMano
+      ? (_puedeQuitar
         ? `<span style="color:var(--ac);font-size:11px;cursor:pointer" title="Pincha para QUITAR el conciliado (si se marcó por error)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', true)">🟢 Conciliado</span>`
         : '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>')
       : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
@@ -27666,6 +27667,32 @@ async function recambiosConciliar(facturaId, opts) {
     return { limpio: _limpio, casados: _idsAlbCruzados.length };
   }
 
+  // v700: CONCILIAR MANUAL YA NO MARCA A CIEGAS. Caso real Larauto F/001507: se pulso
+  // CONCILIAR, tenia diferencias y quedo 🟢 -> salia del repaso y dejaba de vigilarse.
+  // AHORA: si cuadra limpio, igual que antes. Si hay diferencias, la factura se queda
+  // PENDIENTE (solo se marcan los albaranes sin fallo) y el informe ofrece dos botones:
+  // "Conciliar igualmente" y "Esta factura no lleva albaran" (deja nota).
+  {
+    const _limpioM = !informe.avisos.length && !informe.albNoSubidos.length &&
+      !(informe.fantasma || []).length && informe.totalCuadra !== false && _idsAlbCruzados.length > 0;
+    if (!_limpioM) {
+      try {
+        if (_idsLimpios.length) await sb.from('recambios_albaranes').update({ conciliado: true, updated_at: new Date().toISOString() }).in('id', _idsLimpios);
+      } catch (e) { console.warn('[v700] no se pudieron marcar los albaranes limpios:', e); }
+      _recInfPend = { facturaId, ids: _idsAlbCruzados.slice(), notas: factura.notas || '' };
+      _recambiosMostrarInforme(factura, informe, albProv.length);
+      const _b = document.getElementById('recambiosInfBody');
+      if (_b) _b.innerHTML = `<div style="background:rgba(255,200,0,.10);border:1px solid #c9a000;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--tx)">
+          ✋ <b>La factura se queda PENDIENTE</b> porque hay diferencias (solo se han marcado los ${_idsLimpios.length} albarán(es) que cuadran). Si ya lo has revisado:
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn bs" style="font-size:11px;padding:4px 10px" onclick="recambiosConciliarForzar('igual')">✓ Conciliar igualmente (ya lo he revisado)</button>
+            <button class="btn bs" style="font-size:11px;padding:4px 10px" onclick="recambiosConciliarForzar('sinalb')">📄 Esta factura no lleva albarán</button>
+          </div></div>` + _b.innerHTML;
+      try { await loadRecambiosData(); } catch (e) {}
+      return;
+    }
+  }
+
   _recambiosMostrarInforme(factura, informe, albProv.length);
 
   // Marcar la factura como conciliada (revisada)
@@ -27682,6 +27709,29 @@ async function recambiosConciliar(facturaId, opts) {
     }
     await loadRecambiosData();
   } catch (e) { console.warn('[recambiosConciliar] no se pudo marcar conciliado:', e); }
+}
+
+// v700: acciones de los botones del informe cuando la factura tiene diferencias.
+let _recInfPend = null;
+async function recambiosConciliarForzar(modo) {
+  const p = _recInfPend;
+  if (!p) return;
+  const msg = modo === 'sinalb'
+    ? '¿Marcar esta factura como "NO LLEVA ALBARÁN" y darla por conciliada?\n\nQuedará una nota en la factura.'
+    : '¿Marcar la factura como CONCILIADA aunque tenga diferencias?\n\nSe marcarán también los albaranes que han casado con ella.';
+  if (!confirm(msg)) return;
+  try {
+    const ahora = new Date().toISOString();
+    const upd = { conciliado: true, updated_at: ahora };
+    if (modo === 'sinalb') upd.notas = (p.notas ? p.notas + ' · ' : '') + '📄 Factura sin albarán (marcado ' + ahora.slice(0, 10).split('-').reverse().join('/') + ')';
+    const { error } = await sb.from('recambios_albaranes').update(upd).eq('id', p.facturaId);
+    if (error) throw error;
+    if (modo !== 'sinalb' && p.ids.length) await sb.from('recambios_albaranes').update({ conciliado: true, updated_at: ahora }).in('id', p.ids);
+    _recInfPend = null;
+    closeRecambiosInf();
+    toast(modo === 'sinalb' ? '📄 Factura marcada como sin albarán y conciliada' : '✓ Factura conciliada igualmente', 'ok');
+    await loadRecambiosData();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
 // v309: conciliar / des-conciliar un albarán o abono A MANO. Para cuando el cruce
