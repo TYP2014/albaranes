@@ -9965,10 +9965,12 @@ async function _liqPreciosPreliq(nums) {
   for (let i = 0; i < lista.length; i += 100) {
     const { data, error } = await sb.from('autofacturas_lineas').select('numero_albaran,tn,importe,es_ajuste').in('numero_albaran', lista.slice(i, i + 100));
     if (error) throw error;
+    // v714: el precio de Holcim/CEMEX es de 2 decimales (8,58); importe ÷ TN da 8,5819 porque el importe va
+    // redondeado a céntimos → se redondea el €/TN de cada línea a 2 decimales ANTES de quitar el margen.
     (data || []).forEach(L => { if (L.es_ajuste) return; const k = _factNormAlb(L.numero_albaran).replace(/^0+/, ''); const tn = Number(L.tn), imp = Number(L.importe);
-      if (!k || !(tn > 0) || isNaN(imp)) return; const g = out[k] || { tn: 0, imp: 0 }; g.tn += tn; g.imp += imp; out[k] = g; });
+      if (!k || !(tn > 0) || isNaN(imp)) return; const pu = Math.round(imp / tn * 100) / 100; const g = out[k] || { tn: 0, suma: 0 }; g.tn += tn; g.suma += pu * tn; out[k] = g; });
   }
-  const res = {}; Object.keys(out).forEach(k => { res[k] = out[k].imp / out[k].tn; }); return res;
+  const res = {}; Object.keys(out).forEach(k => { res[k] = Math.round(out[k].suma / out[k].tn * 100) / 100; }); return res;
 }
 const _LIQ_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const _LIQ_TIPOS = [['siniva', 'Paralización (sin IVA, −2%)'], ['alquiler', 'Alquiler semirremolque (resta antes del 2%)'], ['gasto', 'Gasto a descontar (recambio, aceite…)'], ['suplido', 'Suplido (peaje, sin IVA)'], ['iva', 'Otro importe con IVA (suma)']];
