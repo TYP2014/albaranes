@@ -1363,6 +1363,7 @@ async function onLogin(user) {
     .eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
+  try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
@@ -16313,6 +16314,7 @@ async function loadFactEmit() {
     _factEmit = data || [];
     try { await firmarCampo(_factEmit, 'file_url'); } catch (e) { console.warn('[v322] firmado facturas emitidas:', e); }
     renderFactEmit();
+    try { _factVencidas = _factEmit.filter(_feEsVencida); renderFactVencBanner(); } catch (e2) {} // v708
   } catch (e) {
     console.error('[factemit] load', e);
     cont.innerHTML = '<div style="color:var(--er);padding:20px">Error cargando facturas emitidas: ' + esc(e.message || e) + '</div>';
@@ -16324,6 +16326,72 @@ let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
 let _feDesde = '', _feHasta = '', _feCliente = 'TODOS';
 function _feKeyCli(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
+
+// ============================================================================
+// v708: AVISO DE FACTURAS EMITIDAS VENCIDAS SIN COBRAR.
+// Banner arriba (junto a los de ITV/Taller) para quien ve F. Emitidas (admin,
+// Marta, Mª del Mar): "🔴 N FACTURAS VENCIDAS SIN COBRAR · total €" con los 3
+// clientes que más deben. Vencida = estado pendiente + vencimiento < hoy.
+// Boton "Ver vencidas" → pestaña F. Emitidas con el filtro nuevo 🔴 Vencidas.
+// ✕ oculta el aviso SOLO HOY (en este navegador). Se recalcula al entrar y
+// cada vez que se carga F. Emitidas (al marcar cobrada desaparece sola).
+// Solo lectura: no cambia ninguna factura.
+// ============================================================================
+const FACTVENC_HIDE_KEY = 'factvenc_banner_oculto';
+let _factVencidas = [];
+function _feHoyISO() { return new Date().toLocaleDateString('sv-SE'); }   // AAAA-MM-DD hora local
+function _feEsVencida(f) {
+  return (f.estado || 'pendiente') === 'pendiente' && f.vencimiento
+    && /^\d{4}-\d{2}-\d{2}/.test(f.vencimiento) && String(f.vencimiento).slice(0, 10) < _feHoyISO();
+}
+async function checkFactVencidas() {
+  try {
+    if (typeof _puedeVerFactEmit !== 'function' || !_puedeVerFactEmit()) return;
+    const { data, error } = await sb.from('facturas_emitidas')
+      .select('id,numero,empresa,cliente,total,estado,vencimiento')
+      .or('estado.is.null,estado.eq.pendiente')
+      .lt('vencimiento', _feHoyISO());
+    if (error) throw error;
+    _factVencidas = (data || []).filter(_feEsVencida);
+    renderFactVencBanner();
+  } catch (e) { console.error('[v708] facturas vencidas:', e); }
+}
+function renderFactVencBanner() {
+  const banner = document.getElementById('factVencBanner');
+  if (!banner) return;
+  const lista = _factVencidas || [];
+  if (!lista.length || localStorage.getItem(FACTVENC_HIDE_KEY) === _feHoyISO()) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  const total = lista.reduce((a, f) => a + (Number(f.total) || 0), 0);
+  const porCli = new Map();
+  lista.forEach(f => {
+    const k = String(f.cliente || '¿cliente?').trim();
+    const g = porCli.get(k) || { cli: k, total: 0, n: 0, maxDias: 0 };
+    g.total += Number(f.total) || 0; g.n++;
+    const dias = Math.floor((new Date(_feHoyISO() + 'T00:00:00') - new Date(String(f.vencimiento).slice(0, 10) + 'T00:00:00')) / 86400000);
+    if (dias > g.maxDias) g.maxDias = dias;
+    porCli.set(k, g);
+  });
+  const top = Array.from(porCli.values()).sort((a, b) => b.total - a.total);
+  const detalle = top.slice(0, 3).map(g => '<strong>' + esc(g.cli) + '</strong> ' + _feFmt(g.total) +
+    ' (' + g.n + ' fra.' + (g.maxDias ? ', hasta ' + g.maxDias + ' d' : '') + ')').join(' · ');
+  const resto = top.length > 3 ? ' · +' + (top.length - 3) + ' clientes más' : '';
+  const color = '#c62828';
+  const cab = lista.length === 1 ? '1 FACTURA VENCIDA SIN COBRAR' : lista.length + ' FACTURAS VENCIDAS SIN COBRAR';
+  banner.innerHTML = '<div style="order:-1;background:rgba(198,40,40,.13);border:1px solid ' + color + ';border-left:5px solid ' + color +
+    ';border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
+    '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">💶 <span style="color:' + color + ';font-weight:900">' + cab + ' · ' + _feFmt(total) + ':</span> ' + detalle + resto + '</div>' +
+    '<div style="display:flex;gap:6px">' +
+      '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAFactVencidas()">💶 Ver vencidas</button>' +
+      '<button class="btn" title="Ocultar hasta mañana" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid ' + color + ';color:' + color + ';font-weight:700;line-height:1" onclick="hideFactVencBannerToday()">✕</button>' +
+    '</div></div>';
+  banner.style.display = 'block';
+}
+function hideFactVencBannerToday() { localStorage.setItem(FACTVENC_HIDE_KEY, _feHoyISO()); renderFactVencBanner(); }
+function irAFactVencidas() {
+  _feFiltro = 'vencida'; _feEmpresa = 'TODAS'; _feDesde = ''; _feHasta = ''; _feCliente = 'TODOS';
+  try { switchTab('factemit'); } catch (e) {}
+  setTimeout(() => { try { renderFactEmit(); } catch (e) {} }, 300);
+}
 function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
   if (!cont) return;
@@ -16360,7 +16428,7 @@ function renderFactEmit() {
   const cli555 = Array.from(mapCli555.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'));
   const baseFin555 = baseFe555.filter(f => _feCliente === 'TODOS' ? true : _feKeyCli(f.cliente) === _feCliente);
   const hayFiltro555 = !!(_feDesde || _feHasta || _feCliente !== 'TODOS');
-  const arr = baseFin555.filter(f => _feFiltro === 'todas' ? true : (f.estado || 'pendiente') === _feFiltro);
+  const arr = baseFin555.filter(f => _feFiltro === 'todas' ? true : _feFiltro === 'vencida' ? _feEsVencida(f) : (f.estado || 'pendiente') === _feFiltro); // v708: + vencidas
   const pend = baseFin555.filter(f => (f.estado || 'pendiente') === 'pendiente');
   const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
   let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
@@ -16385,8 +16453,8 @@ function renderFactEmit() {
   h += '</div>';
   h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
   h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:13px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + (hayFiltro555 ? ' \u00b7 <span style="color:var(--ac)">filtrado</span>' : '') + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
-  ['todas', 'pendiente', 'cobrada'].forEach(f => {
-    h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : '\u2705 Cobradas') + '</button>';
+  ['todas', 'pendiente', 'vencida', 'cobrada'].forEach(f => {
+    h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : f === 'vencida' ? '\ud83d\udd34 Vencidas' : '\u2705 Cobradas') + '</button>';
   });
   h += '</div>';
   if (!arr.length) {
