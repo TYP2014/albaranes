@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v716 (25/09/2026): La tarjeta de Facturacion pasa a llamarse "💼 LIQUIDACIÓN SUBCONTRATADOS" (autónomos y empresas), porque ya incluye Aridflot, Satig y OP Trans. Solo cambia el texto en index.html; app.js igual que v715 (solo sube el ?v). NO requiere SQL. VUELTA ATRAS: resubir index.html de v715.
+
 v715 (25/09/2026): LIQUIDACION - EMPRESAS SUBCONTRATADAS: Aridflot, T. Satig 79 y OP Trans Vallès. Se hacen su factura → Excel con SIMULACIÓN DE FACTURA (sin nº), emisor 'EMPRESA' con razon social/CIF/domicilio de DeCA → Subcontratados. SIN IRPF (la fila no sale). Aridflot: -2% pronto pago. Satig y OP Trans: SIN pronto pago y nota 'Forma de pago: 60 días' en pantalla y en el Excel. 'Factura a' se elige en pantalla (TYP2014 / Portes 2014 Import / Híspalis 2016; nuevo cliente HISPALIS). Como el resto: todos sus albaranes del mes (cualquier proveedor), precio propio o de Tarifas, editable a mano. Probado: 0 errores en el Excel. Refrigerados Domínguez no se añade (no trabaja ahora). NO requiere SQL. VUELTA ATRAS: resubir v714.
 
 v714 (25/09/2026): LIQUIDACION AUTONOMOS - CISTERNAS: el €/TN de la preliquidacion se redondea a 2 decimales ANTES de quitar el 7% (Holcim paga 8,58 y el importe va redondeado a centimos, asi que importe ÷ TN daba 8,5819 → 7,9811 en vez de 7,9794). Con esto Joaquín agosto 2026 cuadra linea a linea con el Excel a mano salvo el albaran 31005004927 (la preliquidacion lo trae a 11,32 €/TN y a mano se pago a 8,78 → se corrige escribiendo el precio en pantalla). NO requiere SQL. VUELTA ATRAS: resubir v713.
