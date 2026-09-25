@@ -214,10 +214,10 @@ if (typeof pdfjsLib !== 'undefined') {
             <div class="fil-group"><label class="fil-label">Cliente</label><details class="fil-multi" id="fClienteBox"><summary id="fClienteSum">Todos</summary><div class="fil-multi-list" id="fClienteList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido por</label><details class="fil-multi" id="fSubidoPorBox"><summary id="fSubidoPorSum">Todos</summary><div class="fil-multi-list" id="fSubidoPorList"></div></details></div>
             <div class="fil-group"><label class="fil-label">Subido el</label><input class="fil-inp" type="date" id="fSubidoEl" oninput="applyFilters()" title="Filtra por la fecha en que se subió a la app (no la fecha del albarán)"></div>
-            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="posdup">🔁 Rev Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option><option value="amarillo">🟡 Marcados revisar</option><option value="naranja">🟠 Ya pagado subcont.</option></select></div>
+            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="posdup">🔁 Rev Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="fil-group"><label class="fil-label">TN</label><input class="fil-sel" id="fTn" oninput="applyFilters()" placeholder="Ej: 25 o 24-26" title="Busca por toneladas: un valor exacto (25 o 26.74) o un rango (24-26)" style="font-family:var(--mn);font-size:11px"></div>
-            <div class="fil-group"><label class="fil-label">A mano</label><button class="btn bs" id="btnFilManual" onclick="toggleFiltroManual()" title="Ver SOLO los albaranes creados a mano (➕ Albarán a mano). Se combina con la fecha y el resto de filtros. Púlsalo otra vez para quitarlo." style="font-size:11px;white-space:nowrap">✍️ Solo a mano</button></div>
+            <div class="fil-group"><label class="fil-label">Marcas</label><select class="fil-sel" id="fMarca" onchange="applyFilters()" title="Ver solo los albaranes con una marca. Se combina con la fecha y el resto de filtros."><option value="">Todos</option><option value="amarillo">🟡 Para revisar</option><option value="naranja">🟠 Ya pagado subcont.</option><option value="marcas">🟡+🟠 Cualquier marca</option><option value="manual">✍️ Creados a mano</option><option value="editado">✏️ Editados a mano</option></select></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
           </div>
           <div class="tbl-top">
@@ -1964,6 +1964,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=718"></script>
+<script src="app.js?v=719"></script>
 </body>
 </html>

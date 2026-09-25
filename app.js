@@ -9451,7 +9451,7 @@ function renderPendientes() {
   if (dups)   chips.push({ic:'⛔', n:dups,   tx:'duplicados',        cls:'pend-er', click:`filterByStatus('dup')`});
   if (posDups) chips.push({ic:'🔁', n:posDups, tx:'posibles duplicados', cls:'pend-wn', click:`filterByStatus('posdup')`}); // v351
   if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
-  if (amarillos) chips.push({ic:'🟡', n:amarillos, tx:'marcados para revisar', cls:'pend-wn', click:`filterByStatus('amarillo')`}); // v718
+  if (amarillos) chips.push({ic:'🟡', n:amarillos, tx:'marcados para revisar', cls:'pend-wn', click:`(document.getElementById('fMarca').value='amarillo',applyFilters(),document.getElementById('resCount')?.scrollIntoView({behavior:'smooth',block:'center'}))`}); // v718
   if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
   if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
   if (itvAvi) chips.push({ic:'⚠️', n:itvAvi, tx:`ITVs <${ITV_AVISO_DIAS}d`, cls:'pend-wn', click:`switchTab('itv')`});
@@ -10720,6 +10720,13 @@ function applyFilters() {
     if (r.procesado === false) return false;
     // v269 — filtro "Solo a mano" activo → solo los creados con "➕ Albarán a mano"
     if (filtroManual && !r.creado_manual) return false;
+    // v719: desplegable MARCAS (junto a Estado): a mano / editados / 🟡 revisar / 🟠 ya pagado subcont.
+    { const fm = (document.getElementById('fMarca') || {}).value || '';
+      if (fm === 'manual' && !r.creado_manual) return false;
+      if (fm === 'editado' && !r._manual) return false;
+      if (fm === 'amarillo' && !r.marca_revisar) return false;
+      if (fm === 'naranja' && !r.revisar_pago) return false;
+      if (fm === 'marcas' && !r.marca_revisar && !r.revisar_pago) return false; }
     const ts = parseDate(r.fecha || '');
     // v94: bug de zona horaria. Antes hacíamos new Date(desde).getTime() que JS interpreta
     // como UTC 00:00, mientras que parseDate(r.fecha) devuelve hora LOCAL. En España en verano
@@ -11031,7 +11038,7 @@ function switchGasEmpresa(emp) {
 }
 
 function resetFilters() { 
-  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fRecibida','fSubidoEl','fEstado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
+  ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fRecibida','fSubidoEl','fEstado','fMarca'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   // v269 — "Limpiar" también quita el filtro "✍️ Solo a mano" y devuelve el botón a su color.
   filtroManual = false;
   { const b = document.getElementById('btnFilManual'); if (b) { b.style.background = ''; b.style.color = ''; b.style.borderColor = ''; } }
