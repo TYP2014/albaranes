@@ -45,6 +45,179 @@ async function _iaCabeceras() {
   return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + t, 'apikey': SUPA_KEY };
 }
 
+// ============================================================================
+// v706: CHIVATO DE ERRORES (caja negra de la app).
+// Cada error que salta en el navegador de CUALQUIER usuario (Marta, gestores,
+// conductores...) se guarda solo en la tabla `errores_app`: quien, version,
+// pestaña, mensaje y detalle tecnico. Asi JC se entera sin pedir captura F12.
+// Recoge: (1) errores no controlados (window 'error'), (2) promesas fallidas
+// sin catch ('unhandledrejection') y (3) los console.error que ya pone la app
+// en sus catch (son fallos reales: carga de datos, guardados, IA...).
+// FRENOS: el mismo error solo se manda UNA vez por sesion y como mucho 30
+// por sesion; se ignora el ruido del navegador (ResizeObserver, extensiones).
+// Si falla el propio chivato, NO hace nada (nunca rompe la app).
+// El admin ve un boton ⚠ en la cabecera con los errores nuevos.
+// REQUIERE la tabla errores_app (SQL errores_app_v706.sql).
+// ============================================================================
+const _ERR_MAX_SESION = 30;
+const _errVistos = new Set();
+let _errCola = [];
+let _errEnviados = 0;
+let _errDentro = false;
+const _errConsoleOrig = console.error.bind(console);
+function _errVersion() {
+  try { const s = document.querySelector('script[src*="app.js"]'); const m = s && s.src.match(/[?&]v=?(\d+)/); return m ? 'v' + m[1] : '?'; } catch (e) { return '?'; }
+}
+function _errTexto(x) {
+  try {
+    if (x == null) return String(x);
+    if (x instanceof Error) return (x.name || 'Error') + ': ' + x.message;
+    if (typeof x === 'object') { if (x.message) return String(x.message) + (x.code ? ' [' + x.code + ']' : '') + (x.details ? ' · ' + x.details : ''); return JSON.stringify(x).slice(0, 400); }
+    return String(x);
+  } catch (e) { return '(no se pudo leer)'; }
+}
+function _errRuido(msg, fichero) {
+  const m = String(msg || '');
+  if (/ResizeObserver loop/i.test(m)) return true;
+  if (/^Script error\.?$/i.test(m.trim())) return true;               // error de otra web/extension sin datos
+  if (/chrome-extension:|moz-extension:|safari-extension:/i.test(String(fichero || '') + m)) return true;
+  return false;
+}
+function _errRegistrar(tipo, mensaje, detalle) {
+  if (_errDentro) return;
+  _errDentro = true;
+  try {
+    mensaje = String(mensaje || '').slice(0, 500);
+    const clave = tipo + '|' + mensaje.slice(0, 200);
+    if (_errVistos.has(clave) || _errEnviados >= _ERR_MAX_SESION) return;
+    _errVistos.add(clave); _errEnviados++;
+    let pantalla = '';
+    try { const t = document.querySelector('.tab.active'); pantalla = t ? t.id.replace(/^tab/, '') : ''; } catch (e) {}
+    let nombre = '';
+    try { nombre = (document.getElementById('hdrUser') || {}).textContent || ''; } catch (e) {}
+    _errCola.push({
+      usuario: nombre.slice(0, 80), version: _errVersion(), pantalla: pantalla,
+      tipo: tipo, mensaje: mensaje, detalle: String(detalle || '').slice(0, 2000),
+      url: String(location.pathname + location.search).slice(0, 200),
+      navegador: String(navigator.userAgent || '').slice(0, 200)
+    });
+    _errFlush();
+  } catch (e) { /* el chivato nunca rompe nada */ } finally { _errDentro = false; }
+}
+async function _errFlush() {
+  try {
+    if (!_errCola.length) return;
+    let uid = null;
+    try { uid = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null; } catch (e) {}
+    if (!uid) return;                          // sin sesion: se guardan y se mandan al entrar
+    const lote = _errCola.splice(0, _errCola.length).map(f => Object.assign({ user_id: uid }, f));
+    const { error } = await sb.from('errores_app').insert(lote);
+    if (error) console.warn('[v706] chivato no pudo guardar:', error.message);
+  } catch (e) { try { console.warn('[v706] chivato:', e); } catch (e2) {} }
+}
+window.addEventListener('error', function (ev) {
+  try {
+    if (_errRuido(ev.message, ev.filename)) return;
+    const d = (ev.error && ev.error.stack) ? ev.error.stack : ((ev.filename || '') + ':' + (ev.lineno || '') + ':' + (ev.colno || ''));
+    _errRegistrar('error', ev.message || _errTexto(ev.error), d);
+  } catch (e) {}
+});
+window.addEventListener('unhandledrejection', function (ev) {
+  try {
+    const r = ev.reason;
+    const msg = _errTexto(r);
+    if (_errRuido(msg, r && r.stack)) return;
+    _errRegistrar('promesa', msg, r && r.stack ? r.stack : '');
+  } catch (e) {}
+});
+console.error = function () {
+  _errConsoleOrig.apply(null, arguments);
+  try {
+    const partes = Array.prototype.map.call(arguments, _errTexto);
+    const msg = partes.join(' ');
+    if (_errRuido(msg)) return;
+    let pila = '';
+    for (let i = 0; i < arguments.length; i++) { if (arguments[i] && arguments[i].stack) { pila = arguments[i].stack; break; } }
+    _errRegistrar('consola', msg, pila);
+  } catch (e) {}
+};
+
+// --- Boton del admin en la cabecera + visor ---
+const _ERR_VISTO_KEY = 'errores_visto_hasta';
+async function _errBadge() {
+  try {
+    if (currentRole !== 'admin') return;
+    const el = document.getElementById('hdrErrores');
+    if (!el) return;
+    const desde = localStorage.getItem(_ERR_VISTO_KEY) || '1970-01-01T00:00:00Z';
+    const { count, error } = await sb.from('errores_app').select('id', { count: 'exact', head: true }).gt('created_at', desde);
+    if (error) { el.style.display = 'none'; return; }
+    el.style.display = 'inline-flex';
+    el.textContent = count ? ('⚠ ' + count + ' error' + (count === 1 ? '' : 'es')) : '✓ sin errores';
+    el.style.background = count ? '#c62828' : '#2e7d32';
+  } catch (e) {}
+}
+function _errEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+async function verErroresApp() {
+  let caja = document.getElementById('errAppModal');
+  if (caja) caja.remove();
+  caja = document.createElement('div');
+  caja.id = 'errAppModal';
+  caja.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:30px 10px;overflow:auto';
+  caja.innerHTML = '<div style="background:#fff;color:#111;border-radius:10px;max-width:1100px;width:100%;padding:16px 18px;font-size:13px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<b style="font-size:16px">⚠ Errores de la app (últimos 14 días)</b>' +
+    '<span><button class="btn bs" id="errAppProbar">🧪 Probar chivato</button> ' +
+    '<button class="btn bs" id="errAppVisto">✓ Marcar todo como visto</button> ' +
+    '<button class="btn bs" id="errAppCerrar">Cerrar</button></span></div>' +
+    '<div style="color:#555;margin:6px 0 10px">Agrupados por mensaje. En <b>negrita</b> los nuevos desde la última vez que marcaste. Pincha una fila para ver el detalle técnico (cópialo y pásaselo a Claude).</div>' +
+    '<div id="errAppCuerpo">Cargando…</div></div>';
+  document.body.appendChild(caja);
+  caja.querySelector('#errAppCerrar').onclick = () => caja.remove();
+  caja.addEventListener('click', ev => { if (ev.target === caja) caja.remove(); });
+  caja.querySelector('#errAppVisto').onclick = () => { localStorage.setItem(_ERR_VISTO_KEY, new Date().toISOString()); _errBadge(); verErroresApp(); };
+  caja.querySelector('#errAppProbar').onclick = () => { setTimeout(() => { throw new Error('Prueba del chivato ' + _errVersion() + ' ' + new Date().toLocaleTimeString('es-ES')); }, 0); toast('Error de prueba lanzado. Espera 3 s…', 'ok'); setTimeout(() => { _errBadge(); verErroresApp(); }, 3000); };
+  const cuerpo = caja.querySelector('#errAppCuerpo');
+  try {
+    const desde14 = new Date(Date.now() - 14 * 86400000).toISOString();
+    const { data, error } = await sb.from('errores_app').select('*').gte('created_at', desde14).order('created_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    if (!data || !data.length) { cuerpo.innerHTML = '<div style="padding:20px;text-align:center;color:#2e7d32;font-weight:700">✓ Ningún error en los últimos 14 días</div>'; return; }
+    const visto = localStorage.getItem(_ERR_VISTO_KEY) || '1970-01-01T00:00:00Z';
+    const grupos = new Map();
+    data.forEach(r => {
+      const k = (r.tipo || '') + '|' + (r.mensaje || '').slice(0, 200);
+      if (!grupos.has(k)) grupos.set(k, { ultimo: r, veces: 0, usuarios: new Set(), versiones: new Set(), pantallas: new Set(), nuevo: false });
+      const g = grupos.get(k);
+      g.veces++; if (r.usuario) g.usuarios.add(r.usuario); if (r.version) g.versiones.add(r.version); if (r.pantalla) g.pantallas.add(r.pantalla);
+      if (r.created_at > visto) g.nuevo = true;
+    });
+    const fmt = iso => { try { return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso; } };
+    let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:#eee;text-align:left">' +
+      '<th style="padding:6px">Última vez</th><th style="padding:6px">Veces</th><th style="padding:6px">Quién</th><th style="padding:6px">Pestaña</th><th style="padding:6px">Versión</th><th style="padding:6px">Error</th></tr></thead><tbody>';
+    let i = 0;
+    grupos.forEach(g => {
+      const r = g.ultimo; const fw = g.nuevo ? '700' : '400';
+      html += '<tr data-i="' + i + '" style="border-top:1px solid #ddd;cursor:pointer;font-weight:' + fw + ';white-space:normal">' +
+        '<td style="padding:6px;white-space:nowrap">' + fmt(r.created_at) + '</td>' +
+        '<td style="padding:6px;text-align:center">' + g.veces + '</td>' +
+        '<td style="padding:6px">' + _errEsc([...g.usuarios].join(', ')) + '</td>' +
+        '<td style="padding:6px">' + _errEsc([...g.pantallas].join(', ')) + '</td>' +
+        '<td style="padding:6px">' + _errEsc([...g.versiones].join(', ')) + '</td>' +
+        '<td style="padding:6px;word-break:break-word">' + _errEsc(r.mensaje) + '</td></tr>' +
+        '<tr id="errAppDet' + i + '" style="display:none"><td colspan="6" style="padding:6px 10px;background:#f7f7f7"><pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;margin:0">' +
+        _errEsc('Tipo: ' + r.tipo + '\nFecha: ' + r.created_at + '\nUsuario: ' + r.usuario + '\nVersión: ' + r.version + '\nPestaña: ' + r.pantalla + '\nURL: ' + r.url + '\nNavegador: ' + r.navegador + '\nMensaje: ' + r.mensaje + '\nDetalle:\n' + (r.detalle || '(sin detalle)')) +
+        '</pre></td></tr>';
+      i++;
+    });
+    html += '</tbody></table></div>';
+    cuerpo.innerHTML = html;
+    cuerpo.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { const d = document.getElementById('errAppDet' + tr.dataset.i); if (d) d.style.display = d.style.display === 'none' ? '' : 'none'; });
+  } catch (e) {
+    cuerpo.innerHTML = '<div style="color:#c62828">No se pudieron leer los errores: ' + _errEsc(_errTexto(e)) + '<br>¿Está creada la tabla errores_app (SQL de la v706)?</div>';
+  }
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -1189,6 +1362,7 @@ async function onLogin(user) {
     .select('role, name, puede_fichar, puede_ver_itv, puede_ver_taller, puede_ver_neumaticos, puede_ver_vacaciones')
     .eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
+  try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
