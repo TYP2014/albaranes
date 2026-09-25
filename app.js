@@ -9996,14 +9996,17 @@ function _liqTotales() {
   const conIva = _liqR2(subAlb + _liqLineas.filter(l => l.tipo === 'iva').reduce((a, l) => a + (Number(l.importe) || 0), 0));
   const sinIva = _liqR2(_liqLineas.filter(l => l.tipo === 'siniva').reduce((a, l) => a + (Number(l.importe) || 0), 0));
   const suplidos = _liqR2(_liqLineas.filter(l => l.tipo === 'suplido').reduce((a, l) => a + (Number(l.importe) || 0), 0));
+  // v710: GASTOS a descontar (recambios, aceite... que le pagamos nosotros). Van DESPUES del pronto
+  // pago y ANTES de la base (cadena: subtotal → −2% → −gastos → base → −IRPF → +IVA). Se meten en positivo.
+  const gastos = _liqR2(_liqLineas.filter(l => l.tipo === 'gasto').reduce((a, l) => a + Math.abs(Number(l.importe) || 0), 0));
   const subtotal = _liqR2(conIva + sinIva);
   const pp = _liqR2(subtotal * c.pp / 100);
-  const base = _liqR2(subtotal - pp);
+  const base = _liqR2(subtotal - pp - gastos);
   const irpf = _liqR2(base * c.irpf / 100);
-  const baseIva = _liqR2(conIva - conIva * c.pp / 100);
+  const baseIva = _liqR2(conIva - conIva * c.pp / 100 - gastos);
   const iva = _liqR2(baseIva * c.iva / 100);
   const total = _liqR2(base - irpf + iva + suplidos);
-  return { subAlb, conIva, sinIva, suplidos, subtotal, pp, base, irpf, baseIva, iva, total };
+  return { subAlb, conIva, sinIva, suplidos, gastos, subtotal, pp, base, irpf, baseIva, iva, total };
 }
 function liqRender() {
   const out = document.getElementById('liqAutOut');
@@ -10031,13 +10034,13 @@ function liqRender() {
     h += '</tbody></table></div>';
   }
   // Lineas a mano
-  h += '<div style="margin-top:14px;font-weight:700;font-size:13px">➕ Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:11.5px">(paralizaciones, horas, peajes, otros… no se guardan: van al Excel)</span></div>';
+  h += '<div style="margin-top:14px;font-weight:700;font-size:13px">➕ Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:11.5px">(paralizaciones, gastos a descontar como recambios o aceite, peajes… no se guardan: van al Excel)</span></div>';
   _liqLineas.forEach((l, i) => {
     h += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">' +
       '<input value="' + esc(l.concepto || '') + '" placeholder="Concepto" oninput="_liqLineas[' + i + '].concepto=this.value" style="flex:2;min-width:180px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px">' +
       '<input type="number" step="0.01" value="' + (l.importe === '' || l.importe == null ? '' : l.importe) + '" placeholder="Importe €" onchange="_liqLineas[' + i + '].importe=this.value===\'\'?\'\':parseFloat(this.value);liqRender()" style="width:120px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;text-align:right">' +
       '<select onchange="_liqLineas[' + i + '].tipo=this.value;liqRender()" style="padding:6px;border:1px solid var(--bd);border-radius:6px">' +
-        [['siniva','Sin IVA (paralización)'],['iva','Con IVA'],['suplido','Suplido (peaje)']].map(o => '<option value="' + o[0] + '"' + (l.tipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
+        [['siniva','Sin IVA (paralización)'],['iva','Con IVA'],['gasto','Gasto a descontar (recambio, aceite…)'],['suplido','Suplido (peaje)']].map(o => '<option value="' + o[0] + '"' + (l.tipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
       '</select><button class="btn bs" style="padding:5px 9px" onclick="_liqLineas.splice(' + i + ',1);liqRender()">🗑</button></div>';
   });
   h += '<button class="btn bs" style="margin-top:8px;font-size:11px" onclick="_liqLineas.push({concepto:\'\',importe:\'\',tipo:\'siniva\'});liqRender()">+ Añadir línea</button>';
@@ -10050,9 +10053,10 @@ function liqRender() {
     (T.sinIva ? fila('Líneas sin IVA (paralizaciones)', T.sinIva) : '') +
     fila('Subtotal', T.subtotal) +
     fila('−' + c.pp + '% pronto pago', -T.pp) +
+    (T.gastos ? fila('− Gastos a descontar', -T.gastos) : '') +
     fila('Base imponible', T.base) +
     fila('−' + c.irpf + '% IRPF', -T.irpf) +
-    fila('+' + c.iva + '% IVA' + (T.sinIva ? ' (sobre ' + E(T.baseIva) + ')' : ''), T.iva) +
+    fila('+' + c.iva + '% IVA' + ((T.sinIva || T.gastos) ? ' (sobre ' + E(T.baseIva) + ')' : ''), T.iva) +
     (T.suplidos ? fila('Suplidos (peajes)', T.suplidos) : '') +
     fila('TOTAL FACTURA', T.total, true) + '</table></div>';
   h += '<div style="margin-top:12px;text-align:right"><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel</button></div>';
@@ -10076,8 +10080,8 @@ function liqExcel() {
   if (lineas.length) {
     aoa.push([]);
     aoa.push(['Otras líneas', '', '', '', '', '', '', 'Tipo', 'Importe']);
-    const tt = { siniva: 'Sin IVA', iva: 'Con IVA', suplido: 'Suplido' };
-    lineas.forEach(l => aoa.push([l.concepto || '', '', '', '', '', '', '', tt[l.tipo] || '', Number(l.importe) || 0]));
+    const tt = { siniva: 'Sin IVA', iva: 'Con IVA', gasto: 'Gasto a descontar', suplido: 'Suplido' };
+    lineas.forEach(l => aoa.push([l.concepto || '', '', '', '', '', '', '', tt[l.tipo] || '', l.tipo === 'gasto' ? -Math.abs(Number(l.importe) || 0) : (Number(l.importe) || 0)]));
   }
   aoa.push([]);
   const add = (t, v) => aoa.push(['', '', '', '', '', '', '', t, v]);
@@ -10086,6 +10090,7 @@ function liqExcel() {
   if (T.sinIva) add('Líneas sin IVA', T.sinIva);
   add('Subtotal', T.subtotal);
   add('-' + c.pp + '% pronto pago', -T.pp);
+  if (T.gastos) add('- Gastos a descontar', -T.gastos);
   add('Base imponible', T.base);
   add('-' + c.irpf + '% IRPF', -T.irpf);
   add('+' + c.iva + '% IVA', T.iva);
