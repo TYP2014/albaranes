@@ -9429,6 +9429,7 @@ function renderPendientes() {
   const warns  = records.filter(r => !r._dup && (r._quality === 'warn' || r._quality === 'ilegible')).length;
   const dups   = records.filter(r => r._dup).length;
   const posDups = records.filter(r => r._posDup).length; // v351
+  const amarillos = records.filter(r => r.marca_revisar).length; // v718
 
   // ITVs solo cuentan si el usuario tiene permiso para verlas (puede_ver_itv=TRUE)
   let itvCad = 0, itvAvi = 0;
@@ -9438,7 +9439,7 @@ function renderPendientes() {
     itvAvi = itvRecords.filter(r => _itvEstado(r).tipo === 'aviso').length;
   }
 
-  const total = pendIA + matDes + warns + dups + posDups + itvCad + itvAvi;
+  const total = pendIA + matDes + warns + dups + posDups + itvCad + itvAvi + amarillos;
   if (total === 0) {
     box.innerHTML = `<div class="pend-ok">✓ Todo al día — sin pendientes</div>`;
     return;
@@ -9450,6 +9451,7 @@ function renderPendientes() {
   if (dups)   chips.push({ic:'⛔', n:dups,   tx:'duplicados',        cls:'pend-er', click:`filterByStatus('dup')`});
   if (posDups) chips.push({ic:'🔁', n:posDups, tx:'posibles duplicados', cls:'pend-wn', click:`filterByStatus('posdup')`}); // v351
   if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
+  if (amarillos) chips.push({ic:'🟡', n:amarillos, tx:'marcados para revisar', cls:'pend-wn', click:`filterByStatus('amarillo')`}); // v718
   if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
   if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
   if (itvAvi) chips.push({ic:'⚠️', n:itvAvi, tx:`ITVs <${ITV_AVISO_DIAS}d`, cls:'pend-wn', click:`switchTab('itv')`});
@@ -10763,6 +10765,8 @@ function applyFilters() {
     if (estado === 'ok' && (r._dup || r._quality !== 'ok')) return false;
     if (estado === 'dup' && !r._dup) return false;
     if (estado === 'posdup' && !r._posDup) return false; // v351
+    if (estado === 'amarillo' && !r.marca_revisar) return false; // v718
+    if (estado === 'naranja' && !r.revisar_pago) return false;  // v718
     if (estado === 'warn' && (r._dup || (r._quality !== 'warn' && r._quality !== 'ilegible'))) return false;
     // v91: filtro para ver solo los albaranes con matrícula desconocida (rellena pero
     // no en TRANSPORTISTAS oficiales ni aprendidas). Pensado para que el admin revise y
@@ -11246,9 +11250,42 @@ function _facturacionModalHtml(r) {
         title="Para albaranes ya pagados al subcontratado (p. ej. sustitutos o que el cliente paga otro mes): marca naranja; se ve en la tabla y en el Excel, y NO entra en la Liquidación de subcontratados. Al cliente se le sigue facturando igual.">
         🟠 ${r.revisar_pago ? 'YA PAGADO AL SUBCONTRATADO — no entra en su liquidación (pulsa para quitar)' : 'Marcar: ya pagado al subcontratado (no entra en su liquidación)'}
       </button>
+    </div>
+    <div style="margin-top:6px">
+      <button onclick="event.stopPropagation();marcarRevisarGeneral('${id}')"
+        style="width:100%;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;
+               border:1px solid ${r.marca_revisar ? '#ca8a04' : 'var(--bd)'};
+               background:${r.marca_revisar ? '#facc15' : 'var(--bg2)'};
+               color:${r.marca_revisar ? '#422006' : 'var(--tx)'}"
+        title="Para acordarnos de mirar algo: dato mal, error del conductor, destino cambiado a boli... No cambia nada del albarán ni de su facturación.">
+        🟡 ${r.marca_revisar ? 'MARCADO PARA REVISAR' + (r.marca_revisar_nota ? ': ' + esc(r.marca_revisar_nota) : '') + ' (pulsa para quitar)' : 'Marcar para revisar (algo mal, destino a boli, pendiente…)'}
+      </button>
     </div>`;
 }
 
+// v718: MARCA AMARILLA 🟡 "revisar" (algo mal, error del conductor, destino cambiado a boli, pendiente...).
+// Solo es un recordatorio: no toca facturacion, ni liquidacion, ni el resto del albaran. Nota opcional.
+async function marcarRevisarGeneral(id) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  if (!r.db_id) { toast('Este albarán aún no está guardado en la base de datos', 'err'); return; }
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso', 'err'); return; }
+  const nuevo = !r.marca_revisar;
+  let nota = null;
+  if (nuevo) { nota = prompt('¿Qué hay que revisar? (opcional, ej. "destino cambiado a boli")', ''); if (nota === null) return; nota = nota.trim() || null; }
+  const antes = { m: r.marca_revisar, n: r.marca_revisar_nota };
+  r.marca_revisar = nuevo; r.marca_revisar_nota = nota;
+  if (editId && (String(editId) === String(id))) { const cont = document.getElementById('mFacturacion'); if (cont) cont.innerHTML = _facturacionModalHtml(r); }
+  renderTable(); try { renderPendientes(); } catch (e) {}
+  try {
+    const { error } = await sb.from('albaranes').update({ marca_revisar: nuevo, marca_revisar_nota: nota }).eq('id', r.db_id);
+    if (error) throw error;
+    toast(nuevo ? '🟡 Marcado para revisar' : 'Marca amarilla quitada', 'ok');
+  } catch (e) {
+    r.marca_revisar = antes.m; r.marca_revisar_nota = antes.n; renderTable();
+    toast('⚠️ No se pudo guardar la marca: ' + (e.message || e), 'err');
+  }
+}
 // v252: alterna la marca naranja "revisar antes de abonar" (albaranes sustitutos
 // ya pagados al transportista). Guardado instantáneo, mismo patrón que facturación.
 async function marcarRevisarPago(id) {
@@ -11666,7 +11703,7 @@ function renderTable() {
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
-      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : ''}" ${r.revisar_pago ? 'title="🟠 REVISAR ANTES DE ABONAR (sustituto ya pagado)"' : ''}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : ''}">${r.albaran || '—'}</span></td>
+      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : (r.marca_revisar ? 'background:#facc15;box-shadow:inset 0 0 0 2px #ca8a04;' : '')}" ${r.revisar_pago ? 'title="🟠 YA PAGADO AL SUBCONTRATADO (no entra en su liquidación)' + (r.marca_revisar ? ' · 🟡 además marcado para revisar' : '') + '"' : (r.marca_revisar ? 'title="🟡 REVISAR' + (r.marca_revisar_nota ? ': ' + esc(r.marca_revisar_nota).replace(/"/g, '&quot;') : '') + '"' : '')}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : (r.marca_revisar ? ';background:#fef9c3;color:#713f12;font-weight:700' : '')}">${r.albaran || '—'}</span></td>
       <td class="celda-anexo" style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()">${(Array.isArray(r.anexos) && r.anexos.length > 0)
         ? `<button type="button" class="btn-anexo" onclick="event.stopPropagation();_descargarAnexosAlb('${r.db_id || r._id}')" title="Descargar ${r.anexos.length > 1 ? 'los ' + r.anexos.length + ' anexos en un ZIP' : 'el anexo'} directamente (sin abrir)">⬇ 📎${r.anexos.length > 1 ? ' <b>' + r.anexos.length + '</b>' : ''}</button>`
         : `<span style="color:var(--mu);opacity:.4">—</span>`}</td>
