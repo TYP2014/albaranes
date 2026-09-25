@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v721 (25/09/2026): QUITADOS de Albaranes los botones "➕ Albarán a mano" y "🧾 Facturas recibidas" (ocultos para todos, display none). El codigo (nuevoAlbaranManual, abrirResumenFacturas) se CONSERVA: para recuperarlos basta volver a poner las dos lineas de v241/v107K28. Nada mas dependia de ellos; los albaranes creados a mano siguen y el filtro Marcas → '✍️ Creados a mano' los encuentra. NO requiere SQL. VUELTA ATRAS: resubir v720.
+
 v720 (25/09/2026): Nombres de los FILTROS (Fecha desde, Proveedor, Marcas, TN, Nº albarán... en Albaranes y demas pestañas con .fil-label) en NEGRO, NEGRITA y algo mas grandes (12,5px) para que se lean mejor. Solo CSS en index.html; app.js igual que v719. Incluye v719 (que no llego a subirse). NO requiere SQL. VUELTA ATRAS: resubir v718.
 
 v719 (25/09/2026): FILTRO 'MARCAS' en Albaranes. El boton '✍️ Solo a mano' pasa a ser un desplegable 'Marcas' con: Todos · 🟡 Para revisar · 🟠 Ya pagado subcont. · 🟡+🟠 Cualquier marca · ✍️ Creados a mano · ✏️ Editados a mano (_manual). Se combina con fecha y demas filtros; 'Limpiar' lo resetea. Las opciones 🟡/🟠 que la v718 habia metido en 'Estado' se quitan de ahi (ahora estan en Marcas). El chip '🟡 N marcados para revisar' de Pendientes usa este filtro. NO requiere SQL. VUELTA ATRAS: resubir v718.

@@ -577,7 +577,8 @@ async function loadUserMap() {
       const _veTodo = _esAdminFinal || _esMariaDelMar || _esMarta || _esLogistica;
       try { window._veOficina = !!_veTodo; } catch (e) {}   // v646: tarjeta Papelera solo para los 4 de oficina
       // v241: el botón "➕ Albarán a mano" solo lo ven/usan esos 4 (oficina). Nadie más.
-      try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = _veTodo ? 'flex' : 'none'; } catch (e) {}
+      // v721 (25/09/2026): Juan Carlos quita el boton "➕ Albarán a mano" (oculto para todos; el codigo nuevoAlbaranManual() se conserva).
+      try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = 'none'; } catch (e) {}
 
       // v107GA: la tarjeta "Autofactura HOLCIM" SOLO la ve/usa el admin (Juan Carlos),
       // aunque la pestaña Facturación la vean también MdM/Marta/Logística. El de CEMEX
@@ -10674,7 +10675,8 @@ function applyFilters() {
   if (_rw) _rw.style.display = (typeof _puedeSeleccionMultiple === 'function' && _puedeSeleccionMultiple()) ? '' : 'none';
   // v107K28: el botón "Facturas recibidas" (resumen) también solo Admin/Marta/Mª del Mar.
   const _rb = document.getElementById('btnResFact');
-  if (_rb) _rb.style.display = (typeof _puedeSeleccionMultiple === 'function' && _puedeSeleccionMultiple()) ? 'flex' : 'none';
+  // v721 (25/09/2026): boton "Facturas recibidas" OCULTO para todos (abrirResumenFacturas() se conserva).
+  if (_rb) _rb.style.display = 'none';
   const desde = document.getElementById('fDesde')?.value, hasta = document.getElementById('fHasta')?.value;
   // v107J51 (FASE 3): si JC busca una fecha "desde" ANTERIOR al corte de 3 meses y todavía
   // no se ha cargado el histórico completo, avisar para que cargue todo (si no, parecería
