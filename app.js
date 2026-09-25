@@ -9931,7 +9931,8 @@ function _resFactDatos() {
 // ============================================================================
 const _LIQ_CLIENTES = {
   PORTES: [['Empresa:', 'PORTES 2014 IMPORT, S.L.'], ['C.I.F.:', 'B 02657435'], ['Dirección:', 'C/ JARCHA Nº11'], ['CP / Ciudad:', '41100, CORIA DEL RIO'], ['Provincia:', 'SEVILLA']],
-  TYP:    [['Empresa:', 'TRANSPORTES Y PORTES 2014, S.L.'], ['C.I.F.:', 'B90172735'], ['Dirección:', 'C/ JARCHA Nº11'], ['CP / Ciudad:', '41100, CORIA DEL RIO'], ['Provincia:', 'SEVILLA']]
+  TYP:    [['Empresa:', 'TRANSPORTES Y PORTES 2014, S.L.'], ['C.I.F.:', 'B90172735'], ['Dirección:', 'C/ JARCHA Nº11'], ['CP / Ciudad:', '41100, CORIA DEL RIO'], ['Provincia:', 'SEVILLA']],
+  HISPALIS: [['Empresa:', 'TRANSPORTES HISPALIS 2016, S.L.'], ['C.I.F.:', 'B90286337'], ['Dirección:', 'C/ JARCHA Nº11'], ['CP / Ciudad:', '41100, CORIA DEL RIO'], ['Provincia:', 'SEVILLA']]
 };
 const _p2 = n => String(n).padStart(2, '0');
 // Nº de factura: se PROPONE segun la serie de cada uno (se puede cambiar en pantalla).
@@ -9951,7 +9952,14 @@ const LIQ_AUTONOMOS = {
   // v713: Antonio Martín (cisterna). Él se hace SU factura: se le manda el cuadrante con la SIMULACIÓN.
   // Sus datos fiscales se cogen de DeCA → 👥 Subcontratados.
   'ANTONIO MARTIN': { corto: 'Antonio Martín', fichero: 'ANTONIO_MARTIN', cliente: 'PORTES', pp: 2, irpf: 1, iva: 21, cisterna: true, margen: 7,
-    facturaPropia: true, emisorDeca: true, emisor: [['Nombre:', 'ANTONIO MARTIN ROSILLO']], numero: () => '' }
+    facturaPropia: true, emisorDeca: true, emisor: [['Nombre:', 'ANTONIO MARTIN ROSILLO']], numero: () => '' },
+  // v715: EMPRESAS subcontratadas. Se hacen su factura → SIMULACIÓN. Sin IRPF. 'Factura a' se elige en pantalla.
+  'ARIDFLOT': { corto: 'Aridflot (empresa)', fichero: 'ARIDFLOT', cliente: 'TYP', clienteElegible: true, empresa: true, pp: 2, irpf: 0, iva: 21,
+    facturaPropia: true, emisorDeca: true, emisor: [['Empresa:', 'ARIDFLOT, S.L.']], numero: () => '' },
+  'T. SATIG 79': { corto: 'T. Satig 79 (empresa)', fichero: 'SATIG', cliente: 'TYP', clienteElegible: true, empresa: true, pp: 0, irpf: 0, iva: 21,
+    facturaPropia: true, emisorDeca: true, emisor: [['Empresa:', 'T. SATIG 79']], nota: 'Forma de pago: 60 días', numero: () => '' },
+  'OP TRANS V.': { corto: 'OP Trans Vallès (empresa)', fichero: 'OP_TRANS', cliente: 'TYP', clienteElegible: true, empresa: true, pp: 0, irpf: 0, iva: 21,
+    facturaPropia: true, emisorDeca: true, emisor: [['Empresa:', 'OP TRANS VALLES, S.L.']], nota: 'Forma de pago: 60 días', numero: () => '' }
 };
 // v713: PRECIO de cada fila. Manda el que se escriba A MANO en pantalla; si no, el calculado
 // (cisternas: preliquidación Holcim/CEMEX − margen, sin decirlo en ningún sitio; resto: precio propio o tarifa).
@@ -10040,9 +10048,9 @@ async function liqCalcular() {
   if (cfg.emisorDeca) {
     try { if (typeof _decaSubs === 'undefined' || !_decaSubs || !_decaSubs.length) await _decaCargarSubs(); } catch (e) {}
     const s = (typeof _decaSubs !== 'undefined' && _decaSubs || []).find(x => _decaNrm(x.nombre) === _decaNrm(key));
-    if (s) emisor = [['Nombre:', s.razon_social || s.nombre], ['N.I.F.:', s.nif || ''], ['Dirección:', s.domicilio || '']];
+    if (s) emisor = [[cfg.empresa ? 'Empresa:' : 'Nombre:', s.razon_social || s.nombre], [cfg.empresa ? 'C.I.F.:' : 'N.I.F.:', s.nif || ''], ['Dirección:', s.domicilio || '']];
   }
-  _liqDatos = { key, cfg, anio, mes, filas, repetidos, sinPreliq, fueraVentana, emisor, numero: cfg.numero(anio, mes) };
+  _liqDatos = { key, cfg, anio, mes, filas, repetidos, sinPreliq, fueraVentana, emisor, cliente: cfg.cliente, numero: cfg.numero(anio, mes) };
   _liqLineas = [];
   liqRender();
 }
@@ -10075,7 +10083,7 @@ function liqRender() {
   if (!d.filas.length) { h += '<div style="padding:12px;color:var(--mu)">No hay albaranes de ' + esc(c.corto) + ' en ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio + '.</div>'; }
   else {
     const act = _liqActivas(); const quit = d.filas.length - act.length;
-    h += '<div style="font-size:12px;color:var(--mu);margin-bottom:6px">' + act.length + ' albaranes · ' + act.reduce((a, x) => a + x.tm, 0).toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' TN · factura a ' + esc(_LIQ_CLIENTES[c.cliente][0][1]) + (c.cisterna ? ' · 💧 precios de las preliquidaciones' + (d.sinPreliq ? ' (' + d.sinPreliq + ' sin encontrar)' : '') : '') + ' · <span style="color:var(--tx)">quita la casilla ☑ de los que no entran (ya pagados otro mes…)</span></div>';
+    h += '<div style="font-size:12px;color:var(--mu);margin-bottom:6px">' + act.length + ' albaranes · ' + act.reduce((a, x) => a + x.tm, 0).toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' TN · factura a ' + (c.clienteElegible ? '<select onchange="_liqDatos.cliente=this.value;liqRender()" style="padding:2px 4px;border:1px solid var(--bd);border-radius:5px;font-size:11.5px">' + Object.keys(_LIQ_CLIENTES).map(k => '<option value="' + k + '"' + (d.cliente === k ? ' selected' : '') + '>' + esc(_LIQ_CLIENTES[k][0][1]) + '</option>').join('') + '</select>' : esc(_LIQ_CLIENTES[d.cliente || c.cliente][0][1])) + (c.cisterna ? ' · 💧 precios de las preliquidaciones' + (d.sinPreliq ? ' (' + d.sinPreliq + ' sin encontrar)' : '') : '') + ' · <span style="color:var(--tx)">quita la casilla ☑ de los que no entran (ya pagados otro mes…)</span></div>';
     if (quit) h += '<div style="background:rgba(245,158,11,.14);border:1px solid #d97706;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12.5px;color:#7a4b00">🟠 ' + quit + ' albarán(es) QUITADO(S) de esta liquidación: ' + E(d.filas.filter(x => _liqQuitados.has(_liqIdFila(x))).reduce((a, x) => a + _liqImp(x), 0)) + ' — no entran en la factura ni en el Excel (salen apuntados en la pestaña Resumen). El albarán no se toca.</div>';
     h += '<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--s2);text-align:left;position:sticky;top:0">' +
       ['Entra','Fecha','Nº albarán','Tractora','Origen','Destino','Material','TN','€/TN','Importe'].map((x, i) => '<th style="padding:6px' + (i >= 7 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
@@ -10105,12 +10113,13 @@ function liqRender() {
   tb += fila('Total albaranes', T.subAlb);
   lin('iva').forEach(l => { tb += fila(esc(l.concepto || 'Otro con IVA'), Math.abs(l.importe)); });
   lin('alquiler').forEach(l => { tb += fila(esc(l.concepto || 'Alquiler semirremolque'), -Math.abs(l.importe)); });
-  tb += fila('Subtotal', T.subtotal) + fila('−' + c.pp + '% pronto pago', -T.pp);
+  tb += fila('Subtotal', T.subtotal) + (c.pp ? fila('−' + c.pp + '% pronto pago', -T.pp) : '');
   lin('gasto').forEach(l => { tb += fila('− ' + esc(l.concepto || 'Gasto'), -Math.abs(l.importe)); });
-  tb += fila('Base imponible', T.base) + fila('−' + c.irpf + '% IRPF', -T.irpf) + fila('+' + c.iva + '% IVA', T.iva);
+  tb += fila('Base imponible', T.base) + (c.irpf ? fila('−' + c.irpf + '% IRPF', -T.irpf) : '') + fila('+' + c.iva + '% IVA', T.iva);
   lin('siniva').forEach(l => { tb += fila(esc(l.concepto || 'Paralización') + ' (exento IVA, −' + c.pp + '%)', Math.abs(l.importe) * (1 - c.pp / 100)); });
   lin('suplido').forEach(l => { tb += fila(esc(l.concepto || 'Suplido') + ' (sin IVA)', Math.abs(l.importe)); });
   tb += fila('TOTAL FACTURA', T.total, true);
+  if (c.nota) tb += '<tr><td colspan="2" style="padding:4px 10px;font-size:12px;color:var(--mu)">' + esc(c.nota) + '</td></tr>';
   h += '<div style="margin-top:14px;display:flex;justify-content:flex-end"><table style="border-collapse:collapse;font-size:13px;min-width:360px;border:1px solid var(--bd);border-radius:8px">' + tb + '</table></div>';
   h += '<div style="margin-top:12px;text-align:right"><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel (Albaranes + Factura + Resumen)</button></div>';
   out.innerHTML = h;
@@ -10158,8 +10167,8 @@ function liqExcel() {
   put(F, 'E3', 'FECHA', sLbl); put(F, 'F3', _p2(fechaFra.getDate()) + '/' + _p2(d.mes) + '/' + d.anio, { font: { name: 'Arial', sz: 10 } });
   const sSec = { font: { name: 'Arial', sz: 10, bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F4E79' } } };
   put(F, 'B5', '  DATOS DEL CLIENTE', sSec); put(F, 'C5', '', sSec);
-  put(F, 'E5', '  DATOS DEL EMISOR (AUTÓNOMO)', sSec); put(F, 'F5', '', sSec);
-  _LIQ_CLIENTES[c.cliente].forEach((p, i) => { put(F, 'B' + (6 + i), p[0], sLbl); put(F, 'C' + (6 + i), p[1], { font: { name: 'Arial', sz: 10 } }); });
+  put(F, 'E5', c.empresa ? '  DATOS DEL EMISOR (EMPRESA)' : '  DATOS DEL EMISOR (AUTÓNOMO)', sSec); put(F, 'F5', '', sSec);
+  _LIQ_CLIENTES[d.cliente || c.cliente].forEach((p, i) => { put(F, 'B' + (6 + i), p[0], sLbl); put(F, 'C' + (6 + i), p[1], { font: { name: 'Arial', sz: 10 } }); });
   (d.emisor || c.emisor).forEach((p, i) => { put(F, 'E' + (6 + i), p[0], sLbl); put(F, 'F' + (6 + i), p[1], { font: { name: 'Arial', sz: 10 } }); });
   const T = _liqTotales();
   put(F, 'B13', 'CANTIDAD', sHead); put(F, 'C13', 'CONCEPTO / DESCRIPCIÓN', sHead); put(F, 'D13', '', sHead); put(F, 'E13', 'PRECIO', sHead); put(F, 'F13', 'TOTAL', sHead);
@@ -10177,13 +10186,13 @@ function liqExcel() {
     antes.forEach(l => { const v = l.tipo === 'alquiler' ? -Math.abs(l.importe) : Math.abs(l.importe); sumaSub.push('F' + lineaF((l.concepto || (l.tipo === 'alquiler' ? 'ALQUILER SEMIRREMOLQUE' : 'OTROS')).toUpperCase(), { t: 'n', v })); });
     rSub = lineaF('SUBTOTAL', { t: 'n', f: sumaSub.join('+'), v: T.subtotal }, true);
   }
-  const rPP = lineaF(c.pp + ' % PRONTO PAGO', { t: 'n', f: '-F' + rSub + '*' + (c.pp / 100), v: -T.pp });
-  const sumaBase = ['F' + rSub, 'F' + rPP];
+  const sumaBase = ['F' + rSub];
+  if (c.pp) sumaBase.push('F' + lineaF(c.pp + ' % PRONTO PAGO', { t: 'n', f: '-F' + rSub + '*' + (c.pp / 100), v: -T.pp }));
   _liqLineas.filter(l => l.tipo === 'gasto' && Number(l.importe)).forEach(l => { sumaBase.push('F' + lineaF((l.concepto || 'GASTOS').toUpperCase(), { t: 'n', v: -Math.abs(l.importe) })); });
   const rBase = lineaF('BASE IMPONIBLE', { t: 'n', f: sumaBase.join('+'), v: T.base }, true);
-  const rIrpf = lineaF(c.irpf + ' % I.R.P.F.', { t: 'n', f: '-F' + rBase + '*' + (c.irpf / 100), v: -T.irpf });
+  const rIrpf = c.irpf ? lineaF(c.irpf + ' % I.R.P.F.', { t: 'n', f: '-F' + rBase + '*' + (c.irpf / 100), v: -T.irpf }) : null;
   const rIva = lineaF('I.V.A. ' + c.iva + ' %', { t: 'n', f: 'F' + rBase + '*' + (c.iva / 100), v: T.iva });
-  const sumaTot = ['F' + rBase, 'F' + rIrpf, 'F' + rIva];
+  const sumaTot = ['F' + rBase, 'F' + rIva]; if (rIrpf) sumaTot.push('F' + rIrpf);
   _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => { sumaTot.push('F' + lineaF(((l.concepto || 'HORAS PARALIZACIÓN').toUpperCase()) + ' (exento de IVA)', { t: 'n', f: Math.abs(l.importe) + '*' + (1 - c.pp / 100), v: Math.abs(l.importe) * (1 - c.pp / 100) })); });
   _liqLineas.filter(l => l.tipo === 'suplido' && Number(l.importe)).forEach(l => { sumaTot.push('F' + lineaF(((l.concepto || 'SUPLIDOS').toUpperCase()) + ' (suplido, sin IVA)', { t: 'n', v: Math.abs(l.importe) })); });
   r++;
@@ -10191,11 +10200,12 @@ function liqExcel() {
   F['B' + rTotal].s = { font: { name: 'Arial', sz: 12, bold: true } }; F['F' + rTotal].s = { font: { name: 'Arial', sz: 12, bold: true }, numFmt: EUR };
   r++;
   put(F, 'B' + r, '  CUADRO FISCAL', sSec); ['C', 'D', 'E', 'F'].forEach(k => put(F, k + r, '', sSec)); r++;
-  put(F, 'B' + r, 'BASE IMPONIBLE', sHead); put(F, 'C' + r, '', sHead); put(F, 'D' + r, 'IVA ' + c.iva + ' %', sHead); put(F, 'E' + r, c.irpf + ' % I.R.P.F.', sHead); put(F, 'F' + r, 'TOTAL FACTURA', sHead); r++;
+  put(F, 'B' + r, 'BASE IMPONIBLE', sHead); put(F, 'C' + r, '', sHead); put(F, 'D' + r, 'IVA ' + c.iva + ' %', sHead); put(F, 'E' + r, c.irpf ? c.irpf + ' % I.R.P.F.' : 'I.R.P.F. (no aplica)', sHead); put(F, 'F' + r, 'TOTAL FACTURA', sHead); r++;
   put(F, 'B' + r, { t: 'n', f: 'F' + rBase, v: T.base }, sEur); put(F, 'C' + r, '', sTxt);
   put(F, 'D' + r, { t: 'n', f: 'F' + rIva, v: T.iva }, sEur);
-  put(F, 'E' + r, { t: 'n', f: '-F' + rIrpf, v: T.irpf }, sEur);
+  put(F, 'E' + r, rIrpf ? { t: 'n', f: '-F' + rIrpf, v: T.irpf } : { t: 'n', v: 0 }, sEur);
   put(F, 'F' + r, { t: 'n', f: 'F' + rTotal, v: T.total }, sEur);
+  if (c.nota) { r += 2; put(F, 'B' + r, c.nota, sLbl); }
   F['!ref'] = 'A1:F' + r;
   F['!cols'] = [{ wch: 2 }, { wch: 30 }, { wch: 34 }, { wch: 12 }, { wch: 26 }, { wch: 34 }];
   F['!merges'] = [{ s: { r: 13, c: 2 }, e: { r: 13, c: 3 } }];
