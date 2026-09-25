@@ -1364,6 +1364,7 @@ async function onLogin(user) {
   currentRole = profile?.role || 'conductor';
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
+  try { liqInitCard(); } catch (e) {} // v709: liquidacion de autonomos (solo admin/Marta/MdM)
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
@@ -9914,6 +9915,189 @@ function _resFactDatos() {
   }
   return [...map.values()].sort((a, b) => b.pend - a.pend || b.alb - a.alb);
 }
+// ============================================================================
+// v709: LIQUIDACION DE AUTONOMOS (Fase 1: solo JOSE MIGUEL VALLDEPEREZ).
+// Tarjeta en Facturacion, visible SOLO para admin, Marta y Mª del Mar.
+// Elige autonomo + mes → lista sus albaranes del mes (los mismos que se ven en
+// Albaranes, sin Dup) con el PRECIO de siempre (_resFactPrecio: el precio propio
+// del albaran o, si no tiene, la TARIFA de coste de su ruta y dia). Avisa en rojo
+// de los que no tienen precio y de los numeros de albaran repetidos. Permite
+// añadir lineas a mano (paralizaciones sin IVA, otras con IVA, suplidos/peajes)
+// y calcula la factura con SUS reglas: subtotal → −2% pronto pago → base →
+// −1% IRPF → +21% IVA (+ suplidos fuera de todo). Nº de factura = AAAAMM.
+// Boton Excel con el cuadrante + la simulacion de factura. SOLO LECTURA: no
+// guarda nada ni toca albaranes. Las lineas a mano no se guardan (se pierden
+// al recargar): van en el Excel.
+// Los demas autonomos se añadiran uno a uno cuando este cuadre al centimo.
+// ============================================================================
+const LIQ_AUTONOMOS = {
+  'JOSE MIGUEL VALLDEPEREZ': { corto: 'José Miguel', pp: 2, irpf: 1, iva: 21, numero: (a, m) => String(a) + String(m).padStart(2, '0') }
+};
+const _LIQ_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+let _liqLineas = [];
+let _liqDatos = null;
+function _liqR2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function _liqPuede() { try { return _puedeVerFactEmit(); } catch (e) { return false; } }
+function liqInitCard() {
+  const card = document.getElementById('liqAutCard');
+  if (!card) return;
+  if (!_liqPuede()) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const sel = document.getElementById('liqAutSel');
+  if (sel && !sel.options.length) {
+    sel.innerHTML = Object.keys(LIQ_AUTONOMOS).map(k => '<option value="' + esc(k) + '">' + esc(LIQ_AUTONOMOS[k].corto) + '</option>').join('');
+  }
+  const mes = document.getElementById('liqAutMes');
+  if (mes && !mes.value) {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);   // por defecto: el mes anterior
+    mes.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+}
+async function liqCalcular() {
+  const out = document.getElementById('liqAutOut');
+  if (!out) return;
+  const key = (document.getElementById('liqAutSel') || {}).value;
+  const ym = (document.getElementById('liqAutMes') || {}).value;
+  if (!key || !LIQ_AUTONOMOS[key] || !/^\d{4}-\d{2}$/.test(ym || '')) { toast('Elige autónomo y mes', 'err'); return; }
+  out.innerHTML = '<div style="color:var(--mu);padding:12px">Calculando…</div>';
+  try {
+    if (!Array.isArray(_tarifas) || !_tarifas.length) await loadTarifas();
+    if (typeof _decaSubs === 'undefined' || !_decaSubs || !_decaSubs.length) { try { await _decaCargarSubs(); } catch (e) {} }
+  } catch (e) {}
+  const anio = parseInt(ym.slice(0, 4), 10), mes = parseInt(ym.slice(5, 7), 10);
+  const filas = [];
+  (records || []).forEach(r => {
+    if (r._dup) return;
+    const t = fixTransportista(String(r.transportista || getTransportista(r.tractora) || '').trim());
+    if (String(t || '').toUpperCase() !== key) return;
+    const f = _resFactParseFecha(r.fecha);
+    if (!f || f.getFullYear() !== anio || f.getMonth() + 1 !== mes) return;
+    const precio = _resFactPrecio(r);
+    const tm = parseFloat(r.tm) || 0;
+    filas.push({ f, fecha: f.toLocaleDateString('es-ES'), albaran: String(r.albaran || ''), tractora: String(r.tractora || ''),
+      origen: String(r.planta || r.origen || ''), destino: String(r.obra || r.destino || ''), producto: String(r.producto || ''),
+      tm, precio, importe: _liqR2(tm * precio) });
+  });
+  filas.sort((a, b) => (a.f - b.f) || a.albaran.localeCompare(b.albaran, 'es', { numeric: true }));
+  const cont = {}; filas.forEach(x => { const k = x.albaran.replace(/^0+/, ''); if (k) cont[k] = (cont[k] || 0) + 1; });
+  const repetidos = Object.keys(cont).filter(k => cont[k] > 1);
+  const sinPrecio = filas.filter(x => !x.precio);
+  // Ventana cargada: mes en curso + el anterior. Si el mes elegido es mas viejo, puede faltar algo.
+  const hoy = new Date(); const lim = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const fueraVentana = new Date(anio, mes - 1, 1) < lim;
+  const sub = (_decaSubs || []).find(x => _decaNrm(x.nombre) === _decaNrm(key)) || {};
+  _liqDatos = { key, cfg: LIQ_AUTONOMOS[key], anio, mes, filas, repetidos, sinPrecio, fueraVentana, sub };
+  _liqLineas = [];
+  liqRender();
+}
+function _liqTotales() {
+  const d = _liqDatos; const c = d.cfg;
+  const subAlb = _liqR2(d.filas.reduce((a, x) => a + x.importe, 0));
+  const conIva = _liqR2(subAlb + _liqLineas.filter(l => l.tipo === 'iva').reduce((a, l) => a + (Number(l.importe) || 0), 0));
+  const sinIva = _liqR2(_liqLineas.filter(l => l.tipo === 'siniva').reduce((a, l) => a + (Number(l.importe) || 0), 0));
+  const suplidos = _liqR2(_liqLineas.filter(l => l.tipo === 'suplido').reduce((a, l) => a + (Number(l.importe) || 0), 0));
+  const subtotal = _liqR2(conIva + sinIva);
+  const pp = _liqR2(subtotal * c.pp / 100);
+  const base = _liqR2(subtotal - pp);
+  const irpf = _liqR2(base * c.irpf / 100);
+  const baseIva = _liqR2(conIva - conIva * c.pp / 100);
+  const iva = _liqR2(baseIva * c.iva / 100);
+  const total = _liqR2(base - irpf + iva + suplidos);
+  return { subAlb, conIva, sinIva, suplidos, subtotal, pp, base, irpf, baseIva, iva, total };
+}
+function liqRender() {
+  const out = document.getElementById('liqAutOut');
+  const d = _liqDatos; if (!out || !d) return;
+  const c = d.cfg; const T = _liqTotales(); const E = n => _feFmt(n);
+  let h = '';
+  const avisos = [];
+  if (d.fueraVentana) avisos.push('Este mes es anterior a los 2 meses que carga la app al abrir. Si faltan albaranes, ve a Albaranes → "Ver todo el histórico" y vuelve a Calcular.');
+  if (d.sinPrecio.length) avisos.push(d.sinPrecio.length + ' albarán(es) SIN PRECIO (van a 0 €): ' + [...new Set(d.sinPrecio.map(x => x.origen + ' → ' + x.destino))].slice(0, 6).map(esc).join(' · ') + '. Ponles tarifa en Tarifas por servicio y vuelve a Calcular.');
+  if (d.repetidos.length) avisos.push('Nº de albarán repetido: ' + d.repetidos.slice(0, 10).map(esc).join(', ') + ' — revisa que no sea el mismo viaje dos veces.');
+  if (!d.sub.nif) avisos.push('Faltan sus datos fiscales (NIF/domicilio) en DeCA → 👥 Subcontratados; el Excel saldrá sin ellos.');
+  if (avisos.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;color:#8b1a1a;line-height:1.6">' + avisos.map(a => '⚠️ ' + a).join('<br>') + '</div>';
+  if (!d.filas.length) { h += '<div style="padding:12px;color:var(--mu)">No hay albaranes de ' + esc(c.corto) + ' en ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio + '.</div>'; }
+  else {
+    h += '<div style="font-size:12px;color:var(--mu);margin-bottom:6px">' + d.filas.length + ' albaranes · ' + d.filas.reduce((a, x) => a + x.tm, 0).toLocaleString('es-ES', { maximumFractionDigits: 2 }) + ' TN</div>';
+    h += '<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--s2);text-align:left;position:sticky;top:0">' +
+      ['Fecha','Nº albarán','Tractora','Origen','Destino','Material','TN','€/TN','Importe'].map((x, i) => '<th style="padding:6px' + (i >= 6 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+    d.filas.forEach(x => {
+      const rojo = !x.precio ? ';background:rgba(198,40,40,.10)' : '';
+      h += '<tr style="border-top:1px solid var(--bd)' + rojo + '"><td style="padding:5px 6px;white-space:nowrap">' + esc(x.fecha) + '</td><td style="padding:5px 6px">' + esc(x.albaran) + '</td><td style="padding:5px 6px">' + esc(x.tractora) +
+        '</td><td style="padding:5px 6px">' + esc(x.origen) + '</td><td style="padding:5px 6px">' + esc(x.destino) + '</td><td style="padding:5px 6px">' + esc(x.producto) +
+        '</td><td style="padding:5px 6px;text-align:right">' + x.tm.toLocaleString('es-ES', { maximumFractionDigits: 2 }) + '</td><td style="padding:5px 6px;text-align:right">' + (x.precio ? x.precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) : '<b style="color:#c62828">SIN PRECIO</b>') +
+        '</td><td style="padding:5px 6px;text-align:right">' + E(x.importe) + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  // Lineas a mano
+  h += '<div style="margin-top:14px;font-weight:700;font-size:13px">➕ Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:11.5px">(paralizaciones, horas, peajes, otros… no se guardan: van al Excel)</span></div>';
+  _liqLineas.forEach((l, i) => {
+    h += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">' +
+      '<input value="' + esc(l.concepto || '') + '" placeholder="Concepto" oninput="_liqLineas[' + i + '].concepto=this.value" style="flex:2;min-width:180px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px">' +
+      '<input type="number" step="0.01" value="' + (l.importe === '' || l.importe == null ? '' : l.importe) + '" placeholder="Importe €" onchange="_liqLineas[' + i + '].importe=this.value===\'\'?\'\':parseFloat(this.value);liqRender()" style="width:120px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;text-align:right">' +
+      '<select onchange="_liqLineas[' + i + '].tipo=this.value;liqRender()" style="padding:6px;border:1px solid var(--bd);border-radius:6px">' +
+        [['siniva','Sin IVA (paralización)'],['iva','Con IVA'],['suplido','Suplido (peaje)']].map(o => '<option value="' + o[0] + '"' + (l.tipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
+      '</select><button class="btn bs" style="padding:5px 9px" onclick="_liqLineas.splice(' + i + ',1);liqRender()">🗑</button></div>';
+  });
+  h += '<button class="btn bs" style="margin-top:8px;font-size:11px" onclick="_liqLineas.push({concepto:\'\',importe:\'\',tipo:\'siniva\'});liqRender()">+ Añadir línea</button>';
+  // Bloque factura
+  const fila = (t, v, fuerte) => '<tr><td style="padding:4px 10px' + (fuerte ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 10px;text-align:right' + (fuerte ? ';font-weight:800;font-size:15px' : '') + '">' + E(v) + '</td></tr>';
+  h += '<div style="margin-top:14px;display:flex;justify-content:flex-end"><table style="border-collapse:collapse;font-size:13px;min-width:340px;border:1px solid var(--bd);border-radius:8px">' +
+    '<tr><td colspan="2" style="padding:6px 10px;background:var(--s2);font-weight:700">Factura nº ' + esc(c.numero(d.anio, d.mes)) + ' · ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio + '</td></tr>' +
+    fila('Total albaranes', T.subAlb) +
+    (T.conIva !== T.subAlb ? fila('Otras líneas con IVA', _liqR2(T.conIva - T.subAlb)) : '') +
+    (T.sinIva ? fila('Líneas sin IVA (paralizaciones)', T.sinIva) : '') +
+    fila('Subtotal', T.subtotal) +
+    fila('−' + c.pp + '% pronto pago', -T.pp) +
+    fila('Base imponible', T.base) +
+    fila('−' + c.irpf + '% IRPF', -T.irpf) +
+    fila('+' + c.iva + '% IVA' + (T.sinIva ? ' (sobre ' + E(T.baseIva) + ')' : ''), T.iva) +
+    (T.suplidos ? fila('Suplidos (peajes)', T.suplidos) : '') +
+    fila('TOTAL FACTURA', T.total, true) + '</table></div>';
+  h += '<div style="margin-top:12px;text-align:right"><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel</button></div>';
+  out.innerHTML = h;
+}
+function liqExcel() {
+  const d = _liqDatos; if (!d) return;
+  const c = d.cfg; const T = _liqTotales();
+  const nomMes = _LIQ_MESES[d.mes - 1].toUpperCase() + ' ' + d.anio;
+  const aoa = [];
+  aoa.push(['LIQUIDACIÓN ' + nomMes]);
+  aoa.push([d.sub.razon_social || d.key]);
+  aoa.push(['NIF: ' + (d.sub.nif || '')]);
+  aoa.push([d.sub.domicilio || '']);
+  aoa.push(['Factura nº ' + c.numero(d.anio, d.mes) + ' · fecha ' + new Date(d.anio, d.mes, 0).toLocaleDateString('es-ES')]);
+  aoa.push([]);
+  aoa.push(['Fecha', 'Nº albarán', 'Tractora', 'Origen', 'Destino', 'Material', 'TN', '€/TN', 'Importe']);
+  d.filas.forEach(x => aoa.push([x.fecha, x.albaran, x.tractora, x.origen, x.destino, x.producto, x.tm, x.precio || 0, x.importe]));
+  aoa.push(['', '', '', '', '', 'TOTAL', _liqR2(d.filas.reduce((a, x) => a + x.tm, 0)), '', T.subAlb]);
+  const lineas = _liqLineas.filter(l => l.concepto || l.importe);
+  if (lineas.length) {
+    aoa.push([]);
+    aoa.push(['Otras líneas', '', '', '', '', '', '', 'Tipo', 'Importe']);
+    const tt = { siniva: 'Sin IVA', iva: 'Con IVA', suplido: 'Suplido' };
+    lineas.forEach(l => aoa.push([l.concepto || '', '', '', '', '', '', '', tt[l.tipo] || '', Number(l.importe) || 0]));
+  }
+  aoa.push([]);
+  const add = (t, v) => aoa.push(['', '', '', '', '', '', '', t, v]);
+  add('Total albaranes', T.subAlb);
+  if (T.conIva !== T.subAlb) add('Otras líneas con IVA', _liqR2(T.conIva - T.subAlb));
+  if (T.sinIva) add('Líneas sin IVA', T.sinIva);
+  add('Subtotal', T.subtotal);
+  add('-' + c.pp + '% pronto pago', -T.pp);
+  add('Base imponible', T.base);
+  add('-' + c.irpf + '% IRPF', -T.irpf);
+  add('+' + c.iva + '% IVA', T.iva);
+  if (T.suplidos) add('Suplidos', T.suplidos);
+  add('TOTAL FACTURA', T.total);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 11 }, { wch: 16 }, { wch: 10 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 9 }, { wch: 22 }, { wch: 13 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Liquidación');
+  XLSX.writeFile(wb, 'Liquidacion_' + c.corto.replace(/[^A-Za-z]/g, '') + '_' + d.anio + '-' + String(d.mes).padStart(2, '0') + '.xlsx');
+}
+
 async function abrirResumenFacturas() {
   if (!_puedeSeleccionMultiple()) { toast('No tienes permiso', 'err'); return; }
   if (!window._resFactDesde || !window._resFactHasta) {
