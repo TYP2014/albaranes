@@ -16729,6 +16729,82 @@ Responde SOLO con un JSON válido (sin markdown, sin explicaciones):
 
 // v212: FACTURAS EMITIDAS — Fase 2 (pestaña + lista). La subida por IA llegará en Fase 3.
 let _factEmit = [];
+// ============================================================================
+// v723: PLAZO DE PAGO POR CLIENTE (Facturas Emitidas).
+// Tabla clientes_plazo (cliente_key → dias). Boton "⚙️ Plazos de pago": se apunta UNA vez cuantos
+// dias tarda en pagar cada cliente (Llantada 120, Holcim 45...). Cada factura NUEVA que se sube
+// lleva sola su vencimiento real = fecha de factura + dias del cliente (si el cliente no esta en la
+// lista, se queda el del PDF, como antes). Boton "Recalcular pendientes" para las que ya hay
+// (solo PENDIENTES; las cobradas no se tocan; pide confirmacion con el nº antes de cambiar).
+// ============================================================================
+let _fePlazos = {};
+function _feNormCli(c) { return String(c || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, ''); }
+async function loadFePlazos() {
+  try {
+    const { data, error } = await sb.from('clientes_plazo').select('cliente_key,cliente,dias');
+    if (error) throw error;
+    _fePlazos = {}; (data || []).forEach(p => { _fePlazos[p.cliente_key] = p; });
+  } catch (e) { console.error('[v723] plazos de pago:', e); }
+}
+function _feVencPorPlazo(f) {
+  const p = _fePlazos[_feNormCli(f && f.cliente)];
+  if (!p || !(p.dias >= 0) || !f.fecha || !/^\d{4}-\d{2}-\d{2}/.test(f.fecha)) return null;
+  const d = new Date(String(f.fecha).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + Number(p.dias));
+  return d.toLocaleDateString('sv-SE');
+}
+function feAbrirPlazos() {
+  const cuenta = new Map();
+  _factEmit.forEach(f => { const k = _feNormCli(f.cliente); if (!k) return; const g = cuenta.get(k) || { cliente: f.cliente, n: 0, pend: 0 }; g.n++; if ((f.estado || 'pendiente') === 'pendiente') g.pend++; cuenta.set(k, g); });
+  Object.values(_fePlazos).forEach(p => { if (!cuenta.has(p.cliente_key)) cuenta.set(p.cliente_key, { cliente: p.cliente, n: 0, pend: 0 }); });
+  const filas = [...cuenta.entries()].sort((a, b) => b[1].n - a[1].n);
+  let m = document.getElementById('fePlazosModal'); if (m) m.remove();
+  m = document.createElement('div'); m.id = 'fePlazosModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:30px 10px;overflow:auto';
+  m.innerHTML = '<div style="background:#fff;color:#111;border-radius:10px;max-width:640px;width:100%;padding:16px 18px;font-size:13px">' +
+    '<b style="font-size:16px">⚙️ Plazos de pago por cliente</b>' +
+    '<div style="color:#555;margin:6px 0 10px">Escribe cuántos <b>días</b> tarda en pagar cada cliente. Cada factura nueva tendrá sola su vencimiento real (fecha de factura + días). Vacío = se queda el vencimiento del PDF.</div>' +
+    '<div style="max-height:55vh;overflow:auto;border:1px solid #ddd;border-radius:8px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f1f5f9;text-align:left"><th style="padding:6px 8px">Cliente</th><th style="padding:6px 8px;text-align:center">Facturas</th><th style="padding:6px 8px;text-align:center">Días</th></tr></thead><tbody>' +
+    filas.map(([k, g]) => '<tr style="border-top:1px solid #eee"><td style="padding:5px 8px">' + esc(g.cliente || '') + '</td><td style="padding:5px 8px;text-align:center;color:#555">' + g.n + (g.pend ? ' <span style="color:#b45309">(' + g.pend + ' pend.)</span>' : '') + '</td><td style="padding:5px 8px;text-align:center"><input type="number" min="0" max="365" data-k="' + esc(k) + '" data-c="' + esc(g.cliente || '').replace(/"/g, '&quot;') + '" value="' + (_fePlazos[k] ? _fePlazos[k].dias : '') + '" style="width:70px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;text-align:center"></td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap">' +
+    '<button class="btn bs" onclick="document.getElementById(\'fePlazosModal\').remove()">Cerrar</button>' +
+    '<button class="btn bs" onclick="feRecalcularPendientes()" title="Pone el vencimiento real a las facturas PENDIENTES que ya existen (las cobradas no se tocan)">🔄 Recalcular pendientes</button>' +
+    '<button class="btn bp" onclick="feGuardarPlazos()">💾 Guardar plazos</button></div></div>';
+  document.body.appendChild(m);
+  m.addEventListener('click', ev => { if (ev.target === m) m.remove(); });
+}
+async function feGuardarPlazos(silencioso) {
+  const inputs = [...document.querySelectorAll('#fePlazosModal input[data-k]')];
+  const up = [], del = [];
+  inputs.forEach(i => { const k = i.dataset.k, v = i.value.trim();
+    if (v === '') { if (_fePlazos[k]) del.push(k); return; }
+    const n = parseInt(v, 10); if (isNaN(n) || n < 0 || n > 365) return;
+    if (!_fePlazos[k] || _fePlazos[k].dias !== n) up.push({ cliente_key: k, cliente: i.dataset.c, dias: n, updated_at: new Date().toISOString() }); });
+  try {
+    if (up.length) { const { error } = await sb.from('clientes_plazo').upsert(up, { onConflict: 'cliente_key' }); if (error) throw error; }
+    if (del.length) { const { error } = await sb.from('clientes_plazo').delete().in('cliente_key', del); if (error) throw error; }
+    await loadFePlazos();
+    if (!silencioso) toast('💾 Plazos guardados (' + (up.length + del.length) + ' cambio/s)', 'ok');
+    return true;
+  } catch (e) { toast('⚠️ No se pudieron guardar los plazos: ' + (e.message || e), 'err'); return false; }
+}
+async function feRecalcularPendientes() {
+  if (!(await feGuardarPlazos(true))) return;
+  const cambios = _factEmit.filter(f => (f.estado || 'pendiente') === 'pendiente').map(f => ({ f, v: _feVencPorPlazo(f) }))
+    .filter(x => x.v && String(x.f.vencimiento || '').slice(0, 10) !== x.v);
+  if (!cambios.length) { toast('No hay facturas pendientes que cambiar', 'ok'); return; }
+  const ej = cambios.slice(0, 6).map(x => (x.f.numero || '?') + ' · ' + (x.f.cliente || '') + ': ' + (x.f.vencimiento || '—') + ' → ' + x.v).join('\n');
+  if (!confirm('Se cambiará el vencimiento de ' + cambios.length + ' factura(s) PENDIENTE(S) (las cobradas no se tocan):\n\n' + ej + (cambios.length > 6 ? '\n…' : '') + '\n\n¿Seguir?')) return;
+  let ok = 0, ko = 0;
+  for (const x of cambios) {
+    const { error } = await sb.from('facturas_emitidas').update({ vencimiento: x.v }).eq('id', x.f.id);
+    if (error) { ko++; console.error('[v723] recalcular', x.f.numero, error); } else ok++;
+  }
+  toast('🔄 Vencimiento real puesto en ' + ok + ' factura(s)' + (ko ? ' · ' + ko + ' con error' : ''), ko ? 'err' : 'ok');
+  const m = document.getElementById('fePlazosModal'); if (m) m.remove();
+  await loadFactEmit();
+}
+
 async function loadFactEmit() {
   const cont = document.getElementById('factEmitBody');
   if (!cont) return;
@@ -16737,6 +16813,7 @@ async function loadFactEmit() {
     const { data, error } = await sb.from('facturas_emitidas').select('*').order('fecha', { ascending: false });
     if (error) throw error;
     _factEmit = data || [];
+    await loadFePlazos(); // v723
     try { await firmarCampo(_factEmit, 'file_url'); } catch (e) { console.warn('[v322] firmado facturas emitidas:', e); }
     renderFactEmit();
     try { _factVencidas = _factEmit.filter(_feEsVencida); renderFactVencBanner(); } catch (e2) {} // v708
@@ -16881,6 +16958,7 @@ function renderFactEmit() {
   ['todas', 'pendiente', 'vencida', 'cobrada'].forEach(f => {
     h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : f === 'vencida' ? '\ud83d\udd34 Vencidas' : '\u2705 Cobradas') + '</button>';
   });
+  h += '<button class="btn bs" style="font-size:10px;padding:5px 10px;margin-left:10px" onclick="feAbrirPlazos()" title="Días que tarda en pagar cada cliente: pone solo el vencimiento real">⚙️ Plazos de pago</button>'; // v723
   h += '</div>';
   if (!arr.length) {
     h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
@@ -17069,6 +17147,8 @@ async function factEmitSubir(files) {
         empresa: j.empresa || null, base: j.base ?? null, iva: j.iva ?? null, total: j.total ?? null,
         vencimiento: j.vencimiento || null, estado: 'pendiente', file_url: url
       };
+      // v723: si el cliente tiene plazo de pago apuntado, el vencimiento REAL = fecha + dias del cliente
+      { const vr = _feVencPorPlazo(payload); if (vr) payload.vencimiento = vr; }
       const { error } = await sb.from('facturas_emitidas').insert(payload);
       if (error) throw error;
       toast('\u2713 Factura ' + (j.numero || '') + ' \u00b7 ' + (j.empresa || '') + ' guardada');
