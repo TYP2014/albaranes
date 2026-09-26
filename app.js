@@ -9994,9 +9994,10 @@ function _liqIdFila(x) { return _liqDatos.key + '|' + _liqDatos.anio + '-' + _li
 // v717: los albaranes con la marca naranja 🟠 del modal (revisar_pago = ya pagado al subcontratado)
 // salen FUERA por defecto, sin tener que quitarlos a mano. Se pueden volver a meter con la casilla (solo en pantalla).
 const _liqForzados = new Set();
-function _liqEsFuera(x) { const id = _liqIdFila(x); return x.revisarPago ? !_liqForzados.has(id) : _liqQuitados.has(id); }
+function _liqAuto(x) { return !!(x.revisarPago || x.yaLiq); }   // v722: fuera por defecto (🟠 marcado o ya liquidado en otro mes)
+function _liqEsFuera(x) { const id = _liqIdFila(x); return _liqAuto(x) ? !_liqForzados.has(id) : _liqQuitados.has(id); }
 function _liqActivas() { return _liqDatos.filas.filter(x => !_liqEsFuera(x)); }
-function liqToggleFila(i) { const x = _liqDatos.filas[i]; const id = _liqIdFila(x); const S = x.revisarPago ? _liqForzados : _liqQuitados; if (S.has(id)) S.delete(id); else S.add(id); liqRender(); }
+function liqToggleFila(i) { const x = _liqDatos.filas[i]; const id = _liqIdFila(x); const S = _liqAuto(x) ? _liqForzados : _liqQuitados; if (S.has(id)) S.delete(id); else S.add(id); liqRender(); }
 function _liqR2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 function _liqPuede() { try { return _puedeVerFactEmit(); } catch (e) { return false; } }
 function liqInitCard() {
@@ -10057,9 +10058,70 @@ async function liqCalcular() {
     const s = (typeof _decaSubs !== 'undefined' && _decaSubs || []).find(x => _decaNrm(x.nombre) === _decaNrm(key));
     if (s) emisor = [[cfg.empresa ? 'Empresa:' : 'Nombre:', s.razon_social || s.nombre], [cfg.empresa ? 'C.I.F.:' : 'N.I.F.:', s.nif || ''], ['Dirección:', s.domicilio || '']];
   }
-  _liqDatos = { key, cfg, anio, mes, filas, repetidos, sinPreliq, fueraVentana, emisor, cliente: cfg.cliente, numero: cfg.numero(anio, mes) };
+  _liqDatos = { key, cfg, anio, mes, filas, repetidos, sinPreliq, fueraVentana, emisor, cliente: cfg.cliente, numero: cfg.numero(anio, mes), guardada: null, numUsado: '' };
   _liqLineas = [];
+  // v722: LIQUIDACIONES GUARDADAS. (a) albaranes ya pagados en OTRA liquidacion de este subcontratado → fuera
+  // solos (naranja, 'ya liquidado en…'); (b) si este mes ya esta guardado, se recupera tal cual.
+  try {
+    const { data: guard, error } = await sb.from('liquidaciones').select('anio,mes,numero,total,albaranes,datos,updated_at').eq('subcontratado', key);
+    if (error) throw error;
+    const pagados = {};
+    (guard || []).forEach(g => {
+      const esEste = g.anio === anio && g.mes === mes;
+      if (esEste) { _liqDatos.guardada = g; return; }
+      if (String(g.numero || '') && String(g.numero) === String(_liqDatos.numero)) _liqDatos.numUsado = _LIQ_MESES[g.mes - 1] + ' ' + g.anio;
+      (g.albaranes || []).forEach(n => { pagados[n] = _LIQ_MESES[g.mes - 1] + ' ' + g.anio + (g.numero ? ' (fra. ' + g.numero + ')' : ''); });
+    });
+    filas.forEach(x => { const n = _liqNormAlb(x.albaran); if (n && pagados[n]) x.yaLiq = pagados[n]; });
+    const G = _liqDatos.guardada;
+    if (G && G.datos) {
+      const D = G.datos;
+      _liqLineas = Array.isArray(D.lineas) ? D.lineas.map(l => Object.assign({}, l)) : [];
+      if (D.numero != null) _liqDatos.numero = D.numero;
+      if (D.cliente && _LIQ_CLIENTES[D.cliente]) _liqDatos.cliente = D.cliente;
+      const pm = D.preciosMan || {}, qu = new Set(D.quitados || []), fo = new Set(D.forzados || []);
+      filas.forEach(x => { const k = _liqPk(x), id = _liqIdFila(x);
+        if (pm[k] != null) _liqPrecioMan.set(id, Number(pm[k])); else _liqPrecioMan.delete(id);
+        if (qu.has(k)) _liqQuitados.add(id); else _liqQuitados.delete(id);
+        if (fo.has(k)) _liqForzados.add(id); else _liqForzados.delete(id); });
+    }
+  } catch (e) { console.error('[v722] liquidaciones guardadas:', e); }
   liqRender();
+}
+function _liqNormAlb(n) { try { return _factNormAlb(n).replace(/^0+/, ''); } catch (e) { return String(n || '').replace(/\W/g, '').replace(/^0+/, ''); } }
+function _liqPk(x) { return x.albaran + '|' + x.fecha + '|' + x.tm; }
+async function liqGuardar() {
+  const d = _liqDatos; if (!d) return;
+  const numEl = document.getElementById('liqNumFra'); if (numEl) d.numero = numEl.value;
+  if (d.guardada && !confirm('Esta liquidación (' + d.cfg.corto + ', ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio + ') ya estaba guardada. ¿La sustituyes por la de ahora?')) return;
+  const T = _liqTotales();
+  const pm = {}, qu = [], fo = [];
+  d.filas.forEach(x => { const id = _liqIdFila(x), k = _liqPk(x);
+    if (_liqPrecioMan.has(id)) pm[k] = _liqPrecioMan.get(id);
+    if (_liqQuitados.has(id)) qu.push(k);
+    if (_liqForzados.has(id)) fo.push(k); });
+  const activas = _liqActivas();
+  const fila = { subcontratado: d.key, anio: d.anio, mes: d.mes, numero: d.cfg.facturaPropia ? null : String(d.numero || ''),
+    total: Math.round(T.total * 100) / 100, albaranes: activas.map(x => _liqNormAlb(x.albaran)).filter(Boolean),
+    datos: { lineas: _liqLineas, preciosMan: pm, quitados: qu, forzados: fo, numero: d.numero, cliente: d.cliente,
+      resumen: { albaranes: activas.length, tn: Math.round(activas.reduce((a, x) => a + x.tm, 0) * 1000) / 1000, subtotal: Math.round(T.subtotal * 100) / 100, base: Math.round(T.base * 100) / 100 } },
+    updated_at: new Date().toISOString() };
+  try {
+    const { data, error } = await sb.from('liquidaciones').upsert(fila, { onConflict: 'subcontratado,anio,mes' }).select('anio,mes,numero,total,albaranes,datos,updated_at').single();
+    if (error) throw error;
+    d.guardada = data;
+    toast('💾 Liquidación guardada: ' + d.cfg.corto + ' · ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio, 'ok');
+    liqRender();
+  } catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+async function liqBorrarGuardada() {
+  const d = _liqDatos; if (!d || !d.guardada) return;
+  if (!confirm('¿Borrar la liquidación GUARDADA de ' + d.cfg.corto + ' · ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio + '?\nSus albaranes volverán a poder entrar en otras liquidaciones. (Los albaranes no se tocan.)')) return;
+  try {
+    const { error } = await sb.from('liquidaciones').delete().eq('subcontratado', d.key).eq('anio', d.anio).eq('mes', d.mes);
+    if (error) throw error;
+    d.guardada = null; toast('Liquidación guardada borrada', 'ok'); liqRender();
+  } catch (e) { toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
 }
 function _liqSum(tipo) { return _liqLineas.filter(l => l.tipo === tipo).reduce((a, l) => a + Math.abs(Number(l.importe) || 0), 0); }
 function _liqTotales() {
@@ -10091,13 +10153,13 @@ function liqRender() {
   else {
     const act = _liqActivas(); const quit = d.filas.length - act.length;
     h += '<div style="font-size:12px;color:var(--mu);margin-bottom:6px">' + act.length + ' albaranes · ' + act.reduce((a, x) => a + x.tm, 0).toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' TN · factura a ' + (c.clienteElegible ? '<select onchange="_liqDatos.cliente=this.value;liqRender()" style="padding:2px 4px;border:1px solid var(--bd);border-radius:5px;font-size:11.5px">' + Object.keys(_LIQ_CLIENTES).map(k => '<option value="' + k + '"' + (d.cliente === k ? ' selected' : '') + '>' + esc(_LIQ_CLIENTES[k][0][1]) + '</option>').join('') + '</select>' : esc(_LIQ_CLIENTES[d.cliente || c.cliente][0][1])) + (c.cisterna ? ' · 💧 precios de las preliquidaciones' + (d.sinPreliq ? ' (' + d.sinPreliq + ' sin encontrar)' : '') : '') + ' · <span style="color:var(--tx)">quita la casilla ☑ de los que no entran (ya pagados otro mes…)</span></div>';
-    if (quit) h += '<div style="background:rgba(245,158,11,.14);border:1px solid #d97706;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12.5px;color:#7a4b00">🟠 ' + quit + ' albarán(es) QUITADO(S) de esta liquidación: ' + E(d.filas.filter(x => _liqEsFuera(x)).reduce((a, x) => a + _liqImp(x), 0)) + ' — no entran en la factura ni en el Excel (salen apuntados en la pestaña Resumen). Los que llevan 🟠 están marcados en el albarán como ya pagados; el resto los has quitado tú aquí. Al cliente se le factura igual.</div>';
+    if (quit) h += '<div style="background:rgba(245,158,11,.14);border:1px solid #d97706;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12.5px;color:#7a4b00">🟠 ' + quit + ' albarán(es) QUITADO(S) de esta liquidación: ' + E(d.filas.filter(x => _liqEsFuera(x)).reduce((a, x) => a + _liqImp(x), 0)) + ' — no entran en la factura ni en el Excel (salen apuntados en la pestaña Resumen). 🟠 = marcado en el albarán como ya pagado · 💾 = ya entró en otra liquidación guardada · el resto los has quitado tú aquí. Al cliente se le factura igual.</div>';
     h += '<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--s2);text-align:left;position:sticky;top:0">' +
       ['Entra','Fecha','Nº albarán','Tractora','Origen','Destino','Material','TN','€/TN','Importe'].map((x, i) => '<th style="padding:6px' + (i >= 7 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
     d.filas.forEach((x, i) => {
       const fuera = _liqEsFuera(x);
       const rojo = fuera ? ';background:rgba(245,158,11,.16);text-decoration:line-through;color:#8a5a00' : (!_liqPrecioDe(x) ? ';background:rgba(198,40,40,.10)' : '');
-      h += '<tr style="border-top:1px solid var(--bd)' + rojo + '"><td style="padding:5px 6px;text-align:center"><input type="checkbox"' + (fuera ? '' : ' checked') + ' onchange="liqToggleFila(' + i + ')" title="Quitar / volver a meter en la liquidación"></td><td style="padding:5px 6px;white-space:nowrap">' + esc(x.fecha) + '</td><td style="padding:5px 6px">' + (x.revisarPago ? '<span title="Marcado en el albarán: ya pagado al subcontratado">🟠 </span>' : '') + esc(x.albaran) + '</td><td style="padding:5px 6px">' + esc(x.tractora) +
+      h += '<tr style="border-top:1px solid var(--bd)' + rojo + '"><td style="padding:5px 6px;text-align:center"><input type="checkbox"' + (fuera ? '' : ' checked') + ' onchange="liqToggleFila(' + i + ')" title="Quitar / volver a meter en la liquidación"></td><td style="padding:5px 6px;white-space:nowrap">' + esc(x.fecha) + '</td><td style="padding:5px 6px">' + (x.revisarPago ? '<span title="Marcado en el albarán: ya pagado al subcontratado">🟠 </span>' : '') + (x.yaLiq ? '<span title="Ya liquidado en ' + esc(x.yaLiq) + '">💾 </span>' : '') + esc(x.albaran) + (x.yaLiq ? '<div style="font-size:10.5px;color:#8a5a00;text-decoration:none">ya liquidado en ' + esc(x.yaLiq) + '</div>' : '') + '</td><td style="padding:5px 6px">' + esc(x.tractora) +
         '</td><td style="padding:5px 6px">' + esc(x.origen) + '</td><td style="padding:5px 6px">' + esc(x.destino) + '</td><td style="padding:5px 6px">' + esc(x.producto) +
         '</td><td style="padding:5px 6px;text-align:right">' + x.tm.toLocaleString('es-ES', { maximumFractionDigits: 3 }) + '</td><td style="padding:3px 6px;text-align:right"><input value="' + (_liqPrecioDe(x) ? String(Math.round(_liqPrecioDe(x) * 10000) / 10000).replace('.', ',') : '') + '" placeholder="SIN PRECIO" title="Escribe el precio final (€/TN) para cambiarlo; déjalo vacío para volver al calculado" onchange="liqSetPrecio(' + i + ', this.value)" style="width:74px;padding:3px 5px;text-align:right;border:1px solid ' + (_liqPrecioMan.has(_liqIdFila(x)) ? '#2563eb;background:#eff6ff;font-weight:700' : (!_liqPrecioDe(x) ? '#c62828' : 'var(--bd)')) + ';border-radius:5px"></td>' +
         '<td style="padding:5px 6px;text-align:right">' + E(_liqImp(x)) + '</td></tr>';
@@ -10128,7 +10190,9 @@ function liqRender() {
   tb += fila('TOTAL FACTURA', T.total, true);
   if (c.nota) tb += '<tr><td colspan="2" style="padding:4px 10px;font-size:12px;color:var(--mu)">' + esc(c.nota) + '</td></tr>';
   h += '<div style="margin-top:14px;display:flex;justify-content:flex-end"><table style="border-collapse:collapse;font-size:13px;min-width:360px;border:1px solid var(--bd);border-radius:8px">' + tb + '</table></div>';
-  h += '<div style="margin-top:12px;text-align:right"><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel (Albaranes + Factura + Resumen)</button></div>';
+  const G = d.guardada;
+  const est = G ? '<span style="color:#15803d;font-weight:700">💾 Guardada el ' + new Date(G.updated_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · total ' + E(G.total) + '</span>' + (Math.abs(Number(G.total) - T.total) > 0.005 ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo desde que se guardó: vuelve a guardar</span>' : '') + ' <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="liqBorrarGuardada()">🗑 Borrar guardada</button>' : '<span style="color:var(--mu)">Sin guardar</span>';
+  h += '<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:12px">' + est + (d.numUsado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ el nº ' + esc(d.numero) + ' ya se usó en ' + esc(d.numUsado) + '</span>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn bs" onclick="liqGuardar()" title="Apunta esta liquidación: precios a mano, líneas, quitados y los albaranes pagados (para que no se paguen dos veces)">💾 Guardar liquidación</button><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel (Albaranes + Factura + Resumen)</button></div></div>';
   out.innerHTML = h;
 }
 function liqExcel() {
