@@ -27783,6 +27783,34 @@ async function recambiosSubir(files, tipoForzado) {
         if (doc.tipo_detectado === 'factura' || doc.tipo_detectado === 'albaran' || doc.tipo_detectado === 'abono') {
           tipo = doc.tipo_detectado;
         }
+        // v725: FACTURA CON ALBARÁN CITADO DENTRO (error real 28/09/2026, BLINKER).
+        // La factura 26NA125388 cita en las líneas "Albarán: 26 NA/190831" y la IA la
+        // guardó como albarán. Un albarán suelto repite SU PROPIO nº en las líneas;
+        // si alguna línea apunta a OTRO albarán distinto → es una factura.
+        let _v725Nota = null;
+        {
+          const _numN = _recambNorm(doc.num_documento);
+          const _albsDentro = (Array.isArray(doc.lineas) ? doc.lineas : []).map(l => _recambNorm(l && l.albaran)).filter(Boolean);
+          if (tipo === 'albaran' && _numN && _albsDentro.some(a => a !== _numN)) {
+            console.warn('[v725 recambios] "' + doc.num_documento + '" cita otros albaranes dentro → se guarda como FACTURA');
+            tipo = 'factura';
+            _v725Nota = '⚠️ La IA lo leyó como albarán, pero cita otro albarán dentro → guardado como FACTURA (revisar)';
+          }
+        }
+        // v725: BASE IMPONIBLE con portes/embalajes (mismo caso BLINKER: "Suma 191,86 +
+        // Seguros/Emb 6,95 = Base 198,81"). Si base+IVA no da el total, pero total−IVA
+        // cuadra con el IVA al 21%, la base buena es total−IVA.
+        let _v725Base = _num(doc.base_imponible);
+        {
+          const _i = _num(doc.iva), _t = _num(doc.total);
+          if (_v725Base != null && _i != null && _t != null && Math.abs(_v725Base + _i - _t) > 0.05) {
+            const _bOk = Math.round((_t - _i) * 100) / 100;
+            if (_bOk > 0 && Math.abs(_bOk * 0.21 - _i) <= 0.05) {
+              console.warn('[v725 recambios] base corregida ' + _v725Base + ' → ' + _bOk + ' (' + (doc.num_documento || '?') + ')');
+              _v725Base = _bOk;
+            }
+          }
+        }
         const reg = {
           tipo_doc: tipo,
           empresa: emp,
@@ -27790,11 +27818,11 @@ async function recambiosSubir(files, tipoForzado) {
           proveedor_nif: doc.proveedor_nif || null,
           num_documento: doc.num_documento || null,
           fecha: _recambiosFecha(doc.fecha),
-          base_imponible: _num(doc.base_imponible),
+          base_imponible: _v725Base,
           iva: _num(doc.iva),
           total: _num(doc.total),
           lineas: doc.lineas || [],
-          observaciones: doc.observaciones || null,
+          observaciones: _v725Nota ? ((doc.observaciones ? doc.observaciones + ' · ' : '') + _v725Nota) : (doc.observaciones || null),
           file_url: _recFileUrl,
           user_id: currentUser?.id || null
         };
@@ -27968,6 +27996,8 @@ Determina primero el TIPO de documento:
 - ⚠️ ALBARANES VALORADOS (error real detectado 24/07/2026, TOT FRENS): algunos proveedores emiten albaranes CON base imponible, IVA y "Import Total" — eso NO los convierte en factura. EL RÓTULO MANDA: si el recuadro del documento pone "Albarà" o "Albarán" con su número (ej: B260100015547), es tipo_detectado="albaran" AUNQUE lleve IVA y total. Las facturas de verdad de TOT FRENS ponen "Tipo/Serie/Nº Factura" (ej: FC I26 0100003659) y agrupan varios albaranes. Error real: el albarán B260100015547 (rótulo "Albarà", con IVA y total 432,48) se guardó mal como factura.
 - ⚠️ SI HAY \"Nº FACTURA\", MANDA LA FACTURA (error real 17/08/2026, PROLIANS / METALCO S.A.): una FACTURA casi siempre NOMBRA DENTRO los albaranes que agrupa, escritos en la zona de líneas o de descripción con textos como \"ALBARAN Nº 163980 DE FECHA 2/07/2026\". Eso NO la convierte en albarán. MANDA EL RECUADRO DE CABECERA: si en la cabecera hay un recuadro rotulado \"Nº FACTURA\" con su número (ej: F26115460) y/o abajo un \"TOTAL FACTURA\", entonces tipo_detectado=\"factura\", num_documento es ESE Nº FACTURA (F26115460) — NUNCA el nº de albarán citado dentro (163980) — y \"fecha\" es la FECHA FACTURA (15/07/2026), NUNCA la del albarán citado (2/07/2026). El nº del albarán citado va SOLO en lineas[].albaran. Error real: la factura F26115460 de 15/07/2026 (base 172,72 · IVA 36,27 · total 208,99) se guardó como si fuera el albarán 163980.
 - ⚠️ CUÁNDO SE APLICA LA REGLA DE TOT FRENS: solo cuando el rótulo \"Albarà\"/\"Albarán\" está en el RECUADRO DE CABECERA identificando al documento entero y NO hay ningún \"Nº FACTURA\" ni \"TOTAL FACTURA\". Si aparecen los DOS (rótulo de factura arriba y menciones a albaranes en las líneas) → es FACTURA, sin excepción.
+- ⚠️ \"NÚMERO FACTURA\" EN UNA TABLITA (error real 28/09/2026, BLINKER ESPAÑA): la cabecera tiene una fila \"Cliente núm. · Agente · Número Factura · Fecha\" (ej: 26NA125388, 30/07/2026) y en las líneas pone \"Albarán: 26 NA/190831 29-07-2026\". Es FACTURA: num_documento=26NA125388, fecha=30/07/2026, y lineas[].albaran=\"26 NA/190831\". Error real: se guardó como albarán.
+- ⚠️ BASE IMPONIBLE ≠ SUMA DE LÍNEAS: si al pie hay \"Suma\", \"Seguros/Emb\" (o portes) y \"Base Imponible\", base_imponible es la de \"Base Imponible\" (BLINKER: Suma 191,86 + Seguros/Emb 6,95 → base_imponible 198,81, iva 41,75, total 240,56). NUNCA la \"Suma\".
 - ⚠️ CÓDIGO DE CLIENTE ≠ Nº DE DOCUMENTO (mismo error real): el número corto que aparece ENCIMA del nombre del destinatario (en TOT FRENS "01731" o "01732", rótulo "Client") es su CÓDIGO DE CLIENTE — NUNCA lo uses como num_documento. El num_documento es el del recuadro "Albarà"/"Nº Factura". Error real: el mismo albarán B260100015547 se guardó otra vez con num_documento "01732" (el código de cliente) y creó un duplicado.
 
 Campos a extraer (JSON):
