@@ -25825,7 +25825,8 @@ const PRIMAS_REMOLQUES_PLATAFORMA = ['R4665BCD', 'R8672BCN'];   // OJO: la tract
 const PRIMAS_VEHICULOS_FIJO_DIA = { '1270LST': 25 };             // camion grua: 25 € el dia que trabaja
 function _primasClase(al) {
   const o = _primasSinAcentos(al.planta), d = _primasSinAcentos(al.obra), m = _primasSinAcentos(al.producto), r = _primasMat(al.remolque);
-  if (/PALET|\bSAC\b|SACOS|PAL PLAS|ENSACAD|\d+ ?KG/.test(m) || PRIMAS_REMOLQUES_PLATAFORMA.some(x => r.indexOf(x) === 0)) return 'PLATAFORMA';
+  if (/PALET|\bSAC\b|SACOS|SACAS|PAL PLAS|ENSACAD|\d+ ?KG|\bBB\b|BIG ?BAG|HORMIGON SECO|FORMIGO SEC/.test(m) ||   // v724: + big bag y hormigon seco (solo lo llevan plataformas o grua)
+    PRIMAS_REMOLQUES_PLATAFORMA.some(x => r.indexOf(x) === 0)) return 'PLATAFORMA';
   if (d.indexOf('HORAS') >= 0 || m.indexOf('HORAS') >= 0) return 'HORAS';
   if (m.indexOf('CLINKER') >= 0) return d.indexOf('TARRAGONA') >= 0 ? 'CLINKER TARRAGONA' : 'CLINKER';
   if (d.indexOf('ZONA FRANCA') >= 0) return o.indexOf('OLESA') >= 0 ? 'OLESA ZF' : 'ZONA FRANCA';   // v679: Olesa → Zona Franca II es ruta propia
