@@ -26132,6 +26132,96 @@ async function primasTraerTodos() {
     toast('Error trayendo viajes a todos: ' + (e.message || e), 'err');
   } finally { if (btn) btn.disabled = false; }
 }
+// v728: ALBARANES HUERFANOS. Albaranes del mes de los camiones del parte de esta empresa que
+// (a) no han caido en el parte de NADIE ese dia, o (b) caen en el parte de DOS o mas (prima doble).
+// Un camion 'lo lleva' un trabajador ese dia si lo tiene en VEHICULO; si su dia no tiene vehiculo
+// (o aun no tiene fila), su vehiculo habitual (igual que Traer viajes). Si ese dia esta de
+// vacaciones/baja, NO lo lleva. Se mira el parte de TODAS las empresas (a veces cambian de camion).
+async function primasHuerfanos() {
+  const mesEl = document.getElementById('primasMes');
+  primasMes = (mesEl && mesEl.value) || primasMes || _primasISO(new Date()).slice(0, 7);
+  const btn = document.getElementById('primasBtnHuerf');
+  if (btn) btn.disabled = true;
+  _primasEstado('Buscando albaranes huérfanos...');
+  try {
+    const p = primasMes.split('-'), r = _primasRango(), hoy = _primasISO(new Date());
+    const iniAnt = _primasISO(new Date(+p[0], +p[1] - 2, 1));
+    // 1) partes de este mes y el anterior (todas las empresas)
+    const filas = [];
+    for (let desde = 0; desde < 50000; desde += 1000) {
+      const q = await sb.from('primas_partes').select('trabajador_id,fecha,vehiculo,parte_conductor,notas').gte('fecha', iniAnt).lte('fecha', r.fin).range(desde, desde + 999);
+      if (q.error) throw q.error;
+      filas.push.apply(filas, q.data || []);
+      if ((q.data || []).length < 1000) break;
+    }
+    const trabs = {};   // id -> { t, dias: {iso: fila}, cuenta: {veh: n} }
+    filas.forEach(f => {
+      const id = String(f.trabajador_id), iso = String(f.fecha).slice(0, 10);
+      const t = (vacTrabajadores || []).find(x => String(x.id) === id); if (!t || t.archivado) return;
+      trabs[id] = trabs[id] || { t, dias: {}, cuenta: {} };
+      trabs[id].dias[iso] = f;
+      _primasMats(f.vehiculo).forEach(v => { trabs[id].cuenta[v] = (trabs[id].cuenta[v] || 0) + 1; });
+    });
+    Object.values(trabs).forEach(x => { x.hab = _primasMat(x.t.vehiculo_habitual) || Object.keys(x.cuenta).sort((a, b) => x.cuenta[b] - x.cuenta[a])[0] || ''; });
+    const quienLleva = (veh, iso) => Object.values(trabs).filter(x => {
+      const f = x.dias[iso];
+      if (f && _primasAusente(f.parte_conductor, f.notas)) return false;
+      const l = _primasMats(f && f.vehiculo);
+      return l.length ? l.includes(veh) : x.hab === veh;
+    }).map(x => x.t.nombre || '?');
+    // 2) camiones de ESTA empresa (los de sus trabajadores con parte)
+    const vehs = new Set();
+    Object.values(trabs).filter(x => x.t.empresa === primasEmpresa || !x.t.empresa).forEach(x => {
+      if (x.hab) vehs.add(x.hab);
+      Object.keys(x.dias).forEach(iso => { if (iso.slice(0, 7) === primasMes) _primasMats(x.dias[iso].vehiculo).forEach(v => vehs.add(v)); });
+    });
+    if (!vehs.size) { toast('No hay camiones en los partes de ' + (_PRIMAS_EMP_NOM[primasEmpresa] || primasEmpresa) + ' este mes', 'warn'); _primasEstado(''); return; }
+    // 3) albaranes del mes de esos camiones
+    const mm = p[1], m1 = String(+p[1]), yy = p[0];
+    const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
+    const huerf = [], dobles = [], vistos = new Set();
+    for (const veh of Array.from(vehs).sort()) {
+      for (let desde = 0; desde < 5000; desde += 1000) {
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        if (q.error) throw q.error;
+        (q.data || []).forEach(a => {
+          const iso = _primasFechaAlb(a.fecha); if (!iso || iso.slice(0, 7) !== primasMes || iso > hoy) return;
+          const clave = veh + '|' + String(a.albaran || '') + '|' + iso;
+          if (a.albaran && vistos.has(clave)) return; vistos.add(clave);
+          const quien = quienLleva(veh, iso);
+          const it = { iso, veh, alb: a.albaran || '(sin nº)', ruta: (String(a.planta || '?').trim() + ' → ' + String(a.obra || '?').trim()).toUpperCase(), quien };
+          if (!quien.length) huerf.push(it); else if (quien.length > 1) dobles.push(it);
+        });
+        if ((q.data || []).length < 1000) break;
+      }
+    }
+    const orden = (a, b) => a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : (a.veh < b.veh ? -1 : a.veh > b.veh ? 1 : 0);
+    huerf.sort(orden); dobles.sort(orden);
+    const fDia = (iso) => iso.slice(8) + '/' + iso.slice(5, 7);
+    const tabla = (lista, conQuien) => '<table style="width:100%;border-collapse:collapse;font-size:15px;font-weight:700;color:#111">' +
+      '<tr style="background:#eef2f7"><th style="text-align:left;padding:6px">DÍA</th><th style="text-align:left;padding:6px">CAMIÓN</th><th style="text-align:left;padding:6px">Nº ALBARÁN</th><th style="text-align:left;padding:6px">RUTA</th>' + (conQuien ? '<th style="text-align:left;padding:6px">EN EL PARTE DE</th>' : '') + '</tr>' +
+      lista.map(x => '<tr style="border-bottom:1px solid #ddd"><td style="padding:6px;white-space:nowrap">' + fDia(x.iso) + '</td><td style="padding:6px">' + esc(x.veh) + '</td><td style="padding:6px">' + esc(String(x.alb)) + '</td><td style="padding:6px">' + esc(x.ruta) + '</td>' + (conQuien ? '<td style="padding:6px">' + esc(x.quien.join(' + ')) + '</td>' : '') + '</tr>').join('') + '</table>';
+    const diasH = new Set(huerf.map(x => x.iso + x.veh)).size;
+    let html = '<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">🔍 Albaranes huérfanos · ' + esc(_PRIMAS_EMP_NOM[primasEmpresa] || primasEmpresa) + ' · ' + primasMes + '</div>' +
+      '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:14px">Camiones mirados: ' + esc(Array.from(vehs).sort().join(', ')) + '</div>';
+    html += '<div style="font-size:16px;font-weight:800;color:#c62828;margin:10px 0 6px">⚠ En el parte de NADIE: ' + huerf.length + ' albarán(es)' + (huerf.length ? ' (' + diasH + ' camión-día)' : '') + '</div>' +
+      (huerf.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Pon ese camión en VEHÍCULO del parte de quien lo llevó ese día (y dale a 📥).</div>' + tabla(huerf, false) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
+    html += '<div style="font-size:16px;font-weight:800;color:#e65100;margin:18px 0 6px">⚠ En el parte de DOS o más (prima doble): ' + dobles.length + ' albarán(es)</div>' +
+      (dobles.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Quita el camión del parte de quien NO lo llevó ese día.</div>' + tabla(dobles, true) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
+    let ov = document.getElementById('primasHuerfOv');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'primasHuerfOv'; document.body.appendChild(ov); }
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
+    ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35)">' + html +
+      '<div style="text-align:right;margin-top:18px"><button class="btn bp" style="font-size:15px;padding:10px 22px;font-weight:700" onclick="document.getElementById(\'primasHuerfOv\').remove()">Cerrar</button></div></div>';
+    ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
+    _primasEstado('✓ Huérfanos: ' + huerf.length + ' · en dos partes: ' + dobles.length);
+    console.log('[v728 primas] huerfanos', { vehs: Array.from(vehs), huerfanos: huerf.length, dobles: dobles.length });
+  } catch (e) {
+    console.error('[v728 primasHuerfanos]', e);
+    _primasEstado('✗ Error buscando huérfanos: ' + (e.message || e), true);
+    toast('Error buscando huérfanos: ' + (e.message || e), 'err');
+  } finally { if (btn) btn.disabled = false; }
+}
 // ===== fin v659 PRIMAS =====
 
 // ============================================================

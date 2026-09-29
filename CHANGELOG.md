@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v728 (29/09/2026): PRIMAS · boton '🔍 Albaranes huérfanos': ventana con los albaranes del mes (hasta hoy) de los camiones de los partes de la empresa abierta que (a) NO estan en el parte de nadie ese dia o (b) estan en el de DOS o mas (prima doble). Un camion lo lleva un trabajador ese dia si esta en su VEHICULO; si su dia no tiene vehiculo, su habitual (como Traer viajes); de vacaciones/baja no cuenta. Se miran los partes de TODAS las empresas. Solo lee, no cambia nada. Sin SQL. VUELTA ATRAS: resubir v727.
+
+---
+
 v727 (29/09/2026): PRIMAS · boton nuevo '📥 Traer viajes a TODOS' (junto al de un trabajador): hace el 'Traer viajes de albaranes' del mes con TODOS los trabajadores de la empresa abierta que USAN el parte (tienen algun dia en primas_partes este mes o el anterior; asi no se rellenan partes de cisternas). Pregunta al principio con la lista de nombres; calcula todo y hace UNA sola pregunta con los dias que tenian otro texto (Aceptar/Cancelar como v726); guarda en tandas de 200. Lee lo GUARDADO de cada trabajador (no la pantalla). Mismas reglas: no toca vacaciones/baja, dias sin albaranes ni primas a mano. Al acabar vuelve al trabajador que estaba abierto. primasTraerAlbaranes gana un 2º parametro {todos:true}; su uso normal no cambia. Sin SQL. VUELTA ATRAS: resubir v726.
 
 ---
