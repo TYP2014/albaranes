@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v740 (29/09/2026): PRIMAS · en 'Revisar el mes' la columna DIA ya no se parte ('01/0' + '9'): la primera columna no corta linea. Solo aspecto. Sin SQL. VUELTA ATRAS: resubir v739.
+
+---
+
 v739 (29/09/2026): PRIMAS · (1) el contador de 'lo que dice el conductor' ya no cuenta como viajes lo de entre parentesis (desglose), las horas (10.45, 10:45, 17H, '5 horas', 'de 11 a 17') ni las toneladas (72Tn): baja la paja del apartado 3 de 'Revisar el mes' y del aviso '⚠ conductor dice'. (2) En las ventanas 'Revisar el mes' y '👁 VER' el texto ya no se sale por los bordes (celdas que parten linea). Sin SQL. VUELTA ATRAS: resubir v738.
 
 ---
