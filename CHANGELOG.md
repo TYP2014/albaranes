@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v743 (29/09/2026): EMPLEADOS · el icono de PRIMAS pasa a ser un FAJO DE BILLETES verdes con faja y € (se mece suave) y dos destellos que parpadean, en vez de las manos lanzando billetes (no le gustaban). Archivos NUEVOS a subir: ico_pri_fajo.webp, ico_pri_brillo.webp (los ico_pri_manos/billete1/billete2/moneda ya no se usan; se pueden borrar del repo o dejar). Vacaciones y Reconocimientos igual. Sin SQL. VUELTA ATRAS: resubir v742.
+
+---
+
 v742 (29/09/2026): EMPLEADOS · los tres botones (Vacaciones, Reconocimientos médicos y Primas) con iconos ILUSTRADOS en color (dibujos de ChatGPT, recortados en capas y animados sin parar): sol que gira detras de una maleta que se balancea; carpeta con monitor donde la linea del latido se dibuja de izquierda a derecha y un corazon que late; dos manos que lanzan un billete, otro billete y una moneda (Primas dibujado por Claude imitando el estilo, porque ChatGPT no tenia cupo de imagenes). Archivos NUEVOS en la raiz del repo (hay que subirlos): ico_vac_sol.webp, ico_vac_maleta.webp, ico_rec_carpeta.webp, ico_rec_latido.webp, ico_rec_corazon.webp, ico_pri_manos.webp, ico_pri_billete1.webp, ico_pri_billete2.webp, ico_pri_moneda.webp. Respeta 'reducir movimiento'. Sin SQL. VUELTA ATRAS: resubir v741.
 
 ---

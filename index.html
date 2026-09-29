@@ -1256,12 +1256,11 @@ if (typeof pdfjsLib !== 'undefined') {
         @keyframes eiLatido{0%{clip-path:inset(0 78% 0 0);opacity:1}60%{clip-path:inset(0 33% 0 0);opacity:1}85%{clip-path:inset(0 33% 0 0);opacity:1}100%{clip-path:inset(0 33% 0 0);opacity:0}}
         [data-emptab] .eiCor{transform-origin:76.7% 27.7%;animation:eiCorLate 1.1s ease-in-out infinite}
         @keyframes eiCorLate{0%,45%,100%{transform:scale(1)}12%{transform:scale(1.18)}24%{transform:scale(1)}34%{transform:scale(1.1)}}
-        [data-emptab] .eiTira{animation:eiTira 2.7s ease-out infinite}
-        [data-emptab] .eiT2{animation-delay:.45s}[data-emptab] .eiT3{animation-delay:.9s}
-        @keyframes eiTira{0%{transform:translateY(32%) scale(.7);opacity:0}12%{opacity:1}40%{transform:translateY(0) scale(1);opacity:1}78%{transform:translateY(-5%) scale(1);opacity:1}100%{transform:translateY(-12%) scale(1);opacity:0}}
-        [data-emptab] .eiManos{transform-origin:50% 90%;animation:eiManos 2.7s ease-in-out infinite}
-        @keyframes eiManos{0%,24%,100%{transform:translateY(0)}8%{transform:translateY(-5%)}16%{transform:translateY(1%)}}
-        @media (prefers-reduced-motion:reduce){[data-emptab] .eiTira{opacity:1 !important;transform:none !important}}
+        /* v743: Primas = fajo de billetes que se mece + destellos que parpadean */
+        [data-emptab] .eiFajo{transform-origin:50% 75%;animation:eiFajo 2.8s ease-in-out infinite}
+        @keyframes eiFajo{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6%) rotate(-4deg)}55%{transform:translateY(0) rotate(2deg)}75%{transform:translateY(-2%) rotate(0)}}
+        [data-emptab] .eiBrillo{transform-origin:78% 22%;animation:eiBrillo 2.8s ease-in-out infinite}
+        @keyframes eiBrillo{0%,100%{opacity:.2;transform:scale(.7)}30%{opacity:1;transform:scale(1.1)}55%{opacity:.6;transform:scale(.9)}}
         @media (prefers-reduced-motion:reduce){[data-emptab] .eiLay img{animation:none !important;clip-path:none !important;opacity:1 !important}}
       </style>
       <div style="display:flex;gap:36px;margin-bottom:18px;flex-wrap:wrap;justify-content:center">
@@ -1272,7 +1271,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <span class="eiLay" aria-hidden="true"><img src="ico_rec_carpeta.webp?v742" alt=""><img class="eiLat" src="ico_rec_latido.webp?v742" alt=""><img class="eiCor" src="ico_rec_corazon.webp?v742" alt=""></span>
           <span>Reconocimientos médicos</span></button>
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img class="eiTira eiT2" src="ico_pri_billete2.webp?v742" alt=""><img class="eiTira eiT3" src="ico_pri_moneda.webp?v742" alt=""><img class="eiTira" src="ico_pri_billete1.webp?v742" alt=""><img class="eiManos" src="ico_pri_manos.webp?v742" alt=""></span>
+          <span class="eiLay" aria-hidden="true"><img class="eiFajo" src="ico_pri_fajo.webp?v743" alt=""><img class="eiBrillo" src="ico_pri_brillo.webp?v743" alt=""></span>
           <span>Primas</span></button>
       </div>
       <div id="empVistaVacBox">
@@ -2002,6 +2001,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=742"></script>
+<script src="app.js?v=743"></script>
 </body>
 </html>
