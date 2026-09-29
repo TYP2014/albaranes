@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v734 (29/09/2026): PRIMAS · regla nueva: 3 o mas H.MONTCADA (a Hormigon Montcada) + 1 SANT JUST (Begues/Cemex → Sant Just) = 20 €. Solo se añade esa linea a PRIMAS_REGLAS. Sin SQL. VUELTA ATRAS: resubir v733.
+
+---
+
 v733 (29/09/2026): PRIMAS · regla nueva: 3 o mas H.MONTCADA (a Hormigon Montcada, desde Cantera de Garraf o Begues/Cemex) + 1 CORTO (Tecnocatalana) = 20 €. Casos reales Said 15, 16, 17 y 18/09. Solo se añade esa linea a PRIMAS_REGLAS; las demas no cambian. Sin SQL. VUELTA ATRAS: resubir v732.
 
 ---
