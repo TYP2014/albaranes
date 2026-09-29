@@ -25639,7 +25639,7 @@ function renderPrimas() {
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
       '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
-      '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div></td>' +
+      '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:14px;padding:5px 10px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button></td></tr>';
@@ -25668,6 +25668,39 @@ function renderPrimas() {
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   _primasPintaTotales();
   document.querySelectorAll('#primasBox textarea').forEach(_primasAutoAlto);   // v678: que se lea entero lo que dice el conductor
+  _primasMarcaDesfase();   // v729: en segundo plano, marca los dias cuyo texto ya no cuadra con los albaranes
+}
+
+// v729: DIAS DESFASADOS EN COLOR. Sin pulsar nada: al abrir el parte, mira los albaranes (igual que
+// 'Traer viajes' pero SIN guardar) y marca en NARANJA los dias con TRABAJO REALIZADO distinto al de los
+// albaranes, y en AZUL los dias vacios que ya tienen albaranes. Boton 📥 en la marca = trae ese dia (pregunta).
+let _v729Tok = 0;
+async function _primasMarcaDesfase() {
+  const tok = ++_v729Tok, trab = primasTrabId, mes = primasMes;
+  if (!trab) return;
+  try {
+    const o = await primasTraerAlbaranes(null, { todos: true, silencioso: true });
+    if (tok !== _v729Tok || trab !== primasTrabId || mes !== primasMes || !o || o.sinVeh) return;
+    const nuevo = {};
+    (o.aGuardar || []).forEach(f => { nuevo[f.fecha] = f.trabajo || ''; });
+    const pis = new Set((o.pisados || []).map(x => x.iso));
+    let nNar = 0, nAzul = 0;
+    Object.keys(nuevo).forEach(iso => {
+      const el = document.getElementById('pr_desf_' + iso), ta = document.getElementById('pr_trabajo_' + iso);
+      if (!el || !nuevo[iso]) return;
+      const antes = String((primasRows[iso] || {}).trabajo || '').trim();
+      let tipo = '';
+      if (pis.has(iso)) tipo = 'nar'; else if (!antes) tipo = 'azul';
+      if (!tipo) return;
+      const col = tipo === 'nar' ? '#e65100' : '#1565c0';
+      el.innerHTML = '<div style="margin-top:4px;padding:5px 8px;border-radius:6px;background:' + (tipo === 'nar' ? 'rgba(230,81,0,.12)' : 'rgba(21,101,192,.10)') + ';color:' + col + ';font-size:13px;font-weight:800;line-height:1.35;white-space:normal;overflow-wrap:anywhere">' +
+        (tipo === 'nar' ? '⚠ Los albaranes ya no coinciden. Ahora: ' : '📥 Hay viajes sin traer: ') + esc(nuevo[iso]) +
+        ' <button class="btn bs" style="font-size:12.5px;padding:3px 10px;font-weight:800;margin-left:6px" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥 ' + (tipo === 'nar' ? 'Cambiar' : 'Traer') + '</button></div>';
+      if (ta) ta.style.outline = '2px solid ' + col;
+      if (tipo === 'nar') nNar++; else nAzul++;
+    });
+    if (nNar || nAzul) console.log('[v729 primas] desfasados', { naranja: nNar, azul: nAzul });
+  } catch (e) { console.warn('[v729 primas] no se pudo mirar el desfase', e); }
 }
 
 // v675: plus del mes abierto, calculado sobre primasRows. Devuelve { semanas, semanasOk, dias, diasOk, auto, manual, valor }
@@ -25768,6 +25801,7 @@ async function primasSaveRow(iso) {
     const _elP = document.getElementById('pr_prima_' + iso), _fN = primasRows[iso] || {};   // v670
     if (_elP) { _elP.style.color = _fN.prima_auto ? '#1565c0' : ''; _elP.title = _fN.prima_auto ? 'Puesta por la app según los albaranes. Escribe encima para cambiarla.' : ''; }
     const _elI = document.getElementById('pr_info_' + iso); if (_elI) _elI.innerHTML = _primasInfoDia(_fN);
+    { const _d9 = document.getElementById('pr_desf_' + iso), _t9 = document.getElementById('pr_trabajo_' + iso); if (_d9) _d9.innerHTML = ''; if (_t9) _t9.style.outline = ''; }   // v729: editado a mano → se quita la marca
     if (!primasHabitual && veh) {   // (solo si no tiene habitual ni en ficha ni en historico)
       primasHabitual = veh;
       document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
@@ -25960,7 +25994,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
   if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }
   const p = primasMes.split('-'); const mm = p[1], m1 = String(+p[1]), yy = p[0];
   const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
-  _primasEstado('Buscando albaranes...');
+  if (!(_opt && _opt.silencioso)) _primasEstado('Buscando albaranes...');   // v729
   try {
     const porVehDia = {};   // veh|iso -> { rutas: { 'ORIGEN → DESTINO': n }, cuenta: { CALIZA: n, ... } }   (v670)
     for (const veh of vehs) {

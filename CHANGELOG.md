@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v729 (29/09/2026): PRIMAS · DIAS DESFASADOS EN COLOR. Al abrir el parte de un trabajador, en segundo plano mira sus albaranes (misma cuenta que 'Traer viajes', SIN guardar nada) y marca: NARANJA '⚠ Los albaranes ya no coinciden. Ahora: …' si TRABAJO REALIZADO tiene otro texto; AZUL '📥 Hay viajes sin traer: …' si esta vacio y ya hay albaranes. Cada marca lleva boton 📥 Cambiar/Traer (el de un dia, que pregunta). No marca vacaciones/baja. Al editar el dia a mano la marca se quita; al traer viajes se recalcula. primasTraerAlbaranes acepta {silencioso:true}. Sin SQL. VUELTA ATRAS: resubir v728.
+
+---
+
 v728 (29/09/2026): PRIMAS · boton '🔍 Albaranes huérfanos': ventana con los albaranes del mes (hasta hoy) de los camiones de los partes de la empresa abierta que (a) NO estan en el parte de nadie ese dia o (b) estan en el de DOS o mas (prima doble). Un camion lo lleva un trabajador ese dia si esta en su VEHICULO; si su dia no tiene vehiculo, su habitual (como Traer viajes); de vacaciones/baja no cuenta. Se miran los partes de TODAS las empresas. Solo lee, no cambia nada. Sin SQL. VUELTA ATRAS: resubir v727.
 
 ---
