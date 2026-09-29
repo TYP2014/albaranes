@@ -11333,7 +11333,42 @@ function _facturacionModalHtml(r) {
         title="Para acordarnos de mirar algo: dato mal, error del conductor, destino cambiado a boli... No cambia nada del albarán ni de su facturación.">
         🟡 ${r.marca_revisar ? 'MARCADO PARA REVISAR' + (r.marca_revisar_nota ? ': ' + esc(r.marca_revisar_nota) : '') + ' (pulsa para quitar)' : 'Marcar para revisar (algo mal, destino a boli, pendiente…)'}
       </button>
+    </div>
+    <div style="margin-top:6px">
+      <button onclick="event.stopPropagation();marcarNoPrima('${id}')"
+        style="width:100%;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;
+               border:1px solid ${r.no_prima ? '#c62828' : 'var(--bd)'};
+               background:${r.no_prima ? '#c62828' : 'var(--bg2)'};
+               color:${r.no_prima ? '#fff' : 'var(--tx)'}"
+        title="Para sustitutos o albaranes ya pagados otro mes: NO cuenta en las PRIMAS del conductor. No toca la facturación al cliente ni la liquidación de subcontratados (para eso está el naranja).">
+        🚫 ${r.no_prima ? 'NO CUENTA EN PRIMAS DEL CONDUCTOR (pulsa para quitar)' : 'Marcar: no contar en primas del conductor'}
+      </button>
     </div>`;
+}
+
+// v736: 🚫 NO CONTAR EN PRIMAS desde el modal del albaran (misma columna no_prima que el boton de 👁 VER en Primas).
+// Solo afecta a las primas: no toca facturacion al cliente, ni la naranja/liquidacion, ni nada mas.
+async function marcarNoPrima(id) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  if (!r.db_id) { toast('Este albarán aún no está guardado en la base de datos', 'err'); return; }
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso', 'err'); return; }
+  const antes = !!r.no_prima, nuevo = !antes;
+  r.no_prima = nuevo;
+  if (editId && (String(editId) === String(id))) {
+    const cont = document.getElementById('mFacturacion');
+    if (cont) cont.innerHTML = _facturacionModalHtml(r);
+  }
+  toast(nuevo ? '🚫 No cuenta en las primas del conductor' : 'Vuelve a contar en las primas', 'ok');
+  try {
+    const { error } = await sb.from('albaranes').update({ no_prima: nuevo }).eq('id', r.db_id);
+    if (error) throw error;
+    console.log('[v736 modal] no_prima', r.db_id, nuevo);
+  } catch (e) {
+    r.no_prima = antes;
+    if (editId && (String(editId) === String(id))) { const cont = document.getElementById('mFacturacion'); if (cont) cont.innerHTML = _facturacionModalHtml(r); }
+    toast('⚠️ No se pudo guardar: ' + (e.message || e) + '. Vuelve a marcarlo.', 'err');
+  }
 }
 
 // v718: MARCA AMARILLA 🟡 "revisar" (algo mal, error del conductor, destino cambiado a boli, pendiente...).

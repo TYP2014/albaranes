@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v736 (29/09/2026): MODAL DEL ALBARAN · boton nuevo '🚫 Marcar: no contar en primas del conductor' (rojo al activarlo) debajo del 🟠 y el 🟡 en 'Facturación a cliente'. Usa la misma columna no_prima que el boton de 👁 VER en Primas (v735). Independiente: no toca facturacion al cliente (Pendiente/Facturado/No facturable), ni la naranja (liquidacion de subcontratados), ni la amarilla. Sin SQL (la columna ya existe). VUELTA ATRAS: resubir v735.
+
+---
+
 v735 (29/09/2026): PRIMAS · albaranes que NO cuentan para primas: (1) los marcados 'No facturable' (p. ej. el manual firmado que luego sustituyen) dejan de contar solos; (2) en la ventana 👁 VER cada albaran tiene boton '🚫 NO CONTAR EN PRIMAS' / '↩ VOLVER A CONTAR' (columna nueva albaranes.no_prima; p. ej. los ya abonados otro mes). No se borra nada. Afecta a Traer viajes, Traer a TODOS, marcas de color y Huérfanos. REQUIERE SQL ANTES: ALTER TABLE albaranes ADD COLUMN IF NOT EXISTS no_prima boolean NOT NULL DEFAULT false. VUELTA ATRAS: resubir v734 (la columna puede quedarse).
 
 ---
