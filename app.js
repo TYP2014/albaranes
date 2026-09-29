@@ -26020,6 +26020,7 @@ function _primasFechaAlb(s) {
 async function primasTraerAlbaranes(soloIso, _opt) {
   const _todos = !!(_opt && _opt.todos);   // v727: llamado desde 'Traer viajes a TODOS' → no lee la pantalla, no guarda, devuelve lo calculado
   if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
+  const _v737Tid = String(primasTrabId);   // v737: se fija AL EMPEZAR (si otra cosa cambia primasTrabId mientras busca, las filas no salen con trabajador vacio)
   const r = _primasRango();
   const hoy = _primasISO(new Date());
   const dias = [];
@@ -26099,7 +26100,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
       const cambia = veh !== _primasMatsTxt(previa.vehiculo) || trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
       if (!cambia) continue;
       aGuardar.push({
-        trabajador_id: primasTrabId, fecha: iso, vehiculo: veh,
+        trabajador_id: _v737Tid, fecha: iso, vehiculo: veh,
         parte_conductor: g('parte_conductor') || null, trabajo: trabajo || null, notas: g('notas') || null,
         prima: prima, prima_auto: primaAuto, tipos: tipos || null, prima_sugerida: prop.prima,
         plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
@@ -26185,7 +26186,9 @@ async function primasTraerTodos() {
       if (!ok) res.forEach(x => x.o.pisados.forEach(pz => { const r0 = x.o.aGuardar.find(f => f.fecha === pz.iso); if (r0) r0.trabajo = pz.antes || null; }));
       console.log('[v727 primas] textos distintos', pisados.length, ok ? 'CAMBIADOS' : 'dejados');
     }
-    const filas = [].concat.apply([], res.map(x => x.o.aGuardar));
+    let filas = [].concat.apply([], res.map(x => x.o.aGuardar));
+    const _v737Malas = filas.filter(f => !f.trabajador_id);   // v737: nunca mandar una fila sin trabajador (error uuid "" del 29/09)
+    if (_v737Malas.length) { console.warn('[v737 primas] filas sin trabajador descartadas', _v737Malas.length); filas = filas.filter(f => !!f.trabajador_id); }
     for (let i = 0; i < filas.length; i += 200) {
       const { error } = await sb.from('primas_partes').upsert(filas.slice(i, i + 200), { onConflict: 'trabajador_id,fecha' });
       if (error) throw error;

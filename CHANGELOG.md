@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v737 (29/09/2026): PRIMAS · arreglo del error del chivato '[v727 primasTraerTodos] invalid input syntax for type uuid: ""' (29/09 08:30). primasTraerAlbaranes fija el trabajador AL EMPEZAR (antes leia primasTrabId al guardar cada fila; si algo lo cambiaba a vacio mientras buscaba albaranes, la fila salia con trabajador '' y fallaba el guardado de TODOS). Ademas 'Traer viajes a TODOS' descarta cualquier fila sin trabajador antes de guardar. Nada mas cambia. Sin SQL. VUELTA ATRAS: resubir v736.
+
+---
+
 v736 (29/09/2026): MODAL DEL ALBARAN · boton nuevo '🚫 Marcar: no contar en primas del conductor' (rojo al activarlo) debajo del 🟠 y el 🟡 en 'Facturación a cliente'. Usa la misma columna no_prima que el boton de 👁 VER en Primas (v735). Independiente: no toca facturacion al cliente (Pendiente/Facturado/No facturable), ni la naranja (liquidacion de subcontratados), ni la amarilla. Sin SQL (la columna ya existe). VUELTA ATRAS: resubir v735.
 
 ---
