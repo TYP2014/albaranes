@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v727 (29/09/2026): PRIMAS · boton nuevo '📥 Traer viajes a TODOS' (junto al de un trabajador): hace el 'Traer viajes de albaranes' del mes con TODOS los trabajadores de la empresa abierta que USAN el parte (tienen algun dia en primas_partes este mes o el anterior; asi no se rellenan partes de cisternas). Pregunta al principio con la lista de nombres; calcula todo y hace UNA sola pregunta con los dias que tenian otro texto (Aceptar/Cancelar como v726); guarda en tandas de 200. Lee lo GUARDADO de cada trabajador (no la pantalla). Mismas reglas: no toca vacaciones/baja, dias sin albaranes ni primas a mano. Al acabar vuelve al trabajador que estaba abierto. primasTraerAlbaranes gana un 2º parametro {todos:true}; su uso normal no cambia. Sin SQL. VUELTA ATRAS: resubir v726.
+
+---
+
 v726 (29/09/2026): PRIMAS · el boton azul '📥 Traer viajes de albaranes' (todo el mes) ahora SI actualiza TRABAJO REALIZADO en los dias que ya tenian otro texto (llegaron mas albaranes o se escribio a mano donde no tocaba): antes de guardar pregunta UNA vez, con la lista de dias y lo que tenian (Aceptar = poner lo de los albaranes · Cancelar = dejar lo escrito). No toca dias de vacaciones/baja ni dias sin albaranes; las primas tecleadas a mano siguen sin tocarse. El 📥 de cada fila sigue igual (pregunta). Solo toca primasTraerAlbaranes. Sin SQL. VUELTA ATRAS: resubir v725.
 
 ---

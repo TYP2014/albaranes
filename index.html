@@ -1337,6 +1337,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <div class="st"><div class="dot" style="--c:var(--ok)"></div>PRIMAS DE PRODUCTIVIDAD <span style="color:var(--mu);font-size:10px;font-weight:400">· parte de trabajo del mes</span></div>
             <div class="tbl-acts">
               <button class="btn bp" id="primasBtnAlbaranes" onclick="primasTraerAlbaranes()" style="font-size:14px;padding:10px 18px;font-weight:700" title="Cuenta los albaranes del vehículo de cada día, rellena TRABAJO REALIZADO (si ya había otro texto, pregunta una vez antes de cambiarlo) y propone la prima según las reglas. Nunca pisa una prima escrita a mano.">📥 Traer viajes de albaranes</button>
+              <button class="btn bp" id="primasBtnTodos" onclick="primasTraerTodos()" style="font-size:14px;padding:10px 18px;font-weight:700" title="Hace lo mismo que el botón de al lado pero con TODOS los trabajadores de esta empresa que usan el parte (tienen algún día este mes o el anterior). Pregunta una vez antes de cambiar textos ya escritos.">📥 Traer viajes a TODOS</button>
               <button class="btn bs" onclick="loadPrimas()" style="font-size:14px;padding:10px 18px;font-weight:700">🔄 Actualizar</button>
             </div>
           </div>
@@ -1964,6 +1965,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=726"></script>
+<script src="app.js?v=727"></script>
 </body>
 </html>

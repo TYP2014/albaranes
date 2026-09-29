@@ -25946,15 +25946,17 @@ function _primasFechaAlb(s) {
 // Cuenta los albaranes del vehiculo de cada dia y escribe el resumen en TRABAJO REALIZADO.
 //  · sin parametro: todo el mes; rellena los vacios y (v726) los que tienen OTRO texto, preguntando UNA vez
 //  · con un dia: ese dia; si ya hay texto pregunta antes de cambiarlo
-async function primasTraerAlbaranes(soloIso) {
+async function primasTraerAlbaranes(soloIso, _opt) {
+  const _todos = !!(_opt && _opt.todos);   // v727: llamado desde 'Traer viajes a TODOS' → no lee la pantalla, no guarda, devuelve lo calculado
   if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
   const r = _primasRango();
   const hoy = _primasISO(new Date());
   const dias = [];
   for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if (!soloIso || soloIso === iso) dias.push(iso);
   // v671: cada dia puede llevar VARIOS vehiculos → se suman los albaranes de todos
-  const vehsDe = (iso) => { const el = document.getElementById('pr_vehiculo_' + iso); let l = _primasMats(el && el.value); if (!l.length) l = _primasMats((primasRows[iso] || {}).vehiculo); if (!l.length && primasHabitual) l = [primasHabitual]; return l; };
+  const vehsDe = (iso) => { const el = _todos ? null : document.getElementById('pr_vehiculo_' + iso); let l = _primasMats(el && el.value); if (!l.length) l = _primasMats((primasRows[iso] || {}).vehiculo); if (!l.length && primasHabitual) l = [primasHabitual]; return l; };
   const vehs = Array.from(new Set([].concat.apply([], dias.map(vehsDe))));
+  if (!vehs.length && _todos) return { aGuardar: [], pisados: [], sinVeh: true };   // v727
   if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }
   const p = primasMes.split('-'); const mm = p[1], m1 = String(+p[1]), yy = p[0];
   const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
@@ -25988,7 +25990,7 @@ async function primasTraerAlbaranes(soloIso) {
       const lista = vehsDe(iso); if (!lista.length) continue;
       const veh = lista.join(' + ');
       const previa = primasRows[iso] || {};
-      const g = (k) => { const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };
+      const g = (k) => { if (_todos) { const v0 = previa[k]; return v0 == null ? '' : String(v0).trim(); } const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };   // v727: en TODOS se lee lo guardado
       let dia = null;
       lista.forEach(v1 => {                                   // v671: suma de todos los camiones que llevo ese dia
         const d1 = porVehDia[v1 + '|' + iso]; if (!d1) return;
@@ -26030,6 +26032,7 @@ async function primasTraerAlbaranes(soloIso) {
         editado_por: _primasQuien(), updated_at: new Date().toISOString()
       });
     }
+    if (_todos) return { aGuardar, pisados: _v726Pisados, nAuto, nAusente };   // v727: la pregunta y el guardado los hace primasTraerTodos
     // v726: antes de guardar, UNA sola pregunta con los dias que ya tenian otro texto
     if (_v726Pisados.length) {
       const _ej = _v726Pisados.slice(0, 6).map(x => '· día ' + x.iso.slice(8) + ': "' + (x.antes.length > 60 ? x.antes.slice(0, 60) + '…' : x.antes) + '"').join('\n');
@@ -26044,11 +26047,90 @@ async function primasTraerAlbaranes(soloIso) {
     toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (nAusente ? ' · ⚠ ' + nAusente + ' día(s) de vacaciones/baja con albaranes de su camión' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
     console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
   } catch (e) {
+    if (_todos) throw e;   // v727
     console.error('[v659 primasTraerAlbaranes]', e);
     if (/prima_auto|prima_sugerida|tipos/.test(String(e.message || e))) toast('Falta ejecutar el SQL primas_v670.sql en Supabase', 'err');   // v670
     _primasEstado('✗ Error buscando albaranes: ' + (e.message || e), true);
     toast('Error buscando albaranes: ' + (e.message || e), 'err');
   }
+}
+// v727: TRAER VIAJES A TODOS los trabajadores de la empresa abierta, de golpe.
+// Solo los que USAN el parte (tienen algun dia apuntado este mes o el anterior): asi no se rellenan
+// partes de conductores de cisterna. Calcula todo primero, hace UNA pregunta y guarda.
+async function _primasCargarTrabSinPintar(id) {
+  const r = _primasRango();
+  const q1 = await sb.from('primas_partes').select('*').eq('trabajador_id', id).gte('fecha', r.desde).lte('fecha', r.hasta);
+  if (q1.error) throw q1.error;
+  primasRows = {};
+  (q1.data || []).forEach(f => { primasRows[String(f.fecha).slice(0, 10)] = f; });
+  const t = (vacTrabajadores || []).find(x => String(x.id) === String(id));
+  primasHabitual = _primasMat(t && t.vehiculo_habitual);
+  if (!primasHabitual) {
+    const q2 = await sb.from('primas_partes').select('vehiculo,fecha').eq('trabajador_id', id).not('vehiculo', 'is', null).order('fecha', { ascending: false }).limit(60);
+    const cuenta = {};
+    (q2.data || []).forEach(f => { _primasMats(f.vehiculo).forEach(v => { cuenta[v] = (cuenta[v] || 0) + 1; }); });
+    primasHabitual = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || '';
+  }
+}
+async function primasTraerTodos() {
+  const mesEl = document.getElementById('primasMes');
+  primasMes = (mesEl && mesEl.value) || primasMes || _primasISO(new Date()).slice(0, 7);
+  const origTrab = primasTrabId;
+  const btn = document.getElementById('primasBtnTodos');
+  try {
+    const p = primasMes.split('-');
+    const iniAnt = _primasISO(new Date(+p[0], +p[1] - 2, 1)), r = _primasRango();
+    const usan = new Set();
+    for (let desde = 0; desde < 20000; desde += 1000) {
+      const q = await sb.from('primas_partes').select('trabajador_id').gte('fecha', iniAnt).lte('fecha', r.fin).range(desde, desde + 999);
+      if (q.error) throw q.error;
+      (q.data || []).forEach(f => usan.add(String(f.trabajador_id)));
+      if ((q.data || []).length < 1000) break;
+    }
+    const lista = _pcTrabajadores().filter(t => usan.has(String(t.id)));
+    const empNom = (typeof _PRIMAS_EMP_NOM !== 'undefined' && _PRIMAS_EMP_NOM[primasEmpresa]) || primasEmpresa;
+    if (!lista.length) { toast('Ningún trabajador de ' + empNom + ' tiene parte este mes ni el anterior', 'warn'); return; }
+    if (!confirm('Traer viajes de albaranes a ' + lista.length + ' trabajador(es) de ' + empNom + ' (' + primasMes + '):\n\n' + lista.map(t => '· ' + (t.nombre || '')).join('\n') + '\n\nSolo salen los que ya usan el parte (tienen algún día este mes o el anterior).\n\n¿Seguir?')) return;
+    if (btn) btn.disabled = true;
+    const res = [], sinVeh = [];
+    for (let i = 0; i < lista.length; i++) {
+      const t = lista[i];
+      _primasEstado('Trabajador ' + (i + 1) + ' de ' + lista.length + ': ' + (t.nombre || '') + '...');
+      primasTrabId = String(t.id);
+      await _primasCargarTrabSinPintar(t.id);
+      const o = await primasTraerAlbaranes(null, { todos: true });
+      if (!o) continue;
+      if (o.sinVeh) { sinVeh.push(t.nombre || ''); continue; }
+      o.pisados.forEach(x => { x.nombre = t.nombre || ''; x.tid = String(t.id); });
+      res.push({ t, o });
+    }
+    const pisados = [].concat.apply([], res.map(x => x.o.pisados));
+    if (pisados.length) {
+      const ej = pisados.slice(0, 8).map(x => '· ' + x.nombre + ', día ' + x.iso.slice(8) + ': "' + (x.antes.length > 45 ? x.antes.slice(0, 45) + '…' : x.antes) + '"').join('\n');
+      const ok = confirm(pisados.length + ' día(s) ya tenían escrito algo distinto en TRABAJO REALIZADO:\n\n' + ej + (pisados.length > 8 ? '\n· …' : '') + '\n\n¿Cambiarlos por lo que hay ahora en los albaranes de la app?\n\n(Aceptar = poner lo de los albaranes · Cancelar = dejar lo escrito)');
+      if (!ok) res.forEach(x => x.o.pisados.forEach(pz => { const r0 = x.o.aGuardar.find(f => f.fecha === pz.iso); if (r0) r0.trabajo = pz.antes || null; }));
+      console.log('[v727 primas] textos distintos', pisados.length, ok ? 'CAMBIADOS' : 'dejados');
+    }
+    const filas = [].concat.apply([], res.map(x => x.o.aGuardar));
+    for (let i = 0; i < filas.length; i += 200) {
+      const { error } = await sb.from('primas_partes').upsert(filas.slice(i, i + 200), { onConflict: 'trabajador_id,fecha' });
+      if (error) throw error;
+    }
+    const nTrab = res.filter(x => x.o.aGuardar.length).length;
+    const nAuto = res.reduce((a, x) => a + (x.o.nAuto || 0), 0), nAus = res.reduce((a, x) => a + (x.o.nAusente || 0), 0);
+    const msg = filas.length ? ('Rellenados ' + filas.length + ' día(s) en ' + nTrab + ' trabajador(es)') : 'Nada nuevo que rellenar';
+    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nAus ? ' · ⚠ ' + nAus + ' día(s) de vacaciones/baja con albaranes' : '') + (sinVeh.length ? ' · sin matrícula: ' + sinVeh.join(', ') : ''), filas.length ? 'ok' : 'warn');
+    console.log('[v727 primas] todos', { trabajadores: lista.length, filas: filas.length, sinVeh });
+    primasTrabId = origTrab;
+    await loadPrimas();
+    _primasEstado('✓ ' + msg);
+  } catch (e) {
+    console.error('[v727 primasTraerTodos]', e);
+    primasTrabId = origTrab;
+    try { await loadPrimas(); } catch (e2) {}
+    _primasEstado('✗ Error trayendo viajes a todos: ' + (e.message || e), true);
+    toast('Error trayendo viajes a todos: ' + (e.message || e), 'err');
+  } finally { if (btn) btn.disabled = false; }
 }
 // ===== fin v659 PRIMAS =====
 
