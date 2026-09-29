@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v726 (29/09/2026): PRIMAS · el boton azul '📥 Traer viajes de albaranes' (todo el mes) ahora SI actualiza TRABAJO REALIZADO en los dias que ya tenian otro texto (llegaron mas albaranes o se escribio a mano donde no tocaba): antes de guardar pregunta UNA vez, con la lista de dias y lo que tenian (Aceptar = poner lo de los albaranes · Cancelar = dejar lo escrito). No toca dias de vacaciones/baja ni dias sin albaranes; las primas tecleadas a mano siguen sin tocarse. El 📥 de cada fila sigue igual (pregunta). Solo toca primasTraerAlbaranes. Sin SQL. VUELTA ATRAS: resubir v725.
+
+---
+
 v724 (28/09/2026): PRIMAS · PLATAFORMA reconoce tambien BIG BAG (lineas 'BB ...', 'BIG BAG') y HORMIGON SECO / FORMIGO SEC, y 'SACAS', en el material (solo lo llevan plataformas o grua). Solo toca _primasClase. Sin SQL. VUELTA ATRAS: resubir v723.
 
 v723 (26/09/2026): PLAZO DE PAGO POR CLIENTE en Facturas Emitidas. Tabla nueva clientes_plazo (cliente_key PK, cliente, dias 0-365; SQL plazos_pago_v723.sql PRIMERO; RLS admin/Marta/MdM). Boton '⚙️ Plazos de pago' junto a los filtros (Todas/Pendientes/Vencidas/Cobradas): lista de clientes (con nº de facturas y pendientes) y casilla de dias; 'Guardar plazos' (vacio = borrar). Cada factura NUEVA que se sube: vencimiento = fecha + dias del cliente (si el cliente no tiene plazo, el del PDF como antes). 'Recalcular pendientes': solo PENDIENTES, confirma con el nº y ejemplos antes de cambiar; las cobradas no se tocan. Comparacion de cliente sin mayusculas/acentos/puntos. Probado: Llantada 120 d → 31/08→29/12 y 17/07→14/11. VUELTA ATRAS: resubir v722 (la tabla puede quedarse).

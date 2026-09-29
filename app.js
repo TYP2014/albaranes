@@ -25944,7 +25944,7 @@ function _primasFechaAlb(s) {
 }
 
 // Cuenta los albaranes del vehiculo de cada dia y escribe el resumen en TRABAJO REALIZADO.
-//  · sin parametro: todo el mes, SOLO rellena los dias que estan vacios (nunca pisa lo escrito)
+//  · sin parametro: todo el mes; rellena los vacios y (v726) los que tienen OTRO texto, preguntando UNA vez
 //  · con un dia: ese dia; si ya hay texto pregunta antes de cambiarlo
 async function primasTraerAlbaranes(soloIso) {
   if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
@@ -25983,6 +25983,7 @@ async function primasTraerAlbaranes(soloIso) {
     }
     const aGuardar = [];
     let sinAlb = 0, nAuto = 0, nSinRegla = 0, nAusente = 0;
+    const _v726Pisados = [];   // v726: dias con texto distinto al de los albaranes (en bloque se cambian, con UNA pregunta)
     for (const iso of dias) {
       const lista = vehsDe(iso); if (!lista.length) continue;
       const veh = lista.join(' + ');
@@ -26011,6 +26012,7 @@ async function primasTraerAlbaranes(soloIso) {
       const actual = g('trabajo');
       let trabajo = actual;
       if (resumen && !actual && !ausente) trabajo = resumen;   // v677: si no trabajaba, esos viajes no son suyos
+      else if (resumen && actual !== resumen && !soloIso && !ausente) { trabajo = resumen; _v726Pisados.push({ iso, antes: actual, idx: aGuardar.length }); }   // v726: en bloque SI se actualiza (llegaron mas albaranes o se escribio donde no tocaba)
       else if (resumen && actual !== resumen && soloIso && confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) trabajo = resumen;
       // (b) PRIMA: la app solo la pone/cambia si esta vacia o si la habia puesto ella. Lo tecleado a mano NO se toca
       const primaAct = _primasNum(g('prima')), eraAuto = !!previa.prima_auto;
@@ -26027,6 +26029,13 @@ async function primasTraerAlbaranes(soloIso) {
         plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
         editado_por: _primasQuien(), updated_at: new Date().toISOString()
       });
+    }
+    // v726: antes de guardar, UNA sola pregunta con los dias que ya tenian otro texto
+    if (_v726Pisados.length) {
+      const _ej = _v726Pisados.slice(0, 6).map(x => '· día ' + x.iso.slice(8) + ': "' + (x.antes.length > 60 ? x.antes.slice(0, 60) + '…' : x.antes) + '"').join('\n');
+      const _ok = confirm(_v726Pisados.length + ' día(s) ya tenían escrito algo distinto en TRABAJO REALIZADO:\n\n' + _ej + (_v726Pisados.length > 6 ? '\n· …' : '') + '\n\n¿Cambiarlos por lo que hay ahora en los albaranes de la app?\n\n(Aceptar = poner lo de los albaranes · Cancelar = dejar lo escrito)');
+      if (!_ok) _v726Pisados.forEach(x => { const r0 = aGuardar.find(o => o.fecha === x.iso); if (r0) r0.trabajo = x.antes || null; });
+      console.log('[v726 primas] textos distintos en bloque', _v726Pisados.length, _ok ? 'CAMBIADOS' : 'dejados');
     }
     if (aGuardar.length) { await _primasUpsert(aGuardar); renderPrimas(); }   // v670: repinta para enseñar desglose y primas puestas por la app
     _primasPintaTotales();
