@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v733 (29/09/2026): PRIMAS · regla nueva: 3 o mas H.MONTCADA (a Hormigon Montcada, desde Cantera de Garraf o Begues/Cemex) + 1 CORTO (Tecnocatalana) = 20 €. Casos reales Said 15, 16, 17 y 18/09. Solo se añade esa linea a PRIMAS_REGLAS; las demas no cambian. Sin SQL. VUELTA ATRAS: resubir v732.
+
+---
+
 v732 (29/09/2026): PRIMAS · los dos botones de cada dia del parte, con NOMBRE y mas visibles: '⬇ TRAER' (azul, antes 📥) y '👁 VER' (blanco con borde negro, antes 🧾). Solo aspecto. Sin SQL. VUELTA ATRAS: resubir v731.
 
 ---

@@ -25895,6 +25895,7 @@ const PRIMAS_REGLAS = [
   [25, { 'OLESA': 3, 'LLINARS': 1 }, '2026-09-01'],           // v679 · JC 21/09/2026: 3 Olesa → Montcada + 1 Llinars = 25 DESDE SEPTIEMBRE 2026 (antes 20)
   [20, { 'BEGUES': 2, 'LARGO': 4 }],                          // JC: 2 de Begues + 2 calizas = 20 (con 1 + 3, NO)
   [20, { 'LARGO': 4, 'CORTO': 1 }],                           // JC: 4 largos + 1 corto = 20 (4 calizas SOLAS no llevan prima)
+  [20, { 'H.MONTCADA': 3, 'CORTO': 1 }],                      // v733 · JC 29/09/2026: 3 o mas a Hormigon Montcada (Garraf o Begues/Cemex) + 1 Tecnocatalana = 20 (Said 15-18/09)
   [20, { 'ZONA FRANCA': 6, 'LARGO': 1 }],                     // hasta agosto 2026
   [25, { 'ZONA FRANCA': 6, 'LARGO': 1 }, '2026-09-01'],       // v679 · JC: 1 caliza + 6 Zona Franca = 25 DESDE SEPTIEMBRE (el de Garraf → Montcada es mas largo)
   [20, { 'YESO': 2, 'LARGO': 2 }],
