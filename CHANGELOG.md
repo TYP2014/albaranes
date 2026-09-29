@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v732 (29/09/2026): PRIMAS · los dos botones de cada dia del parte, con NOMBRE y mas visibles: '⬇ TRAER' (azul, antes 📥) y '👁 VER' (blanco con borde negro, antes 🧾). Solo aspecto. Sin SQL. VUELTA ATRAS: resubir v731.
+
+---
+
 v731 (29/09/2026): PRIMAS · boton 🧾 en cada dia del parte (junto al 📥): ventana con los albaranes que la app cuenta ese dia para los camiones del parte (VEHICULO del dia, o el habitual): nº, camion/remolque, ruta, material, tipo (CALIZA, PLATAFORMA…) y TN. Los repetidos salen tachados ('repetido, cuenta 1'). Solo lee. Sin SQL. VUELTA ATRAS: resubir v730.
 
 ---
