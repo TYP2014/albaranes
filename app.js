@@ -25642,7 +25642,7 @@ function renderPrimas() {
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
-      '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:14px;padding:5px 10px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button></td></tr>';
+      '<td style="padding:3px 4px;white-space:nowrap"><button class="btn bs" style="font-size:14px;padding:5px 10px" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">📥</button> <button class="btn bs" style="font-size:14px;padding:5px 10px" title="Ver qué albaranes cuenta la app este día (nº, ruta, tipo)" onclick="primasVerAlbDia(\'' + iso + '\')">🧾</button></td></tr>';
     // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
     const lun = _primasLunes(iso);
     if (w === 0 || iso === r.fin) {
@@ -26257,6 +26257,62 @@ async function primasHuerfanos() {
     _primasEstado('✗ Error buscando huérfanos: ' + (e.message || e), true);
     toast('Error buscando huérfanos: ' + (e.message || e), 'err');
   } finally { if (btn) btn.disabled = false; }
+}
+// v731: VER LOS ALBARANES DE UN DIA. Lista los albaranes que la app cuenta ese dia para los camiones
+// del parte (los mismos que usa 'Traer viajes'): nº, camion, ruta y tipo. Si un albaran esta dos veces
+// (subido dos veces) sale tachado: la app lo cuenta una sola vez. Solo lee.
+async function primasVerAlbDia(iso) {
+  if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
+  const el = document.getElementById('pr_vehiculo_' + iso);
+  let vehs = _primasMats(el && el.value);
+  if (!vehs.length) vehs = _primasMats((primasRows[iso] || {}).vehiculo);
+  if (!vehs.length && primasHabitual) vehs = [primasHabitual];
+  if (!vehs.length) { toast('Ese día no tiene matrícula en VEHÍCULO', 'warn'); return; }
+  const p = iso.split('-'), yy = p[0], mm = p[1], m1 = String(+p[1]);
+  const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
+  _primasEstado('Buscando albaranes del día...');
+  try {
+    const lista = [], vistos = new Set();
+    for (const veh of vehs) {
+      for (let desde = 0; desde < 5000; desde += 1000) {
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,remolque,fecha,producto,tm').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        if (q.error) throw q.error;
+        (q.data || []).forEach(a => {
+          if (_primasFechaAlb(a.fecha) !== iso) return;
+          const clave = String(a.albaran || '') + '|' + iso;
+          const rep = !!(a.albaran && vistos.has(clave)); vistos.add(clave);
+          lista.push({ veh, a, rep, clase: _primasClase(a) });
+        });
+        if ((q.data || []).length < 1000) break;
+      }
+    }
+    const n = lista.filter(x => !x.rep).length;
+    const td = 'padding:7px 8px';
+    let html = '<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:4px">🧾 Albaranes del ' + iso.slice(8) + '/' + iso.slice(5, 7) + '/' + yy + '</div>' +
+      '<div style="font-size:14px;font-weight:700;color:#333;margin-bottom:12px">Camión: ' + esc(vehs.join(' + ')) + ' · cuenta ' + n + ' viaje(s)</div>';
+    if (!lista.length) html += '<div style="font-size:15px;font-weight:700;color:#c62828">No hay albaranes de ese camión este día.</div>';
+    else html += '<table style="width:100%;border-collapse:collapse;font-size:15px;font-weight:700;color:#111">' +
+      '<tr style="background:#eef2f7"><th style="' + td + ';text-align:left">Nº ALBARÁN</th><th style="' + td + ';text-align:left">CAMIÓN</th><th style="' + td + ';text-align:left">RUTA</th><th style="' + td + ';text-align:left">MATERIAL</th><th style="' + td + ';text-align:left">TIPO</th><th style="' + td + ';text-align:right">TN</th></tr>' +
+      lista.map(x => '<tr style="border-bottom:1px solid #ddd;' + (x.rep ? 'text-decoration:line-through;color:#999' : '') + '">' +
+        '<td style="' + td + '">' + esc(String(x.a.albaran || '(sin nº)')) + (x.rep ? ' <span style="text-decoration:none;color:#e65100">(repetido, cuenta 1)</span>' : '') + '</td>' +
+        '<td style="' + td + '">' + esc(String(x.a.tractora || '')) + (x.a.remolque ? ' / ' + esc(String(x.a.remolque)) : '') + '</td>' +
+        '<td style="' + td + '">' + esc((String(x.a.planta || '?').trim() + ' → ' + String(x.a.obra || '?').trim()).toUpperCase()) + '</td>' +
+        '<td style="' + td + '">' + esc(String(x.a.producto || '')) + '</td>' +
+        '<td style="' + td + '">' + esc(x.clase || '') + '</td>' +
+        '<td style="' + td + ';text-align:right">' + (x.a.tm != null ? esc(String(x.a.tm)) : '') + '</td></tr>').join('') + '</table>';
+    let ov = document.getElementById('primasAlbDiaOv');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'primasAlbDiaOv'; document.body.appendChild(ov); }
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
+    ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35)">' + html +
+      '<div style="text-align:right;margin-top:18px"><button class="btn bp" style="font-size:15px;padding:10px 22px;font-weight:700" onclick="document.getElementById(\'primasAlbDiaOv\').remove()">Cerrar</button></div></div>';
+    ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
+    _primasEstado('');
+    console.log('[v731 primas] albaranes del dia', iso, { vehs, filas: lista.length, cuenta: n });
+  } catch (e) {
+    console.error('[v731 primasVerAlbDia]', e);
+    _primasEstado('✗ Error: ' + (e.message || e), true);
+    toast('Error buscando los albaranes del día: ' + (e.message || e), 'err');
+  }
 }
 // ===== fin v659 PRIMAS =====
 

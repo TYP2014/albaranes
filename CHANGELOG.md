@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v731 (29/09/2026): PRIMAS · boton 🧾 en cada dia del parte (junto al 📥): ventana con los albaranes que la app cuenta ese dia para los camiones del parte (VEHICULO del dia, o el habitual): nº, camion/remolque, ruta, material, tipo (CALIZA, PLATAFORMA…) y TN. Los repetidos salen tachados ('repetido, cuenta 1'). Solo lee. Sin SQL. VUELTA ATRAS: resubir v730.
+
+---
+
 v730 (29/09/2026): PRIMAS · mensaje del 📥 de un dia: si ese dia SI tiene albaranes pero ya estaba igual, dice 'Ese día ya está al día con los albaranes' (antes decia, mal, 'Ese día no hay albaranes de …'). Solo el texto del aviso. Sin SQL. VUELTA ATRAS: resubir v729.
 
 ---
