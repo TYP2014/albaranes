@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v741 (29/09/2026): EMPLEADOS · los tres botones de arriba (Vacaciones, Reconocimientos médicos, Primas) con iconos SVG del mismo estilo en vez de emojis: maleta (el asa se mueve), calendario con pulso (se dibuja una vez) y manos con billete (el billete se mueve). Diseño propuesto por ChatGPT e integrado tal cual salvo: largo del pulso corregido (28, antes 22 dejaba el final sin dibujar) y fallo de su pagina de prueba ('[data-emptab {' sin cerrar) no copiado. Tamaño compacto (48 px de alto, texto 17 px). Animacion corta solo al pasar el raton, enfocar o elegir; respeta 'reducir movimiento'. Solo index.html; app.js sin cambios. Sin SQL. VUELTA ATRAS: resubir v740.
+
+---
+
 v740 (29/09/2026): PRIMAS · en 'Revisar el mes' la columna DIA ya no se parte ('01/0' + '9'): la primera columna no corta linea. Solo aspecto. Sin SQL. VUELTA ATRAS: resubir v739.
 
 ---

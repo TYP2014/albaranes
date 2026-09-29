@@ -1234,10 +1234,28 @@ if (typeof pdfjsLib !== 'undefined') {
     </div>
 
     <div id="tabContentVac" class="wrap" style="display:none">
+      <style>/* v741: pestañas de Empleados con iconos SVG (diseño propuesto por ChatGPT, integrado por Claude) */
+        [data-emptab]{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:8px 16px;font-size:17px;line-height:1.25;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,border-color 160ms ease}
+        [data-emptab] svg{display:block;flex:0 0 32px;width:32px;height:32px;overflow:visible}
+        [data-emptab]:focus-visible{outline:3px solid currentColor;outline-offset:4px}
+        [data-emptab]:is(:hover,:focus-visible,.bp) .vac-handle{animation:emptab-handle 520ms ease-out;transform-box:view-box;transform-origin:16px 9px}
+        [data-emptab]:is(:hover,:focus-visible,.bp) .med-pulse{animation:emptab-pulse 620ms ease-out}
+        [data-emptab]:is(:hover,:focus-visible,.bp) .bonus-note{animation:emptab-note 520ms ease-out;transform-box:view-box;transform-origin:16px 11px}
+        @keyframes emptab-handle{0%,100%{transform:rotate(0)}35%{transform:rotate(-13deg)}70%{transform:rotate(5deg)}}
+        @keyframes emptab-pulse{from{stroke-dashoffset:28}to{stroke-dashoffset:0}}
+        @keyframes emptab-note{0%,100%{transform:translateY(0)}35%{transform:translateY(-2px)}70%{transform:translateY(1px)}}
+        @media (prefers-reduced-motion:reduce){[data-emptab],[data-emptab] *{animation:none !important;transition:none !important}}
+      </style>
       <div style="display:flex;gap:36px;margin-bottom:18px;flex-wrap:wrap;justify-content:center">
-        <button class="btn bp" id="empVistaVac" onclick="switchEmpleadosVista('vac')" style="font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;letter-spacing:1px"><span style="font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;font-size:24px;line-height:1;vertical-align:-4px;margin-right:10px">🏖️</span>Vacaciones</button>
-        <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')" style="font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;letter-spacing:1px"><span style="font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;font-size:24px;line-height:1;vertical-align:-4px;margin-right:10px">🩺</span>Reconocimientos médicos</button>
-        <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" style="font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;letter-spacing:1px"><span style="font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;font-size:24px;line-height:1;vertical-align:-4px;margin-right:10px">💰</span>Primas</button>
+        <button class="btn bp" id="empVistaVac" onclick="switchEmpleadosVista('vac')" data-emptab>
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="vac-handle" d="M11 11V8.5A2.5 2.5 0 0 1 13.5 6h5A2.5 2.5 0 0 1 21 8.5V11"/><rect x="5" y="11" width="22" height="17" rx="3"/><path d="M12 12v15M20 12v15"/></svg>
+          <span>Vacaciones</span></button>
+        <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')" data-emptab>
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="22" height="21" rx="3"/><path d="M11 4v6M21 4v6M5 13h22"/><path class="med-pulse" d="M8 20h4l2.2-4.2 3.1 8 2.1-4H24" stroke-dasharray="28" stroke-dashoffset="0"/></svg>
+          <span>Reconocimientos médicos</span></button>
+        <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" data-emptab>
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g class="bonus-note"><rect x="8" y="5" width="16" height="10" rx="2"/><circle cx="16" cy="10" r="2.2"/><path d="M11 10h.1M21 10h.1"/></g><path d="M4 22h8l4-3h7a2 2 0 0 1 0 4h-6"/><path d="M4 22v5h9l5-2h5a4 4 0 0 0 3.3-1.8L29 20"/></svg>
+          <span>Primas</span></button>
       </div>
       <div id="empVistaVacBox">
 
@@ -1966,6 +1984,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=740"></script>
+<script src="app.js?v=741"></script>
 </body>
 </html>
