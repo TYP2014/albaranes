@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v730 (29/09/2026): PRIMAS · mensaje del 📥 de un dia: si ese dia SI tiene albaranes pero ya estaba igual, dice 'Ese día ya está al día con los albaranes' (antes decia, mal, 'Ese día no hay albaranes de …'). Solo el texto del aviso. Sin SQL. VUELTA ATRAS: resubir v729.
+
+---
+
 v729 (29/09/2026): PRIMAS · DIAS DESFASADOS EN COLOR. Al abrir el parte de un trabajador, en segundo plano mira sus albaranes (misma cuenta que 'Traer viajes', SIN guardar nada) y marca: NARANJA '⚠ Los albaranes ya no coinciden. Ahora: …' si TRABAJO REALIZADO tiene otro texto; AZUL '📥 Hay viajes sin traer: …' si esta vacio y ya hay albaranes. Cada marca lleva boton 📥 Cambiar/Traer (el de un dia, que pregunta). No marca vacaciones/baja. Al editar el dia a mano la marca se quita; al traer viajes se recalcula. primasTraerAlbaranes acepta {silencioso:true}. Sin SQL. VUELTA ATRAS: resubir v728.
 
 ---

@@ -26019,7 +26019,8 @@ async function primasTraerAlbaranes(soloIso, _opt) {
     }
     const aGuardar = [];
     let sinAlb = 0, nAuto = 0, nSinRegla = 0, nAusente = 0;
-    const _v726Pisados = [];   // v726: dias con texto distinto al de los albaranes (en bloque se cambian, con UNA pregunta)
+    const _v726Pisados = [];
+    let _v730Hay = false;   // v730: ¿algun dia pedido tenia albaranes? (para no decir 'no hay albaranes' si solo estaba al dia)   // v726: dias con texto distinto al de los albaranes (en bloque se cambian, con UNA pregunta)
     for (const iso of dias) {
       const lista = vehsDe(iso); if (!lista.length) continue;
       const veh = lista.join(' + ');
@@ -26038,6 +26039,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
         if (esFijoDia && (g('trabajo') || g('parte_conductor'))) dia = { rutas: {}, cuenta: {} };
         else { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
       }
+      _v730Hay = true;
       const rutas = dia.rutas;
       const resumen = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a]).map(k => rutas[k] + 'V. ' + k).join(' · ');
       const prop = _primasPropone(dia.cuenta, lista, iso);
@@ -26076,7 +26078,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
     }
     if (aGuardar.length) { await _primasUpsert(aGuardar); renderPrimas(); }   // v670: repinta para enseñar desglose y primas puestas por la app
     _primasPintaTotales();
-    const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? 'Ese día no hay albaranes de ' + vehs[0] : 'Nada nuevo que rellenar');
+    const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? (_v730Hay ? 'Ese día ya está al día con los albaranes' : 'Ese día no hay albaranes de ' + vehs[0]) : 'Nada nuevo que rellenar');
     _primasEstado('✓ ' + msg);
     toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (nAusente ? ' · ⚠ ' + nAusente + ' día(s) de vacaciones/baja con albaranes de su camión' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
     console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
