@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v744 (29/09/2026): EMPLEADOS · icono de PRIMAS con el dibujo de Gemini (dos manos con un abanico de billetes de 20 y 50 €), recortado por capas y animado: las manos dan un empujón y salen volando billetes de uno en uno, sin parar. Archivos NUEVOS a subir: ico_pri_base.webp, ico_pri_b50.webp, ico_pri_b20.webp (los ico_pri_fajo/brillo ya no se usan). Respeta 'reducir movimiento'. Sin SQL. VUELTA ATRAS: resubir v743.
+
+---
+
 v743 (29/09/2026): EMPLEADOS · el icono de PRIMAS pasa a ser un FAJO DE BILLETES verdes con faja y € (se mece suave) y dos destellos que parpadean, en vez de las manos lanzando billetes (no le gustaban). Archivos NUEVOS a subir: ico_pri_fajo.webp, ico_pri_brillo.webp (los ico_pri_manos/billete1/billete2/moneda ya no se usan; se pueden borrar del repo o dejar). Vacaciones y Reconocimientos igual. Sin SQL. VUELTA ATRAS: resubir v742.
 
 ---

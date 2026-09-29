@@ -1257,6 +1257,14 @@ if (typeof pdfjsLib !== 'undefined') {
         [data-emptab] .eiCor{transform-origin:76.7% 27.7%;animation:eiCorLate 1.1s ease-in-out infinite}
         @keyframes eiCorLate{0%,45%,100%{transform:scale(1)}12%{transform:scale(1.18)}24%{transform:scale(1)}34%{transform:scale(1.1)}}
         /* v743: Primas = fajo de billetes que se mece + destellos que parpadean */
+        /* v744: Primas = dibujo de Gemini (manos con abanico de billetes en €) por capas: las manos dan un empujón y salen volando billetes de uno en uno */
+        [data-emptab] .gmBase{transform-origin:50% 100%;animation:gmBase 2.4s ease-in-out infinite}
+        @keyframes gmBase{0%,40%,100%{transform:translateY(0)}8%{transform:translateY(-4%)}18%{transform:translateY(1%)}48%{transform:translateY(-4%)}58%{transform:translateY(1%)}}
+        [data-emptab] .gmVuela{opacity:0;animation:gmVuela 2.4s ease-out infinite}
+        [data-emptab] .gmV1{--x:-14%;--r:-22deg}
+        [data-emptab] .gmV2{--x:14%;--r:18deg;animation-delay:.8s}
+        [data-emptab] .gmV3{--x:0%;--r:-8deg;animation-delay:1.6s}
+        @keyframes gmVuela{0%{opacity:0;transform:translate(0,12%) scale(.8) rotate(0)}12%{opacity:1}60%{opacity:1}100%{opacity:0;transform:translate(var(--x),-38%) scale(1) rotate(var(--r))}}
         [data-emptab] .eiFajo{transform-origin:50% 75%;animation:eiFajo 2.8s ease-in-out infinite}
         @keyframes eiFajo{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6%) rotate(-4deg)}55%{transform:translateY(0) rotate(2deg)}75%{transform:translateY(-2%) rotate(0)}}
         [data-emptab] .eiBrillo{transform-origin:78% 22%;animation:eiBrillo 2.8s ease-in-out infinite}
@@ -1271,7 +1279,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <span class="eiLay" aria-hidden="true"><img src="ico_rec_carpeta.webp?v742" alt=""><img class="eiLat" src="ico_rec_latido.webp?v742" alt=""><img class="eiCor" src="ico_rec_corazon.webp?v742" alt=""></span>
           <span>Reconocimientos médicos</span></button>
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img class="eiFajo" src="ico_pri_fajo.webp?v743" alt=""><img class="eiBrillo" src="ico_pri_brillo.webp?v743" alt=""></span>
+          <span class="eiLay" aria-hidden="true"><img class="gmBase" src="ico_pri_base.webp?v744" alt=""><img class="gmVuela gmV1" src="ico_pri_b50.webp?v744" alt=""><img class="gmVuela gmV2" src="ico_pri_b20.webp?v744" alt=""><img class="gmVuela gmV3" src="ico_pri_b50.webp?v744" alt=""></span>
           <span>Primas</span></button>
       </div>
       <div id="empVistaVacBox">
@@ -2001,6 +2009,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=743"></script>
+<script src="app.js?v=744"></script>
 </body>
 </html>
