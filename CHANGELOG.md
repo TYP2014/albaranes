@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v745 (29/09/2026): EMPLEADOS · icono de VACACIONES: camioncito verde con gafas de sol, collar de flores y falda hawaiana (dibujo de Gemini recortado en capas: cuerpo, falda y dos brazos) que baila sin parar (se balancea, la falda se mueve y los brazos suben y bajan); encima aparece un cartelito '¡VACACIONES!' unos 2,5 s y desaparece otros 2,5 s. Archivos NUEVOS a subir: ico_vac_body.webp, ico_vac_skirt.webp, ico_vac_arml.webp, ico_vac_armr.webp (los ico_vac_sol/maleta ya no se usan). Respeta 'reducir movimiento'. Sin SQL. VUELTA ATRAS: resubir v744.
+
+---
+
 v744 (29/09/2026): EMPLEADOS · icono de PRIMAS con el dibujo de Gemini (dos manos con un abanico de billetes de 20 y 50 €), recortado por capas y animado: las manos dan un empujón y salen volando billetes de uno en uno, sin parar. Archivos NUEVOS a subir: ico_pri_base.webp, ico_pri_b50.webp, ico_pri_b20.webp (los ico_pri_fajo/brillo ya no se usan). Respeta 'reducir movimiento'. Sin SQL. VUELTA ATRAS: resubir v743.
 
 ---

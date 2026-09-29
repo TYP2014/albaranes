@@ -1265,6 +1265,18 @@ if (typeof pdfjsLib !== 'undefined') {
         [data-emptab] .gmV2{--x:14%;--r:18deg;animation-delay:.8s}
         [data-emptab] .gmV3{--x:0%;--r:-8deg;animation-delay:1.6s}
         @keyframes gmVuela{0%{opacity:0;transform:translate(0,12%) scale(.8) rotate(0)}12%{opacity:1}60%{opacity:1}100%{opacity:0;transform:translate(var(--x),-38%) scale(1) rotate(var(--r))}}
+        /* v745: Vacaciones = camioncito verde con gafas, collar y falda hawaiana (dibujo de Gemini por capas) que baila; "¡VACACIONES!" aparece y desaparece encima */
+        [data-emptab] .vcLay{flex:0 0 50px;width:50px;height:50px;overflow:visible}
+        [data-emptab] .vcBaile{position:absolute;inset:0;transform-origin:50% 92%;animation:vcBaile 1.2s ease-in-out infinite}
+        @keyframes vcBaile{0%,100%{transform:rotate(-6deg) translateX(-3%)}50%{transform:rotate(6deg) translateX(3%)}}
+        [data-emptab] .vcFalda{transform-origin:50% 58%;animation:vcFalda .6s ease-in-out infinite alternate}
+        @keyframes vcFalda{from{transform:skewX(9deg)}to{transform:skewX(-9deg)}}
+        [data-emptab] .vcBrI{transform-origin:26% 52%;animation:vcBrI 1.2s ease-in-out infinite}
+        [data-emptab] .vcBrD{transform-origin:74% 52%;animation:vcBrD 1.2s ease-in-out infinite}
+        @keyframes vcBrI{0%,100%{transform:rotate(14deg)}50%{transform:rotate(-16deg)}}
+        @keyframes vcBrD{0%,100%{transform:rotate(16deg)}50%{transform:rotate(-14deg)}}
+        [data-emptab] .vcTxt{position:absolute;left:50%;top:-13px;transform:translateX(-50%);font:900 10px/1 Arial,Helvetica,sans-serif;letter-spacing:.3px;color:#fff;background:#FF7043;border:1.5px solid #BF360C;border-radius:8px;padding:2px 5px;white-space:nowrap;pointer-events:none;animation:vcTxt 5s ease-in-out infinite}
+        @keyframes vcTxt{0%,4%{opacity:0;transform:translateX(-50%) scale(.4)}10%{opacity:1;transform:translateX(-50%) scale(1.12)}14%,50%{opacity:1;transform:translateX(-50%) scale(1)}56%,100%{opacity:0;transform:translateX(-50%) scale(.4)}}
         [data-emptab] .eiFajo{transform-origin:50% 75%;animation:eiFajo 2.8s ease-in-out infinite}
         @keyframes eiFajo{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6%) rotate(-4deg)}55%{transform:translateY(0) rotate(2deg)}75%{transform:translateY(-2%) rotate(0)}}
         [data-emptab] .eiBrillo{transform-origin:78% 22%;animation:eiBrillo 2.8s ease-in-out infinite}
@@ -1273,7 +1285,7 @@ if (typeof pdfjsLib !== 'undefined') {
       </style>
       <div style="display:flex;gap:36px;margin-bottom:18px;flex-wrap:wrap;justify-content:center">
         <button class="btn bp" id="empVistaVac" onclick="switchEmpleadosVista('vac')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img class="eiSol" src="ico_vac_sol.webp?v742" alt=""><img class="eiMal" src="ico_vac_maleta.webp?v742" alt=""></span>
+          <span class="eiLay vcLay" aria-hidden="true"><span class="vcBaile"><img src="ico_vac_body.webp?v745" alt=""><img class="vcFalda" src="ico_vac_skirt.webp?v745" alt=""><img class="vcBrI" src="ico_vac_arml.webp?v745" alt=""><img class="vcBrD" src="ico_vac_armr.webp?v745" alt=""></span><span class="vcTxt">¡VACACIONES!</span></span>
           <span>Vacaciones</span></button>
         <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')" data-emptab>
           <span class="eiLay" aria-hidden="true"><img src="ico_rec_carpeta.webp?v742" alt=""><img class="eiLat" src="ico_rec_latido.webp?v742" alt=""><img class="eiCor" src="ico_rec_corazon.webp?v742" alt=""></span>
@@ -2009,6 +2021,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=744"></script>
+<script src="app.js?v=745"></script>
 </body>
 </html>
