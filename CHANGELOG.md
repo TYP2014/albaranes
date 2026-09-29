@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v735 (29/09/2026): PRIMAS · albaranes que NO cuentan para primas: (1) los marcados 'No facturable' (p. ej. el manual firmado que luego sustituyen) dejan de contar solos; (2) en la ventana 👁 VER cada albaran tiene boton '🚫 NO CONTAR EN PRIMAS' / '↩ VOLVER A CONTAR' (columna nueva albaranes.no_prima; p. ej. los ya abonados otro mes). No se borra nada. Afecta a Traer viajes, Traer a TODOS, marcas de color y Huérfanos. REQUIERE SQL ANTES: ALTER TABLE albaranes ADD COLUMN IF NOT EXISTS no_prima boolean NOT NULL DEFAULT false. VUELTA ATRAS: resubir v734 (la columna puede quedarse).
+
+---
+
 v734 (29/09/2026): PRIMAS · regla nueva: 3 o mas H.MONTCADA (a Hormigon Montcada) + 1 SANT JUST (Begues/Cemex → Sant Just) = 20 €. Solo se añade esa linea a PRIMAS_REGLAS. Sin SQL. VUELTA ATRAS: resubir v733.
 
 ---

@@ -26002,9 +26002,10 @@ async function primasTraerAlbaranes(soloIso, _opt) {
     for (const veh of vehs) {
       const vistos = new Set();
       for (let desde = 0; desde < 5000; desde += 1000) {
-        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,producto,remolque').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,producto,remolque,estado_facturacion,no_prima').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
         if (q.error) throw q.error;
         (q.data || []).forEach(a => {
+          if (_primasFuera(a)) return;   // v735: no facturable o quitado de primas → no cuenta
           const iso = _primasFechaAlb(a.fecha); if (!iso) return;
           const clave = String(a.albaran || '') + '|' + iso;
           if (a.albaran && vistos.has(clave)) return;   // mismo albaran subido dos veces: cuenta una
@@ -26220,9 +26221,10 @@ async function primasHuerfanos() {
     const huerf = [], dobles = [], vistos = new Set();
     for (const veh of Array.from(vehs).sort()) {
       for (let desde = 0; desde < 5000; desde += 1000) {
-        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,estado_facturacion,no_prima').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
         if (q.error) throw q.error;
         (q.data || []).forEach(a => {
+          if (_primasFuera(a)) return;   // v735
           const iso = _primasFechaAlb(a.fecha); if (!iso || iso.slice(0, 7) !== primasMes || iso > hoy) return;
           const clave = veh + '|' + String(a.albaran || '') + '|' + iso;
           if (a.albaran && vistos.has(clave)) return; vistos.add(clave);
@@ -26277,26 +26279,29 @@ async function primasVerAlbDia(iso) {
     const lista = [], vistos = new Set();
     for (const veh of vehs) {
       for (let desde = 0; desde < 5000; desde += 1000) {
-        const q = await sb.from('albaranes').select('albaran,planta,obra,tractora,remolque,fecha,producto,tm').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        const q = await sb.from('albaranes').select('id,albaran,planta,obra,tractora,remolque,fecha,producto,tm,estado_facturacion,no_prima').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
         if (q.error) throw q.error;
         (q.data || []).forEach(a => {
           if (_primasFechaAlb(a.fecha) !== iso) return;
+          const fuera = _primasFuera(a);   // v735
           const clave = String(a.albaran || '') + '|' + iso;
-          const rep = !!(a.albaran && vistos.has(clave)); vistos.add(clave);
-          lista.push({ veh, a, rep, clase: _primasClase(a) });
+          const rep = !fuera && !!(a.albaran && vistos.has(clave)); if (!fuera) vistos.add(clave);
+          lista.push({ veh, a, rep, fuera, clase: _primasClase(a) });
         });
         if ((q.data || []).length < 1000) break;
       }
     }
-    const n = lista.filter(x => !x.rep).length;
+    const n = lista.filter(x => !x.rep && !x.fuera).length;
     const td = 'padding:7px 8px';
     let html = '<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:4px">🧾 Albaranes del ' + iso.slice(8) + '/' + iso.slice(5, 7) + '/' + yy + '</div>' +
       '<div style="font-size:14px;font-weight:700;color:#333;margin-bottom:12px">Camión: ' + esc(vehs.join(' + ')) + ' · cuenta ' + n + ' viaje(s)</div>';
     if (!lista.length) html += '<div style="font-size:15px;font-weight:700;color:#c62828">No hay albaranes de ese camión este día.</div>';
     else html += '<table style="width:100%;border-collapse:collapse;font-size:15px;font-weight:700;color:#111">' +
       '<tr style="background:#eef2f7"><th style="' + td + ';text-align:left">Nº ALBARÁN</th><th style="' + td + ';text-align:left">CAMIÓN</th><th style="' + td + ';text-align:left">RUTA</th><th style="' + td + ';text-align:left">MATERIAL</th><th style="' + td + ';text-align:left">TIPO</th><th style="' + td + ';text-align:right">TN</th></tr>' +
-      lista.map(x => '<tr style="border-bottom:1px solid #ddd;' + (x.rep ? 'text-decoration:line-through;color:#999' : '') + '">' +
-        '<td style="' + td + '">' + esc(String(x.a.albaran || '(sin nº)')) + (x.rep ? ' <span style="text-decoration:none;color:#e65100">(repetido, cuenta 1)</span>' : '') + '</td>' +
+      lista.map(x => '<tr style="border-bottom:1px solid #ddd;' + ((x.rep || x.fuera) ? 'color:#999' : '') + '">' +
+        '<td style="' + td + '"><span style="' + ((x.rep || x.fuera) ? 'text-decoration:line-through' : '') + '">' + esc(String(x.a.albaran || '(sin nº)')) + '</span>' + (x.rep ? ' <span style="color:#e65100">(repetido, cuenta 1)</span>' : '') +
+          (x.fuera ? ' <span style="color:#c62828">(' + (x.a.estado_facturacion === 'no_facturable' ? 'no facturable' : 'quitado de primas') + ', NO cuenta)</span>' : '') +
+          (x.a.estado_facturacion === 'no_facturable' ? '' : '<br><button class="btn" style="margin-top:4px;font-size:12.5px;padding:4px 10px;font-weight:800;border-radius:6px;cursor:pointer;' + (x.a.no_prima ? 'background:#2e7d32;color:#fff;border:none' : 'background:#fff;color:#c62828;border:2px solid #c62828') + '" onclick="primasNoPrima(\'' + esc(String(x.a.id)) + '\',' + (x.a.no_prima ? 'false' : 'true') + ',\'' + iso + '\')">' + (x.a.no_prima ? '↩ VOLVER A CONTAR' : '🚫 NO CONTAR EN PRIMAS') + '</button>') + '</td>' +
         '<td style="' + td + '">' + esc(String(x.a.tractora || '')) + (x.a.remolque ? ' / ' + esc(String(x.a.remolque)) : '') + '</td>' +
         '<td style="' + td + '">' + esc((String(x.a.planta || '?').trim() + ' → ' + String(x.a.obra || '?').trim()).toUpperCase()) + '</td>' +
         '<td style="' + td + '">' + esc(String(x.a.producto || '')) + '</td>' +
@@ -26314,6 +26319,25 @@ async function primasVerAlbDia(iso) {
     console.error('[v731 primasVerAlbDia]', e);
     _primasEstado('✗ Error: ' + (e.message || e), true);
     toast('Error buscando los albaranes del día: ' + (e.message || e), 'err');
+  }
+}
+// v735: albaranes que NO cuentan para primas: los 'no facturable' (p. ej. el manual firmado que luego
+// se sustituye) y los que se quitan a mano con el boton 🚫 de la ventana 👁 VER (columna no_prima).
+// No se borra nada: el albaran sigue en Albaranes con su PDF.
+function _primasFuera(a) { return !!a && (a.estado_facturacion === 'no_facturable' || a.no_prima === true); }
+async function primasNoPrima(id, valor, iso) {
+  const txt = valor ? 'Este albarán dejará de contar en las primas del conductor (no se borra, sigue en Albaranes).\n\n¿Seguir?' : 'Este albarán volverá a contar en las primas.\n\n¿Seguir?';
+  if (!confirm(txt)) return;
+  try {
+    const { error } = await sb.from('albaranes').update({ no_prima: !!valor }).eq('id', id);
+    if (error) throw error;
+    console.log('[v735 primas] no_prima', id, !!valor);
+    toast(valor ? 'Quitado de primas. Pulsa ⬇ TRAER en ese día para recalcular.' : 'Vuelve a contar. Pulsa ⬇ TRAER en ese día para recalcular.', 'ok');
+    await primasVerAlbDia(iso);
+    _primasMarcaDesfase();
+  } catch (e) {
+    console.error('[v735 primasNoPrima]', e);
+    toast('No se pudo guardar: ' + (e.message || e), 'err');
   }
 }
 // ===== fin v659 PRIMAS =====
