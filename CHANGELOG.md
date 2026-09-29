@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v738 (29/09/2026): PRIMAS · el boton '🔍 Albaranes huérfanos' pasa a ser '🔍 Revisar el mes' (misma ventana) con 4 apartados para la empresa abierta: 1) en el parte de NADIE, 2) en DOS partes (prima doble) — igual que v728 —, 3) NUEVO: el conductor dice otros viajes que los albaranes (dia, trabajador, lo que dice y lo que cuentan los albaranes), 4) NUEVO: dias sin regla con la prima vacia. 3 y 4 salen de lo guardado en los partes (tipos, prima_sugerida, prima); no cuentan vacaciones/baja. Solo lee. Sin SQL. VUELTA ATRAS: resubir v737.
+
+---
+
 v737 (29/09/2026): PRIMAS · arreglo del error del chivato '[v727 primasTraerTodos] invalid input syntax for type uuid: ""' (29/09 08:30). primasTraerAlbaranes fija el trabajador AL EMPEZAR (antes leia primasTrabId al guardar cada fila; si algo lo cambiaba a vacio mientras buscaba albaranes, la fila salia con trabajador '' y fallaba el guardado de TODOS). Ademas 'Traer viajes a TODOS' descarta cualquier fila sin trabajador antes de guardar. Nada mas cambia. Sin SQL. VUELTA ATRAS: resubir v736.
 
 ---

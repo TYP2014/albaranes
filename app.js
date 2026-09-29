@@ -26226,7 +26226,7 @@ async function primasHuerfanos() {
     // 1) partes de este mes y el anterior (todas las empresas)
     const filas = [];
     for (let desde = 0; desde < 50000; desde += 1000) {
-      const q = await sb.from('primas_partes').select('trabajador_id,fecha,vehiculo,parte_conductor,notas').gte('fecha', iniAnt).lte('fecha', r.fin).range(desde, desde + 999);
+      const q = await sb.from('primas_partes').select('trabajador_id,fecha,vehiculo,parte_conductor,notas,tipos,prima_sugerida,prima').gte('fecha', iniAnt).lte('fecha', r.fin).range(desde, desde + 999);
       if (q.error) throw q.error;
       filas.push.apply(filas, q.data || []);
       if ((q.data || []).length < 1000) break;
@@ -26280,19 +26280,45 @@ async function primasHuerfanos() {
       '<tr style="background:#eef2f7"><th style="text-align:left;padding:6px">DÍA</th><th style="text-align:left;padding:6px">CAMIÓN</th><th style="text-align:left;padding:6px">Nº ALBARÁN</th><th style="text-align:left;padding:6px">RUTA</th>' + (conQuien ? '<th style="text-align:left;padding:6px">EN EL PARTE DE</th>' : '') + '</tr>' +
       lista.map(x => '<tr style="border-bottom:1px solid #ddd"><td style="padding:6px;white-space:nowrap">' + fDia(x.iso) + '</td><td style="padding:6px">' + esc(x.veh) + '</td><td style="padding:6px">' + esc(String(x.alb)) + '</td><td style="padding:6px">' + esc(x.ruta) + '</td>' + (conQuien ? '<td style="padding:6px">' + esc(x.quien.join(' + ')) + '</td>' : '') + '</tr>').join('') + '</table>';
     const diasH = new Set(huerf.map(x => x.iso + x.veh)).size;
-    let html = '<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">🔍 Albaranes huérfanos · ' + esc(_PRIMAS_EMP_NOM[primasEmpresa] || primasEmpresa) + ' · ' + primasMes + '</div>' +
+    let html = '<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">🔍 Revisar el mes · ' + esc(_PRIMAS_EMP_NOM[primasEmpresa] || primasEmpresa) + ' · ' + primasMes + '</div>' +
       '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:14px">Camiones mirados: ' + esc(Array.from(vehs).sort().join(', ')) + '</div>';
     html += '<div style="font-size:16px;font-weight:800;color:#c62828;margin:10px 0 6px">⚠ En el parte de NADIE: ' + huerf.length + ' albarán(es)' + (huerf.length ? ' (' + diasH + ' camión-día)' : '') + '</div>' +
       (huerf.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Pon ese camión en VEHÍCULO del parte de quien lo llevó ese día (y dale a 📥).</div>' + tabla(huerf, false) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
     html += '<div style="font-size:16px;font-weight:800;color:#e65100;margin:18px 0 6px">⚠ En el parte de DOS o más (prima doble): ' + dobles.length + ' albarán(es)</div>' +
       (dobles.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Quita el camión del parte de quien NO lo llevó ese día.</div>' + tabla(dobles, true) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
+    // v738: 3) conductor ≠ albaranes y 4) dias sin regla con la prima vacia — de lo GUARDADO en los partes de esta empresa
+    const descu = [], sinReg = [];
+    Object.values(trabs).filter(x => x.t.empresa === primasEmpresa || !x.t.empresa).forEach(x => {
+      Object.keys(x.dias).forEach(iso => {
+        if (iso.slice(0, 7) !== primasMes) return;
+        const f = x.dias[iso];
+        if (!f || !f.tipos || _primasAusente(f.parte_conductor, f.notas)) return;
+        const nAlb = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((a, n) => a + parseInt(n, 10), 0);
+        const nCond = _primasViajesConductor(f.parte_conductor);
+        const it = { iso, nombre: x.t.nombre || '?', tipos: f.tipos, nAlb, nCond, dice: String(f.parte_conductor || '') };
+        if (nCond != null && nCond !== nAlb) descu.push(it);
+        if (!(_primasNum(f.prima_sugerida) > 0) && (f.prima == null || String(f.prima).trim() === '')) sinReg.push(it);
+      });
+    });
+    const ordN = (a, b) => a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : (a.nombre < b.nombre ? -1 : 1);
+    descu.sort(ordN); sinReg.sort(ordN);
+    const td8 = 'padding:6px';
+    const tabla2 = (lista, conDice) => '<table style="width:100%;border-collapse:collapse;font-size:15px;font-weight:700;color:#111">' +
+      '<tr style="background:#eef2f7"><th style="text-align:left;' + td8 + '">DÍA</th><th style="text-align:left;' + td8 + '">TRABAJADOR</th>' + (conDice ? '<th style="text-align:left;' + td8 + '">CONDUCTOR DICE</th><th style="text-align:left;' + td8 + '">ALBARANES</th>' : '<th style="text-align:left;' + td8 + '">VIAJES (ALBARANES)</th>') + '</tr>' +
+      lista.map(x => '<tr style="border-bottom:1px solid #ddd"><td style="' + td8 + ';white-space:nowrap">' + fDia(x.iso) + '</td><td style="' + td8 + '">' + esc(x.nombre) + '</td>' +
+        (conDice ? '<td style="' + td8 + '">' + x.nCond + ' viaje(s)<div style="font-size:12.5px;font-weight:600;color:#555">' + esc(x.dice.length > 70 ? x.dice.slice(0, 70) + '…' : x.dice) + '</div></td><td style="' + td8 + '">' + x.nAlb + ' · ' + esc(x.tipos) + '</td>' : '<td style="' + td8 + '">' + esc(x.tipos) + '</td>') + '</tr>').join('') + '</table>';
+    html += '<div style="font-size:16px;font-weight:800;color:#6a1b9a;margin:18px 0 6px">⚠ El conductor dice OTROS viajes que los albaranes: ' + descu.length + ' día(s)</div>' +
+      (descu.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Falta subir algún albarán, sobra alguno, o el camión del parte no es el que llevó. Míralo con 👁 VER en ese día.</div>' + tabla2(descu, true) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
+    html += '<div style="font-size:16px;font-weight:800;color:#1565c0;margin:18px 0 6px">⚠ Días SIN REGLA y con la prima vacía: ' + sinReg.length + ' día(s)</div>' +
+      (sinReg.length ? '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">Pon la prima a mano (o 0 si no lleva), o pásale a Claude la combinación para crear la regla.</div>' + tabla2(sinReg, false) : '<div style="font-size:15px;font-weight:700;color:#2e7d32">✓ Ninguno</div>');
+    html += '<div style="font-size:12.5px;font-weight:600;color:#555;margin-top:14px">Los apartados 3 y 4 salen de lo guardado en los partes: si un día está en naranja o azul (desfasado), dale antes a ⬇ TRAER o a "Traer viajes a TODOS".</div>';
     let ov = document.getElementById('primasHuerfOv');
     if (!ov) { ov = document.createElement('div'); ov.id = 'primasHuerfOv'; document.body.appendChild(ov); }
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
     ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35)">' + html +
       '<div style="text-align:right;margin-top:18px"><button class="btn bp" style="font-size:15px;padding:10px 22px;font-weight:700" onclick="document.getElementById(\'primasHuerfOv\').remove()">Cerrar</button></div></div>';
     ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
-    _primasEstado('✓ Huérfanos: ' + huerf.length + ' · en dos partes: ' + dobles.length);
+    _primasEstado('✓ Huérfanos: ' + huerf.length + ' · en dos partes: ' + dobles.length + ' · conductor ≠ albaranes: ' + descu.length + ' · sin regla: ' + sinReg.length);   // v738
     console.log('[v728 primas] huerfanos', { vehs: Array.from(vehs), huerfanos: huerf.length, dobles: dobles.length });
   } catch (e) {
     console.error('[v728 primasHuerfanos]', e);
