@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v739 (29/09/2026): PRIMAS · (1) el contador de 'lo que dice el conductor' ya no cuenta como viajes lo de entre parentesis (desglose), las horas (10.45, 10:45, 17H, '5 horas', 'de 11 a 17') ni las toneladas (72Tn): baja la paja del apartado 3 de 'Revisar el mes' y del aviso '⚠ conductor dice'. (2) En las ventanas 'Revisar el mes' y '👁 VER' el texto ya no se sale por los bordes (celdas que parten linea). Sin SQL. VUELTA ATRAS: resubir v738.
+
+---
+
 v738 (29/09/2026): PRIMAS · el boton '🔍 Albaranes huérfanos' pasa a ser '🔍 Revisar el mes' (misma ventana) con 4 apartados para la empresa abierta: 1) en el parte de NADIE, 2) en DOS partes (prima doble) — igual que v728 —, 3) NUEVO: el conductor dice otros viajes que los albaranes (dia, trabajador, lo que dice y lo que cuentan los albaranes), 4) NUEVO: dias sin regla con la prima vacia. 3 y 4 salen de lo guardado en los partes (tipos, prima_sugerida, prima); no cuentan vacaciones/baja. Solo lee. Sin SQL. VUELTA ATRAS: resubir v737.
 
 ---

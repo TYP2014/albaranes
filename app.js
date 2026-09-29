@@ -25952,7 +25952,14 @@ function _primasPropone(cuenta, vehiculo, iso) {   // v679: iso = dia (las regla
 }
 // Cuantos viajes dice el conductor en su mensaje (orientativo): suma los numeros sueltos + 1 si dice "el cargado"
 function _primasViajesConductor(txt) {
-  const t = _primasSinAcentos(txt); if (!t) return null;
+  let t = _primasSinAcentos(txt); if (!t) return null;
+  // v739: no contar lo que NO son viajes
+  t = t.replace(/\([^)]*\)/g, ' ');                                          // lo de entre parentesis es desglose: "4 Promsa (3 Olesa+1 Llinars)" = 4
+  t = t.replace(/\b\d{1,2}[.,:]\d{1,2} ?H?\b/g, ' ');                          // horas: 10.45 / 10:45 / 10.45H
+  t = t.replace(/\b\d+(?:[.,]\d+)? ?(TN|TM|T|KG|TONELADAS|TONS?)\b/g, ' ');     // toneladas: 72Tn, 29,5 T
+  t = t.replace(/\bDE \d{1,2} ?H? A \d{1,2} ?H?\b/g, ' ');                      // franjas: "de 11 a 17"
+  t = t.replace(/\b\d{1,2} ?(H|HORAS|HORA)\b/g, ' ');                           // "5 horas", "8h"
+  t = t.replace(/\s+/g, ' ').trim();
   let n = 0; (t.match(/\b\d{1,2}\b(?! ?(H|HORAS|:|\/))/g) || []).forEach(x => { const v = parseInt(x, 10); if (v >= 1 && v <= 12) n += v; });
   if (/CARGADO/.test(t)) n += 1;
   return n || null;
@@ -26315,7 +26322,7 @@ async function primasHuerfanos() {
     let ov = document.getElementById('primasHuerfOv');
     if (!ov) { ov = document.createElement('div'); ov.id = 'primasHuerfOv'; document.body.appendChild(ov); }
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
-    ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35)">' + html +
+    ov.innerHTML = '<style>#primasHuerfOv td,#primasHuerfOv th,#primasAlbDiaOv td,#primasAlbDiaOv th{white-space:normal !important;overflow-wrap:anywhere;word-break:break-word;vertical-align:top}#primasHuerfOv table,#primasAlbDiaOv table{table-layout:auto;max-width:100%}</style>' + '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35);box-sizing:border-box;overflow-x:auto">' + html +
       '<div style="text-align:right;margin-top:18px"><button class="btn bp" style="font-size:15px;padding:10px 22px;font-weight:700" onclick="document.getElementById(\'primasHuerfOv\').remove()">Cerrar</button></div></div>';
     ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
     _primasEstado('✓ Huérfanos: ' + huerf.length + ' · en dos partes: ' + dobles.length + ' · conductor ≠ albaranes: ' + descu.length + ' · sin regla: ' + sinReg.length);   // v738
@@ -26374,7 +26381,7 @@ async function primasVerAlbDia(iso) {
     let ov = document.getElementById('primasAlbDiaOv');
     if (!ov) { ov = document.createElement('div'); ov.id = 'primasAlbDiaOv'; document.body.appendChild(ov); }
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
-    ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35)">' + html +
+    ov.innerHTML = '<style>#primasHuerfOv td,#primasHuerfOv th,#primasAlbDiaOv td,#primasAlbDiaOv th{white-space:normal !important;overflow-wrap:anywhere;word-break:break-word;vertical-align:top}#primasHuerfOv table,#primasAlbDiaOv table{table-layout:auto;max-width:100%}</style>' + '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:22px 26px;box-shadow:0 6px 30px rgba(0,0,0,.35);box-sizing:border-box;overflow-x:auto">' + html +
       '<div style="text-align:right;margin-top:18px"><button class="btn bp" style="font-size:15px;padding:10px 22px;font-weight:700" onclick="document.getElementById(\'primasAlbDiaOv\').remove()">Cerrar</button></div></div>';
     ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
     _primasEstado('');
