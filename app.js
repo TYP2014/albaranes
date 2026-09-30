@@ -21135,6 +21135,15 @@ const DESTINOS_CANONICOS = [
     'CUBELLES', '08880 Cubelles', '08880 CUBELLES',
     'Cubelles (Barcelona)', 'CUBELLES (BARCELONA)'
   ] },
+  // v747 (30/09/2026): MATARO — destino de albaranes Promsa Garraf (campo OBRA
+  // "MATARO (1)"). En MAYÚSCULAS y SIN acento, como viene en el albarán.
+  // Los alias recogen Mataro/Mataró ya guardados para que no salgan "no oficial".
+  { canon: 'MATARO', alias: [
+    'Mataro', 'Mataró', 'MATARÓ', 'mataro', 'mataró',
+    'MATARO (1)', 'Mataro (1)', 'Mataró (1)',
+    '08301 Mataró', '08301 MATARO', '08302 Mataró', '08302 MATARO',
+    '08303 Mataró', '08303 MATARO', '08304 Mataró', '08304 MATARO'
+  ] },
   // v107EN7 (26/05/2026): destino para albaranes RVV (vertedero/gestor de
   // residuos en Arenys de Munt). El camión descarga aquí el escombro/residuo
   // que sale de las plantas EDAR.

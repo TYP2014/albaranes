@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v747 (30/09/2026): ALBARANES · destino oficial nuevo MATARO (en mayúsculas y sin acento, como viene en el campo OBRA de los albaranes Promsa Garraf: 'MATARO (1)'). Alias: Mataro, Mataró, MATARO (1), con CP 0830x — todos se canonizan a MATARO, así que la ficha deja de marcar 'no oficial'. Los albaranes ya guardados como 'Mataró'/'Mataro' siguen así en la BD hasta pasar un SQL si se quiere. Sin SQL obligatorio. VUELTA ATRAS: resubir v746.
+
+---
+
 v746 (30/09/2026): EMPLEADOS · los tres botones con iconos FIJOS (sin animación), más serios: Vacaciones = maleta naranja con gafas y palmera; Reconocimientos médicos = portapapeles con corazón, cruz y estetoscopio; Primas = foto de un fajo de billetes de 10/20/50/100 € (imágenes de Gemini). Archivos NUEVOS a subir: ico_emp_vac.webp, ico_emp_rec.webp, ico_emp_pri.webp (los ico_vac_*, ico_rec_*, ico_pri_* anteriores ya no se usan; se pueden dejar). Sin SQL. VUELTA ATRAS: resubir v745.
 
 ---
