@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v753 (30/09/2026): DeCA · DeCA EXPRÉS para conductores. Holcim deja de emitirnos el DeCA de la caliza de Garraf y del yeso de Jorba (40-80 viajes/día). Pantalla de móvil: elegir viaje (Caliza Garraf → Montcada / Yeso Jorba → Montcada / Otro viaje con origen, destino y mercancía a mano), tractora (SOLO las de su transportista, por matrícula), remolque y kg del ticket de báscula → PDF con QR. Cargador fijo Holcim España, S.A.U. (A08000424, Avda. de Manoteras 20 Ed. B, 28050 Madrid); operador de transporte SIEMPRE TYP2014 (bloque nuevo en el PDF, se omite si el camión es de TYP2014); transportista efectivo = dueño del camión. Recuerda camión y remolque en el móvil, freno al doble toque, lista 'Mis DeCA de hoy'. Entradas: usuario con solo_deca=true → solo ve esta pantalla; usuario con deca_transportista → botón flotante 📄 DeCA; admin → botón ⚡ DeCA exprés en la pestaña DeCA con selector de transportista para probar. El nº del DeCA lo pone la BD (trigger deca_numerar), no el móvil. PDF: observaciones con ancho limitado para no pisar el QR. SQL PRIMERO (hecho): profiles.deca_transportista/solo_deca/deca_baja; políticas deca_propios_select/insert/update; deca.op_nombre/op_nif/op_domicilio; secuencia deca_num_seq + trigger deca_numerar_trg; política deca_trans_propio_select en deca_transportistas. PENDIENTE v754: alta rápida de conductores con DNI + PIN (oficina de cada subcontratado da de alta a los suyos). PENDIENTE v755: cruce albaranes Garraf/Jorba sin DeCA. VUELTA ATRAS: resubir v752 (el SQL puede quedarse; ojo, con el trigger el nº del DeCA manual lo pone la BD).
+
+---
+
 v752 (30/09/2026): ALBARANES · arreglo de '👀 Ver los dos' (v751): ahora limpia antes los filtros (fechas, Estado 'Rev Dup', buscador…) y luego enseña solo la pareja. Antes, con el filtro Rev Dup puesto, la pareja (que no es rosa) quedaba oculta y salía '0 de N'. Sin SQL. VUELTA ATRAS: resubir v751.
 
 ---

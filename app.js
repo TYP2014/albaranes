@@ -1363,6 +1363,14 @@ async function onLogin(user) {
     .select('role, name, puede_fichar, puede_ver_itv, puede_ver_taller, puede_ver_neumaticos, puede_ver_vacaciones')
     .eq('id', user.id).single();
   currentRole = profile?.role || 'conductor';
+  // v753: datos DeCA del usuario en consulta APARTE (si las columnas no existen,
+  // falla solo esto y el resto de la app sigue igual).
+  window._decaPerfil = { transportista: '', solo: false, baja: false, nombre: profile?.name || '' };
+  try {
+    const { data: _dp, error: _dpe } = await sb.from('profiles')
+      .select('deca_transportista, solo_deca, deca_baja').eq('id', user.id).single();
+    if (!_dpe && _dp) Object.assign(window._decaPerfil, { transportista: _dp.deca_transportista || '', solo: !!_dp.solo_deca, baja: !!_dp.deca_baja });
+  } catch (e) { console.warn('[v753] perfil DeCA', e); }
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
   try { liqInitCard(); } catch (e) {} // v709: liquidacion de autonomos (solo admin/Marta/MdM)
@@ -1392,6 +1400,9 @@ async function onLogin(user) {
     && !profile?.puede_ver_vacaciones;
   window._esFichadorPuro = _esFichadorPuro; // para que loadUserMap no le reactive otras pestañas
 
+  // v753: usuario "solo DeCA" → únicamente la pantalla DeCA exprés, nada más.
+  if (window._decaPerfil.solo && currentRole !== 'admin') { _xpArrancarSolo(); return; }
+  if (window._decaPerfil.transportista) _xpBotonFlotante();
   if (currentRole === 'conductor' && !_esFichadorPuro) {
     document.getElementById('conductorView').style.display = 'block';
   } else if (_esFichadorPuro) {
@@ -38468,6 +38479,13 @@ async function _decaConstruirPDF(d, url) {
   campo('Empresa del grupo', d.empresa, M + 340, 160); salto(30);
   campo('Domicilio', d.trans_domicilio); salto(34);
 
+  // v753: operador de transporte (intermediario), como en el ticket de Holcim
+  if (d.op_nombre) {
+    bloque('OPERADOR DE TRANSPORTE');
+    campo('Nombre o razón social', d.op_nombre, M, 300); campo('NIF', d.op_nif, M + 320, 150); salto(30);
+    campo('Domicilio', d.op_domicilio); salto(34);
+  }
+
   bloque('3 · MERCANCÍA Y RECORRIDO');
   campo('Origen (lugar de carga)', d.origen, M, 230); campo('Destino (lugar de entrega)', d.destino, M + 250, 230); salto(30);
   campo('Mercancía', d.mercancia); salto(30);
@@ -38480,7 +38498,7 @@ async function _decaConstruirPDF(d, url) {
   campo('Matrícula semirremolque', d.semirremolque, M + 170, 150);
   campo('Autorización especial', d.autorizacion_especial, M + 340, 160); salto(34);
 
-  if (d.observaciones) { bloque('5 · OBSERVACIONES'); campo('', d.observaciones); salto(30); }
+  if (d.observaciones) { bloque('5 · OBSERVACIONES'); campo('', d.observaciones, M, 370); salto(30); }
 
   // QR abajo a la derecha, dibujado como cuadraditos (vectorial, no imagen)
   try {
@@ -38963,4 +38981,254 @@ function factSodiraExcel() {
 
   XLSX.writeFile(wb, 'Depositos_SODIRA_' + (u.mes || '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   toast('Excel descargado (hoja Cruce + hoja Facturar a TYP2014)', 'ok');
+}
+
+
+// ============================================================
+// v753 (30/09/2026) — DeCA EXPRÉS para conductores (Holcim: Garraf y Jorba)
+// Holcim deja de hacernos el DeCA de la caliza de Garraf y del yeso de Jorba.
+// El conductor (o el autónomo con su usuario) lo hace desde el móvil: elige viaje,
+// camión (SOLO los de su transportista), remolque y los kg del ticket → PDF con QR.
+// Cargador = Holcim; operador = SIEMPRE TYP2014; transportista efectivo = dueño
+// del camión. El nº lo pone la BD (trigger), no el móvil (no ve los de los demás).
+// ============================================================
+const _XP_HOLCIM = { nombre: 'HOLCIM ESPAÑA, S.A.U.', nif: 'A08000424', dom: 'Avda. de Manoteras, 20 - Edificio B - 28050 Madrid' };
+const _XP_MONTCADA = 'Holcim España, S.A.U. (Fábrica de Montcada) - Ctra. C-17, km 2,947 - 08110 Montcada i Reixac (Barcelona)';
+const _XP_VIAJES = {
+  GARRAF: { txt: 'Caliza Garraf', sub: '→ Montcada', origen: 'Holcim España, S.A.U. (Garraf) - Ctra. C-31, km 173,9 - 08871 Garraf-Sitges (Barcelona)', destino: _XP_MONTCADA, mercancia: 'Caliza Garraf Zahorra' },
+  JORBA: { txt: 'Yeso Jorba', sub: '→ Montcada', origen: 'Cantera "Las Iglas" (Guixos Canals, S.L.) - Jorba (Barcelona)', destino: _XP_MONTCADA, mercancia: 'Yeso' },
+  OTRO: { txt: 'Otro viaje', sub: 'destino distinto' }
+};
+function _xpE(v) { return esc(v == null ? '' : v).replace(/"/g, '&quot;'); }
+let _xpViaje = 'GARRAF';
+let _xpTrans = '';
+let _xpSolo = false;
+let _xpOcupado = false;
+let _xpUltimo = null;
+
+function _xpHoy() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _xpLS(k, v) { try { if (v === undefined) return localStorage.getItem(k) || ''; localStorage.setItem(k, v); } catch (e) { return ''; } }
+
+// Datos del transportista efectivo a partir del nombre canónico.
+function _xpDatosTrans(t) {
+  const k = Object.keys(_DECA_NUESTRAS).find(n => _decaNrm(n) === _decaNrm(t));
+  if (k) { const e = DECA_EMPRESAS[_DECA_NUESTRAS[k]]; return { empresa: _DECA_NUESTRAS[k], nombre: e.nombre, nif: e.nif, dom: e.dom, aut: e.aut }; }
+  const sub = _decaSubs.find(x => _decaNrm(x.nombre) === _decaNrm(t));
+  if (sub) return { empresa: 'TYP2014', nombre: sub.razon_social || sub.nombre, nif: sub.nif || '', dom: sub.domicilio || '', aut: sub.autorizacion || '' };
+  return null;
+}
+
+// Tractoras de ese transportista (lista fija del código + aprendidas en BD).
+function _xpMatriculas(t) {
+  const n = _decaNrm(t), set = new Set();
+  const add = m => {
+    const mm = (typeof matriculaPrincipal === 'function') ? matriculaPrincipal(m) : _decaMatricula(m);
+    const tt = getTransportista(mm);
+    if (tt && _decaNrm(tt) === n && /^\d{4}[A-Z]{3}$/.test(mm)) set.add(mm);
+  };
+  Object.keys(TRANSPORTISTAS || {}).forEach(add);
+  Object.keys(MATRICULAS_APRENDIDAS || {}).forEach(add);
+  return [...set].sort();
+}
+
+function _xpBotonFlotante() {
+  if (document.getElementById('xpBtnFlot')) return;
+  const b = document.createElement('button');
+  b.id = 'xpBtnFlot';
+  b.textContent = '📄 DeCA';
+  b.onclick = () => _xpAbrir(false);
+  b.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:980;background:var(--ac);color:#fff;border:none;border-radius:24px;padding:12px 18px;font-family:var(--ss);font-size:15px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:pointer';
+  document.body.appendChild(b);
+}
+
+async function _xpArrancarSolo() {
+  _xpSolo = true;
+  ['conductorView', 'adminView'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  const ind = document.getElementById('v107EQ5Cargando'); if (ind) ind.remove();
+  await _xpAbrir(true);
+}
+
+async function _xpAbrir(solo) {
+  if (solo) _xpSolo = true;
+  let ov = document.getElementById('decaXp');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'decaXp'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:990;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch';
+  ov.innerHTML = '<div style="padding:40px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:12px">Cargando…</div>';
+  try {
+    if (!Object.keys(MATRICULAS_APRENDIDAS || {}).length) await loadMatriculasAprendidas();
+    await _decaCargarSubs();
+  } catch (e) { console.warn('[v753] carga', e); }
+  const P = window._decaPerfil || {};
+  if (!_xpTrans) _xpTrans = P.transportista || '';
+  if (P.baja && currentRole !== 'admin') {
+    ov.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:var(--ss)"><div style="font-size:18px;margin-bottom:12px">Usuario dado de baja</div><div style="color:var(--mu);margin-bottom:24px">No puedes crear DeCA. Habla con tu oficina.</div><button class="btn bs" onclick="_xpSalir()">Salir</button></div>';
+    return;
+  }
+  _xpPintar();
+  _xpCargarHoy();
+}
+
+function _xpCerrar() {
+  if (_xpSolo) return;
+  const ov = document.getElementById('decaXp'); if (ov) ov.remove();
+}
+async function _xpSalir() { try { await doLogout(); } catch (e) {} location.reload(); }
+
+function _xpPintar() {
+  const ov = document.getElementById('decaXp'); if (!ov) return;
+  const P = window._decaPerfil || {};
+  const esAdmin = currentRole === 'admin';
+  const mats = _xpTrans ? _xpMatriculas(_xpTrans) : [];
+  const tSel = _xpLS('xp_tractora');
+  const cajaViaje = k => {
+    const v = _XP_VIAJES[k], on = _xpViaje === k;
+    return '<div onclick="_xpViaje=\'' + k + '\';_xpPintar()" style="cursor:pointer;border-radius:10px;padding:12px 8px;text-align:center;' +
+      (on ? 'border:2px solid var(--ac);background:#e8f1fb;color:var(--ac);' : 'border:1px solid var(--bd);background:var(--sf);') +
+      '"><div style="font-size:15px;font-weight:600">' + v.txt + '</div><div style="font-size:12px;opacity:.75">' + v.sub + '</div></div>';
+  };
+  const lbl = t => '<div style="font-size:13px;color:var(--mu);margin:16px 0 6px">' + t + '</div>';
+  const inp = 'width:100%;padding:12px;font-size:16px;border:1px solid var(--bd);border-radius:8px;background:var(--sf);color:var(--tx);font-family:var(--ss)';
+  let opcTrans = '';
+  if (esAdmin) {
+    const nombres = Object.keys(_DECA_NUESTRAS).concat(_decaSubs.filter(x => x.activo !== false).map(x => x.nombre));
+    opcTrans = lbl('Transportista (solo admin, para probar)') +
+      '<select style="' + inp + '" onchange="_xpTrans=this.value;_xpPintar();_xpCargarHoy()"><option value="">— elegir —</option>' +
+      nombres.map(n => '<option' + (_decaNrm(n) === _decaNrm(_xpTrans) ? ' selected' : '') + '>' + _xpE(n) + '</option>').join('') + '</select>';
+  }
+  const otro = _xpViaje === 'OTRO' ?
+    lbl('Origen (dónde cargas)') + '<input id="xpOrigen" style="' + inp + '" value="' + _xpE(_xpLS('xp_origen')) + '">' +
+    lbl('Destino (dónde descargas)') + '<input id="xpDestino" style="' + inp + '" value="' + _xpE(_xpLS('xp_destino')) + '">' +
+    lbl('Mercancía') + '<input id="xpMerc" style="' + inp + '" value="' + _xpE(_xpLS('xp_merc')) + '">' : '';
+  ov.innerHTML =
+    '<div style="max-width:460px;margin:0 auto;padding:18px 16px 90px;font-family:var(--ss)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<div><div style="font-family:var(--dp);font-size:26px;letter-spacing:2px;color:var(--ac)">HACER DeCA</div>' +
+      '<div style="font-size:13px;color:var(--mu)">' + _xpE(P.nombre || '') + (_xpTrans ? ' · ' + _xpE(_xpTrans) : '') + '</div></div>' +
+      (_xpSolo ? '<button class="btn bs" onclick="_xpSalir()">Salir</button>' : '<button class="btn bs" onclick="_xpCerrar()">✕ Cerrar</button>') +
+    '</div>' +
+    opcTrans +
+    lbl('1. ¿Qué cargas?') +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + cajaViaje('GARRAF') + cajaViaje('JORBA') + '</div>' +
+    '<div style="margin-top:8px">' + cajaViaje('OTRO') + '</div>' + otro +
+    lbl('2. Camión') +
+    (mats.length ?
+      '<select id="xpTractora" style="' + inp + '">' + mats.map(m => '<option' + (m === tSel ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>' :
+      '<div style="padding:12px;border:1px solid var(--er);border-radius:8px;color:var(--er);font-size:14px">No tienes camiones asignados. Llama a la oficina.</div>') +
+    lbl('Remolque') + '<input id="xpRemolque" style="' + inp + ';text-transform:uppercase" placeholder="R0000XXX" value="' + _xpE(_xpLS('xp_remolque')) + '">' +
+    lbl('3. Kilos del ticket de báscula') + '<input id="xpPeso" type="number" inputmode="numeric" style="' + inp + ';font-size:22px" placeholder="28480">' +
+    '<button id="xpBtnGen" onclick="_xpGenerar()" style="margin-top:22px;width:100%;padding:16px;border:none;border-radius:10px;background:var(--ac);color:#fff;font-size:18px;font-weight:600;font-family:var(--ss);cursor:pointer">📄 Generar DeCA</button>' +
+    '<div id="xpResultado"></div>' +
+    '<div style="font-size:13px;color:var(--mu);margin:26px 0 8px">Mis DeCA de hoy</div><div id="xpHoy"></div>' +
+    '</div>';
+  if (_xpUltimo) _xpPintarResultado(_xpUltimo);
+}
+
+async function _xpGenerar() {
+  if (_xpOcupado) return;   // evita el doble toque (dos DeCA iguales)
+  const g = id => ((document.getElementById(id) || {}).value || '').trim();
+  if (!_xpTrans) { toast('Falta el transportista', 'err'); return; }
+  const tractora = _decaMatricula(g('xpTractora'));
+  const remolque = _decaMatricula(g('xpRemolque'));
+  const peso = Math.round(Number(g('xpPeso').replace(',', '.')));
+  if (!tractora) { toast('Elige el camión', 'err'); return; }
+  if (!remolque) { toast('Pon la matrícula del remolque', 'err'); return; }
+  if (!peso || peso < 1000 || peso > 45000) { toast('Los kilos no cuadran (entre 1.000 y 45.000)', 'err'); return; }
+  let origen, destino, mercancia;
+  if (_xpViaje === 'OTRO') {
+    origen = g('xpOrigen'); destino = g('xpDestino'); mercancia = g('xpMerc');
+    if (!origen || !destino || !mercancia) { toast('Rellena origen, destino y mercancía', 'err'); return; }
+  } else {
+    const v = _XP_VIAJES[_xpViaje]; origen = v.origen; destino = v.destino; mercancia = v.mercancia;
+  }
+  const tr = _xpDatosTrans(getTransportista(tractora) || _xpTrans);
+  if (!tr || !tr.nif || !tr.aut) { toast('Faltan los datos de tu empresa (NIF o autorización). Llama a la oficina.', 'err'); return; }
+  const op = DECA_EMPRESAS['TYP2014'];
+  const esTyp = tr.nif === op.nif;
+  const fila = {
+    numero: 'DECA-XP',   // lo sustituye el trigger de la BD
+    anulado: false,
+    creado_por: currentUser && currentUser.id,
+    empresa: tr.empresa,
+    fecha_carga: _xpHoy(),
+    carg_nombre: _XP_HOLCIM.nombre, carg_nif: _XP_HOLCIM.nif, carg_domicilio: _XP_HOLCIM.dom,
+    trans_nombre: tr.nombre, trans_nif: tr.nif, trans_domicilio: tr.dom, trans_autorizacion: tr.aut,
+    op_nombre: esTyp ? null : op.nombre, op_nif: esTyp ? null : op.nif, op_domicilio: esTyp ? null : op.dom,
+    origen, destino, mercancia,
+    peso_kg: peso, bultos: 'Granel',
+    tractora, semirremolque: remolque
+  };
+  const btn = document.getElementById('xpBtnGen');
+  _xpOcupado = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; btn.style.opacity = '.6'; }
+  try {
+    const { data: ins, error } = await sb.from('deca').insert(fila).select().single();
+    if (error) throw error;
+    _xpLS('xp_tractora', tractora); _xpLS('xp_remolque', remolque);
+    if (_xpViaje === 'OTRO') { _xpLS('xp_origen', origen); _xpLS('xp_destino', destino); _xpLS('xp_merc', mercancia); }
+    await _xpPdf(ins);
+    _xpUltimo = ins;
+    const p = document.getElementById('xpPeso'); if (p) p.value = '';
+    _xpPintarResultado(ins);
+    _xpCargarHoy();
+    toast('✓ DeCA ' + (ins.numero || '') + ' hecho');
+  } catch (e) {
+    console.error('[v753 _xpGenerar]', e);
+    toast('No se pudo crear: ' + (e.message || e), 'err');
+  } finally {
+    _xpOcupado = false;
+    if (btn) { btn.disabled = false; btn.textContent = '📄 Generar DeCA'; btn.style.opacity = '1'; }
+  }
+}
+
+// Genera el PDF de un DeCA propio, lo sube y guarda la URL (reutiliza el PDF de la v598).
+async function _xpPdf(d) {
+  if (typeof PDFLib === 'undefined' || typeof qrcode === 'undefined') throw new Error('No han cargado las librerías del PDF. Recarga la página.');
+  const ruta = (d.numero || 'DECA') + '_' + Date.now() + '.pdf';
+  const url = sb.storage.from('deca').getPublicUrl(ruta).data.publicUrl;
+  const bytes = await _decaConstruirPDF(d, url);
+  if (bytes.length > 5 * 1024 * 1024) throw new Error('El PDF pasa de 5 MB');
+  const { error: eUp } = await sb.storage.from('deca').upload(ruta, new Blob([bytes], { type: 'application/pdf' }), { contentType: 'application/pdf' });
+  if (eUp) throw eUp;
+  const { error: eDb } = await sb.from('deca').update({ file_path: ruta, file_url: url }).eq('id', d.id);
+  if (eDb) throw eDb;
+  d.file_path = ruta; d.file_url = url;
+}
+
+function _xpPintarResultado(d) {
+  const box = document.getElementById('xpResultado'); if (!box || !d) return;
+  box.innerHTML = '<div style="margin-top:16px;padding:14px;border:1px solid var(--ok);border-radius:10px;background:#eafaf2">' +
+    '<div style="font-weight:600;margin-bottom:4px">✓ ' + _xpE(d.numero || '') + '</div>' +
+    '<div style="font-size:13px;color:var(--mu);margin-bottom:10px">' + _xpE(d.tractora || '') + ' · ' + Number(d.peso_kg || 0).toLocaleString('es-ES') + ' kg</div>' +
+    (d.file_url ? '<a href="' + _xpE(d.file_url) + '" target="_blank" style="display:block;text-align:center;padding:12px;border-radius:8px;background:var(--ok);color:#fff;text-decoration:none;font-weight:600">📄 Abrir PDF</a>' : '') +
+    '</div>';
+}
+
+async function _xpCargarHoy() {
+  const box = document.getElementById('xpHoy'); if (!box || !currentUser) return;
+  try {
+    const { data, error } = await sb.from('deca').select('*')
+      .eq('creado_por', currentUser.id).eq('fecha_carga', _xpHoy())
+      .order('id', { ascending: false }).limit(50);
+    if (error) throw error;
+    window._xpHoyLista = data || [];
+    if (!window._xpHoyLista.length) { box.innerHTML = '<div style="font-size:13px;color:var(--mu)">Todavía ninguno.</div>'; return; }
+    box.innerHTML = window._xpHoyLista.map(d =>
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd);font-size:14px' + (d.anulado ? ';opacity:.45;text-decoration:line-through' : '') + '">' +
+      '<div><b>' + _xpE(d.numero || '') + '</b><br><span style="color:var(--mu);font-size:12px">' + _xpE(d.tractora || '') + ' · ' + Number(d.peso_kg || 0).toLocaleString('es-ES') + ' kg · ' + _xpE(String(d.mercancia || '').slice(0, 22)) + '</span></div>' +
+      (d.file_url ? '<a href="' + _xpE(d.file_url) + '" target="_blank" class="btn bs" style="text-decoration:none">PDF</a>' :
+        '<button class="btn bs" onclick="_xpRehacer(' + JSON.stringify(String(d.id)).replace(/"/g, '&quot;') + ')">Hacer PDF</button>') +
+      '</div>').join('');
+  } catch (e) {
+    console.warn('[v753] hoy', e);
+    box.innerHTML = '<div style="font-size:13px;color:var(--er)">No se pudo cargar la lista.</div>';
+  }
+}
+
+async function _xpRehacer(id) {
+  const d = (window._xpHoyLista || []).find(x => String(x.id) === String(id)); if (!d) return;
+  try { await _xpPdf(d); toast('✓ PDF hecho'); _xpCargarHoy(); }
+  catch (e) { toast('Error con el PDF: ' + (e.message || e), 'err'); }
 }
