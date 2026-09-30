@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v751 (30/09/2026): ALBARANES · posible duplicado por pesos, parte final: (1) AVISO AL SUBIR: al terminar un lote, si alguno de los nuevos choca por pesos con uno que ya estaba, sale una ventana con cada pareja y tres botones: 👀 Ver los dos (filtra la tabla a esa pareja; LIMPIAR para volver), 🗑 Es duplicado – descartar este (borra la copia nueva, papelera 90 días motivo Duplicado), ✅ No es duplicado – guardar. Si se cierra sin decidir, queda con la marca rosa 🔁. (2) El aviso del albarán (modal) trae también 👀 Ver los dos y ✅ No es duplicado. (3) 'No es duplicado' se RECUERDA en la tabla nueva albaranes_no_duplicado (id_a, id_b) y esa pareja no vuelve a avisar. SQL PRIMERO: crear tabla + RLS (sql_v751_no_duplicado.sql). Si la tabla no existe, la app sigue igual (solo no recuerda). VUELTA ATRAS: resubir v750 (la tabla puede quedarse).
+
+---
+
 v750 (30/09/2026): ALBARANES · retoques del posible duplicado por pesos: (1) no avisa si uno de los dos ya está en 'No facturable' (la oficina ya lo resolvió; caso 6497NMW 002135/M8440000094428); (2) el aviso del albarán ya no dice 'borra este' a secas: dice quedarse con el FACTURADO (o el de nº de sistema) y borrar o marcar 'No facturable' el otro (la marca rosa cae en la copia subida después, que puede ser la buena); (3) etiqueta correcta 'mismo neto' cuando salta por R2 (antes decía tara y bruto, caso 9074NMT), también en el Excel. Sin SQL. PENDIENTE v751: aviso al subir con botones + recordar 'no es duplicado'. VUELTA ATRAS: resubir v749.
 
 ---

@@ -1932,6 +1932,7 @@ async function loadData() {
     }
   } catch (e) { console.warn('[loadData] No se pudieron ajustar subpestañas Gasoil:', e); }
 
+  await _cargarNoDup(); // v751: parejas marcadas 'No es duplicado'
   analyzeRecords();
   applyFilters();
   applyGasFilters();
@@ -4154,6 +4155,8 @@ async function processQueue(type) {
   if (type === 'gas' && _processingGas) return;
   if (type === 'alb') { _processingAlb = true; _processingAlbStartTs = Date.now(); }
   else { _processingGas = true; _processingGasStartTs = Date.now(); }
+  // v751: foto de los 'posibles duplicados' que ya habia, para avisar solo de los NUEVOS del lote
+  const _v751Antes = type === 'alb' ? new Set(records.filter(r => r._posDup).map(r => String(r.db_id || r._id))) : null;
 
   const key = getKey();
   if (!key) {
@@ -4246,6 +4249,12 @@ async function processQueue(type) {
   if (type === 'alb') {
     try { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); }
     catch (e) { console.error('[processQueue] refresco final falló:', e); }
+    // v751: aviso al subir si alguno del lote choca por pesos con uno que ya estaba
+    try {
+      const nuevos = records.filter(r => r._posDup && (r._posDupMotivo === 'pesos' || r._posDupMotivo === 'neto')
+        && _v751Antes && !_v751Antes.has(String(r.db_id || r._id)));
+      if (nuevos.length) _v751AvisoSubida(nuevos);
+    } catch (e) { console.warn('[v751] aviso al subir:', e); }
   }
 
   if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
@@ -9360,6 +9369,8 @@ function analyzeRecords() {
           const r1 = hayPesos && tmCerca && a.tara === b.tara && a.bruto === b.bruto && (_debil(a.r.albaran) || _debil(b.r.albaran));
           const r2 = !hayPesos && a.tm !== null && a.tm === b.tm && (_esSN(a.r.albaran) || _esSN(b.r.albaran));
           if (!r1 && !r2) continue;
+          // v751: pareja ya marcada 'No es duplicado' -> no volver a avisar
+          if (a.r.db_id && b.r.db_id && window._noDupPares && window._noDupPares.has(_parNoDupKey(a.r.db_id, b.r.db_id))) continue;
           b.r._posDup = true;
           b.r._posDupOf = a.r.db_id || a.r._id;
           b.r._posDupMotivo = r1 ? 'pesos' : 'neto'; // v750: etiqueta correcta
@@ -10856,6 +10867,8 @@ function applyFilters() {
     return [...set].some(s => norm(s) === c);
   };
   filtered = records.filter(r => {
+    // v751: 'Ver los dos' (posible duplicado) -> solo esa pareja hasta pulsar LIMPIAR
+    if (window._verIds && !window._verIds.has(String(r.db_id || r._id))) return false;
     // Excluir pendientes de procesar (aparecen en el banner separadamente, no en la tabla)
     if (r.procesado === false) return false;
     // v269 — filtro "Solo a mano" activo → solo los creados con "➕ Albarán a mano"
@@ -11178,6 +11191,7 @@ function switchGasEmpresa(emp) {
 }
 
 function resetFilters() { 
+  window._verIds = null; // v751
   ['fDesde','fHasta','srchIn','fAlbaran','fTn','fFactura','fRecibida','fSubidoEl','fEstado','fMarca'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); 
   // v269 — "Limpiar" también quita el filtro "✍️ Solo a mano" y devuelve el botón a su color.
   filtroManual = false;
@@ -13092,7 +13106,7 @@ function openModal(id) {
     // v748: posible duplicado por pesos -> decir CON QUIEN choca, para buscarlo y mirar los dos papeles.
     const _o = records.find(x => String(x.db_id) === String(r._posDupOf) || String(x._id) === String(r._posDupOf));
     const _oTxt = _o ? `<strong>${esc(String(_o.albaran || '(sin nº)'))}</strong> del ${esc(String(_o.fecha || '?'))}` : 'otro albarán';
-    alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado de ${_oTxt}</strong> (mismo camión, ${r._posDupMotivo === 'neto' ? 'mismo neto' : 'misma tara y bruto'}). Suele ser un albarán manual subido dos veces (foto + escaneo, o manual y luego de sistema) con el número mal leído en uno. Mira los dos papeles: si es el mismo viaje, quédate con el que esté FACTURADO (o el de número de sistema) y borra o marca "No facturable" el otro; si son dos viajes, no toques nada. Mientras tanto sus TN SÍ se cuentan.</div>`;
+    alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado de ${_oTxt}</strong> (mismo camión, ${r._posDupMotivo === 'neto' ? 'mismo neto' : 'misma tara y bruto'}). Suele ser un albarán manual subido dos veces (foto + escaneo, o manual y luego de sistema) con el número mal leído en uno. Mira los dos papeles: si es el mismo viaje, quédate con el que esté FACTURADO (o el de número de sistema) y borra o marca "No facturable" el otro; si son dos viajes, no toques nada. Mientras tanto sus TN SÍ se cuentan.<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" onclick="_verLosDos('${esc(String(r.db_id || r._id))}')">👀 Ver los dos</button><button class="btn bs" onclick="_noEsDuplicado('${esc(String(r.db_id || r._id))}')">✅ No es duplicado</button></div></div>`;
   }
   else if (r._posDup) alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado — revísalo en el papel.</strong> Hay otro albarán con este mismo número. Como el ticket no traía hora legible, no se puede saber si es el MISMO papel subido dos veces o DOS viajes distintos del mismo día. Si son dos viajes, no toques nada. Si está repetido, borra este. Mientras tanto sus TN SÍ se cuentan.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
@@ -13839,6 +13853,89 @@ async function saveModal() {
       toast(`✗ NO se pudo guardar (se intentó 3 veces). Vuelve a abrirlo y reintenta. Detalle: ${msg}`, 'err');
     }
   })();
+}
+
+// ============================================================
+// v751 — POSIBLE DUPLICADO: aviso al subir + "No es duplicado" que se recuerda
+// ============================================================
+// Complementa la v748-v750 (detector por pesos). Tres acciones sobre una pareja:
+//  · 👀 Ver los dos: filtra la tabla a esa pareja (LIMPIAR para volver).
+//  · 🗑 Es duplicado – descartar este: borra la copia NUEVA (papelera 90 dias, motivo Duplicado).
+//  · ✅ No es duplicado: guarda la pareja en la tabla albaranes_no_duplicado y ya no avisa mas.
+// Si la tabla no existe o falla la lectura, la app sigue igual (solo no recuerda).
+window._noDupPares = window._noDupPares || new Set();
+window._verIds = window._verIds || null;
+function _parNoDupKey(a, b) { return [String(a), String(b)].sort().join('|'); }
+function _buscarRec(id) { return records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); }
+async function _cargarNoDup() {
+  try {
+    const { data, error } = await sb.from('albaranes_no_duplicado').select('id_a,id_b').limit(10000);
+    if (error) { console.warn('[v751] no se pudo leer albaranes_no_duplicado:', error.message); return; }
+    window._noDupPares = new Set((data || []).map(p => _parNoDupKey(p.id_a, p.id_b)));
+    console.log('[v751] parejas "no es duplicado" cargadas:', window._noDupPares.size);
+  } catch (e) { console.warn('[v751] _cargarNoDup:', e); }
+}
+async function _noEsDuplicado(id) {
+  const r = _buscarRec(id); if (!r) return;
+  const o = _buscarRec(r._posDupOf);
+  if (!r.db_id || !o || !o.db_id) { toast('Falta guardar alguno de los dos. Refresca y vuelve a intentarlo.', 'err'); return; }
+  if (!confirm(`¿Seguro que NO es duplicado?\n\n${r.albaran || '(sin nº)'}  ·  ${r.fecha || ''}\n${o.albaran || '(sin nº)'}  ·  ${o.fecha || ''}\n\nSon dos viajes distintos y no se volverá a avisar de esta pareja.`)) return;
+  const [a, b] = [String(r.db_id), String(o.db_id)].sort();
+  const { error } = await sb.from('albaranes_no_duplicado').insert({ id_a: a, id_b: b });
+  if (error && error.code !== '23505') { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  window._noDupPares.add(_parNoDupKey(a, b));
+  analyzeRecords(); applyFilters(); updateStats(); renderAlerts();
+  if (document.getElementById('ov')?.classList.contains('open') && String(editId) === String(id)) closeModal();
+  _v751QuitarFila(id);
+  toast('✓ Anotado: no es duplicado');
+}
+function _verLosDos(id) {
+  const r = _buscarRec(id); if (!r) return;
+  const o = _buscarRec(r._posDupOf);
+  window._verIds = new Set([String(r.db_id || r._id)].concat(o ? [String(o.db_id || o._id)] : []));
+  if (document.getElementById('ov')?.classList.contains('open')) closeModal();
+  _v751CerrarAviso();
+  applyFilters();
+  toast('Mostrando solo los dos · pulsa LIMPIAR para volver');
+}
+async function _v751Descartar(id) {
+  const r = _buscarRec(id); if (!r) return;
+  if (!confirm(`¿Descartar el ${r.albaran || 'albarán'} del ${r.fecha || ''}?\n\nVa a la papelera (90 días) y se queda el otro.`)) return;
+  try {
+    if (r.db_id) { await deleteRecordDB(r.db_id); try { await _papeleraMotivo([r.db_id], 'Duplicado'); } catch (e) { /* no bloquear */ } }
+    _quitarAlbaranDeMemoria(r);
+    _v751QuitarFila(id);
+    toast('✓ Duplicado descartado');
+  } catch (e) { console.error('[v751] descartar:', e); toast('Error al descartar: ' + (e.message || e), 'err'); }
+}
+function _v751CerrarAviso() { const ov = document.getElementById('v751Ov'); if (ov) ov.remove(); }
+function _v751QuitarFila(id) {
+  const ov = document.getElementById('v751Ov'); if (!ov) return;
+  ov.querySelectorAll('[data-v751]').forEach(f => { if (f.getAttribute('data-v751') === String(id)) f.remove(); });
+  if (!ov.querySelector('[data-v751]')) ov.remove();
+}
+function _v751AvisoSubida(lista) {
+  _v751CerrarAviso();
+  const filas = lista.map(r => {
+    const o = _buscarRec(r._posDupOf) || {};
+    const id = esc(String(r.db_id || r._id));
+    return `<div data-v751="${id}" style="border:1px solid rgba(214,51,140,.35);background:rgba(214,51,140,.06);border-radius:8px;padding:10px;margin-top:10px">
+      <div style="font-size:13px;margin-bottom:8px">🔁 El <b>${esc(r.albaran || '(sin nº)')}</b> del ${esc(r.fecha || '?')} (${esc(r.tractora || '')}, ${esc(String(r.tm ?? ''))} t) parece el mismo que el <b>${esc(o.albaran || 'otro')}</b> del ${esc(o.fecha || '?')} (${r._posDupMotivo === 'neto' ? 'mismo neto' : 'misma tara y bruto'}).</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn bs" onclick="_verLosDos('${id}')">👀 Ver los dos</button>
+        <button class="btn br" onclick="_v751Descartar('${id}')">🗑 Es duplicado – descartar este</button>
+        <button class="btn bs" onclick="_noEsDuplicado('${id}')">✅ No es duplicado – guardar</button>
+      </div></div>`;
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = 'v751Ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:#fff;color:#1a1a1a;max-width:660px;width:100%;max-height:85vh;overflow:auto;border-radius:10px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:15px">Posible albarán duplicado</b><button class="btn bs" onclick="_v751CerrarAviso()">Cerrar</button></div>
+    <div style="font-size:12px;margin-top:6px;opacity:.8">Mismo camión y mismos pesos que otro que ya estaba. Suele pasar con los manuales subidos dos veces (foto + escaneo). Si cierras sin decidir, se queda guardado con la marca rosa 🔁 para revisarlo luego.</div>
+    ${filas}</div>`;
+  document.body.appendChild(ov);
+  console.log(`[v751] aviso al subir: ${lista.length} posible(s) duplicado(s)`);
 }
 
 function markAsValid() {
