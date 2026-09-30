@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v746 (30/09/2026): EMPLEADOS · los tres botones con iconos FIJOS (sin animación), más serios: Vacaciones = maleta naranja con gafas y palmera; Reconocimientos médicos = portapapeles con corazón, cruz y estetoscopio; Primas = foto de un fajo de billetes de 10/20/50/100 € (imágenes de Gemini). Archivos NUEVOS a subir: ico_emp_vac.webp, ico_emp_rec.webp, ico_emp_pri.webp (los ico_vac_*, ico_rec_*, ico_pri_* anteriores ya no se usan; se pueden dejar). Sin SQL. VUELTA ATRAS: resubir v745.
+
+---
+
 v745 (29/09/2026): EMPLEADOS · icono de VACACIONES: camioncito verde con gafas de sol, collar de flores y falda hawaiana (dibujo de Gemini recortado en capas: cuerpo, falda y dos brazos) que baila sin parar (se balancea, la falda se mueve y los brazos suben y bajan); encima aparece un cartelito '¡VACACIONES!' unos 2,5 s y desaparece otros 2,5 s. Archivos NUEVOS a subir: ico_vac_body.webp, ico_vac_skirt.webp, ico_vac_arml.webp, ico_vac_armr.webp (los ico_vac_sol/maleta ya no se usan). Respeta 'reducir movimiento'. Sin SQL. VUELTA ATRAS: resubir v744.
 
 ---
