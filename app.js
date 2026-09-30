@@ -9329,6 +9329,9 @@ function analyzeRecords() {
     const porMat = {};
     _porSubida.forEach(({ r }) => {
       if (r._dup || r._posDup) return;
+      // v749: fuera Puigfel (nº 4R...) y los de cobro por viaje (TN=1): llevan su nº propio, no son manuales repetidos.
+      if (/^\s*4R/i.test(String(r.albaran || ''))) return;
+      const _tmV = _num(r.tm); if (_tmV !== null && _tmV <= 1) return;
       const mat = _mat(r); if (!mat) return;
       const d = _dia(r.fecha); if (d === null) return;
       const tara = _num(r.tara_kg), bruto = _num(r.bruto_kg), tm = _num(r.tm);
@@ -9350,7 +9353,9 @@ function analyzeRecords() {
           const mismoNum = String(a.r.albaran || '').trim().toUpperCase() === String(b.r.albaran || '').trim().toUpperCase();
           if (mismoNum && String(a.r.linea_albaran ?? '') !== String(b.r.linea_albaran ?? '')) continue; // lineas de multimaterial
           const hayPesos = a.tara !== null && a.bruto !== null && b.tara !== null && b.bruto !== null;
-          const r1 = hayPesos && a.tara === b.tara && a.bruto === b.bruto && (_debil(a.r.albaran) || _debil(b.r.albaran));
+          // v749: con tara y bruto iguales el neto debe salir casi igual; si difiere > 1,5 t son viajes distintos.
+          const tmCerca = a.tm === null || b.tm === null || Math.abs(a.tm - b.tm) <= 150;
+          const r1 = hayPesos && tmCerca && a.tara === b.tara && a.bruto === b.bruto && (_debil(a.r.albaran) || _debil(b.r.albaran));
           const r2 = !hayPesos && a.tm !== null && a.tm === b.tm && (_esSN(a.r.albaran) || _esSN(b.r.albaran));
           if (!r1 && !r2) continue;
           b.r._posDup = true;

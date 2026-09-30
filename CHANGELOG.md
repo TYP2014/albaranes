@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v749 (30/09/2026): ALBARANES · ajuste del posible duplicado por pesos (v748) tras verlo en real (10 avisos): (1) fuera del control Puigfel (nº 4R...) y los de cobro por viaje (TN <= 1), que llevan su nº propio; (2) R1 exige además que las TN de los dos no difieran más de 1,5 t (con tara y bruto iguales el neto debe cuadrar). Quita los falsos 8280NHJ 0058/4R26173846 y 9346MNY 1474/0005. El aviso al subir + 'no es duplicado' pasa a v750. Sin SQL. VUELTA ATRAS: resubir v748.
+
+---
+
 v748 (30/09/2026): ALBARANES · POSIBLE DUPLICADO POR PESOS (albaranes MANUALES subidos dos veces: foto del conductor + escaneo de oficina, con el nº mal leído en uno). Caso real Clinker Vallcarca, cuadrante Holcim 19-28/08: 4 duplicados (117,68 t) que el Excel daba como 'Duplicados: 0' porque el detector compara por nº. Regla R1: misma matrícula + misma tara + mismo bruto (tara >= 5000 kg) + fechas a <= 3 días + al menos uno con nº 'raro' (SN-... o 4 cifras o menos). R2 (si falta tara o bruto): misma matrícula + mismo neto (0,01 t) + fechas a <= 3 días + al menos uno SN-. Medido con SELECT sobre ago-sep 2026: sin el 'nº raro' daba cientos de falsos (cisternas con tara fija que cargan al mismo bruto, 1270LST con pesos fijos); con él, ~6 avisos. Los nº de sistema largos NO saltan nunca. Se marca solo la copia subida después con la marca rosa 🔁 REV DUP de la v351 (filtro Estado → Rev Dup): sus TN SÍ cuentan y NO se borra nada. El aviso del albarán dice con cuál choca. Excel: línea 'Posibles duplicados (revisar)' en Resumen (nº y TN) + pestaña nueva 'Posibles duplicados' con las parejas. No toca la lectura CEMEX. Sin SQL. PENDIENTE v749: aviso al subir con botones (Ver los dos / Es duplicado / No es duplicado) y recordar pares 'no es duplicado' (tabla nueva). APARTE (no tocado): el detector de siempre no ve el mismo nº en otro formato (N-24080 = 24080-N): 9346MNY 31/08, 3132JLK, 6558HWG, 6521NHV. VUELTA ATRAS: resubir v747.
 
 ---
