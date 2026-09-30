@@ -13892,9 +13892,13 @@ async function _noEsDuplicado(id) {
 function _verLosDos(id) {
   const r = _buscarRec(id); if (!r) return;
   const o = _buscarRec(r._posDupOf);
-  window._verIds = new Set([String(r.db_id || r._id)].concat(o ? [String(o.db_id || o._id)] : []));
+  const ids = new Set([String(r.db_id || r._id)].concat(o ? [String(o.db_id || o._id)] : []));
   if (document.getElementById('ov')?.classList.contains('open')) closeModal();
   _v751CerrarAviso();
+  // v752: limpiar ANTES los filtros (fechas, Estado 'Rev Dup', buscador...): si no, la pareja
+  // (que no es rosa) quedaba oculta y salia '0 de N'. resetFilters pone _verIds=null, por eso va despues.
+  try { resetFilters(); } catch (e) { console.warn('[v752] resetFilters:', e); }
+  window._verIds = ids;
   applyFilters();
   toast('Mostrando solo los dos · pulsa LIMPIAR para volver');
 }

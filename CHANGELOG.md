@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v752 (30/09/2026): ALBARANES · arreglo de '👀 Ver los dos' (v751): ahora limpia antes los filtros (fechas, Estado 'Rev Dup', buscador…) y luego enseña solo la pareja. Antes, con el filtro Rev Dup puesto, la pareja (que no es rosa) quedaba oculta y salía '0 de N'. Sin SQL. VUELTA ATRAS: resubir v751.
+
+---
+
 v751 (30/09/2026): ALBARANES · posible duplicado por pesos, parte final: (1) AVISO AL SUBIR: al terminar un lote, si alguno de los nuevos choca por pesos con uno que ya estaba, sale una ventana con cada pareja y tres botones: 👀 Ver los dos (filtra la tabla a esa pareja; LIMPIAR para volver), 🗑 Es duplicado – descartar este (borra la copia nueva, papelera 90 días motivo Duplicado), ✅ No es duplicado – guardar. Si se cierra sin decidir, queda con la marca rosa 🔁. (2) El aviso del albarán (modal) trae también 👀 Ver los dos y ✅ No es duplicado. (3) 'No es duplicado' se RECUERDA en la tabla nueva albaranes_no_duplicado (id_a, id_b) y esa pareja no vuelve a avisar. SQL PRIMERO: crear tabla + RLS (sql_v751_no_duplicado.sql). Si la tabla no existe, la app sigue igual (solo no recuerda). VUELTA ATRAS: resubir v750 (la tabla puede quedarse).
 
 ---
