@@ -2264,7 +2264,7 @@ async function saveRecord(data) {
   // para borrar específicamente los conocidos como auxiliares:
   const _AUX_CAMPOS = ['materiales', 'matricula', 'devolucion_palets', 'unidad_palet',
                        'num_tarjeta', 'empresa_ticket', '_esFactura', '_quality',
-                       '_dup', '_dupOf', '_posDup', '_posDupOf', '_matDesconocida', '_manual',
+                       '_dup', '_dupOf', '_posDup', '_posDupOf', '_posDupMotivo', '_matDesconocida', '_manual',
                        '_fromPending', '_id',
                        // v350: campo auxiliar de lectura (hora del ticket para el nº SN).
                        'hora_carga'];
@@ -9229,7 +9229,7 @@ function qualityScore(r) { return ['albaran','fecha','tractora','tm','proveedor'
 // B) albarán + fecha + mismo TM ±0.05 (mismo albarán y peso = casi seguro duplicado)
 // C) albarán + TM ±0.05 (mismo albarán y peso aunque la fecha esté mal leída)
 function analyzeRecords() {
-  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; r._posDup = false; r._posDupOf = null; });
+  records.forEach(r => { r._dup = false; r._dupOf = null; r._quality = null; r._matDesconocida = false; r._posDup = false; r._posDupOf = null; r._posDupMotivo = null; });
   const seenA = {}, seenB = {}, seenC = {};
 
   // v630 (14/09/2026, JC): EL PRIMERO QUE SE SUBE ES EL VÁLIDO; el que llega después es el Dup.
@@ -9297,6 +9297,73 @@ function analyzeRecords() {
     r._posDup = true; r._posDupOf = r._dupOf;
     r._dup = false; r._dupOf = null;
   });
+
+  // v748 (30/09/2026, JC): POSIBLE DUPLICADO POR PESOS (albaranes MANUALES subidos dos veces).
+  // Caso real Clinker Vallcarca (cuadrante Holcim 19-28/08): el conductor sube la FOTO del ticket
+  // escrito a mano y dias despues la oficina ESCANEA el papel. La IA lee mal el numero en una de
+  // las dos ("188" en una, "SN-310826-30000" en otra) y el detector de arriba, que compara por
+  // numero, no los ve: 4 duplicados (117,68 t) y el Excel decia "Duplicados: 0".
+  // Aqui se compara por lo que NO se lee mal: la bascula. Reglas (medidas sobre ago-sep 2026):
+  //  R1: misma MATRICULA + misma TARA + mismo BRUTO (tara >= 5000 kg) + fechas a <= 3 dias
+  //      + al menos UNO de los dos con numero "raro": SN-... o 4 cifras o menos (tipico de manual).
+  //  R2: si falta tara o bruto: misma MATRICULA + mismo NETO (a 0,01 t) + fechas a <= 3 dias
+  //      + al menos uno de los dos con numero SN-.
+  // Sin el "numero raro" daba cientos de falsos: cisternas con tara fija que cargan siempre al
+  // mismo bruto, y el 1270LST con pesos fijos. Con numeros de sistema (largos) NO salta nunca.
+  // Se marca SOLO la copia que llego despues (la primera subida manda, como en v630), con la
+  // misma marca rosa 🔁 REV DUP de la v351: sus TN SI se cuentan (JC prefiere revisar a perder
+  // toneladas) y NUNCA se borra nada solo. _posDupMotivo='pesos' cambia el texto del aviso.
+  (function _v748DupPorPesos() {
+    const _mat = r => { const m = String(r.tractora || '').toUpperCase().replace(/[^A-Z0-9]/g, '').match(/\d{4}[A-Z]{3}/); return m ? m[0] : ''; };
+    const _num = v => { if (v === null || v === undefined || v === '') return null; const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+    const _dia = f => {
+      const t = String(f || '').trim();
+      let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000;
+      m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (m) { let y = +m[3]; if (y < 100) y += 2000; return Date.UTC(y, +m[2] - 1, +m[1]) / 86400000; }
+      return null;
+    };
+    const _esSN = a => /^\s*SN-/i.test(String(a || ''));
+    const _debil = a => _esSN(a) || String(a || '').replace(/\D/g, '').replace(/^0+/, '').length <= 4;
+    const porMat = {};
+    _porSubida.forEach(({ r }) => {
+      if (r._dup || r._posDup) return;
+      const mat = _mat(r); if (!mat) return;
+      const d = _dia(r.fecha); if (d === null) return;
+      const tara = _num(r.tara_kg), bruto = _num(r.bruto_kg), tm = _num(r.tm);
+      (porMat[mat] = porMat[mat] || []).push({
+        r, d,
+        tara: (tara !== null && tara >= 5000) ? Math.round(tara) : null,
+        bruto: (bruto !== null && bruto > 100) ? Math.round(bruto) : null,
+        tm: tm !== null ? Math.round(tm * 100) : null
+      });
+    });
+    let n = 0;
+    Object.values(porMat).forEach(lista => {
+      for (let j = 1; j < lista.length; j++) {
+        const b = lista[j];
+        for (let i = 0; i < j; i++) {
+          const a = lista[i];
+          if (a.r._posDup && a.r._posDupMotivo === 'pesos') continue; // no encadenar copias
+          if (Math.abs(a.d - b.d) > 3) continue;
+          const mismoNum = String(a.r.albaran || '').trim().toUpperCase() === String(b.r.albaran || '').trim().toUpperCase();
+          if (mismoNum && String(a.r.linea_albaran ?? '') !== String(b.r.linea_albaran ?? '')) continue; // lineas de multimaterial
+          const hayPesos = a.tara !== null && a.bruto !== null && b.tara !== null && b.bruto !== null;
+          const r1 = hayPesos && a.tara === b.tara && a.bruto === b.bruto && (_debil(a.r.albaran) || _debil(b.r.albaran));
+          const r2 = !hayPesos && a.tm !== null && a.tm === b.tm && (_esSN(a.r.albaran) || _esSN(b.r.albaran));
+          if (!r1 && !r2) continue;
+          b.r._posDup = true;
+          b.r._posDupOf = a.r.db_id || a.r._id;
+          b.r._posDupMotivo = 'pesos';
+          n++;
+          console.log(`[v748] 🔁 posible duplicado por ${r1 ? 'tara/bruto' : 'neto'}: ${b.r.albaran} (${b.r.fecha}) ~ ${a.r.albaran} (${a.r.fecha}) · ${_mat(b.r)}`);
+          break;
+        }
+      }
+    });
+    if (n) console.log(`[v748] ${n} posibles duplicados por pesos`);
+  })();
 
   // v629 (14/09/2026, JC): UN DUPLICADO NUNCA "LLEVA" LA FACTURACIÓN. Caso real 0072555691:
   // se subió la foto (02/09), el cruce de Holcim la marcó facturada, y luego se subió el mismo
@@ -11140,7 +11207,7 @@ function filterByStatus(st) {
   } 
 }
 
-function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._posDup) return `<span class="badge" style="${st};background:rgba(214,51,140,.12);color:#d6338c;border:1px solid rgba(214,51,140,.35);font-weight:700" title="Posible duplicado: hay otro albarán con este mismo número y el ticket no traía hora legible. Míralo en el papel.">🔁 REV DUP</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
+function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._posDup) return `<span class="badge" style="${st};background:rgba(214,51,140,.12);color:#d6338c;border:1px solid rgba(214,51,140,.35);font-weight:700" title="${r._posDupMotivo === 'pesos' ? 'Posible duplicado: hay otro albarán del mismo camión con la misma tara y bruto (suele ser un manual subido dos veces). Míralo en el papel.' : 'Posible duplicado: hay otro albarán con este mismo número y el ticket no traía hora legible. Míralo en el papel.'}">🔁 REV DUP</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
 
 // ============================================================
 // v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual).
@@ -13014,6 +13081,12 @@ function openModal(id) {
   document.getElementById('mBadge').innerHTML = rowBadge(r);
   let alertHtml = '';
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
+  else if (r._posDup && r._posDupMotivo === 'pesos') {
+    // v748: posible duplicado por pesos -> decir CON QUIEN choca, para buscarlo y mirar los dos papeles.
+    const _o = records.find(x => String(x.db_id) === String(r._posDupOf) || String(x._id) === String(r._posDupOf));
+    const _oTxt = _o ? `<strong>${esc(String(_o.albaran || '(sin nº)'))}</strong> del ${esc(String(_o.fecha || '?'))}` : 'otro albarán';
+    alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado de ${_oTxt}</strong> (mismo camión, misma tara y bruto). Suele ser un albarán manual subido dos veces (foto + escaneo) con el número mal leído en uno. Mira los dos papeles: si es el mismo, borra este; si son dos viajes, no toques nada. Mientras tanto sus TN SÍ se cuentan.</div>`;
+  }
   else if (r._posDup) alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado — revísalo en el papel.</strong> Hay otro albarán con este mismo número. Como el ticket no traía hora legible, no se puede saber si es el MISMO papel subido dos veces o DOS viajes distintos del mismo día. Si son dos viajes, no toques nada. Si está repetido, borra este. Mientras tanto sus TN SÍ se cuentan.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
   else if (r._quality === 'warn') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Campos incompletos.</strong></div>`;
@@ -14181,11 +14254,25 @@ function buildExcel(data, opts) {
   XLSX.utils.book_append_sheet(wb, ws, 'Albaranes');
   const agg = key => valid.reduce((acc, r) => { const k = r[key] || 'Sin dato'; if (!acc[k]) acc[k] = {n:0,tm:0}; acc[k].n++; acc[k].tm += parseFloat(r.tm) || 0; return acc; }, {});
   const now = new Date();
-  const sum = [['RESUMEN'],[''],['Total válidos',valid.length],['Total TN',+tmTot.toFixed(3)],['Duplicados',data.filter(r=>r._dup).length],['Exportado',now.toLocaleDateString('es-ES')],
+  const _posDupsX = data.filter(r => r._posDup); // v748
+  const sum = [['RESUMEN'],[''],['Total válidos',valid.length],['Total TN',+tmTot.toFixed(3)],['Duplicados',data.filter(r=>r._dup).length],['Posibles duplicados (revisar)',_posDupsX.length,+_posDupsX.reduce((t,r)=>t+(parseFloat(r.tm)||0),0).toFixed(3)],['Exportado',now.toLocaleDateString('es-ES')],
     [''],['POR PROVEEDOR','Alb','TN'],...Object.entries(agg('proveedor')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)]),
     [''],['POR ORIGEN','Alb','TN'],...Object.entries(agg('planta')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)]),
     [''],['POR DESTINO','Alb','TN'],...Object.entries(agg('obra')).sort((a,b)=>b[1].tm-a[1].tm).map(([k,v])=>[k,v.n,+v.tm.toFixed(3)])];
   const ws2 = XLSX.utils.aoa_to_sheet(sum); ws2['!cols'] = [{wch:30},{wch:12},{wch:12}]; XLSX.utils.book_append_sheet(wb, ws2, 'Resumen');
+  // v748: pestaña con las PAREJAS de posibles duplicados (rosas 🔁), para mirarlas en papel.
+  // Sus TN van incluidas en el total (como en pantalla); aquí se ve cuánto suman por si hay que quitarlas.
+  if (_posDupsX.length) {
+    const _otro = r => records.find(x => String(x.db_id) === String(r._posDupOf) || String(x._id) === String(r._posDupOf));
+    const filas = [['Nº albarán','Fecha','Matrícula','TN','Tara','Bruto','Posible duplicado de','Fecha','TN','Motivo']];
+    _posDupsX.forEach(r => { const o = _otro(r) || {};
+      filas.push([r.albaran || '', r.fecha || '', r.tractora || '', +(parseFloat(r.tm) || 0).toFixed(3), r.tara_kg ?? '', r.bruto_kg ?? '',
+        o.albaran || '', o.fecha || '', o.tm != null ? +(parseFloat(o.tm) || 0).toFixed(3) : '',
+        r._posDupMotivo === 'pesos' ? 'Mismo camión, tara y bruto' : 'Mismo nº sin hora legible']); });
+    const ws3 = XLSX.utils.aoa_to_sheet(filas);
+    ws3['!cols'] = [{wch:22},{wch:12},{wch:14},{wch:9},{wch:9},{wch:9},{wch:22},{wch:12},{wch:9},{wch:28}];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Posibles duplicados');
+  }
   return { wb, tm: tmTot };
 }
 
