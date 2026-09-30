@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v750 (30/09/2026): ALBARANES · retoques del posible duplicado por pesos: (1) no avisa si uno de los dos ya está en 'No facturable' (la oficina ya lo resolvió; caso 6497NMW 002135/M8440000094428); (2) el aviso del albarán ya no dice 'borra este' a secas: dice quedarse con el FACTURADO (o el de nº de sistema) y borrar o marcar 'No facturable' el otro (la marca rosa cae en la copia subida después, que puede ser la buena); (3) etiqueta correcta 'mismo neto' cuando salta por R2 (antes decía tara y bruto, caso 9074NMT), también en el Excel. Sin SQL. PENDIENTE v751: aviso al subir con botones + recordar 'no es duplicado'. VUELTA ATRAS: resubir v749.
+
+---
+
 v749 (30/09/2026): ALBARANES · ajuste del posible duplicado por pesos (v748) tras verlo en real (10 avisos): (1) fuera del control Puigfel (nº 4R...) y los de cobro por viaje (TN <= 1), que llevan su nº propio; (2) R1 exige además que las TN de los dos no difieran más de 1,5 t (con tara y bruto iguales el neto debe cuadrar). Quita los falsos 8280NHJ 0058/4R26173846 y 9346MNY 1474/0005. El aviso al subir + 'no es duplicado' pasa a v750. Sin SQL. VUELTA ATRAS: resubir v748.
 
 ---

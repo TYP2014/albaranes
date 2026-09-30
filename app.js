@@ -9331,6 +9331,8 @@ function analyzeRecords() {
       if (r._dup || r._posDup) return;
       // v749: fuera Puigfel (nº 4R...) y los de cobro por viaje (TN=1): llevan su nº propio, no son manuales repetidos.
       if (/^\s*4R/i.test(String(r.albaran || ''))) return;
+      // v750: si ya esta en 'No facturable' la oficina ya lo reviso (caso 6497NMW 002135): no avisar.
+      if (r.estado_facturacion === 'no_facturable') return;
       const _tmV = _num(r.tm); if (_tmV !== null && _tmV <= 1) return;
       const mat = _mat(r); if (!mat) return;
       const d = _dia(r.fecha); if (d === null) return;
@@ -9348,7 +9350,7 @@ function analyzeRecords() {
         const b = lista[j];
         for (let i = 0; i < j; i++) {
           const a = lista[i];
-          if (a.r._posDup && a.r._posDupMotivo === 'pesos') continue; // no encadenar copias
+          if (a.r._posDup && (a.r._posDupMotivo === 'pesos' || a.r._posDupMotivo === 'neto')) continue; // no encadenar copias
           if (Math.abs(a.d - b.d) > 3) continue;
           const mismoNum = String(a.r.albaran || '').trim().toUpperCase() === String(b.r.albaran || '').trim().toUpperCase();
           if (mismoNum && String(a.r.linea_albaran ?? '') !== String(b.r.linea_albaran ?? '')) continue; // lineas de multimaterial
@@ -9360,7 +9362,7 @@ function analyzeRecords() {
           if (!r1 && !r2) continue;
           b.r._posDup = true;
           b.r._posDupOf = a.r.db_id || a.r._id;
-          b.r._posDupMotivo = 'pesos';
+          b.r._posDupMotivo = r1 ? 'pesos' : 'neto'; // v750: etiqueta correcta
           n++;
           console.log(`[v748] 🔁 posible duplicado por ${r1 ? 'tara/bruto' : 'neto'}: ${b.r.albaran} (${b.r.fecha}) ~ ${a.r.albaran} (${a.r.fecha}) · ${_mat(b.r)}`);
           break;
@@ -11212,7 +11214,7 @@ function filterByStatus(st) {
   } 
 }
 
-function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._posDup) return `<span class="badge" style="${st};background:rgba(214,51,140,.12);color:#d6338c;border:1px solid rgba(214,51,140,.35);font-weight:700" title="${r._posDupMotivo === 'pesos' ? 'Posible duplicado: hay otro albarán del mismo camión con la misma tara y bruto (suele ser un manual subido dos veces). Míralo en el papel.' : 'Posible duplicado: hay otro albarán con este mismo número y el ticket no traía hora legible. Míralo en el papel.'}">🔁 REV DUP</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
+function rowBadge(r) { const st = 'min-width:50px;justify-content:center'; if (r._dup) return `<span class="badge badge-dup" style="${st}">⛔ Dup</span>`; if (r._posDup) return `<span class="badge" style="${st};background:rgba(214,51,140,.12);color:#d6338c;border:1px solid rgba(214,51,140,.35);font-weight:700" title="${(r._posDupMotivo === 'pesos' || r._posDupMotivo === 'neto') ? 'Posible duplicado: hay otro albarán del mismo camión con la misma tara y bruto (suele ser un manual subido dos veces). Míralo en el papel.' : 'Posible duplicado: hay otro albarán con este mismo número y el ticket no traía hora legible. Míralo en el papel.'}">🔁 REV DUP</span>`; if (r._quality === 'ilegible') return `<span class="badge badge-ileg" style="${st}">⚠ Ileg</span>`; if (r._quality === 'warn') return `<span class="badge badge-warn" style="${st}">⚠ Rev</span>`; return `<span class="badge badge-ok" style="${st}">✓</span>`; }
 
 // ============================================================
 // v107FD (28/05/2026): FACTURACIÓN — FASE 1 (marcado manual).
@@ -13086,11 +13088,11 @@ function openModal(id) {
   document.getElementById('mBadge').innerHTML = rowBadge(r);
   let alertHtml = '';
   if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
-  else if (r._posDup && r._posDupMotivo === 'pesos') {
+  else if (r._posDup && (r._posDupMotivo === 'pesos' || r._posDupMotivo === 'neto')) {
     // v748: posible duplicado por pesos -> decir CON QUIEN choca, para buscarlo y mirar los dos papeles.
     const _o = records.find(x => String(x.db_id) === String(r._posDupOf) || String(x._id) === String(r._posDupOf));
     const _oTxt = _o ? `<strong>${esc(String(_o.albaran || '(sin nº)'))}</strong> del ${esc(String(_o.fecha || '?'))}` : 'otro albarán';
-    alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado de ${_oTxt}</strong> (mismo camión, misma tara y bruto). Suele ser un albarán manual subido dos veces (foto + escaneo) con el número mal leído en uno. Mira los dos papeles: si es el mismo, borra este; si son dos viajes, no toques nada. Mientras tanto sus TN SÍ se cuentan.</div>`;
+    alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado de ${_oTxt}</strong> (mismo camión, ${r._posDupMotivo === 'neto' ? 'mismo neto' : 'misma tara y bruto'}). Suele ser un albarán manual subido dos veces (foto + escaneo, o manual y luego de sistema) con el número mal leído en uno. Mira los dos papeles: si es el mismo viaje, quédate con el que esté FACTURADO (o el de número de sistema) y borra o marca "No facturable" el otro; si son dos viajes, no toques nada. Mientras tanto sus TN SÍ se cuentan.</div>`;
   }
   else if (r._posDup) alertHtml = `<div class="m-alert" style="background:rgba(214,51,140,.10);border:1px solid rgba(214,51,140,.35);color:#d6338c">🔁 <strong>Posible duplicado — revísalo en el papel.</strong> Hay otro albarán con este mismo número. Como el ticket no traía hora legible, no se puede saber si es el MISMO papel subido dos veces o DOS viajes distintos del mismo día. Si son dos viajes, no toques nada. Si está repetido, borra este. Mientras tanto sus TN SÍ se cuentan.</div>`;
   else if (r._quality === 'ilegible') alertHtml = `<div class="m-alert m-alert-warn">⚠ <strong>Posible ilegible.</strong></div>`;
@@ -14273,7 +14275,7 @@ function buildExcel(data, opts) {
     _posDupsX.forEach(r => { const o = _otro(r) || {};
       filas.push([r.albaran || '', r.fecha || '', r.tractora || '', +(parseFloat(r.tm) || 0).toFixed(3), r.tara_kg ?? '', r.bruto_kg ?? '',
         o.albaran || '', o.fecha || '', o.tm != null ? +(parseFloat(o.tm) || 0).toFixed(3) : '',
-        r._posDupMotivo === 'pesos' ? 'Mismo camión, tara y bruto' : 'Mismo nº sin hora legible']); });
+        r._posDupMotivo === 'pesos' ? 'Mismo camión, tara y bruto' : r._posDupMotivo === 'neto' ? 'Mismo camión y neto (sin bruto)' : 'Mismo nº sin hora legible']); });
     const ws3 = XLSX.utils.aoa_to_sheet(filas);
     ws3['!cols'] = [{wch:22},{wch:12},{wch:14},{wch:9},{wch:9},{wch:9},{wch:22},{wch:12},{wch:9},{wch:28}];
     XLSX.utils.book_append_sheet(wb, ws3, 'Posibles duplicados');
