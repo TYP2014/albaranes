@@ -38011,6 +38011,7 @@ async function loadDecaData() {
     if (error) throw error;
     _decaLista = data || [];
     await _decaCargarSubs();   // v603
+    await _decaCargarCargadores();   // v758
     _decaPintarFiltros();
     _decaRender();
     { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
@@ -38153,6 +38154,8 @@ function openDecaModal(id) {
     </div>
 
     <div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin-bottom:10px">1 · CARGADOR CONTRACTUAL (quien contrata el transporte)</div>
+    ${_decaCargadores.length ? `<div class="fg" style="margin-bottom:10px"><label class="fl">Cargador habitual (rellena nombre, NIF y domicilio)</label>
+      <select class="fi" id="decaF_cargHab" onchange="_decaPonerCargador(this.value)"><option value="">— elegir o escribir a mano abajo —</option>${_decaCargadores.map((c, i) => `<option value="${i}">${esc(c.nombre)}</option>`).join('')}</select></div>` : ''}
     <div class="fg" style="margin-bottom:10px"><label class="fl">Nombre o razón social</label>
       <input class="fi" id="decaF_carg_nombre" value="${v('carg_nombre')}" list="decaCargadores" placeholder="Ej. HOLCIM ESPAÑA, S.A.U."></div>
     <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:14px">
@@ -38223,6 +38226,25 @@ function openDecaModal(id) {
 // (opción OTRO), el de arriba NO se toca: el documento sigue perteneciendo a la
 // empresa del grupo que contrata el viaje.
 // origen = 'empresa' cuando lo dispara el de arriba, 'trans' cuando el de abajo.
+// v758: cargadores habituales (tabla deca_cargadores). Al elegir uno se rellenan
+// nombre, NIF y domicilio del bloque 1; se pueden cambiar a mano después.
+let _decaCargadores = [];
+async function _decaCargarCargadores() {
+  try {
+    const { data, error } = await sb.from('deca_cargadores').select('nombre, nif, domicilio')
+      .eq('activo', true).order('orden').order('nombre');
+    if (error) throw error;
+    _decaCargadores = data || [];
+  } catch (e) { console.warn('[v758] cargadores', e); _decaCargadores = []; }
+}
+function _decaPonerCargador(i) {
+  const c = _decaCargadores[Number(i)];
+  if (i === '' || !c) return;
+  document.getElementById('decaF_carg_nombre').value = c.nombre || '';
+  document.getElementById('decaF_carg_nif').value = c.nif || '';
+  document.getElementById('decaF_carg_domicilio').value = c.domicilio || '';
+}
+
 // v757: ¿es un subcontratado (o conductor) con su empresa DeCA asignada? Admin nunca.
 function _decaEsSub() {
   const P = window._decaPerfil || {};

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v758 (01/10/2026): DeCA · formulario normal con desplegable 'Cargador habitual' encima del bloque 1: al elegir uno rellena nombre, NIF y domicilio (editables después). Lista en tabla nueva deca_cargadores (la leen todos los usuarios con sesión; solo el admin la cambia). Cargados: Holcim, Cemex, Sodira, Llantada e Hijos, Promotora Mediterránea-2 y Canteras Canro. SQL PRIMERO. VUELTA ATRAS: resubir v757.
+
+---
+
 v757 (01/10/2026): DeCA · los SUBCONTRATADOS con empresa DeCA asignada (profiles.deca_transportista) ven la pestaña DeCA normal además del exprés. Solo ven y crean los SUYOS (lo garantizan las políticas deca_propios_*). En su formulario el bloque 2 (transportista efectivo) queda FIJO con su empresa (selectores bloqueados, datos de solo lectura; Empresa del grupo = TYP2014, que es quien les contrata); la matrícula escrita ya no cambia el transportista. Se les oculta el botón 👥 Subcontratados. Además, al crear un DeCA desde el formulario el aviso muestra el nº REAL (el que pone el trigger), no el calculado en el navegador. Sin SQL. VUELTA ATRAS: resubir v756.
 
 ---
