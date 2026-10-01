@@ -38015,6 +38015,7 @@ async function loadDecaData() {
     await _decaCargarSubs();   // v603
     await _decaCargarCargadores();   // v758
     await _decaCargarConductores();  // v761
+    await _decaCargarTrabajadores(); // v763
     _decaPintarFiltros();
     _decaRender();
     { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
@@ -38258,6 +38259,29 @@ function _decaPonerCargador(i) {
 // v761: texto corto para la lista (lo de antes del primer " - ")
 function _decaCorto(t) { return String(t || '').split(' - ')[0]; }
 
+// v763: conductores de la pestaña Empleados (tabla trabajadores): en activo, con DNI,
+// sin mecánicos ni administrativos. Solo para la oficina.
+let _decaTrabajadores = [];
+const _DECA_TRAB_EMP = { 'HISPALIS': 'TTES HISPALIS 2016', 'PORTES': 'PORTES 2014 IMPORT', 'TYP2014': 'TYP2014', 'TRANSMARGAZ': 'TRANSMARGAZ 2018' };
+async function _decaCargarTrabajadores() {
+  _decaTrabajadores = [];
+  if (!_condEsOficina()) return;
+  try {
+    const { data, error } = await sb.from('trabajadores').select('nombre, dni, empresa, rol, vehiculo_habitual, archivado, fecha_baja');
+    if (error) throw error;
+    _decaTrabajadores = (data || [])
+      .filter(t => !t.archivado && !t.fecha_baja && t.dni && !/mec|admin/i.test(t.rol || ''))
+      .map(t => ({ name: String(t.nombre || '').toUpperCase().trim(), deca_dni: _condDni(t.dni),
+                   deca_transportista: _DECA_TRAB_EMP[String(t.empresa || '').toUpperCase().trim()] || t.empresa,
+                   veh: _decaMatricula(t.vehiculo_habitual || '') }));
+  } catch (e) { console.warn('[v763] trabajadores', e); }
+}
+// TYP2014 y Portes Import comparten camiones y conductores
+function _decaMismaEmpresa(a, b) {
+  const g = x => { const n = _decaNrm(x); return (n === _decaNrm('PORTES 2014 IMPORT')) ? _decaNrm('TYP2014') : n; };
+  return g(a) === g(b);
+}
+
 // v761: conductores para los desplegables (los que este usuario puede gestionar)
 let _decaConductores = [];
 async function _decaCargarConductores() {
@@ -38281,9 +38305,13 @@ function _decaOpcConductores(trans) {
   if (_decaEsSub() && !P.solo) titular(P.transportista);                    // el propio autónomo
   else if (trans) titular(trans);                                          // v762: oficina en el exprés
   else if (_condEsOficina()) _decaSubs.filter(x => x.activo !== false).forEach(x => titular(x.nombre));   // v762: oficina en el normal
-  _decaConductores
-    .filter(c => !trans || _decaNrm(c.deca_transportista) === _decaNrm(trans))
-    .forEach(c => out.push({ etiqueta: c.name + ' · ' + (c.deca_dni || '') + (trans ? '' : ' · ' + c.deca_transportista), nombre: c.name, dni: c.deca_dni }));
+  // v763: dados de alta con DNI+PIN + los de Empleados (sin repetir DNI), por orden alfabético
+  const vistos = new Set(out.map(o => _condDni(o.dni)));
+  _decaConductores.concat(_decaTrabajadores)
+    .filter(c => c.deca_dni && (!trans || _decaMismaEmpresa(c.deca_transportista, trans)))
+    .filter(c => { const k = _condDni(c.deca_dni); if (vistos.has(k)) return false; vistos.add(k); return true; })
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .forEach(c => out.push({ etiqueta: c.name + ' · ' + (c.deca_dni || '') + (trans ? '' : ' · ' + c.deca_transportista), nombre: c.name, dni: c.deca_dni, veh: c.veh || '' }));
   return out;
 }
 function _decaPonerConductor(i) {
@@ -38591,7 +38619,7 @@ async function _decaConstruirPDF(d, url) {
   bloque('2 · TRANSPORTISTA EFECTIVO');
   campo('Nombre o razón social', d.trans_nombre); salto(30);
   campo('NIF', d.trans_nif, M, 150); campo('Nº de autorización', d.trans_autorizacion, M + 170, 150);
-  campo('Empresa del grupo', d.empresa, M + 340, 160); salto(30);
+  salto(30);   // v763: fuera 'Empresa del grupo' del PDF (es dato interno; confundía con subcontratados)
   campo('Domicilio', d.trans_domicilio); salto(34);
 
   // v753: operador de transporte (intermediario), como en el ticket de Holcim
@@ -39167,13 +39195,25 @@ async function _xpCargarTractoras(tr) {
 }
 // Desplegable de tractora: la última usada si es de su lista; si no, la primera.
 // "Otro (escribir)" por si un día lleva otra (cambio, préstamo...).
+function _xpTractoraPorDefecto() {
+  const lista = _xpTractoras[_xpTrans] || [];
+  const g = _xpLS('xp_tractora');
+  return lista.includes(g) ? g : (lista[0] || '');
+}
+// v763: al cambiar de camión, si ese camión tiene conductor habitual, se pone solo
+function _xpCondPorTractora(mat) {
+  const sel = document.getElementById('xpCondSel'); if (!sel) return;
+  const opts = _decaOpcConductores(currentRole === 'admin' || _condEsOficina() ? _xpTrans : null);
+  const i = opts.findIndex(o => o.veh && o.veh === mat);
+  if (i >= 0) { sel.value = String(i); const o = document.getElementById('xpCondOtro'); if (o) o.style.display = 'none'; }
+}
 function _xpCampoTractora(inp) {
   const lista = _xpTractoras[_xpTrans] || [];
   const guardada = _xpLS('xp_tractora');
   const enLista = lista.includes(guardada);
   const sel = enLista ? guardada : (lista[0] || '__otro');
   const otro = sel === '__otro';
-  return '<select id="xpTractora" style="' + inp + '" onchange="document.getElementById(\'xpTractoraOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
+  return '<select id="xpTractora" style="' + inp + '" onchange="document.getElementById(\'xpTractoraOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\';_xpCondPorTractora(this.value)">' +
     lista.map(m => '<option value="' + _xpE(m) + '"' + (m === sel ? ' selected' : '') + '>' + _xpE(m) + '</option>').join('') +
     '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
     '<input id="xpTractoraOtro" style="' + inp + ';margin-top:8px;text-transform:uppercase;display:' + (otro ? 'block' : 'none') +
@@ -39232,7 +39272,10 @@ function _xpCampoConductor(inp) {
   if (P.solo) return '<div style="' + inp + ';background:var(--bg)">' + _xpE(P.nombre || '') + ' · ' + _xpE(P.dni || '') + '</div>';
   const opts = _decaOpcConductores(currentRole === 'admin' || _condEsOficina() ? _xpTrans : null);
   const guard = _xpLS('xp_cond');
-  const idx = opts.findIndex(o => (o.dni || '') === guard);
+  // v763: primero el conductor habitual del camión elegido (Empleados → vehículo habitual)
+  const tr0 = _xpTractoraPorDefecto();
+  let idx = tr0 ? opts.findIndex(o => o.veh && o.veh === tr0) : -1;
+  if (idx < 0) idx = opts.findIndex(o => (o.dni || '') === guard);
   const sel = idx >= 0 ? String(idx) : (opts.length ? '0' : '__otro');
   const otro = sel === '__otro';
   return '<select id="xpCondSel" style="' + inp + '" onchange="document.getElementById(\'xpCondOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
@@ -39286,6 +39329,7 @@ async function _xpAbrir(solo) {
   await _xpCargarSemis(_xpTrans);
   await _xpCargarTractoras(_xpTrans);
   if (!_decaConductores.length) await _decaCargarConductores();   // v761
+  if (!_decaTrabajadores.length) await _decaCargarTrabajadores(); // v763
   if (P.baja && currentRole !== 'admin') {
     ov.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:var(--ss)"><div style="font-size:18px;margin-bottom:12px">Usuario dado de baja</div><div style="color:var(--mu);margin-bottom:24px">No puedes crear DeCA. Habla con tu oficina.</div><button class="btn bs" onclick="_xpSalir()">Salir</button></div>';
     return;

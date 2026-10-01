@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v763 (01/10/2026): DeCA · (1) el desplegable de CONDUCTOR (oficina, exprés y formulario normal) incluye los trabajadores de la pestaña Empleados (tabla trabajadores): en activo, con DNI, sin mecánicos ni administrativos; empresa HISPALIS/PORTES/TYP2014/TRANSMARGAZ → transportista DeCA; TYP2014 y Portes Import comparten conductores; sin repetir DNI con los dados de alta con DNI+PIN. (2) Conductor por defecto = el que tiene ese camión como 'vehículo habitual' en Empleados (y cambia solo al cambiar de camión). (3) PDF: fuera la línea 'Empresa del grupo' del bloque 2. Sin SQL. VUELTA ATRAS: resubir v762.
+
+---
+
 v762 (01/10/2026): DeCA · el autónomo como conductor ('Titular') también sale desde la OFICINA: en el exprés al elegir un autónomo como transportista, y en el formulario normal todos los autónomos activos de Subcontratados. Antes solo salía cuando entraba el propio autónomo. Sin SQL. VUELTA ATRAS: resubir v761.
 
 ---
