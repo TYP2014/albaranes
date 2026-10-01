@@ -38466,7 +38466,14 @@ async function _decaConstruirPDF(d, url) {
   const campo = (etiqueta, valor, x, ancho) => {
     const xx = x == null ? M : x;
     page.drawText(_decaTxt(etiqueta), { x: xx, y: y, size: 7.5, font: fN, color: gris });
-    page.drawText(_decaTxt(valor || '-'), { x: xx, y: y - 12, size: 10, font: fN, color: negro, maxWidth: ancho || 460 });
+    // v754: partir el texto en líneas a mano (12 pt entre líneas) y devolver cuántas ocupa,
+    // para que el siguiente campo baje lo necesario y NO se monten (pasaba con origen/destino largos).
+    const w = ancho || 460, pal = _decaTxt(valor || '-').split(' '), lineas = [];
+    let l = '';
+    pal.forEach(p => { const t = l ? l + ' ' + p : p; if (l && fN.widthOfTextAtSize(t, 10) > w) { lineas.push(l); l = p; } else l = t; });
+    if (l) lineas.push(l);
+    lineas.forEach((t, i) => page.drawText(t, { x: xx, y: y - 12 - i * 12, size: 10, font: fN, color: negro }));
+    return lineas.length;
   };
 
   bloque('1 · CARGADOR CONTRACTUAL');
@@ -38487,7 +38494,8 @@ async function _decaConstruirPDF(d, url) {
   }
 
   bloque('3 · MERCANCÍA Y RECORRIDO');
-  campo('Origen (lugar de carga)', d.origen, M, 230); campo('Destino (lugar de entrega)', d.destino, M + 250, 230); salto(30);
+  { const lo = campo('Origen (lugar de carga)', d.origen, M, 230), ld = campo('Destino (lugar de entrega)', d.destino, M + 250, 230);
+    salto(30 + (Math.max(lo, ld) - 1) * 12); }   // v754: baja según las líneas que ocupen
   campo('Mercancía', d.mercancia); salto(30);
   campo('Peso (kg)', d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : '-', M, 150);
   campo('Bultos', d.bultos, M + 170, 150);
