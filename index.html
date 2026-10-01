@@ -57,7 +57,7 @@ if (typeof pdfjsLib !== 'undefined') {
     <div class="login-sub">GESTIÓN DE ALBARANES — TRANSPORTES Y PORTES 2014</div>
     <div class="login-field">
       <label class="login-label">Email</label>
-      <input class="login-input" id="loginEmail" type="email" placeholder="usuario@typ2014.com" autocomplete="email">
+      <input class="login-input" id="loginEmail" type="text" placeholder="Email o DNI (conductores)" autocomplete="username" autocapitalize="off" spellcheck="false">
     </div>
     <div class="login-field">
       <label class="login-label">Contraseña</label>
@@ -769,6 +769,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div class="st"><div class="dot" style="--c:#5c6bc0"></div>DeCA · DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO</div>
           <div style="display:flex;gap:8px">
             <button class="btn bs" onclick="_xpAbrir(false)" title="Pantalla del conductor (prueba)">⚡ DeCA exprés</button>
+            <button class="btn bs" id="decaBtnCond" onclick="openConductores()" title="Alta, baja y PIN de conductores (solo DeCA)">👤 Conductores</button>
             <button class="btn bs" id="decaBtnSubs" onclick="openDecaSubs()" title="Transportistas subcontratados habituales (NIF, autorización)">👥 Subcontratados</button>
             <button class="btn bp" onclick="openDecaModal(null)">➕ NUEVO DeCA</button>
           </div>
@@ -2022,6 +2023,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=758"></script>
+<script src="app.js?v=759"></script>
 </body>
 </html>

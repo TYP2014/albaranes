@@ -330,8 +330,10 @@ async function doLogin() {
   const pass = document.getElementById('loginPass').value;
   const err = document.getElementById('loginErr');
   err.style.display = 'none';
-  if (!email || !pass) { err.textContent = 'Introduce email y contraseña'; err.style.display = 'block'; return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (!email || !pass) { err.textContent = 'Introduce email (o DNI) y contraseña'; err.style.display = 'block'; return; }
+  // v759: los conductores entran con su DNI/NIE + PIN; por dentro es un email interno.
+  const _login = _decaEmailConductor(email) || email;
+  const { error } = await sb.auth.signInWithPassword({ email: _login, password: pass });
   if (error) { err.textContent = error.message; err.style.display = 'block'; }
 }
 
@@ -37983,7 +37985,7 @@ async function _decaCargarSubs() {
 
 // Nombre corto canónico de nuestras empresas (como sale en matriculas_aprendidas)
 // → clave de DECA_EMPRESAS. PORTES no está en la lista de transportistas.
-const _DECA_NUESTRAS = { 'TYP2014': 'TYP2014', 'TTES HISPALIS 2016': 'HISPALIS', 'TRANSMARGAZ 2018': 'TRANSMARGAZ' };
+const _DECA_NUESTRAS = { 'TYP2014': 'TYP2014', 'TTES HISPALIS 2016': 'HISPALIS', 'TRANSMARGAZ 2018': 'TRANSMARGAZ', 'PORTES 2014 IMPORT': 'PORTES 2014 IMPORT' };   // v759: + Import
 function _decaNrm(t) { return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, ''); }
 
 // v598: las matrículas se limpian solas al guardar. Fuera espacios, guiones, puntos y
@@ -38015,6 +38017,7 @@ async function loadDecaData() {
     _decaPintarFiltros();
     _decaRender();
     { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
+    { const b = document.getElementById('decaBtnCond'); if (b) b.style.display = _condPuedeGestionar() ? '' : 'none'; }   // v759
   } catch (e) {
     console.error('[loadDecaData]', e);
     if (box) box.innerHTML = '<div style="padding:16px;text-align:center;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando DeCA: ' + esc(e.message || e) + '</div>';
@@ -39346,4 +39349,155 @@ async function _xpRehacer(id) {
   const d = (window._xpHoyLista || []).find(x => String(x.id) === String(id)); if (!d) return;
   try { await _xpPdf(d); toast('✓ PDF hecho'); _xpCargarHoy(); }
   catch (e) { toast('Error con el PDF: ' + (e.message || e), 'err'); }
+}
+
+
+// ============================================================
+// v759 (01/10/2026) — ALTA RÁPIDA DE CONDUCTORES (DNI + PIN, "solo DeCA")
+// Oficina (admin, Marta, María del Mar, Logística) da de alta a los de TYP2014,
+// Híspalis, Transmargaz y Portes Import. La oficina de cada subcontratado, solo a
+// los suyos. El conductor entra con DNI + PIN y SOLO ve la pantalla DeCA.
+// Por dentro el usuario es <dni>@conductores.typ2014.local. Todo lo delicado
+// (rol, empresa, baja, PIN) lo hacen funciones de la BD que comprueban permisos.
+// ============================================================
+const _COND_DOMINIO = '@conductores.typ2014.local';
+const _COND_OFICINA = ['6f657be7-1edd-4d5d-9895-cc6777ebbca1', '5059731a-3e41-4578-b61e-96f20b6d8cc8', '92687ba2-a91f-401b-b08b-f1231b83dca9'];
+
+function _condDni(v) { return String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, ''); }
+function _condDniValido(d) { return /^[0-9XYZ]\d{7}[A-Z]$/.test(d); }
+// Si lo escrito en el login es un DNI/NIE, devuelve el email interno; si no, null.
+function _decaEmailConductor(v) {
+  if (String(v).includes('@')) return null;
+  const d = _condDni(v);
+  return _condDniValido(d) ? d.toLowerCase() + _COND_DOMINIO : null;
+}
+function _condEsOficina() {
+  return currentRole === 'admin' || (currentUser && _COND_OFICINA.includes(currentUser.id));
+}
+function _condPuedeGestionar() {
+  const P = window._decaPerfil || {};
+  return _condEsOficina() || (!!P.transportista && !P.solo);
+}
+function _condPin() {
+  const a = new Uint32Array(1); crypto.getRandomValues(a);
+  return String(a[0] % 1000000).padStart(6, '0');
+}
+
+async function openConductores() {
+  let ov = document.getElementById('ovCond');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'ovCond'; ov.className = 'ov';
+    ov.innerHTML = '<div class="modal" style="max-width:640px"><div class="modal-hd"><div class="modal-title">👤 CONDUCTORES (DeCA)</div>' +
+      '<button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById(\'ovCond\').classList.remove(\'open\')">✕</button></div>' +
+      '<div class="modal-bd" id="condBody"></div></div>';
+    document.body.appendChild(ov);
+  }
+  ov.classList.add('open');
+  _condPintar();
+}
+
+function _condEmpresasPermitidas() {
+  if (_condEsOficina()) return Object.keys(_DECA_NUESTRAS);
+  const P = window._decaPerfil || {};
+  return P.transportista ? [P.transportista] : [];
+}
+
+async function _condPintar(resultado) {
+  const box = document.getElementById('condBody'); if (!box) return;
+  const emps = _condEmpresasPermitidas();
+  const fi = 'class="fi"';
+  box.innerHTML =
+    '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin-bottom:10px">DAR DE ALTA</div>' +
+    '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">' +
+      '<div class="fg"><label class="fl">Nombre y apellidos</label><input ' + fi + ' id="condNombre"></div>' +
+      '<div class="fg"><label class="fl">DNI / NIE</label><input ' + fi + ' id="condDni" style="text-transform:uppercase" placeholder="12345678A"></div>' +
+    '</div>' +
+    '<div class="fg" style="margin-bottom:10px"><label class="fl">Empresa</label><select ' + fi + ' id="condEmpresa"' + (emps.length < 2 ? ' disabled' : '') + '>' +
+      emps.map(e => '<option>' + esc(e) + '</option>').join('') + '</select></div>' +
+    '<button class="btn bp" id="condBtnAlta" onclick="_condAlta()">➕ Dar de alta</button>' +
+    '<div id="condResultado">' + (resultado || '') + '</div>' +
+    '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">CONDUCTORES</div>' +
+    '<div id="condLista" style="font-size:12px;color:var(--mu)">Cargando…</div>';
+  try {
+    const { data, error } = await sb.rpc('deca_conductores_lista');
+    if (error) throw error;
+    const l = data || [];
+    document.getElementById('condLista').innerHTML = !l.length ? 'Ninguno todavía.' :
+      l.map(c => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.deca_baja ? ';opacity:.5' : '') + '">' +
+        '<div><b>' + esc(c.name || '') + '</b>' + (c.deca_baja ? ' <span style="color:var(--er)">· BAJA</span>' : '') +
+        '<br><span style="font-size:11px;color:var(--mu)">' + esc(c.deca_dni || '') + ' · ' + esc(c.deca_transportista || '') + '</span></div>' +
+        '<div style="display:flex;gap:6px;flex-shrink:0">' +
+          '<button class="btn bs" style="font-size:10px" onclick="_condNuevoPin(\'' + c.id + '\',\'' + esc(c.deca_dni || '') + '\')">🔑 Nuevo PIN</button>' +
+          '<button class="btn bs" style="font-size:10px" onclick="_condBaja(\'' + c.id + '\',' + (!c.deca_baja) + ')">' + (c.deca_baja ? '↩ Reactivar' : '⛔ Baja') + '</button>' +
+        '</div></div>').join('');
+  } catch (e) {
+    console.error('[v759 lista]', e);
+    document.getElementById('condLista').innerHTML = '<span style="color:var(--er)">No se pudo cargar: ' + esc(e.message || e) + '</span>';
+  }
+}
+
+function _condCajaPin(nombre, dni, pin) {
+  const txt = 'Acceso DeCA ' + nombre + '\nWeb: https://typ2014.github.io/albaranes/\nUsuario: ' + dni + '\nPIN: ' + pin;
+  return '<div style="margin-top:14px;padding:12px;border:1px solid var(--ok);border-radius:8px;background:#eafaf2;color:var(--tx)">' +
+    '<div style="font-weight:700;margin-bottom:6px">✓ ' + esc(nombre) + '</div>' +
+    '<div style="font-family:var(--mn);font-size:14px">Usuario: <b>' + esc(dni) + '</b> · PIN: <b>' + esc(pin) + '</b></div>' +
+    '<div style="font-size:11px;color:var(--mu);margin:6px 0 10px">Apúntalo o envíaselo ahora: el PIN no se vuelve a mostrar (si lo pierde, "Nuevo PIN").</div>' +
+    '<a class="btn bs" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent(txt) + '">📲 Enviar por WhatsApp</a></div>';
+}
+
+async function _condAlta() {
+  const nombre = (document.getElementById('condNombre').value || '').trim().toUpperCase();
+  const dni = _condDni(document.getElementById('condDni').value);
+  const empresa = document.getElementById('condEmpresa').value;
+  if (!nombre) { toast('Pon el nombre', 'err'); return; }
+  if (!_condDniValido(dni)) { toast('DNI/NIE no válido (ej. 12345678A o X1234567B)', 'err'); return; }
+  if (!empresa) { toast('Falta la empresa', 'err'); return; }
+  const btn = document.getElementById('condBtnAlta');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+  const pin = _condPin();
+  try {
+    const tempClient = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await tempClient.auth.signUp({
+      email: dni.toLowerCase() + _COND_DOMINIO, password: pin,
+      options: { data: { name: nombre, role: 'conductor' } }
+    });
+    if (error && /already|registered|exists/i.test(error.message)) {
+      // Ya existía (volvió a la empresa, cambió de empresa...): se reactiva con PIN nuevo.
+      const { error: e2 } = await sb.rpc('deca_realta_conductor', { p_dni: dni, p_nombre: nombre, p_empresa: empresa, p_pin: pin });
+      if (e2) throw e2;
+    } else if (error) {
+      throw error;
+    } else {
+      await new Promise(r => setTimeout(r, 700));   // que el trigger cree la fila de profiles
+      const { error: e3 } = await sb.rpc('deca_alta_conductor', { p_id: data.user.id, p_nombre: nombre, p_dni: dni, p_empresa: empresa });
+      if (e3) throw e3;
+    }
+    toast('✓ ' + nombre + ' dado de alta');
+    _condPintar(_condCajaPin(nombre, dni, pin));
+  } catch (e) {
+    console.error('[v759 alta]', e);
+    toast('No se pudo dar de alta: ' + (e.message || e), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '➕ Dar de alta'; }
+  }
+}
+
+async function _condNuevoPin(id, dni) {
+  if (!confirm('¿Generar un PIN nuevo para ' + dni + '? El anterior dejará de valer.')) return;
+  const pin = _condPin();
+  try {
+    const { error } = await sb.rpc('deca_cambiar_pin', { p_id: id, p_pin: pin });
+    if (error) throw error;
+    _condPintar(_condCajaPin(dni, dni, pin));
+  } catch (e) { toast('No se pudo cambiar el PIN: ' + (e.message || e), 'err'); }
+}
+
+async function _condBaja(id, baja) {
+  if (baja && !confirm('¿Dar de baja a este conductor? No podrá hacer más DeCA (los que hizo se conservan).')) return;
+  try {
+    const { error } = await sb.rpc('deca_baja_conductor', { p_id: id, p_baja: baja });
+    if (error) throw error;
+    toast(baja ? 'Dado de baja' : 'Reactivado');
+    _condPintar();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }

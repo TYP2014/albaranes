@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v759 (01/10/2026): DeCA · ALTA RÁPIDA DE CONDUCTORES. Botón '👤 Conductores' en la pestaña DeCA (admin, Marta, María del Mar, Logística → TYP2014, Híspalis, Transmargaz y Portes Import; oficina de cada subcontratado → solo los suyos). Alta con nombre + DNI/NIE + empresa: crea el usuario <dni>@conductores.typ2014.local con PIN de 6 cifras al azar (se muestra UNA vez, con botón para mandarlo por WhatsApp) y lo deja como 'solo DeCA'. Lista con 🔑 Nuevo PIN y ⛔ Baja / ↩ Reactivar. Si el DNI ya existía, se reactiva con PIN nuevo. Login: el campo acepta email o DNI. Portes 2014 Import añadida a _DECA_NUESTRAS. Todo lo delicado lo hacen funciones de la BD con control de permisos (v759_SQL.sql). SQL PRIMERO. VUELTA ATRAS: resubir v758.
+
+---
+
 v758 (01/10/2026): DeCA · formulario normal con desplegable 'Cargador habitual' encima del bloque 1: al elegir uno rellena nombre, NIF y domicilio (editables después). Lista en tabla nueva deca_cargadores (la leen todos los usuarios con sesión; solo el admin la cambia). Cargados: Holcim, Cemex, Sodira, Llantada e Hijos, Promotora Mediterránea-2 y Canteras Canro. SQL PRIMERO. VUELTA ATRAS: resubir v757.
 
 ---
