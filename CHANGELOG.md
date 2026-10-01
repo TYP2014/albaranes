@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v757 (01/10/2026): DeCA · los SUBCONTRATADOS con empresa DeCA asignada (profiles.deca_transportista) ven la pestaña DeCA normal además del exprés. Solo ven y crean los SUYOS (lo garantizan las políticas deca_propios_*). En su formulario el bloque 2 (transportista efectivo) queda FIJO con su empresa (selectores bloqueados, datos de solo lectura; Empresa del grupo = TYP2014, que es quien les contrata); la matrícula escrita ya no cambia el transportista. Se les oculta el botón 👥 Subcontratados. Además, al crear un DeCA desde el formulario el aviso muestra el nº REAL (el que pone el trigger), no el calculado en el navegador. Sin SQL. VUELTA ATRAS: resubir v756.
+
+---
+
 v756 (01/10/2026): DeCA EXPRÉS · solo matrículas BUENAS. Antes el desplegable de tractoras salía de las matrículas 'aprendidas' de los albaranes y traía errores de lectura (a Miguel Ángel le salían 1365MNH, 1365NHH, 1365NNH... y hasta el semi 0845BDW como tractora). Ahora: tractoras SOLO de la tabla nueva deca_tractoras (cargada del listado de vehículos; Miguel Ángel corregido a 1365NMH; Portes Import usa las de TYP2014), con '✏️ Otro (escribir)' para cambios. Semis: cada autónomo con SOLO su semi habitual (deca_semis_oficiales, clave matrícula+empresa); empresas sin semis oficiales siguen automáticas. El transportista efectivo del DeCA es SIEMPRE la empresa del usuario (no se deduce de la matrícula escrita). SQL PRIMERO: v756_SQL.sql. VUELTA ATRAS: resubir v755 (la tabla puede quedarse).
 
 ---

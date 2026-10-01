@@ -610,6 +610,11 @@ async function loadUserMap() {
           const el = document.getElementById(id);
           if (el) el.style.display = 'none';
         });
+        // v757: el subcontratado con empresa DeCA asignada SÍ ve la pestaña DeCA
+        // (solo verá los suyos: lo garantizan los permisos de la BD).
+        if (window._decaPerfil && window._decaPerfil.transportista) {
+          const _td = document.getElementById('tabDeca'); if (_td) _td.style.display = '';
+        }
         // Si tiene permiso ITV/Taller, asegurar que esas pestañas SÍ se ven
         // (por si alguna regla anterior las dejó ocultas).
         if (_permITV) { const e = document.getElementById('tabItv'); if (e) e.style.display = ''; }
@@ -38008,6 +38013,7 @@ async function loadDecaData() {
     await _decaCargarSubs();   // v603
     _decaPintarFiltros();
     _decaRender();
+    { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
   } catch (e) {
     console.error('[loadDecaData]', e);
     if (box) box.innerHTML = '<div style="padding:16px;text-align:center;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando DeCA: ' + esc(e.message || e) + '</div>';
@@ -38204,6 +38210,7 @@ function openDecaModal(id) {
     const nombres = [...new Set(_decaLista.map(x => x.carg_nombre).filter(Boolean))].sort();
     dl.innerHTML = nombres.map(n => '<option value="' + esc(n) + '"></option>').join('');
   }
+  _decaModoSub(d);   // v757: subcontratado → bloque 2 fijo con su empresa
   document.getElementById('ovDeca').classList.add('open');
 }
 
@@ -38216,6 +38223,33 @@ function openDecaModal(id) {
 // (opción OTRO), el de arriba NO se toca: el documento sigue perteneciendo a la
 // empresa del grupo que contrata el viaje.
 // origen = 'empresa' cuando lo dispara el de arriba, 'trans' cuando el de abajo.
+// v757: ¿es un subcontratado (o conductor) con su empresa DeCA asignada? Admin nunca.
+function _decaEsSub() {
+  const P = window._decaPerfil || {};
+  return !!P.transportista && currentRole !== 'admin';
+}
+// v757: en el formulario normal, el subcontratado tiene el bloque 2 FIJO con su empresa
+// (no puede elegir otra). El bloque 1 (cargador) y el viaje los rellena él.
+function _decaModoSub(d) {
+  if (!_decaEsSub()) return;
+  const P = window._decaPerfil;
+  const selT = document.getElementById('decaF_transSel'), selE = document.getElementById('decaF_empresa');
+  if (!d && selT && selE) {
+    const k = Object.keys(_DECA_NUESTRAS).find(n => _decaNrm(n) === _decaNrm(P.transportista));
+    if (k) { selE.value = _DECA_NUESTRAS[k]; selT.value = _DECA_NUESTRAS[k]; }
+    else {
+      const sub = _decaSubs.find(x => _decaNrm(x.nombre) === _decaNrm(P.transportista));
+      selE.value = 'TYP2014';
+      if (sub) selT.value = 'S:' + sub.id;
+    }
+    _decaAutoTrans('trans');
+  }
+  [selT, selE].forEach(el => { if (el) el.disabled = true; });
+  ['trans_nombre', 'trans_nif', 'trans_domicilio', 'trans_autorizacion'].forEach(c => {
+    const el = document.getElementById('decaF_' + c); if (el) el.readOnly = true;
+  });
+}
+
 function _decaAutoTrans(origen) {
   const sel = document.getElementById('decaF_transSel');
   const selEmp = document.getElementById('decaF_empresa');
@@ -38267,6 +38301,7 @@ function _decaMiEmpresaCargador() {
 // solo el transportista (empresa nuestra o subcontratado habitual). Solo avisa, no
 // impide corregirlo a mano después.
 function _decaPorMatricula() {
+  if (_decaEsSub()) return;   // v757: el subcontratado SIEMPRE es él mismo
   const mat = _decaMatricula((document.getElementById('decaF_tractora') || {}).value);
   const sel = document.getElementById('decaF_transSel');
   if (!mat || !sel) return;
@@ -38382,7 +38417,8 @@ async function saveDeca() {
       fila.numero = _decaNumeroNuevo(fila.fecha_carga);
       fila.anulado = false;
       if (currentUser && currentUser.id) fila.creado_por = currentUser.id;
-      const { error } = await sb.from('deca').insert(fila);
+      const { data: _ins, error } = await sb.from('deca').insert(fila).select('numero').single();   // v757
+      if (!error && _ins && _ins.numero) fila.numero = _ins.numero;   // el nº real lo pone la BD
       if (error) throw error;
       toast('✓ DeCA ' + fila.numero + ' creado');
     }
