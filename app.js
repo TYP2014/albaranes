@@ -39013,7 +39013,8 @@ let _xpTrans = '';
 let _xpSolo = false;
 let _xpOcupado = false;
 let _xpUltimo = null;
-let _xpSemis = {};      // v755: semis por transportista (cache de la RPC deca_semis)
+let _xpSemis = {};
+let _xpTractoras = {};  // v756: tractoras OFICIALES por transportista (tabla deca_tractoras)      // v755: semis por transportista (cache de la RPC deca_semis)
 
 function _xpHoy() {
   const d = new Date();
@@ -39030,18 +39031,6 @@ function _xpDatosTrans(t) {
   return null;
 }
 
-// Tractoras de ese transportista (lista fija del código + aprendidas en BD).
-function _xpMatriculas(t) {
-  const n = _decaNrm(t), set = new Set();
-  const add = m => {
-    const mm = (typeof matriculaPrincipal === 'function') ? matriculaPrincipal(m) : _decaMatricula(m);
-    const tt = getTransportista(mm);
-    if (tt && _decaNrm(tt) === n && /^\d{4}[A-Z]{3}$/.test(mm)) set.add(mm);
-  };
-  Object.keys(TRANSPORTISTAS || {}).forEach(add);
-  Object.keys(MATRICULAS_APRENDIDAS || {}).forEach(add);
-  return [...set].sort();
-}
 
 // v755: semis del transportista (RPC segura: lista oficial para TYP2014/Híspalis/Import,
 // automática de albaranes para Transmargaz y subcontratados). Si falla, queda "escribir".
@@ -39053,9 +39042,37 @@ async function _xpCargarSemis(tr) {
     _xpSemis[tr] = (data || []).filter(x => x && x.remolque);
   } catch (e) { console.warn('[v755] semis', e); _xpSemis[tr] = []; }
 }
+// v756: tractoras SOLO de la lista oficial (antes salían también las "aprendidas" de los
+// albaranes, con errores de lectura tipo 1365MNH/1365NHH). Portes Import usa las de TYP2014.
+async function _xpCargarTractoras(tr) {
+  if (!tr || _xpTractoras[tr]) return;
+  const buscar = _decaNrm(tr) === _decaNrm('PORTES 2014 IMPORT') ? 'TYP2014' : tr;
+  try {
+    const { data, error } = await sb.from('deca_tractoras').select('matricula')
+      .eq('transportista', buscar).eq('activo', true).order('matricula');
+    if (error) throw error;
+    _xpTractoras[tr] = (data || []).map(x => x.matricula);
+  } catch (e) { console.warn('[v756] tractoras', e); _xpTractoras[tr] = []; }
+}
+// Desplegable de tractora: la última usada si es de su lista; si no, la primera.
+// "Otro (escribir)" por si un día lleva otra (cambio, préstamo...).
+function _xpCampoTractora(inp) {
+  const lista = _xpTractoras[_xpTrans] || [];
+  const guardada = _xpLS('xp_tractora');
+  const enLista = lista.includes(guardada);
+  const sel = enLista ? guardada : (lista[0] || '__otro');
+  const otro = sel === '__otro';
+  return '<select id="xpTractora" style="' + inp + '" onchange="document.getElementById(\'xpTractoraOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
+    lista.map(m => '<option value="' + _xpE(m) + '"' + (m === sel ? ' selected' : '') + '>' + _xpE(m) + '</option>').join('') +
+    '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+    '<input id="xpTractoraOtro" style="' + inp + ';margin-top:8px;text-transform:uppercase;display:' + (otro ? 'block' : 'none') +
+    '" placeholder="0000XXX" value="' + _xpE(otro && !enLista && guardada ? guardada : '') + '">';
+}
+
 async function _xpCambiarTrans(v) {
   _xpTrans = v;
   await _xpCargarSemis(v);
+  await _xpCargarTractoras(v);
   _xpPintar(); _xpCargarHoy();
 }
 // Desplegable de semis: el último usado si está en la lista; si no, el más usado (el
@@ -39104,6 +39121,7 @@ async function _xpAbrir(solo) {
   const P = window._decaPerfil || {};
   if (!_xpTrans) _xpTrans = P.transportista || '';
   await _xpCargarSemis(_xpTrans);
+  await _xpCargarTractoras(_xpTrans);
   if (P.baja && currentRole !== 'admin') {
     ov.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:var(--ss)"><div style="font-size:18px;margin-bottom:12px">Usuario dado de baja</div><div style="color:var(--mu);margin-bottom:24px">No puedes crear DeCA. Habla con tu oficina.</div><button class="btn bs" onclick="_xpSalir()">Salir</button></div>';
     return;
@@ -39122,8 +39140,6 @@ function _xpPintar() {
   const ov = document.getElementById('decaXp'); if (!ov) return;
   const P = window._decaPerfil || {};
   const esAdmin = currentRole === 'admin';
-  const mats = _xpTrans ? _xpMatriculas(_xpTrans) : [];
-  const tSel = _xpLS('xp_tractora');
   const cajaViaje = k => {
     const v = _XP_VIAJES[k], on = _xpViaje === k;
     return '<div onclick="_xpViaje=\'' + k + '\';_xpPintar()" style="cursor:pointer;border-radius:10px;padding:12px 8px;text-align:center;' +
@@ -39155,9 +39171,7 @@ function _xpPintar() {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + cajaViaje('GARRAF') + cajaViaje('JORBA') + '</div>' +
     '<div style="margin-top:8px">' + cajaViaje('OTRO') + '</div>' + otro +
     lbl('2. Camión') +
-    (mats.length ?
-      '<select id="xpTractora" style="' + inp + '">' + mats.map(m => '<option' + (m === tSel ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>' :
-      '<div style="padding:12px;border:1px solid var(--er);border-radius:8px;color:var(--er);font-size:14px">No tienes camiones asignados. Llama a la oficina.</div>') +
+    _xpCampoTractora(inp) +
     lbl('Remolque') + _xpCampoRemolque(inp) +
     lbl('3. Kilos del ticket de báscula') + '<input id="xpPeso" type="number" inputmode="numeric" style="' + inp + ';font-size:22px" placeholder="28480">' +
     '<button id="xpBtnGen" onclick="_xpGenerar()" style="margin-top:22px;width:100%;padding:16px;border:none;border-radius:10px;background:var(--ac);color:#fff;font-size:18px;font-weight:600;font-family:var(--ss);cursor:pointer">📄 Generar DeCA</button>' +
@@ -39171,7 +39185,8 @@ async function _xpGenerar() {
   if (_xpOcupado) return;   // evita el doble toque (dos DeCA iguales)
   const g = id => ((document.getElementById(id) || {}).value || '').trim();
   if (!_xpTrans) { toast('Falta el transportista', 'err'); return; }
-  const tractora = _decaMatricula(g('xpTractora'));
+  const _ts = g('xpTractora');
+  const tractora = _decaMatricula(_ts === '__otro' ? g('xpTractoraOtro') : _ts);
   const _rs = g('xpRemolque');
   const remolque = _decaMatricula(_rs === '__otro' ? g('xpRemolqueOtro') : _rs);
   const peso = Math.round(Number(g('xpPeso').replace(',', '.')));
@@ -39185,7 +39200,7 @@ async function _xpGenerar() {
   } else {
     const v = _XP_VIAJES[_xpViaje]; origen = v.origen; destino = v.destino; mercancia = v.mercancia;
   }
-  const tr = _xpDatosTrans(getTransportista(tractora) || _xpTrans);
+  const tr = _xpDatosTrans(_xpTrans);   // v756: la empresa del usuario, no la que "adivine" la matrícula
   if (!tr || !tr.nif || !tr.aut) { toast('Faltan los datos de tu empresa (NIF o autorización). Llama a la oficina.', 'err'); return; }
   const op = DECA_EMPRESAS['TYP2014'];
   const esTyp = tr.nif === op.nif;

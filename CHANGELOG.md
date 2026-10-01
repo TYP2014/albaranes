@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v756 (01/10/2026): DeCA EXPRÉS · solo matrículas BUENAS. Antes el desplegable de tractoras salía de las matrículas 'aprendidas' de los albaranes y traía errores de lectura (a Miguel Ángel le salían 1365MNH, 1365NHH, 1365NNH... y hasta el semi 0845BDW como tractora). Ahora: tractoras SOLO de la tabla nueva deca_tractoras (cargada del listado de vehículos; Miguel Ángel corregido a 1365NMH; Portes Import usa las de TYP2014), con '✏️ Otro (escribir)' para cambios. Semis: cada autónomo con SOLO su semi habitual (deca_semis_oficiales, clave matrícula+empresa); empresas sin semis oficiales siguen automáticas. El transportista efectivo del DeCA es SIEMPRE la empresa del usuario (no se deduce de la matrícula escrita). SQL PRIMERO: v756_SQL.sql. VUELTA ATRAS: resubir v755 (la tabla puede quedarse).
+
+---
+
 v755 (01/10/2026): DeCA EXPRÉS · el remolque pasa a DESPLEGABLE. Lista de la RPC deca_semis(p_trans) (SQL ya hecho): TYP2014 y Portes Import → 34 semis oficiales de TYP primero y luego los 14 de Híspalis; Híspalis → al revés; Transmargaz y subcontratados → automático de sus albaranes (10+ viajes en 120 días), el más usado arriba. Muestra el tipo (cisterna, plataforma…). Por defecto: el último usado en ese móvil si está en la lista; si no, el más usado (el habitual de cada autónomo). Opción '✏️ Otro (escribir)' para préstamos o semis nuevos. Si la RPC falla, queda solo 'escribir'. Tabla nueva deca_semis_oficiales (solo admin). VUELTA ATRAS: resubir v754.
 
 ---
