@@ -39554,6 +39554,7 @@ async function openConductores() {
     document.body.appendChild(ov);
   }
   ov.classList.add('open');
+  if (!_decaTrabajadores.length) await _decaCargarTrabajadores();   // v764
   _condPintar();
 }
 
@@ -39577,12 +39578,18 @@ async function _condPintar(resultado) {
       emps.map(e => '<option>' + esc(e) + '</option>').join('') + '</select></div>' +
     '<button class="btn bp" id="condBtnAlta" onclick="_condAlta()">➕ Dar de alta</button>' +
     '<div id="condResultado">' + (resultado || '') + '</div>' +
+    (_decaTrabajadores.length ?
+      '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">DESDE EMPLEADOS (sin acceso todavía)</div>' +
+      '<input ' + fi + ' id="condBuscar" placeholder="Escribe para buscar (ej. CR)…" oninput="_condPintarEmpleados()" style="margin-bottom:8px">' +
+      '<div id="condEmpleados" style="max-height:260px;overflow:auto"></div>' : '') +
     '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">CONDUCTORES</div>' +
     '<div id="condLista" style="font-size:12px;color:var(--mu)">Cargando…</div>';
   try {
     const { data, error } = await sb.rpc('deca_conductores_lista');
     if (error) throw error;
     const l = data || [];
+    window._condListaActual = l;   // v764: para no ofrecer en "Desde Empleados" a quien ya tiene acceso
+    _condPintarEmpleados();
     document.getElementById('condLista').innerHTML = !l.length ? 'Ninguno todavía.' :
       l.map(c => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.deca_baja ? ';opacity:.5' : '') + '">' +
         '<div><b>' + esc(c.name || '') + '</b>' + (c.deca_baja ? ' <span style="color:var(--er)">· BAJA</span>' : '') +
@@ -39615,6 +39622,12 @@ async function _condAlta() {
   if (!empresa) { toast('Falta la empresa', 'err'); return; }
   const btn = document.getElementById('condBtnAlta');
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+  try { await _condAltaCore(nombre, dni, empresa); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '➕ Dar de alta'; } }
+}
+
+// v764: el alta en sí (la usan el formulario a mano y el botón "➕ Alta" de Empleados)
+async function _condAltaCore(nombre, dni, empresa) {
   const pin = _condPin();
   try {
     // v760: los registros públicos están CERRADOS en Supabase (bien, por seguridad), así que
@@ -39626,9 +39639,31 @@ async function _condAlta() {
   } catch (e) {
     console.error('[v759 alta]', e);
     toast('No se pudo dar de alta: ' + (e.message || e), 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '➕ Dar de alta'; }
   }
+}
+
+// v764: lista de Empleados sin acceso, filtrada por lo escrito en el buscador
+function _condPintarEmpleados() {
+  const box = document.getElementById('condEmpleados'); if (!box) return;
+  const q = _decaNrm((document.getElementById('condBuscar') || {}).value || '');
+  const yaTienen = new Set((window._condListaActual || []).filter(c => !c.deca_baja).map(c => _condDni(c.deca_dni)));
+  const permit = _condEmpresasPermitidas();
+  const l = _decaTrabajadores
+    .filter(t => _condDniValido(t.deca_dni) && !yaTienen.has(t.deca_dni))
+    .filter(t => permit.some(e => _decaNrm(e) === _decaNrm(t.deca_transportista)))
+    .filter(t => !q || _decaNrm(t.name).includes(q) || t.deca_dni.includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  window._condEmpVisibles = l;
+  box.innerHTML = !l.length ? '<div style="font-size:12px;color:var(--mu)">' + (q ? 'Nadie con ese nombre.' : 'Todos tienen ya acceso.') + '</div>' :
+    l.map((t, i) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">' +
+      '<div style="font-size:12px"><b>' + esc(t.name) + '</b><br><span style="font-size:11px;color:var(--mu)">' + esc(t.deca_dni) + ' · ' + esc(t.deca_transportista) + '</span></div>' +
+      '<button class="btn bp" style="font-size:10px;flex-shrink:0" onclick="_condAltaEmpleado(' + i + ', this)">➕ Alta</button></div>').join('');
+}
+async function _condAltaEmpleado(i, btn) {
+  const t = (window._condEmpVisibles || [])[i]; if (!t) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+  await _condAltaCore(t.name, t.deca_dni, t.deca_transportista);
+  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = '➕ Alta'; }   // si falló
 }
 
 async function _condNuevoPin(id, dni) {

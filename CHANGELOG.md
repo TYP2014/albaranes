@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v764 (01/10/2026): DeCA · 👤 Conductores: sección 'DESDE EMPLEADOS (sin acceso todavía)' con buscador (escribes 'CR' y salen los que coinciden) y botón '➕ Alta' por trabajador: un clic crea su usuario DNI + PIN con su empresa (y sale el botón de WhatsApp). No salen los que ya tienen acceso ni los de DNI mal escrito. El formulario a mano se mantiene. Solo oficina. Sin SQL. VUELTA ATRAS: resubir v763.
+
+---
+
 v763 (01/10/2026): DeCA · (1) el desplegable de CONDUCTOR (oficina, exprés y formulario normal) incluye los trabajadores de la pestaña Empleados (tabla trabajadores): en activo, con DNI, sin mecánicos ni administrativos; empresa HISPALIS/PORTES/TYP2014/TRANSMARGAZ → transportista DeCA; TYP2014 y Portes Import comparten conductores; sin repetir DNI con los dados de alta con DNI+PIN. (2) Conductor por defecto = el que tiene ese camión como 'vehículo habitual' en Empleados (y cambia solo al cambiar de camión). (3) PDF: fuera la línea 'Empresa del grupo' del bloque 2. Sin SQL. VUELTA ATRAS: resubir v762.
 
 ---
