@@ -39456,22 +39456,10 @@ async function _condAlta() {
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
   const pin = _condPin();
   try {
-    const tempClient = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data, error } = await tempClient.auth.signUp({
-      email: dni.toLowerCase() + _COND_DOMINIO, password: pin,
-      options: { data: { name: nombre, role: 'conductor' } }
-    });
-    if (error && /already|registered|exists/i.test(error.message)) {
-      // Ya existía (volvió a la empresa, cambió de empresa...): se reactiva con PIN nuevo.
-      const { error: e2 } = await sb.rpc('deca_realta_conductor', { p_dni: dni, p_nombre: nombre, p_empresa: empresa, p_pin: pin });
-      if (e2) throw e2;
-    } else if (error) {
-      throw error;
-    } else {
-      await new Promise(r => setTimeout(r, 700));   // que el trigger cree la fila de profiles
-      const { error: e3 } = await sb.rpc('deca_alta_conductor', { p_id: data.user.id, p_nombre: nombre, p_dni: dni, p_empresa: empresa });
-      if (e3) throw e3;
-    }
+    // v760: los registros públicos están CERRADOS en Supabase (bien, por seguridad), así que
+    // el usuario lo crea la propia BD con una función que comprueba permisos (nuevo o re-alta).
+    const { error } = await sb.rpc('deca_crear_conductor', { p_nombre: nombre, p_dni: dni, p_empresa: empresa, p_pin: pin });
+    if (error) throw error;
     toast('✓ ' + nombre + ' dado de alta');
     _condPintar(_condCajaPin(nombre, dni, pin));
   } catch (e) {

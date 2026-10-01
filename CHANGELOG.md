@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v760 (01/10/2026): DeCA · el alta de conductores fallaba con 'Signups not allowed for this instance' (los registros públicos están cerrados en Supabase, y deben seguir así). Ahora el usuario lo crea la BD con la función deca_crear_conductor (auth.users + auth.identities, comprueba permisos; si el DNI ya existía lo reactiva con PIN nuevo). La app ya no usa signUp. SQL PRIMERO: v760_SQL.sql. VUELTA ATRAS: resubir v759.
+
+---
+
 v759 (01/10/2026): DeCA · ALTA RÁPIDA DE CONDUCTORES. Botón '👤 Conductores' en la pestaña DeCA (admin, Marta, María del Mar, Logística → TYP2014, Híspalis, Transmargaz y Portes Import; oficina de cada subcontratado → solo los suyos). Alta con nombre + DNI/NIE + empresa: crea el usuario <dni>@conductores.typ2014.local con PIN de 6 cifras al azar (se muestra UNA vez, con botón para mandarlo por WhatsApp) y lo deja como 'solo DeCA'. Lista con 🔑 Nuevo PIN y ⛔ Baja / ↩ Reactivar. Si el DNI ya existía, se reactiva con PIN nuevo. Login: el campo acepta email o DNI. Portes 2014 Import añadida a _DECA_NUESTRAS. Todo lo delicado lo hacen funciones de la BD con control de permisos (v759_SQL.sql). SQL PRIMERO. VUELTA ATRAS: resubir v758.
 
 ---
