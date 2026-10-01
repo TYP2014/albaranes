@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v762 (01/10/2026): DeCA · el autónomo como conductor ('Titular') también sale desde la OFICINA: en el exprés al elegir un autónomo como transportista, y en el formulario normal todos los autónomos activos de Subcontratados. Antes solo salía cuando entraba el propio autónomo. Sin SQL. VUELTA ATRAS: resubir v761.
+
+---
+
 v761 (01/10/2026): DeCA · (1) CARGADOR CONTRACTUAL correcto en el exprés (Orden FOM/2861/2012 y FAQ del Ministerio: si A subcontrata a B, A es el cargador contractual): camión de TYP2014 → Holcim; subcontratado → TYP2014 con 'Por cuenta de Holcim' en observaciones; Híspalis/Transmargaz/Import → el conductor elige (TYP2014 por defecto, u Holcim). Se deja de usar el bloque 'operador'. (2) CONDUCTOR en el DeCA (no es dato mínimo en mercancías, pero lo pedimos): columnas nuevas conductor_nombre/conductor_dni; en el exprés el conductor DNI+PIN sale fijo, el resto elige de sus conductores (o el titular si es autónomo) u 'Otro (escribir)'; en el formulario normal, desplegable de conductores + nombre y DNI; en el PDF, en el bloque 4. (3) La lista de DeCA ya no se pisa: origen/destino cortos (completo al pasar el ratón). SQL PRIMERO: 2 columnas. VUELTA ATRAS: resubir v760.
 
 ---

@@ -38273,11 +38273,14 @@ async function _decaCargarConductores() {
 function _decaOpcConductores(trans) {
   const P = window._decaPerfil || {};
   const out = [];
-  if (_decaEsSub() && !P.solo) {
-    const t = _xpDatosTrans(P.transportista);
-    // solo si el titular es persona física (autónomo): una empresa no conduce
+  // Titular (solo si es persona física = autónomo: una empresa no conduce)
+  const titular = tr => {
+    const t = _xpDatosTrans(tr);
     if (t && _condDniValido(_condDni(t.nif))) out.push({ etiqueta: 'Titular: ' + t.nombre, nombre: t.nombre, dni: t.nif });
-  }
+  };
+  if (_decaEsSub() && !P.solo) titular(P.transportista);                    // el propio autónomo
+  else if (trans) titular(trans);                                          // v762: oficina en el exprés
+  else if (_condEsOficina()) _decaSubs.filter(x => x.activo !== false).forEach(x => titular(x.nombre));   // v762: oficina en el normal
   _decaConductores
     .filter(c => !trans || _decaNrm(c.deca_transportista) === _decaNrm(trans))
     .forEach(c => out.push({ etiqueta: c.name + ' · ' + (c.deca_dni || '') + (trans ? '' : ' · ' + c.deca_transportista), nombre: c.name, dni: c.deca_dni }));
