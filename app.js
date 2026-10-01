@@ -1375,8 +1375,8 @@ async function onLogin(user) {
   window._decaPerfil = { transportista: '', solo: false, baja: false, nombre: profile?.name || '' };
   try {
     const { data: _dp, error: _dpe } = await sb.from('profiles')
-      .select('deca_transportista, solo_deca, deca_baja').eq('id', user.id).single();
-    if (!_dpe && _dp) Object.assign(window._decaPerfil, { transportista: _dp.deca_transportista || '', solo: !!_dp.solo_deca, baja: !!_dp.deca_baja });
+      .select('deca_transportista, solo_deca, deca_baja, deca_dni').eq('id', user.id).single();
+    if (!_dpe && _dp) Object.assign(window._decaPerfil, { transportista: _dp.deca_transportista || '', solo: !!_dp.solo_deca, baja: !!_dp.deca_baja, dni: _dp.deca_dni || '' });
   } catch (e) { console.warn('[v753] perfil DeCA', e); }
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
@@ -38014,6 +38014,7 @@ async function loadDecaData() {
     _decaLista = data || [];
     await _decaCargarSubs();   // v603
     await _decaCargarCargadores();   // v758
+    await _decaCargarConductores();  // v761
     _decaPintarFiltros();
     _decaRender();
     { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
@@ -38093,9 +38094,9 @@ function _decaRender() {
             <td style="padding:6px;${est}"><strong>${esc(d.numero || '—')}</strong>${anul ? ' <span style="color:var(--er);text-decoration:none">ANULADO</span>' : ''}</td>
             <td style="padding:6px;${est}">${esc(_decaFechaEs(d.fecha_carga))}</td>
             <td style="padding:6px;${est}">${esc(d.empresa || '')}</td>
-            <td style="padding:6px;${est}"><div style="max-width:220px;overflow-wrap:anywhere">${esc(d.carg_nombre || '')}</div></td>
-            <td style="padding:6px;${est}"><div style="max-width:260px;overflow-wrap:anywhere">${esc(d.origen || '')} → ${esc(d.destino || '')}</div></td>
-            <td style="padding:6px;${est}"><div style="max-width:220px;overflow-wrap:anywhere">${esc(d.mercancia || '')}</div></td>
+            <td style="padding:6px;${est}"><div style="max-width:200px;white-space:normal;overflow-wrap:anywhere">${esc(d.carg_nombre || '')}</div></td>
+            <td style="padding:6px;${est}" title="${esc((d.origen || '') + ' → ' + (d.destino || '')).replace(/"/g, '&quot;')}"><div style="max-width:240px;white-space:normal;overflow-wrap:anywhere">${esc(_decaCorto(d.origen))} → ${esc(_decaCorto(d.destino))}</div></td>
+            <td style="padding:6px;${est}"><div style="max-width:180px;white-space:normal;overflow-wrap:anywhere">${esc(d.mercancia || '')}</div></td>
             <td style="padding:6px;text-align:right;${est}">${d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : ''}</td>
             <td style="padding:6px;${est}">${mat}</td>
             <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">
@@ -38198,6 +38199,12 @@ function openDecaModal(id) {
       <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" value="${v('tractora')}" style="text-transform:uppercase" onchange="_decaPorMatricula()"></div>
       <div class="fg"><label class="fl">Matrícula semirremolque</label><input class="fi" id="decaF_semirremolque" value="${v('semirremolque')}" style="text-transform:uppercase" placeholder="opcional"></div>
     </div>
+    ${_decaOpcConductores().length ? `<div class="fg" style="margin-bottom:10px"><label class="fl">Conductor (rellena nombre y DNI)</label>
+      <select class="fi" id="decaF_condSel" onchange="_decaPonerConductor(this.value)"><option value="">— elegir o escribir a mano abajo —</option>${_decaOpcConductores().map((c, i) => `<option value="${i}">${esc(c.etiqueta)}</option>`).join('')}</select></div>` : ''}
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">Conductor</label><input class="fi" id="decaF_conductor_nombre" value="${v('conductor_nombre')}"></div>
+      <div class="fg"><label class="fl">DNI / NIE conductor</label><input class="fi" id="decaF_conductor_dni" value="${v('conductor_dni')}" style="text-transform:uppercase"></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">Autorización especial (si la lleva)</label><input class="fi" id="decaF_autorizacion_especial" value="${v('autorizacion_especial')}" placeholder="opcional"></div>
       <div class="fg"><label class="fl">Fin del servicio</label><input class="fi" type="date" id="decaF_servicio_fin" value="${v('servicio_fin')}"></div>
@@ -38246,6 +38253,41 @@ function _decaPonerCargador(i) {
   document.getElementById('decaF_carg_nombre').value = c.nombre || '';
   document.getElementById('decaF_carg_nif').value = c.nif || '';
   document.getElementById('decaF_carg_domicilio').value = c.domicilio || '';
+}
+
+// v761: texto corto para la lista (lo de antes del primer " - ")
+function _decaCorto(t) { return String(t || '').split(' - ')[0]; }
+
+// v761: conductores para los desplegables (los que este usuario puede gestionar)
+let _decaConductores = [];
+async function _decaCargarConductores() {
+  _decaConductores = [];
+  if (!_condPuedeGestionar()) return;
+  try {
+    const { data, error } = await sb.rpc('deca_conductores_lista');
+    if (error) throw error;
+    _decaConductores = (data || []).filter(c => !c.deca_baja);
+  } catch (e) { console.warn('[v761] conductores', e); }
+}
+// Opciones de conductor: el titular (si el usuario es un subcontratado) + sus conductores
+function _decaOpcConductores(trans) {
+  const P = window._decaPerfil || {};
+  const out = [];
+  if (_decaEsSub() && !P.solo) {
+    const t = _xpDatosTrans(P.transportista);
+    // solo si el titular es persona física (autónomo): una empresa no conduce
+    if (t && _condDniValido(_condDni(t.nif))) out.push({ etiqueta: 'Titular: ' + t.nombre, nombre: t.nombre, dni: t.nif });
+  }
+  _decaConductores
+    .filter(c => !trans || _decaNrm(c.deca_transportista) === _decaNrm(trans))
+    .forEach(c => out.push({ etiqueta: c.name + ' · ' + (c.deca_dni || '') + (trans ? '' : ' · ' + c.deca_transportista), nombre: c.name, dni: c.deca_dni }));
+  return out;
+}
+function _decaPonerConductor(i) {
+  const c = _decaOpcConductores()[Number(i)];
+  if (i === '' || !c) return;
+  document.getElementById('decaF_conductor_nombre').value = c.nombre || '';
+  document.getElementById('decaF_conductor_dni').value = c.dni || '';
 }
 
 // v757: ¿es un subcontratado (o conductor) con su empresa DeCA asignada? Admin nunca.
@@ -38425,7 +38467,9 @@ async function saveDeca() {
     semirremolque: _decaMatricula(g('semirremolque')) || null,
     autorizacion_especial: g('autorizacion_especial').trim() || null,
     servicio_fin: g('servicio_fin') || null,
-    observaciones: g('observaciones').trim() || null
+    observaciones: g('observaciones').trim() || null,
+    conductor_nombre: g('conductor_nombre').trim().toUpperCase() || null,   // v761
+    conductor_dni: _condDni(g('conductor_dni')) || null
   });
   try {
     if (_decaEditId) {
@@ -38566,6 +38610,9 @@ async function _decaConstruirPDF(d, url) {
   campo('Matrícula tractora', d.tractora, M, 150);
   campo('Matrícula semirremolque', d.semirremolque, M + 170, 150);
   campo('Autorización especial', d.autorizacion_especial, M + 340, 160); salto(34);
+  // v761: conductor (no es dato mínimo en mercancías, pero lo ponemos siempre)
+  { const lc = campo('Conductor', d.conductor_nombre, M, 160); campo('DNI / NIE conductor', d.conductor_dni, M + 170, 150);
+    salto(34 + (lc - 1) * 12); }
 
   if (d.observaciones) { bloque('5 · OBSERVACIONES'); campo('', d.observaciones, M, 370); salto(30); }
 
@@ -39152,6 +39199,58 @@ function _xpCampoRemolque(inp) {
     '" placeholder="R0000XXX" value="' + _xpE(otro && !enLista && guardado ? guardado : '') + '">';
 }
 
+// v761: ¿quién contrata este viaje? (decide el cargador contractual del DeCA)
+function _xpTipoTrans() {
+  const n = _decaNrm(_xpTrans);
+  if (n === _decaNrm('TYP2014')) return 'TYP';
+  return Object.keys(_DECA_NUESTRAS).some(k => _decaNrm(k) === n) ? 'GRUPO' : 'SUB';
+}
+function _xpQuienContrata() {
+  const t = _xpTipoTrans();
+  if (t === 'TYP') return 'HOLCIM';
+  if (t === 'SUB') return 'TYP2014';
+  const el = document.getElementById('xpCargSel');
+  return (el && el.value) || _xpLS('xp_carg') || 'TYP2014';
+}
+function _xpCampoCargador(inp) {
+  const t = _xpTipoTrans();
+  const caja = txt => '<div style="font-size:12px;color:var(--mu);margin-top:14px">Cargador contractual: <b>' + txt + '</b></div>';
+  if (t === 'TYP') return caja('Holcim España');
+  if (t === 'SUB') return caja('Transportes y Portes 2014 (por cuenta de Holcim)');
+  const v = _xpLS('xp_carg') || 'TYP2014';
+  return '<div style="font-size:13px;color:var(--mu);margin:16px 0 6px">¿Quién te contrata este viaje?</div>' +
+    '<select id="xpCargSel" style="' + inp + '" onchange="_xpLS(\'xp_carg\', this.value)">' +
+    '<option value="TYP2014"' + (v === 'TYP2014' ? ' selected' : '') + '>Transportes y Portes 2014 (por cuenta de Holcim)</option>' +
+    '<option value="HOLCIM"' + (v === 'HOLCIM' ? ' selected' : '') + '>Holcim directamente</option></select>';
+}
+// v761: conductor. El de DNI + PIN es él mismo (fijo). El resto elige de su lista o escribe.
+function _xpCampoConductor(inp) {
+  const P = window._decaPerfil || {};
+  if (P.solo) return '<div style="' + inp + ';background:var(--bg)">' + _xpE(P.nombre || '') + ' · ' + _xpE(P.dni || '') + '</div>';
+  const opts = _decaOpcConductores(currentRole === 'admin' || _condEsOficina() ? _xpTrans : null);
+  const guard = _xpLS('xp_cond');
+  const idx = opts.findIndex(o => (o.dni || '') === guard);
+  const sel = idx >= 0 ? String(idx) : (opts.length ? '0' : '__otro');
+  const otro = sel === '__otro';
+  return '<select id="xpCondSel" style="' + inp + '" onchange="document.getElementById(\'xpCondOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
+    opts.map((o, i) => '<option value="' + i + '"' + (String(i) === sel ? ' selected' : '') + '>' + _xpE(o.nombre) + ' · ' + _xpE(o.dni || '') + '</option>').join('') +
+    '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+    '<div id="xpCondOtro" style="display:' + (otro ? 'block' : 'none') + '">' +
+    '<input id="xpCondNombre" style="' + inp + ';margin-top:8px;text-transform:uppercase" placeholder="Nombre y apellidos">' +
+    '<input id="xpCondDni" style="' + inp + ';margin-top:8px;text-transform:uppercase" placeholder="DNI / NIE"></div>';
+}
+function _xpLeerConductor() {
+  const P = window._decaPerfil || {};
+  if (P.solo) return { nombre: (P.nombre || '').toUpperCase(), dni: _condDni(P.dni), clave: '' };
+  const v = (document.getElementById('xpCondSel') || {}).value;
+  if (v === '__otro' || v == null) {
+    return { nombre: ((document.getElementById('xpCondNombre') || {}).value || '').trim().toUpperCase(),
+             dni: _condDni((document.getElementById('xpCondDni') || {}).value), clave: '' };
+  }
+  const o = _decaOpcConductores(currentRole === 'admin' || _condEsOficina() ? _xpTrans : null)[Number(v)] || {};
+  return { nombre: String(o.nombre || '').toUpperCase(), dni: _condDni(o.dni), clave: o.dni || '' };
+}
+
 function _xpBotonFlotante() {
   if (document.getElementById('xpBtnFlot')) return;
   const b = document.createElement('button');
@@ -39183,6 +39282,7 @@ async function _xpAbrir(solo) {
   if (!_xpTrans) _xpTrans = P.transportista || '';
   await _xpCargarSemis(_xpTrans);
   await _xpCargarTractoras(_xpTrans);
+  if (!_decaConductores.length) await _decaCargarConductores();   // v761
   if (P.baja && currentRole !== 'admin') {
     ov.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:var(--ss)"><div style="font-size:18px;margin-bottom:12px">Usuario dado de baja</div><div style="color:var(--mu);margin-bottom:24px">No puedes crear DeCA. Habla con tu oficina.</div><button class="btn bs" onclick="_xpSalir()">Salir</button></div>';
     return;
@@ -39234,6 +39334,8 @@ function _xpPintar() {
     lbl('2. Camión') +
     _xpCampoTractora(inp) +
     lbl('Remolque') + _xpCampoRemolque(inp) +
+    lbl('Conductor') + _xpCampoConductor(inp) +
+    _xpCampoCargador(inp) +
     lbl('3. Kilos del ticket de báscula') + '<input id="xpPeso" type="number" inputmode="numeric" style="' + inp + ';font-size:22px" placeholder="28480">' +
     '<button id="xpBtnGen" onclick="_xpGenerar()" style="margin-top:22px;width:100%;padding:16px;border:none;border-radius:10px;background:var(--ac);color:#fff;font-size:18px;font-weight:600;font-family:var(--ss);cursor:pointer">📄 Generar DeCA</button>' +
     '<div id="xpResultado"></div>' +
@@ -39263,17 +39365,28 @@ async function _xpGenerar() {
   }
   const tr = _xpDatosTrans(_xpTrans);   // v756: la empresa del usuario, no la que "adivine" la matrícula
   if (!tr || !tr.nif || !tr.aut) { toast('Faltan los datos de tu empresa (NIF o autorización). Llama a la oficina.', 'err'); return; }
-  const op = DECA_EMPRESAS['TYP2014'];
-  const esTyp = tr.nif === op.nif;
+  // v761: conductor
+  const cond = _xpLeerConductor();
+  if (!cond.nombre || !_condDniValido(cond.dni)) { toast('Falta el conductor (nombre y DNI/NIE válido)', 'err'); return; }
+  // v761: cargador contractual = quien contrata a ESTE transportista (Orden FOM/2861/2012):
+  //  · camión de TYP2014 → Holcim
+  //  · subcontratado → TYP2014 (nosotros le contratamos), Holcim va en observaciones
+  //  · Híspalis/Transmargaz/Import → lo que elija (Holcim o TYP2014)
+  const typ = DECA_EMPRESAS['TYP2014'];
+  const quien = _xpQuienContrata();
+  const carg = quien === 'HOLCIM' ? { nombre: _XP_HOLCIM.nombre, nif: _XP_HOLCIM.nif, dom: _XP_HOLCIM.dom }
+                                  : { nombre: typ.nombre, nif: typ.nif, dom: typ.dom };
+  const obsCarg = quien === 'HOLCIM' ? null : 'Por cuenta de ' + _XP_HOLCIM.nombre + ' (NIF ' + _XP_HOLCIM.nif + ')';
   const fila = {
     numero: 'DECA-XP',   // lo sustituye el trigger de la BD
     anulado: false,
     creado_por: currentUser && currentUser.id,
     empresa: tr.empresa,
     fecha_carga: _xpHoy(),
-    carg_nombre: _XP_HOLCIM.nombre, carg_nif: _XP_HOLCIM.nif, carg_domicilio: _XP_HOLCIM.dom,
+    carg_nombre: carg.nombre, carg_nif: carg.nif, carg_domicilio: carg.dom,   // v761
     trans_nombre: tr.nombre, trans_nif: tr.nif, trans_domicilio: tr.dom, trans_autorizacion: tr.aut,
-    op_nombre: esTyp ? null : op.nombre, op_nif: esTyp ? null : op.nif, op_domicilio: esTyp ? null : op.dom,
+    observaciones: obsCarg,
+    conductor_nombre: cond.nombre, conductor_dni: cond.dni,   // v761 (ya no se usa el bloque 'operador')
     origen, destino, mercancia,
     peso_kg: peso, bultos: 'Granel',
     tractora, semirremolque: remolque
@@ -39285,6 +39398,7 @@ async function _xpGenerar() {
     const { data: ins, error } = await sb.from('deca').insert(fila).select().single();
     if (error) throw error;
     _xpLS('xp_tractora', tractora); _xpLS('xp_remolque', remolque);
+    if (cond.clave) _xpLS('xp_cond', cond.clave);
     if (_xpViaje === 'OTRO') { _xpLS('xp_origen', origen); _xpLS('xp_destino', destino); _xpLS('xp_merc', mercancia); }
     await _xpPdf(ins);
     _xpUltimo = ins;

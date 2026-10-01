@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v761 (01/10/2026): DeCA · (1) CARGADOR CONTRACTUAL correcto en el exprés (Orden FOM/2861/2012 y FAQ del Ministerio: si A subcontrata a B, A es el cargador contractual): camión de TYP2014 → Holcim; subcontratado → TYP2014 con 'Por cuenta de Holcim' en observaciones; Híspalis/Transmargaz/Import → el conductor elige (TYP2014 por defecto, u Holcim). Se deja de usar el bloque 'operador'. (2) CONDUCTOR en el DeCA (no es dato mínimo en mercancías, pero lo pedimos): columnas nuevas conductor_nombre/conductor_dni; en el exprés el conductor DNI+PIN sale fijo, el resto elige de sus conductores (o el titular si es autónomo) u 'Otro (escribir)'; en el formulario normal, desplegable de conductores + nombre y DNI; en el PDF, en el bloque 4. (3) La lista de DeCA ya no se pisa: origen/destino cortos (completo al pasar el ratón). SQL PRIMERO: 2 columnas. VUELTA ATRAS: resubir v760.
+
+---
+
 v760 (01/10/2026): DeCA · el alta de conductores fallaba con 'Signups not allowed for this instance' (los registros públicos están cerrados en Supabase, y deben seguir así). Ahora el usuario lo crea la BD con la función deca_crear_conductor (auth.users + auth.identities, comprueba permisos; si el DNI ya existía lo reactiva con PIN nuevo). La app ya no usa signUp. SQL PRIMERO: v760_SQL.sql. VUELTA ATRAS: resubir v759.
 
 ---
