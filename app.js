@@ -39013,6 +39013,7 @@ let _xpTrans = '';
 let _xpSolo = false;
 let _xpOcupado = false;
 let _xpUltimo = null;
+let _xpSemis = {};      // v755: semis por transportista (cache de la RPC deca_semis)
 
 function _xpHoy() {
   const d = new Date();
@@ -39040,6 +39041,37 @@ function _xpMatriculas(t) {
   Object.keys(TRANSPORTISTAS || {}).forEach(add);
   Object.keys(MATRICULAS_APRENDIDAS || {}).forEach(add);
   return [...set].sort();
+}
+
+// v755: semis del transportista (RPC segura: lista oficial para TYP2014/Híspalis/Import,
+// automática de albaranes para Transmargaz y subcontratados). Si falla, queda "escribir".
+async function _xpCargarSemis(tr) {
+  if (!tr || _xpSemis[tr]) return;
+  try {
+    const { data, error } = await sb.rpc('deca_semis', { p_trans: tr });
+    if (error) throw error;
+    _xpSemis[tr] = (data || []).filter(x => x && x.remolque);
+  } catch (e) { console.warn('[v755] semis', e); _xpSemis[tr] = []; }
+}
+async function _xpCambiarTrans(v) {
+  _xpTrans = v;
+  await _xpCargarSemis(v);
+  _xpPintar(); _xpCargarHoy();
+}
+// Desplegable de semis: el último usado si está en la lista; si no, el más usado (el
+// habitual del autónomo). "Otro (escribir)" para préstamos o semis que aún no están.
+function _xpCampoRemolque(inp) {
+  const lista = _xpSemis[_xpTrans] || [];
+  const guardado = _xpLS('xp_remolque');
+  const enLista = lista.some(x => x.remolque === guardado);
+  const sel = enLista ? guardado : (lista[0] ? lista[0].remolque : '__otro');
+  const otro = sel === '__otro';
+  const opts = lista.map(x => '<option value="' + _xpE(x.remolque) + '"' + (x.remolque === sel ? ' selected' : '') + '>' +
+    _xpE(x.remolque) + (x.nota ? ' · ' + _xpE(x.nota) : '') + '</option>').join('');
+  return '<select id="xpRemolque" style="' + inp + '" onchange="document.getElementById(\'xpRemolqueOtro\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
+    opts + '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+    '<input id="xpRemolqueOtro" style="' + inp + ';margin-top:8px;text-transform:uppercase;display:' + (otro ? 'block' : 'none') +
+    '" placeholder="R0000XXX" value="' + _xpE(otro && !enLista && guardado ? guardado : '') + '">';
 }
 
 function _xpBotonFlotante() {
@@ -39071,6 +39103,7 @@ async function _xpAbrir(solo) {
   } catch (e) { console.warn('[v753] carga', e); }
   const P = window._decaPerfil || {};
   if (!_xpTrans) _xpTrans = P.transportista || '';
+  await _xpCargarSemis(_xpTrans);
   if (P.baja && currentRole !== 'admin') {
     ov.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:var(--ss)"><div style="font-size:18px;margin-bottom:12px">Usuario dado de baja</div><div style="color:var(--mu);margin-bottom:24px">No puedes crear DeCA. Habla con tu oficina.</div><button class="btn bs" onclick="_xpSalir()">Salir</button></div>';
     return;
@@ -39103,7 +39136,7 @@ function _xpPintar() {
   if (esAdmin) {
     const nombres = Object.keys(_DECA_NUESTRAS).concat(_decaSubs.filter(x => x.activo !== false).map(x => x.nombre));
     opcTrans = lbl('Transportista (solo admin, para probar)') +
-      '<select style="' + inp + '" onchange="_xpTrans=this.value;_xpPintar();_xpCargarHoy()"><option value="">— elegir —</option>' +
+      '<select style="' + inp + '" onchange="_xpCambiarTrans(this.value)"><option value="">— elegir —</option>' +
       nombres.map(n => '<option' + (_decaNrm(n) === _decaNrm(_xpTrans) ? ' selected' : '') + '>' + _xpE(n) + '</option>').join('') + '</select>';
   }
   const otro = _xpViaje === 'OTRO' ?
@@ -39125,7 +39158,7 @@ function _xpPintar() {
     (mats.length ?
       '<select id="xpTractora" style="' + inp + '">' + mats.map(m => '<option' + (m === tSel ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>' :
       '<div style="padding:12px;border:1px solid var(--er);border-radius:8px;color:var(--er);font-size:14px">No tienes camiones asignados. Llama a la oficina.</div>') +
-    lbl('Remolque') + '<input id="xpRemolque" style="' + inp + ';text-transform:uppercase" placeholder="R0000XXX" value="' + _xpE(_xpLS('xp_remolque')) + '">' +
+    lbl('Remolque') + _xpCampoRemolque(inp) +
     lbl('3. Kilos del ticket de báscula') + '<input id="xpPeso" type="number" inputmode="numeric" style="' + inp + ';font-size:22px" placeholder="28480">' +
     '<button id="xpBtnGen" onclick="_xpGenerar()" style="margin-top:22px;width:100%;padding:16px;border:none;border-radius:10px;background:var(--ac);color:#fff;font-size:18px;font-weight:600;font-family:var(--ss);cursor:pointer">📄 Generar DeCA</button>' +
     '<div id="xpResultado"></div>' +
@@ -39139,7 +39172,8 @@ async function _xpGenerar() {
   const g = id => ((document.getElementById(id) || {}).value || '').trim();
   if (!_xpTrans) { toast('Falta el transportista', 'err'); return; }
   const tractora = _decaMatricula(g('xpTractora'));
-  const remolque = _decaMatricula(g('xpRemolque'));
+  const _rs = g('xpRemolque');
+  const remolque = _decaMatricula(_rs === '__otro' ? g('xpRemolqueOtro') : _rs);
   const peso = Math.round(Number(g('xpPeso').replace(',', '.')));
   if (!tractora) { toast('Elige el camión', 'err'); return; }
   if (!remolque) { toast('Pon la matrícula del remolque', 'err'); return; }

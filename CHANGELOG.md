@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v755 (01/10/2026): DeCA EXPRÉS · el remolque pasa a DESPLEGABLE. Lista de la RPC deca_semis(p_trans) (SQL ya hecho): TYP2014 y Portes Import → 34 semis oficiales de TYP primero y luego los 14 de Híspalis; Híspalis → al revés; Transmargaz y subcontratados → automático de sus albaranes (10+ viajes en 120 días), el más usado arriba. Muestra el tipo (cisterna, plataforma…). Por defecto: el último usado en ese móvil si está en la lista; si no, el más usado (el habitual de cada autónomo). Opción '✏️ Otro (escribir)' para préstamos o semis nuevos. Si la RPC falla, queda solo 'escribir'. Tabla nueva deca_semis_oficiales (solo admin). VUELTA ATRAS: resubir v754.
+
+---
+
 v754 (01/10/2026): DeCA · PDF: origen y destino largos se montaban encima de 'Mercancía' (lo vio Juan Carlos en el DECA-2026-0002 de prueba). Ahora cada campo parte el texto en líneas a mano (12 pt) y el bloque baja según las líneas que ocupe. Solo cambia la maquetación del PDF; nada de BD. VUELTA ATRAS: resubir v753.
 
 ---
