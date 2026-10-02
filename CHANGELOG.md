@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v768 (02/10/2026): Empleados · Primas · préstamos: CONDONADO. En la Ficha del trabajador, dentro del préstamo, casillas Importe condonado + Mes + Motivo (por defecto 'Gratificación'). Lo condonado baja la deuda pero NO es pago ni toca el sueldo (A PAGAR, TOTAL FINAL y cuadre no cambian). El certificado lo muestra en DEUDA PENDIENTE ('Condonado por la empresa (Gratificación)'). Caso Barrero sep-2026: 300 de DESC. DEUDA + 800 condonados = saldada. Sin SQL (va en primas_config). VUELTA ATRAS: resubir v767.
+
+---
+
 v767 (02/10/2026): Empleados · Vacaciones · tipo nuevo ⏸️ EXCEDENCIA (gris). Los días naturales de excedencia NO generan vacaciones: se restan en proporción de la bolsa de 30 días y de lo 'generado a hoy' (caso Makan, 4 meses de excedencia). No cuenta como disfrutadas ni salta el aviso de saldo. En el detalle del trabajador se ve cuántos días de excedencia no generan. SQL PRIMERO: v767_SQL.sql (añade 'excedencia' a vacaciones_periodos_tipo_check). VUELTA ATRAS: resubir v766 (la regla puede quedarse).
 
 ---

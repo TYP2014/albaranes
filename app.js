@@ -26700,7 +26700,14 @@ function _pcDeuda(t, adelantoMes, antesApp) {
   if (!(inicial > 0)) return null;
   const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
   const antes = _pcR2(_primasNum(pr.previo) + _primasNum(antesApp)), esteMes = cuenta ? _primasNum(adelantoMes) : 0;
-  return { inicial, antes, esteMes, queda: _pcR2(inicial - antes - esteMes), fecha: pr.fecha || '' };
+  // v768 (Juan Carlos 02/10/2026) — CONDONADO: parte de la deuda que la empresa PERDONA (gratificacion; caso Barrero:
+  // 300 descontados del sueldo en sep-2026 + 800 perdonados = saldada). NO es pago ni toca el sueldo del mes: solo baja
+  // la deuda. Cuenta en el mes de la condonacion y en los siguientes; en los anteriores no existe.
+  const cond = _primasNum(pr.condonado), cMes = pr.condonado_mes || '';
+  const condEste = (cond > 0 && cMes && primasMes === cMes) ? cond : 0;
+  const condAntes = (cond > 0 && cMes && primasMes > cMes) ? cond : 0;
+  return { inicial, antes, esteMes, condEste, condAntes, condNota: pr.condonado_nota || 'Gratificación',
+    queda: _pcR2(inicial - antes - condAntes - esteMes - condEste), fecha: pr.fecha || '' };
 }
 function _pcMesSiguienteTxt() { const p = primasMes.split('-'); const s = new Date(+p[0], +p[1], 1); return _PRIMAS_MESES_MIN[s.getMonth()] + ' de ' + s.getFullYear(); }
 // Tarifas que valen para esta fila: foto guardada > ficha del trabajador > generales
@@ -26908,7 +26915,7 @@ function _pcPintaFila(t) {
   const _d = _pcDeuda(t, c.v.descuento_deuda, primasCuadDeudaAntes[id]);   // v668/v669
   set('deuda', !_d ? '' : (_d.queda > 0 ? _primasEur(_d.queda) : 'Saldada ✓'), !_d ? '' : (_d.queda > 0 ? '#e65100' : 'var(--ok,#2e7d32)'));
   const _elD = document.getElementById('pcc_deuda_' + id);
-  if (_elD) _elD.title = _d ? ('Préstamo ' + _primasEur(_d.inicial) + (_d.fecha ? ' (' + _d.fecha + ')' : '') + ' − descontado antes ' + _primasEur(_d.antes) + ' − DESC. DEUDA de este mes ' + _primasEur(_d.esteMes) + ' = queda ' + _primasEur(Math.max(_d.queda, 0)) + ' para ' + _pcMesSiguienteTxt()) : '';
+  if (_elD) _elD.title = _d ? ('Préstamo ' + _primasEur(_d.inicial) + (_d.fecha ? ' (' + _d.fecha + ')' : '') + ' − descontado antes ' + _primasEur(_d.antes) + ' − DESC. DEUDA de este mes ' + _primasEur(_d.esteMes) + ((_d.condEste + _d.condAntes) ? ' − condonado ' + _primasEur(_d.condEste + _d.condAntes) : '') + ' = queda ' + _primasEur(Math.max(_d.queda, 0)) + ' para ' + _pcMesSiguienteTxt()) : '';
   const ef = document.getElementById('pc_efectivo_manual_' + id), ta = document.getElementById('pc_tarjeta_manual_' + id);
   if (ef) ef.placeholder = (c.activo && c.v.efectivo_manual == null) ? String(c.efectivo) : '';
   if (ta) ta.placeholder = (c.activo && c.v.tarjeta_manual == null) ? String(c.tarjeta) : '';
@@ -27031,6 +27038,11 @@ function primasCfgAbrir(id) {
     '<label style="' + _lb + '">Fecha del préstamo<input class="fi" id="primasCfg_pr_fecha" placeholder="escríbela aquí…" value="' + _primasAttr(_pcPrestamo(t).fecha || '') + '" style="width:230px;' + _in + '"></label>' +
     '<label style="' + _lb + '">Ya descontado ANTES de llevarlo en la app €<input class="fi" type="number" step="any" id="primasCfg_pr_previo" value="' + (_pcPrestamo(t).previo || '') + '" style="width:130px;text-align:right;' + _in + '"></label>' +
     '<label style="' + _lb + '">La app cuenta descuentos desde el mes<input class="fi" type="month" id="primasCfg_pr_desde" value="' + _primasAttr(_pcPrestamo(t).desde || primasMes) + '" style="' + _in + '"></label>' +
+    // v768: CONDONADO (lo que la empresa perdona; no toca el sueldo)
+    '<div style="font-weight:800;margin:16px 0 6px">Condonado <span style="font-weight:400;color:var(--mu);font-size:12px">(lo que la empresa le PERDONA; no se le descuenta del sueldo)</span></div>' +
+    '<label style="' + _lb + '">Importe condonado €<input class="fi" type="number" step="any" id="primasCfg_pr_condonado" value="' + (_pcPrestamo(t).condonado || '') + '" style="width:130px;text-align:right;' + _in + '"></label>' +
+    '<label style="' + _lb + '">Mes de la condonación<input class="fi" type="month" id="primasCfg_pr_condonado_mes" value="' + _primasAttr(_pcPrestamo(t).condonado_mes || primasMes) + '" style="' + _in + '"></label>' +
+    '<label style="' + _lb + '">Motivo<input class="fi" id="primasCfg_pr_condonado_nota" placeholder="Gratificación" value="' + _primasAttr(_pcPrestamo(t).condonado_nota || '') + '" style="width:230px;' + _in + '"></label>' +
     '</div></div>' +
     '<label style="display:flex;gap:10px;align-items:center;margin:18px 0 22px"><input type="checkbox" id="primasCfg_aplicar" checked style="width:18px;height:18px"> Aplicar también a ' + primasMes.split('-').reverse().join('/') + ' (el mes abierto)</label>' +
     '<div style="display:flex;gap:14px;justify-content:flex-end"><button class="btn bs" style="font-size:13px;padding:10px 20px" onclick="document.getElementById(\'primasCfgOv\').remove()">Cancelar</button>' +
@@ -27051,6 +27063,7 @@ async function primasCfgGuardar(id) {
   // v665: prestamo / deuda
   const _pv = (k) => { const el = document.getElementById('primasCfg_pr_' + k); return el ? String(el.value || '').trim() : ''; };
   if (_primasNum(_pv('inicial')) > 0) cfg.prestamo = { inicial: _primasNum(_pv('inicial')), fecha: _pv('fecha'), previo: _primasNum(_pv('previo')), desde: _pv('desde') || primasMes };
+  if (cfg.prestamo && _primasNum(_pv('condonado')) > 0) Object.assign(cfg.prestamo, { condonado: _primasNum(_pv('condonado')), condonado_mes: _pv('condonado_mes') || primasMes, condonado_nota: _pv('condonado_nota') });   // v768
   const aplicar = !!(document.getElementById('primasCfg_aplicar') || {}).checked;
   try {
     const { error } = await sb.from('trabajadores').update({ primas_config: cfg }).eq('id', id);
@@ -27274,7 +27287,9 @@ function _pcCertDeuda(t, c, deudaAntes) {
   return '<h3>DEUDA PENDIENTE</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Fecha / Detalle</th><th ' + thr + '>Importe</th></tr>' +
     '<tr><td ' + td + '>Préstamo inicial</td><td ' + tdr + ' colspan="2">' + esc(pr.fecha || '—') + '</td><td ' + tdr + '>' + e2(pr.inicial) + '</td></tr>' +
     '<tr><td ' + td + '>Descontado en meses anteriores</td><td ' + tdr + ' colspan="2">—</td><td ' + tdr + '>' + e2(-antes) + '</td></tr>' +
+    (d.condAntes ? '<tr><td ' + td + '>Condonado (' + esc(d.condNota) + ')</td><td ' + tdr + ' colspan="2">meses anteriores</td><td ' + tdr + '>' + e2(-d.condAntes) + '</td></tr>' : '') +   // v768
     '<tr><td ' + td + '>Descontado este mes</td><td ' + tdr + ' colspan="2">' + esc(mesAct) + '</td><td ' + tdr + '>' + e2(-esteMes) + '</td></tr>' +
+    (d.condEste ? '<tr><td ' + td + '>Condonado por la empresa (' + esc(d.condNota) + ')</td><td ' + tdr + ' colspan="2">' + esc(mesAct) + '</td><td ' + tdr + '>' + e2(-d.condEste) + '</td></tr>' : '') +   // v768
     '<tr><td ' + td + '><strong>DEUDA PENDIENTE</strong></td><td ' + tdr + ' colspan="2">' + (queda > 0 ? 'Queda pendiente para ' + esc(mesSig) : 'Deuda saldada') + '</td><td ' + tdr + '><strong>' + e2(Math.max(queda, 0)) + '</strong></td></tr></table>';
 }
 
