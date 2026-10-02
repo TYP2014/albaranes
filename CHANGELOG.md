@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v767 (02/10/2026): Empleados · Vacaciones · tipo nuevo ⏸️ EXCEDENCIA (gris). Los días naturales de excedencia NO generan vacaciones: se restan en proporción de la bolsa de 30 días y de lo 'generado a hoy' (caso Makan, 4 meses de excedencia). No cuenta como disfrutadas ni salta el aviso de saldo. En el detalle del trabajador se ve cuántos días de excedencia no generan. SQL PRIMERO: v767_SQL.sql (añade 'excedencia' a vacaciones_periodos_tipo_check). VUELTA ATRAS: resubir v766 (la regla puede quedarse).
+
+---
+
 v766 (02/10/2026): Empleados · Primas · cuadrante del mes: la columna COMPLEM. pasa a ser A PAGAR = total − dietas − adelanto − desc. deuda, con un solo criterio para todos: en rojo y negativo = pagado de más, venga por dietas (Jorge −17,20) o por adelanto (Nilson sep-2026: 288,60 − 300 = −11,40, antes salía +288,60). Solo cambia la tabla en pantalla: el Excel del gestor, el completo y los certificados siguen igual. Sin SQL. VUELTA ATRAS: resubir v765.
 
 ---

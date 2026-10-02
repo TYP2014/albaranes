@@ -23084,7 +23084,8 @@ const VAC_COL = {
   'asuntos_propios':     '#b07dff',   // morado
   'baja_medica':         '#ffa726',   // naranja
   'permiso_retribuido':  '#4aa8ff',   // azul
-  'falta_injustificada': '#ff5252'    // rojo
+  'falta_injustificada': '#ff5252',   // rojo
+  'excedencia':          '#bdbdbd'    // v767: gris (no genera vacaciones)
 };
 
 let vacTrabajadores = [];     // todos los trabajadores (activos + archivados)
@@ -23237,6 +23238,23 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
     bolsa = Math.round((_diasRest / _diasAnio) * VAC_DIAS_VACACIONES * 10) / 10;
     _genStart = _alta;
   } else { bolsa = 0; _genStart = null; }
+  // v767 (Juan Carlos 02/10/2026) — EXCEDENCIA: mientras esta en excedencia NO genera vacaciones (caso Makan:
+  // 4 meses de excedencia y la app le contaba los 30 dias del ano). Los dias NATURALES de excedencia que caen
+  // dentro de este ano (y desde su alta) se restan, en proporcion, de la bolsa y de lo generado a hoy. No es
+  // "vacaciones disfrutadas" ni salta el aviso de saldo. Se miran TODAS sus excedencias, aunque empiecen el ano anterior.
+  const _exc = vacPeriodos.filter(p => p.trabajador_id === trabajadorId && p.tipo === 'excedencia');
+  const _diasExc = (desde, hasta) => {
+    if (!desde || !hasta) return 0;
+    let n = 0;
+    _exc.forEach(p => {
+      const a = new Date(p.fecha_inicio + 'T00:00:00'), b = new Date(p.fecha_fin + 'T00:00:00');
+      const i = a > desde ? a : desde, f = b < hasta ? b : hasta;
+      if (f >= i) n += Math.round((f - i) / _MS) + 1;
+    });
+    return n;
+  };
+  const _excAnio = _genStart ? _diasExc(_genStart, _yEnd) : 0;
+  if (_excAnio > 0) bolsa = Math.max(0, Math.round((bolsa - (_excAnio / _diasAnio) * VAC_DIAS_VACACIONES) * 10) / 10);
   let generado = 0;
   if (_genStart) {
     const _hoy = new Date(); _hoy.setHours(0, 0, 0, 0);
@@ -23246,7 +23264,8 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
     else if (anio === _yNow) _refEnd = (_hoy < _yEnd ? _hoy : _yEnd);
     if (_refEnd && _refEnd >= _genStart) {
       const _diasGen = Math.round((_refEnd - _genStart) / _MS) + 1;
-      generado = Math.round((_diasGen / _diasAnio) * VAC_DIAS_VACACIONES * 10) / 10;
+      const _diasGenNetos = Math.max(0, _diasGen - _diasExc(_genStart, _refEnd));   // v767: sin los dias de excedencia
+      generado = Math.round((_diasGenNetos / _diasAnio) * VAC_DIAS_VACACIONES * 10) / 10;
       if (generado > bolsa) generado = bolsa;
     }
   }
@@ -23257,6 +23276,7 @@ function _vacSaldoTrabajador(trabajadorId, anio) {
     vac_restantes: Math.round((bolsa - usadasVac) * 10) / 10,
     bolsa,
     generado,
+    excedencia_dias: _excAnio,   // v767
     ap_disfrutados: usadasAP,
     ap_restantes: VAC_DIAS_ASUNTOS_PROPIOS - usadasAP,
     periodos
@@ -23343,6 +23363,7 @@ function _vacLeyenda(bgFestivo, conHoy) {
     [VAC_COL.baja_medica, 'Baja médica'],
     [VAC_COL.permiso_retribuido, 'Permiso retribuido'],
     [VAC_COL.falta_injustificada, 'Falta injustificada'],
+    [VAC_COL.excedencia, 'Excedencia'],   // v767
     [bgFestivo, 'Festivo']
   ].map(([c, txt]) =>
     `<span><span style="display:inline-block;width:14px;height:14px;background:${c};border-radius:3px;vertical-align:-2px;margin-right:2px"></span> ${txt}</span>`
@@ -23445,7 +23466,7 @@ function _vacRenderCalendarioMes() {
       const colorMap = VAC_COL;   // v484 - paleta unica
       const labelMap = {
         'vacaciones': 'Vac', 'asuntos_propios': 'AP',
-        'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
+        'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta', 'excedencia': 'Exced.'
       };
       const color = colorMap[p.tipo] || VAC_COL.vacaciones;
       return `<div style="font-size:12px;font-weight:600;background:${color};color:#000;padding:3px 7px;border-radius:4px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${labelMap[p.tipo] || p.tipo}">${esc(nombreCorto)}</div>`;
@@ -23490,7 +23511,7 @@ function _vacRenderCalendario3Meses() {
   const tipoColor = VAC_COL;   // v484 - paleta unica
   const tipoLabel = {
     'vacaciones': 'Vac', 'asuntos_propios': 'AP',
-    'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta'
+    'baja_medica': 'Baja', 'permiso_retribuido': 'Permiso', 'falta_injustificada': 'Falta', 'excedencia': 'Exced.'
   };
   // Renderizar cada uno de los 3 meses (offset: -1, 0, +1)
   const mesesHTML = [];
@@ -23611,7 +23632,7 @@ function _vacRenderCalendarioAnio() {
       const tooltip = periodosDia.length
         ? periodosDia.map(p => {
             const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
-            const labels = {'vacaciones':'Vac','asuntos_propios':'AP','baja_medica':'Baja','permiso_retribuido':'Permiso','falta_injustificada':'Falta'};
+            const labels = {'vacaciones':'Vac','asuntos_propios':'AP','baja_medica':'Baja','permiso_retribuido':'Permiso','falta_injustificada':'Falta','excedencia':'Exced.'};
             return `${t?.nombre || '?'} (${labels[p.tipo] || p.tipo})`;
           }).join(', ')
         : (esFestivo ? 'Festivo' : '');
@@ -23823,6 +23844,7 @@ function openVacPeriodoModal(periodoId, trabajadorIdPrefill) {
           <option value="baja_medica"${p?.tipo==='baja_medica'?' selected':''}>🏥 Baja médica</option>
           <option value="permiso_retribuido"${p?.tipo==='permiso_retribuido'?' selected':''}>📋 Permiso retribuido</option>
           <option value="falta_injustificada"${p?.tipo==='falta_injustificada'?' selected':''}>❌ Falta injustificada</option>
+          <option value="excedencia"${p?.tipo==='excedencia'?' selected':''}>⏸️ Excedencia (no genera vacaciones)</option>
         </select>
       </div>
       <div class="fg"><label class="fl">Cómputo</label>
@@ -23954,9 +23976,9 @@ function openVacTrabajadorDetalle(trabajadorId) {
   _vacDetalleTrabId = trabajadorId;
   const s = _vacSaldoTrabajador(trabajadorId, vacAnioActivo);
   document.getElementById('vacDetalleTitulo').textContent = `${t.nombre} · ${vacAnioActivo}`;
-  const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada' };
+  const labelMap = { vacaciones:'🏖️ Vacaciones', asuntos_propios:'🎯 Asuntos propios', baja_medica:'🏥 Baja médica', permiso_retribuido:'📋 Permiso retribuido', falta_injustificada:'❌ Falta injustificada', excedencia:'⏸️ Excedencia' };
   let h = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:14px;color:var(--tx)">`
-        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.)${s.vac_faltas > 0 ? ` <span style="color:#ff5252">= ${s.vac_solo_vacaciones} de vacaciones + ${s.vac_faltas} de falta injustificada</span>` : ''} · generado a hoy: ${s.generado}</span>`
+        + `<span>🏖️ Vacaciones: <strong>${s.vac_disfrutadas}/${s.bolsa}</strong> (${s.vac_restantes} rest.)${s.vac_faltas > 0 ? ` <span style="color:#ff5252">= ${s.vac_solo_vacaciones} de vacaciones + ${s.vac_faltas} de falta injustificada</span>` : ''} · generado a hoy: ${s.generado}${s.excedencia_dias ? ` <span style="color:var(--mu)">(⏸️ ${s.excedencia_dias} días de excedencia no generan)</span>` : ''}</span>`
         + `<span>🎯 Asuntos propios: <strong>${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS}</strong> (${s.ap_restantes} rest.)</span>`
         + `</div>`;
   if (!s.periodos.length) {
