@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v770 (02/10/2026): DeCA · PORTES 2014 IMPORT tiene sus propias tractoras (0755KMB y 1479JDM) en el exprés y en el formulario normal; dejan de salir en TYP2014. Antes Import usaba la lista entera de TYP2014. SQL PRIMERO: pasar esas 2 filas de deca_tractoras de TYP2014 a PORTES 2014 IMPORT. VUELTA ATRAS: resubir v769 y devolver las 2 filas a TYP2014.
+
+---
+
 v769 (02/10/2026): DeCA · formulario NORMAL: las casillas Matrícula tractora y Matrícula semirremolque muestran un desplegable con las matrículas del transportista elegido (las mismas que el exprés: deca_tractoras y deca_semis). Se puede seguir escribiendo a mano la que no esté. Cambia al cambiar de transportista. Sin SQL. VUELTA ATRAS: resubir v768.
 
 ---

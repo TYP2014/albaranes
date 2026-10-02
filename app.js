@@ -39258,7 +39258,9 @@ async function _xpCargarSemis(tr) {
 // albaranes, con errores de lectura tipo 1365MNH/1365NHH). Portes Import usa las de TYP2014.
 async function _xpCargarTractoras(tr) {
   if (!tr || _xpTractoras[tr]) return;
-  const buscar = _decaNrm(tr) === _decaNrm('PORTES 2014 IMPORT') ? 'TYP2014' : tr;
+  // v770 (Juan Carlos 02/10/2026): Portes Import ya tiene SUS tractoras en deca_tractoras (0755KMB y 1479JDM,
+  // que salen de la lista de TYP2014). Antes usaba la lista entera de TYP2014.
+  const buscar = tr;
   try {
     const { data, error } = await sb.from('deca_tractoras').select('matricula')
       .eq('transportista', buscar).eq('activo', true).order('matricula');
