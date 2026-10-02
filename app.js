@@ -31179,7 +31179,15 @@ async function _factPapelHolcim(file) {
     // son las buenas. Ojo: una entrega de estas puede traer VARIOS materiales debajo (el albaran
     // 35692002403 trae cuatro), pero como el patron arranca SIEMPRE en la fecha, la entrega cuenta una
     // sola vez, que es como la cuenta Holcim.
-    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+    // v765 (Juan Carlos 02/10/2026) — LA SEGUNDA UNIDAD TAMBIEN PUEDE SER "UP". Destapado con CISTERNA Y
+    // VARIOS de septiembre (INVOIC 3311099272): los sacos que van a Baleares/Huesca con el remolque
+    // R4665BCD salen como "1,400 56 T UP" en vez de "T PI". El lector solo aceptaba T o PI de segunda
+    // unidad y se dejaba esas 3 entregas (4839NBF 29/09 y 30/09) -> el pedido 4503423155 salia 592/595 ->
+    // NO CUADRA -> el cuadre v522 (el papel manda) no se aplicaba -> se colaban subtotales por vehiculo
+    // de la IA y el candado v688 bloqueaba (faltan 87 / sobran 30). Con UP: 595/595 y 47/47, y la suma
+    // de lineas da 165.229,79 EUR = Total Transportista de las dos hojas (107.790,51 + 57.439,28).
+    // Mismo cambio en el rescate v518 y en las sub-lineas v520. En PDF sin "T UP" no cambia nada.
+    const re = /(\d{2}\.\d{2}\.\d{4})((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,60}?)(\d{4}[A-Z]{3})\s*\/((?:(?!\d{2}\.\d{2}\.\d{4})[\s\S]){0,400}?)(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI)(?:\s+(?:T|PI|UP))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
     // v507 — CADA FILA SABE A QUE PEDIDO DE COMPRAS PERTENECE. El papel va por bloques y cada bloque se
     // abre con "Pedido de compras 4503370147". Se apunta donde empieza cada uno para poder etiquetar
     // luego cada fila con el suyo (ver mas abajo el cuadre pedido a pedido).
@@ -31273,7 +31281,7 @@ async function _factPapelHolcim(file) {
       const _cnt0 = {}; filas.forEach(f => { const k = f.po || '?'; _cnt0[k] = (_cnt0[k] || 0) + 1; });
       const _cortos = Object.keys(_declPO).filter(po => (_cnt0[po] || 0) < _declPO[po]);
       if (_cortos.length) {
-        const _reAmplio = new RegExp("(\\d{2}\\.\\d{2}\\.\\d{4})((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,60}?)([A-Z0-9]{2,8})\\s*\\/((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,400}?)(-?\\d{1,3}(?:[.,]\\d{1,3})?)\\s+(?:[\\d.]{1,7}(?:,\\d{1,3})?\\s+(?:\\d\\s+)?)?(T|PI)(?:\\s+(?:T|PI))?\\s+([\\d.,]+)\\s+EUR\\s+([\\d.,]+)", "g");
+        const _reAmplio = new RegExp("(\\d{2}\\.\\d{2}\\.\\d{4})((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,60}?)([A-Z0-9]{2,8})\\s*\\/((?:(?!\\d{2}\\.\\d{2}\\.\\d{4})[\\s\\S]){0,400}?)(-?\\d{1,3}(?:[.,]\\d{1,3})?)\\s+(?:[\\d.]{1,7}(?:,\\d{1,3})?\\s+(?:\\d\\s+)?)?(T|PI)(?:\\s+(?:T|PI|UP))?\\s+([\\d.,]+)\\s+EUR\\s+([\\d.,]+)", "g");
         const _ya = new Set(filas.map(f => String(f.num || '')));
         let _mr, _resc = 0;
         while ((_mr = _reAmplio.exec(full)) !== null) {
@@ -31353,7 +31361,7 @@ async function _factPapelHolcim(file) {
       // transportista - detras de eso nunca hay un material suelto.
       const _corta = /(Subtotal\s+por|Total\s+PO\s+y\s+planta|Total\s+transporte|Total\s+Transportista|Pedido\s+de\s+compras|Transportista\s*:)/i;
       const _cabecera = /Fecha\s+de\s*entrega[\s\S]{0,600}?Valor\s+neto/gi;
-      const _reSub = /(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI|UP)(?:\s+(?:T|PI))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
+      const _reSub = /(-?\d{1,3}(?:[.,]\d{1,3})?)\s+(?:[\d.]{1,7}(?:,\d{1,3})?\s+(?:\d\s+)?)?(T|PI|UP)(?:\s+(?:T|PI|UP))?\s+([\d.,]+)\s+EUR\s+([\d.,]+)/g;
       for (let z = 0; z < _fechas.length; z++) {
         const _ini = _fechas[z], _finSeg = (z + 1 < _fechas.length) ? _fechas[z + 1] : _txt.length;
         let _seg = _txt.slice(_ini, Math.min(_finSeg, _ini + 6000));

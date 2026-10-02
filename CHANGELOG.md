@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v765 (02/10/2026): Facturación · Liquidación HOLCIM · el lector del papel (sin IA) acepta también 'UP' como segunda unidad ('1,400 56 T UP'). Destapado con CISTERNA Y VARIOS de septiembre (INVOIC 3311099272): las 3 entregas del 4839NBF/R4665BCD del 29 y 30/09 llevan 'T UP' en vez de 'T PI' y se quedaban fuera → pedido 4503423155 en 592/595 → no cuadraba → el cuadre 'el papel manda' (v522) no se aplicaba → se colaban subtotales por vehículo de la IA y el candado v688 bloqueaba el guardado (faltan 87 / sobran 30). Ahora 595/595 y 47/47, suma de líneas 165.229,79 EUR = Total Transportista de las dos hojas. Mismo cambio en el rescate v518 y en las sub-líneas v520. En PDF sin 'T UP' no cambia nada. Sin SQL. VUELTA ATRAS: resubir v764.
+
+---
+
 v764 (01/10/2026): DeCA · 👤 Conductores: sección 'DESDE EMPLEADOS (sin acceso todavía)' con buscador (escribes 'CR' y salen los que coinciden) y botón '➕ Alta' por trabajador: un clic crea su usuario DNI + PIN con su empresa (y sale el botón de WhatsApp). No salen los que ya tienen acceso ni los de DNI mal escrito. El formulario a mano se mantiene. Solo oficina. Sin SQL. VUELTA ATRAS: resubir v763.
 
 ---
