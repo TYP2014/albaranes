@@ -26823,7 +26823,7 @@ function renderPrimasCuadrante() {
   head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el botón 📝 Detalle' : ''), 'background:rgba(25,118,210,.08)');
   if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón 📝 Detalle', 'background:rgba(25,118,210,.08)');
   head += th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
-  head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('COMPLEM.', 'Total − dietas', 'background:rgba(25,118,210,.08)') +
+  head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('A PAGAR', 'v766: Total − dietas − adelanto − desc. deuda = lo que queda por pagar en efectivo/tarjeta. En ROJO y negativo = ya se le ha pagado DE MÁS (por dietas o por adelanto), el mismo criterio para todos.', 'background:rgba(25,118,210,.08)') +
     th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto de NÓMINA entregado durante el mes (p. ej. 500 € el día 25). RESTA de lo que queda por pagar. NO toca el préstamo.', 'background:rgba(46,125,50,.10)') +
     (hayDeuda ? th('DESC. DEUDA', 'Lo que se le descuenta ESTE MES de su préstamo. RESTA de lo que queda por pagar y baja la deuda pendiente.', 'background:rgba(230,81,0,.10)') : '') +
     th('TARJETA', 'Recarga de tarjeta. En gris = lo que propone la app (resto redondeado a 10 hacia arriba).', 'background:rgba(46,125,50,.10)') +
@@ -26874,7 +26874,13 @@ function _pcPintaFila(t) {
   set('otros', _hayOtros ? _primasEur(_otros) : '', _otros < 0 ? 'var(--er,#c62828)' : '');
   const _elO = document.getElementById('pcc_otros_' + id);
   if (_elO) _elO.title = [c.v.otro_concepto ? 'Otro: ' + c.v.otro_concepto : '', c.v.descuento_concepto ? 'Descuento: ' + c.v.descuento_concepto : ''].filter(Boolean).join(' · ');
-  set('total', eur(c.total)); set('complemento', eur(c.complemento), c.complemento < 0 ? 'var(--er,#c62828)' : '');
+  set('total', eur(c.total));
+  // v766 (Juan Carlos 02/10/2026): UN SOLO CRITERIO en la tabla. Antes la columna era COMPLEM. (total − dietas) y solo
+  // salia en negativo cuando se pasaban las DIETAS (Jorge −17,20); si se pasaba el ADELANTO (Nilson: 288,60 − 300) salia
+  // en positivo. Ahora la columna es A PAGAR = total − dietas − adelanto − desc. deuda: negativo = pagado de mas, para todos.
+  // SOLO cambia lo que se ve en la tabla: el Excel y el certificado siguen con su COMPLEMENTO de siempre.
+  const _aPagar = _pcR2(c.complemento - c.v.adelanto - c.v.descuento_deuda);
+  set('complemento', eur(_aPagar), _aPagar < 0 ? 'var(--er,#c62828)' : '');
   set('demas', c.activo ? _primasEur(c.demas) : ''); set('totalFinal', eur(c.totalFinal));
   set('cuadre', c.cuadre, c.cuadre === 'OK' ? 'var(--ok,#2e7d32)' : 'var(--er,#c62828)');
   const _d = _pcDeuda(t, c.v.descuento_deuda, primasCuadDeudaAntes[id]);   // v668/v669
@@ -26886,7 +26892,7 @@ function _pcPintaFila(t) {
   if (ta) ta.placeholder = (c.activo && c.v.tarjeta_manual == null) ? String(c.tarjeta) : '';
   const tr = document.getElementById('pcr_' + id);
   if (tr) { tr.style.opacity = c.activo ? '1' : '.8';   // v676: antes .55, en la television casi no se leian
-    tr.title = (c.activo && c.complemento < 0) ? 'Las dietas superan lo devengado: baja los días de dieta.' : ''; }
+    tr.title = (c.activo && c.complemento < 0) ? 'Las dietas superan lo devengado: baja los días de dieta.' : ((c.activo && _aPagar < 0) ? 'El adelanto (o el descuento de deuda) supera lo que quedaba por pagar.' : ''); }   // v766
 }
 
 function _pcPintaTotales() {
