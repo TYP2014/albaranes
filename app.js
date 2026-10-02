@@ -38248,8 +38248,8 @@ function openDecaModal(id) {
       <div class="fg"><label class="fl">Bultos (si los hay)</label><input class="fi" id="decaF_bultos" value="${v('bultos')}" placeholder="opcional"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" value="${v('tractora')}" style="text-transform:uppercase" onchange="_decaPorMatricula()"></div>
-      <div class="fg"><label class="fl">Matrícula semirremolque</label><input class="fi" id="decaF_semirremolque" value="${v('semirremolque')}" style="text-transform:uppercase" placeholder="opcional"></div>
+      <div class="fg"><label class="fl">Matrícula tractora</label><input class="fi" id="decaF_tractora" list="decaDL_tractoras" autocomplete="off" value="${v('tractora')}" style="text-transform:uppercase" onchange="_decaPorMatricula()" placeholder="elige o escribe"><datalist id="decaDL_tractoras"></datalist></div>
+      <div class="fg"><label class="fl">Matrícula semirremolque</label><input class="fi" id="decaF_semirremolque" list="decaDL_semis" autocomplete="off" value="${v('semirremolque')}" style="text-transform:uppercase" placeholder="opcional · elige o escribe"><datalist id="decaDL_semis"></datalist></div>
     </div>
     ${_decaOpcConductores().length ? `<div class="fg" style="margin-bottom:10px"><label class="fl">Conductor (rellena nombre y DNI)</label>
       <select class="fi" id="decaF_condSel" onchange="_decaPonerConductor(this.value)"><option value="">— elegir o escribir a mano abajo —</option>${_decaOpcConductores().map((c, i) => `<option value="${i}">${esc(c.etiqueta)}</option>`).join('')}</select></div>` : ''}
@@ -38276,6 +38276,7 @@ function openDecaModal(id) {
     dl.innerHTML = nombres.map(n => '<option value="' + esc(n) + '"></option>').join('');
   }
   _decaModoSub(d);   // v757: subcontratado → bloque 2 fijo con su empresa
+  _decaRellenarMatriculas();   // v769
   document.getElementById('ovDeca').classList.add('open');
 }
 
@@ -38432,6 +38433,27 @@ function _decaAutoTrans(origen) {
   }
   const aviso = document.getElementById('decaSubAviso');
   if (aviso) aviso.style.display = e ? 'none' : '';
+  _decaRellenarMatriculas();   // v769
+}
+
+// v769 (Juan Carlos 02/10/2026) — DeCA NORMAL: las matrículas del transportista elegido salen en DESPLEGABLE,
+// las MISMAS que en el exprés (tractoras oficiales de deca_tractoras; semis de la RPC deca_semis). Es una lista de
+// sugerencias: se puede seguir escribiendo a mano la que no esté. Al cambiar de transportista, cambia la lista.
+async function _decaRellenarMatriculas() {
+  const sel = document.getElementById('decaF_transSel');
+  const dlT = document.getElementById('decaDL_tractoras'), dlS = document.getElementById('decaDL_semis');
+  if (!sel || !dlT || !dlS) return;
+  const k = sel.value || '';
+  let tr = '';
+  if (k.startsWith('S:')) { const sub = _decaSubs.find(x => 'S:' + x.id === k); tr = sub ? sub.nombre : ''; }
+  else tr = Object.keys(_DECA_NUESTRAS).find(n => _DECA_NUESTRAS[n] === k) || '';
+  if (!tr) { dlT.innerHTML = ''; dlS.innerHTML = ''; return; }
+  try { await Promise.all([_xpCargarTractoras(tr), _xpCargarSemis(tr)]); } catch (e) { console.warn('[v769] matriculas', e); }
+  if ((document.getElementById('decaF_transSel') || {}).value !== k) return;   // cambiaron de transportista mientras cargaba
+  const tracs = _xpTractoras[tr] || [], semis = _xpSemis[tr] || [];
+  dlT.innerHTML = tracs.map(m => '<option value="' + _xpE(m) + '"></option>').join('');
+  dlS.innerHTML = semis.map(x => '<option value="' + _xpE(x.remolque) + '">' + (x.nota ? _xpE(x.nota) : '') + '</option>').join('');
+  console.log('[v769] DeCA normal · ' + tr + ': ' + tracs.length + ' tractora(s) y ' + semis.length + ' semi(s) en el desplegable');
 }
 
 // v603: en subcontratación, el cargador contractual somos nosotros (la empresa

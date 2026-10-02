@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v769 (02/10/2026): DeCA · formulario NORMAL: las casillas Matrícula tractora y Matrícula semirremolque muestran un desplegable con las matrículas del transportista elegido (las mismas que el exprés: deca_tractoras y deca_semis). Se puede seguir escribiendo a mano la que no esté. Cambia al cambiar de transportista. Sin SQL. VUELTA ATRAS: resubir v768.
+
+---
+
 v768 (02/10/2026): Empleados · Primas · préstamos: CONDONADO. En la Ficha del trabajador, dentro del préstamo, casillas Importe condonado + Mes + Motivo (por defecto 'Gratificación'). Lo condonado baja la deuda pero NO es pago ni toca el sueldo (A PAGAR, TOTAL FINAL y cuadre no cambian). El certificado lo muestra en DEUDA PENDIENTE ('Condonado por la empresa (Gratificación)'). Caso Barrero sep-2026: 300 de DESC. DEUDA + 800 condonados = saldada. Sin SQL (va en primas_config). VUELTA ATRAS: resubir v767.
 
 ---
