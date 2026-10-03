@@ -13088,7 +13088,9 @@ const _PH_HAB = [
   // v777: Tecnocatalana SOLO por el texto de la PRELIQUIDACIÓN ('ARIDO RECICLADO LES FRANQUESES' en Nombre Proveedor),
   // nunca por lo que diga nuestro albarán: en la v776 se colaban otros viajes sueltos (125,13 / 34,92 / 131,89 €…)
   // que JC confirmó que no son de Tecnocatalana. En la preliq. de sept-2026 TODOS van a 155,83 €/viaje.
-  { n: 'Tecnocatalana', viaje: true, orden: 9, t: (T, O, D, P) => /(TECNOCATAL|ARIDO RECICLADO|FRANQUESES)/.test(P) },
+  // v778: y NUNCA cemento. Casos reales sept-2026, cisterna 1479JDM: 'CEM I 52,5 R GRANEL' a LES FRANQUESES (125,13 €) y
+  // 'ECOPlanet CEM IV/A' (34,92 €) se colaban por el nombre del pueblo. Ya no basta 'Franqueses': hace falta 'árido reciclado'.
+  { n: 'Tecnocatalana', viaje: true, orden: 9, t: (T, O, D, P) => /(TECNOCATAL|ARIDO RECICLADO)/.test(P) && !/(\bCEM\b|ECOPLANET|GRANEL|CLINKER)/.test(P) },
   // v774: los ÁRIDOS se miran PRIMERO y por DESTINO (planta de hormigón), aunque el albarán diga "Caliza Promsa":
   // caso real jul-2026, 10 viajes Garraf → Planta Hormigones Zona Franca con material "Caliza Promsa" a 3,94 €
   // (precio de Zona Franca) salían como caliza Promsa a 3,94 en vez de 7,85. La caliza es la que va a FÁBRICA.

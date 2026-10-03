@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v778 (03/10/2026): Panel · 💶 Precios Holcim · Tecnocatalana: solo entran las líneas de 'ÁRIDO RECICLADO' de la preliquidación y NUNCA las de cemento. Se colaban viajes de cemento de la cisterna 1479JDM (CEM I 52,5 R GRANEL a Les Franqueses a 125,13 €; ECOPlanet CEM IV/A a 34,92 €…). Solo pantalla, sin SQL. VUELTA ATRAS: resubir v777.
+
+---
+
 v777 (03/10/2026): Panel · 💶 Precios Holcim: dos líneas habituales nuevas: 'Caliza Foj' (la 'caliza Fox') y 'Áridos Garraf → La Roca' (la 'planta de Las Rocas'), con los nombres tal como salen en la preliquidación de Holcim. Además Tecnocatalana se reconoce SOLO por el texto de la preliquidación ('ARIDO RECICLADO LES FRANQUESES'), no por nuestro albarán: en la v776 se colaban viajes sueltos de otras rutas (125,13 / 34,92 / 131,89 €…) y salía en agosto sin haberse pagado nada. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v776.
 
 ---
