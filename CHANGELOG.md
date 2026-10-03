@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v772 (03/10/2026): Panel · nuevo apartado 💶 PRECIOS HOLCIM (solo admin), debajo del Histórico de precios. Botón 'Ver precios Holcim': rutas habituales en líneas fijas (Caliza Promsa, Caliza Cemex, Caliza Garraf Zahorra, Yeso, Arena Charly/Begues, Arena Martorell, Arcilla, Escoria, Tecnocatalana, Áridos → Zona Franca, Áridos → Planta Montcada) con el €/TN de las preliquidaciones (autofacturas) Holcim del ÚLTIMO mes subido + los 2 anteriores. Si un mes tiene 2 o 3 precios salen todos en la casilla (en naranja) con días, viajes y TN. Lo que no encaja va en 'Otras rutas Holcim'. Solo lee, sin SQL. VUELTA ATRAS: resubir v771.
+
+---
+
 v771 (03/10/2026): Facturación · Liquidación subcontratados · Excel: la columna TN NETAS de la hoja Albaranes ya NO redondea a 2 decimales (27,975 sale 27,975, no 27,98; los enteros siguen saliendo 29,00). En la hoja Resumen, Total TN y los TN por grupo también salen con 3 decimales. El importe no cambia (ya se calculaba con el dato real). Sin SQL. VUELTA ATRAS: resubir v770.
 
 ---

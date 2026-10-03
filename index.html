@@ -1045,6 +1045,14 @@ if (typeof pdfjsLib !== 'undefined') {
             <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN que te pagan Holcim/CEMEX por ruta, mes a mes (calculado importe ÷ toneladas de las autofacturas guardadas). Subida en verde, bajada en rojo.</div>
             <div id="histPreciosCont"></div>
           </div>
+          <div style="margin-top:24px;border-top:1px solid var(--bd);padding-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+              <div style="font-weight:bold;font-size:15px;color:var(--tx)">💶 Precios Holcim (rutas habituales)</div>
+              <button class="btn bp" id="btnPrecHolcim" onclick="abrirPreciosHolcim()">Ver precios Holcim</button>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN de las preliquidaciones de Holcim: el último mes subido y los 2 anteriores. Si un mes tiene varios precios, salen todos con sus días.</div>
+            <div id="precHolcimCont"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -2023,6 +2031,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=771"></script>
+<script src="app.js?v=772"></script>
 </body>
 </html>
