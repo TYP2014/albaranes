@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v776 (03/10/2026): Panel · 💶 Precios Holcim: (1) Tecnocatalana ya sale: en la preliquidación de Holcim viene como 'ARIDO RECICLADO LES FRANQUESES' (Transporte de Residuos Sólidos) y no se reconocía; ahora se mira siempre el texto de la preliquidación. (2) Cuando la preliquidación de un mes paga viajes de OTRO mes (ej. sept. paga viajes de agosto), los días salen con su mes ('01/08–11/08') para no confundir. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v775.
+
+---
+
 v775 (03/10/2026): Panel · 💶 Precios Holcim: el cruce de reserva (matrícula + fecha + TN) solo se usa para MATERIA PRIMA (caliza, arena, yeso, arcilla, limonita, escoria) y con el mismo material. Caso real 24/09/2026: una línea de CEMENTO (ECOPlanet CEM IV/A, 9918MXC, 28 TN) se pegaba a un albarán de caliza Garraf del mismo camión y día con 28 TN y salía en Caliza Garraf Zahorra a 8,51 €. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v774.
 
 ---

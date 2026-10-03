@@ -13098,9 +13098,17 @@ const _PH_HAB = [
   { n: 'Arena Martorell', t: T => /ARENA/.test(T) && /MARTORELL/.test(T) },
   { n: 'Arcilla', t: T => /ARCILLA/.test(T) },
   { n: 'Escoria', t: T => /ESCORIA/.test(T) },
-  { n: 'Tecnocatalana', viaje: true, t: T => /TECNOCATAL/.test(T) }
+  { n: 'Tecnocatalana', viaje: true, t: T => /(TECNOCATAL|ARIDO RECICLADO|FRANQUESES)/.test(T) }   // v776: en la preliquidación sale como 'ARIDO RECICLADO LES FRANQUESES'
 ];
 let _phDatos = null;
+// v776: días del precio. Si los viajes son de OTRO mes (Holcim paga en la preliquidación de septiembre viajes de agosto)
+// se ponen con su mes: '01/08–11/08'. Si son del mismo mes de la columna, solo los días: '1–11'.
+function _phDias(p, mes, conDia) {
+  if (!p.f1) return '';
+  const ym = String(mes || '').replace('-', ''), dm = f => f.slice(6) + '/' + f.slice(4, 6);
+  if (p.f1.slice(0, 6) === ym && p.f2.slice(0, 6) === ym) { const a = parseInt(p.f1.slice(6), 10), b = parseInt(p.f2.slice(6), 10); return a === b ? (conDia ? 'día ' : '') + a : a + '–' + b; }
+  return p.f1 === p.f2 ? dm(p.f1) : dm(p.f1) + '–' + dm(p.f2);
+}
 function _phMesMenos(ym, n) { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 - n; const d = new Date(y, m, 1); return d.getFullYear() + '-' + _p2(d.getMonth() + 1); }
 async function abrirPreciosHolcim() {
   const cont = document.getElementById('precHolcimCont'); if (!cont) return;
@@ -13149,7 +13157,9 @@ async function abrirPreciosHolcim() {
         a = mejor;
       }
       const origen = (a && a.origen) || String(L.origen || '').trim(), destino = (a && a.destino) || String(L.destino || '').trim();
-      const T = txt([L.concepto, a && a.prod, origen, destino].join(' | '));
+      // v776: el texto de la PRELIQUIDACIÓN (destino = 'Nombre Proveedor', p. ej. 'ARIDO RECICLADO LES FRANQUESES') entra SIEMPRE,
+      // aunque el viaje haya casado con un albarán nuestro que dice otra cosa.
+      const T = txt([L.concepto, a && a.prod, origen, destino, L.origen, L.destino].join(' | '));
       const h = _PH_HAB.find(x => x.t(T, txt(origen), txt(destino)));
       if (!h) return;                                   // v773: solo las habituales
       if (!h.viaje && !(tn > 0)) return;
@@ -13160,8 +13170,10 @@ async function abrirPreciosHolcim() {
       const fe = fBarra(L.fecha) || '';
       const dia = parseInt(fe.slice(0, 2), 10);
       const k = pu.toFixed(2);
-      const p = ((g.m[mes] = g.m[mes] || {})[k] = g.m[mes][k] || { pu, v: 0, tn: 0, imp: 0, d1: 99, d2: 0, filas: [] });
+      const p = ((g.m[mes] = g.m[mes] || {})[k] = g.m[mes][k] || { pu, v: 0, tn: 0, imp: 0, d1: 99, d2: 0, f1: '', f2: '', filas: [] });
       p.v++; p.tn += (tn > 0 ? tn : 0); p.imp += imp; if (dia > 0) { p.d1 = Math.min(p.d1, dia); p.d2 = Math.max(p.d2, dia); }
+      const fk = /^\d{2}\/\d{2}\/\d{4}$/.test(fe) ? fe.slice(6) + fe.slice(3, 5) + fe.slice(0, 2) : '';   // v776: AAAAMMDD
+      if (fk) { if (!p.f1 || fk < p.f1) p.f1 = fk; if (!p.f2 || fk > p.f2) p.f2 = fk; }
       p.filas.push({ fecha: fe, mat: String(L.matricula || ''), albPreliq: String(L.numero_albaran || ''), alb: (a && a.alb) || '', origen, destino, material: String(L.concepto || (a && a.prod) || ''), tn: tn > 0 ? tn : null, imp });
     });
     _phDatos = { meses, hab };
@@ -13180,7 +13192,7 @@ function _phRender() {
     return '<td style="' + tdS + ';text-align:right' + (nuevo ? ';background:rgba(0,232,122,.06)' : '') + '">' + ps.map(p =>
       '<div style="margin-bottom:3px;cursor:pointer" title="Pincha para bajar en Excel estos viajes (fecha, matrícula, nº albarán…)" onclick="phExcel(\'' + _fichajeEsc(x.n).replace(/'/g, "\\'") + '\',\'' + m + '\',\'' + p.pu.toFixed(2) + '\')">'
       + '<b style="text-decoration:underline dotted' + (ps.length > 1 ? ';color:#b45309' : '') + '">' + eur(p.pu) + (x.viaje ? '/viaje' : '') + '</b> <span style="font-size:10px;color:var(--mu)">'
-      + (p.d2 ? (p.d1 === p.d2 ? 'día ' + p.d1 : p.d1 + '–' + p.d2) + ' · ' : '') + p.v + ' v' + (x.viaje ? '' : ' · ' + Math.round(p.tn) + ' TN') + ' ⬇</span></div>').join('') + '</td>';
+      + (_phDias(p, m, true) ? _phDias(p, m, true) + ' · ' : '') + p.v + ' v' + (x.viaje ? '' : ' · ' + Math.round(p.tn) + ' TN') + ' ⬇</span></div>').join('') + '</td>';
   };
   const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)">RUTA</th>'
     + meses.map((m, i) => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:' + (i === 0 ? 'var(--tx)' : 'var(--mu)') + '">' + _histMesNombre(m) + (i === 0 ? ' (último)' : '') + '</th>').join('') + '</tr></thead>';
@@ -13203,7 +13215,7 @@ function phExcel(nombre, mes, puTxt) {
   p.filas.slice().sort((a, b) => String(a.fecha || '').split('/').reverse().join('').localeCompare(String(b.fecha || '').split('/').reverse().join(''))).forEach(f =>
     v.push([f.fecha, f.mat, f.alb, f.albPreliq, f.origen, f.destino, f.material, f.tn, p.pu, Math.round(f.imp * 100) / 100]));
   const r = [['RUTA', nombre], ['MES', _histMesNombre(mes)], ['PRECIO DE ESTE EXCEL', p.pu + ' ' + uni], [], ['TODOS LOS PRECIOS DE ESTA RUTA ESE MES'], [uni, 'DÍAS', 'VIAJES', 'TN', 'IMPORTE (€)']];
-  Object.values(g.m[mes]).sort((a, b) => b.v - a.v).forEach(q => r.push([q.pu, q.d2 ? (q.d1 === q.d2 ? String(q.d1) : q.d1 + '-' + q.d2) : '', q.v, Math.round(q.tn * 1000) / 1000, Math.round(q.imp * 100) / 100]));
+  Object.values(g.m[mes]).sort((a, b) => b.v - a.v).forEach(q => r.push([q.pu, _phDias(q, mes, false), q.v, Math.round(q.tn * 1000) / 1000, Math.round(q.imp * 100) / 100]));
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(v); ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 9 }, { wch: 9 }, { wch: 11 }];
   const wr = XLSX.utils.aoa_to_sheet(r); wr['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 12 }];
