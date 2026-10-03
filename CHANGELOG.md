@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v777 (03/10/2026): Panel · 💶 Precios Holcim: dos líneas habituales nuevas: 'Caliza Foj' (la 'caliza Fox') y 'Áridos Garraf → La Roca' (la 'planta de Las Rocas'), con los nombres tal como salen en la preliquidación de Holcim. Además Tecnocatalana se reconoce SOLO por el texto de la preliquidación ('ARIDO RECICLADO LES FRANQUESES'), no por nuestro albarán: en la v776 se colaban viajes sueltos de otras rutas (125,13 / 34,92 / 131,89 €…) y salía en agosto sin haberse pagado nada. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v776.
+
+---
+
 v776 (03/10/2026): Panel · 💶 Precios Holcim: (1) Tecnocatalana ya sale: en la preliquidación de Holcim viene como 'ARIDO RECICLADO LES FRANQUESES' (Transporte de Residuos Sólidos) y no se reconocía; ahora se mira siempre el texto de la preliquidación. (2) Cuando la preliquidación de un mes paga viajes de OTRO mes (ej. sept. paga viajes de agosto), los días salen con su mes ('01/08–11/08') para no confundir. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v775.
 
 ---

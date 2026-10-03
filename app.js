@@ -13085,12 +13085,18 @@ function _histPreciosTabla() {
 // Garraf; Tecnocatalana va POR VIAJE (€/viaje); cada precio se pincha y baja un Excel con sus viajes
 // (fecha, matrícula, nº albarán…) para buscar/reclamar los raros. SOLO admin. Solo LEE la BD.
 const _PH_HAB = [
+  // v777: Tecnocatalana SOLO por el texto de la PRELIQUIDACIÓN ('ARIDO RECICLADO LES FRANQUESES' en Nombre Proveedor),
+  // nunca por lo que diga nuestro albarán: en la v776 se colaban otros viajes sueltos (125,13 / 34,92 / 131,89 €…)
+  // que JC confirmó que no son de Tecnocatalana. En la preliq. de sept-2026 TODOS van a 155,83 €/viaje.
+  { n: 'Tecnocatalana', viaje: true, orden: 9, t: (T, O, D, P) => /(TECNOCATAL|ARIDO RECICLADO|FRANQUESES)/.test(P) },
   // v774: los ÁRIDOS se miran PRIMERO y por DESTINO (planta de hormigón), aunque el albarán diga "Caliza Promsa":
   // caso real jul-2026, 10 viajes Garraf → Planta Hormigones Zona Franca con material "Caliza Promsa" a 3,94 €
   // (precio de Zona Franca) salían como caliza Promsa a 3,94 en vez de 7,85. La caliza es la que va a FÁBRICA.
   { n: 'Áridos Garraf → Zona Franca', orden: 10, t: (T, O, D) => /GARRAF/.test(O) && /ZONA FRANCA/.test(D) },
+  { n: 'Áridos Garraf → La Roca', orden: 12, t: (T, O, D) => /GARRAF/.test(O) && (/LA ROCA/.test(D) || /LA ROCA/.test(T)) },   // v777: la 'planta de Las Rocas'
   { n: 'Áridos Garraf → Montcada (Hormigón)', orden: 11, t: (T, O, D) => /GARRAF/.test(O) && /(MONTCADA|MONCADA)/.test(D) && (/HORMIG/.test(D) || !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T)) },
   { n: 'Caliza Promsa', t: T => /CALIZA/.test(T) && /PROMSA/.test(T) },
+  { n: 'Caliza Foj', t: T => /CALIZA/.test(T) && /FOJ/.test(T) },   // v777: la 'caliza Fox' que dictó JC; en la preliquidación Holcim pone 'Caliza Foj'
   { n: 'Caliza Cemex', t: T => /CALIZA/.test(T) && /(CEMEX|TODO UNO)/.test(T) },
   { n: 'Caliza Garraf Zahorra', t: T => /CALIZA/.test(T) && /(ZAHORRA|GARRAF)/.test(T) },
   { n: 'Yeso', t: T => /(YESO|GUIX)/.test(T) },
@@ -13098,7 +13104,6 @@ const _PH_HAB = [
   { n: 'Arena Martorell', t: T => /ARENA/.test(T) && /MARTORELL/.test(T) },
   { n: 'Arcilla', t: T => /ARCILLA/.test(T) },
   { n: 'Escoria', t: T => /ESCORIA/.test(T) },
-  { n: 'Tecnocatalana', viaje: true, t: T => /(TECNOCATAL|ARIDO RECICLADO|FRANQUESES)/.test(T) }   // v776: en la preliquidación sale como 'ARIDO RECICLADO LES FRANQUESES'
 ];
 let _phDatos = null;
 // v776: días del precio. Si los viajes son de OTRO mes (Holcim paga en la preliquidación de septiembre viajes de agosto)
@@ -13160,7 +13165,7 @@ async function abrirPreciosHolcim() {
       // v776: el texto de la PRELIQUIDACIÓN (destino = 'Nombre Proveedor', p. ej. 'ARIDO RECICLADO LES FRANQUESES') entra SIEMPRE,
       // aunque el viaje haya casado con un albarán nuestro que dice otra cosa.
       const T = txt([L.concepto, a && a.prod, origen, destino, L.origen, L.destino].join(' | '));
-      const h = _PH_HAB.find(x => x.t(T, txt(origen), txt(destino)));
+      const h = _PH_HAB.find(x => x.t(T, txt(origen), txt(destino), txt([L.concepto, L.origen, L.destino].join(' | '))));   // v777: P = solo texto de la preliquidación
       if (!h) return;                                   // v773: solo las habituales
       if (!h.viaje && !(tn > 0)) return;
       const pu = h.viaje ? Math.round(imp * 100) / 100 : Math.round(imp / tn * 100) / 100;
