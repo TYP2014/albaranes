@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v775 (03/10/2026): Panel · 💶 Precios Holcim: el cruce de reserva (matrícula + fecha + TN) solo se usa para MATERIA PRIMA (caliza, arena, yeso, arcilla, limonita, escoria) y con el mismo material. Caso real 24/09/2026: una línea de CEMENTO (ECOPlanet CEM IV/A, 9918MXC, 28 TN) se pegaba a un albarán de caliza Garraf del mismo camión y día con 28 TN y salía en Caliza Garraf Zahorra a 8,51 €. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v774.
+
+---
+
 v774 (03/10/2026): Panel · 💶 Precios Holcim: los viajes de Cantera de Garraf a una PLANTA DE HORMIGÓN (Zona Franca, Montcada Hormigón) van SIEMPRE a su línea de Áridos, aunque el albarán diga 'Caliza Promsa'. Caso real jul-2026: 10 viajes Garraf → Planta Hormigones Zona Franca (matrículas 9566NBR y 7131JJT) salían en Caliza Promsa a 3,94 € (que es el precio de Zona Franca). La caliza es la que va a Fábrica. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v773.
 
 ---

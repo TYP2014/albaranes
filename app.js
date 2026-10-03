@@ -13139,10 +13139,13 @@ async function abrirPreciosHolcim() {
       const tn = Number(L.tn), imp = Number(L.importe); if (isNaN(imp)) return;
       const mes = String(L.mes || '').slice(0, 7); if (meses.indexOf(mes) < 0) return;
       let a = porNum[_factNormAlb(L.numero_albaran)];
-      if (!a && tn > 0) {
-        const mp = (txt(L.concepto).match(/CALIZA|ARENA|YESO|ARCILLA|LIMONITA|ESCORIA/) || [''])[0];
+      // v775: el plan B (matrícula+fecha+TN) SOLO para materia prima, y exigiendo el MISMO material. Caso real 24/09/2026:
+      // línea de CEMENTO (ECOPlanet CEM IV/A, 28 TN, 9918MXC) se pegó a un albarán de caliza Garraf del mismo camión y día
+      // con 28 TN y salía como 'Caliza Garraf Zahorra' a 8,51 €.
+      const mp = (txt(L.concepto).match(/CALIZA|ARENA|YESO|ARCILLA|LIMONITA|ESCORIA/) || [''])[0];
+      if (!a && tn > 0 && mp) {
         let mejor = null, md = Infinity;
-        (idx[_factNormMat(_corregirMatAutof(L.matricula)) + '|' + fBarra(L.fecha)] || []).forEach(c => { if (mp && txt(c.prod).indexOf(mp) < 0) return; const dd = Math.abs(c.tn - tn); if (dd <= 0.05 && dd < md) { mejor = c; md = dd; } });
+        (idx[_factNormMat(_corregirMatAutof(L.matricula)) + '|' + fBarra(L.fecha)] || []).forEach(c => { if (txt(c.prod).indexOf(mp) < 0) return; const dd = Math.abs(c.tn - tn); if (dd <= 0.05 && dd < md) { mejor = c; md = dd; } });
         a = mejor;
       }
       const origen = (a && a.origen) || String(L.origen || '').trim(), destino = (a && a.destino) || String(L.destino || '').trim();
