@@ -13085,6 +13085,11 @@ function _histPreciosTabla() {
 // Garraf; Tecnocatalana va POR VIAJE (€/viaje); cada precio se pincha y baja un Excel con sus viajes
 // (fecha, matrícula, nº albarán…) para buscar/reclamar los raros. SOLO admin. Solo LEE la BD.
 const _PH_HAB = [
+  // v774: los ÁRIDOS se miran PRIMERO y por DESTINO (planta de hormigón), aunque el albarán diga "Caliza Promsa":
+  // caso real jul-2026, 10 viajes Garraf → Planta Hormigones Zona Franca con material "Caliza Promsa" a 3,94 €
+  // (precio de Zona Franca) salían como caliza Promsa a 3,94 en vez de 7,85. La caliza es la que va a FÁBRICA.
+  { n: 'Áridos Garraf → Zona Franca', orden: 10, t: (T, O, D) => /GARRAF/.test(O) && /ZONA FRANCA/.test(D) },
+  { n: 'Áridos Garraf → Montcada (Hormigón)', orden: 11, t: (T, O, D) => /GARRAF/.test(O) && /(MONTCADA|MONCADA)/.test(D) && (/HORMIG/.test(D) || !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T)) },
   { n: 'Caliza Promsa', t: T => /CALIZA/.test(T) && /PROMSA/.test(T) },
   { n: 'Caliza Cemex', t: T => /CALIZA/.test(T) && /(CEMEX|TODO UNO)/.test(T) },
   { n: 'Caliza Garraf Zahorra', t: T => /CALIZA/.test(T) && /(ZAHORRA|GARRAF)/.test(T) },
@@ -13093,9 +13098,7 @@ const _PH_HAB = [
   { n: 'Arena Martorell', t: T => /ARENA/.test(T) && /MARTORELL/.test(T) },
   { n: 'Arcilla', t: T => /ARCILLA/.test(T) },
   { n: 'Escoria', t: T => /ESCORIA/.test(T) },
-  { n: 'Tecnocatalana', viaje: true, t: T => /TECNOCATAL/.test(T) },
-  { n: 'Áridos Garraf → Zona Franca', t: (T, O, D) => /GARRAF/.test(O) && /ZONA FRANCA/.test(D) && !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T) },
-  { n: 'Áridos Garraf → Montcada (Hormigón)', t: (T, O, D) => /GARRAF/.test(O) && /(MONTCADA|MONCADA)/.test(D) && !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T) }
+  { n: 'Tecnocatalana', viaje: true, t: T => /TECNOCATAL/.test(T) }
 ];
 let _phDatos = null;
 function _phMesMenos(ym, n) { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 - n; const d = new Date(y, m, 1); return d.getFullYear() + '-' + _p2(d.getMonth() + 1); }
@@ -13178,7 +13181,7 @@ function _phRender() {
   };
   const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)">RUTA</th>'
     + meses.map((m, i) => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:' + (i === 0 ? 'var(--tx)' : 'var(--mu)') + '">' + _histMesNombre(m) + (i === 0 ? ' (último)' : '') + '</th>').join('') + '</tr></thead>';
-  const filas = _PH_HAB.map(x => {
+  const filas = _PH_HAB.slice().sort((a, b) => (a.orden || 0) - (b.orden || 0)).map(x => {   // v774: áridos siguen saliendo abajo
     const g = hab[x.n];
     return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)">' + _fichajeEsc(x.n) + (x.viaje ? ' <span style="font-size:10px;font-weight:400;color:var(--mu)">(por viaje)</span>' : '') + '</td>'
       + meses.map((m, i) => celda(x, g, m, i === 0)).join('') + '</tr>';

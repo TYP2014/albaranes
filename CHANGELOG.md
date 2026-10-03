@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v774 (03/10/2026): Panel · 💶 Precios Holcim: los viajes de Cantera de Garraf a una PLANTA DE HORMIGÓN (Zona Franca, Montcada Hormigón) van SIEMPRE a su línea de Áridos, aunque el albarán diga 'Caliza Promsa'. Caso real jul-2026: 10 viajes Garraf → Planta Hormigones Zona Franca (matrículas 9566NBR y 7131JJT) salían en Caliza Promsa a 3,94 € (que es el precio de Zona Franca). La caliza es la que va a Fábrica. Solo pantalla, sin SQL. VUELTA ATRAS: resubir v773.
+
+---
+
 v773 (03/10/2026): Panel · 💶 Precios Holcim: (1) quitada la tabla 'Otras rutas Holcim': SOLO salen las habituales; (2) áridos SOLO desde Cantera de Garraf (→ Zona Franca y → Montcada (Hormigón)); lo que sale de Fábrica (p. ej. Fábrica → Cimencar) ya no aparece; (3) Tecnocatalana va POR VIAJE: precio en €/viaje; (4) cada precio se PINCHA y baja un Excel (hoja Viajes: fecha, matrícula, nº albarán, nº en preliquidación, origen, destino, material, TN, precio, importe; hoja Resumen: todos los precios de esa ruta ese mes) para buscar o reclamar los precios raros. Solo lee, sin SQL. VUELTA ATRAS: resubir v772.
 
 ---
