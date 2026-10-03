@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v773 (03/10/2026): Panel · 💶 Precios Holcim: (1) quitada la tabla 'Otras rutas Holcim': SOLO salen las habituales; (2) áridos SOLO desde Cantera de Garraf (→ Zona Franca y → Montcada (Hormigón)); lo que sale de Fábrica (p. ej. Fábrica → Cimencar) ya no aparece; (3) Tecnocatalana va POR VIAJE: precio en €/viaje; (4) cada precio se PINCHA y baja un Excel (hoja Viajes: fecha, matrícula, nº albarán, nº en preliquidación, origen, destino, material, TN, precio, importe; hoja Resumen: todos los precios de esa ruta ese mes) para buscar o reclamar los precios raros. Solo lee, sin SQL. VUELTA ATRAS: resubir v772.
+
+---
+
 v772 (03/10/2026): Panel · nuevo apartado 💶 PRECIOS HOLCIM (solo admin), debajo del Histórico de precios. Botón 'Ver precios Holcim': rutas habituales en líneas fijas (Caliza Promsa, Caliza Cemex, Caliza Garraf Zahorra, Yeso, Arena Charly/Begues, Arena Martorell, Arcilla, Escoria, Tecnocatalana, Áridos → Zona Franca, Áridos → Planta Montcada) con el €/TN de las preliquidaciones (autofacturas) Holcim del ÚLTIMO mes subido + los 2 anteriores. Si un mes tiene 2 o 3 precios salen todos en la casilla (en naranja) con días, viajes y TN. Lo que no encaja va en 'Otras rutas Holcim'. Solo lee, sin SQL. VUELTA ATRAS: resubir v771.
 
 ---

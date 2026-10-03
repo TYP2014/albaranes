@@ -13079,10 +13079,11 @@ function _histPreciosTabla() {
   tc.innerHTML = html;
 }
 
-// ===== v772: 💶 PRECIOS HOLCIM — rutas HABITUALES en líneas fijas con el €/TN de las preliquidaciones
-// (autofacturas Holcim) del ÚLTIMO mes subido + los 2 anteriores. Si un mes tiene 2 o 3 precios salen
-// TODOS en la misma casilla, con sus días y viajes. Lo que no encaje en las habituales va en "Otras".
-// SOLO admin (Juan Carlos). Solo LEE: no cambia nada de la BD.
+// ===== v772/v773: 💶 PRECIOS HOLCIM — SOLO las rutas HABITUALES (las de los subcontratados de bañera), en líneas
+// fijas, con el precio de las preliquidaciones (autofacturas) Holcim del ÚLTIMO mes subido + los 2 anteriores.
+// Si un mes tiene 2 o 3 precios salen TODOS. v773: sin tabla de "otras rutas"; áridos SOLO desde Cantera de
+// Garraf; Tecnocatalana va POR VIAJE (€/viaje); cada precio se pincha y baja un Excel con sus viajes
+// (fecha, matrícula, nº albarán…) para buscar/reclamar los raros. SOLO admin. Solo LEE la BD.
 const _PH_HAB = [
   { n: 'Caliza Promsa', t: T => /CALIZA/.test(T) && /PROMSA/.test(T) },
   { n: 'Caliza Cemex', t: T => /CALIZA/.test(T) && /(CEMEX|TODO UNO)/.test(T) },
@@ -13092,9 +13093,9 @@ const _PH_HAB = [
   { n: 'Arena Martorell', t: T => /ARENA/.test(T) && /MARTORELL/.test(T) },
   { n: 'Arcilla', t: T => /ARCILLA/.test(T) },
   { n: 'Escoria', t: T => /ESCORIA/.test(T) },
-  { n: 'Tecnocatalana', t: T => /TECNOCATAL/.test(T) },
-  { n: 'Áridos → Zona Franca', t: T => /ZONA FRANCA/.test(T) },
-  { n: 'Áridos → Planta Montcada', t: T => /(MONTCADA|MONCADA)/.test(T) && !/(CALIZA|ARENA|YESO|ARCILLA|LIMONITA|ESCORIA|CLINKER)/.test(T) }
+  { n: 'Tecnocatalana', viaje: true, t: T => /TECNOCATAL/.test(T) },
+  { n: 'Áridos Garraf → Zona Franca', t: (T, O, D) => /GARRAF/.test(O) && /ZONA FRANCA/.test(D) && !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T) },
+  { n: 'Áridos Garraf → Montcada (Hormigón)', t: (T, O, D) => /GARRAF/.test(O) && /(MONTCADA|MONCADA)/.test(D) && !/(CALIZA|ARENA|YESO|ARCILLA|ESCORIA)/.test(T) }
 ];
 let _phDatos = null;
 function _phMesMenos(ym, n) { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 - n; const d = new Date(y, m, 1); return d.getFullYear() + '-' + _p2(d.getMonth() + 1); }
@@ -13123,19 +13124,19 @@ async function abrirPreciosHolcim() {
       const r = await sb.from('albaranes').select('albaran,planta,obra,tractora,fecha,tm,producto').range(d, d + 999);
       if (r.error) break;
       (r.data || []).forEach(a => {
-        const o = { origen: String(a.planta || '').trim(), destino: String(a.obra || '').trim(), prod: String(a.producto || '').trim(), tn: _factNum(a.tm) };
+        const o = { alb: String(a.albaran || '').trim(), origen: String(a.planta || '').trim(), destino: String(a.obra || '').trim(), prod: String(a.producto || '').trim(), tn: _factNum(a.tm) };
         const k = _factNormAlb(a.albaran); if (k) porNum[k] = o;
         const mt = _factNormMat(a.tractora), fe = fBarra(a.fecha); if (mt && fe && o.tn > 0) (idx[mt + '|' + fe] = idx[mt + '|' + fe] || []).push(o);
       });
       if ((r.data || []).length < 1000) break;
     }
-    const hab = {}, otras = {};
+    const hab = {};
     lin.forEach(L => {
       if (L.es_ajuste) return;
-      const tn = Number(L.tn), imp = Number(L.importe); if (!(tn > 0) || isNaN(imp)) return;
+      const tn = Number(L.tn), imp = Number(L.importe); if (isNaN(imp)) return;
       const mes = String(L.mes || '').slice(0, 7); if (meses.indexOf(mes) < 0) return;
       let a = porNum[_factNormAlb(L.numero_albaran)];
-      if (!a) {
+      if (!a && tn > 0) {
         const mp = (txt(L.concepto).match(/CALIZA|ARENA|YESO|ARCILLA|LIMONITA|ESCORIA/) || [''])[0];
         let mejor = null, md = Infinity;
         (idx[_factNormMat(_corregirMatAutof(L.matricula)) + '|' + fBarra(L.fecha)] || []).forEach(c => { if (mp && txt(c.prod).indexOf(mp) < 0) return; const dd = Math.abs(c.tn - tn); if (dd <= 0.05 && dd < md) { mejor = c; md = dd; } });
@@ -13143,49 +13144,65 @@ async function abrirPreciosHolcim() {
       }
       const origen = (a && a.origen) || String(L.origen || '').trim(), destino = (a && a.destino) || String(L.destino || '').trim();
       const T = txt([L.concepto, a && a.prod, origen, destino].join(' | '));
+      const h = _PH_HAB.find(x => x.t(T, txt(origen), txt(destino)));
+      if (!h) return;                                   // v773: solo las habituales
+      if (!h.viaje && !(tn > 0)) return;
+      const pu = h.viaje ? Math.round(imp * 100) / 100 : Math.round(imp / tn * 100) / 100;
       const ruta = (origen || '?') + ' → ' + (destino || '?');
-      const h = _PH_HAB.find(x => x.t(T));
-      const nombre = h ? h.n : ((String(L.concepto || (a && a.prod) || '').trim() || 'Sin material') + ' · ' + ruta);
-      const G = h ? hab : otras;
-      const g = G[nombre] = G[nombre] || { rutas: {}, m: {} };
+      const g = hab[h.n] = hab[h.n] || { rutas: {}, m: {} };
       g.rutas[ruta] = (g.rutas[ruta] || 0) + 1;
-      const pu = Math.round(imp / tn * 100) / 100;
-      const dia = parseInt((fBarra(L.fecha) || '').slice(0, 2), 10);
-      const p = ((g.m[mes] = g.m[mes] || {})[pu.toFixed(2)] = g.m[mes][pu.toFixed(2)] || { pu, v: 0, tn: 0, d1: 99, d2: 0 });
-      p.v++; p.tn += tn; if (dia > 0) { p.d1 = Math.min(p.d1, dia); p.d2 = Math.max(p.d2, dia); }
+      const fe = fBarra(L.fecha) || '';
+      const dia = parseInt(fe.slice(0, 2), 10);
+      const k = pu.toFixed(2);
+      const p = ((g.m[mes] = g.m[mes] || {})[k] = g.m[mes][k] || { pu, v: 0, tn: 0, imp: 0, d1: 99, d2: 0, filas: [] });
+      p.v++; p.tn += (tn > 0 ? tn : 0); p.imp += imp; if (dia > 0) { p.d1 = Math.min(p.d1, dia); p.d2 = Math.max(p.d2, dia); }
+      p.filas.push({ fecha: fe, mat: String(L.matricula || ''), albPreliq: String(L.numero_albaran || ''), alb: (a && a.alb) || '', origen, destino, material: String(L.concepto || (a && a.prod) || ''), tn: tn > 0 ? tn : null, imp });
     });
-    _phDatos = { meses, hab, otras };
-    console.log('[v772] Precios Holcim · meses ' + meses.join(', ') + ' · ' + lin.length + ' líneas · otras rutas: ' + Object.keys(otras).length);
+    _phDatos = { meses, hab };
+    console.log('[v773] Precios Holcim · meses ' + meses.join(', ') + ' · ' + lin.length + ' líneas');
     _phRender();
-  } catch (e) { console.error('[v772] Precios Holcim', e); cont.innerHTML = '<div style="color:var(--er);padding:10px">No se pudo cargar: ' + _fichajeEsc(e.message || e) + '</div>'; }
+  } catch (e) { console.error('[v773] Precios Holcim', e); cont.innerHTML = '<div style="color:var(--er);padding:10px">No se pudo cargar: ' + _fichajeEsc(e.message || e) + '</div>'; }
 }
 function _phRender() {
   const cont = document.getElementById('precHolcimCont'); if (!cont || !_phDatos) return;
-  const { meses, hab, otras } = _phDatos;
+  const { meses, hab } = _phDatos;
   const eur = n => n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const tdS = 'padding:6px 10px;border-bottom:1px solid var(--bd);vertical-align:top;white-space:nowrap';
-  const celda = (g, m, nuevo) => {
+  const celda = (x, g, m, nuevo) => {
     const ps = Object.values((g && g.m[m]) || {}).sort((a, b) => (a.d1 - b.d1) || (a.pu - b.pu));
     if (!ps.length) return '<td style="' + tdS + ';text-align:right;color:var(--mu)">—</td>';
     return '<td style="' + tdS + ';text-align:right' + (nuevo ? ';background:rgba(0,232,122,.06)' : '') + '">' + ps.map(p =>
-      '<div style="margin-bottom:3px"><b' + (ps.length > 1 ? ' style="color:#b45309"' : '') + '>' + eur(p.pu) + '</b> <span style="font-size:10px;color:var(--mu)">'
-      + (p.d2 ? (p.d1 === p.d2 ? 'día ' + p.d1 : p.d1 + '–' + p.d2) + ' · ' : '') + p.v + ' v · ' + Math.round(p.tn) + ' TN</span></div>').join('') + '</td>';
-  };
-  const fila = (nombre, g) => {
-    const rs = g ? Object.entries(g.rutas).sort((a, b) => b[1] - a[1]).map(x => x[0]) : [];
-    return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)">' + _fichajeEsc(nombre)
-      + (rs.length ? '<div style="font-size:10px;font-weight:400;color:var(--mu)">' + _fichajeEsc(rs.slice(0, 2).join(' · ')) + '</div>' : '') + '</td>'
-      + meses.map((m, i) => celda(g, m, i === 0)).join('') + '</tr>';
+      '<div style="margin-bottom:3px;cursor:pointer" title="Pincha para bajar en Excel estos viajes (fecha, matrícula, nº albarán…)" onclick="phExcel(\'' + _fichajeEsc(x.n).replace(/'/g, "\\'") + '\',\'' + m + '\',\'' + p.pu.toFixed(2) + '\')">'
+      + '<b style="text-decoration:underline dotted' + (ps.length > 1 ? ';color:#b45309' : '') + '">' + eur(p.pu) + (x.viaje ? '/viaje' : '') + '</b> <span style="font-size:10px;color:var(--mu)">'
+      + (p.d2 ? (p.d1 === p.d2 ? 'día ' + p.d1 : p.d1 + '–' + p.d2) + ' · ' : '') + p.v + ' v' + (x.viaje ? '' : ' · ' + Math.round(p.tn) + ' TN') + ' ⬇</span></div>').join('') + '</td>';
   };
   const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)">RUTA</th>'
     + meses.map((m, i) => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:' + (i === 0 ? 'var(--tx)' : 'var(--mu)') + '">' + _histMesNombre(m) + (i === 0 ? ' (último)' : '') + '</th>').join('') + '</tr></thead>';
-  let h = '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>'
-    + _PH_HAB.map(x => fila(x.n, hab[x.n])).join('') + '</tbody></table></div>';
-  const ot = Object.keys(otras).sort((a, b) => a.localeCompare(b, 'es'));
-  if (ot.length) h += '<div style="font-weight:700;font-size:13px;margin:16px 0 4px;color:var(--tx)">Otras rutas Holcim (no habituales)</div>'
-    + '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>' + ot.map(n => fila(n, otras[n])).join('') + '</tbody></table></div>';
-  h += '<div style="font-size:10.5px;color:var(--mu);margin-top:8px">€/TN = importe ÷ TN de cada línea de la preliquidación (2 decimales). En naranja: ese mes hubo más de un precio.</div>';
-  cont.innerHTML = h;
+  const filas = _PH_HAB.map(x => {
+    const g = hab[x.n];
+    return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)">' + _fichajeEsc(x.n) + (x.viaje ? ' <span style="font-size:10px;font-weight:400;color:var(--mu)">(por viaje)</span>' : '') + '</td>'
+      + meses.map((m, i) => celda(x, g, m, i === 0)).join('') + '</tr>';
+  }).join('');
+  cont.innerHTML = '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
+    + '<div style="font-size:10.5px;color:var(--mu);margin-top:8px">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
+}
+// v773: Excel de los viajes de UN precio (ruta + mes + precio). Hoja "Viajes" + hoja "Resumen" con TODOS los
+// precios de esa ruta ese mes, para ver de un vistazo cuál es el raro.
+function phExcel(nombre, mes, puTxt) {
+  if (!_phDatos) return;
+  const x = _PH_HAB.find(h => h.n === nombre); const g = _phDatos.hab[nombre];
+  const p = g && g.m[mes] && g.m[mes][puTxt]; if (!x || !p) { toast('No encuentro esos viajes', 'err'); return; }
+  const uni = x.viaje ? '€/VIAJE' : '€/TN';
+  const v = [['FECHA', 'MATRÍCULA', 'Nº ALBARÁN', 'Nº EN PRELIQUIDACIÓN', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TN', uni, 'IMPORTE (€)']];
+  p.filas.slice().sort((a, b) => String(a.fecha || '').split('/').reverse().join('').localeCompare(String(b.fecha || '').split('/').reverse().join(''))).forEach(f =>
+    v.push([f.fecha, f.mat, f.alb, f.albPreliq, f.origen, f.destino, f.material, f.tn, p.pu, Math.round(f.imp * 100) / 100]));
+  const r = [['RUTA', nombre], ['MES', _histMesNombre(mes)], ['PRECIO DE ESTE EXCEL', p.pu + ' ' + uni], [], ['TODOS LOS PRECIOS DE ESTA RUTA ESE MES'], [uni, 'DÍAS', 'VIAJES', 'TN', 'IMPORTE (€)']];
+  Object.values(g.m[mes]).sort((a, b) => b.v - a.v).forEach(q => r.push([q.pu, q.d2 ? (q.d1 === q.d2 ? String(q.d1) : q.d1 + '-' + q.d2) : '', q.v, Math.round(q.tn * 1000) / 1000, Math.round(q.imp * 100) / 100]));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(v); ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 9 }, { wch: 9 }, { wch: 11 }];
+  const wr = XLSX.utils.aoa_to_sheet(r); wr['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Viajes'); XLSX.utils.book_append_sheet(wb, wr, 'Resumen');
+  XLSX.writeFile(wb, 'Holcim_' + nombre.replace(/[^\w]+/g, '_') + '_' + mes + '_' + puTxt.replace('.', ',') + '.xlsx');
 }
 
 // v241: ¿puede este usuario crear albaranes a mano? (admin + Mª del Mar + Marta + Logística)
