@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v771 (03/10/2026): Facturación · Liquidación subcontratados · Excel: la columna TN NETAS de la hoja Albaranes ya NO redondea a 2 decimales (27,975 sale 27,975, no 27,98; los enteros siguen saliendo 29,00). En la hoja Resumen, Total TN y los TN por grupo también salen con 3 decimales. El importe no cambia (ya se calculaba con el dato real). Sin SQL. VUELTA ATRAS: resubir v770.
+
+---
+
 v770 (02/10/2026): DeCA · PORTES 2014 IMPORT tiene sus propias tractoras (0755KMB y 1479JDM) en el exprés y en el formulario normal; dejan de salir en TYP2014. Antes Import usaba la lista entera de TYP2014. SQL PRIMERO: pasar esas 2 filas de deca_tractoras de TYP2014 a PORTES 2014 IMPORT. VUELTA ATRAS: resubir v769 y devolver las 2 filas a TYP2014.
 
 ---

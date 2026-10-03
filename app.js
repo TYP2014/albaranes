@@ -10306,7 +10306,7 @@ function liqExcel() {
   const bd = { top: { style: 'thin', color: { rgb: '999999' } }, bottom: { style: 'thin', color: { rgb: '999999' } }, left: { style: 'thin', color: { rgb: '999999' } }, right: { style: 'thin', color: { rgb: '999999' } } };
   const sHead = { font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 }, fill: { fgColor: { rgb: '1F4E79' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: bd };
   const sTxt = { font: { name: 'Arial', sz: 10 }, border: bd };
-  const sNum = { font: { name: 'Arial', sz: 10 }, border: bd, numFmt: '#,##0.00' };
+  const sNum = { font: { name: 'Arial', sz: 10 }, border: bd, numFmt: '#,##0.00#' };   // v771: TN sin redondear (27,975 sale 27,975; 29 sale 29,00)
   const sEur = { font: { name: 'Arial', sz: 10 }, border: bd, numFmt: EUR };
   const sLbl = { font: { name: 'Arial', sz: 10, bold: true } };
   const sEurB = { font: { name: 'Arial', sz: 10, bold: true }, numFmt: EUR };
@@ -10386,9 +10386,9 @@ function liqExcel() {
   XLSX.utils.book_append_sheet(wb, F, 'Factura');
   // ---------- Resumen ----------
   const agr = campo => { const m = new Map(); activas.forEach(x => { const k = x[campo] || '(sin dato)'; const g = m.get(k) || [0, 0]; g[0]++; g[1] += x.tm; m.set(k, g); }); return [...m.entries()].sort((a, b) => b[1][0] - a[1][0]); };
-  const aoa = [['RESUMEN'], [], ['Total válidos', activas.length], ['Total TN', _liqR2(activas.reduce((a, x) => a + x.tm, 0))], ['Exportado', new Date().toLocaleDateString('es-ES')], []];
+  const aoa = [['RESUMEN'], [], ['Total válidos', activas.length], ['Total TN', Math.round(activas.reduce((a, x) => a + x.tm, 0) * 1000) / 1000], ['Exportado', new Date().toLocaleDateString('es-ES')], []];
   [['POR PROVEEDOR', 'proveedor'], ['POR ORIGEN', 'origen'], ['POR DESTINO', 'destino']].forEach(([t, k]) => {
-    aoa.push([t, 'Alb', 'TN']); agr(k).forEach(([n, g]) => aoa.push([n, g[0], _liqR2(g[1])])); aoa.push([]);
+    aoa.push([t, 'Alb', 'TN']); agr(k).forEach(([n, g]) => aoa.push([n, g[0], Math.round(g[1] * 1000) / 1000])); aoa.push([]);
   });
   const quitados = d.filas.filter(x => _liqEsFuera(x));
   if (quitados.length) {
