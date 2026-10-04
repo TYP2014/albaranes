@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v782 (04/10/2026): Liquidación subcontratados · Francisco Ocaña: 'Factura a' por defecto TRANSPORTES Y PORTES 2014 (B90172735), como en su factura real de agosto 2026 (nº 202600000008). Se puede seguir cambiando en pantalla. Sin SQL. VUELTA ATRAS: resubir v781.
+
 v781 (04/10/2026): Facturación · Liquidación subcontratados: (1) nuevo FRANCISCO OCAÑA (Fran): se hace su factura → SIMULACIÓN sin nº, precio propio o de Tarifas, −2% pronto pago, −1% IRPF, 'Factura a' elegible en pantalla (por defecto Portes 2014 Import), datos fiscales de DeCA → Subcontratados. (2) BUSCADOR delante del desplegable: al escribir (p. ej. 'mi') quedan solo los que tienen una palabra que empieza así (José Miguel, Miguel Ángel), sin acentos ni mayúsculas. Sin SQL. VUELTA ATRAS: resubir v780.
 
 v780 (04/10/2026): Facturación · Liquidación subcontratados · TODOS los subcontratados (autónomos, cisternas y empresas): el PRECIO €/TN va SIEMPRE A 2 DECIMALES, de 5 para arriba sube (8,4351 → 8,44; 9,6441 → 9,64; 4,743 → 4,74; 25,5471 → 25,55). Vale para el precio calculado (preliquidación −7% o tarifa) y para el escrito a mano, en pantalla, factura y Excel. Solo el precio: las TN y los totales no se redondean (el Excel sigue con TOTAL = TN × precio). Lo pide JC. Sin SQL. VUELTA ATRAS: resubir v779.

@@ -10057,7 +10057,7 @@ const LIQ_AUTONOMOS = {
     numero: (a, m) => _p2(m - 1) + '_' + a },                                                 // 07_2026 = agosto 2026
   // v781: Francisco Ocaña (Fran). Se hace SU factura → SIMULACIÓN sin nº. Precio propio o de Tarifas (no cisterna).
   // Datos fiscales de DeCA → 👥 Subcontratados. 'Factura a' se elige en pantalla.
-  'FRANCISCO OCAÑA': { corto: 'Francisco Ocaña', fichero: 'FRANCISCO_OCANA', cliente: 'PORTES', clienteElegible: true, pp: 2, irpf: 1, iva: 21,
+  'FRANCISCO OCAÑA': { corto: 'Francisco Ocaña', fichero: 'FRANCISCO_OCANA', cliente: 'TYP',   /* v782: su factura de agosto 2026 va a TYP2014 */ clienteElegible: true, pp: 2, irpf: 1, iva: 21,
     facturaPropia: true, emisorDeca: true, emisor: [['Nombre:', 'FRANCISCO OCAÑA COSTALAGO']], numero: () => '' },
   // v713: Antonio Martín (cisterna). Él se hace SU factura: se le manda el cuadrante con la SIMULACIÓN.
   // Sus datos fiscales se cogen de DeCA → 👥 Subcontratados.
