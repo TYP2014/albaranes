@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v780 (04/10/2026): Facturación · Liquidación subcontratados · TODOS los subcontratados (autónomos, cisternas y empresas): el PRECIO €/TN va SIEMPRE A 2 DECIMALES, de 5 para arriba sube (8,4351 → 8,44; 9,6441 → 9,64; 4,743 → 4,74; 25,5471 → 25,55). Vale para el precio calculado (preliquidación −7% o tarifa) y para el escrito a mano, en pantalla, factura y Excel. Solo el precio: las TN y los totales no se redondean (el Excel sigue con TOTAL = TN × precio). Lo pide JC. Sin SQL. VUELTA ATRAS: resubir v779.
+
 v779 (04/10/2026): Facturación · Liquidación subcontratados · CISTERNAS (Antonio Martín y Joaquín Cañas): (1) el €/TN de la preliquidación −7% ya NO mete los EXTRACOSTES ('Derivación adicional' 1 UP × 34,92 €), que no se pagan al subcontratado. Antes contaban como 1 TN a 34,92 y subían el precio: Antonio sept-2026, 31005005317 salía a 11,7831 (12,67 −7%) en vez de 9,7371 (10,47 −7%) y 31042175181 a 7,2726 (7,82 −7%) en vez de 4,743 (5,10 −7%) → 137,71 € de más. Se quitan las líneas con 'DERIVACI'/'EXTRACOSTE' y, si el concepto viniera vacío, las de ≤ 1 TN cuando el albarán ya trae su línea de toneladas. Traza [v779] en consola. (2) Excel: los albaranes SIN PRECIO (no están en ninguna preliquidación) salen a 0 y con la fila en ROSA. Sin SQL. VUELTA ATRAS: resubir v778.
 
 v778 (03/10/2026): Panel · 💶 Precios Holcim · Tecnocatalana: solo entran las líneas de 'ÁRIDO RECICLADO' de la preliquidación y NUNCA las de cemento. Se colaban viajes de cemento de la cisterna 1479JDM (CEM I 52,5 R GRANEL a Les Franqueses a 125,13 €; ECOPlanet CEM IV/A a 34,92 €…). Solo pantalla, sin SQL. VUELTA ATRAS: resubir v777.

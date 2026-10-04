@@ -10070,7 +10070,7 @@ const LIQ_AUTONOMOS = {
 // v713: PRECIO de cada fila. Manda el que se escriba A MANO en pantalla; si no, el calculado
 // (cisternas: preliquidación Holcim/CEMEX − margen, sin decirlo en ningún sitio; resto: precio propio o tarifa).
 const _liqPrecioMan = new Map();
-function _liqPrecioDe(x) { const id = _liqIdFila(x); return _liqPrecioMan.has(id) ? _liqPrecioMan.get(id) : (x.precioBase || 0); }
+function _liqPrecioDe(x) { const id = _liqIdFila(x); const p = _liqPrecioMan.has(id) ? _liqPrecioMan.get(id) : (x.precioBase || 0); return Math.round((Number(p) || 0) * 100 + 1e-7) / 100; }   // v780: TODOS los subcontratados, €/TN a 2 decimales
 function _liqImp(x) { return x.tm * _liqPrecioDe(x); }
 function liqSetPrecio(i, v) { const x = _liqDatos.filas[i]; const id = _liqIdFila(x); const n = parseFloat(String(v).replace(',', '.')); if (v === '' || isNaN(n)) _liqPrecioMan.delete(id); else _liqPrecioMan.set(id, n); liqRender(); }
 // Cisternas: precio €/TN = importe ÷ TN de la línea de la preliquidación con ese nº de albarán.
@@ -10161,7 +10161,7 @@ async function liqCalcular() {
   if (cfg.cisterna && filas.length) {
     try {
       const mapa = await _liqPreciosPreliq(filas.map(x => x.albaran));
-      filas.forEach(x => { const p = mapa[_factNormAlb(x.albaran).replace(/^0+/, '')]; if (p > 0) x.precioBase = p * (1 - (cfg.margen || 0) / 100); else sinPreliq++; });
+      filas.forEach(x => { const p = mapa[_factNormAlb(x.albaran).replace(/^0+/, '')]; if (p > 0) x.precioBase = Math.round((p * (1 - (cfg.margen || 0) / 100) + 1e-9) * 100) / 100; else sinPreliq++; /* v780: €/TN final a 2 decimales (8,4351 → 8,44; 4,743 → 4,74) */ });
     } catch (e) { console.error('[v713] precios preliquidación:', e); toast('No se pudieron leer las preliquidaciones', 'err'); }
   }
   let emisor = cfg.emisor;
