@@ -10055,6 +10055,10 @@ const LIQ_AUTONOMOS = {
   'MIGUEL A. GARCIA': { corto: 'Miguel Ángel', fichero: 'MIGUEL_ANGEL', cliente: 'PORTES', pp: 2, irpf: 1, iva: 21,
     emisor: [['Nombre:', 'MIGUEL ANGEL GARCIA ORTIZ'], ['D.N.I.:', '47002731 T'], ['Dirección:', 'C/ Passatge Riera nº9, 1º-2ª'], ['CP / Ciudad:', '08859 Begues, Barcelona'], ['Teléfono:', '627 981 255'], ['Email:', 'miguelangel71082@gmail.com']],
     numero: (a, m) => _p2(m - 1) + '_' + a },                                                 // 07_2026 = agosto 2026
+  // v781: Francisco Ocaña (Fran). Se hace SU factura → SIMULACIÓN sin nº. Precio propio o de Tarifas (no cisterna).
+  // Datos fiscales de DeCA → 👥 Subcontratados. 'Factura a' se elige en pantalla.
+  'FRANCISCO OCAÑA': { corto: 'Francisco Ocaña', fichero: 'FRANCISCO_OCANA', cliente: 'PORTES', clienteElegible: true, pp: 2, irpf: 1, iva: 21,
+    facturaPropia: true, emisorDeca: true, emisor: [['Nombre:', 'FRANCISCO OCAÑA COSTALAGO']], numero: () => '' },
   // v713: Antonio Martín (cisterna). Él se hace SU factura: se le manda el cuadrante con la SIMULACIÓN.
   // Sus datos fiscales se cogen de DeCA → 👥 Subcontratados.
   'ANTONIO MARTIN': { corto: 'Antonio Martín', fichero: 'ANTONIO_MARTIN', cliente: 'PORTES', pp: 2, irpf: 1, iva: 21, cisterna: true, margen: 7,
@@ -10126,6 +10130,17 @@ function liqInitCard() {
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);   // por defecto: el mes anterior
     mes.value = d.getFullYear() + '-' + _p2(d.getMonth() + 1);
   }
+}
+// v781: BUSCADOR del subcontratado: al escribir ('mi') se quedan solo los que tienen una palabra que EMPIEZA así
+// (José Miguel, Miguel Ángel) y se elige el primero. Sin acentos ni mayúsculas. Vacío = todos.
+function liqFiltrarSel(q) {
+  const sel = document.getElementById('liqAutSel'); if (!sel) return;
+  const nrm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const b = nrm(q).trim();
+  const keys = Object.keys(LIQ_AUTONOMOS).filter(k => !b || (nrm(LIQ_AUTONOMOS[k].corto) + ' ' + nrm(k)).split(/[^a-z0-9]+/).some(w => w.startsWith(b)) || nrm(LIQ_AUTONOMOS[k].corto).startsWith(b));
+  const prev = sel.value;
+  sel.innerHTML = keys.length ? keys.map(k => '<option value="' + esc(k) + '">' + esc(LIQ_AUTONOMOS[k].corto) + '</option>').join('') : '<option value="">(ninguno)</option>';
+  if (keys.includes(prev)) sel.value = prev;
 }
 async function liqCalcular() {
   const out = document.getElementById('liqAutOut');
