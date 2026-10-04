@@ -875,11 +875,35 @@ function renderTarifasEditor() {
       + '<div style="font-size:13px;font-weight:bold;color:var(--tx)">' + (oe || '—') + ' <span style="color:var(--mu)">→</span> ' + (de || '—') + '</div>'
       + '<div style="font-size:11px;color:var(--mu);font-family:var(--mn);white-space:nowrap">' + s.count + ' alb.</div>'
       + '</div>'
+      + _tarHistorico3(s.origen, s.destino, anio, mes)
       + '<div class="tar-tramos">' + filasT + '</div>'
       + '<button class="btn bs" onclick="_tarAddTramo(this)" style="font-size:11px;padding:4px 10px;margin-top:4px">+ tramo</button>'
       + '</div>';
   });
   cont.innerHTML = html;
+}
+
+// v783: debajo de cada ruta, lo que se le puso los 3 MESES ANTERIORES (para mirar antes de poner precio).
+// Solo enseña, no guarda ni cambia nada. Si un mes tenía tramos: '1–16 6,00 / 17–31 5,70'. '—' = sin precio ese mes.
+function _tarHistorico3(origen, destino, anio, mes) {
+  const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
+  const fmt = v => Number(v).toFixed(2).replace('.', ',');
+  const partes = [];
+  let algo = false;
+  for (let k = 3; k >= 1; k--) {
+    let m = mes - k, a = anio; while (m < 1) { m += 12; a--; }
+    const ts = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+      && Number(x.anio) === a && Number(x.mes) === m && Number(x.precio_tn) > 0)
+      .sort((x, y) => Number(x.dia_desde || 1) - Number(y.dia_desde || 1));
+    let txt = '—';
+    if (ts.length === 1 && Number(ts[0].dia_desde || 1) === 1 && Number(ts[0].dia_hasta || 31) === 31) txt = '<b>' + fmt(ts[0].precio_tn) + '</b>';
+    else if (ts.length) txt = ts.map(t => Number(t.dia_desde || 1) + '\u2013' + Number(t.dia_hasta || 31) + ' <b>' + fmt(t.precio_tn) + '</b>').join(' / ');
+    if (ts.length) algo = true;
+    partes.push('<span style="white-space:nowrap">' + MES[m - 1] + (a !== anio ? ' ' + String(a).slice(2) : '') + ': ' + txt + '</span>');
+  }
+  return '<div style="font-size:11px;color:' + (algo ? 'var(--tx)' : 'var(--mu)') + ';font-family:var(--mn);margin:-2px 0 8px;display:flex;gap:14px;flex-wrap:wrap">'
+    + '<span style="color:var(--mu)">📅 Meses antes:</span>' + partes.join('') + '</div>';
 }
 
 // v226: una fila de tramo = [desde día] a [hasta día] → [precio €/TN] + borrar.

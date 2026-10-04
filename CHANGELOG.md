@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v783 (04/10/2026): Tarifas por servicio: debajo de cada ruta sale lo que se le puso los 3 MESES ANTERIORES (ej. al poner septiembre: jun / jul / ago), con sus tramos si los tenía y '—' si ese mes no tenía precio. Solo para mirar: no guarda ni cambia nada. Sin SQL. VUELTA ATRAS: resubir v782.
+
 v782 (04/10/2026): Liquidación subcontratados · Francisco Ocaña: 'Factura a' por defecto TRANSPORTES Y PORTES 2014 (B90172735), como en su factura real de agosto 2026 (nº 202600000008). Se puede seguir cambiando en pantalla. Sin SQL. VUELTA ATRAS: resubir v781.
 
 v781 (04/10/2026): Facturación · Liquidación subcontratados: (1) nuevo FRANCISCO OCAÑA (Fran): se hace su factura → SIMULACIÓN sin nº, precio propio o de Tarifas, −2% pronto pago, −1% IRPF, 'Factura a' elegible en pantalla (por defecto Portes 2014 Import), datos fiscales de DeCA → Subcontratados. (2) BUSCADOR delante del desplegable: al escribir (p. ej. 'mi') quedan solo los que tienen una palabra que empieza así (José Miguel, Miguel Ángel), sin acentos ni mayúsculas. Sin SQL. VUELTA ATRAS: resubir v780.
