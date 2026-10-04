@@ -10077,12 +10077,21 @@ function liqSetPrecio(i, v) { const x = _liqDatos.filas[i]; const id = _liqIdFil
 async function _liqPreciosPreliq(nums) {
   const out = {}; const lista = [...new Set(nums.flatMap(n => { const s = String(n || '').trim(); return s ? [s, s.replace(/^0+/, '')] : []; }))];
   for (let i = 0; i < lista.length; i += 100) {
-    const { data, error } = await sb.from('autofacturas_lineas').select('numero_albaran,tn,importe,es_ajuste').in('numero_albaran', lista.slice(i, i + 100));
+    const { data, error } = await sb.from('autofacturas_lineas').select('numero_albaran,tn,importe,es_ajuste,concepto').in('numero_albaran', lista.slice(i, i + 100));
     if (error) throw error;
-    // v714: el precio de Holcim/CEMEX es de 2 decimales (8,58); importe ÷ TN da 8,5819 porque el importe va
-    // redondeado a céntimos → se redondea el €/TN de cada línea a 2 decimales ANTES de quitar el margen.
+    // v779: los EXTRACOSTES ("Derivación adicional" 1 UP × 34,92 €) NO son toneladas y NO se pagan al subcontratado.
+    // Antes se sumaban como si fueran 1 TN a 34,92 y subían el €/TN (31005005317: 12,67 en vez de 10,47;
+    // 31042175181: 7,82 en vez de 5,10). Fuera: las que dicen DERIVACI/EXTRACOSTE y, por si el concepto viene
+    // vacío, las de ≤ 1 TN cuando ese mismo albarán ya trae una línea de toneladas de verdad (> 1 TN).
+    const porAlb = {};
     (data || []).forEach(L => { if (L.es_ajuste) return; const k = _factNormAlb(L.numero_albaran).replace(/^0+/, ''); const tn = Number(L.tn), imp = Number(L.importe);
-      if (!k || !(tn > 0) || isNaN(imp)) return; const pu = Math.round(imp / tn * 100) / 100; const g = out[k] || { tn: 0, suma: 0 }; g.tn += tn; g.suma += pu * tn; out[k] = g; });
+      if (!k || !(tn > 0) || isNaN(imp)) return; if (/DERIVACI|EXTRACOST/i.test(String(L.concepto || ''))) { console.log('[v779] extracoste fuera del €/TN:', k, L.concepto, imp); return; }
+      (porAlb[k] = porAlb[k] || []).push({ tn, imp }); });
+    Object.keys(porAlb).forEach(k => { const ls = porAlb[k]; const hayTN = ls.some(l => l.tn > 1);
+      ls.forEach(l => { if (hayTN && l.tn <= 1) { console.log('[v779] línea ≤1 TN fuera del €/TN:', k, l.imp); return; }
+        // v714: el precio de Holcim/CEMEX es de 2 decimales (8,58); importe ÷ TN da 8,5819 porque el importe va
+        // redondeado a céntimos → se redondea el €/TN de cada línea a 2 decimales ANTES de quitar el margen.
+        const pu = Math.round(l.imp / l.tn * 100) / 100; const g = out[k] || { tn: 0, suma: 0 }; g.tn += l.tn; g.suma += pu * l.tn; out[k] = g; }); });
   }
   const res = {}; Object.keys(out).forEach(k => { res[k] = Math.round(out[k].suma / out[k].tn * 100) / 100; }); return res;
 }
@@ -10320,11 +10329,13 @@ function liqExcel() {
   const activas = _liqActivas();
   activas.forEach((x, i) => {
     const r = i + 2;
-    put(A, 'A' + r, x.fecha, sTxt); put(A, 'B' + r, x.tractora, sTxt);
-    put(A, 'C' + r, { t: 'n', v: x.tm }, sNum); put(A, 'D' + r, { t: 'n', v: _liqPrecioDe(x) }, { font: { name: 'Arial', sz: 10 }, border: bd, numFmt: '#,##0.00##' });
-    put(A, 'E' + r, { t: 'n', f: 'C' + r + '*D' + r, v: _liqImp(x) }, sEur);
-    put(A, 'F' + r, x.tramo || '', sTxt); put(A, 'G' + r, x.albaran, sTxt);
-    put(A, 'H' + r, x.origen, sTxt); put(A, 'I' + r, x.destino, sTxt); put(A, 'J' + r, x.producto, sTxt);
+    // v779: fila SIN PRECIO (no está en ninguna preliquidación ni puesto a mano) → a 0 y en ROSA, para que se vea que algo falla.
+    const rosa = !_liqPrecioDe(x) ? s0 => Object.assign({}, s0, { fill: { patternType: 'solid', fgColor: { rgb: 'F8C8D0' } } }) : s0 => s0;
+    put(A, 'A' + r, x.fecha, rosa(sTxt)); put(A, 'B' + r, x.tractora, rosa(sTxt));
+    put(A, 'C' + r, { t: 'n', v: x.tm }, rosa(sNum)); put(A, 'D' + r, { t: 'n', v: _liqPrecioDe(x) }, rosa({ font: { name: 'Arial', sz: 10 }, border: bd, numFmt: '#,##0.00##' }));
+    put(A, 'E' + r, { t: 'n', f: 'C' + r + '*D' + r, v: _liqImp(x) }, rosa(sEur));
+    put(A, 'F' + r, x.tramo || '', rosa(sTxt)); put(A, 'G' + r, x.albaran, rosa(sTxt));
+    put(A, 'H' + r, x.origen, rosa(sTxt)); put(A, 'I' + r, x.destino, rosa(sTxt)); put(A, 'J' + r, x.producto, rosa(sTxt));
   });
   const last = activas.length + 1;
   const rTot = last + 3;
