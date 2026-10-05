@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v791 (05/10/2026): Liquidación subcontratados · CÉNTIMOS EXACTOS: cada importe (cada albarán, subtotal, pronto pago, base, IRPF, IVA, paralizaciones y total) se redondea a 2 decimales antes de seguir sumando, en pantalla, Excel (fórmulas con REDONDEAR) y PDF. Así la factura cuadra sumando a mano (Joaquín sept-2026: 8.806,71 − 176,13 = 8.630,58; antes salía 8.630,57). Puede mover 1-2 céntimos el total de las ya guardadas: saldrá el aviso de 'vuelve a guardar'. Sin SQL. VUELTA ATRAS: resubir v790.
+
 v790 (05/10/2026): Liquidación subcontratados · Factura PDF: todos los importes con punto de millar (8.806,71 € y no 8806,71 €). Solo el PDF; pantalla y Excel igual. Sin SQL. VUELTA ATRAS: resubir v789.
 
 v789 (05/10/2026): Liquidación subcontratados · FACTURA EN PDF directo para los que les hacemos la factura (José Miguel, Ciprian, Joaquín Cañas, Miguel Ángel; no en las simulaciones). Sale sola al pulsar 💾 Guardar liquidación (si se vuelve a guardar, sale otra vez con los cambios) y con el botón nuevo 📄 Factura PDF. Mismo contenido que la pestaña Factura del Excel, con nombre puesto: '<nº> <NOMBRE> - <MES> <AÑO>.pdf'. Sin nº de factura no lo hace. El Excel sigue igual. Traza [v789]. Sin SQL. VUELTA ATRAS: resubir v788.

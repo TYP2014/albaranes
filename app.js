@@ -10099,7 +10099,10 @@ const LIQ_AUTONOMOS = {
 // (cisternas: preliquidación Holcim/CEMEX − margen, sin decirlo en ningún sitio; resto: precio propio o tarifa).
 const _liqPrecioMan = new Map();
 function _liqPrecioDe(x) { const id = _liqIdFila(x); const p = _liqPrecioMan.has(id) ? _liqPrecioMan.get(id) : (x.precioBase || 0); return Math.round((Number(p) || 0) * 100 + 1e-7) / 100; }   // v780: TODOS los subcontratados, €/TN a 2 decimales
-function _liqImp(x) { return x.tm * _liqPrecioDe(x); }
+// v791: céntimos exactos. Cada importe (albarán, pronto pago, IRPF, IVA…) se redondea a 2 decimales ANTES de seguir sumando,
+// para que la factura cuadre sumando a mano (antes 8.806,71 − 176,13 salía 8.630,57 en vez de 8.630,58).
+function _liqC(n) { n = Number(n) || 0; return Math.sign(n) * Math.round(Math.abs(n) * 100 + 1e-7) / 100; }
+function _liqImp(x) { return _liqC(x.tm * _liqPrecioDe(x)); }
 function liqSetPrecio(i, v) { const x = _liqDatos.filas[i]; const id = _liqIdFila(x); const n = parseFloat(String(v).replace(',', '.')); if (v === '' || isNaN(n)) _liqPrecioMan.delete(id); else _liqPrecioMan.set(id, n); liqRender(); }
 // Cisternas: precio €/TN = importe ÷ TN de la línea de la preliquidación con ese nº de albarán.
 async function _liqPreciosPreliq(nums) {
@@ -10275,19 +10278,19 @@ async function liqBorrarGuardada() {
     d.guardada = null; toast('Liquidación guardada borrada', 'ok'); liqRender();
   } catch (e) { toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
 }
-function _liqSum(tipo) { return _liqLineas.filter(l => l.tipo === tipo).reduce((a, l) => a + Math.abs(Number(l.importe) || 0), 0); }
+function _liqSum(tipo) { return _liqC(_liqLineas.filter(l => l.tipo === tipo).reduce((a, l) => a + _liqC(Math.abs(Number(l.importe) || 0)), 0)); }
 function _liqTotales() {
   const d = _liqDatos; const c = d.cfg;
-  const subAlb = _liqActivas().reduce((a, x) => a + _liqImp(x), 0);
+  const subAlb = _liqC(_liqActivas().reduce((a, x) => a + _liqImp(x), 0));   // v791: todo a céntimos, paso a paso
   const extraIva = _liqSum('iva'), alquiler = _liqSum('alquiler'), gastos = _liqSum('gasto');
   const paralBruto = _liqSum('siniva'), suplidos = _liqSum('suplido');
-  const subtotal = subAlb + extraIva - alquiler;
-  const pp = subtotal * c.pp / 100;
-  const base = subtotal - pp - gastos;
-  const irpf = base * c.irpf / 100;
-  const iva = base * c.iva / 100;
-  const paral = paralBruto * (1 - c.pp / 100);
-  const total = base - irpf + iva + paral + suplidos;
+  const subtotal = _liqC(subAlb + extraIva - alquiler);
+  const pp = _liqC(subtotal * c.pp / 100);
+  const base = _liqC(subtotal - pp - gastos);
+  const irpf = _liqC(base * c.irpf / 100);
+  const iva = _liqC(base * c.iva / 100);
+  const paral = _liqC(_liqLineas.filter(l => l.tipo === 'siniva').reduce((a, l) => a + _liqC(Math.abs(Number(l.importe) || 0) * (1 - c.pp / 100)), 0));
+  const total = _liqC(base - irpf + iva + paral + suplidos);
   return { subAlb, extraIva, alquiler, subtotal, pp, gastos, base, irpf, iva, paralBruto, paral, suplidos, total };
 }
 function liqRender() {
@@ -10337,7 +10340,7 @@ function liqRender() {
   tb += fila('Subtotal', T.subtotal) + (c.pp ? fila('−' + c.pp + '% pronto pago', -T.pp) : '');
   lin('gasto').forEach(l => { tb += fila('− ' + esc(l.concepto || 'Gasto'), -Math.abs(l.importe)); });
   tb += fila('Base imponible', T.base) + (c.irpf ? fila('−' + c.irpf + '% IRPF', -T.irpf) : '') + fila('+' + c.iva + '% IVA', T.iva);
-  lin('siniva').forEach(l => { tb += fila(esc(l.concepto || 'Paralización') + ' (exento IVA, −' + c.pp + '%)', Math.abs(l.importe) * (1 - c.pp / 100)); });
+  lin('siniva').forEach(l => { tb += fila(esc(l.concepto || 'Paralización') + ' (exento IVA, −' + c.pp + '%)', _liqC(Math.abs(l.importe) * (1 - c.pp / 100))); });
   lin('suplido').forEach(l => { tb += fila(esc(l.concepto || 'Suplido') + ' (sin IVA)', Math.abs(l.importe)); });
   tb += fila('TOTAL FACTURA', T.total, true);
   if (c.nota) tb += '<tr><td colspan="2" style="padding:4px 10px;font-size:12px;color:var(--mu)">' + esc(c.nota) + '</td></tr>';
@@ -10423,7 +10426,7 @@ async function liqFacturaPDF() {
     linea('BASE IMPONIBLE', T.base, true);
     if (c.irpf) linea(c.irpf + ' % I.R.P.F.', -T.irpf);
     linea('I.V.A. ' + c.iva + ' %', T.iva);
-    _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'HORAS PARALIZACIÓN').toUpperCase() + ' (exento de IVA)', Math.abs(l.importe) * (1 - c.pp / 100)));
+    _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'HORAS PARALIZACIÓN').toUpperCase() + ' (exento de IVA)', _liqC(Math.abs(l.importe) * (1 - c.pp / 100))));
     _liqLineas.filter(l => l.tipo === 'suplido' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'SUPLIDOS').toUpperCase() + ' (suplido, sin IVA)', Math.abs(l.importe)));
     y -= 6;
     page.drawLine({ start: { x: 300, y: y + 14 }, end: { x: X1, y: y + 14 }, thickness: 0.8, color: negro });
@@ -10473,7 +10476,7 @@ function liqExcel() {
     const rosa = !_liqPrecioDe(x) ? s0 => Object.assign({}, s0, { fill: { patternType: 'solid', fgColor: { rgb: 'F8C8D0' } } }) : s0 => s0;
     put(A, 'A' + r, x.fecha, rosa(sTxt)); put(A, 'B' + r, x.tractora, rosa(sTxt));
     put(A, 'C' + r, { t: 'n', v: x.tm }, rosa(sNum)); put(A, 'D' + r, { t: 'n', v: _liqPrecioDe(x) }, rosa({ font: { name: 'Arial', sz: 10 }, border: bd, numFmt: '#,##0.00##' }));
-    put(A, 'E' + r, { t: 'n', f: 'C' + r + '*D' + r, v: _liqImp(x) }, rosa(sEur));
+    put(A, 'E' + r, { t: 'n', f: 'ROUND(C' + r + '*D' + r + ',2)', v: _liqImp(x) }, rosa(sEur));
     put(A, 'F' + r, x.tramo || '', rosa(sTxt)); put(A, 'G' + r, x.albaran, rosa(sTxt));
     put(A, 'H' + r, x.origen, rosa(sTxt)); put(A, 'I' + r, x.destino, rosa(sTxt)); put(A, 'J' + r, x.producto, rosa(sTxt));
   });
@@ -10512,13 +10515,13 @@ function liqExcel() {
     rSub = lineaF('SUBTOTAL', { t: 'n', f: sumaSub.join('+'), v: T.subtotal }, true);
   }
   const sumaBase = ['F' + rSub];
-  if (c.pp) sumaBase.push('F' + lineaF(c.pp + ' % PRONTO PAGO', { t: 'n', f: '-F' + rSub + '*' + (c.pp / 100), v: -T.pp }));
+  if (c.pp) sumaBase.push('F' + lineaF(c.pp + ' % PRONTO PAGO', { t: 'n', f: '-ROUND(F' + rSub + '*' + (c.pp / 100) + ',2)', v: -T.pp }));
   _liqLineas.filter(l => l.tipo === 'gasto' && Number(l.importe)).forEach(l => { sumaBase.push('F' + lineaF((l.concepto || 'GASTOS').toUpperCase(), { t: 'n', v: -Math.abs(l.importe) })); });
   const rBase = lineaF('BASE IMPONIBLE', { t: 'n', f: sumaBase.join('+'), v: T.base }, true);
-  const rIrpf = c.irpf ? lineaF(c.irpf + ' % I.R.P.F.', { t: 'n', f: '-F' + rBase + '*' + (c.irpf / 100), v: -T.irpf }) : null;
-  const rIva = lineaF('I.V.A. ' + c.iva + ' %', { t: 'n', f: 'F' + rBase + '*' + (c.iva / 100), v: T.iva });
+  const rIrpf = c.irpf ? lineaF(c.irpf + ' % I.R.P.F.', { t: 'n', f: '-ROUND(F' + rBase + '*' + (c.irpf / 100) + ',2)', v: -T.irpf }) : null;
+  const rIva = lineaF('I.V.A. ' + c.iva + ' %', { t: 'n', f: 'ROUND(F' + rBase + '*' + (c.iva / 100) + ',2)', v: T.iva });
   const sumaTot = ['F' + rBase, 'F' + rIva]; if (rIrpf) sumaTot.push('F' + rIrpf);
-  _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => { sumaTot.push('F' + lineaF(((l.concepto || 'HORAS PARALIZACIÓN').toUpperCase()) + ' (exento de IVA)', { t: 'n', f: Math.abs(l.importe) + '*' + (1 - c.pp / 100), v: Math.abs(l.importe) * (1 - c.pp / 100) })); });
+  _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => { sumaTot.push('F' + lineaF(((l.concepto || 'HORAS PARALIZACIÓN').toUpperCase()) + ' (exento de IVA)', { t: 'n', f: 'ROUND(' + Math.abs(l.importe) + '*' + (1 - c.pp / 100) + ',2)', v: _liqC(Math.abs(l.importe) * (1 - c.pp / 100)) })); });
   _liqLineas.filter(l => l.tipo === 'suplido' && Number(l.importe)).forEach(l => { sumaTot.push('F' + lineaF(((l.concepto || 'SUPLIDOS').toUpperCase()) + ' (suplido, sin IVA)', { t: 'n', v: Math.abs(l.importe) })); });
   r++;
   const rTotal = lineaF('TOTAL FACTURA', { t: 'n', f: sumaTot.join('+'), v: T.total }, true);
