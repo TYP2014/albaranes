@@ -4713,6 +4713,15 @@ async function _processOne(it, type, key, timeoutMs) {
           console.log(`Origen inferido: → "${inferidoOri}"`);
           data.planta = inferidoOri;
         }
+        // v794 (JC 05/10/2026): PEDRACOR (Crta. Parpers-Orrius). El papel no trae línea de origen y la IA lo
+        // dejaba vacío. Si el proveedor o el origen es Pedracor: proveedor = origen = "Pedracor, S.A." (solo se
+        // rellena lo vacío o lo que ya dice Pedracor con otra grafía; nunca se pisa otro origen escrito).
+        if (/pedracor/i.test(String(data.proveedor || '') + ' ' + String(data.planta || ''))) {
+          const _pv = String(data.proveedor || '').trim(), _pl = String(data.planta || '').trim();
+          if (!_pv || /pedracor/i.test(_pv)) data.proveedor = 'Pedracor, S.A.';
+          if (!_pl || /pedracor/i.test(_pl)) data.planta = 'Pedracor, S.A.';
+          console.log('[v794] Pedracor: proveedor/origen →', data.proveedor, '/', data.planta);
+        }
         // Red de seguridad Holcim cemento: si por error OCR el origen es "Cantera de Garraf"
         // (cantera de áridos) pero el material es cemento, corregir a "Fábrica Montcada".
         // Tolera errores típicos OCR: CEM/CFM/CEN/CFN. ECOPlanet es siempre cemento Holcim.

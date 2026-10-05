@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v794 (05/10/2026): Albaranes · PEDRACOR: al leer un albarán de Pedracor (proveedor u origen con 'Pedracor'), Proveedor y Origen quedan como 'Pedracor, S.A.' (antes el origen salía vacío). Solo rellena lo vacío o lo que ya dice Pedracor; no pisa otro origen escrito. Los ya subidos se arreglan con pedracor_v794.sql. Traza [v794]. VUELTA ATRAS: resubir v793.
+
 v793 (05/10/2026): Primas · SÁBADO/DOMINGO DOBLE: si en EXTRA (h) de un sábado o domingo se ponen 8 horas o más, cuenta como 2 (jornada doble: 2 × 130 € el sábado). Lo normal son 4,5-5 h. Sale marcado 'DOBLE' en el cuadro morado, en el cuadrante y en el certificado. Ya no hace falta usar 'Otro concepto' para eso. Sin SQL. VUELTA ATRAS: resubir v792.
 
 v792 (05/10/2026): Primas · HORAS EXTRA Y FINES DE SEMANA CON FECHA (taller y quien sea). Columna nueva EXTRA (h) en el Parte diario: entre semana = horas extra × tarifa 'Hora extra' de su Ficha; en SÁBADO o DOMINGO se apuntan las horas y se paga el precio FIJO del sábado/domingo de su Ficha. Debajo del parte, cuadro morado con cada día, horas e importe. No es prima de productividad: pasa sola al CUADRANTE (Sábados, Domingos, Horas extra, en morado y solo lectura, con las fechas) y al CERTIFICADO (con las fechas). Si el parte no tiene nada, el cuadrante sigue a mano como antes. SQL ANTES: primas_v792.sql (primas_partes.horas_extra). VUELTA ATRAS: resubir v791 (la columna puede quedarse).
