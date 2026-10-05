@@ -10263,6 +10263,7 @@ async function liqGuardar() {
     d.guardada = data;
     toast('💾 Liquidación guardada: ' + d.cfg.corto + ' · ' + _LIQ_MESES[d.mes - 1] + ' ' + d.anio, 'ok');
     liqRender();
+    if (!d.cfg.facturaPropia) await liqFacturaPDF();   // v789: al guardar sale el PDF de la factura (otra vez si se vuelve a guardar)
   } catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }
 async function liqBorrarGuardada() {
@@ -10343,8 +10344,105 @@ function liqRender() {
   h += '<div style="margin-top:14px;display:flex;justify-content:flex-end"><table style="border-collapse:collapse;font-size:13px;min-width:360px;border:1px solid var(--bd);border-radius:8px">' + tb + '</table></div>';
   const G = d.guardada;
   const est = G ? '<span style="color:#15803d;font-weight:700">💾 Guardada el ' + new Date(G.updated_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · total ' + E(G.total) + '</span>' + (Math.abs(Number(G.total) - T.total) > 0.005 ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo desde que se guardó: vuelve a guardar</span>' : '') + ' <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="liqBorrarGuardada()">🗑 Borrar guardada</button>' : '<span style="color:var(--mu)">Sin guardar</span>';
-  h += '<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:12px">' + est + (d.numUsado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ el nº ' + esc(d.numero) + ' ya se usó en ' + esc(d.numUsado) + '</span>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn bs" onclick="liqGuardar()" title="Apunta esta liquidación: precios a mano, líneas, quitados y los albaranes pagados (para que no se paguen dos veces)">💾 Guardar liquidación</button><button class="btn bp" onclick="liqExcel()">📊 Descargar Excel (Albaranes + Factura + Resumen)</button></div></div>';
+  h += '<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:12px">' + est + (d.numUsado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ el nº ' + esc(d.numero) + ' ya se usó en ' + esc(d.numUsado) + '</span>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn bs" onclick="liqGuardar()" title="Apunta esta liquidación: precios a mano, líneas, quitados y los albaranes pagados (para que no se paguen dos veces)">💾 Guardar liquidación</button>' + (c.facturaPropia ? '' : '<button class="btn bs" onclick="liqFacturaPDF()" title="Descarga solo la FACTURA en PDF, con su nombre puesto (también sale sola al guardar)">📄 Factura PDF</button>') + '<button class="btn bp" onclick="liqExcel()">📊 Descargar Excel (Albaranes + Factura + Resumen)</button></div></div>';
   out.innerHTML = h;
+}
+// v789 (JC 05/10/2026): FACTURA EN PDF directo (sin abrir el Excel ni Ctrl+P), solo para los que les HACEMOS
+// la factura (no las simulaciones). Se descarga sola al pulsar 💾 Guardar liquidación (si se vuelve a guardar,
+// sale otra vez con los cambios) y también con el botón 📄 Factura PDF. Mismo contenido que la pestaña Factura
+// del Excel. Nombre: "<nº> <NOMBRE> - <MES> <AÑO>.pdf" (ej. "129 JOAQUÍN CAÑAS - SEPTIEMBRE 2026.pdf").
+function _liqPdfTxt(v) {   // fuentes estándar (WinAnsi): acentos, ñ, º y € sí; flechas y raros no
+  return String(v == null ? '' : v).replace(/[→➔]/g, '->').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[–—]/g, '-')
+    .replace(/[^\x20-\x7E\xA0-\xFF€]/g, '');
+}
+async function liqFacturaPDF() {
+  const d = _liqDatos; if (!d) return;
+  const c = d.cfg;
+  if (c.facturaPropia) { toast('Este subcontratado se hace él su factura (simulación): no hay PDF.', 'err'); return; }
+  if (typeof PDFLib === 'undefined') { toast('No se pudo cargar el generador de PDF. Recarga la página.', 'err'); return; }
+  const numEl = document.getElementById('liqNumFra'); if (numEl) d.numero = numEl.value;
+  const numero = String(d.numero || '').trim();
+  if (!numero) { toast('Pon el nº de factura antes de sacar el PDF.', 'err'); return; }
+  try {
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([595.28, 841.89]);
+    const fN = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
+    const negro = rgb(0, 0, 0), azul = rgb(0.12, 0.31, 0.47), blanco = rgb(1, 1, 1), gris = rgb(0.6, 0.6, 0.6);
+    const T = _liqTotales();
+    const eur = n => _liqPdfTxt(_feFmt(_liqR2(n)));
+    const X0 = 45, X1 = 550;
+    const tx = (s, x, y, size, font, color) => page.drawText(_liqPdfTxt(s), { x, y, size, font: font || fN, color: color || negro });
+    const txR = (s, xr, y, size, font) => { const t = _liqPdfTxt(s), f = font || fN; page.drawText(t, { x: xr - f.widthOfTextAtSize(t, size), y, size, font: f, color: negro }); };
+    const partir = (s, font, size, ancho) => { const pal = _liqPdfTxt(s).split(' '); const out = []; let l = '';
+      pal.forEach(p => { const n = l ? l + ' ' + p : p; if (font.widthOfTextAtSize(n, size) > ancho && l) { out.push(l); l = p; } else l = n; }); if (l) out.push(l); return out; };
+    const caja = (x, y, w, h, color) => page.drawRectangle({ x, y, width: w, height: h, color });
+    const borde = (x, y, w, h) => page.drawRectangle({ x, y, width: w, height: h, borderColor: gris, borderWidth: 0.6 });
+    // Cabecera
+    let y = 790;
+    tx('FACTURA', X0, y, 22, fB);
+    const fechaFra = new Date(d.anio, d.mes, 0);
+    tx('Nº FACTURA', 380, y + 4, 10, fB); tx(numero, 460, y + 4, 11, fB);
+    tx('FECHA', 380, y - 12, 10, fB); tx(_p2(fechaFra.getDate()) + '/' + _p2(d.mes) + '/' + d.anio, 460, y - 12, 10);
+    // Cliente y emisor
+    y = 735;
+    const bloque = (x, w, titulo, datos) => {
+      caja(x, y, w, 16, azul); tx(titulo, x + 6, y + 4.5, 9, fB, blanco);
+      let yy = y - 14;
+      datos.forEach(p => { tx(p[0], x + 6, yy, 8.5, fB); const ls = partir(p[1], fN, 8.5, w - 76); ls.forEach((l, i) => tx(l, x + 72, yy - i * 11, 8.5)); yy -= 11 * Math.max(1, ls.length) + 2; });
+      return yy;
+    };
+    const yC = bloque(X0, 245, 'DATOS DEL CLIENTE', _LIQ_CLIENTES[d.cliente || c.cliente]);
+    const yE = bloque(305, 245, c.empresa ? 'DATOS DEL EMISOR (EMPRESA)' : 'DATOS DEL EMISOR (AUTÓNOMO)', d.emisor || c.emisor);
+    // Tabla del concepto
+    y = Math.min(yC, yE) - 20;
+    const cols = [[X0, 60, 'CANTIDAD'], [X0 + 60, 265, 'CONCEPTO / DESCRIPCIÓN'], [X0 + 325, 85, 'PRECIO'], [X0 + 410, 95, 'TOTAL']];
+    caja(X0, y, X1 - X0, 18, azul);
+    cols.forEach(cc => { const t = _liqPdfTxt(cc[2]); tx(t, cc[0] + (cc[1] - fB.widthOfTextAtSize(t, 8.5)) / 2, y + 5.5, 8.5, fB, blanco); });
+    const conc = partir('TRABAJOS REALIZADOS EN EL MES DE ' + _LIQ_MESES[d.mes - 1].toUpperCase() + ' DE ' + d.anio + ', SEGÚN CUADRANTE ADJUNTO.', fN, 9, 255);
+    const alto = 8 + conc.length * 12;
+    y -= alto;
+    cols.forEach(cc => borde(cc[0], y, cc[1], alto));
+    const yT = y + alto - 14;
+    txR('1', X0 + 35, yT, 9); conc.forEach((l, i) => tx(l, X0 + 66, yT - i * 12, 9));
+    txR(eur(T.subAlb), X0 + 405, yT, 9); txR(eur(T.subAlb), X1 - 5, yT, 9);
+    // Desglose (mismo orden que la pestaña Factura del Excel)
+    y -= 26;
+    const linea = (txt, v, bold, size) => { const s = size || 9.5; tx(txt, 300, y, s, bold ? fB : fN); txR(eur(v), X1 - 5, y, s, bold ? fB : fN); y -= 15; };
+    const antes = _liqLineas.filter(l => (l.tipo === 'iva' || l.tipo === 'alquiler') && Number(l.importe));
+    linea(antes.length ? 'SUBTOTAL ALBARANES' : 'SUBTOTAL', T.subAlb, true);
+    if (antes.length) {
+      antes.forEach(l => linea(String(l.concepto || (l.tipo === 'alquiler' ? 'ALQUILER SEMIRREMOLQUE' : 'OTROS')).toUpperCase(), l.tipo === 'alquiler' ? -Math.abs(l.importe) : Math.abs(l.importe)));
+      linea('SUBTOTAL', T.subtotal, true);
+    }
+    if (c.pp) linea(c.pp + ' % PRONTO PAGO', -T.pp);
+    _liqLineas.filter(l => l.tipo === 'gasto' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'GASTOS').toUpperCase(), -Math.abs(l.importe)));
+    linea('BASE IMPONIBLE', T.base, true);
+    if (c.irpf) linea(c.irpf + ' % I.R.P.F.', -T.irpf);
+    linea('I.V.A. ' + c.iva + ' %', T.iva);
+    _liqLineas.filter(l => l.tipo === 'siniva' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'HORAS PARALIZACIÓN').toUpperCase() + ' (exento de IVA)', Math.abs(l.importe) * (1 - c.pp / 100)));
+    _liqLineas.filter(l => l.tipo === 'suplido' && Number(l.importe)).forEach(l => linea(String(l.concepto || 'SUPLIDOS').toUpperCase() + ' (suplido, sin IVA)', Math.abs(l.importe)));
+    y -= 6;
+    page.drawLine({ start: { x: 300, y: y + 14 }, end: { x: X1, y: y + 14 }, thickness: 0.8, color: negro });
+    linea('TOTAL FACTURA', T.total, true, 12);
+    // Cuadro fiscal
+    y -= 20;
+    caja(X0, y, X1 - X0, 16, azul); tx('CUADRO FISCAL', X0 + 6, y + 4.5, 9, fB, blanco);
+    y -= 18;
+    const fc = [[X0, 126, 'BASE IMPONIBLE', T.base], [X0 + 126, 126, 'IVA ' + c.iva + ' %', T.iva], [X0 + 252, 126, c.irpf ? c.irpf + ' % I.R.P.F.' : 'I.R.P.F. (no aplica)', c.irpf ? T.irpf : 0], [X0 + 378, 127, 'TOTAL FACTURA', T.total]];
+    fc.forEach(f => { borde(f[0], y, f[1], 18); borde(f[0], y - 18, f[1], 18); const t = _liqPdfTxt(f[2]); tx(t, f[0] + (f[1] - fB.widthOfTextAtSize(t, 8.5)) / 2, y + 5.5, 8.5, fB); txR(eur(f[3]), f[0] + f[1] - 6, y - 12.5, 9); });
+    y -= 40;
+    if (c.nota) tx(c.nota, X0, y, 9.5, fB);
+    // Descargar
+    const bytes = await doc.save();
+    const nombre = (numero + ' ' + String(c.corto || '').toUpperCase() + ' - ' + _LIQ_MESES[d.mes - 1].toUpperCase() + ' ' + d.anio).replace(/[\\/:*?"<>|]/g, '-') + '.pdf';
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const a = document.createElement('a'); a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    console.log('[v789] factura PDF:', nombre, T.total);
+    toast('📄 Factura PDF descargada: ' + nombre, 'ok');
+  } catch (e) { console.error('[v789] factura PDF:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
 }
 function liqExcel() {
   const d = _liqDatos; if (!d) return;
