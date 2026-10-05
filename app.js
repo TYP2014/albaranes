@@ -31147,6 +31147,22 @@ async function factExcelAyuda908(files) {
   }
   if (!items.length) { toast('No encontré filas con nº SAP en el Excel.', 'err'); setEstado(''); _z908fin(); return; }
 
+  // v784 (JC 05/10/2026) — Si el Excel trae viajes ANTERIORES a la ventana cargada (mes en curso +
+  // anterior), antes salían como 'NO ENCONTRADO' porque esos albaranes no estaban en memoria (caso real:
+  // 214 de julio/agosto en el listado de Portes Ago-Sep). Ahora se carga el histórico antes de cruzar,
+  // igual que ya hacen el repaso Holcim y el cruce Sodira. Solo si hace falta.
+  if (!window._cargarTodo) {
+    const nVent = (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2), hoy = new Date(), vent = new Set();
+    for (let k = 0; k < nVent; k++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() - k, 1); vent.add(String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear()); }
+    const fuera = items.filter(it => it.fechaX && /^\d{2}\/\d{2}\/\d{4}$/.test(it.fechaX) && !vent.has(it.fechaX.slice(3))).length;
+    if (fuera) {
+      console.log('[v784] ayuda 908: ' + fuera + ' filas fuera de la ventana → cargando histórico');
+      setEstado('📗 Hay ' + fuera + ' viajes de meses anteriores: cargando el histórico… (puede tardar un poco)');
+      if (_z908) _z908.textContent = '⏳ Cargando histórico…';
+      try { await cargarTodoHistorico(); } catch (e) { console.warn('[v784] cargar histórico antes de ayuda 908:', e); }
+    }
+  }
+
   // Índices de los albaranes de la app.
   const sapExistentes = new Set(records.map(r => normNum(r.albaran)).filter(Boolean));
   const porMat = new Map(); // matrícula → [records]

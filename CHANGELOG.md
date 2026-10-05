@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v784 (05/10/2026): Facturación · 📗 Excel de ayuda (908): si el Excel trae viajes de meses ANTERIORES a los 2 cargados, carga antes el histórico y luego cruza (como el repaso Holcim y Sodira). Antes esos salían 'NO ENCONTRADO' aunque estuvieran en la app (caso real: listado Portes Ago-Sep, 214 de julio/agosto). Si todo es del mes en curso o el anterior, no carga nada extra. Traza [v784] en consola. Sin SQL. VUELTA ATRAS: resubir v783.
+
 v783 (04/10/2026): Tarifas por servicio: debajo de cada ruta sale lo que se le puso los 3 MESES ANTERIORES (ej. al poner septiembre: jun / jul / ago), con sus tramos si los tenía y '—' si ese mes no tenía precio. Solo para mirar: no guarda ni cambia nada. Sin SQL. VUELTA ATRAS: resubir v782.
 
 v782 (04/10/2026): Liquidación subcontratados · Francisco Ocaña: 'Factura a' por defecto TRANSPORTES Y PORTES 2014 (B90172735), como en su factura real de agosto 2026 (nº 202600000008). Se puede seguir cambiando en pantalla. Sin SQL. VUELTA ATRAS: resubir v781.
