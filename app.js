@@ -39480,6 +39480,57 @@ function _xpElegirViaje(id) {
   }
   _xpPintar();
 }
+// v787: desplegables en cascada (origen → material/destino), con "Otro (escribir)"
+function _xpOrigenes() { return _xpUnicos((_xpViajes || []).map(v => v.origen)); }
+function _xpDeOrigen(o) {
+  const vs = (_xpViajes || []).filter(v => v.origen === o);
+  return { mats: _xpUnicos([].concat(...vs.map(v => v.materiales || []))),
+           dests: _xpUnicos([].concat(...vs.map(v => v.destinos || []))) };
+}
+function _xpSelect(id, grupos, valor, extra) {
+  const inp = window._xpInp || '';
+  const todos = [].concat(...grupos.map(g => g.items));
+  const otro = !!valor && !todos.includes(valor);
+  let h = '<select id="' + id + 'Sel" style="' + inp + '" onchange="document.getElementById(\'' + id + '\').style.display=this.value===\'__otro\'?\'block\':\'none\';' + (extra || '') + '">' +
+    '<option value="">— elegir —</option>';
+  grupos.forEach(g => {
+    if (!g.items.length) return;
+    if (g.label) h += '<optgroup label="' + _xpE(g.label) + '">';
+    g.items.forEach(x => { h += '<option' + (x === valor ? ' selected' : '') + '>' + _xpE(x) + '</option>'; });
+    if (g.label) h += '</optgroup>';
+  });
+  h += '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+    '<input id="' + id + '" style="' + inp + ';margin-top:8px;display:' + (otro ? 'block' : 'none') + '" value="' + _xpE(otro ? valor : '') + '" placeholder="Escríbelo">';
+  return h;
+}
+function _xpLeerSelect(id) {
+  const s = document.getElementById(id + 'Sel'); if (!s) return '';
+  return s.value === '__otro' ? ((document.getElementById(id) || {}).value || '').trim() : s.value;
+}
+function _xpHtmlMatDest(orig) {
+  const d = _xpDeOrigen(orig);
+  const todosMat = _xpUnicos(_XP_MAT_BASICOS.concat(...(_xpViajes || []).map(v => v.materiales || [])));
+  const todosDest = _xpUnicos([].concat(...(_xpViajes || []).map(v => v.destinos || [])));
+  let mat = _xpLS('xp_mat'), dest = _xpLS('xp_dest');
+  if (d.mats.length && !d.mats.includes(mat) && !todosMat.includes(mat)) mat = d.mats[0];
+  if (d.dests.length && !d.dests.includes(dest) && !todosDest.includes(dest)) dest = d.dests[0];
+  const lbl = t => '<div style="font-size:13px;color:var(--mu);margin:16px 0 6px">' + t + '</div>';
+  return lbl('Material') + _xpSelect('xpMerc', [
+      { label: d.mats.length ? 'En este origen' : '', items: d.mats },
+      { label: 'Otros materiales', items: todosMat.filter(x => !d.mats.includes(x)) }], mat) +
+    lbl('Destino (dónde descargas)') + _xpSelect('xpDestino', [
+      { label: d.dests.length ? 'Habituales desde este origen' : '', items: d.dests },
+      { label: 'Otros destinos', items: todosDest.filter(x => !d.dests.includes(x)) }], dest);
+}
+// Al cambiar de origen: material y destino se recargan con los de ese origen
+function _xpCambioOrigen() {
+  const o = _xpLeerSelect('xpOrigen');
+  const d = _xpDeOrigen(o);
+  if (d.mats.length) _xpLS('xp_mat', d.mats[0]);
+  if (d.dests.length) _xpLS('xp_dest', d.dests[0]);
+  const box = document.getElementById('xpBoxMatDest'); if (box) box.innerHTML = _xpHtmlMatDest(o);
+}
+
 function _xpNombreCli() {
   const c = _xpCargViaje(); return c ? _xpCorto(c.nombre) : 'el cliente';
 }
@@ -39723,6 +39774,7 @@ function _xpPintar() {
       '<select style="' + inp + '" onchange="_xpCambiarTrans(this.value)"><option value="">— elegir —</option>' +
       nombres.map(n => '<option' + (_decaNrm(n) === _decaNrm(_xpTrans) ? ' selected' : '') + '>' + _xpE(n) + '</option>').join('') + '</select>';
   }
+  window._xpInp = inp;   // v787
   // v786: cliente / origen / destino / material SIEMPRE visibles (buscar, elegir o escribir)
   const vs = _xpViajes || [];
   const dl = (id, arr) => '<datalist id="' + id + '">' + _xpUnicos(arr).map(x => '<option value="' + _xpE(x) + '">').join('') + '</datalist>';
@@ -39733,12 +39785,8 @@ function _xpPintar() {
       '<option value="">— elegir —</option>' +
       _decaCargadores.map((c, i) => '<option value="' + i + '"' + (cliNif && c.nif === cliNif ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') + '</select>' +
     '<div style="font-size:11px;color:var(--mu);margin-top:4px">¿No está? Avisad a oficina para añadirlo.</div>' +
-    lbl('Origen (dónde cargas)') + '<input id="xpOrigen" list="xpDlOrig" style="' + inp + '" value="' + _xpE(_xpLS('xp_orig')) + '" placeholder="Escribe o elige…">' +
-    lbl('Destino (dónde descargas)') + '<input id="xpDestino" list="xpDlDest" style="' + inp + '" value="' + _xpE(_xpLS('xp_dest')) + '" placeholder="Escribe o elige…">' +
-    lbl('Material') + '<input id="xpMerc" list="xpDlMat" style="' + inp + '" value="' + _xpE(_xpLS('xp_mat')) + '" placeholder="Escribe o elige… (ej. arena)">' +
-    dl('xpDlOrig', vs.map(v => v.origen)) +
-    dl('xpDlDest', [].concat(...vs.map(v => v.destinos || []))) +
-    dl('xpDlMat', _XP_MAT_BASICOS.concat(...vs.map(v => v.materiales || [])));
+    lbl('Origen (cantera / proveedor)') + _xpSelect('xpOrigen', [{ label: '', items: _xpOrigenes() }], _xpLS('xp_orig'), '_xpCambioOrigen()') +
+    '<div id="xpBoxMatDest">' + _xpHtmlMatDest(_xpLS('xp_orig')) + '</div>';
   ov.innerHTML =
     '<div style="max-width:460px;margin:0 auto;padding:18px 16px 90px;font-family:var(--ss)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center">' +
@@ -39776,7 +39824,7 @@ async function _xpGenerar() {
   if (!remolque) { toast('Pon la matrícula del remolque', 'err'); return; }
   if (!peso || peso < 1000 || peso > 45000) { toast('Los kilos no cuadran (entre 1.000 y 45.000)', 'err'); return; }
   let origen, destino, mercancia;
-  origen = g('xpOrigen'); destino = g('xpDestino'); mercancia = g('xpMerc');   // v786
+  origen = _xpLeerSelect('xpOrigen'); destino = _xpLeerSelect('xpDestino'); mercancia = _xpLeerSelect('xpMerc');   // v787
   if (!_xpCargViaje()) { toast('Elige el cliente (quién os contrata)', 'err'); return; }
   if (!origen) { toast('Pon el origen (dónde cargas)', 'err'); return; }
   if (!destino) { toast('Pon el destino', 'err'); return; }

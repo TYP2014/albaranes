@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v787 (05/10/2026): DeCA EXPRÉS · Origen, Material y Destino pasan a DESPLEGABLES EN CASCADA (el buscador de v786 no enseñaba la lista si el campo ya tenía texto). Origen = canteras/proveedores de deca_viajes; al cambiarlo, Material y Destino se recargan: primero 'En este origen' (los de los viajes con ese origen, ej. CEMEX Begues: caliza + áridos) y luego 'Otros'. Los tres con '✏️ Otro (escribir)'. Sin cambios de BD obligatorios (SQL opcional: nombres de áridos más claros + Filler en CEMEX Begues). VUELTA ATRAS: resubir v786.
+
+---
+
 v786 (05/10/2026): DeCA EXPRÉS más abierto: los botones de viajes pasan a ser ATAJOS que rellenan 4 campos siempre visibles y editables: Cliente (quién os contrata; desplegable de deca_cargadores, solo de la lista porque lleva NIF y domicilio), Origen, Destino y Material (los tres con buscador: escribes y sugiere los de los viajes, o se escribe otro). Material con básicos: Arena 0/4, Garbancillo 4/12, Gravilla 12/25, Filler, Zahorra, Caliza, Árido reciclado, Escollera, Tierra, Escombros, Yeso, Clinker, Cemento a granel + los de los viajes. Se recuerda lo último usado en el móvil. Fuera el botón 'Otro viaje' (ya no hace falta). El cargador contractual sigue la regla de v761 con el cliente elegido. Sin SQL. VUELTA ATRAS: resubir v785.
 
 ---
