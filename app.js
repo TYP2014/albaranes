@@ -26212,7 +26212,7 @@ function renderPrimas() {
   const filaPlus = (lun, nota) => {
     const dom = _primasMas(lun, 6);
     return '<tr style="background:rgba(46,125,50,.10);border-bottom:2px solid var(--bd)">' +
-      '<td colspan="5" style="padding:7px 8px;text-align:right;font-weight:800">PLUS SEMANA ' + lun.slice(8) + '/' + lun.slice(5, 7) +
+      '<td colspan="6" style="padding:7px 8px;text-align:right;font-weight:800">PLUS SEMANA ' + lun.slice(8) + '/' + lun.slice(5, 7) +
       ' <span id="prPlusInfo_' + lun + '" style="font-weight:600;color:#222"></span>' + (nota ? ' <span style="font-weight:600;color:#222">' + nota + '</span>' : '') + '</td>' +
       '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusVal_' + lun + '"></strong>' +
       ' <input class="fi" id="prPlusMan_' + lun + '" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app. Escribe un importe solo si esta semana hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
@@ -26228,6 +26228,7 @@ function renderPrimas() {
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:86px"><input class="fi" id="pr_horas_extra_' + iso + '" type="number" step="0.5" min="0" title="' + (w === 6 ? 'SÁBADO trabajado: pon las horas que hizo (se paga el precio fijo del sábado)' : (w === 0 ? 'DOMINGO trabajado: pon las horas que hizo (se paga el precio fijo del domingo)' : 'Horas extra de este día (se pagan por hora)')) + '" style="' + inS + ';text-align:right;color:#6a1b9a' + (finde ? ';background:rgba(106,27,154,.06)' : '') + '" value="' + (f.horas_extra != null && _primasNum(f.horas_extra) !== 0 ? _primasAttr(f.horas_extra) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +   // v792
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">⬇ TRAER</button> <button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#fff;color:#111;border:2px solid #111;border-radius:6px;cursor:pointer" title="Ver qué albaranes cuenta la app este día (nº, ruta, tipo)" onclick="primasVerAlbDia(\'' + iso + '\')">👁 VER</button></td></tr>';
     // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
@@ -26236,13 +26237,13 @@ function renderPrimas() {
       if (_primasSemanaEsDelMes(lun)) {
         filas += filaPlus(lun, (w !== 0 ? '· la semana acaba el mes que viene; cuenta aquí' : (lun < r.ini ? '· incluye días del mes anterior' : '')));
       } else if (iso === r.fin && w !== 0) {
-        filas += '<tr><td colspan="7" style="padding:8px;text-align:right;color:#222;font-weight:600;font-size:12.5px">La semana del ' + lun.slice(8) + '/' + lun.slice(5, 7) + ' se cuenta en el mes siguiente.</td></tr>';
+        filas += '<tr><td colspan="8" style="padding:8px;text-align:right;color:#222;font-weight:600;font-size:12.5px">La semana del ' + lun.slice(8) + '/' + lun.slice(5, 7) + ' se cuenta en el mes siguiente.</td></tr>';
       }
     }
   }
   // v675: PLUS DEL MES, ultima fila de la tabla
   filas += '<tr style="background:rgba(25,118,210,.12);border-top:2px solid var(--bd)">' +
-    '<td colspan="5" style="padding:9px 8px;text-align:right;font-weight:800">PLUS DEL MES <span id="prPlusMesInfo" style="font-weight:600;color:#222"></span></td>' +
+    '<td colspan="6" style="padding:9px 8px;text-align:right;font-weight:800">PLUS DEL MES <span id="prPlusMesInfo" style="font-weight:600;color:#222"></span></td>' +
     '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusMesVal"></strong>' +
     ' <input class="fi" id="prPlusMesMan" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app (75 € si consigue el plus TODAS las semanas · 150 € si tiene prima TODOS los días laborables). Escribe un importe solo si este mes hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
     ((primasRows[r.fin] && primasRows[r.fin].plus_mes_manual != null) ? _primasAttr(primasRows[r.fin].plus_mes_manual) : '') + '" onchange="primasSavePlusMes()"></td><td></td></tr>';
@@ -26250,7 +26251,7 @@ function renderPrimas() {
     '<style>#primasBox input::placeholder,#primasBox textarea::placeholder{color:#333;opacity:1;font-weight:600}#primasBox th{color:#111;font-weight:800;font-size:12.5px}</style>' +   // v672: la matricula habitual "de fondo" en oscuro
     '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +   // v672: grande y en negro
     '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd);color:#111;font-size:12.5px;font-weight:800">' +
-    '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
+    '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right" title="Horas extra de ese día. En SÁBADO o DOMINGO: pon las horas que hizo; se paga el precio fijo del sábado/domingo de su Ficha.">EXTRA (h)</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   _primasPintaTotales();
@@ -26335,12 +26336,46 @@ function _primasPintaTotales() {
   if (iM) iM.textContent = '· semanas con plus: ' + pm.semanasOk + ' de ' + pm.semanas + ' · días con prima: ' + pm.diasOk + ' de ' + pm.dias + ' laborables' +
     (pm.manual != null ? ' · PUESTO A MANO (la app daría ' + _primasEur(pm.auto) + ')' : (pm.auto === PRIMAS_PLUS_MES_TODOS ? ' · TODOS los días → ' + PRIMAS_PLUS_MES_TODOS + ' €' : (pm.auto === PRIMAS_PLUS_MES_SEMANAS ? ' · TODAS las semanas → ' + PRIMAS_PLUS_MES_SEMANAS + ' €' : ' · aún no lo consigue')));
   const t = document.getElementById('primasTotales');
+  _primasPintaExtras();   // v792
   if (t) t.innerHTML =
     '<span>Días con prima: <strong>' + diasConPrima + '</strong></span>' +
     '<span>Primas diarias: <strong>' + _primasEur(sumaDias) + '</strong></span>' +
     '<span>Plus semanales: <strong>' + _primasEur(sumaPlus) + '</strong></span>' +
     '<span>Plus del mes: <strong>' + _primasEur(pm.valor) + '</strong></span>' +
     '<span style="font-size:15px">TOTAL PRIMA PRODUCTIVIDAD: <strong style="color:var(--ok,#2e7d32)">' + _primasEur(sumaDias + sumaPlus + pm.valor) + '</strong></span>';
+}
+
+// v792 (JC 05/10/2026): HORAS EXTRA Y FINES DE SEMANA (taller y quien sea), con SU FECHA. Se apuntan en la columna EXTRA (h)
+// del parte: entre semana se pagan por hora (tarifa 'Hora extra' de su Ficha); en SÁBADO o DOMINGO se paga el precio FIJO
+// del sábado/domingo de su Ficha, haga las horas que haga (las horas quedan apuntadas). No es prima de productividad:
+// va aparte y pasa sola al CUADRANTE (Sábados, Domingos y Horas extra) y al certificado, con las fechas.
+function _primasExtrasDe(rows, ini, fin) {
+  const ex = { sab: [], dom: [], dias: [], horas: 0 };
+  for (let iso = ini; iso <= fin; iso = _primasMas(iso, 1)) {
+    const h = _primasNum((rows[iso] || {}).horas_extra); if (!(h > 0)) continue;
+    const w = _primasDate(iso).getDay(), dd = iso.slice(8) + '/' + iso.slice(5, 7);
+    if (w === 6) ex.sab.push({ dd, h }); else if (w === 0) ex.dom.push({ dd, h }); else { ex.dias.push({ dd, h }); ex.horas += h; }
+  }
+  ex.horas = Math.round(ex.horas * 100) / 100;
+  return ex;
+}
+function _primasExtrasTxt(lista, conH) { return lista.map(x => x.dd + (conH ? ' (' + String(x.h).replace('.', ',') + ' h)' : '')).join(', '); }
+function _primasPintaExtras() {
+  const box = document.getElementById('primasBox'); if (!box) return;
+  let el = document.getElementById('primasExtrasBox');
+  const r = _primasRango(), ex = _primasExtrasDe(primasRows, r.ini, r.fin);
+  if (!ex.sab.length && !ex.dom.length && !ex.dias.length) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'primasExtrasBox'; box.appendChild(el); }
+  const t = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
+  const tf = _pcTarifas(t, null);
+  const iH = _pcR2(ex.horas * tf.hora), iS = _pcR2(ex.sab.length * tf.sabado), iD = _pcR2(ex.dom.length * tf.domingo);
+  const lin = (txt, imp) => '<div style="display:flex;justify-content:space-between;gap:20px;padding:4px 0;border-bottom:1px dashed var(--bd)"><span>' + txt + '</span><strong style="white-space:nowrap">' + _primasEur(imp) + '</strong></div>';
+  el.style.cssText = 'margin-top:12px;padding:12px 16px;border:2px solid #6a1b9a;border-radius:10px;font-family:var(--mn);font-size:14px;font-weight:600;color:#111;background:rgba(106,27,154,.05)';
+  el.innerHTML = '<div style="font-weight:800;color:#6a1b9a;margin-bottom:6px">⏱ HORAS EXTRA Y FINES DE SEMANA <span style="font-weight:600;color:#333;font-size:12.5px">· se pagan aparte (no son prima) y pasan solos al cuadrante · tarifas de su ⚙️ Ficha</span></div>' +
+    (ex.dias.length ? lin('Horas extra: <b>' + String(ex.horas).replace('.', ',') + ' h</b> × ' + _primasEur(tf.hora) + ' · ' + _primasExtrasTxt(ex.dias, true), iH) : '') +
+    (ex.sab.length ? lin('Sábados: <b>' + ex.sab.length + '</b> × ' + _primasEur(tf.sabado) + ' · ' + _primasExtrasTxt(ex.sab, true), iS) : '') +
+    (ex.dom.length ? lin('Domingos: <b>' + ex.dom.length + '</b> × ' + _primasEur(tf.domingo) + ' · ' + _primasExtrasTxt(ex.dom, true), iD) : '') +
+    '<div style="display:flex;justify-content:flex-end;gap:12px;margin-top:6px;font-size:15px">TOTAL HORAS EXTRA Y FINES DE SEMANA: <strong style="color:#6a1b9a">' + _primasEur(iH + iS + iD) + '</strong></div>';
 }
 
 function _primasEstado(txt, err) {
@@ -26364,12 +26399,13 @@ async function primasSaveRow(iso) {
   const previa = primasRows[iso];
   let veh = _primasMatsTxt(g('vehiculo'));   // v671: puede llevar varios
   const parte = g('parte_conductor'), trabajo = g('trabajo'), notas = g('notas'), primaTxt = g('prima');
+  const hExtraTxt = g('horas_extra');   // v792
   let primaTxtV677 = primaTxt;
   if (_primasAusente(parte, notas) && previa && previa.prima_auto) {   // v677: la prima azul era de viajes que no son suyos
     primaTxtV677 = '';
     const _ep = document.getElementById('pr_prima_' + iso); if (_ep) _ep.value = '';
   }
-  const hayAlgo = !!(veh || parte || trabajo || notas || primaTxtV677);
+  const hayAlgo = !!(veh || parte || trabajo || notas || primaTxtV677 || hExtraTxt);   // v792: + horas extra
   if (!hayAlgo && !previa) return;                 // fila vacia que nunca existio: nada que guardar
   if (!veh && hayAlgo && (trabajo || primaTxtV677)) veh = primasHabitual;   // deja escrito con que camion fue
   const fila = {
@@ -26378,6 +26414,7 @@ async function primasSaveRow(iso) {
     prima: _primasNum(primaTxtV677),
     prima_auto: !!(previa && previa.prima_auto && _primasNum(previa.prima) === _primasNum(primaTxtV677) && _primasNum(primaTxtV677) !== 0),   // v670: tecleada a mano → ya no es de la app
     plus_manual: previa ? previa.plus_manual : null,
+    horas_extra: hExtraTxt === '' ? null : _primasNum(hExtraTxt),   // v792
     editado_por: _primasQuien(), updated_at: new Date().toISOString()
   };
   try {
@@ -26985,6 +27022,7 @@ async function primasNoPrima(id, valor, iso) {
 let primasVista = 'parte';        // 'parte' | 'cuad'
 let primasCuadRows = {};          // trabajador_id -> fila de primas_cuadrante del mes abierto
 let primasCuadPrima = {};         // trabajador_id -> total de su parte diario ese mes (primas + plus)
+let primasCuadExtras = {};        // v792: trabajador_id -> { sab, dom, dias, horas } sacado de la columna EXTRA (h) del parte
 let primasCuadCompacto = null;    // true = oculta noches/sabados/... (por defecto en HISPALIS)
 let primasCuadDeudaAntes = {};    // v668: trabajador_id -> ADELANTOS de meses anteriores que cuentan contra su prestamo
 const PRIMAS_TARIFAS_DEF = { dieta: 24.40, noche: 45, sabado: 130, domingo: 150, tarde: 12, hora: 20 };
@@ -27035,7 +27073,18 @@ function _pcEntrada(t, row) {
   if (!row) v.extras = _primasNum(_pcCfg(t).fijo);
   _PC_TXT.forEach(k => { v[k] = row ? (row[k] || '') : ''; });
   _PC_MAN.forEach(k => { v[k] = (row && row[k] != null) ? _primasNum(row[k]) : null; });
+  // v792: si el PARTE tiene horas extra / sábados / domingos apuntados con fecha, mandan esos (no se escriben aquí)
+  const ex = t && primasCuadExtras[t.id];
+  if (ex) { if (ex.sab.length) v.sabados = ex.sab.length; if (ex.dom.length) v.domingos = ex.dom.length; if (ex.dias.length) v.horas = ex.horas; }
   return v;
+}
+// v792: fechas del parte para Sábados / Domingos / Horas extra de un trabajador ('' si ese campo no viene del parte)
+function _pcDeParte(id, k) {
+  const ex = primasCuadExtras[id]; if (!ex) return '';
+  if (k === 'sabados' && ex.sab.length) return _primasExtrasTxt(ex.sab, false);
+  if (k === 'domingos' && ex.dom.length) return _primasExtrasTxt(ex.dom, false);
+  if (k === 'horas' && ex.dias.length) return _primasExtrasTxt(ex.dias, true);
+  return '';
 }
 
 function _pcCalc(t, row) {
@@ -27088,7 +27137,7 @@ async function loadPrimasCuadrante() {
   try {
     const trabs = _pcTrabajadores();
     const ids = trabs.map(t => t.id);
-    primasCuadRows = {}; primasCuadPrima = {}; primasCuadDeudaAntes = {};
+    primasCuadRows = {}; primasCuadPrima = {}; primasCuadDeudaAntes = {}; primasCuadExtras = {};   // v792
     if (ids.length) {
       // v668: para la columna DEUDA PENDIENTE
       const conPr = trabs.filter(t => _primasNum(_pcPrestamo(t).inicial) > 0);
@@ -27104,7 +27153,7 @@ async function loadPrimasCuadrante() {
       const r = _primasRango();
       const porTrab = {};
       for (let desde = 0; desde < 20000; desde += 1000) {
-        const q2 = await sb.from('primas_partes').select('trabajador_id,fecha,prima,plus_manual,plus_mes_manual,trabajo,notas,parte_conductor').in('trabajador_id', ids)
+        const q2 = await sb.from('primas_partes').select('trabajador_id,fecha,prima,plus_manual,plus_mes_manual,trabajo,notas,parte_conductor,horas_extra').in('trabajador_id', ids)
           .gte('fecha', r.desde).lte('fecha', r.hasta).order('fecha', { ascending: true }).range(desde, desde + 999);
         if (q2.error) throw q2.error;
         (q2.data || []).forEach(f => { (porTrab[f.trabajador_id] = porTrab[f.trabajador_id] || {})[String(f.fecha).slice(0, 10)] = f; });
@@ -27119,6 +27168,8 @@ async function loadPrimasCuadrante() {
           for (let lun = r.desde; lun <= r.hasta; lun = _primasMas(lun, 7)) if (_primasSemanaEsDelMes(lun)) suma += _primasPlusSemana(lun).valor;
           suma += _primasPlusMes().valor;   // v675: plus del mes
           primasCuadPrima[id] = _pcR2(suma);
+          const _ex792 = _primasExtrasDe(primasRows, r.ini, r.fin);   // v792
+          if (_ex792.sab.length || _ex792.dom.length || _ex792.dias.length) primasCuadExtras[id] = _ex792;
         });
       } finally { primasRows = guardado; }
     }
@@ -27170,7 +27221,8 @@ function renderPrimasCuadrante() {
   let filas = '';
   trabs.forEach(t => {
     const row = primasCuadRows[t.id], v = _pcEntrada(t, row), id = t.id;
-    const numIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + '" value="' + (v[k] ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
+    const numIn = (k) => { const dp = _pcDeParte(id, k);   // v792: viene del parte → solo lectura, con las fechas
+      return '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + (dp ? ';color:#6a1b9a;background:rgba(106,27,154,.08)' : '') + '"' + (dp ? ' readonly title="Viene del parte diario: ' + _primasAttr(dp) + '. Se cambia en el Parte."' : '') + ' value="' + (v[k] ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>'; };
     const txtIn = (k) => '<td style="padding:2px 3px"><input class="fi" id="pc_' + k + '_' + id + '" style="' + inS + ';text-align:left;width:120px" value="' + _primasAttr(v[k]) + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
     const manIn = (k) => '<td style="padding:2px 3px"><input class="fi" type="number" step="any" id="pc_' + k + '_' + id + '" style="' + inS + ';width:76px;font-weight:800" value="' + (v[k] != null ? _primasAttr(v[k]) : '') + '" onchange="primasCuadSave(\'' + id + '\')"></td>';
     const calc = (n, fuerte) => '<td id="pcc_' + n + '_' + id + '" style="padding:7px 7px;text-align:right;white-space:nowrap;color:#111;font-weight:600' + (fuerte ? ';font-weight:800' : '') + '"></td>';
@@ -27405,9 +27457,11 @@ function primasDetAbrir(id) {
   ov = document.createElement('div'); ov.id = 'primasDetOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   const _in = 'font-size:15px;padding:8px 10px;box-sizing:border-box';   // v667: ventana grande
-  const num = (k, txt, tarifa) => '<label style="display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:12px"><span>' + txt +
-    (tarifa != null ? ' <span style="color:var(--mu);font-size:12px">× ' + _primasEur(tarifa) + '</span>' : '') + '</span>' +
-    '<input class="fi" type="number" step="any" id="primasDet_' + k + '" value="' + (fila[k] ? _primasAttr(fila[k]) : '') + '" style="width:130px;text-align:right;' + _in + '"></label>';
+  const num = (k, txt, tarifa) => { const dp = _pcDeParte(id, k);   // v792
+    return '<label style="display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:12px"><span>' + txt +
+    (tarifa != null ? ' <span style="color:var(--mu);font-size:12px">× ' + _primasEur(tarifa) + '</span>' : '') +
+    (dp ? '<br><span style="color:#6a1b9a;font-size:12px;font-weight:700">del parte: ' + esc(dp) + '</span>' : '') + '</span>' +
+    '<input class="fi" type="number" step="any" id="primasDet_' + k + '"' + (dp ? ' readonly title="Viene del parte diario. Se cambia en el Parte." ' : ' ') + 'value="' + (fila[k] ? _primasAttr(fila[k]) : '') + '" style="width:130px;text-align:right;' + _in + (dp ? ';color:#6a1b9a;background:rgba(106,27,154,.08)' : '') + '"></label>'; };
   const txt = (k, ph) => '<input class="fi" id="primasDet_' + k + '" placeholder="' + ph + '" value="' + _primasAttr(fila[k]) + '" style="flex:1;min-width:0;' + _in + '">';
   const par = (kt, kn, titulo, ph) => '<div style="margin-bottom:14px"><div style="margin-bottom:6px">' + titulo + '</div><div style="display:flex;gap:10px">' + txt(kt, ph) +
     '<input class="fi" type="number" step="any" id="primasDet_' + kn + '" placeholder="€" value="' + (fila[kn] ? _primasAttr(fila[kn]) : '') + '" style="width:130px;text-align:right;' + _in + '"></div></div>';
@@ -27543,10 +27597,11 @@ function _pcCertHtml(t, c, deudaAntes) {
   if (v.extras) dev.push(['Extras', '—', '—', v.extras]);
   if (c.prima) dev.push(['Prima de productividad', 'según viajes del mes', '—', c.prima]);
   if (v.noches) dev.push(['Noches fuera de casa', n(v.noches), e2(tf.noche), v.noches * tf.noche]);
-  if (v.sabados) dev.push(['Sábados trabajados', n(v.sabados), e2(tf.sabado), v.sabados * tf.sabado]);
-  if (v.domingos) dev.push(['Domingos trabajados', n(v.domingos), e2(tf.domingo), v.domingos * tf.domingo]);
+  const _fp = k => { const x = _pcDeParte(t.id, k); return x ? ' (' + x + ')' : ''; };   // v792: con las fechas del parte
+  if (v.sabados) dev.push(['Sábados trabajados' + _fp('sabados'), n(v.sabados), e2(tf.sabado), v.sabados * tf.sabado]);
+  if (v.domingos) dev.push(['Domingos trabajados' + _fp('domingos'), n(v.domingos), e2(tf.domingo), v.domingos * tf.domingo]);
   if (v.tardes) dev.push(['Tardes / noches', n(v.tardes), e2(tf.tarde), v.tardes * tf.tarde]);
-  if (v.horas) dev.push(['Horas extra', n(v.horas), e2(tf.hora), v.horas * tf.hora]);
+  if (v.horas) dev.push(['Horas extra' + _fp('horas'), n(v.horas), e2(tf.hora), v.horas * tf.hora]);
   if (v.festivos) dev.push(['Festivos', '—', '—', v.festivos]);
   if (v.parking) dev.push(['Parking', '—', '—', v.parking]);
   if (v.otro) dev.push([v.otro_concepto || 'Otro concepto', '—', '—', v.otro]);
