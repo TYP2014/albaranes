@@ -10370,7 +10370,10 @@ async function liqFacturaPDF() {
     const fN = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
     const negro = rgb(0, 0, 0), azul = rgb(0.12, 0.31, 0.47), blanco = rgb(1, 1, 1), gris = rgb(0.6, 0.6, 0.6);
     const T = _liqTotales();
-    const eur = n => _liqPdfTxt(_feFmt(_liqR2(n)));
+    const eur = n => {   // v790: punto de millar SIEMPRE (8.806,71 € y no 8806,71 €)
+      const r = _liqR2(n), p = Math.abs(r).toFixed(2).split('.');
+      return (r < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1] + ' €';
+    };
     const X0 = 45, X1 = 550;
     const tx = (s, x, y, size, font, color) => page.drawText(_liqPdfTxt(s), { x, y, size, font: font || fN, color: color || negro });
     const txR = (s, xr, y, size, font) => { const t = _liqPdfTxt(s), f = font || fN; page.drawText(t, { x: xr - f.widthOfTextAtSize(t, size), y, size, font: f, color: negro }); };

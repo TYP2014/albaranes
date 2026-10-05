@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v790 (05/10/2026): Liquidación subcontratados · Factura PDF: todos los importes con punto de millar (8.806,71 € y no 8806,71 €). Solo el PDF; pantalla y Excel igual. Sin SQL. VUELTA ATRAS: resubir v789.
+
 v789 (05/10/2026): Liquidación subcontratados · FACTURA EN PDF directo para los que les hacemos la factura (José Miguel, Ciprian, Joaquín Cañas, Miguel Ángel; no en las simulaciones). Sale sola al pulsar 💾 Guardar liquidación (si se vuelve a guardar, sale otra vez con los cambios) y con el botón nuevo 📄 Factura PDF. Mismo contenido que la pestaña Factura del Excel, con nombre puesto: '<nº> <NOMBRE> - <MES> <AÑO>.pdf'. Sin nº de factura no lo hace. El Excel sigue igual. Traza [v789]. Sin SQL. VUELTA ATRAS: resubir v788.
 
 v788 (05/10/2026): Primas · semanas partidas entre dos meses: el PLUS SEMANAL (4 días → 50 €, 5 → 75 €) se cuenta en el mes donde cae el VIERNES (antes el miércoles). Se siguen sumando los días de los dos meses. Ej.: semana 28/09–02/10/2026 → las primas diarias del 28-30/09 quedan en septiembre y el plus de esa semana pasa a OCTUBRE. Afecta igual al plus del mes y al cuadrante. Sin SQL. VUELTA ATRAS: resubir v787.
