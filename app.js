@@ -1399,8 +1399,8 @@ async function onLogin(user) {
   window._decaPerfil = { transportista: '', solo: false, baja: false, nombre: profile?.name || '' };
   try {
     const { data: _dp, error: _dpe } = await sb.from('profiles')
-      .select('deca_transportista, solo_deca, deca_baja, deca_dni').eq('id', user.id).single();
-    if (!_dpe && _dp) Object.assign(window._decaPerfil, { transportista: _dp.deca_transportista || '', solo: !!_dp.solo_deca, baja: !!_dp.deca_baja, dni: _dp.deca_dni || '' });
+      .select('deca_transportista, solo_deca, deca_baja, deca_dni, deca_ver_origen').eq('id', user.id).single();
+    if (!_dpe && _dp) Object.assign(window._decaPerfil, { transportista: _dp.deca_transportista || '', solo: !!_dp.solo_deca, baja: !!_dp.deca_baja, dni: _dp.deca_dni || '', ver: _dp.deca_ver_origen || '' });
   } catch (e) { console.warn('[v753] perfil DeCA', e); }
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
@@ -1432,6 +1432,8 @@ async function onLogin(user) {
   window._esFichadorPuro = _esFichadorPuro; // para que loadUserMap no le reactive otras pestañas
 
   // v753: usuario "solo DeCA" → únicamente la pantalla DeCA exprés, nada más.
+  // v796: usuario de CONSULTA de un cliente (p. ej. CEMEX) → solo su pantalla de DeCA, solo lectura
+  if (window._decaPerfil.ver && currentRole !== 'admin') { _cliArrancar(); return; }
   if (window._decaPerfil.solo && currentRole !== 'admin') { _xpArrancarSolo(); return; }
   if (window._decaPerfil.transportista) _xpBotonFlotante();
   if (currentRole === 'conductor' && !_esFichadorPuro) {
@@ -40287,4 +40289,84 @@ async function _condBaja(id, baja) {
     toast(baja ? 'Dado de baja' : 'Reactivado');
     _condPintar();
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+
+// ============================================================
+// v796 (05/10/2026) — CONSULTA DE DeCA PARA CLIENTES (p. ej. CEMEX)
+// Usuario con profiles.deca_ver_origen (ej. '%CEMEX%'): solo ve los DeCA cargados en sus
+// instalaciones (origen que lo contenga) o donde es cargador (deca_ver_nif). Lo garantiza la
+// BD (política deca_cliente_select). Solo lectura: lista, PDF y Excel.
+// ============================================================
+let _cliLista = [];
+function _cliHoy(d) { const x = new Date(); x.setDate(x.getDate() - (d || 0)); return x.toISOString().slice(0, 10); }
+async function _cliArrancar() {
+  ['conductorView', 'adminView'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  let ov = document.getElementById('decaCli');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'decaCli'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:990;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch';
+  const P = window._decaPerfil || {};
+  ov.innerHTML = '<div style="max-width:1100px;margin:0 auto;padding:18px 16px 60px;font-family:var(--ss)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<div><div style="font-family:var(--dp);font-size:24px;letter-spacing:2px;color:var(--ac)">DeCA · CONSULTA</div>' +
+      '<div style="font-size:12px;color:var(--mu)">' + esc(P.nombre || '') + ' · Grupo Transportes y Portes 2014</div></div>' +
+      '<button class="btn bs" onclick="_xpSalir()">Salir</button></div>' +
+    '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:16px 0">' +
+      '<div><div style="font-size:12px;color:var(--mu)">Desde</div><input type="date" id="cliDesde" class="fi" value="' + _cliHoy(7) + '"></div>' +
+      '<div><div style="font-size:12px;color:var(--mu)">Hasta</div><input type="date" id="cliHasta" class="fi" value="' + _cliHoy(0) + '"></div>' +
+      '<div style="flex:1;min-width:160px"><div style="font-size:12px;color:var(--mu)">Buscar (matrícula, nº, material…)</div><input id="cliBuscar" class="fi" oninput="_cliPintar()"></div>' +
+      '<button class="btn bp" onclick="_cliCargar()">Buscar</button>' +
+      '<button class="btn bs" onclick="_cliExcel()">📥 Excel</button></div>' +
+    '<div id="cliResumen" style="font-size:12px;color:var(--mu);margin-bottom:8px"></div>' +
+    '<div id="cliLista" style="overflow-x:auto"></div></div>';
+  await _cliCargar();
+}
+async function _cliCargar() {
+  const box = document.getElementById('cliLista'); if (!box) return;
+  box.innerHTML = '<div style="padding:20px;color:var(--mu)">Cargando…</div>';
+  try {
+    const { data, error } = await sb.from('deca')
+      .select('numero, fecha_carga, tractora, semirremolque, origen, destino, mercancia, peso_kg, carg_nombre, trans_nombre, conductor_nombre, anulado, file_url')
+      .gte('fecha_carga', document.getElementById('cliDesde').value)
+      .lte('fecha_carga', document.getElementById('cliHasta').value)
+      .order('fecha_carga', { ascending: false }).order('numero', { ascending: false }).limit(2000);
+    if (error) throw error;
+    _cliLista = data || [];
+    _cliPintar();
+  } catch (e) { box.innerHTML = '<div style="padding:20px;color:var(--er)">No se pudo cargar: ' + esc(e.message || e) + '</div>'; }
+}
+function _cliFiltrados() {
+  const q = _decaNrm((document.getElementById('cliBuscar') || {}).value || '');
+  return !q ? _cliLista : _cliLista.filter(d => _decaNrm([d.numero, d.tractora, d.semirremolque, d.mercancia, d.origen, d.destino, d.trans_nombre].join(' ')).includes(q));
+}
+function _cliPintar() {
+  const box = document.getElementById('cliLista'); if (!box) return;
+  const l = _cliFiltrados();
+  const val = l.filter(d => !d.anulado);
+  document.getElementById('cliResumen').textContent = val.length + ' DeCA · ' + val.reduce((a, d) => a + Number(d.peso_kg || 0), 0).toLocaleString('es-ES') + ' kg' + (l.length > val.length ? ' · ' + (l.length - val.length) + ' anulados' : '');
+  if (!l.length) { box.innerHTML = '<div style="padding:20px;color:var(--mu)">No hay DeCA en esas fechas.</div>'; return; }
+  const th = 'style="text-align:left;padding:6px;font-size:11px;color:var(--mu);border-bottom:2px solid var(--bd);white-space:nowrap"';
+  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>' +
+    ['Nº', 'Fecha', 'Tractora / Semi', 'Origen → Destino', 'Material', 'Kg', 'Transportista', ''].map(h => '<th ' + th + '>' + h + '</th>').join('') + '</tr></thead><tbody>' +
+    l.map(d => '<tr style="border-bottom:1px solid var(--bd)' + (d.anulado ? ';opacity:.45;text-decoration:line-through' : '') + '">' +
+      '<td style="padding:6px;white-space:nowrap"><b>' + esc(d.numero || '') + '</b>' + (d.anulado ? ' <span style="color:var(--er)">ANULADO</span>' : '') + '</td>' +
+      '<td style="padding:6px;white-space:nowrap">' + esc(_decaFechaEs ? _decaFechaEs(d.fecha_carga) : d.fecha_carga) + '</td>' +
+      '<td style="padding:6px;white-space:nowrap">' + esc(d.tractora || '') + ' / ' + esc(d.semirremolque || '') + '</td>' +
+      '<td style="padding:6px;white-space:normal" title="' + esc((d.origen || '') + ' → ' + (d.destino || '')).replace(/"/g, '&quot;') + '">' + esc(_decaCorto(d.origen)) + ' → ' + esc(_decaCorto(d.destino)) + '</td>' +
+      '<td style="padding:6px">' + esc(d.mercancia || '') + '</td>' +
+      '<td style="padding:6px;text-align:right;white-space:nowrap">' + Number(d.peso_kg || 0).toLocaleString('es-ES') + '</td>' +
+      '<td style="padding:6px">' + esc(d.trans_nombre || '') + '</td>' +
+      '<td style="padding:6px">' + (d.file_url ? '<a class="btn bs" style="text-decoration:none;font-size:10px" target="_blank" href="' + esc(d.file_url) + '">PDF</a>' : '') + '</td></tr>').join('') +
+    '</tbody></table>';
+}
+function _cliExcel() {
+  const l = _cliFiltrados();
+  if (!l.length) { toast('No hay nada que exportar', 'err'); return; }
+  const filas = l.map(d => ({ 'Nº DeCA': d.numero, 'Fecha': d.fecha_carga, 'Tractora': d.tractora, 'Semirremolque': d.semirremolque,
+    'Origen': d.origen, 'Destino': d.destino, 'Material': d.mercancia, 'Kg': Number(d.peso_kg || 0),
+    'Cargador contractual': d.carg_nombre, 'Transportista': d.trans_nombre, 'Conductor': d.conductor_nombre || '',
+    'Anulado': d.anulado ? 'SÍ' : '', 'PDF': d.file_url || '' }));
+  const ws = XLSX.utils.json_to_sheet(filas), wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DeCA');
+  XLSX.writeFile(wb, 'DeCA_' + document.getElementById('cliDesde').value + '_' + document.getElementById('cliHasta').value + '.xlsx');
 }

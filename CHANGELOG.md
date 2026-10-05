@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v796 (05/10/2026): DeCA · CONSULTA PARA CLIENTES (p. ej. CEMEX). Usuario con profiles.deca_ver_origen (patrón tipo '%CEMEX%') y opcional deca_ver_nif: al entrar solo ve una pantalla de solo lectura con los DeCA cargados en sus instalaciones (origen que contenga el patrón) o donde es cargador contractual (NIF), con filtro de fechas, buscador, PDF y Excel. Lo garantiza la BD (función deca_cliente_ve + política deca_cliente_select). No puede crear, cambiar ni anular. SQL PRIMERO: v796_SQL.sql. VUELTA ATRAS: resubir v795.
+
+---
+
 v795 (05/10/2026): Albaranes · PEDRACOR (2º intento): la regla se aplica también en el punto único de GUARDADO (saveRecord), cuando todo lo demás ya está decidido. Con la v794 sola, el 191995 resubido salió con el origen vacío. Solo afecta a lo leído por la IA (no a lo editado a mano): proveedor y origen vacíos o con 'Pedracor' → 'Pedracor, S.A.'. Traza [v795]. Sin SQL. VUELTA ATRAS: resubir v794.
 
 v794 (05/10/2026): Albaranes · PEDRACOR: al leer un albarán de Pedracor (proveedor u origen con 'Pedracor'), Proveedor y Origen quedan como 'Pedracor, S.A.' (antes el origen salía vacío). Solo rellena lo vacío o lo que ya dice Pedracor; no pisa otro origen escrito. Los ya subidos se arreglan con pedracor_v794.sql. Traza [v794]. VUELTA ATRAS: resubir v793.
