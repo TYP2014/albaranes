@@ -39453,15 +39453,35 @@ async function _xpCargarViajes() {
   } catch (e) { console.warn('[v785] viajes', e); _xpViajes = base; }
   const g = _xpLS('xp_viaje');
   _xpViaje = (g === 'OTRO' || _xpViajes.some(v => v.id === g)) ? g : (_xpViajes[0] ? _xpViajes[0].id : 'OTRO');
+  // v786: primera vez en este móvil → se rellenan los campos con el viaje por defecto
+  if (!_xpLS('xp_cli') && !_xpLS('xp_orig')) {
+    const v = _xpViajes.find(x => x.id === _xpViaje);
+    if (v) { _xpLS('xp_cli', v.carg_nif || ''); _xpLS('xp_orig', v.origen || ''); _xpLS('xp_dest', (v.destinos || [])[0] || ''); _xpLS('xp_mat', (v.materiales || [])[0] || ''); }
+  }
 }
 function _xpViajeActual() { return (_xpViajes || []).find(v => v.id === _xpViaje) || null; }
 // Cargador del viaje elegido (o el elegido en "Otro viaje")
 function _xpCargViaje() {
-  const v = _xpViajeActual();
-  if (v) return { nombre: v.carg_nombre, nif: v.carg_nif, dom: v.carg_dom };
-  const i = (document.getElementById('xpOtroCarg') || {}).value;
+  // v786: el cliente sale SIEMPRE del desplegable (rellenado por el atajo o elegido a mano)
+  const i = (document.getElementById('xpCli') || {}).value;
   const c = _decaCargadores[Number(i)];
   return (i !== '' && i != null && c) ? { nombre: c.nombre, nif: c.nif, dom: c.domicilio } : null;
+}
+// v786: materiales básicos (además de los de los viajes)
+const _XP_MAT_BASICOS = ['Arena 0/4', 'Garbancillo 4/12', 'Gravilla 12/25', 'Filler', 'Zahorra', 'Caliza', 'Árido reciclado', 'Escollera', 'Tierra', 'Escombros', 'Yeso', 'Clinker', 'Cemento a granel'];
+function _xpUnicos(arr) { const v = new Set(); return arr.filter(x => x && !v.has(x) && v.add(x)); }
+// Atajo: al pulsar un botón se rellenan cliente, origen, destino y material (editables después)
+function _xpElegirViaje(id) {
+  _xpViaje = id; _xpLS('xp_viaje', id);
+  const v = (_xpViajes || []).find(x => x.id === id);
+  if (v) {
+    _xpLS('xp_cli', v.carg_nif || ''); _xpLS('xp_orig', v.origen || '');
+    _xpLS('xp_dest', (v.destinos || [])[0] || ''); _xpLS('xp_mat', (v.materiales || [])[0] || '');
+  }
+  _xpPintar();
+}
+function _xpNombreCli() {
+  const c = _xpCargViaje(); return c ? _xpCorto(c.nombre) : 'el cliente';
 }
 function _xpCorto(n) { return String(n || '').replace(/,?\s*S\.?A\.?U?\.?|,?\s*S\.?L\.?U?\.?/gi, '').trim(); }
 // Desplegable con "Otro (escribir)" (material / destino)
@@ -39593,16 +39613,15 @@ function _xpQuienContrata() {
 }
 function _xpCampoCargador(inp) {
   const t = _xpTipoTrans();
-  const v0 = _xpViajeActual();
-  const cli = v0 ? _xpCorto(v0.carg_nombre) : 'el cliente';
-  const caja = txt => '<div style="font-size:12px;color:var(--mu);margin-top:14px">Cargador contractual: <b>' + _xpE(txt) + '</b></div>';
-  if (t === 'TYP') return caja(v0 ? cli : 'el elegido arriba');
+  const cli = '<span class="xpCliNom">' + _xpE(_xpNombreCli()) + '</span>';
+  const caja = txt => '<div style="font-size:12px;color:var(--mu);margin-top:14px">Cargador contractual: <b>' + txt + '</b></div>';
+  if (t === 'TYP') return caja(cli);
   if (t === 'SUB') return caja('Transportes y Portes 2014 (por cuenta de ' + cli + ')');
   const v = _xpLS('xp_carg') === 'TYP2014' || !_xpLS('xp_carg') ? 'TYP2014' : 'CLIENTE';
   return '<div style="font-size:13px;color:var(--mu);margin:16px 0 6px">¿Quién te contrata este viaje?</div>' +
     '<select id="xpCargSel" style="' + inp + '" onchange="_xpLS(\'xp_carg\', this.value)">' +
-    '<option value="TYP2014"' + (v === 'TYP2014' ? ' selected' : '') + '>Transportes y Portes 2014 (por cuenta de ' + _xpE(cli) + ')</option>' +
-    '<option value="CLIENTE"' + (v === 'CLIENTE' ? ' selected' : '') + '>' + _xpE(cli) + ' directamente</option></select>';
+    '<option value="TYP2014"' + (v === 'TYP2014' ? ' selected' : '') + '>Transportes y Portes 2014 (por cuenta del cliente)</option>' +
+    '<option value="CLIENTE"' + (v === 'CLIENTE' ? ' selected' : '') + '>El cliente directamente</option></select>';
 }
 // v761: conductor. El de DNI + PIN es él mismo (fijo). El resto elige de su lista o escribe.
 function _xpCampoConductor(inp) {
@@ -39690,7 +39709,7 @@ function _xpPintar() {
   const esAdmin = currentRole === 'admin';
   const cajaViaje = (k, txt, sub) => {
     const on = _xpViaje === k;
-    return '<div onclick="_xpViaje=\'' + k + '\';_xpLS(\'xp_viaje\',\'' + k + '\');_xpPintar()" style="cursor:pointer;border-radius:10px;padding:12px 8px;text-align:center;' +
+    return '<div onclick="_xpElegirViaje(\'' + k + '\')" style="cursor:pointer;border-radius:10px;padding:12px 8px;text-align:center;' +
       (on ? 'border:2px solid var(--ac);background:#e8f1fb;color:var(--ac);' : 'border:1px solid var(--bd);background:var(--sf);') +
       '"><div style="font-size:15px;font-weight:600">' + _xpE(txt) + '</div><div style="font-size:12px;opacity:.75">' + _xpE(sub || '') + '</div></div>';
   };
@@ -39704,15 +39723,22 @@ function _xpPintar() {
       '<select style="' + inp + '" onchange="_xpCambiarTrans(this.value)"><option value="">— elegir —</option>' +
       nombres.map(n => '<option' + (_decaNrm(n) === _decaNrm(_xpTrans) ? ' selected' : '') + '>' + _xpE(n) + '</option>').join('') + '</select>';
   }
-  const otro = _xpViaje === 'OTRO' ?
-    lbl('Cliente / cargador') + '<select id="xpOtroCarg" style="' + inp + '" onchange="_xpLS(\'xp_otrocarg\', this.value)"><option value="">— elegir —</option>' +
-      _decaCargadores.map((c, i) => '<option value="' + i + '"' + (String(i) === _xpLS('xp_otrocarg') ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') + '</select>' +
-    lbl('Origen (dónde cargas)') + '<input id="xpOrigen" style="' + inp + '" value="' + _xpE(_xpLS('xp_origen')) + '">' +
-    lbl('Destino (dónde descargas)') + '<input id="xpDestino" style="' + inp + '" value="' + _xpE(_xpLS('xp_destino')) + '">' +
-    lbl('Mercancía') + '<input id="xpMerc" style="' + inp + '" value="' + _xpE(_xpLS('xp_merc')) + '">' :
-    // v785: viaje de la tabla → material y destino (fijos si solo hay uno; si no, desplegable + "Otro")
-    (vAct ? lbl('Material') + _xpSelOtro('xpMat', vAct.materiales, inp, _xpLS('xp_mat_' + vAct.id)) +
-            lbl('Destino') + _xpSelOtro('xpDest', vAct.destinos, inp, _xpLS('xp_dest_' + vAct.id)) : '');
+  // v786: cliente / origen / destino / material SIEMPRE visibles (buscar, elegir o escribir)
+  const vs = _xpViajes || [];
+  const dl = (id, arr) => '<datalist id="' + id + '">' + _xpUnicos(arr).map(x => '<option value="' + _xpE(x) + '">').join('') + '</datalist>';
+  const cliNif = _xpLS('xp_cli');
+  const campos =
+    lbl('Cliente (quién os contrata)') +
+    '<select id="xpCli" style="' + inp + '" onchange="_xpLS(\'xp_cli\', (_decaCargadores[this.value]||{}).nif||\'\');document.querySelectorAll(\'.xpCliNom\').forEach(e=>e.textContent=_xpNombreCli())">' +
+      '<option value="">— elegir —</option>' +
+      _decaCargadores.map((c, i) => '<option value="' + i + '"' + (cliNif && c.nif === cliNif ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') + '</select>' +
+    '<div style="font-size:11px;color:var(--mu);margin-top:4px">¿No está? Avisad a oficina para añadirlo.</div>' +
+    lbl('Origen (dónde cargas)') + '<input id="xpOrigen" list="xpDlOrig" style="' + inp + '" value="' + _xpE(_xpLS('xp_orig')) + '" placeholder="Escribe o elige…">' +
+    lbl('Destino (dónde descargas)') + '<input id="xpDestino" list="xpDlDest" style="' + inp + '" value="' + _xpE(_xpLS('xp_dest')) + '" placeholder="Escribe o elige…">' +
+    lbl('Material') + '<input id="xpMerc" list="xpDlMat" style="' + inp + '" value="' + _xpE(_xpLS('xp_mat')) + '" placeholder="Escribe o elige… (ej. arena)">' +
+    dl('xpDlOrig', vs.map(v => v.origen)) +
+    dl('xpDlDest', [].concat(...vs.map(v => v.destinos || []))) +
+    dl('xpDlMat', _XP_MAT_BASICOS.concat(...vs.map(v => v.materiales || [])));
   ov.innerHTML =
     '<div style="max-width:460px;margin:0 auto;padding:18px 16px 90px;font-family:var(--ss)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center">' +
@@ -39721,9 +39747,9 @@ function _xpPintar() {
       (_xpSolo ? '<button class="btn bs" onclick="_xpSalir()">Salir</button>' : '<button class="btn bs" onclick="_xpCerrar()">✕ Cerrar</button>') +
     '</div>' +
     opcTrans +
-    lbl('1. ¿Qué cargas?') +
+    lbl('1. Atajos (rellenan todo; luego puedes cambiarlo)') +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + (_xpViajes || []).map(v => cajaViaje(v.id, v.nombre, v.sub)).join('') + '</div>' +
-    '<div style="margin-top:8px">' + cajaViaje('OTRO', 'Otro viaje', 'otro cliente o destino') + '</div>' + otro +
+    campos +
     lbl('2. Camión') +
     _xpCampoTractora(inp) +
     lbl('Remolque') + _xpCampoRemolque(inp) +
@@ -39750,18 +39776,11 @@ async function _xpGenerar() {
   if (!remolque) { toast('Pon la matrícula del remolque', 'err'); return; }
   if (!peso || peso < 1000 || peso > 45000) { toast('Los kilos no cuadran (entre 1.000 y 45.000)', 'err'); return; }
   let origen, destino, mercancia;
-  const vSel = _xpViajeActual();
-  if (_xpViaje === 'OTRO' || !vSel) {
-    origen = g('xpOrigen'); destino = g('xpDestino'); mercancia = g('xpMerc');
-    if (!_xpCargViaje()) { toast('Elige el cliente / cargador', 'err'); return; }
-    if (!origen || !destino || !mercancia) { toast('Rellena origen, destino y mercancía', 'err'); return; }
-  } else {
-    origen = vSel.origen;
-    mercancia = _xpLeerSelOtro('xpMat', vSel.materiales);
-    destino = _xpLeerSelOtro('xpDest', vSel.destinos);
-    if (!mercancia) { toast('Pon el material', 'err'); return; }
-    if (!destino) { toast('Pon el destino', 'err'); return; }
-  }
+  origen = g('xpOrigen'); destino = g('xpDestino'); mercancia = g('xpMerc');   // v786
+  if (!_xpCargViaje()) { toast('Elige el cliente (quién os contrata)', 'err'); return; }
+  if (!origen) { toast('Pon el origen (dónde cargas)', 'err'); return; }
+  if (!destino) { toast('Pon el destino', 'err'); return; }
+  if (!mercancia) { toast('Pon el material', 'err'); return; }
   const tr = _xpDatosTrans(_xpTrans);   // v756: la empresa del usuario, no la que "adivine" la matrícula
   if (!tr || !tr.nif || !tr.aut) { toast('Faltan los datos de tu empresa (NIF o autorización). Llama a la oficina.', 'err'); return; }
   // v761: conductor
@@ -39798,8 +39817,7 @@ async function _xpGenerar() {
     if (error) throw error;
     _xpLS('xp_tractora', tractora); _xpLS('xp_remolque', remolque);
     if (cond.clave) _xpLS('xp_cond', cond.clave);
-    if (_xpViaje === 'OTRO') { _xpLS('xp_origen', origen); _xpLS('xp_destino', destino); _xpLS('xp_merc', mercancia); }
-    else if (vSel) { _xpLS('xp_mat_' + vSel.id, mercancia); _xpLS('xp_dest_' + vSel.id, destino); }   // v785
+    _xpLS('xp_orig', origen); _xpLS('xp_dest', destino); _xpLS('xp_mat', mercancia);   // v786: para el siguiente viaje
     await _xpPdf(ins);
     _xpUltimo = ins;
     const p = document.getElementById('xpPeso'); if (p) p.value = '';

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v786 (05/10/2026): DeCA EXPRÉS más abierto: los botones de viajes pasan a ser ATAJOS que rellenan 4 campos siempre visibles y editables: Cliente (quién os contrata; desplegable de deca_cargadores, solo de la lista porque lleva NIF y domicilio), Origen, Destino y Material (los tres con buscador: escribes y sugiere los de los viajes, o se escribe otro). Material con básicos: Arena 0/4, Garbancillo 4/12, Gravilla 12/25, Filler, Zahorra, Caliza, Árido reciclado, Escollera, Tierra, Escombros, Yeso, Clinker, Cemento a granel + los de los viajes. Se recuerda lo último usado en el móvil. Fuera el botón 'Otro viaje' (ya no hace falta). El cargador contractual sigue la regla de v761 con el cliente elegido. Sin SQL. VUELTA ATRAS: resubir v785.
+
+---
+
 v785 (05/10/2026): DeCA EXPRÉS · los viajes salen de la tabla nueva deca_viajes (cargador con NIF y domicilio, origen, destinos[], materiales[], orden): para añadir una cantera (CEMEX, PROMSA...) basta un INSERT, sin tocar la app. Si la tabla falla o está vacía, quedan Garraf y Jorba de Holcim como antes. Material y destino: fijos si el viaje tiene uno; si tiene varios, desplegable + '✏️ Otro (escribir)'; se recuerda lo último por viaje. El cargador contractual sigue la regla de v761 pero con el cliente del viaje (TYP2014 → cliente; subcontratado → TYP2014 'por cuenta de <cliente>'; grupo → elige). 'Otro viaje' ahora pide el cliente/cargador de la lista de cargadores habituales (antes ponía Holcim siempre: error). VUELTA ATRAS: resubir v784.
 
 ---
