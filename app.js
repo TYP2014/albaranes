@@ -2228,6 +2228,15 @@ async function saveRecord(data) {
       rec.producto = _matCanon;
     }
   }
+  // v795 (JC 05/10/2026): PEDRACOR en el PUNTO ÚNICO DE GUARDADO. La regla v794 de _processOne no bastaba
+  // (191995 resubido salió con el origen vacío: el proveedor se fija después). Aquí ya está todo decidido.
+  // Solo lo leído por la IA (no lo editado a mano): proveedor y origen vacíos o 'Pedracor' → "Pedracor, S.A.".
+  if (data._manual !== true && /pedracor/i.test(String(rec.proveedor || '') + ' ' + String(rec.planta || ''))) {
+    const _pv = String(rec.proveedor || '').trim(), _pl = String(rec.planta || '').trim();
+    if (!_pv || /pedracor/i.test(_pv)) rec.proveedor = 'Pedracor, S.A.';
+    if (!_pl || /pedracor/i.test(_pl)) rec.planta = 'Pedracor, S.A.';
+    if (rec.planta !== _pl || rec.proveedor !== _pv) console.log('[v795] Pedracor al guardar: proveedor/origen →', rec.proveedor, '/', rec.planta, '(albarán ' + rec.albaran + ')');
+  }
   if (!data.db_id) {
     // Es nuevo: el dueño es quien lo sube.
     rec.user_id = currentUser.id;

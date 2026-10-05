@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v795 (05/10/2026): Albaranes · PEDRACOR (2º intento): la regla se aplica también en el punto único de GUARDADO (saveRecord), cuando todo lo demás ya está decidido. Con la v794 sola, el 191995 resubido salió con el origen vacío. Solo afecta a lo leído por la IA (no a lo editado a mano): proveedor y origen vacíos o con 'Pedracor' → 'Pedracor, S.A.'. Traza [v795]. Sin SQL. VUELTA ATRAS: resubir v794.
+
 v794 (05/10/2026): Albaranes · PEDRACOR: al leer un albarán de Pedracor (proveedor u origen con 'Pedracor'), Proveedor y Origen quedan como 'Pedracor, S.A.' (antes el origen salía vacío). Solo rellena lo vacío o lo que ya dice Pedracor; no pisa otro origen escrito. Los ya subidos se arreglan con pedracor_v794.sql. Traza [v794]. VUELTA ATRAS: resubir v793.
 
 v793 (05/10/2026): Primas · SÁBADO/DOMINGO DOBLE: si en EXTRA (h) de un sábado o domingo se ponen 8 horas o más, cuenta como 2 (jornada doble: 2 × 130 € el sábado). Lo normal son 4,5-5 h. Sale marcado 'DOBLE' en el cuadro morado, en el cuadrante y en el certificado. Ya no hace falta usar 'Otro concepto' para eso. Sin SQL. VUELTA ATRAS: resubir v792.
