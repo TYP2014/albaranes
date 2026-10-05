@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v788 (05/10/2026): Primas · semanas partidas entre dos meses: el PLUS SEMANAL (4 días → 50 €, 5 → 75 €) se cuenta en el mes donde cae el VIERNES (antes el miércoles). Se siguen sumando los días de los dos meses. Ej.: semana 28/09–02/10/2026 → las primas diarias del 28-30/09 quedan en septiembre y el plus de esa semana pasa a OCTUBRE. Afecta igual al plus del mes y al cuadrante. Sin SQL. VUELTA ATRAS: resubir v787.
+
 v787 (05/10/2026): DeCA EXPRÉS · Origen, Material y Destino pasan a DESPLEGABLES EN CASCADA (el buscador de v786 no enseñaba la lista si el campo ya tenía texto). Origen = canteras/proveedores de deca_viajes; al cambiarlo, Material y Destino se recargan: primero 'En este origen' (los de los viajes con ese origen, ej. CEMEX Begues: caliza + áridos) y luego 'Otros'. Los tres con '✏️ Otro (escribir)'. Sin cambios de BD obligatorios (SQL opcional: nombres de áridos más claros + Filler en CEMEX Begues). VUELTA ATRAS: resubir v786.
 
 ---

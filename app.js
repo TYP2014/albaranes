@@ -25900,7 +25900,7 @@ function switchEmpleadosVista(v) {
 // (SIEMPRE a mano en esta fase). El PLUS SEMANAL lo calcula la app:
 //   4 dias (L-V) con prima > 0 → 50 € · 5 dias → 75 € · menos → 0
 // y se puede pisar a mano (casilla "a mano"). Una semana partida entre dos
-// meses cuenta en el mes donde cae su MIERCOLES (asi lo hacia JC en los Excel:
+// meses cuenta en el mes donde cae su VIERNES (v788; antes MIERCOLES, asi lo hacia JC en los Excel:
 // la semana 27/04-01/05 se pago en abril, la del 31/08 en septiembre).
 // Tabla: primas_partes (SQL primas_partes_v659.sql, VA ANTES que el codigo).
 // Permisos: los de EMPLEADOS (_tieneVac) + RLS heredada de trabajadores.
@@ -26089,8 +26089,11 @@ function _primasPlusSemana(lun) {
   const manual = (dom && dom.plus_manual != null) ? _primasNum(dom.plus_manual) : null;
   return { dias, auto, manual, valor: manual != null ? manual : auto };
 }
-// ¿La semana del lunes `lun` se paga en el mes abierto? (manda el miercoles)
-function _primasSemanaEsDelMes(lun) { return _primasMas(lun, 2).slice(0, 7) === primasMes; }
+// ¿La semana del lunes `lun` se paga en el mes abierto?
+// v788 (JC 05/10/2026): manda el VIERNES (antes el miercoles). Semana 28/09-02/10/2026: las primas diarias
+// del 28-30/09 se quedan en septiembre, pero el PLUS SEMANAL (50/75 €) se cuenta y se paga en OCTUBRE,
+// sumando los dias de los dos meses. Afecta tambien al plus del mes y al cuadrante (usan esta funcion).
+function _primasSemanaEsDelMes(lun) { return _primasMas(lun, 4).slice(0, 7) === primasMes; }
 
 // v678: la caja de texto crece hasta enseñar todo su contenido (sin barra ni texto escondido)
 function _primasAutoAlto(el) { if (!el || !el.style) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
@@ -26184,7 +26187,7 @@ async function _primasMarcaDesfase() {
 }
 
 // v675: plus del mes abierto, calculado sobre primasRows. Devuelve { semanas, semanasOk, dias, diasOk, auto, manual, valor }
-//  · semanas = las que cuentan en este mes (regla del miercoles) · semanasOk = las que tienen 4 o mas dias L-V con prima
+//  · semanas = las que cuentan en este mes (regla del viernes, v788) · semanasOk = las que tienen 4 o mas dias L-V con prima
 //  · dias = laborables L-V del mes SIN contar los marcados FESTIVO (en trabajo, notas o lo que dice el conductor) · diasOk = con prima > 0
 //  · el importe puesto a mano se guarda en la fila del ULTIMO dia del mes (columna plus_mes_manual)
 function _primasPlusMes() {
