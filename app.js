@@ -26228,7 +26228,7 @@ function renderPrimas() {
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
-      '<td style="padding:3px 4px;width:86px"><input class="fi" id="pr_horas_extra_' + iso + '" type="number" step="0.5" min="0" title="' + (w === 6 ? 'SÁBADO trabajado: pon las horas que hizo (se paga el precio fijo del sábado)' : (w === 0 ? 'DOMINGO trabajado: pon las horas que hizo (se paga el precio fijo del domingo)' : 'Horas extra de este día (se pagan por hora)')) + '" style="' + inS + ';text-align:right;color:#6a1b9a' + (finde ? ';background:rgba(106,27,154,.06)' : '') + '" value="' + (f.horas_extra != null && _primasNum(f.horas_extra) !== 0 ? _primasAttr(f.horas_extra) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +   // v792
+      '<td style="padding:3px 4px;width:86px"><input class="fi" id="pr_horas_extra_' + iso + '" type="number" step="0.5" min="0" title="' + (w === 6 ? 'SÁBADO trabajado: pon las horas que hizo (se paga el precio fijo del sábado; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : (w === 0 ? 'DOMINGO trabajado: pon las horas que hizo (se paga el precio fijo del domingo; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : 'Horas extra de este día (se pagan por hora)')) + '" style="' + inS + ';text-align:right;color:#6a1b9a' + (finde ? ';background:rgba(106,27,154,.06)' : '') + '" value="' + (f.horas_extra != null && _primasNum(f.horas_extra) !== 0 ? _primasAttr(f.horas_extra) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +   // v792
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">⬇ TRAER</button> <button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#fff;color:#111;border:2px solid #111;border-radius:6px;cursor:pointer" title="Ver qué albaranes cuenta la app este día (nº, ruta, tipo)" onclick="primasVerAlbDia(\'' + iso + '\')">👁 VER</button></td></tr>';
     // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
@@ -26349,17 +26349,21 @@ function _primasPintaTotales() {
 // del parte: entre semana se pagan por hora (tarifa 'Hora extra' de su Ficha); en SÁBADO o DOMINGO se paga el precio FIJO
 // del sábado/domingo de su Ficha, haga las horas que haga (las horas quedan apuntadas). No es prima de productividad:
 // va aparte y pasa sola al CUADRANTE (Sábados, Domingos y Horas extra) y al certificado, con las fechas.
+// v793 (JC 05/10/2026): un sábado/domingo de PRIMAS_FINDE_DOBLE_H horas o más es JORNADA DOBLE → cuenta como 2 (2 × 130 €).
+// Lo normal son 4,5-5 h (de 8 a 1); si hacen el doble se paga doble, sin usar 'Otro concepto'.
+const PRIMAS_FINDE_DOBLE_H = 8;
 function _primasExtrasDe(rows, ini, fin) {
-  const ex = { sab: [], dom: [], dias: [], horas: 0 };
+  const ex = { sab: [], dom: [], dias: [], horas: 0, nSab: 0, nDom: 0 };
   for (let iso = ini; iso <= fin; iso = _primasMas(iso, 1)) {
     const h = _primasNum((rows[iso] || {}).horas_extra); if (!(h > 0)) continue;
     const w = _primasDate(iso).getDay(), dd = iso.slice(8) + '/' + iso.slice(5, 7);
-    if (w === 6) ex.sab.push({ dd, h }); else if (w === 0) ex.dom.push({ dd, h }); else { ex.dias.push({ dd, h }); ex.horas += h; }
+    const n = h >= PRIMAS_FINDE_DOBLE_H ? 2 : 1;   // v793
+    if (w === 6) { ex.sab.push({ dd, h, n }); ex.nSab += n; } else if (w === 0) { ex.dom.push({ dd, h, n }); ex.nDom += n; } else { ex.dias.push({ dd, h }); ex.horas += h; }
   }
   ex.horas = Math.round(ex.horas * 100) / 100;
   return ex;
 }
-function _primasExtrasTxt(lista, conH) { return lista.map(x => x.dd + (conH ? ' (' + String(x.h).replace('.', ',') + ' h)' : '')).join(', '); }
+function _primasExtrasTxt(lista, conH) { return lista.map(x => x.dd + (conH ? ' (' + String(x.h).replace('.', ',') + ' h)' : '') + (x.n === 2 ? ' DOBLE' : '')).join(', '); }
 function _primasPintaExtras() {
   const box = document.getElementById('primasBox'); if (!box) return;
   let el = document.getElementById('primasExtrasBox');
@@ -26368,13 +26372,13 @@ function _primasPintaExtras() {
   if (!el) { el = document.createElement('div'); el.id = 'primasExtrasBox'; box.appendChild(el); }
   const t = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
   const tf = _pcTarifas(t, null);
-  const iH = _pcR2(ex.horas * tf.hora), iS = _pcR2(ex.sab.length * tf.sabado), iD = _pcR2(ex.dom.length * tf.domingo);
+  const iH = _pcR2(ex.horas * tf.hora), iS = _pcR2(ex.nSab * tf.sabado), iD = _pcR2(ex.nDom * tf.domingo);   // v793: dobles cuentan 2
   const lin = (txt, imp) => '<div style="display:flex;justify-content:space-between;gap:20px;padding:4px 0;border-bottom:1px dashed var(--bd)"><span>' + txt + '</span><strong style="white-space:nowrap">' + _primasEur(imp) + '</strong></div>';
   el.style.cssText = 'margin-top:12px;padding:12px 16px;border:2px solid #6a1b9a;border-radius:10px;font-family:var(--mn);font-size:14px;font-weight:600;color:#111;background:rgba(106,27,154,.05)';
   el.innerHTML = '<div style="font-weight:800;color:#6a1b9a;margin-bottom:6px">⏱ HORAS EXTRA Y FINES DE SEMANA <span style="font-weight:600;color:#333;font-size:12.5px">· se pagan aparte (no son prima) y pasan solos al cuadrante · tarifas de su ⚙️ Ficha</span></div>' +
     (ex.dias.length ? lin('Horas extra: <b>' + String(ex.horas).replace('.', ',') + ' h</b> × ' + _primasEur(tf.hora) + ' · ' + _primasExtrasTxt(ex.dias, true), iH) : '') +
-    (ex.sab.length ? lin('Sábados: <b>' + ex.sab.length + '</b> × ' + _primasEur(tf.sabado) + ' · ' + _primasExtrasTxt(ex.sab, true), iS) : '') +
-    (ex.dom.length ? lin('Domingos: <b>' + ex.dom.length + '</b> × ' + _primasEur(tf.domingo) + ' · ' + _primasExtrasTxt(ex.dom, true), iD) : '') +
+    (ex.sab.length ? lin('Sábados: <b>' + ex.nSab + '</b> × ' + _primasEur(tf.sabado) + ' · ' + _primasExtrasTxt(ex.sab, true), iS) : '') +
+    (ex.dom.length ? lin('Domingos: <b>' + ex.nDom + '</b> × ' + _primasEur(tf.domingo) + ' · ' + _primasExtrasTxt(ex.dom, true), iD) : '') +
     '<div style="display:flex;justify-content:flex-end;gap:12px;margin-top:6px;font-size:15px">TOTAL HORAS EXTRA Y FINES DE SEMANA: <strong style="color:#6a1b9a">' + _primasEur(iH + iS + iD) + '</strong></div>';
 }
 
@@ -27075,7 +27079,7 @@ function _pcEntrada(t, row) {
   _PC_MAN.forEach(k => { v[k] = (row && row[k] != null) ? _primasNum(row[k]) : null; });
   // v792: si el PARTE tiene horas extra / sábados / domingos apuntados con fecha, mandan esos (no se escriben aquí)
   const ex = t && primasCuadExtras[t.id];
-  if (ex) { if (ex.sab.length) v.sabados = ex.sab.length; if (ex.dom.length) v.domingos = ex.dom.length; if (ex.dias.length) v.horas = ex.horas; }
+  if (ex) { if (ex.sab.length) v.sabados = ex.nSab; if (ex.dom.length) v.domingos = ex.nDom; if (ex.dias.length) v.horas = ex.horas; }   // v793: jornada doble = 2
   return v;
 }
 // v792: fechas del parte para Sábados / Domingos / Horas extra de un trabajador ('' si ese campo no viene del parte)

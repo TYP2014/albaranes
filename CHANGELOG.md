@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v793 (05/10/2026): Primas · SÁBADO/DOMINGO DOBLE: si en EXTRA (h) de un sábado o domingo se ponen 8 horas o más, cuenta como 2 (jornada doble: 2 × 130 € el sábado). Lo normal son 4,5-5 h. Sale marcado 'DOBLE' en el cuadro morado, en el cuadrante y en el certificado. Ya no hace falta usar 'Otro concepto' para eso. Sin SQL. VUELTA ATRAS: resubir v792.
+
 v792 (05/10/2026): Primas · HORAS EXTRA Y FINES DE SEMANA CON FECHA (taller y quien sea). Columna nueva EXTRA (h) en el Parte diario: entre semana = horas extra × tarifa 'Hora extra' de su Ficha; en SÁBADO o DOMINGO se apuntan las horas y se paga el precio FIJO del sábado/domingo de su Ficha. Debajo del parte, cuadro morado con cada día, horas e importe. No es prima de productividad: pasa sola al CUADRANTE (Sábados, Domingos, Horas extra, en morado y solo lectura, con las fechas) y al CERTIFICADO (con las fechas). Si el parte no tiene nada, el cuadrante sigue a mano como antes. SQL ANTES: primas_v792.sql (primas_partes.horas_extra). VUELTA ATRAS: resubir v791 (la columna puede quedarse).
 
 v791 (05/10/2026): Liquidación subcontratados · CÉNTIMOS EXACTOS: cada importe (cada albarán, subtotal, pronto pago, base, IRPF, IVA, paralizaciones y total) se redondea a 2 decimales antes de seguir sumando, en pantalla, Excel (fórmulas con REDONDEAR) y PDF. Así la factura cuadra sumando a mano (Joaquín sept-2026: 8.806,71 − 176,13 = 8.630,58; antes salía 8.630,57). Puede mover 1-2 céntimos el total de las ya guardadas: saldrá el aviso de 'vuelve a guardar'. Sin SQL. VUELTA ATRAS: resubir v790.
