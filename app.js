@@ -580,7 +580,8 @@ async function loadUserMap() {
       try { window._veOficina = !!_veTodo; } catch (e) {}   // v646: tarjeta Papelera solo para los 4 de oficina
       // v241: el botón "➕ Albarán a mano" solo lo ven/usan esos 4 (oficina). Nadie más.
       // v721 (25/09/2026): Juan Carlos quita el boton "➕ Albarán a mano" (oculto para todos; el codigo nuevoAlbaranManual() se conserva).
-      try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = 'none'; } catch (e) {}
+      // v803 (06/10/2026): JC lo vuelve a pedir → visible otra vez SOLO para los 4 de oficina.
+      try { const _bm = document.getElementById('btnAlbaranManual'); if (_bm) _bm.style.display = _veTodo ? 'flex' : 'none'; } catch (e) {}
 
       // v107GA: la tarjeta "Autofactura HOLCIM" SOLO la ve/usa el admin (Juan Carlos),
       // aunque la pestaña Facturación la vean también MdM/Marta/Logística. El de CEMEX

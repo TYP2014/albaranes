@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v803 (06/10/2026): ALBARANES · vuelve el botón '➕ Albarán a mano' (se ocultó en la v721 del 25/09/2026 a petición de JC; ahora lo vuelve a pedir). Visible solo para los 4 de oficina (admin, María del Mar, Marta, Logística), como en la v241. La función nuevoAlbaranManual() no se había tocado. Sin SQL. VUELTA ATRAS: resubir v802.
+
+---
+
 v802 (06/10/2026): PRIMAS · al abrir el parte de un trabajador, los días que tiene apuntados en VACACIONES (vacaciones, asuntos propios, baja médica, permiso, falta injustificada, excedencia) se escriben solos en 'Lo que dice el conductor' (VACACIONES, ASUNTOS PROPIOS, BAJA MEDICA, PERMISO, FALTA INJUSTIFICADA, EXCEDENCIA). Solo en días con esa casilla vacía; lo escrito no se pisa. Si la prima la había puesto la app, se quita (no trabajaba). FALTA INJUSTIFICADA pasa a contar como ausencia (sin prima, aviso si su camión tiene albaranes). Sin SQL. VUELTA ATRAS: resubir v801.
 
 ---
