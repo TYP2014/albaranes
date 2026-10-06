@@ -39793,7 +39793,7 @@ async function _xpCargarTractoras(tr) {
 // "Otro (escribir)" por si un día lleva otra (cambio, préstamo...).
 function _xpTractoraPorDefecto() {
   const lista = _xpTractoras[_xpTrans] || [];
-  const g = _xpLS('xp_tractora');
+  const g = window._xpHab || _xpLS('xp_tractora');   // v798
   return lista.includes(g) ? g : (lista[0] || '');
 }
 // v763: al cambiar de camión, si ese camión tiene conductor habitual, se pone solo
@@ -39805,7 +39805,8 @@ function _xpCondPorTractora(mat) {
 }
 function _xpCampoTractora(inp) {
   const lista = _xpTractoras[_xpTrans] || [];
-  const guardada = _xpLS('xp_tractora');
+  // v798: primero el VEHÍCULO HABITUAL del conductor (Empleados); si no tiene, el último usado
+  const guardada = window._xpHab || _xpLS('xp_tractora');
   const enLista = lista.includes(guardada);
   const sel = enLista ? guardada : (lista[0] || '__otro');
   const otro = sel === '__otro';
@@ -39826,7 +39827,7 @@ async function _xpCambiarTrans(v) {
 // habitual del autónomo). "Otro (escribir)" para préstamos o semis que aún no están.
 function _xpCampoRemolque(inp) {
   const lista = _xpSemis[_xpTrans] || [];
-  const guardado = _xpLS('xp_remolque');
+  const guardado = window._xpHabSemi || _xpLS('xp_remolque');   // v799: primero "Mis vehículos"
   const enLista = lista.some(x => x.remolque === guardado);
   const sel = enLista ? guardado : (lista[0] ? lista[0].remolque : '__otro');
   const otro = sel === '__otro';
@@ -39896,6 +39897,38 @@ function _xpLeerConductor() {
   return { nombre: String(o.nombre || '').toUpperCase(), dni: _condDni(o.dni), clave: o.dni || '' };
 }
 
+// v799: caja "Mis vehículos" (el conductor marca su tractora y su semi; salen siempre por defecto)
+function _xpCajaMisVeh(inp) {
+  const t = window._xpHab || '', r = window._xpHabSemi || '';
+  if (!window._xpEditVeh) {
+    return '<div style="margin-top:14px;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+      '<div style="font-size:13px">🚛 <b>Mis vehículos:</b> ' + (t || r ? _xpE(t || '—') + ' / ' + _xpE(r || '—') : '<span style="color:var(--er)">sin marcar</span>') + '</div>' +
+      '<button class="btn bs" style="font-size:11px;flex-shrink:0" onclick="window._xpEditVeh=true;_xpPintar()">✏️ ' + (t || r ? 'Cambiar' : 'Marcar') + '</button></div>';
+  }
+  const tl = _xpTractoras[_xpTrans] || [], sl = (_xpSemis[_xpTrans] || []).map(x => x.remolque);
+  const sel = (id, lista, v, ph) => '<select id="' + id + '" style="' + inp + '" onchange="document.getElementById(\'' + id + 'O\').style.display=this.value===\'__otro\'?\'block\':\'none\'">' +
+    '<option value="">— elegir —</option>' + lista.map(m => '<option' + (m === v ? ' selected' : '') + '>' + _xpE(m) + '</option>').join('') +
+    '<option value="__otro"' + (v && !lista.includes(v) ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+    '<input id="' + id + 'O" style="' + inp + ';margin-top:6px;text-transform:uppercase;display:' + (v && !lista.includes(v) ? 'block' : 'none') + '" placeholder="' + ph + '" value="' + _xpE(v && !lista.includes(v) ? v : '') + '">';
+  return '<div style="margin-top:14px;padding:12px;border:2px solid var(--ac);border-radius:10px;background:var(--sf)">' +
+    '<div style="font-weight:600;margin-bottom:8px">🚛 Mis vehículos (los que llevo normalmente)</div>' +
+    '<div style="font-size:12px;color:var(--mu);margin-bottom:4px">Tractora</div>' + sel('xpMiT', tl, t, '0000XXX') +
+    '<div style="font-size:12px;color:var(--mu);margin:10px 0 4px">Semirremolque</div>' + sel('xpMiS', sl, r, 'R0000XXX') +
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn bp" onclick="_xpGuardarMisVeh()">💾 Guardar</button>' +
+    '<button class="btn bs" onclick="window._xpEditVeh=false;_xpPintar()">Cancelar</button></div></div>';
+}
+async function _xpGuardarMisVeh() {
+  const lee = id => { const s = document.getElementById(id); if (!s) return ''; return _decaMatricula(s.value === '__otro' ? (document.getElementById(id + 'O') || {}).value || '' : s.value); };
+  const t = lee('xpMiT'), r = lee('xpMiS');
+  try {
+    const { error } = await sb.rpc('deca_guardar_mis_vehiculos', { p_tractora: t || null, p_semi: r || null });
+    if (error) throw error;
+    window._xpHab = t; window._xpHabSemi = r; window._xpEditVeh = false;
+    toast('✓ Guardado: ' + (t || '—') + ' / ' + (r || '—'));
+    _xpPintar();
+  } catch (e) { toast('No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+
 function _xpBotonFlotante() {
   if (document.getElementById('xpBtnFlot')) return;
   const b = document.createElement('button');
@@ -39928,6 +39961,16 @@ async function _xpAbrir(solo) {
   await _xpCargarSemis(_xpTrans);
   await _xpCargarTractoras(_xpTrans);
   await _xpCargarViajes();                                   // v785
+  // v799: "Mis vehículos" del propio usuario (solo DeCA; no toca Empleados ni albaranes)
+  if (currentRole !== 'admin' && window._xpHab === undefined) {
+    try {
+      const { data, error } = await sb.rpc('deca_mis_vehiculos');
+      if (error) throw error;
+      const r = (data && data[0]) || {};
+      window._xpHab = r.tractora ? _decaMatricula(r.tractora) : '';
+      window._xpHabSemi = r.semi ? _decaMatricula(r.semi) : '';
+    } catch (e) { console.warn('[v799] mis vehículos', e); window._xpHab = ''; window._xpHabSemi = ''; }
+  }
   if (!_decaCargadores.length) await _decaCargarCargadores();   // v785 (para "Otro viaje")
   if (!_decaConductores.length) await _decaCargarConductores();   // v761
   if (!_decaTrabajadores.length) await _decaCargarTrabajadores(); // v763
@@ -39986,6 +40029,7 @@ function _xpPintar() {
       (_xpSolo ? '<button class="btn bs" onclick="_xpSalir()">Salir</button>' : '<button class="btn bs" onclick="_xpCerrar()">✕ Cerrar</button>') +
     '</div>' +
     opcTrans +
+    (currentRole !== 'admin' ? _xpCajaMisVeh(inp) : '') +
     lbl('1. Atajos (rellenan todo; luego puedes cambiarlo)') +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + (_xpViajes || []).map(v => cajaViaje(v.id, v.nombre, v.sub)).join('') + '</div>' +
     campos +

@@ -4,6 +4,14 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v799 (06/10/2026): DeCA EXPRÉS · caja '🚛 Mis vehículos' arriba de la pantalla: cada conductor (o autónomo) marca su tractora y su semi habituales y le salen SIEMPRE por defecto; en cada DeCA puede cambiarlos con el desplegable. Se guarda en su usuario (profiles.deca_mi_tractora / deca_mi_semi, RPC deca_mis_vehiculos y deca_guardar_mis_vehiculos), NO en Empleados (el 'vehículo habitual' de Empleados lo usan los albaranes y no se toca). Sustituye a la v798, que no llegó a subirse. SQL PRIMERO. VUELTA ATRAS: resubir v797.
+
+---
+
+v798 (06/10/2026): DeCA EXPRÉS · el conductor con DNI+PIN tiene preseleccionado su VEHÍCULO HABITUAL (campo vehiculo_habitual de Empleados, buscado por su DNI con la RPC deca_mi_vehiculo). El desplegable sigue para los cambios. Si no tiene habitual, como antes (el último usado). SQL PRIMERO: función deca_mi_vehiculo. VUELTA ATRAS: resubir v797.
+
+---
+
 v797 (06/10/2026): ALBARANES · el aviso ⛔ DUPLICADO del detalle ahora dice CON QUÉ albarán choca (nº, fecha y matrícula) y trae el botón 👀 Ver los dos (antes solo lo tenía el aviso rosa 🔁 de posible duplicado). Pulsándolo, la tabla enseña solo la pareja; LIMPIAR para volver. Sin SQL. VUELTA ATRAS: resubir v796.
 
 ---
