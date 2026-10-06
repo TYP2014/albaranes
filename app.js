@@ -26200,6 +26200,7 @@ async function loadPrimas() {
     if (_fichaVeh) primasHabitual = _fichaVeh;
     const _elHab = document.getElementById('primasVehHab');
     if (_elHab) _elHab.value = _fichaVeh;
+    try { await _primasAusenciasAuto(); } catch (e) { console.warn('[v802] ausencias', e); }   // v802
     renderPrimas();
   } catch (e) {
     console.error('[v659 loadPrimas]', e);
@@ -26416,6 +26417,32 @@ function _primasQuien() {
   try { return (typeof userMap !== 'undefined' && currentUser && userMap[currentUser.id] && userMap[currentUser.id].name) || (currentUser && currentUser.email) || null; } catch (e) { return null; }
 }
 
+// v802: los días que el trabajador tiene apuntados en VACACIONES (vacaciones, asuntos propios, baja,
+// permiso, falta, excedencia) se escriben solos en "Lo que dice el conductor". Solo si está vacío.
+const _PRIMAS_AUS_TXT = { vacaciones: 'VACACIONES', asuntos_propios: 'ASUNTOS PROPIOS', baja_medica: 'BAJA MEDICA',
+  permiso_retribuido: 'PERMISO', falta_injustificada: 'FALTA INJUSTIFICADA', excedencia: 'EXCEDENCIA' };
+async function _primasAusenciasAuto() {
+  if (!primasTrabId || !Array.isArray(vacPeriodos)) return;
+  const pers = vacPeriodos.filter(p => String(p.trabajador_id) === String(primasTrabId) && p.fecha_inicio && _PRIMAS_AUS_TXT[p.tipo]);
+  if (!pers.length) return;
+  const r = _primasRango(), hoy = _primasISO(new Date()), filas = [];
+  for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) {
+    const per = pers.find(p => String(p.fecha_inicio).slice(0, 10) <= iso && iso <= String(p.fecha_fin || p.fecha_inicio).slice(0, 10));
+    if (!per) continue;
+    const f = primasRows[iso] || {};
+    if (String(f.parte_conductor || '').trim()) continue;   // lo escrito no se pisa
+    filas.push({
+      trabajador_id: String(primasTrabId), fecha: iso, vehiculo: f.vehiculo || null,
+      parte_conductor: _PRIMAS_AUS_TXT[per.tipo], trabajo: f.trabajo || null, notas: f.notas || null,
+      prima: f.prima_auto ? 0 : _primasNum(f.prima), prima_auto: f.prima_auto ? false : !!f.prima_auto,
+      tipos: f.tipos || null, prima_sugerida: f.prima_auto ? 0 : _primasNum(f.prima_sugerida),
+      plus_manual: f.plus_manual != null ? f.plus_manual : null,
+      editado_por: _primasQuien(), updated_at: new Date().toISOString()
+    });
+  }
+  if (filas.length) { await _primasUpsert(filas); console.log('[v802 primas] ausencias escritas', filas.length); }
+}
+
 async function _primasUpsert(filas) {
   const { data, error } = await sb.from('primas_partes').upsert(filas, { onConflict: 'trabajador_id,fecha' }).select();
   if (error) throw error;
@@ -26587,7 +26614,7 @@ function _primasAusente(parteConductor, notas) {
   for (const campo of [parteConductor, notas]) {
     const t = _primasSinAcentos(campo);
     if (!t) continue;
-    const m = t.match(/\b(VACACIONES|VACACION|FESTIVO|FESTIU|DIA PERSONAL|ASUNTOS PROPIOS|PERMISO|EXCEDENCIA)\b/);
+    const m = t.match(/\b(VACACIONES|VACACION|FESTIVO|FESTIU|DIA PERSONAL|ASUNTOS PROPIOS|PERMISO|EXCEDENCIA|FALTA INJUSTIFICADA)\b/);   // v802: + FALTA
     if (m) return m[1] === 'VACACION' ? 'VACACIONES' : (m[1] === 'FESTIU' ? 'FESTIVO' : m[1]);
     // "BAJA" solo si es la ausencia ("baja", "de baja", "baja medica"), no el verbo ("baja 3 viajes a Garraf")
     if (/^BAJA$|\bDE BAJA\b|\bBAJA (MEDICA|LABORAL|POR )/.test(t)) return 'BAJA';
