@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v801 (06/10/2026): PRIMAS · al pulsar ⬇ TRAER en un día que YA NO tiene albaranes (p. ej. se corrigió la fecha de un albarán a otro día), se limpia lo que había guardado la app: el desglose (tipos, ej. '1 PUERTO → sin regla para este día'), la prima sugerida y la prima si la había puesto la app. Antes se quedaba pegado aunque se borrara el texto a mano. Lo escrito a mano (trabajo, parte, notas, prima manual) no se toca. Sin SQL. VUELTA ATRAS: resubir v800.
+
+---
+
 v800 (06/10/2026): PRIMAS · en el nombre de los Excel del cuadrante (DIETAS_GESTOR_... y CUADRANTE_...), la empresa Portes 2014 Import sale como IMPORT en vez de PORTES (se confundía con Transportes y Portes 2014). Solo cambia el nombre del fichero; el contenido y los datos guardados no se tocan. Sin SQL. VUELTA ATRAS: resubir v799.
 
 ---

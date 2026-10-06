@@ -26701,7 +26701,22 @@ async function primasTraerAlbaranes(soloIso, _opt) {
       if (!dia) {
         // v670: el camion grua no suele tener albaranes; si ese dia hay trabajo apuntado, cuenta igual
         if (esFijoDia && (g('trabajo') || g('parte_conductor'))) dia = { rutas: {}, cuenta: {} };
-        else { const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++; continue; }
+        else {
+          const _w = _primasDate(iso).getDay(); if (_w >= 1 && _w <= 5) sinAlb++;
+          // v801: ese día YA NO tiene albaranes (p. ej. se corrigió la fecha de uno) pero quedó guardado
+          // el desglose ("1 PUERTO → sin regla...") y la prima que puso la app: se limpian. Lo escrito a mano no se toca.
+          if (previa.tipos || _primasNum(previa.prima_sugerida) > 0 || previa.prima_auto) {
+            const primaAct0 = _primasNum(g('prima'));
+            aGuardar.push({
+              trabajador_id: _v737Tid, fecha: iso, vehiculo: _primasMatsTxt(previa.vehiculo) || veh,
+              parte_conductor: g('parte_conductor') || null, trabajo: g('trabajo') || null, notas: g('notas') || null,
+              prima: previa.prima_auto ? 0 : primaAct0, prima_auto: false, tipos: null, prima_sugerida: 0,
+              plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
+              editado_por: _primasQuien(), updated_at: new Date().toISOString()
+            });
+          }
+          continue;
+        }
       }
       _v730Hay = true;
       const rutas = dia.rutas;
