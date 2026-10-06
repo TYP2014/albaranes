@@ -13444,7 +13444,12 @@ function openModal(id) {
   editId = id;
   document.getElementById('mBadge').innerHTML = rowBadge(r);
   let alertHtml = '';
-  if (r._dup) alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado.</strong> TN no contabilizadas.</div>`;
+  if (r._dup) {
+    // v797: decir CON QUIEN es duplicado + boton 'Ver los dos' (antes solo lo tenia el rosa 🔁)
+    const _od = records.find(x => String(x.db_id) === String(r._dupOf) || String(x._id) === String(r._dupOf));
+    const _odTxt = _od ? ` de <strong>${esc(String(_od.albaran || '(sin nº)'))}</strong> del ${esc(String(_od.fecha || '?'))}${_od.tractora ? ' (' + esc(String(_od.tractora)) + ')' : ''}` : '';
+    alertHtml = `<div class="m-alert m-alert-dup">⛔ <strong>Duplicado${_odTxt}.</strong> TN no contabilizadas.${_od ? `<div style="margin-top:8px"><button class="btn bs" onclick="_verLosDos('${esc(String(r.db_id || r._id))}')">👀 Ver los dos</button></div>` : ''}</div>`;
+  }
   else if (r._posDup && (r._posDupMotivo === 'pesos' || r._posDupMotivo === 'neto')) {
     // v748: posible duplicado por pesos -> decir CON QUIEN choca, para buscarlo y mirar los dos papeles.
     const _o = records.find(x => String(x.db_id) === String(r._posDupOf) || String(x._id) === String(r._posDupOf));
@@ -14234,7 +14239,7 @@ async function _noEsDuplicado(id) {
 }
 function _verLosDos(id) {
   const r = _buscarRec(id); if (!r) return;
-  const o = _buscarRec(r._posDupOf);
+  const o = _buscarRec(r._posDupOf || r._dupOf); // v797: tambien ⛔ Dup
   const ids = new Set([String(r.db_id || r._id)].concat(o ? [String(o.db_id || o._id)] : []));
   if (document.getElementById('ov')?.classList.contains('open')) closeModal();
   _v751CerrarAviso();

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v797 (06/10/2026): ALBARANES · el aviso ⛔ DUPLICADO del detalle ahora dice CON QUÉ albarán choca (nº, fecha y matrícula) y trae el botón 👀 Ver los dos (antes solo lo tenía el aviso rosa 🔁 de posible duplicado). Pulsándolo, la tabla enseña solo la pareja; LIMPIAR para volver. Sin SQL. VUELTA ATRAS: resubir v796.
+
+---
+
 v796 (05/10/2026): DeCA · CONSULTA PARA CLIENTES (p. ej. CEMEX). Usuario con profiles.deca_ver_origen (patrón tipo '%CEMEX%') y opcional deca_ver_nif: al entrar solo ve una pantalla de solo lectura con los DeCA cargados en sus instalaciones (origen que contenga el patrón) o donde es cargador contractual (NIF), con filtro de fechas, buscador, PDF y Excel. Lo garantiza la BD (función deca_cliente_ve + política deca_cliente_select). No puede crear, cambiar ni anular. SQL PRIMERO: v796_SQL.sql. VUELTA ATRAS: resubir v795.
 
 ---
