@@ -27540,6 +27540,8 @@ async function primasDetGuardar(id) {
 //  · primasCuadExcel('completo') → el cuadrante entero, de uso INTERNO (lleva efectivo y tarjeta)
 const _PRIMAS_EMP_LEGAL = { TYP2014: 'Transportes y Portes 2014, S.L.', HISPALIS: 'Transportes Híspalis 2016, S.L.', PORTES: 'Portes 2014 Import, S.L.', TRANSMARGAZ: 'Transmargaz 2018, S.L.' };
 const _PRIMAS_MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+// v800: en el NOMBRE del Excel, Portes 2014 Import sale como IMPORT (con TYP2014 se confundía)
+function _primasNomFich(e) { return e === 'PORTES' ? 'IMPORT' : e; }
 function primasCuadExcel(tipo) {
   if (typeof XLSX === 'undefined') { toast('No está cargada la librería de Excel', 'err'); return; }
   if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
@@ -27558,7 +27560,7 @@ function primasCuadExcel(tipo) {
     if (aoa.length === 4) { toast('Nadie tiene días de dieta puestos en ' + mesTxt, 'warn'); return; }
     aoa.push([]); aoa.push(['TOTAL', '', sd, '', _pcR2(st)]);
     cols = [38, 13, 15, 10, 14]; eurCols = [3, 4];
-    nombre = 'DIETAS_GESTOR_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+    nombre = 'DIETAS_GESTOR_' + _primasNomFich(primasEmpresa) + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   } else {
     const cab = ['EMPLEADO', 'DNI', 'VEHÍCULO', 'DÍAS LAB.', 'NOCHES', 'SÁBADOS', 'DOMINGOS', 'TARDES', 'HORAS', 'FIJO / EXTRAS (€)', 'PRIMA PARTE (€)', 'FESTIVOS (€)', 'PARKING (€)',
       'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO NÓMINA (€)', 'DESC. DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE', 'DEUDA PENDIENTE (€)'];   // v669
@@ -27578,7 +27580,7 @@ function primasCuadExcel(tipo) {
     aoa.push(tot);
     cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 19, 15, 13, 16, 14, 10, 20];
     eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28];
-    nombre = 'CUADRANTE_' + primasEmpresa + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+    nombre = 'CUADRANTE_' + _primasNomFich(primasEmpresa) + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = cols.map(w => ({ wch: w }));

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v800 (06/10/2026): PRIMAS · en el nombre de los Excel del cuadrante (DIETAS_GESTOR_... y CUADRANTE_...), la empresa Portes 2014 Import sale como IMPORT en vez de PORTES (se confundía con Transportes y Portes 2014). Solo cambia el nombre del fichero; el contenido y los datos guardados no se tocan. Sin SQL. VUELTA ATRAS: resubir v799.
+
+---
+
 v799 (06/10/2026): DeCA EXPRÉS · caja '🚛 Mis vehículos' arriba de la pantalla: cada conductor (o autónomo) marca su tractora y su semi habituales y le salen SIEMPRE por defecto; en cada DeCA puede cambiarlos con el desplegable. Se guarda en su usuario (profiles.deca_mi_tractora / deca_mi_semi, RPC deca_mis_vehiculos y deca_guardar_mis_vehiculos), NO en Empleados (el 'vehículo habitual' de Empleados lo usan los albaranes y no se toca). Sustituye a la v798, que no llegó a subirse. SQL PRIMERO. VUELTA ATRAS: resubir v797.
 
 ---
