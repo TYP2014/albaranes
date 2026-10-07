@@ -217,7 +217,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="fEstado" onchange="applyFilters()"><option value="">Todos</option><option value="ok">✓ OK</option><option value="dup">⛔ Dup</option><option value="posdup">🔁 Rev Dup</option><option value="warn">⚠ Revisar</option><option value="matdes">🚛 Mat. desconocida</option></select></div>
             <div class="fil-group"><label class="fil-label">Nº Albarán</label><input class="fil-sel" id="fAlbaran" oninput="applyFilters()" placeholder="Ej: 167987, 167988" title="Puedes poner varios separados por coma" style="font-family:var(--mn);font-size:11px"></div>
             <div class="fil-group"><label class="fil-label">TN</label><input class="fil-sel" id="fTn" oninput="applyFilters()" placeholder="Ej: 25 o 24-26" title="Busca por toneladas: un valor exacto (25 o 26.74) o un rango (24-26)" style="font-family:var(--mn);font-size:11px"></div>
-            <div class="fil-group"><label class="fil-label">Marcas</label><select class="fil-sel" id="fMarca" onchange="applyFilters()" title="Ver solo los albaranes con una marca. Se combina con la fecha y el resto de filtros."><option value="">Todos</option><option value="amarillo">🟡 Para revisar</option><option value="naranja">🟠 Ya pagado subcont.</option><option value="marcas">🟡+🟠 Cualquier marca</option><option value="manual">✍️ Creados a mano</option><option value="editado">✏️ Editados a mano</option></select></div>
+            <div class="fil-group"><label class="fil-label">Marcas</label><select class="fil-sel" id="fMarca" onchange="applyFilters()" title="Ver solo los albaranes con una marca. Se combina con la fecha y el resto de filtros."><option value="">Todos</option><option value="amarillo">🟡 Para revisar</option><option value="naranja">🟠 Ya pagado subcont.</option><option value="ofertado">🟣 Ofertado (sin facturar)</option><option value="marcas">🟡🟠🟣 Cualquier marca</option><option value="manual">✍️ Creados a mano</option><option value="editado">✏️ Editados a mano</option></select></div>
             <div class="filter-actions"><button class="btn bs" onclick="resetFilters()">✕ Limpiar</button></div>
           </div>
           <div class="tbl-top">
@@ -2033,6 +2033,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=805"></script>
+<script src="app.js?v=806"></script>
 </body>
 </html>

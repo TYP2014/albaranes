@@ -11072,7 +11072,8 @@ function applyFilters() {
       if (fm === 'editado' && !r._manual) return false;
       if (fm === 'amarillo' && !r.marca_revisar) return false;
       if (fm === 'naranja' && !r.revisar_pago) return false;
-      if (fm === 'marcas' && !r.marca_revisar && !r.revisar_pago) return false; }
+      if (fm === 'ofertado' && !r.ofertado) return false; // v806
+      if (fm === 'marcas' && !r.marca_revisar && !r.revisar_pago && !r.ofertado) return false; }
     const ts = parseDate(r.fecha || '');
     // v94: bug de zona horaria. Antes hacíamos new Date(desde).getTime() que JS interpreta
     // como UTC 00:00, mientras que parseDate(r.fecha) devuelve hora LOCAL. En España en verano
@@ -11616,6 +11617,16 @@ function _facturacionModalHtml(r) {
       </button>
     </div>
     <div style="margin-top:6px">
+      <button onclick="event.stopPropagation();marcarOfertado('${id}')"
+        style="width:100%;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;
+               border:1px solid ${r.ofertado ? '#581c87' : 'var(--bd)'};
+               background:${r.ofertado ? '#9333ea' : 'var(--bg2)'};
+               color:${r.ofertado ? '#fff' : 'var(--tx)'}"
+        title="Albarán que se ha mandado como OFERTA a un cliente y está pendiente de que la apruebe. Así no se olvida de cobrar. No cambia el estado de facturación.">
+        🟣 ${r.ofertado ? 'OFERTADO' + (r.ofertado_cliente ? ' a ' + esc(r.ofertado_cliente) : '') + ' — sin facturar (pulsa para quitar)' : 'Marcar: ofertado a un cliente (pendiente de aprobar)'}
+      </button>
+    </div>
+    <div style="margin-top:6px">
       <button onclick="event.stopPropagation();marcarNoPrima('${id}')"
         style="width:100%;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;
                border:1px solid ${r.no_prima ? '#c62828' : 'var(--bd)'};
@@ -11672,6 +11683,35 @@ async function marcarRevisarGeneral(id) {
     toast(nuevo ? '🟡 Marcado para revisar' : 'Marca amarilla quitada', 'ok');
   } catch (e) {
     r.marca_revisar = antes.m; r.marca_revisar_nota = antes.n; renderTable();
+    toast('⚠️ No se pudo guardar la marca: ' + (e.message || e), 'err');
+  }
+}
+// v806: MARCA VIOLETA 🟣 "ofertado": albarán mandado como oferta a UN cliente, pendiente de que la apruebe.
+// Pide a qué cliente (sale el del albarán de sugerencia). No toca el estado de facturación.
+async function marcarOfertado(id) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) { toast('No encuentro el albarán', 'err'); return; }
+  if (!r.db_id) { toast('Este albarán aún no está guardado en la base de datos', 'err'); return; }
+  if (!_puedeVerFacturacion()) { toast('No tienes permiso', 'err'); return; }
+  const nuevo = !r.ofertado;
+  let cli = null;
+  if (nuevo) {
+    cli = prompt('¿A qué cliente se le ha ofertado?', r.cliente || '');
+    if (cli === null) return;
+    cli = cli.trim();
+    if (!cli) { toast('Escribe el cliente de la oferta', 'err'); return; }
+  }
+  const antes = { o: r.ofertado, c: r.ofertado_cliente };
+  r.ofertado = nuevo; r.ofertado_cliente = cli;
+  if (editId && (String(editId) === String(id))) { const cont = document.getElementById('mFacturacion'); if (cont) cont.innerHTML = _facturacionModalHtml(r); }
+  renderTable();
+  try {
+    const { error } = await sb.from('albaranes').update({ ofertado: nuevo, ofertado_cliente: cli }).eq('id', r.db_id);
+    if (error) throw error;
+    console.log('[v806] ofertado', r.db_id, nuevo, cli || '');
+    toast(nuevo ? '🟣 Marcado como OFERTADO a ' + cli : 'Marca violeta (ofertado) quitada', 'ok');
+  } catch (e) {
+    r.ofertado = antes.o; r.ofertado_cliente = antes.c; renderTable();
     toast('⚠️ No se pudo guardar la marca: ' + (e.message || e), 'err');
   }
 }
@@ -12092,7 +12132,7 @@ function renderTable() {
       <td style="color:var(--fg);font-weight:700;font-family:'Roboto Mono','Consolas','SF Mono',ui-monospace,monospace;font-size:15px;letter-spacing:1.5px;white-space:nowrap">${r.tractora || '—'}</td>
       <td style="color:var(--tx);font-weight:600;font-size:13px;white-space:nowrap" title="${esc(r.transportista || '')}">${_abrevTransp(r.transportista)}</td>
       <td class="${r._dup ? '' : 'tag-tm'}" style="font-weight:600;max-width:65px;font-size:14px;${r._dup ? 'text-decoration:line-through;color:var(--er);opacity:.5' : ''}">${r.tm != null ? (/palet/i.test(String(r.producto || '')) ? String(Math.round(Number(r.tm))) : Number(r.tm).toFixed(3)) : '—'}</td>
-      <td style="max-width:130px;padding-right:14px;${r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : (r.marca_revisar ? 'background:#facc15;box-shadow:inset 0 0 0 2px #ca8a04;' : '')}" ${r.revisar_pago ? 'title="🟠 YA PAGADO AL SUBCONTRATADO (no entra en su liquidación)' + (r.marca_revisar ? ' · 🟡 además marcado para revisar' : '') + '"' : (r.marca_revisar ? 'title="🟡 REVISAR' + (r.marca_revisar_nota ? ': ' + esc(r.marca_revisar_nota).replace(/"/g, '&quot;') : '') + '"' : '')}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : (r.marca_revisar ? ';background:#fef9c3;color:#713f12;font-weight:700' : '')}">${r.albaran || '—'}</span></td>
+      <td style="max-width:130px;padding-right:14px;${r.ofertado ? 'background:#9333ea;box-shadow:inset 0 0 0 2px #581c87;' : r.revisar_pago ? 'background:#ff9800;box-shadow:inset 0 0 0 2px #e65100;' : (r.marca_revisar ? 'background:#facc15;box-shadow:inset 0 0 0 2px #ca8a04;' : '')}" ${r.ofertado ? 'title="🟣 OFERTADO' + (r.ofertado_cliente ? ' a ' + esc(r.ofertado_cliente).replace(/"/g, '&quot;') : '') + ' — pendiente de que el cliente lo apruebe (NO facturado)"' : r.revisar_pago ? 'title="🟠 YA PAGADO AL SUBCONTRATADO (no entra en su liquidación)' + (r.marca_revisar ? ' · 🟡 además marcado para revisar' : '') + '"' : (r.marca_revisar ? 'title="🟡 REVISAR' + (r.marca_revisar_nota ? ': ' + esc(r.marca_revisar_nota).replace(/"/g, '&quot;') : '') + '"' : '')}><span class="tag-n" style="${r._dup ? 'opacity:.5' : ''}${r.ofertado ? ';background:#f3e8ff;color:#581c87;font-weight:700' : r.revisar_pago ? ';background:#fff3e0;color:#e65100;font-weight:700' : (r.marca_revisar ? ';background:#fef9c3;color:#713f12;font-weight:700' : '')}">${r.albaran || '—'}</span></td>
       <td class="celda-anexo" style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()">${(Array.isArray(r.anexos) && r.anexos.length > 0)
         ? `<button type="button" class="btn-anexo" onclick="event.stopPropagation();_descargarAnexosAlb('${r.db_id || r._id}')" title="Descargar ${r.anexos.length > 1 ? 'los ' + r.anexos.length + ' anexos en un ZIP' : 'el anexo'} directamente (sin abrir)">⬇ 📎${r.anexos.length > 1 ? ' <b>' + r.anexos.length + '</b>' : ''}</button>`
         : `<span style="color:var(--mu);opacity:.4">—</span>`}</td>

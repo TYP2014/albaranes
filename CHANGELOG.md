@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v806 (07/10/2026): ALBARANES · nueva MARCA VIOLETA 🟣 'Ofertado': albarán mandado como oferta a UN cliente y pendiente de que la apruebe (para que no se quede atrás sin cobrar). Botón en el recuadro 🧾 Facturación del albarán (pide a qué cliente; sugiere el del albarán). El Nº de albarán sale en violeta en la tabla (con el cliente al pasar el ratón). En el filtro MARCAS: '🟣 Ofertado (sin facturar)' y entra en 'Cualquier marca'. No toca el estado de facturación. SQL PRIMERO: columnas ofertado y ofertado_cliente en albaranes. VUELTA ATRAS: resubir v805.
+
+---
+
 v805 (06/10/2026): DeCA · (1) Botón '🏢 Clientes DeCA' en la pestaña DeCA (solo oficina: admin, Marta, María del Mar, Logística): alta de clientes/cargadores con razón social, NIF y domicilio (los tres obligatorios) y quitar/volver a poner. Los conductores los ven al recargar. (2) Exprés: en Cliente, opción '✏️ Otro cliente (no está en la lista)': el conductor escribe solo el nombre y el DeCA sale con TRANSPORTES Y PORTES 2014 como cargador y 'Por cuenta de <cliente> (cliente pendiente de alta)' en observaciones. SQL PRIMERO: política para que la oficina pueda escribir en deca_cargadores. VUELTA ATRAS: resubir v804.
 
 ---
