@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v805 (06/10/2026): DeCA · (1) Botón '🏢 Clientes DeCA' en la pestaña DeCA (solo oficina: admin, Marta, María del Mar, Logística): alta de clientes/cargadores con razón social, NIF y domicilio (los tres obligatorios) y quitar/volver a poner. Los conductores los ven al recargar. (2) Exprés: en Cliente, opción '✏️ Otro cliente (no está en la lista)': el conductor escribe solo el nombre y el DeCA sale con TRANSPORTES Y PORTES 2014 como cargador y 'Por cuenta de <cliente> (cliente pendiente de alta)' en observaciones. SQL PRIMERO: política para que la oficina pueda escribir en deca_cargadores. VUELTA ATRAS: resubir v804.
+
+---
+
 v804 (06/10/2026): DeCA EXPRÉS · lo que el conductor escribe a mano en Origen, Destino o Material se RECUERDA EN SU MÓVIL y le sale en el desplegable la próxima vez, en un grupo propio ('Mis destinos (escritos por mí)', 'Mis orígenes', 'Mis materiales'; máx. 20 por campo, lo último arriba). La opción de escribir pasa a llamarse '✏️ Otro destino / origen / material (escribir a mano)'. Sin SQL. VUELTA ATRAS: resubir v803.
 
 ---

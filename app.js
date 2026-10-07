@@ -38524,6 +38524,7 @@ async function loadDecaData() {
     _decaRender();
     { const b = document.getElementById('decaBtnSubs'); if (b) b.style.display = _decaEsSub() ? 'none' : ''; }   // v757
     { const b = document.getElementById('decaBtnCond'); if (b) b.style.display = _condPuedeGestionar() ? '' : 'none'; }   // v759
+    { const b = document.getElementById('decaBtnCli'); if (b) b.style.display = _condEsOficina() ? '' : 'none'; }   // v805
   } catch (e) {
     console.error('[loadDecaData]', e);
     if (box) box.innerHTML = '<div style="padding:16px;text-align:center;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando DeCA: ' + esc(e.message || e) + '</div>';
@@ -38946,6 +38947,62 @@ function _decaPorMatricula() {
 }
 
 // ---- v603: mantenimiento de la lista de subcontratados habituales ----
+// v805: la OFICINA da de alta clientes (cargadores) del DeCA desde la app: nombre, NIF y domicilio.
+async function openDecaClientes() {
+  let ov = document.getElementById('ovDecaCli');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'ovDecaCli'; ov.className = 'ov';
+    ov.innerHTML = '<div class="modal" style="max-width:640px"><div class="modal-hd"><div class="modal-title">🏢 CLIENTES DEL DeCA</div>' +
+      '<button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById(\'ovDecaCli\').classList.remove(\'open\')">✕</button></div>' +
+      '<div class="modal-bd" id="decaCliBody"></div></div>';
+    document.body.appendChild(ov);
+  }
+  ov.classList.add('open');
+  _decaCliPintar();
+}
+async function _decaCliPintar() {
+  const box = document.getElementById('decaCliBody'); if (!box) return;
+  box.innerHTML = '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin-bottom:10px">AÑADIR CLIENTE</div>' +
+    '<div class="fg" style="margin-bottom:8px"><label class="fl">Razón social</label><input class="fi" id="dcNom" style="text-transform:uppercase" placeholder="EJ. CONTROL DEMETER, S.L."></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:8px">' +
+      '<div class="fg"><label class="fl">NIF</label><input class="fi" id="dcNif" style="text-transform:uppercase"></div>' +
+      '<div class="fg"><label class="fl">Domicilio (calle, nº, CP y población)</label><input class="fi" id="dcDom"></div></div>' +
+    '<button class="btn bp" onclick="_decaCliAlta()">➕ Añadir</button>' +
+    '<div style="font-size:11px;color:var(--mu);margin:6px 0 0">Saca los datos de una factura o albarán del cliente. Los conductores lo verán al recargar.</div>' +
+    '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:18px 0 10px">CLIENTES</div>' +
+    '<div id="dcLista" style="font-size:12px;color:var(--mu)">Cargando…</div>';
+  try {
+    const { data, error } = await sb.from('deca_cargadores').select('id, nombre, nif, domicilio, activo').order('orden').order('nombre');
+    if (error) throw error;
+    document.getElementById('dcLista').innerHTML = (data || []).map(c =>
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.activo ? '' : ';opacity:.45') + '">' +
+      '<div><b>' + esc(c.nombre) + '</b><br><span style="font-size:11px;color:var(--mu)">' + esc(c.nif || 'sin NIF') + ' · ' + esc(c.domicilio || 'sin domicilio') + '</span></div>' +
+      '<button class="btn bs" style="font-size:10px;flex-shrink:0" onclick="_decaCliActivo(' + c.id + ',' + (!c.activo) + ')">' + (c.activo ? '⛔ Quitar' : '↩ Volver a poner') + '</button></div>').join('') || 'Ninguno.';
+  } catch (e) { document.getElementById('dcLista').innerHTML = '<span style="color:var(--er)">No se pudo cargar: ' + esc(e.message || e) + '</span>'; }
+}
+async function _decaCliAlta() {
+  const n = (document.getElementById('dcNom').value || '').trim().toUpperCase();
+  const f = (document.getElementById('dcNif').value || '').trim().toUpperCase().replace(/[^0-9A-Z]/g, '');
+  const d = (document.getElementById('dcDom').value || '').trim();
+  if (!n || !f || !d) { toast('Pon razón social, NIF y domicilio (los tres van en el DeCA)', 'err'); return; }
+  if (!/^[A-Z0-9]{9}$/.test(f)) { toast('El NIF no parece correcto (9 caracteres)', 'err'); return; }
+  try {
+    const { error } = await sb.from('deca_cargadores').insert({ nombre: n, nif: f, domicilio: d, orden: 50, activo: true });
+    if (error) throw error;
+    toast('✓ ' + n + ' añadido');
+    _decaCargadores = []; await _decaCargarCargadores();
+    _decaCliPintar();
+  } catch (e) { toast('No se pudo añadir: ' + (e.message || e), 'err'); }
+}
+async function _decaCliActivo(id, activo) {
+  try {
+    const { error } = await sb.from('deca_cargadores').update({ activo }).eq('id', id);
+    if (error) throw error;
+    _decaCargadores = []; await _decaCargarCargadores();
+    _decaCliPintar();
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
 function openDecaSubs() {
   const box = document.getElementById('decaSubsBox');
   if (!box) return;
@@ -39700,6 +39757,11 @@ function _xpViajeActual() { return (_xpViajes || []).find(v => v.id === _xpViaje
 function _xpCargViaje() {
   // v786: el cliente sale SIEMPRE del desplegable (rellenado por el atajo o elegido a mano)
   const i = (document.getElementById('xpCli') || {}).value;
+  // v805: cliente que no está en la lista → solo el nombre; el DeCA sale con TYP2014 "por cuenta de..."
+  if (i === '__otro') {
+    const n = ((document.getElementById('xpCliOtro') || {}).value || '').trim().toUpperCase();
+    return n ? { nombre: n, nif: '', dom: '', otro: true } : null;
+  }
   const c = _decaCargadores[Number(i)];
   return (i !== '' && i != null && c) ? { nombre: c.nombre, nif: c.nif, dom: c.domicilio } : null;
 }
@@ -39906,6 +39968,7 @@ function _xpTipoTrans() {
 // v785: 'CLIENTE' = el cargador del viaje (Holcim, CEMEX...) contrata directamente; 'TYP2014' = nosotros
 function _xpQuienContrata() {
   const t = _xpTipoTrans();
+  if ((document.getElementById('xpCli') || {}).value === '__otro') return 'TYP2014';   // v805: cliente sin datos
   if (t === 'TYP') return 'CLIENTE';
   if (t === 'SUB') return 'TYP2014';
   const el = document.getElementById('xpCargSel');
@@ -40073,9 +40136,12 @@ function _xpPintar() {
   const cliNif = _xpLS('xp_cli');
   const campos =
     lbl('Cliente (quién os contrata)') +
-    '<select id="xpCli" style="' + inp + '" onchange="_xpLS(\'xp_cli\', (_decaCargadores[this.value]||{}).nif||\'\');document.querySelectorAll(\'.xpCliNom\').forEach(e=>e.textContent=_xpNombreCli())">' +
+    '<select id="xpCli" style="' + inp + '" onchange="document.getElementById(\'xpCliOtroBox\').style.display=this.value===\'__otro\'?\'block\':\'none\';_xpLS(\'xp_cli\', (_decaCargadores[this.value]||{}).nif||\'\');document.querySelectorAll(\'.xpCliNom\').forEach(e=>e.textContent=_xpNombreCli())">' +
       '<option value="">— elegir —</option>' +
-      _decaCargadores.map((c, i) => '<option value="' + i + '"' + (cliNif && c.nif === cliNif ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') + '</select>' +
+      _decaCargadores.map((c, i) => '<option value="' + i + '"' + (cliNif && c.nif === cliNif ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') +
+      '<option value="__otro">✏️ Otro cliente (no está en la lista)</option></select>' +
+    '<div id="xpCliOtroBox" style="display:none"><input id="xpCliOtro" style="' + inp + ';margin-top:8px;text-transform:uppercase" placeholder="Nombre del cliente">' +
+      '<div style="font-size:11px;color:var(--er);margin-top:4px">⚠️ Saldrá TRANSPORTES Y PORTES 2014 como cargador "por cuenta de" este cliente. Avisad a oficina para darlo de alta.</div></div>' +
     '<div style="font-size:11px;color:var(--mu);margin-top:4px">¿No está? Avisad a oficina para añadirlo.</div>' +
     lbl('Origen (cantera / proveedor)') + _xpSelect('xpOrigen', [{ label: '', items: _xpOrigenes() }, { label: 'Mis orígenes (escritos por mí)', items: _xpMis('orig').filter(x => !_xpOrigenes().includes(x)) }], _xpLS('xp_orig'), '_xpCambioOrigen()', '✏️ Otro origen (escribir a mano)') +
     '<div id="xpBoxMatDest">' + _xpHtmlMatDest(_xpLS('xp_orig')) + '</div>';
@@ -40135,7 +40201,7 @@ async function _xpGenerar() {
   const quien = _xpQuienContrata();
   const cli = _xpCargViaje();   // v785: Holcim, CEMEX, PROMSA... según el viaje
   const carg = quien === 'CLIENTE' ? cli : { nombre: typ.nombre, nif: typ.nif, dom: typ.dom };
-  const obsCarg = quien === 'CLIENTE' ? null : 'Por cuenta de ' + cli.nombre + (cli.nif ? ' (NIF ' + cli.nif + ')' : '');
+  const obsCarg = quien === 'CLIENTE' ? null : 'Por cuenta de ' + cli.nombre + (cli.nif ? ' (NIF ' + cli.nif + ')' : '') + (cli.otro ? ' (cliente pendiente de alta)' : '');
   const fila = {
     numero: 'DECA-XP',   // lo sustituye el trigger de la BD
     anulado: false,

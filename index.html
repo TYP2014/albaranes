@@ -771,6 +771,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="display:flex;gap:8px">
             <button class="btn bs" onclick="_xpAbrir(false)" title="Pantalla del conductor (prueba)">⚡ DeCA exprés</button>
             <button class="btn bs" id="decaBtnCond" onclick="openConductores()" title="Alta, baja y PIN de conductores (solo DeCA)">👤 Conductores</button>
+            <button class="btn bs" id="decaBtnCli" onclick="openDecaClientes()" title="Clientes (cargadores) del DeCA: alta con NIF y domicilio">🏢 Clientes DeCA</button>
             <button class="btn bs" id="decaBtnSubs" onclick="openDecaSubs()" title="Transportistas subcontratados habituales (NIF, autorización)">👥 Subcontratados</button>
             <button class="btn bp" onclick="openDecaModal(null)">➕ NUEVO DeCA</button>
           </div>
@@ -2032,6 +2033,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=804"></script>
+<script src="app.js?v=805"></script>
 </body>
 </html>
