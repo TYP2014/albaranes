@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v804 (06/10/2026): DeCA EXPRÉS · lo que el conductor escribe a mano en Origen, Destino o Material se RECUERDA EN SU MÓVIL y le sale en el desplegable la próxima vez, en un grupo propio ('Mis destinos (escritos por mí)', 'Mis orígenes', 'Mis materiales'; máx. 20 por campo, lo último arriba). La opción de escribir pasa a llamarse '✏️ Otro destino / origen / material (escribir a mano)'. Sin SQL. VUELTA ATRAS: resubir v803.
+
+---
+
 v803 (06/10/2026): ALBARANES · vuelve el botón '➕ Albarán a mano' (se ocultó en la v721 del 25/09/2026 a petición de JC; ahora lo vuelve a pedir). Visible solo para los 4 de oficina (admin, María del Mar, Marta, Logística), como en la v241. La función nuevoAlbaranManual() no se había tocado. Sin SQL. VUELTA ATRAS: resubir v802.
 
 ---

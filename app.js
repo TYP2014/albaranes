@@ -39723,7 +39723,7 @@ function _xpDeOrigen(o) {
   return { mats: _xpUnicos([].concat(...vs.map(v => v.materiales || []))),
            dests: _xpUnicos([].concat(...vs.map(v => v.destinos || []))) };
 }
-function _xpSelect(id, grupos, valor, extra) {
+function _xpSelect(id, grupos, valor, extra, otroTxt) {
   const inp = window._xpInp || '';
   const todos = [].concat(...grupos.map(g => g.items));
   const otro = !!valor && !todos.includes(valor);
@@ -39735,7 +39735,7 @@ function _xpSelect(id, grupos, valor, extra) {
     g.items.forEach(x => { h += '<option' + (x === valor ? ' selected' : '') + '>' + _xpE(x) + '</option>'; });
     if (g.label) h += '</optgroup>';
   });
-  h += '<option value="__otro"' + (otro ? ' selected' : '') + '>✏️ Otro (escribir)</option></select>' +
+  h += '<option value="__otro"' + (otro ? ' selected' : '') + '>' + (otroTxt || '✏️ Otro (escribir)') + '</option></select>' +
     '<input id="' + id + '" style="' + inp + ';margin-top:8px;display:' + (otro ? 'block' : 'none') + '" value="' + _xpE(otro ? valor : '') + '" placeholder="Escríbelo">';
   return h;
 }
@@ -39743,20 +39743,33 @@ function _xpLeerSelect(id) {
   const s = document.getElementById(id + 'Sel'); if (!s) return '';
   return s.value === '__otro' ? ((document.getElementById(id) || {}).value || '').trim() : s.value;
 }
+// v804: lo que el conductor escribe a mano (origen, destino, material) se recuerda EN SU MÓVIL
+// y le sale en el desplegable la próxima vez ("Mis destinos"...). Máx. 20 por campo, lo último arriba.
+function _xpMis(k) { try { const a = JSON.parse(_xpLS('xp_mis_' + k) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function _xpMisAdd(k, v, programados) {
+  v = String(v || '').trim(); if (!v || (programados || []).includes(v)) return;
+  const a = [v].concat(_xpMis(k).filter(x => x !== v)).slice(0, 20);
+  _xpLS('xp_mis_' + k, JSON.stringify(a));
+}
+function _xpTodosDest() { return _xpUnicos([].concat(...(_xpViajes || []).map(v => v.destinos || []))); }
+function _xpTodosMat() { return _xpUnicos(_XP_MAT_BASICOS.concat(...(_xpViajes || []).map(v => v.materiales || []))); }
+
 function _xpHtmlMatDest(orig) {
   const d = _xpDeOrigen(orig);
-  const todosMat = _xpUnicos(_XP_MAT_BASICOS.concat(...(_xpViajes || []).map(v => v.materiales || [])));
-  const todosDest = _xpUnicos([].concat(...(_xpViajes || []).map(v => v.destinos || [])));
+  const todosMat = _xpTodosMat(), todosDest = _xpTodosDest();
+  const misMat = _xpMis('mat').filter(x => !todosMat.includes(x)), misDest = _xpMis('dest').filter(x => !todosDest.includes(x));
   let mat = _xpLS('xp_mat'), dest = _xpLS('xp_dest');
-  if (d.mats.length && !d.mats.includes(mat) && !todosMat.includes(mat)) mat = d.mats[0];
-  if (d.dests.length && !d.dests.includes(dest) && !todosDest.includes(dest)) dest = d.dests[0];
+  if (d.mats.length && !d.mats.includes(mat) && !todosMat.includes(mat) && !misMat.includes(mat)) mat = d.mats[0];
+  if (d.dests.length && !d.dests.includes(dest) && !todosDest.includes(dest) && !misDest.includes(dest)) dest = d.dests[0];
   const lbl = t => '<div style="font-size:13px;color:var(--mu);margin:16px 0 6px">' + t + '</div>';
   return lbl('Material') + _xpSelect('xpMerc', [
       { label: d.mats.length ? 'En este origen' : '', items: d.mats },
-      { label: 'Otros materiales', items: todosMat.filter(x => !d.mats.includes(x)) }], mat) +
+      { label: 'Mis materiales (escritos por mí)', items: misMat },
+      { label: 'Otros materiales', items: todosMat.filter(x => !d.mats.includes(x)) }], mat, '', '✏️ Otro material (escribir a mano)') +
     lbl('Destino (dónde descargas)') + _xpSelect('xpDestino', [
       { label: d.dests.length ? 'Habituales desde este origen' : '', items: d.dests },
-      { label: 'Otros destinos', items: todosDest.filter(x => !d.dests.includes(x)) }], dest);
+      { label: 'Mis destinos (escritos por mí)', items: misDest },
+      { label: 'Otros destinos', items: todosDest.filter(x => !d.dests.includes(x)) }], dest, '', '✏️ Otro destino (escribir a mano)');
 }
 // Al cambiar de origen: material y destino se recargan con los de ese origen
 function _xpCambioOrigen() {
@@ -40064,7 +40077,7 @@ function _xpPintar() {
       '<option value="">— elegir —</option>' +
       _decaCargadores.map((c, i) => '<option value="' + i + '"' + (cliNif && c.nif === cliNif ? ' selected' : '') + '>' + _xpE(c.nombre) + '</option>').join('') + '</select>' +
     '<div style="font-size:11px;color:var(--mu);margin-top:4px">¿No está? Avisad a oficina para añadirlo.</div>' +
-    lbl('Origen (cantera / proveedor)') + _xpSelect('xpOrigen', [{ label: '', items: _xpOrigenes() }], _xpLS('xp_orig'), '_xpCambioOrigen()') +
+    lbl('Origen (cantera / proveedor)') + _xpSelect('xpOrigen', [{ label: '', items: _xpOrigenes() }, { label: 'Mis orígenes (escritos por mí)', items: _xpMis('orig').filter(x => !_xpOrigenes().includes(x)) }], _xpLS('xp_orig'), '_xpCambioOrigen()', '✏️ Otro origen (escribir a mano)') +
     '<div id="xpBoxMatDest">' + _xpHtmlMatDest(_xpLS('xp_orig')) + '</div>';
   ov.innerHTML =
     '<div style="max-width:460px;margin:0 auto;padding:18px 16px 90px;font-family:var(--ss)">' +
@@ -40146,6 +40159,7 @@ async function _xpGenerar() {
     _xpLS('xp_tractora', tractora); _xpLS('xp_remolque', remolque);
     if (cond.clave) _xpLS('xp_cond', cond.clave);
     _xpLS('xp_orig', origen); _xpLS('xp_dest', destino); _xpLS('xp_mat', mercancia);   // v786: para el siguiente viaje
+    _xpMisAdd('orig', origen, _xpOrigenes()); _xpMisAdd('dest', destino, _xpTodosDest()); _xpMisAdd('mat', mercancia, _xpTodosMat());   // v804
     await _xpPdf(ins);
     _xpUltimo = ins;
     const p = document.getElementById('xpPeso'); if (p) p.value = '';
