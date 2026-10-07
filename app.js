@@ -2615,6 +2615,21 @@ function _selUno() {
   if (spanAnx) spanAnx.textContent = n;
 }
 
+// v807: antes de facturar en bloque, si hay OFERTADOS (violeta) entre los marcados, avisar.
+// Devuelve false si el usuario cancela. Si sigue, se les quita el violeta (en pantalla y en BD).
+async function _ofertadosAlFacturar(recs) {
+  const ofs = recs.filter(r => r.ofertado);
+  if (!ofs.length) return true;
+  if (!confirm('🟣 ' + ofs.length + ' de los marcados están OFERTADOS (pendientes de que el cliente apruebe):\n' + ofs.slice(0, 10).map(r => '  · ' + (r.albaran || '') + (r.ofertado_cliente ? ' → ' + r.ofertado_cliente : '')).join('\n') + (ofs.length > 10 ? '\n  · …' : '') + '\n\nSi continúas se facturan y se les quita la marca violeta. ¿Continuar?')) return false;
+  ofs.forEach(r => { r.ofertado = false; r.ofertado_cliente = null; });
+  try {
+    const { error } = await sb.from('albaranes').update({ ofertado: false, ofertado_cliente: null }).in('id', ofs.map(r => r.db_id));
+    if (error) throw error;
+  } catch (e) { console.error('[v807] quitar ofertado:', e); toast('⚠️ No se pudo quitar la marca violeta: ' + (e.message || e), 'err'); }
+  try { renderTable(); } catch (e) {}
+  return true;
+}
+
 // v107GD — Marcar como FACTURADOS de golpe todos los albaranes seleccionados con las casillas.
 // Aprovecha el mismo modo selección que el borrado. Solo lo usa quien puede facturar.
 async function _facturarSeleccionados() {
@@ -2632,6 +2647,7 @@ async function _facturarSeleccionados() {
 
   const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como FACTURADOS 🟢.\n\n¿Continuar?');
   if (!ok) return;
+  if (!(await _ofertadosAlFacturar(recs))) return; // v807
 
   const fecha = new Date().toISOString();
   const dbIds = [];
@@ -2722,6 +2738,7 @@ async function _fijarSeleccionados() {
   if (!recs.length) { toast('No se pudo identificar ningún albarán guardado.', 'err'); return; }
   const ok = confirm('Vas a marcar ' + recs.length + ' albarán(es) como FACTURADOS CON CANDADO 🔒.\n\nEl cruce de Holcim NO les quitará la marca aunque no crucen.\n\n¿Continuar?');
   if (!ok) return;
+  if (!(await _ofertadosAlFacturar(recs))) return; // v807
   const fecha = new Date().toISOString();
   const dbIds = [];
   for (const r of recs) {
@@ -11531,6 +11548,12 @@ async function marcarFacturacion(id, val) {
 
   // Preparamos lo que se guarda. Sello de fecha solo al facturar.
   const upd = { estado_facturacion: val };
+  // v807: si esta OFERTADO (violeta) y se pulsa Facturado, avisar. Si sigue, se quita el violeta.
+  let _quitaViol = false;
+  if (val === 'facturado' && r.ofertado) {
+    if (!confirm('🟣 Este albarán está OFERTADO' + (r.ofertado_cliente ? ' a ' + r.ofertado_cliente : '') + ' y pendiente de aprobar.\n\n¿Ya lo han aprobado y lo facturas? (se quitará la marca violeta)')) return;
+    upd.ofertado = false; upd.ofertado_cliente = null; _quitaViol = true;
+  }
   if (val === 'facturado') {
     upd.factura_fecha = new Date().toISOString();
   } else {
@@ -11544,6 +11567,7 @@ async function marcarFacturacion(id, val) {
   // segundo plano. Mismo patrón "guardado instantáneo" del modal (v107d).
   r.estado_facturacion = val;
   r.factura_fecha = upd.factura_fecha;
+  if (_quitaViol) { r.ofertado = false; r.ofertado_cliente = null; renderTable(); } // v807
 
   // Retocar SOLO el iconito de la fila de este albarán (no toda la tabla).
   const _celda = document.querySelector(`td[data-fact="${id}"]`);
@@ -11701,17 +11725,20 @@ async function marcarOfertado(id) {
     cli = cli.trim();
     if (!cli) { toast('Escribe el cliente de la oferta', 'err'); return; }
   }
-  const antes = { o: r.ofertado, c: r.ofertado_cliente };
+  const antes = { o: r.ofertado, c: r.ofertado_cliente, e: r.estado_facturacion, f: r.factura_fecha, x: r.fact_fija };
   r.ofertado = nuevo; r.ofertado_cliente = cli;
+  // v807: ofertado = todavia NO facturado -> pasa solo a Pendiente (y sin candado).
+  const upd = { ofertado: nuevo, ofertado_cliente: cli };
+  if (nuevo) { upd.estado_facturacion = 'pendiente'; upd.factura_fecha = null; upd.fact_fija = false; r.estado_facturacion = 'pendiente'; r.factura_fecha = null; r.fact_fija = false; }
   if (editId && (String(editId) === String(id))) { const cont = document.getElementById('mFacturacion'); if (cont) cont.innerHTML = _facturacionModalHtml(r); }
   renderTable();
   try {
-    const { error } = await sb.from('albaranes').update({ ofertado: nuevo, ofertado_cliente: cli }).eq('id', r.db_id);
+    const { error } = await sb.from('albaranes').update(upd).eq('id', r.db_id);
     if (error) throw error;
-    console.log('[v806] ofertado', r.db_id, nuevo, cli || '');
-    toast(nuevo ? '🟣 Marcado como OFERTADO a ' + cli : 'Marca violeta (ofertado) quitada', 'ok');
+    console.log('[v807] ofertado', r.db_id, nuevo, cli || '');
+    toast(nuevo ? '🟣 Marcado como OFERTADO a ' + cli + ' (queda Pendiente de facturar)' : 'Marca violeta (ofertado) quitada', 'ok');
   } catch (e) {
-    r.ofertado = antes.o; r.ofertado_cliente = antes.c; renderTable();
+    r.ofertado = antes.o; r.ofertado_cliente = antes.c; r.estado_facturacion = antes.e; r.factura_fecha = antes.f; r.fact_fija = antes.x; renderTable();
     toast('⚠️ No se pudo guardar la marca: ' + (e.message || e), 'err');
   }
 }

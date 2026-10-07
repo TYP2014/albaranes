@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v807 (07/10/2026): ALBARANES · Ofertado 🟣 y Facturado ya no se mezclan: (1) al marcar un albarán como OFERTADO pasa solo a PENDIENTE (y sin candado). (2) Si se pulsa ✓ Facturado en un albarán ofertado, la app avisa; si se confirma (ya lo aprobaron), se factura y se quita el violeta. (3) Lo mismo al facturar en bloque (☑️ Facturados y 🔒 Fijar): avisa listando los ofertados. Sin SQL. VUELTA ATRAS: resubir v806.
+
+---
+
 v806 (07/10/2026): ALBARANES · nueva MARCA VIOLETA 🟣 'Ofertado': albarán mandado como oferta a UN cliente y pendiente de que la apruebe (para que no se quede atrás sin cobrar). Botón en el recuadro 🧾 Facturación del albarán (pide a qué cliente; sugiere el del albarán). El Nº de albarán sale en violeta en la tabla (con el cliente al pasar el ratón). En el filtro MARCAS: '🟣 Ofertado (sin facturar)' y entra en 'Cualquier marca'. No toca el estado de facturación. SQL PRIMERO: columnas ofertado y ofertado_cliente en albaranes. VUELTA ATRAS: resubir v805.
 
 ---
