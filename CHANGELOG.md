@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v809 (08/10/2026): ALBARANES · '➕ Albarán a mano' ya no se pierde si se deja el formulario abierto y se va a otra ventana más de 1 minuto. Al volver, la recarga automática (v107EP, '🔄 Reconectado') borraba de memoria el albarán aún sin guardar y al pulsar Guardar salía 'No se encontró el albarán'. Ahora se guarda una copia aparte y Guardar lo recupera. Sin SQL. VUELTA ATRAS: resubir v808.
+
+---
+
 v808 (08/10/2026): FACTURACIÓN · LIQUIDACIÓN SUBCONTRATADOS · los albaranes marcados 🚫 NO FACTURABLE salen FUERA por defecto (igual que el naranja 🟠 'ya pagado'), tachados y con 🚫 junto al nº. Flexible: si sí hay que pagárselo al subcontratado, se marca su casilla ☑ y entra. Si en el mes hay alguno, al pulsar 💾 Guardar, 📊 Excel o 📄 Factura PDF la app PREGUNTA, listando cuáles van dentro y cuáles fuera. En el Excel (pestaña Resumen) salen como '🚫 NO FACTURABLE'. Caso real: se mandó a un subcontratado un albarán no facturable que no era suyo. Sin SQL. VUELTA ATRAS: resubir v807.
 
 ---

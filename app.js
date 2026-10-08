@@ -13503,7 +13503,9 @@ function nuevoAlbaranManual() {
   const h = new Date();
   const fechaHoy = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
   const tempId = 'manual_' + Date.now();
-  records.unshift({
+  // v809: se guarda también aparte. Si la app recarga los datos con el modal abierto (vuelta al primer plano
+  // tras >60s, v107EP), este albarán aún NO está en BD y desaparecía de records → "No se encontró el albarán".
+  window._manualPendiente = {
     _id: tempId, db_id: null, fecha: fechaHoy,
     tractora: '', remolque: '', tm: null, albaran: '', proveedor: '',
     planta: '', obra: '', producto: '', cliente: '', transportista: '',
@@ -13512,7 +13514,8 @@ function nuevoAlbaranManual() {
     creado_manual: true, _manual: true,
     editado_por: (currentUser?.id || null),
     created_at: new Date().toISOString()
-  });
+  };
+  records.unshift(window._manualPendiente);
   openModal(tempId);
   toast('Rellena lo que sepas y dale a Guardar. Quedará marcado como creado a mano.');
 }
@@ -14069,7 +14072,13 @@ function _renderAnexosEnModal(r) {
 }
 
 async function saveModal() {
-  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  let r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  // v809 (JC 08/10/2026): albarán A MANO todavía sin guardar que se perdió por una recarga automática → se recupera.
+  if (!r && window._manualPendiente && String(window._manualPendiente._id) === String(editId)) {
+    r = window._manualPendiente;
+    records.unshift(r);
+    console.log('[v809] albarán a mano recuperado tras una recarga de datos (' + editId + ').');
+  }
   if (!r) { toast('No se encontró el albarán', 'err'); return; }
 
   // Capturar valores ANTES de modificar el record (para poder revertir si falla)
