@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v813 (08/10/2026): ARRANQUE · arregla la v812, que no adelantaba nada. Comprobado en Chrome: las páginas 'adelantadas' no salían hasta acabar el conteo, porque Supabase no manda una consulta hasta que alguien la espera. Ahora se disparan al momento, a la vez que el conteo. Sin SQL. VUELTA ATRAS: resubir v812 (o v811).
+
+---
+
 v812 (08/10/2026): ARRANQUE · ~2 s menos hasta ver los albaranes. Medido en Chrome: el conteo de albaranes tardaba ~2 s y hasta que no acababa no se pedía ninguna página. Ahora la app recuerda (en el navegador) cuántas páginas hubo la vez anterior y las pide A LA VEZ que el conteo; si al llegar el conteo faltan, pide las que falten; si sobra alguna, la ignora. Mismas filas que antes. La 1ª vez en cada ordenador va igual que antes (aún no recuerda nada). Consola: '[v812] N de N páginas pedidas a la vez que el conteo'. Sin SQL. VUELTA ATRAS: resubir v811.
 
 ---

@@ -1845,7 +1845,9 @@ async function loadData() {
     let _v812Prev = 0;
     try { _v812Prev = Math.min(60, Math.max(0, parseInt(localStorage.getItem(_V812_KEY), 10) || 0)); } catch (e) {}
     const _v812Pags = [];
-    for (let p = 0; p < _v812Prev; p++) _v812Pags.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1));
+    // v813: el '.then' es lo que DISPARA la petición. Sin él, Supabase no la manda hasta el
+    // Promise.all de abajo (o sea, después del conteo) y la v812 no adelantaba nada.
+    for (let p = 0; p < _v812Prev; p++) _v812Pags.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1).then(r => r));
     let countQuery = _mkCount();
     const { count, error: cErr } = await countQuery;
 
