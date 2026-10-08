@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v810 (08/10/2026): ALBARANES · al GUARDAR un albarán NUEVO (➕ Albarán a mano) la pantalla ya se apunta el id que le da la base de datos. Antes no lo hacía: (1) ELIMINAR sin refrescar solo lo quitaba de pantalla y decía '✓ Eliminado', pero seguía en la BD y volvía al refrescar (caso Marta 08/10); (2) volver a EDITARLO sin refrescar hacía OTRO alta (duplicado). Viene de antes, no de la v809. Sin SQL. VUELTA ATRAS: resubir v809.
+
+---
+
 v809 (08/10/2026): ALBARANES · '➕ Albarán a mano' ya no se pierde si se deja el formulario abierto y se va a otra ventana más de 1 minuto. Al volver, la recarga automática (v107EP, '🔄 Reconectado') borraba de memoria el albarán aún sin guardar y al pulsar Guardar salía 'No se encontró el albarán'. Ahora se guarda una copia aparte y Guardar lo recupera. Sin SQL. VUELTA ATRAS: resubir v808.
 
 ---

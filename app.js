@@ -14197,7 +14197,15 @@ async function saveModal() {
       let _ultimoErr = null;
       for (let _intento = 1; _intento <= 3; _intento++) {
         try {
-          await saveRecord(r);
+          const _idNuevo = await saveRecord(r);
+          // v810 (JC 08/10/2026): albarán NUEVO (a mano) → saveRecord hace INSERT y devuelve su id, pero
+          // no se apuntaba en r.db_id. Sin él, ELIMINAR solo lo quitaba de pantalla (volvía al refrescar)
+          // y volver a GUARDAR hacía OTRO insert (duplicado). Ahora se apunta y se deja de tratar como pendiente.
+          if (!r.db_id && _idNuevo) {
+            r.db_id = _idNuevo;
+            if (window._manualPendiente === r) window._manualPendiente = null;
+            console.log('[v810] albarán nuevo guardado con id ' + _idNuevo);
+          }
           _guardadoOK = true;
           break;
         } catch (eIntento) {
