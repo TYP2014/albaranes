@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v808 (08/10/2026): FACTURACIÓN · LIQUIDACIÓN SUBCONTRATADOS · los albaranes marcados 🚫 NO FACTURABLE salen FUERA por defecto (igual que el naranja 🟠 'ya pagado'), tachados y con 🚫 junto al nº. Flexible: si sí hay que pagárselo al subcontratado, se marca su casilla ☑ y entra. Si en el mes hay alguno, al pulsar 💾 Guardar, 📊 Excel o 📄 Factura PDF la app PREGUNTA, listando cuáles van dentro y cuáles fuera. En el Excel (pestaña Resumen) salen como '🚫 NO FACTURABLE'. Caso real: se mandó a un subcontratado un albarán no facturable que no era suyo. Sin SQL. VUELTA ATRAS: resubir v807.
+
+---
+
 v807 (07/10/2026): ALBARANES · Ofertado 🟣 y Facturado ya no se mezclan: (1) al marcar un albarán como OFERTADO pasa solo a PENDIENTE (y sin candado). (2) Si se pulsa ✓ Facturado en un albarán ofertado, la app avisa; si se confirma (ya lo aprobaron), se factura y se quita el violeta. (3) Lo mismo al facturar en bloque (☑️ Facturados y 🔒 Fijar): avisa listando los ofertados. Sin SQL. VUELTA ATRAS: resubir v806.
 
 ---
