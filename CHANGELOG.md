@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v812 (08/10/2026): ARRANQUE · ~2 s menos hasta ver los albaranes. Medido en Chrome: el conteo de albaranes tardaba ~2 s y hasta que no acababa no se pedía ninguna página. Ahora la app recuerda (en el navegador) cuántas páginas hubo la vez anterior y las pide A LA VEZ que el conteo; si al llegar el conteo faltan, pide las que falten; si sobra alguna, la ignora. Mismas filas que antes. La 1ª vez en cada ordenador va igual que antes (aún no recuerda nada). Consola: '[v812] N de N páginas pedidas a la vez que el conteo'. Sin SQL. VUELTA ATRAS: resubir v811.
+
+---
+
 v811 (08/10/2026): ARRANQUE · la app ya no se carga 2-3 veces seguidas. Medido en Chrome: Supabase repite el aviso 'SIGNED_IN' cada vez que la pestaña vuelve a primer plano (cambiar de ventana, abrir F12...) y cada aviso relanzaba onLogin COMPLETO (perfiles, ITV, taller, neumáticos, vacaciones, gasoil y los ~5.000 albaranes): en 30 s se cargó todo 3 veces (142 consultas en vez de ~50) y las cargas se pisaban. Ahora, si el aviso es del MISMO usuario ya dentro, se ignora (consola: '[v811] SIGNED_IN repetido… ignorado'); al cerrar sesión se borra la marca. Sin SQL. VUELTA ATRAS: resubir v810.
 
 ---

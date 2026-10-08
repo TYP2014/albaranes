@@ -1835,6 +1835,17 @@ async function loadData() {
   let allRows = [];
   try {
     // (1) Contar cuántas filas hay (consulta ligera: head=true no trae datos, solo el total)
+    // v812 (08/10/2026): MEDIDO EN CHROME — el conteo tarda ~2 s él solo (el filtro de la
+    // ventana por texto obliga a repasar la tabla) y hasta que no terminaba NO se pedía
+    // ninguna página. Ahora la app recuerda cuántas páginas hubo la vez anterior y las pide
+    // YA, A LA VEZ que el conteo. Cuando llega el conteo: si hacen falta más páginas, se
+    // piden las que falten; si sobra alguna, se ignora. Las filas son exactamente las
+    // mismas que antes; solo se ahorra la espera. La 1ª vez en cada ordenador va como antes.
+    const _V812_KEY = 'alb_paginas_v812' + (window._cargarTodo ? '_todo' : '') + (_aplicaFiltro ? '_f' : '');
+    let _v812Prev = 0;
+    try { _v812Prev = Math.min(60, Math.max(0, parseInt(localStorage.getItem(_V812_KEY), 10) || 0)); } catch (e) {}
+    const _v812Pags = [];
+    for (let p = 0; p < _v812Prev; p++) _v812Pags.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1));
     let countQuery = _mkCount();
     const { count, error: cErr } = await countQuery;
 
@@ -1854,10 +1865,13 @@ async function loadData() {
     } else {
       // (2) Pedir TODAS las páginas EN PARALELO
       const totalPaginas = Math.max(1, Math.ceil(count / PAGE));
-      const promesas = [];
-      for (let p = 0; p < totalPaginas; p++) {
+      // v812: aprovechar las páginas ya pedidas a la vez que el conteo; pedir solo las que falten.
+      const promesas = _v812Pags.slice(0, totalPaginas);
+      for (let p = promesas.length; p < totalPaginas; p++) {
         promesas.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1));
       }
+      try { localStorage.setItem(_V812_KEY, String(totalPaginas)); } catch (e) {}
+      if (_v812Prev) console.log('[v812] ' + Math.min(_v812Prev, totalPaginas) + ' de ' + totalPaginas + ' páginas pedidas a la vez que el conteo');
       const resultados = await Promise.all(promesas);
       for (const { data, error } of resultados) {
         if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
