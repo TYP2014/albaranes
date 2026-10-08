@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v811 (08/10/2026): ARRANQUE · la app ya no se carga 2-3 veces seguidas. Medido en Chrome: Supabase repite el aviso 'SIGNED_IN' cada vez que la pestaña vuelve a primer plano (cambiar de ventana, abrir F12...) y cada aviso relanzaba onLogin COMPLETO (perfiles, ITV, taller, neumáticos, vacaciones, gasoil y los ~5.000 albaranes): en 30 s se cargó todo 3 veces (142 consultas en vez de ~50) y las cargas se pisaban. Ahora, si el aviso es del MISMO usuario ya dentro, se ignora (consola: '[v811] SIGNED_IN repetido… ignorado'); al cerrar sesión se borra la marca. Sin SQL. VUELTA ATRAS: resubir v810.
+
+---
+
 v810 (08/10/2026): ALBARANES · al GUARDAR un albarán NUEVO (➕ Albarán a mano) la pantalla ya se apunta el id que le da la base de datos. Antes no lo hacía: (1) ELIMINAR sin refrescar solo lo quitaba de pantalla y decía '✓ Eliminado', pero seguía en la BD y volvía al refrescar (caso Marta 08/10); (2) volver a EDITARLO sin refrescar hacía OTRO alta (duplicado). Viene de antes, no de la v809. Sin SQL. VUELTA ATRAS: resubir v809.
 
 ---

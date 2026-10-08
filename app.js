@@ -298,16 +298,33 @@ const _msSets = {
 async function initApp() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
-    await onLogin(session.user);
+    await _onLoginUnaVez(session.user);
   }
   // v107J1 (A): la app ya está lista (login mostrado o sesión cargada) → quitar la
   // pantalla de carga inmediata. Si algo fallara antes de aquí, la red de seguridad
   // de 25s la quita igualmente (ver script del splash en el <body>).
   if (window.__hideBootSplash) window.__hideBootSplash();
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) await onLogin(session.user);
-    if (event === 'SIGNED_OUT') showLogin();
+    if (event === 'SIGNED_IN' && session) await _onLoginUnaVez(session.user);
+    if (event === 'SIGNED_OUT') { window._v811LoginHecho = null; showLogin(); }
   });
+}
+
+// v811 (08/10/2026) — ARRANQUE TRIPLE. Medido en Chrome: Supabase lanza el aviso
+// 'SIGNED_IN' otra vez cada vez que la pestaña vuelve a primer plano (cambiar de
+// ventana, abrir F12...). Cada aviso volvía a ejecutar onLogin COMPLETO: perfiles,
+// ITV, taller, neumáticos, vacaciones, gasoil y los ~5.000 albaranes. En 30 s se
+// cargó todo 3 veces (142 consultas en vez de ~50) y las cargas se pisaban.
+// Ahora: si ya se entró con ESTE mismo usuario, el aviso repetido se ignora.
+// Al cerrar sesión se borra la marca, así que un login nuevo entra normal.
+async function _onLoginUnaVez(user) {
+  if (!user) return;
+  if (window._v811LoginHecho === user.id) {
+    console.log('[v811] SIGNED_IN repetido del mismo usuario — ignorado (no se recarga todo)');
+    return;
+  }
+  window._v811LoginHecho = user.id;
+  return onLogin(user);
 }
 
 // v320: ojito para ver/ocultar la contraseña en el login. Solo cambia el tipo
