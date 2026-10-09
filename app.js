@@ -4220,7 +4220,7 @@ async function guardarComoManual() {
       if (it.b64 && key) {
         const ctrl = new AbortController();
         results = await withTimeout(
-          callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, true, 'claude-haiku-4-5', it.textoPdf || ''),   // v450
+          callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, true, 'claude-haiku-5-5', it.textoPdf || ''),   // v450
           50000, 'lectura manual'
         );
       }
@@ -4477,7 +4477,7 @@ async function _processOne(it, type, key, timeoutMs) {
       const timer = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
         if (type === 'alb') {
-          results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-haiku-4-5', it.textoPdf || '');   // v450
+          results = await callClaudeAlb(it.b64, it.mediaType, key, it.isPdf, ctrl.signal, false, 'claude-haiku-5-5', it.textoPdf || '');   // v450
           // v314 (17/07/2026, Juan Carlos): RED "CASI VACÍO" → RELEER TODO CON SONNET.
           // Caso real: tickets térmicos de báscula (Holcim Garraf) con tinta casi borrada.
           // Haiku a veces devuelve el albarán con 0-2 campos (ni el sello) y entonces ni la
@@ -6516,7 +6516,7 @@ function _jsonRespuestaIA(text) {
   }
 }
 
-async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-4-5', textoPdf = '') {   // v450: textoPdf
+async function callClaudeAlb(b64, mediaType, key, isPdf, signal, manual = false, modelo = 'claude-haiku-5-5', textoPdf = '') {   // v450: textoPdf
   // v93b: validación defensiva — si llega un b64 vacío o no-string, lanzamos un error
   // claro AHORA en vez de mandarlo a la API y obtener un críptico 400 "Input should be
   // a valid string". Esto pasa típicamente si en algún reintento se perdió el b64 (bug
@@ -6792,7 +6792,9 @@ SOLO JSON válido, sin markdown.`;
     // v607 (05/09/2026): ttl '1h'. Medido con la v606: el manual son 36.869 tokens y la
     // caché de 5 min solo acierta cuando dos albaranes van seguidos; con 1 hora, casi
     // todos los de la jornada entran en una caché ya escrita (escribir cuesta 2x, leer 0,1x).
-    { model: modelo, max_tokens: isPdf ? 8000 : 1500, messages: [{ role: 'user', content: (
+    // v814 (09/10/2026): lector de albaranes pasa a Haiku 5.5. Ese modelo PIENSA por defecto y el
+    // pensamiento gasta del max_tokens (1500 en fotos) → lo apagamos para que lea igual que el 4.5.
+    { model: modelo, max_tokens: isPdf ? 8000 : 1500, thinking: { type: 'disabled' }, messages: [{ role: 'user', content: (
       textoPdf
         ? [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral', ttl: '1h' } }, contentBlock, { type: 'text', text: 'TEXTO INTERNO DEL PDF (copiado tal cual del fichero, sin pasar por la foto). Úsalo SOLO como APOYO: manda lo que se ve en la imagen, pero si en la imagen algún dato sale ilegible o con símbolos raros, cógelo de aquí. Ojo: aquí el orden de las palabras puede estar desordenado, así que no deduzcas posiciones ni "lo de arriba/abajo" de este texto, solo valores sueltos (matrículas, nº de albarán, fechas, pesos, nombres).\n\n' + textoPdf }]
         : [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral', ttl: '1h' } }, contentBlock]

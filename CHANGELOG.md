@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v814 (09/10/2026): IA ALBARANES · el lector de albaranes pasa de Claude Haiku 4.5 a Claude Haiku 5.5 (~75% más barato según Anthropic). Haiku 5.5 'piensa' por defecto y eso gasta del tope de tokens (1500 en fotos), así que se le apaga el pensamiento: lee igual que antes. Solo cambia la lectura de albaranes (subida normal y manual); el resto de módulos y el respaldo con Sonnet 4.6 siguen igual. Sin SQL. La 1ª lectura tras el cambio vuelve a escribir la caché del manual (normal). VUELTA ATRAS: resubir v813.
+
+---
+
 v813 (08/10/2026): ARRANQUE · arregla la v812, que no adelantaba nada. Comprobado en Chrome: las páginas 'adelantadas' no salían hasta acabar el conteo, porque Supabase no manda una consulta hasta que alguien la espera. Ahora se disparan al momento, a la vez que el conteo. Sin SQL. VUELTA ATRAS: resubir v812 (o v811).
 
 ---
