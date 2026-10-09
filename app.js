@@ -1423,6 +1423,7 @@ async function onLogin(user) {
   try { _errFlush(); if (currentRole === 'admin') { _errBadge(); setInterval(_errBadge, 10 * 60 * 1000); } } catch (e) {} // v706: chivato de errores
   try { checkFactVencidas(); } catch (e) {} // v708: aviso facturas vencidas sin cobrar
   try { liqInitCard(); } catch (e) {} // v709: liquidacion de autonomos (solo admin/Marta/MdM)
+  try { fiInitCard(); } catch (e) {} // v818: factura Hispalis / Transmargaz (solo admin)
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
@@ -15317,7 +15318,7 @@ async function _fiGuardar(emp, fuera) {
   const recs = _fiSeleccionados();
   if (!recs.length) { _fiCerrar(); return; }
   const mes = String((document.getElementById('fiMes') || {}).value || '').trim();
-  const grupo = String((document.getElementById('fiGrupo') || {}).value || '').trim().toUpperCase();
+  const grupo = String((document.getElementById('fiGrupo') || {}).value || '').trim().toUpperCase().replace(/^[\s\-–]+/, '');   // v818: sin guion delante
   if (!fuera && !/^\d{4}-\d{2}$/.test(mes)) { toast('Pon el mes de la factura', 'err'); return; }
   if (!fuera && !grupo) { toast('Pon el nombre de la pestaña', 'err'); return; }
   const upd = fuera
@@ -15339,6 +15340,158 @@ async function _fiQuitar() {
   if (err === -1) return;
   _fiCerrar();
   toast(err ? '⚠ Algún lote no se guardó. Reintenta.' : ('↩ ' + recs.length + ' albarán(es) sacados de la factura'), err ? 'err' : 'ok');
+}
+
+// ============================================================================
+// v818 — FACTURA HÍSPALIS / TRANSMARGAZ · fase 2: tarjeta en Facturación (solo Admin)
+// Lee de la BD los albaranes con fi_ref = '<EMP>|<AAAA-MM>' y los agrupa por PESTAÑA (fi_grupo),
+// en el orden en que se fueron metiendo. Precio = Tarifas por servicio (con tramos), igual que
+// "Excel por rutas". Avisa de lo que falta: sin precio y albaranes del mes sin meter.
+// ============================================================================
+let _fiDatos = null;
+function fiInitCard() {
+  const card = document.getElementById('fiCard'); if (!card) return;
+  if (!_fiEsAdmin()) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const mes = document.getElementById('fiCardMes');
+  if (mes && !mes.value) { const dd = new Date(); dd.setDate(1); dd.setMonth(dd.getMonth() - 1); mes.value = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0'); }
+}
+function _fiN(n, dec) { return (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
+
+async function fiCalcular() {
+  if (!_fiEsAdmin()) return;
+  const out = document.getElementById('fiCardOut'); if (!out) return;
+  const emp = (document.getElementById('fiCardEmp') || {}).value || 'HISPALIS';
+  const ym = (document.getElementById('fiCardMes') || {}).value || '';
+  if (!/^\d{4}-\d{2}$/.test(ym)) { toast('Elige el mes', 'err'); return; }
+  out.innerHTML = '<div style="padding:12px;color:var(--mu)">Calculando…</div>';
+  try { await loadTarifas(); } catch (e) {}
+  const ref = emp + '|' + ym;
+  let filas = [];
+  try {
+    for (let desde = 0; ; desde += 1000) {
+      const q = await sb.from('albaranes').select('*').eq('fi_ref', ref).range(desde, desde + 999);
+      if (q.error) throw q.error;
+      filas = filas.concat(q.data || []);
+      if ((q.data || []).length < 1000) break;
+    }
+  } catch (e) { console.error('[v818 fi] carga', e); out.innerHTML = '<div style="color:var(--er);padding:12px">Error leyendo: ' + esc(e.message || e) + '</div>'; return; }
+  // pestañas en el orden en que se metieron
+  const gm = new Map();
+  filas.sort((a, b) => String(a.factura_recibida_fecha || '').localeCompare(String(b.factura_recibida_fecha || '')) || (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)));
+  filas.forEach(r => { const g = String(r.fi_grupo || '(SIN PESTAÑA)'); if (!gm.has(g)) gm.set(g, []); gm.get(g).push(r); });
+  let sinPrecio = 0;
+  const grupos = Array.from(gm.entries()).map(([nombre, fs]) => {
+    fs.sort((a, b) => (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)) || String(a.albaran || '').localeCompare(String(b.albaran || ''), 'es', { numeric: true }));
+    const porViaje = _rutaEsPorViaje(fs);
+    const rutas = {}; const precios = [];
+    let tn = 0, eur = 0, nSin = 0;
+    fs.forEach(r => {
+      const pp = _rutaPrecioDe(r); r._fiPrecio = pp.precio; r._fiTramo = pp.tramo;
+      const tm = parseFloat(r.tm) || 0; r._fiTot = Math.round(tm * pp.precio * 100) / 100;
+      tn += tm; eur += r._fiTot;
+      if (!(pp.precio > 0)) nSin++; else if (precios.indexOf(pp.precio) === -1) precios.push(pp.precio);
+      const k = String(r.planta || '').trim() + ' → ' + String(r.obra || '').trim(); rutas[k] = (rutas[k] || 0) + 1;
+    });
+    sinPrecio += nSin;
+    const concepto = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a])[0] || '';
+    return { nombre, filas: fs, porViaje, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : 'TN', precios: precios.sort((a, b) => a - b), eur: Math.round(eur * 100) / 100, nSin };
+  });
+  // pendientes: albaranes de esa empresa y mes (de lo cargado en pantalla) sin meter en ninguna factura
+  const pend = (records || []).filter(r => !r._dup && _fiEmpDe(r) === emp && _fiMesDe(r) === ym && !r.fi_ref && r.estado_facturacion !== 'no_facturable');
+  const base = Math.round(grupos.reduce((s, g) => s + g.eur, 0) * 100) / 100;
+  const iva = Math.round(base * 0.21 * 100) / 100;
+  _fiDatos = { emp, ym, grupos, base, iva, total: Math.round((base + iva) * 100) / 100, pend, sinPrecio };
+  fiRender();
+  console.log('[v818 fi] factura', { ref, albaranes: filas.length, pestanas: grupos.length, base, sinPrecio, pendientes: pend.length });
+}
+
+function fiRender() {
+  const out = document.getElementById('fiCardOut'); const D = _fiDatos; if (!out || !D) return;
+  const td = 'padding:7px 9px;border-bottom:1px solid #ddd;color:#111;font-weight:700';
+  const th = 'padding:8px 9px;background:#4c1d95;color:#fff;font-weight:800;text-align:left;position:sticky;top:0';
+  let h = '<div style="font-size:17px;font-weight:800;color:#111;margin-bottom:8px">' + esc(_FI_NOM[D.emp]) + ' · ' + esc(_fiMesTxt(D.ym)) + '</div>';
+  if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio y vuelve a pulsar Ver.</div>';
+  if (D.pend.length) h += '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b45309;font-weight:800;cursor:pointer" onclick="fiVerPend()">⚠ ' + D.pend.length + ' albarán(es) de ' + esc(_FI_NOM[D.emp]) + ' de este mes sin meter en ninguna factura ni marcados "Fuera". <u>Ver cuáles</u></div><div id="fiPendBox"></div>';
+  if (!D.grupos.length) { out.innerHTML = h + '<div style="padding:12px;color:#111;font-weight:700">Aún no hay albaranes metidos en esta factura. Se meten desde Albaranes › Selección › 🧾 A factura Híspalis / Transmargaz.</div>'; return; }
+  h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>' +
+    ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE', ''].map((t, i) => '<th style="' + th + (i >= 2 && i <= 6 ? ';text-align:right' : '') + '">' + t + '</th>').join('') + '</tr></thead><tbody>';
+  D.grupos.forEach((g, i) => {
+    const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
+    h += '<tr>' +
+      '<td style="' + td + '">' + esc(g.nombre) + '</td>' +
+      '<td style="' + td + '">' + esc(g.concepto) + (g.nRutas > 1 ? ' <span style="color:#b45309">(+' + (g.nRutas - 1) + ' ruta' + (g.nRutas > 2 ? 's' : '') + ' más)</span>' : '') + '</td>' +
+      '<td style="' + td + ';text-align:right">' + g.n + '</td>' +
+      '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
+      '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, 3)) + '</td>' +
+      '<td style="' + td + ';text-align:right">' + pr + '</td>' +
+      '<td style="' + td + ';text-align:right">' + _fiN(g.eur, 2) + ' €</td>' +
+      '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">👁 VER</button></td>' +
+      '</tr><tr id="fiDet' + i + '" style="display:none"><td colspan="8" style="padding:0 0 10px 0"></td></tr>';
+  });
+  const tr = (t, v, big) => '<tr><td colspan="6" style="' + td + ';text-align:right;' + (big ? 'font-size:16px' : '') + '">' + t + '</td><td style="' + td + ';text-align:right;' + (big ? 'font-size:16px' : '') + '">' + _fiN(v, 2) + ' €</td><td style="' + td + '"></td></tr>';
+  h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true) + '</tbody></table></div>';
+  h += '<div style="margin-top:12px"><button class="btn" onclick="fiExcel()" style="background:#16a34a;color:#fff;font-weight:800;font-size:15px;padding:9px 16px">📊 Excel de la factura</button></div>';
+  out.innerHTML = h;
+}
+
+function fiVerGrupo(i) {
+  const tr = document.getElementById('fiDet' + i); if (!tr || !_fiDatos) return;
+  if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
+  const g = _fiDatos.grupos[i]; const td = 'padding:5px 8px;border-bottom:1px solid #eee;color:#111;font-weight:600';
+  tr.firstChild.innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#faf7ff"><tr>' +
+    ['FECHA', 'MATRÍCULA', g.porViaje ? 'VIAJES' : 'TN', 'PRECIO', 'TOTAL', 'TRAMO', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL'].map(t => '<th style="padding:5px 8px;text-align:left;color:#4c1d95">' + t + '</th>').join('') + '</tr>' +
+    g.filas.map(r => '<tr><td style="' + td + '">' + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? '' : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
+    '</table>';
+  tr.style.display = '';
+}
+
+function fiVerPend() {
+  const box = document.getElementById('fiPendBox'); if (!box || !_fiDatos) return;
+  if (box.innerHTML) { box.innerHTML = ''; return; }
+  const c = {}; _fiDatos.pend.forEach(r => { const k = String(r.planta || '') + ' → ' + String(r.obra || ''); c[k] = (c[k] || 0) + 1; });
+  box.innerHTML = '<div style="margin:-2px 0 10px 0;padding:8px 12px;border:1px solid #f59e0b;border-radius:8px;background:#fffaf0;color:#111;font-weight:700;font-size:14px">' +
+    Object.keys(c).sort((a, b) => c[b] - c[a]).map(k => c[k] + ' · ' + esc(k)).join('<br>') +
+    '<div style="font-weight:600;color:#444;margin-top:6px;font-size:13px">Solo cuenta lo cargado en Albaranes (últimos meses). Mételos con el botón 🧾 o márcalos "Fuera: factura directa".</div></div>';
+}
+
+function fiExcel() {
+  const D = _fiDatos; if (!D || !D.grupos.length) return;
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  const wb = XLSX.utils.book_new();
+  const MES = _fiMesTxt(D.ym);
+  const cabF = [['SIMULACIÓN DE FACTURA'], [(D.emp === 'HISPALIS' ? 'TRANSPORTES HÍSPALIS 2016, S.L.' : 'TRANSMARGAZ 2018') + ' · ' + MES.charAt(0).toUpperCase() + MES.slice(1)], ['Una línea por pestaña, en el mismo orden'],
+    ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE']];
+  const p1 = cabF.length + 1;
+  const rowsF = cabF.concat(D.grupos.map(g => [g.nombre, g.concepto, g.n, g.ud, g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, g.precios.map(p => _fiN(p, 2)).join(' / ') || 'SIN PRECIO', g.eur]));
+  const pU = rowsF.length;
+  rowsF.push(['', '', '', '', '', 'SUBTOTAL', D.base], ['', '', '', '', '', 'I.V.A. 21 %', D.iva], ['', '', '', '', '', 'TOTAL FACTURA', D.total]);
+  const wsF = XLSX.utils.aoa_to_sheet(rowsF);
+  const fS = pU + 1, fI = pU + 2, fT = pU + 3;
+  wsF['G' + fS] = { t: 'n', f: 'SUM(G' + p1 + ':G' + pU + ')', v: D.base };
+  wsF['G' + fI] = { t: 'n', f: 'ROUND(G' + fS + '*0.21,2)', v: D.iva };
+  wsF['G' + fT] = { t: 'n', f: 'G' + fS + '+G' + fI, v: D.total };
+  wsF['!cols'] = [26, 44, 11, 8, 12, 16, 14].map(w => ({ wch: w }));
+  const _estilo = (ws, cabR, money) => { const rg = XLSX.utils.decode_range(ws['!ref']); for (let R = rg.s.r; R <= rg.e.r; R++) for (let C = rg.s.c; C <= rg.e.c; C++) { const a = XLSX.utils.encode_cell({ r: R, c: C }); if (!ws[a]) ws[a] = { t: 's', v: '' }; ws[a].s = { font: { bold: true, sz: R === 0 ? 14 : 12 }, alignment: { horizontal: C <= 1 ? 'left' : 'center', vertical: 'center' } }; if (R > cabR && money.indexOf(C) !== -1) ws[a].z = '#,##0.00 €'; } };
+  _estilo(wsF, 3, [6]);
+  XLSX.utils.book_append_sheet(wb, wsF, 'FACTURA');
+  const usados = new Set(['FACTURA']);
+  D.grupos.forEach(g => {
+    let nom = String(g.nombre).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31) || 'PESTAÑA'; let k = 2; while (usados.has(nom)) nom = (String(g.nombre).slice(0, 28) + ' ' + (k++)); usados.add(nom);
+    const rows = [[ 'FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : 'TN NETAS', g.porViaje ? 'PRECIO (€/VIAJE)' : 'PRECIO (€/TN)', 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL' ]];
+    g.filas.forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, r._fiPrecio, r._fiTot, r._fiTramo || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '']));
+    const nD = rows.length;
+    rows.push(['TOTAL', '', g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, '', g.eur]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (let R = 2; R <= nD; R++) ws['E' + R] = { t: 'n', f: 'ROUND(C' + R + '*D' + R + ',2)', v: ws['E' + R].v };
+    if (nD >= 2) { ws['C' + (nD + 1)] = { t: 'n', f: 'SUM(C2:C' + nD + ')', v: ws['C' + (nD + 1)].v }; ws['E' + (nD + 1)] = { t: 'n', f: 'SUM(E2:E' + nD + ')', v: g.eur }; }
+    ws['!cols'] = [11, 11, 10, 14, 13, 9, 16, 24, 24, 26].map(w => ({ wch: w }));
+    _estilo(ws, 0, [3, 4]);
+    XLSX.utils.book_append_sheet(wb, ws, nom);
+  });
+  const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
+  XLSX.writeFile(wb, fich);
+  toast('📊 ' + fich + ' · ' + D.grupos.length + ' pestañas · ' + _fiN(D.total, 2) + ' €', 'ok');
 }
 
 // v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos

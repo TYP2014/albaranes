@@ -493,6 +493,21 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
+      <div class="card" id="fiCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#4c1d95"></div>🧾 FACTURA HÍSPALIS / TRANSMARGAZ <span style="font-size:10px;color:var(--mu);font-weight:400">(lo que nos facturan · solo Admin)</span></div>
+        </div>
+        <div class="card-bd">
+          <div style="font-size:14px;color:#111;line-height:1.6">Los albaranes se meten desde <b>Albaranes › Selección › 🧾 A factura Híspalis / Transmargaz</b>. Aquí eliges empresa y mes y pulsas <b>Ver</b>: sale una línea por pestaña con el precio de Tarifas, los avisos y el Excel.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <select id="fiCardEmp" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:15px;font-weight:700"><option value="HISPALIS">T. Híspalis 2016</option><option value="TRANSMARGAZ">Transmargaz 2018</option></select>
+            <input type="month" id="fiCardMes" style="padding:7px 10px;border:1px solid var(--bd);border-radius:6px;font-size:15px">
+            <button class="btn bp" onclick="fiCalcular()" style="font-weight:800;font-size:15px">Ver</button>
+          </div>
+          <div id="fiCardOut" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="card" id="liqAutCard" style="margin-top:18px;display:none">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#7c3aed"></div>💼 LIQUIDACIÓN SUBCONTRATADOS <span style="font-size:10px;color:var(--mu);font-weight:400">(autónomos y empresas · cuadrante + factura o simulación)</span></div>
@@ -2034,6 +2049,6 @@ if (typeof pdfjsLib !== 'undefined') {
     <button onclick="helpBotSend()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px">➤</button>
   </div>
 </div>
-<script src="app.js?v=817"></script>
+<script src="app.js?v=818"></script>
 </body>
 </html>

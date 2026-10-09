@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v818 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · fase 2. Tarjeta nueva en Facturación (solo Admin) '🧾 FACTURA HÍSPALIS / TRANSMARGAZ': eliges empresa y mes, pulsas Ver y sale una línea por PESTAÑA (en el orden en que se metieron) con servicios, TN o viajes, precio(s) de Tarifas por servicio con tramos, importe, SUBTOTAL + IVA 21% + TOTAL. '👁 VER' despliega los albaranes de cada pestaña. Avisos: albaranes SIN PRECIO y albaranes de esa empresa y mes sin meter en ninguna factura ni marcados 'Fuera'. '📊 Excel de la factura' = libro HISPALIS_<MES><AÑO>.xlsx con pestaña FACTURA delante (como la de agosto) y una pestaña por grupo. Además, al meter albaranes se quita el guion delante del nombre de la pestaña. Sin SQL. VUELTA ATRAS: resubir v817.
+
+---
+
 v817 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · arregla la v816: la pestaña propuesta salía ' - ' porque leía origen/destino de campos vacíos; ahora usa los de verdad (planta → obra). Así propone 'ORIGEN - DESTINO' en rutas nuevas y la misma pestaña de la última vez en rutas ya usadas. Sin SQL. VUELTA ATRAS: resubir v816.
 
 ---
