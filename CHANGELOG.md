@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v815 (09/10/2026): PRIMAS · 'Traer viajes' ya NO cambia ni borra una prima que ya tenga importe (ni la azul que puso la app ni la tecleada): una vez repasada se queda. Solo rellena los días con la prima VACÍA. Si los albaranes dicen otra cosa, el día muestra '⚠ puesta X € (se respeta)' junto a lo que propone la app, y el aviso de abajo cuenta cuántos días están así. Excepción que se mantiene: día de VACACIONES/BAJA con prima azul → se quita (v677). Sin SQL. VUELTA ATRAS: resubir v814.
+
+---
+
 v814 (09/10/2026): IA ALBARANES · el lector de albaranes pasa de Claude Haiku 4.5 a Claude Haiku 5.5 (~75% más barato según Anthropic). Haiku 5.5 'piensa' por defecto y eso gasta del tope de tokens (1500 en fotos), así que se le apaga el pensamiento: lee igual que antes. Solo cambia la lectura de albaranes (subida normal y manual); el resto de módulos y el respaldo con Sonnet 4.6 siguen igual. Sin SQL. La 1ª lectura tras el cambio vuelve a escribir la caché del manual (normal). VUELTA ATRAS: resubir v813.
 
 ---

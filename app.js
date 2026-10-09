@@ -26770,6 +26770,7 @@ function _primasInfoDia(f) {
   const nCond = _primasViajesConductor(f.parte_conductor);
   const p = _primasNum(f.prima_sugerida);
   let h = '<span style="color:#111">🧮 ' + esc(f.tipos) + '</span> → ' + (p > 0 ? '<strong style="color:#1565c0">la app propone ' + _primasEur(p) + '</strong>' : '<span style="color:#e65100">sin regla para este día: pon la prima a mano</span>');
+  { const _pp = _primasNum(f.prima); if (_pp !== 0 && _pp !== p) h += ' <span style="color:#e65100;font-weight:700">⚠ puesta ' + _primasEur(_pp) + ' (se respeta)</span>'; }   // v815
   if (nCond != null && nCond !== nAlb) h += ' <span style="color:#e65100;font-weight:700">⚠ conductor dice ' + nCond + ' viaje' + (nCond === 1 ? '' : 's') + ' · albaranes ' + nAlb + '</span>';
   return h;
 }
@@ -26848,6 +26849,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
     const aGuardar = [];
     let sinAlb = 0, nAuto = 0, nSinRegla = 0, nAusente = 0;
     const _v726Pisados = [];
+    let _v815Distintas = 0;   // v815: días con importe puesto distinto a lo que sale de los albaranes (se respeta, solo aviso)
     let _v730Hay = false;   // v730: ¿algun dia pedido tenia albaranes? (para no decir 'no hay albaranes' si solo estaba al dia)   // v726: dias con texto distinto al de los albaranes (en bloque se cambian, con UNA pregunta)
     for (const iso of dias) {
       const lista = vehsDe(iso); if (!lista.length) continue;
@@ -26874,7 +26876,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
             aGuardar.push({
               trabajador_id: _v737Tid, fecha: iso, vehiculo: _primasMatsTxt(previa.vehiculo) || veh,
               parte_conductor: g('parte_conductor') || null, trabajo: g('trabajo') || null, notas: g('notas') || null,
-              prima: previa.prima_auto ? 0 : primaAct0, prima_auto: false, tipos: null, prima_sugerida: 0,
+              prima: primaAct0, prima_auto: false, tipos: null, prima_sugerida: 0,   // v815: el importe se queda (antes se borraba si era azul)
               plus_manual: previa.plus_manual != null ? previa.plus_manual : null,
               editado_por: _primasQuien(), updated_at: new Date().toISOString()
             });
@@ -26897,9 +26899,10 @@ async function primasTraerAlbaranes(soloIso, _opt) {
       else if (resumen && actual !== resumen && soloIso && confirm('El día ' + iso.slice(8) + ' ya tiene escrito:\n\n' + actual + '\n\n¿Cambiarlo por lo que dicen los albaranes?\n\n' + resumen)) trabajo = resumen;
       // (b) PRIMA: la app solo la pone/cambia si esta vacia o si la habia puesto ella. Lo tecleado a mano NO se toca
       const primaAct = _primasNum(g('prima')), eraAuto = !!previa.prima_auto;
-      let prima = primaAct, primaAuto = eraAuto && primaAct !== 0;
-      if (prop.prima > 0 && (primaAct === 0 || eraAuto)) { prima = prop.prima; primaAuto = true; }
-      else if (prop.prima === 0 && eraAuto) { prima = 0; primaAuto = false; }     // ya no encaja ninguna regla (llegaron mas albaranes)
+      let prima = primaAct, primaAuto = eraAuto && primaAct !== 0 && primaAct === prop.prima;   // v815: si ya no coincide con lo que sale, deja de ser 'de la app' (queda como repasada)
+      if (prop.prima > 0 && primaAct === 0) { prima = prop.prima; primaAuto = true; }   // v815: solo se rellena si está VACÍA; un importe ya puesto (azul o a mano) no se cambia ni se borra
+      else if (ausente && eraAuto) { prima = 0; primaAuto = false; }     // v677: vacaciones/baja → esos viajes no son suyos
+      if (primaAct !== 0 && prop.prima !== primaAct && !ausente) _v815Distintas++;
       if (ausente) nAusente++; else if (prop.prima > 0 && primaAuto) nAuto++; else if (prop.prima === 0) nSinRegla++;
       const cambia = veh !== _primasMatsTxt(previa.vehiculo) || trabajo !== actual || tipos !== (previa.tipos || '') || prop.prima !== _primasNum(previa.prima_sugerida) || prima !== primaAct || primaAuto !== eraAuto;
       if (!cambia) continue;
@@ -26923,7 +26926,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
     _primasPintaTotales();
     const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? (_v730Hay ? 'Ese día ya está al día con los albaranes' : 'Ese día no hay albaranes de ' + vehs[0]) : 'Nada nuevo que rellenar');
     _primasEstado('✓ ' + msg);
-    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (nAusente ? ' · ⚠ ' + nAusente + ' día(s) de vacaciones/baja con albaranes de su camión' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
+    toast(msg + (nAuto ? ' · ' + nAuto + ' prima(s) puestas por la app' : '') + (nSinRegla && !soloIso ? ' · ' + nSinRegla + ' día(s) sin regla (a mano)' : '') + (nAusente ? ' · ⚠ ' + nAusente + ' día(s) de vacaciones/baja con albaranes de su camión' : '') + (_v815Distintas ? ' · ⚠ ' + _v815Distintas + ' día(s) con prima distinta a la de los albaranes (se ha dejado la vuestra)' : '') + (sinAlb && !soloIso ? ' · ' + sinAlb + ' día(s) sin albaranes' : ''), aGuardar.length ? 'ok' : 'warn');
     console.log('[v659 primas] albaranes', { vehs, dias: dias.length, rellenados: aGuardar.length, sinAlb });
   } catch (e) {
     if (_todos) throw e;   // v727
