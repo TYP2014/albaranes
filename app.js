@@ -15613,6 +15613,34 @@ function fiExcel() {
   toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
 }
 
+// v822: desde DEPÓSITOS SODIRA → meter los "pagados a TYP2014 pero transportados por otro" en la factura
+// interna de esa empresa (Híspalis / Transmargaz) del mes del depósito, en una pestaña (por defecto SODIRA).
+async function fiDesdeSodira(trans) {
+  if (!_fiEsAdmin()) { toast('Solo el administrador', 'err'); return; }
+  const u = typeof _factSodiraUltimo !== 'undefined' ? _factSodiraUltimo : null;
+  if (!u || !/^\d{4}-\d{2}$/.test(u.mes || '')) { toast('Vuelve a pulsar el mes en Depósitos Sodira', 'err'); return; }
+  const emp = _FI_EMP[String(trans).trim().toUpperCase()]; if (!emp) return;
+  const ref = emp + '|' + u.mes;
+  const recs = u.abonados.filter(a => (a.linea.destino || '') === 'TYP2014' && a.rec.transportista === trans && a.rec.db_id).map(a => a.rec);
+  const faltan = recs.filter(r => r.fi_ref !== ref);
+  if (!faltan.length) { toast('Ya están todos en la factura', 'ok'); return; }
+  const enOtra = faltan.filter(r => r.fi_ref);
+  const cG = {}; recs.forEach(r => { if (r.fi_grupo && r.fi_ref === ref) cG[r.fi_grupo] = (cG[r.fi_grupo] || 0) + 1; });
+  const sug = Object.keys(cG).sort((a, b) => cG[b] - cG[a])[0] || 'SODIRA';
+  const grupo = prompt('Meter ' + faltan.length + ' albarán(es) de Sodira en la factura de ' + _FI_NOM[emp] + ' · ' + _fiMesTxt(u.mes) + '.' +
+    (enOtra.length ? '\n\n⚠ ' + enOtra.length + ' ya estaban en otra factura o marcados "Fuera": se cambian a esta.' : '') +
+    '\n\nNombre de la pestaña:', sug);
+  if (grupo === null) return;
+  const g = String(grupo).trim().toUpperCase().replace(/^[\s\-–]+/, '');
+  if (!g) { toast('Pon el nombre de la pestaña', 'err'); return; }
+  const err = await _fiUpdate(faltan, { fi_ref: ref, fi_grupo: g, estado_factura_recibida: 'recibida', factura_recibida_fecha: new Date().toISOString() });
+  if (err === -1) return;
+  if (err) { toast('⚠ ' + err + ' lote(s) no se guardaron. Reintenta.', 'err'); return; }
+  toast('🧾 ' + faltan.length + ' albarán(es) de Sodira → ' + _FI_NOM[emp] + ' ' + _fiMesTxt(u.mes) + ' · ' + g, 'ok');
+  console.log('[v822 fi] desde Sodira', { trans, ref, grupo: g, n: faltan.length });
+  try { _factSodiraMostrarInforme(); } catch (e) {}
+}
+
 // v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos
 // viajes). Independiente del facturado a cliente. Solo Admin/Marta/María del Mar.
 async function _recibidaSeleccionados() {
@@ -40212,7 +40240,18 @@ function _factSodiraMostrarInforme() {
     _subc.forEach(a => { const t = a.rec.transportista; if (!_g[t]) _g[t] = { n: 0, tn: 0 }; _g[t].n++; const x = _factNum(a.linea.tn); if (!isNaN(x)) _g[t].tn += x; });
     h += '<div style="font-weight:700;color:#b48be8;margin-top:8px">🤝 PAGADOS A TYP2014 PERO TRANSPORTADOS POR OTRO (' + _subc.length + ')</div>';
     h += '<div style="color:var(--mu);font-size:11px;margin-bottom:6px">Sodira los ha pagado en el depósito de TYP2014; el transportista se los factura a TYP2014. Detalle en la hoja "Facturar a TYP2014" del Excel.</div>';
-    Object.keys(_g).forEach(t => { h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(t) + ': ' + _g[t].n + ' albaranes · ' + _g[t].tn.toFixed(2) + ' TN</div>'; });
+    Object.keys(_g).forEach(t => {
+      // v822: botón para meterlos directamente en la factura Híspalis / Transmargaz del mes (solo Admin)
+      let _b = '';
+      const _emp = (typeof _FI_EMP !== 'undefined') ? _FI_EMP[String(t).trim().toUpperCase()] : '';
+      if (_emp && typeof _fiEsAdmin === 'function' && _fiEsAdmin()) {
+        const _ya = _subc.filter(a => a.rec.transportista === t && a.rec.fi_ref === _emp + '|' + u.mes).length;
+        _b = _ya === _g[t].n
+          ? ' <span style="color:#16a34a;font-weight:800">✓ ya en la factura de ' + esc(_FI_NOM[_emp]) + ' (' + esc(_fiMesTxt(u.mes)) + ')</span>'
+          : ' <button class="btn" style="font-size:12px;font-weight:800;background:#4c1d95;color:#fff;padding:4px 10px;margin-left:6px" onclick="fiDesdeSodira(\'' + esc(t).replace(/'/g, "\\'") + '\')">🧾 Meter en factura ' + esc(_FI_NOM[_emp]) + ' · ' + esc(_fiMesTxt(u.mes)) + (_ya ? ' (faltan ' + (_g[t].n - _ya) + ')' : '') + '</button>';
+      }
+      h += '<div style="padding:3px 0;border-bottom:1px solid var(--bd)">' + esc(t) + ': ' + _g[t].n + ' albaranes · ' + _g[t].tn.toFixed(2) + ' TN' + _b + '</div>';
+    });
   }
   h += '</div>';
   cont.innerHTML = h;

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v822 (09/10/2026): SODIRA → FACTURA HÍSPALIS / TRANSMARGAZ. En Facturación › Depósitos Sodira, en el bloque '🤝 PAGADOS A TYP2014 PERO TRANSPORTADOS POR OTRO', cada empresa (Híspalis / Transmargaz) lleva un botón (solo Admin) '🧾 Meter en factura <empresa> · <mes del depósito>': pide el nombre de la pestaña (por defecto SODIRA) y mete esos albaranes en la factura interna de ese mes, marcados 📥. Si ya están todos, sale '✓ ya en la factura'; si faltan algunos, el botón dice cuántos. Avisa si alguno estaba en otra factura o 'Fuera'. Sin SQL. VUELTA ATRAS: resubir v821.
+
+---
+
 v821 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · retoques de la v820 pedidos por JC. (1) '➕ Añadir línea' queda solo CONCEPTO + IMPORTE (sin unidad, cantidad ni precio); las de la v820 con cantidad × precio siguen valiendo. Las líneas vacías no salen en el Excel. (2) Las pestañas guardadas con guion delante ('-ADEC') se ven y se juntan como 'ADEC'. Sin SQL. VUELTA ATRAS: resubir v820.
 
 ---
