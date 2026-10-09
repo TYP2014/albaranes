@@ -15357,6 +15357,10 @@ function fiInitCard() {
   if (mes && !mes.value) { const dd = new Date(); dd.setDate(1); dd.setMonth(dd.getMonth() - 1); mes.value = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0'); }
 }
 function _fiN(n, dec) { return (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
+function _fiR2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function _fiNum(v) { let t = String(v == null ? '' : v).trim().replace(/\s|€/g, ''); if (t === '') return null; if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, ''); const n = Number(t); return isNaN(n) ? null : n; }   // 3.000 = 3000 · 2,5 = 2.5
+// v820: importe de una línea a mano: cantidad × precio; sin cantidad = 1 × precio
+function _fiImpLinea(l) { const c = l.cantidad == null ? 1 : Number(l.cantidad); return _fiR2(c * (Number(l.precio) || 0)); }
 
 async function fiCalcular() {
   if (!_fiEsAdmin()) return;
@@ -15367,7 +15371,7 @@ async function fiCalcular() {
   out.innerHTML = '<div style="padding:12px;color:var(--mu)">Calculando…</div>';
   try { await loadTarifas(); } catch (e) {}
   const ref = emp + '|' + ym;
-  let filas = [];
+  let filas = [], lineas = [];
   try {
     for (let desde = 0; ; desde += 1000) {
       const q = await sb.from('albaranes').select('*').eq('fi_ref', ref).range(desde, desde + 999);
@@ -15376,7 +15380,12 @@ async function fiCalcular() {
       if ((q.data || []).length < 1000) break;
     }
   } catch (e) { console.error('[v818 fi] carga', e); out.innerHTML = '<div style="color:var(--er);padding:12px">Error leyendo: ' + esc(e.message || e) + '</div>'; return; }
-  // pestañas en el orden en que se metieron
+  try {   // v820: líneas a mano, gastos y precios cambiados
+    const q = await sb.from('fi_lineas').select('*').eq('emp', emp).eq('mes', ym).order('created_at', { ascending: true });
+    if (q.error) throw q.error;
+    lineas = q.data || [];
+  } catch (e) { console.error('[v820 fi] fi_lineas', e); toast('Falta ejecutar el SQL de la v820 (tabla fi_lineas): las líneas a mano no se cargan', 'err'); }
+  const precioMan = lineas.filter(l => l.tipo === 'precio');
   const gm = new Map();
   filas.sort((a, b) => String(a.factura_recibida_fecha || '').localeCompare(String(b.factura_recibida_fecha || '')) || (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)));
   filas.forEach(r => { const g = String(r.fi_grupo || '(SIN PESTAÑA)'); if (!gm.has(g)) gm.set(g, []); gm.get(g).push(r); });
@@ -15384,38 +15393,52 @@ async function fiCalcular() {
   const grupos = Array.from(gm.entries()).map(([nombre, fs]) => {
     fs.sort((a, b) => (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)) || String(a.albaran || '').localeCompare(String(b.albaran || ''), 'es', { numeric: true }));
     const porViaje = _rutaEsPorViaje(fs);
-    const rutas = {}; const precios = [];
-    let tn = 0, eur = 0, nSin = 0;
+    const rutas = {}; const precios = []; const origs = [];
+    let tn = 0, eur = 0, nSin = 0, cambiado = false;
     fs.forEach(r => {
-      const pp = _rutaPrecioDe(r); r._fiPrecio = pp.precio; r._fiTramo = pp.tramo;
-      const tm = parseFloat(r.tm) || 0; r._fiTot = Math.round(tm * pp.precio * 100) / 100;
+      const pp = _rutaPrecioDe(r);
+      const orig = Math.round((Number(pp.precio) || 0) * 10000) / 10000;
+      const man = precioMan.find(l => l.grupo === nombre && Math.abs((Number(l.precio_de) || 0) - orig) < 0.00005);
+      r._fiPrecioOrig = orig; r._fiPrecio = man ? Number(man.precio) : orig; r._fiTramo = pp.tramo; r._fiMan = !!man;
+      if (man) cambiado = true;
+      if (origs.indexOf(orig) === -1) origs.push(orig);
+      const tm = parseFloat(r.tm) || 0; r._fiTot = _fiR2(tm * r._fiPrecio);
       tn += tm; eur += r._fiTot;
-      if (!(pp.precio > 0)) nSin++; else if (precios.indexOf(pp.precio) === -1) precios.push(pp.precio);
+      if (!(r._fiPrecio > 0)) nSin++; else if (precios.indexOf(r._fiPrecio) === -1) precios.push(r._fiPrecio);
       const k = String(r.planta || '').trim() + ' → ' + String(r.obra || '').trim(); rutas[k] = (rutas[k] || 0) + 1;
     });
     sinPrecio += nSin;
     const concepto = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a])[0] || '';
-    return { nombre, filas: fs, porViaje, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : 'TN', precios: precios.sort((a, b) => a - b), eur: Math.round(eur * 100) / 100, nSin };
+    return { nombre, filas: fs, porViaje, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : 'TN', precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
   });
-  // pendientes: albaranes de esa empresa y mes (de lo cargado en pantalla) sin meter en ninguna factura
   const pend = (records || []).filter(r => !r._dup && _fiEmpDe(r) === emp && _fiMesDe(r) === ym && !r.fi_ref && r.estado_facturacion !== 'no_facturable');
-  const base = Math.round(grupos.reduce((s, g) => s + g.eur, 0) * 100) / 100;
-  const iva = Math.round(base * 0.21 * 100) / 100;
-  _fiDatos = { emp, ym, grupos, base, iva, total: Math.round((base + iva) * 100) / 100, pend, sinPrecio };
+  _fiDatos = { emp, ym, grupos, pend, sinPrecio, lineas: lineas.filter(l => l.tipo === 'linea'), gastos: lineas.filter(l => l.tipo === 'gasto') };
+  _fiTotales();
   fiRender();
-  console.log('[v818 fi] factura', { ref, albaranes: filas.length, pestanas: grupos.length, base, sinPrecio, pendientes: pend.length });
+  console.log('[v820 fi] factura', { ref, albaranes: filas.length, pestanas: grupos.length, lineas: _fiDatos.lineas.length, gastos: _fiDatos.gastos.length, precios: precioMan.length, base: _fiDatos.base });
+}
+
+function _fiTotales() {
+  const D = _fiDatos; if (!D) return;
+  D.base = _fiR2(D.grupos.reduce((s, g) => s + g.eur, 0) + D.lineas.reduce((s, l) => s + _fiImpLinea(l), 0));
+  D.iva = _fiR2(D.base * 0.21);
+  D.total = _fiR2(D.base + D.iva);
+  D.desc = _fiR2(D.gastos.reduce((s, l) => s + (Number(l.importe) || 0), 0));
+  D.aPagar = _fiR2(D.total - D.desc);
 }
 
 function fiRender() {
   const out = document.getElementById('fiCardOut'); const D = _fiDatos; if (!out || !D) return;
   const td = 'padding:7px 9px;border-bottom:1px solid #ddd;color:#111;font-weight:700';
-  const th = 'padding:8px 9px;background:#4c1d95;color:#fff;font-weight:800;text-align:left;position:sticky;top:0';
+  const th = 'padding:8px 9px;background:#4c1d95;color:#fff;font-weight:800;text-align:left';
+  const inp = 'font-size:14px;font-weight:700;padding:5px 7px;border:1px solid #999;border-radius:6px;color:#111;box-sizing:border-box';
+  const ea = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   let h = '<div style="font-size:17px;font-weight:800;color:#111;margin-bottom:8px">' + esc(_FI_NOM[D.emp]) + ' · ' + esc(_fiMesTxt(D.ym)) + '</div>';
-  if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio y vuelve a pulsar Ver.</div>';
+  if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio o con ✎ en su pestaña.</div>';
   if (D.pend.length) h += '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b45309;font-weight:800;cursor:pointer" onclick="fiVerPend()">⚠ ' + D.pend.length + ' albarán(es) de ' + esc(_FI_NOM[D.emp]) + ' de este mes sin meter en ninguna factura ni marcados "Fuera". <u>Ver cuáles</u></div><div id="fiPendBox"></div>';
-  if (!D.grupos.length) { out.innerHTML = h + '<div style="padding:12px;color:#111;font-weight:700">Aún no hay albaranes metidos en esta factura. Se meten desde Albaranes › Selección › 🧾 A factura Híspalis / Transmargaz.</div>'; return; }
   h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>' +
     ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE', ''].map((t, i) => '<th style="' + th + (i >= 2 && i <= 6 ? ';text-align:right' : '') + '">' + t + '</th>').join('') + '</tr></thead><tbody>';
+  if (!D.grupos.length) h += '<tr><td colspan="8" style="' + td + '">Aún no hay albaranes metidos. Se meten desde Albaranes › Selección › 🧾 A factura Híspalis / Transmargaz.</td></tr>';
   D.grupos.forEach((g, i) => {
     const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
     h += '<tr>' +
@@ -15424,15 +15447,93 @@ function fiRender() {
       '<td style="' + td + ';text-align:right">' + g.n + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
       '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, 3)) + '</td>' +
-      '<td style="' + td + ';text-align:right">' + pr + '</td>' +
+      '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button></td>' +
       '<td style="' + td + ';text-align:right">' + _fiN(g.eur, 2) + ' €</td>' +
       '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">👁 VER</button></td>' +
       '</tr><tr id="fiDet' + i + '" style="display:none"><td colspan="8" style="padding:0 0 10px 0"></td></tr>';
   });
-  const tr = (t, v, big) => '<tr><td colspan="6" style="' + td + ';text-align:right;' + (big ? 'font-size:16px' : '') + '">' + t + '</td><td style="' + td + ';text-align:right;' + (big ? 'font-size:16px' : '') + '">' + _fiN(v, 2) + ' €</td><td style="' + td + '"></td></tr>';
-  h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true) + '</tbody></table></div>';
+  // v820: líneas a mano (antes de IVA)
+  h += '<tr><td colspan="8" style="padding:10px 9px 4px;font-weight:800;color:#4c1d95;font-size:15px">➕ OTROS SERVICIOS Y AJUSTES <span style="font-weight:600;color:#444;font-size:13px">(van a la base, antes de IVA · importe negativo = resta)</span></td></tr>';
+  D.lineas.forEach(l => {
+    h += '<tr>' +
+      '<td style="' + td + '">OTROS</td>' +
+      '<td style="' + td + '"><input style="' + inp + ';width:100%;min-width:220px" value="' + ea(l.concepto) + '" placeholder="Ej. Horas de paralización junio" onchange="fiLineaSet(\'' + l.id + '\',\'concepto\',this.value)"></td>' +
+      '<td style="' + td + '"></td>' +
+      '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:70px" value="' + ea(l.ud || '') + '" placeholder="HORA" onchange="fiLineaSet(\'' + l.id + '\',\'ud\',this.value)"></td>' +
+      '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:90px;text-align:right" value="' + (l.cantidad == null ? '' : ea(String(l.cantidad).replace('.', ','))) + '" placeholder="1" onchange="fiLineaSet(\'' + l.id + '\',\'cantidad\',this.value)"></td>' +
+      '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:100px;text-align:right" value="' + (l.precio == null ? '' : ea(String(l.precio).replace('.', ','))) + '" placeholder="0,00" onchange="fiLineaSet(\'' + l.id + '\',\'precio\',this.value)"></td>' +
+      '<td style="' + td + ';text-align:right">' + _fiN(_fiImpLinea(l), 2) + ' €</td>' +
+      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar esta línea" onclick="fiLineaBorrar(\'' + l.id + '\')">🗑</button></td></tr>';
+  });
+  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'linea\')" style="background:#4c1d95;color:#fff;font-weight:800">➕ Añadir línea</button> <span style="font-size:13px;color:#444;font-weight:600">Horas de paralización, esperas, desplazamientos, extra sábado… Cantidad vacía = importe directo en Precio.</span></td></tr>';
+  const tr = (t, v, big, col) => '<tr><td colspan="6" style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + t + '</td><td style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + _fiN(v, 2) + ' €</td><td style="' + td + '"></td></tr>';
+  h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true);
+  // v820: gastos / descuentos (se restan del total con IVA)
+  h += '<tr><td colspan="8" style="padding:12px 9px 4px;font-weight:800;color:#b91c1c;font-size:15px">➖ GASTOS Y DESCUENTOS <span style="font-weight:600;color:#444;font-size:13px">(se restan del TOTAL: repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…)</span></td></tr>';
+  D.gastos.forEach(l => {
+    h += '<tr>' +
+      '<td style="' + td + '">GASTOS</td>' +
+      '<td colspan="5" style="' + td + '"><input style="' + inp + ';width:100%" value="' + ea(l.concepto) + '" placeholder="Ej. 2 neumáticos 315/80 · filtros 8735MYM" onchange="fiLineaSet(\'' + l.id + '\',\'concepto\',this.value)"></td>' +
+      '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:110px;text-align:right;color:#b91c1c" value="' + (l.importe == null ? '' : ea(String(l.importe).replace('.', ','))) + '" placeholder="0,00" onchange="fiLineaSet(\'' + l.id + '\',\'importe\',this.value)"></td>' +
+      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar este gasto" onclick="fiLineaBorrar(\'' + l.id + '\')">🗑</button></td></tr>';
+  });
+  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'gasto\')" style="background:#b91c1c;color:#fff;font-weight:800">➖ Añadir gasto / descuento</button></td></tr>';
+  if (D.gastos.length) h += tr('− GASTOS Y DESCUENTOS', -D.desc, false, '#b91c1c') + tr('A PAGAR', D.aPagar, true, '#4c1d95');
+  h += '</tbody></table></div>';
   h += '<div style="margin-top:12px"><button class="btn" onclick="fiExcel()" style="background:#16a34a;color:#fff;font-weight:800;font-size:15px;padding:9px 16px">📊 Excel de la factura</button></div>';
   out.innerHTML = h;
+}
+
+// v820: nueva línea a mano / gasto (se guarda en fi_lineas)
+async function fiLineaNueva(tipo) {
+  const D = _fiDatos; if (!D) return;
+  try {
+    const { data, error } = await sb.from('fi_lineas').insert({ emp: D.emp, mes: D.ym, tipo, concepto: '', cantidad: null, precio: null, importe: null }).select().single();
+    if (error) throw error;
+    (tipo === 'gasto' ? D.gastos : D.lineas).push(data);
+    _fiTotales(); fiRender();
+  } catch (e) { console.error('[v820 fi] nueva', e); toast('No se pudo añadir: ' + (e.message || e) + (/fi_lineas/.test(String(e.message || e)) ? ' (falta el SQL de la v820)' : ''), 'err'); }
+}
+async function fiLineaSet(id, campo, valor) {
+  const D = _fiDatos; if (!D) return;
+  const l = D.lineas.concat(D.gastos).find(x => String(x.id) === String(id)); if (!l) return;
+  const v = (campo === 'concepto' || campo === 'ud') ? String(valor || '').trim() : _fiNum(valor);
+  if (campo !== 'concepto' && campo !== 'ud' && String(valor || '').trim() !== '' && v === null) { toast('Número no válido: ' + valor, 'err'); return; }
+  l[campo] = v;
+  try { const upd = { updated_at: new Date().toISOString() }; upd[campo] = v; const { error } = await sb.from('fi_lineas').update(upd).eq('id', id); if (error) throw error; }
+  catch (e) { console.error('[v820 fi] set', e); toast('No se guardó: ' + (e.message || e), 'err'); }
+  _fiTotales(); fiRender();
+}
+async function fiLineaBorrar(id) {
+  const D = _fiDatos; if (!D) return;
+  if (!confirm('¿Borrar esta línea?')) return;
+  try { const { error } = await sb.from('fi_lineas').delete().eq('id', id); if (error) throw error; }
+  catch (e) { console.error('[v820 fi] borrar', e); toast('No se borró: ' + (e.message || e), 'err'); return; }
+  D.lineas = D.lineas.filter(x => String(x.id) !== String(id)); D.gastos = D.gastos.filter(x => String(x.id) !== String(id));
+  _fiTotales(); fiRender();
+}
+// v820: cambiar el precio de una pestaña SOLO en esta factura (no toca Tarifas por servicio)
+async function fiCambiarPrecio(i) {
+  const D = _fiDatos; if (!D) return; const g = D.grupos[i]; if (!g) return;
+  let cambios = 0;
+  for (const orig of g.origs) {
+    const ahora = (g.filas.find(r => r._fiPrecioOrig === orig) || {})._fiPrecio;
+    const n = g.filas.filter(r => r._fiPrecioOrig === orig).length;
+    const txt = prompt('Pestaña ' + g.nombre + ' · ' + n + ' albarán(es) a ' + (orig > 0 ? _fiN(orig, 2) + ' €' : 'SIN PRECIO') + ' en Tarifas.\n\nPrecio para ESTA factura (vacío = el de Tarifas):', ahora !== orig && ahora != null ? String(ahora).replace('.', ',') : '');
+    if (txt === null) continue;
+    const nv = _fiNum(txt);
+    if (String(txt).trim() !== '' && nv === null) { toast('Número no válido: ' + txt, 'err'); continue; }
+    try {
+      const del = await sb.from('fi_lineas').delete().eq('emp', D.emp).eq('mes', D.ym).eq('tipo', 'precio').eq('grupo', g.nombre).eq('precio_de', orig);
+      if (del.error) throw del.error;
+      if (nv !== null && Math.abs(nv - orig) > 0.00005) {
+        const ins = await sb.from('fi_lineas').insert({ emp: D.emp, mes: D.ym, tipo: 'precio', grupo: g.nombre, precio_de: orig, precio: nv });
+        if (ins.error) throw ins.error;
+      }
+      cambios++;
+    } catch (e) { console.error('[v820 fi] precio', e); toast('No se guardó el precio: ' + (e.message || e), 'err'); return; }
+  }
+  if (cambios) { console.log('[v820 fi] precio cambiado', g.nombre); fiCalcular(); }
 }
 
 function fiVerGrupo(i) {
@@ -15441,7 +15542,7 @@ function fiVerGrupo(i) {
   const g = _fiDatos.grupos[i]; const td = 'padding:5px 8px;border-bottom:1px solid #eee;color:#111;font-weight:600';
   tr.firstChild.innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#faf7ff"><tr>' +
     ['FECHA', 'MATRÍCULA', g.porViaje ? 'VIAJES' : 'TN', 'PRECIO', 'TOTAL', 'TRAMO', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL'].map(t => '<th style="padding:5px 8px;text-align:left;color:#4c1d95">' + t + '</th>').join('') + '</tr>' +
-    g.filas.map(r => '<tr><td style="' + td + '">' + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? '' : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
+    g.filas.map(r => '<tr><td style="' + td + '">' + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
     '</table>';
   tr.style.display = '';
 }
@@ -15456,29 +15557,38 @@ function fiVerPend() {
 }
 
 function fiExcel() {
-  const D = _fiDatos; if (!D || !D.grupos.length) return;
+  const D = _fiDatos; if (!D || (!D.grupos.length && !D.lineas.length)) { toast('No hay nada en esta factura', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const wb = XLSX.utils.book_new();
   const MES = _fiMesTxt(D.ym);
+  const _estilo = (ws, cabR, money) => { const rg = XLSX.utils.decode_range(ws['!ref']); for (let R = rg.s.r; R <= rg.e.r; R++) for (let C = rg.s.c; C <= rg.e.c; C++) { const a = XLSX.utils.encode_cell({ r: R, c: C }); if (!ws[a]) ws[a] = { t: 's', v: '' }; ws[a].s = { font: { bold: true, sz: R === 0 ? 14 : 12 }, alignment: { horizontal: C <= 1 ? 'left' : 'center', vertical: 'center' } }; if (R > cabR && money.indexOf(C) !== -1) ws[a].z = '#,##0.00 €'; } };
   const cabF = [['SIMULACIÓN DE FACTURA'], [(D.emp === 'HISPALIS' ? 'TRANSPORTES HÍSPALIS 2016, S.L.' : 'TRANSMARGAZ 2018') + ' · ' + MES.charAt(0).toUpperCase() + MES.slice(1)], ['Una línea por pestaña, en el mismo orden'],
     ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE']];
   const p1 = cabF.length + 1;
   const rowsF = cabF.concat(D.grupos.map(g => [g.nombre, g.concepto, g.n, g.ud, g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, g.precios.map(p => _fiN(p, 2)).join(' / ') || 'SIN PRECIO', g.eur]));
+  D.lineas.forEach(l => rowsF.push(['OTROS SERVICIOS', l.concepto || '', '', l.ud || '', l.cantidad == null ? '' : Number(l.cantidad), l.precio == null ? '' : _fiN(l.precio, 2), _fiImpLinea(l)]));   // v820
   const pU = rowsF.length;
   rowsF.push(['', '', '', '', '', 'SUBTOTAL', D.base], ['', '', '', '', '', 'I.V.A. 21 %', D.iva], ['', '', '', '', '', 'TOTAL FACTURA', D.total]);
-  const wsF = XLSX.utils.aoa_to_sheet(rowsF);
   const fS = pU + 1, fI = pU + 2, fT = pU + 3;
+  let fD = 0, fP = 0;
+  if (D.gastos.length) {   // v820
+    rowsF.push(['', '', '', '', '', '', '']);
+    D.gastos.forEach(l => rowsF.push(['GASTOS', l.concepto || '', '', '', '', '', -(Number(l.importe) || 0)]));
+    fD = rowsF.length - D.gastos.length + 1;
+    rowsF.push(['', '', '', '', '', 'A PAGAR', D.aPagar]); fP = rowsF.length;
+  }
+  const wsF = XLSX.utils.aoa_to_sheet(rowsF);
   wsF['G' + fS] = { t: 'n', f: 'SUM(G' + p1 + ':G' + pU + ')', v: D.base };
   wsF['G' + fI] = { t: 'n', f: 'ROUND(G' + fS + '*0.21,2)', v: D.iva };
   wsF['G' + fT] = { t: 'n', f: 'G' + fS + '+G' + fI, v: D.total };
+  if (fP) wsF['G' + fP] = { t: 'n', f: 'G' + fT + '+SUM(G' + fD + ':G' + (fP - 1) + ')', v: D.aPagar };
   wsF['!cols'] = [26, 44, 11, 8, 12, 16, 14].map(w => ({ wch: w }));
-  const _estilo = (ws, cabR, money) => { const rg = XLSX.utils.decode_range(ws['!ref']); for (let R = rg.s.r; R <= rg.e.r; R++) for (let C = rg.s.c; C <= rg.e.c; C++) { const a = XLSX.utils.encode_cell({ r: R, c: C }); if (!ws[a]) ws[a] = { t: 's', v: '' }; ws[a].s = { font: { bold: true, sz: R === 0 ? 14 : 12 }, alignment: { horizontal: C <= 1 ? 'left' : 'center', vertical: 'center' } }; if (R > cabR && money.indexOf(C) !== -1) ws[a].z = '#,##0.00 €'; } };
   _estilo(wsF, 3, [6]);
   XLSX.utils.book_append_sheet(wb, wsF, 'FACTURA');
-  const usados = new Set(['FACTURA']);
+  const usados = new Set(['FACTURA', 'OTROS SERVICIOS', 'GASTOS']);
   D.grupos.forEach(g => {
     let nom = String(g.nombre).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31) || 'PESTAÑA'; let k = 2; while (usados.has(nom)) nom = (String(g.nombre).slice(0, 28) + ' ' + (k++)); usados.add(nom);
-    const rows = [[ 'FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : 'TN NETAS', g.porViaje ? 'PRECIO (€/VIAJE)' : 'PRECIO (€/TN)', 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL' ]];
+    const rows = [['FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : 'TN NETAS', g.porViaje ? 'PRECIO (€/VIAJE)' : 'PRECIO (€/TN)', 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL']];
     g.filas.forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, r._fiPrecio, r._fiTot, r._fiTramo || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '']));
     const nD = rows.length;
     rows.push(['TOTAL', '', g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, '', g.eur]);
@@ -15489,9 +15599,21 @@ function fiExcel() {
     _estilo(ws, 0, [3, 4]);
     XLSX.utils.book_append_sheet(wb, ws, nom);
   });
+  if (D.lineas.length) {   // v820: pestaña OTROS SERVICIOS
+    const rows = [['CONCEPTO', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE (€)']].concat(D.lineas.map(l => [l.concepto || '', l.ud || '', l.cantidad == null ? '' : Number(l.cantidad), l.precio == null ? '' : Number(l.precio), _fiImpLinea(l)]));
+    rows.push(['TOTAL', '', '', '', _fiR2(D.lineas.reduce((s, l) => s + _fiImpLinea(l), 0))]);
+    const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = [44, 9, 11, 13, 14].map(w => ({ wch: w })); _estilo(ws, 0, [3, 4]);
+    XLSX.utils.book_append_sheet(wb, ws, 'OTROS SERVICIOS');
+  }
+  if (D.gastos.length) {   // v820: pestaña GASTOS
+    const rows = [['CONCEPTO', 'IMPORTE (€)']].concat(D.gastos.map(l => [l.concepto || '', Number(l.importe) || 0]));
+    rows.push(['TOTAL (se resta de la factura)', D.desc]);
+    const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = [50, 14].map(w => ({ wch: w })); _estilo(ws, 0, [1]);
+    XLSX.utils.book_append_sheet(wb, ws, 'GASTOS');
+  }
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
-  toast('📊 ' + fich + ' · ' + D.grupos.length + ' pestañas · ' + _fiN(D.total, 2) + ' €', 'ok');
+  toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
 }
 
 // v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos
