@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v821 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · retoques de la v820 pedidos por JC. (1) '➕ Añadir línea' queda solo CONCEPTO + IMPORTE (sin unidad, cantidad ni precio); las de la v820 con cantidad × precio siguen valiendo. Las líneas vacías no salen en el Excel. (2) Las pestañas guardadas con guion delante ('-ADEC') se ven y se juntan como 'ADEC'. Sin SQL. VUELTA ATRAS: resubir v820.
+
+---
+
 v820 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · fase 3, cosas a mano. En la tarjeta: (1) '➕ Añadir línea' = otros servicios y ajustes que no salen de albaranes (horas de paralización, esperas, desplazamientos, extra sábado…): concepto, ud, cantidad × precio (cantidad vacía = importe directo; negativo = resta); van a la base, antes de IVA. (2) '➖ Añadir gasto / descuento' = repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…: se restan del TOTAL con IVA y sale 'A PAGAR'. (3) ✎ en el precio de cada pestaña = cambiar el precio SOLO en esa factura (no toca Tarifas; sale en naranja con ✱ y al pasar el ratón dice el de Tarifas). Todo se guarda al momento (tabla fi_lineas). El Excel lleva las líneas en FACTURA y las pestañas nuevas OTROS SERVICIOS y GASTOS. Los números admiten 3.000 / 62,5 / 1.234,56. SQL ANTES: v820_fi_lineas.sql. VUELTA ATRAS: resubir v819.
 
 ---
