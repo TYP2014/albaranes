@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v817 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · arregla la v816: la pestaña propuesta salía ' - ' porque leía origen/destino de campos vacíos; ahora usa los de verdad (planta → obra). Así propone 'ORIGEN - DESTINO' en rutas nuevas y la misma pestaña de la última vez en rutas ya usadas. Sin SQL. VUELTA ATRAS: resubir v816.
+
+---
+
 v816 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · fase 1. En Albaranes > Selección, botón nuevo (solo Admin) '🧾 A factura Híspalis / Transmargaz': se filtra y se seleccionan los albaranes, se elige MES y PESTAÑA (propone la usada la última vez para esa ruta) y quedan metidos en esa factura y marcados 📥 nos han facturado. '🚫 Fuera: factura directa' = lo factura esa empresa directamente al cliente (p. ej. áridos Cemex). '↩ Sacar de la factura' los devuelve a pendientes. Avisa si se mezclan empresas, meses, o si ya estaban en otra factura. La chapa '✓ Nos facturó' dice al pasar el ratón en qué factura y pestaña está. SQL ANTES: v816_factura_interna.sql (columnas albaranes.fi_ref y fi_grupo). Siguiente fase: tarjeta en Facturación con el cuadrante y el Excel. VUELTA ATRAS: resubir v815.
 
 ---

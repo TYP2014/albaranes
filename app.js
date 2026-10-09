@@ -15229,7 +15229,7 @@ function _fiEsAdmin() { try { return typeof _recambiosEsAdmin === 'function' && 
 function _fiEmpDe(r) { return _FI_EMP[String(r.transportista || '').trim().toUpperCase()] || ''; }
 function _fiMesDe(r) { const iso = _primasFechaAlb(r.fecha); return iso ? iso.slice(0, 7) : ''; }
 function _fiMesTxt(ym) { const m = String(ym || '').match(/^(\d{4})-(\d{2})$/); return m ? (_FI_MESES[parseInt(m[2], 10) - 1] + ' ' + m[1]) : ym; }
-function _fiRutaKey(r) { return String(r.origen || '').trim().toUpperCase() + '|' + String(r.destino || '').trim().toUpperCase(); }
+function _fiRutaKey(r) { return String(r.planta || '').trim().toUpperCase() + '|' + String(r.obra || '').trim().toUpperCase(); }   // v817: origen = planta, destino = obra
 function _fiTxtRef(ref) { if (ref === 'FUERA') return 'Fuera: factura directa al cliente'; const p = String(ref || '').split('|'); return 'Factura ' + (_FI_NOM[p[0]] || p[0]) + ' · ' + _fiMesTxt(p[1]); }
 
 function _fiSeleccionados() {
@@ -15261,7 +15261,7 @@ function _fiAbrir() {
   const rutaSel = _fiRutaKey(recs[0]);
   const conGrupo = records.filter(r => r.fi_grupo && _fiEmpDe(r) === emp && r.fi_ref !== 'FUERA');
   const mismaRuta = conGrupo.filter(r => _fiRutaKey(r) === rutaSel).sort((a, b) => fechaSortNum(b.fecha) - fechaSortNum(a.fecha));
-  const sugerida = mismaRuta.length ? mismaRuta[0].fi_grupo : (String(recs[0].origen || '').trim() + ' - ' + String(recs[0].destino || '').trim()).toUpperCase();
+  const sugerida = mismaRuta.length ? mismaRuta[0].fi_grupo : (String(recs[0].planta || '').trim() + ' - ' + String(recs[0].obra || '').trim()).toUpperCase();
   const grupos = Array.from(new Set(conGrupo.map(r => r.fi_grupo))).sort();
   const yaEn = recs.filter(r => r.fi_ref);
   const tn = recs.reduce((s, r) => s + (parseFloat(String(r.tm || 0).replace(',', '.')) || 0), 0);
