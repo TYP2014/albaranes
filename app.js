@@ -15226,7 +15226,7 @@ async function exportExcelSeleccionados() {
 const _FI_EMP = { 'TTES HISPALIS 2016': 'HISPALIS', 'TRANSMARGAZ 2018': 'TRANSMARGAZ' };
 const _FI_NOM = { HISPALIS: 'T. Híspalis 2016', TRANSMARGAZ: 'Transmargaz 2018' };
 const _FI_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-function _fiEsAdmin() { try { return typeof _recambiosEsAdmin === 'function' && _recambiosEsAdmin(); } catch (e) { return false; } }
+function _fiEsAdmin() { try { return (typeof currentRole !== 'undefined' && currentRole === 'admin') || (typeof _recambiosEsAdmin === 'function' && _recambiosEsAdmin()); } catch (e) { return false; } }   // v819: currentRole ya está al arrancar (userMap aún no)
 function _fiEmpDe(r) { return _FI_EMP[String(r.transportista || '').trim().toUpperCase()] || ''; }
 function _fiMesDe(r) { const iso = _primasFechaAlb(r.fecha); return iso ? iso.slice(0, 7) : ''; }
 function _fiMesTxt(ym) { const m = String(ym || '').match(/^(\d{4})-(\d{2})$/); return m ? (_FI_MESES[parseInt(m[2], 10) - 1] + ' ' + m[1]) : ym; }
