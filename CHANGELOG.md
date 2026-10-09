@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v823 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · (1) ✎ junto al nombre de cada pestaña para RENOMBRARLA desde la tarjeta (cambia la pestaña de todos sus albaranes y se lleva sus precios cambiados; si el nombre ya existe, pregunta si juntarlas). Aviso ✂ si pasa de 31 letras (Excel lo corta). (2) Las pestañas de HORAS (interior cantera / fábrica) salen con unidad HORA, y en su hoja 'HORAS' y 'PRECIO (€/HORA)'. Importes iguales. Sin SQL. VUELTA ATRAS: resubir v822.
+
+---
+
 v822 (09/10/2026): SODIRA → FACTURA HÍSPALIS / TRANSMARGAZ. En Facturación › Depósitos Sodira, en el bloque '🤝 PAGADOS A TYP2014 PERO TRANSPORTADOS POR OTRO', cada empresa (Híspalis / Transmargaz) lleva un botón (solo Admin) '🧾 Meter en factura <empresa> · <mes del depósito>': pide el nombre de la pestaña (por defecto SODIRA) y mete esos albaranes en la factura interna de ese mes, marcados 📥. Si ya están todos, sale '✓ ya en la factura'; si faltan algunos, el botón dice cuántos. Avisa si alguno estaba en otra factura o 'Fuera'. Sin SQL. VUELTA ATRAS: resubir v821.
 
 ---

@@ -15409,7 +15409,8 @@ async function fiCalcular() {
     });
     sinPrecio += nSin;
     const concepto = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a])[0] || '';
-    return { nombre, filas: fs, porViaje, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : 'TN', precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
+    const esHora = !porViaje && /\bHORA/i.test(concepto + ' ' + nombre);   // v823: horas interior cantera/fábrica → la unidad es HORA (se guardan en el campo TN)
+    return { nombre, filas: fs, porViaje, esHora, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : (esHora ? 'HORA' : 'TN'), precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
   });
   const pend = (records || []).filter(r => !r._dup && _fiEmpDe(r) === emp && _fiMesDe(r) === ym && !r.fi_ref && r.estado_facturacion !== 'no_facturable');
   _fiDatos = { emp, ym, grupos, pend, sinPrecio, lineas: lineas.filter(l => l.tipo === 'linea'), gastos: lineas.filter(l => l.tipo === 'gasto') };
@@ -15442,11 +15443,11 @@ function fiRender() {
   D.grupos.forEach((g, i) => {
     const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
     h += '<tr>' +
-      '<td style="' + td + '">' + esc(g.nombre) + '</td>' +
+      '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">✎</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>' +
       '<td style="' + td + '">' + esc(g.concepto) + (g.nRutas > 1 ? ' <span style="color:#b45309">(+' + (g.nRutas - 1) + ' ruta' + (g.nRutas > 2 ? 's' : '') + ' más)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.n + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
-      '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, 3)) + '</td>' +
+      '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, g.esHora ? 2 : 3)) + '</td>' +
       '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button></td>' +
       '<td style="' + td + ';text-align:right">' + _fiN(g.eur, 2) + ' €</td>' +
       '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">👁 VER</button></td>' +
@@ -15585,7 +15586,7 @@ function fiExcel() {
   const usados = new Set(['FACTURA', 'OTROS SERVICIOS', 'GASTOS']);
   D.grupos.forEach(g => {
     let nom = String(g.nombre).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31) || 'PESTAÑA'; let k = 2; while (usados.has(nom)) nom = (String(g.nombre).slice(0, 28) + ' ' + (k++)); usados.add(nom);
-    const rows = [['FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : 'TN NETAS', g.porViaje ? 'PRECIO (€/VIAJE)' : 'PRECIO (€/TN)', 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL']];
+    const rows = [['FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : (g.esHora ? 'HORAS' : 'TN NETAS'), g.porViaje ? 'PRECIO (€/VIAJE)' : (g.esHora ? 'PRECIO (€/HORA)' : 'PRECIO (€/TN)'), 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL']];
     g.filas.forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, r._fiPrecio, r._fiTot, r._fiTramo || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '']));
     const nD = rows.length;
     rows.push(['TOTAL', '', g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, '', g.eur]);
@@ -15611,6 +15612,30 @@ function fiExcel() {
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
   toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
+}
+
+// v823: renombrar una pestaña de la factura (cambia fi_grupo de sus albaranes y mueve sus precios cambiados)
+async function fiRenombrar(i) {
+  const D = _fiDatos; if (!D) return; const g = D.grupos[i]; if (!g) return;
+  const txt = prompt('Nuevo nombre para la pestaña "' + g.nombre + '" (' + g.n + ' albaranes).\nEn el Excel caben 31 letras.', g.nombre);
+  if (txt === null) return;
+  const nuevo = String(txt).trim().toUpperCase().replace(/^[\s\-–]+/, '');
+  if (!nuevo || nuevo === g.nombre) return;
+  if (D.grupos.some((x, k) => k !== i && x.nombre === nuevo) && !confirm('Ya hay una pestaña "' + nuevo + '". ¿Juntarlas en una?')) return;
+  const ref = D.emp + '|' + D.ym;
+  const viejos = Array.from(new Set(g.filas.map(r => String(r.fi_grupo || ''))));
+  try {
+    for (const v of viejos) {
+      const q = await sb.from('albaranes').update({ fi_grupo: nuevo }).eq('fi_ref', ref).eq('fi_grupo', v);
+      if (q.error) throw q.error;
+    }
+    const q2 = await sb.from('fi_lineas').update({ grupo: nuevo }).eq('emp', D.emp).eq('mes', D.ym).eq('tipo', 'precio').eq('grupo', g.nombre);
+    if (q2.error) console.warn('[v823 fi] mover precios', q2.error);
+  } catch (e) { console.error('[v823 fi] renombrar', e); toast('No se pudo renombrar: ' + (e.message || e), 'err'); return; }
+  (records || []).forEach(r => { if (r.fi_ref === ref && viejos.indexOf(String(r.fi_grupo || '')) !== -1) r.fi_grupo = nuevo; });
+  toast('✎ Pestaña "' + g.nombre + '" → "' + nuevo + '"', 'ok');
+  console.log('[v823 fi] renombrada', { de: viejos, a: nuevo });
+  fiCalcular();
 }
 
 // v822: desde DEPÓSITOS SODIRA → meter los "pagados a TYP2014 pero transportados por otro" en la factura
