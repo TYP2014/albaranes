@@ -2608,6 +2608,8 @@ function _toggleModoSel() {
   if (btnRec) btnRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
   const btnNoRec = document.getElementById('btnNoRecibidaSel');
   if (btnNoRec) btnNoRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
+  const btnFI = document.getElementById('btnFacturaIntSel');   // v816: solo Admin
+  if (btnFI) btnFI.style.display = (window._modoSel && _fiEsAdmin()) ? 'flex' : 'none';
   if (btnSel) {
     btnSel.textContent = window._modoSel ? '✖️ Cancelar selección' : '☑️ Selección';
   }
@@ -2640,6 +2642,8 @@ function _selUno() {
   if (spanRec) spanRec.textContent = n;
   const spanNoRec = document.getElementById('selCountNoRec');
   if (spanNoRec) spanNoRec.textContent = n;
+  const spanFI = document.getElementById('selCountFI');   // v816
+  if (spanFI) spanFI.textContent = n;
   const spanFija = document.getElementById('selCountFija');   // v277
   if (spanFija) spanFija.textContent = n;
   const spanQFija = document.getElementById('selCountQFija'); // v277
@@ -11548,7 +11552,8 @@ function factProvIcon(r) {
   if (!_puedeSeleccionMultiple()) return '';
   const est = r.estado_factura_recibida || 'pendiente';
   // Nos han facturado los SUBCONTRATADOS: morado=nos facturó, rojo=sin recibir.
-  if (est === 'recibida') return _pill('✓ Nos facturó', '#7c3aed', 'El transportista ya nos ha facturado');
+  if (r.fi_ref === 'FUERA') return _pill('Fact. directa', '#475569', 'Lo factura directamente al cliente: no va en la factura interna');   // v816
+  if (est === 'recibida') return _pill('✓ Nos facturó', '#7c3aed', r.fi_ref ? (_fiTxtRef(r.fi_ref) + (r.fi_grupo ? ' · pestaña ' + r.fi_grupo : '')) : 'El transportista ya nos ha facturado');   // v816: dice en qué factura/pestaña está
   return _pillOut('Sin factura', '#a855f7', 'Pendiente de que el transportista nos facture');
 }
 
@@ -15208,6 +15213,132 @@ async function exportExcelSeleccionados() {
   const { wb, tm } = buildExcel(recs);
   XLSX.writeFile(wb, `albaranes_seleccionados_${new Date().toISOString().slice(0, 10)}.xlsx`);
   toast(`✓ Excel de ${recs.length} seleccionados · ${tm.toFixed(3)} TN`, 'ok');
+}
+
+// ============================================================================
+// v816 — FACTURA INTERNA HÍSPALIS / TRANSMARGAZ (fase 1: meter albaranes en la factura)
+// Solo Admin. Se filtra y selecciona en Albaranes y se mandan a "la factura de <empresa> <mes>"
+// dentro de una PESTAÑA (como las del libro Excel: CALIZA GARRAF, PROMSA…). Quedan marcados 📥.
+// "Fuera: factura directa" = lo factura esa empresa directamente al cliente (no va en la factura).
+// Columnas: albaranes.fi_ref ('HISPALIS|2026-09', 'TRANSMARGAZ|2026-09' o 'FUERA') y fi_grupo.
+// ============================================================================
+const _FI_EMP = { 'TTES HISPALIS 2016': 'HISPALIS', 'TRANSMARGAZ 2018': 'TRANSMARGAZ' };
+const _FI_NOM = { HISPALIS: 'T. Híspalis 2016', TRANSMARGAZ: 'Transmargaz 2018' };
+const _FI_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function _fiEsAdmin() { try { return typeof _recambiosEsAdmin === 'function' && _recambiosEsAdmin(); } catch (e) { return false; } }
+function _fiEmpDe(r) { return _FI_EMP[String(r.transportista || '').trim().toUpperCase()] || ''; }
+function _fiMesDe(r) { const iso = _primasFechaAlb(r.fecha); return iso ? iso.slice(0, 7) : ''; }
+function _fiMesTxt(ym) { const m = String(ym || '').match(/^(\d{4})-(\d{2})$/); return m ? (_FI_MESES[parseInt(m[2], 10) - 1] + ' ' + m[1]) : ym; }
+function _fiRutaKey(r) { return String(r.origen || '').trim().toUpperCase() + '|' + String(r.destino || '').trim().toUpperCase(); }
+function _fiTxtRef(ref) { if (ref === 'FUERA') return 'Fuera: factura directa al cliente'; const p = String(ref || '').split('|'); return 'Factura ' + (_FI_NOM[p[0]] || p[0]) + ' · ' + _fiMesTxt(p[1]); }
+
+function _fiSeleccionados() {
+  const ids = Array.from(document.querySelectorAll('.chk-sel:checked')).map(c => c.getAttribute('data-id')).filter(Boolean);
+  const recs = [];
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
+  return recs;
+}
+
+function _fiCerrar() { const o = document.getElementById('fiOverlay'); if (o) o.remove(); }
+
+function _fiAbrir() {
+  if (!_fiEsAdmin()) { toast('Solo el administrador', 'err'); return; }
+  const recs = _fiSeleccionados();
+  if (!recs.length) { toast('No has marcado ningún albarán.', 'err'); return; }
+  const otros = recs.filter(r => !_fiEmpDe(r));
+  const emps = Array.from(new Set(recs.map(_fiEmpDe).filter(Boolean)));
+  if (otros.length) {
+    toast('⚠ ' + otros.length + ' de los seleccionados no son de Híspalis ni de Transmargaz (p. ej. ' + (otros[0].matricula || '') + ' · ' + (otros[0].transportista || 'sin transportista') + '). Quítalos de la selección.', 'err');
+    return;
+  }
+  if (emps.length > 1) { toast('⚠ Hay albaranes de Híspalis y de Transmargaz mezclados: filtra por una sola empresa.', 'err'); return; }
+  const emp = emps[0];
+  // mes: el que más se repite en las fechas
+  const cMes = {}; recs.forEach(r => { const m = _fiMesDe(r); if (m) cMes[m] = (cMes[m] || 0) + 1; });
+  const mes = Object.keys(cMes).sort((a, b) => cMes[b] - cMes[a])[0] || new Date().toISOString().slice(0, 7);
+  const mesesDistintos = Object.keys(cMes).length;
+  // pestaña sugerida: la última usada para esa misma ruta en esa empresa
+  const rutaSel = _fiRutaKey(recs[0]);
+  const conGrupo = records.filter(r => r.fi_grupo && _fiEmpDe(r) === emp && r.fi_ref !== 'FUERA');
+  const mismaRuta = conGrupo.filter(r => _fiRutaKey(r) === rutaSel).sort((a, b) => fechaSortNum(b.fecha) - fechaSortNum(a.fecha));
+  const sugerida = mismaRuta.length ? mismaRuta[0].fi_grupo : (String(recs[0].origen || '').trim() + ' - ' + String(recs[0].destino || '').trim()).toUpperCase();
+  const grupos = Array.from(new Set(conGrupo.map(r => r.fi_grupo))).sort();
+  const yaEn = recs.filter(r => r.fi_ref);
+  const tn = recs.reduce((s, r) => s + (parseFloat(String(r.tm || 0).replace(',', '.')) || 0), 0);
+  const esc2 = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  _fiCerrar();
+  const o = document.createElement('div');
+  o.id = 'fiOverlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML =
+    '<div style="background:#fff;color:#111;border-radius:12px;max-width:560px;width:100%;padding:22px 24px;box-shadow:0 10px 40px rgba(0,0,0,.35);font-size:15px">' +
+      '<div style="font-size:19px;font-weight:800;margin-bottom:4px">🧾 A factura ' + esc2(_FI_NOM[emp]) + '</div>' +
+      '<div style="margin-bottom:14px;color:#111"><b>' + recs.length + '</b> albarán(es) · <b>' + tn.toLocaleString('es-ES', { maximumFractionDigits: 3 }) + '</b> TN</div>' +
+      (mesesDistintos > 1 ? '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700;color:#b45309">⚠ Hay albaranes de ' + mesesDistintos + ' meses distintos (' + Object.keys(cMes).sort().map(_fiMesTxt).join(', ') + '). Revisa el mes.</div>' : '') +
+      (yaEn.length ? '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700;color:#b45309">⚠ ' + yaEn.length + ' ya estaban metidos (' + esc2(_fiTxtRef(yaEn[0].fi_ref)) + (yaEn[0].fi_grupo ? ' · ' + esc2(yaEn[0].fi_grupo) : '') + '). Si sigues, se cambian a lo que pongas aquí.</div>' : '') +
+      '<label style="display:block;font-weight:700;margin:8px 0 4px">Mes de la factura</label>' +
+      '<input id="fiMes" type="month" value="' + mes + '" style="font-size:16px;padding:8px 10px;border:1px solid #999;border-radius:8px;width:100%;box-sizing:border-box">' +
+      '<label style="display:block;font-weight:700;margin:12px 0 4px">Pestaña (nombre como en tu Excel)</label>' +
+      '<input id="fiGrupo" list="fiGrupos" value="' + esc2(sugerida) + '" style="font-size:16px;font-weight:700;padding:8px 10px;border:1px solid #999;border-radius:8px;width:100%;box-sizing:border-box;text-transform:uppercase">' +
+      '<datalist id="fiGrupos">' + grupos.map(g => '<option value="' + esc2(g) + '">').join('') + '</datalist>' +
+      '<div style="font-size:13px;color:#444;margin-top:4px">' + (mismaRuta.length ? 'Propuesta: la que usaste la última vez para esta ruta.' : 'Ruta nueva: pon el nombre que quieras.') + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">' +
+        '<button class="btn" onclick="_fiGuardar(\'' + emp + '\',false)" style="background:#7c3aed;color:#fff;font-weight:800;font-size:15px;padding:9px 14px">🧾 Meter en la factura</button>' +
+        '<button class="btn" onclick="_fiGuardar(\'' + emp + '\',true)" style="background:#475569;color:#fff;font-weight:700;font-size:15px;padding:9px 14px" title="Lo factura ' + esc2(_FI_NOM[emp]) + ' directamente al cliente (p. ej. áridos de Cemex): no entra en esta factura ni volverá a salir como pendiente">🚫 Fuera: factura directa</button>' +
+        (yaEn.length ? '<button class="btn" onclick="_fiQuitar()" style="background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:700;font-size:15px;padding:9px 14px">↩ Sacar de la factura</button>' : '') +
+        '<button class="btn" onclick="_fiCerrar()" style="background:transparent;border:1px solid #999;color:#111;font-weight:700;font-size:15px;padding:9px 14px;margin-left:auto">Cancelar</button>' +
+      '</div>' +
+    '</div>';
+  o.addEventListener('click', (e) => { if (e.target === o) _fiCerrar(); });
+  document.body.appendChild(o);
+  console.log('[v816 fi] abrir', { emp, n: recs.length, mes, sugerida, yaEn: yaEn.length });
+}
+
+async function _fiUpdate(recs, upd) {
+  const ids = recs.map(r => r.db_id);
+  let errN = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    try { const { error } = await sb.from('albaranes').update(upd).in('id', ids.slice(i, i + 100)); if (error) throw error; }
+    catch (e) { console.error('[v816 fi] lote', e); errN++; if (/fi_ref|fi_grupo/.test(String(e.message || e))) { toast('Falta ejecutar el SQL de la v816 en Supabase', 'err'); return -1; } }
+  }
+  if (errN) return errN;
+  recs.forEach(r => {
+    Object.assign(r, upd);
+    const celda = document.querySelector(`td[data-fact="${r.db_id}"]`) || document.querySelector(`td[data-fact="${r._id}"]`);
+    if (celda) celda.innerHTML = _celdaEstadoHtml(r);
+  });
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
+  _selUno();
+  return 0;
+}
+
+async function _fiGuardar(emp, fuera) {
+  const recs = _fiSeleccionados();
+  if (!recs.length) { _fiCerrar(); return; }
+  const mes = String((document.getElementById('fiMes') || {}).value || '').trim();
+  const grupo = String((document.getElementById('fiGrupo') || {}).value || '').trim().toUpperCase();
+  if (!fuera && !/^\d{4}-\d{2}$/.test(mes)) { toast('Pon el mes de la factura', 'err'); return; }
+  if (!fuera && !grupo) { toast('Pon el nombre de la pestaña', 'err'); return; }
+  const upd = fuera
+    ? { fi_ref: 'FUERA', fi_grupo: null }
+    : { fi_ref: emp + '|' + mes, fi_grupo: grupo, estado_factura_recibida: 'recibida', factura_recibida_fecha: new Date().toISOString() };
+  const err = await _fiUpdate(recs, upd);
+  if (err === -1) return;
+  _fiCerrar();
+  if (err) { toast('⚠ ' + err + ' lote(s) no se guardaron. Reintenta.', 'err'); return; }
+  toast(fuera ? ('🚫 ' + recs.length + ' albarán(es) fuera: factura directa al cliente') : ('🧾 ' + recs.length + ' albarán(es) → ' + _FI_NOM[emp] + ' ' + _fiMesTxt(mes) + ' · ' + grupo + ' (📥 nos han facturado)'), 'ok');
+  console.log('[v816 fi] guardado', { emp, mes, grupo, fuera, n: recs.length });
+}
+
+async function _fiQuitar() {
+  const recs = _fiSeleccionados().filter(r => r.fi_ref);
+  if (!recs.length) { _fiCerrar(); return; }
+  if (!confirm('Sacar ' + recs.length + ' albarán(es) de su factura?\n\nVuelven a quedar como PENDIENTES de que nos facturen.')) return;
+  const err = await _fiUpdate(recs, { fi_ref: null, fi_grupo: null, estado_factura_recibida: 'pendiente', factura_recibida_fecha: null });
+  if (err === -1) return;
+  _fiCerrar();
+  toast(err ? '⚠ Algún lote no se guardó. Reintenta.' : ('↩ ' + recs.length + ' albarán(es) sacados de la factura'), err ? 'err' : 'ok');
 }
 
 // v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos

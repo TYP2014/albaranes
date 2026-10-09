@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v816 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · fase 1. En Albaranes > Selección, botón nuevo (solo Admin) '🧾 A factura Híspalis / Transmargaz': se filtra y se seleccionan los albaranes, se elige MES y PESTAÑA (propone la usada la última vez para esa ruta) y quedan metidos en esa factura y marcados 📥 nos han facturado. '🚫 Fuera: factura directa' = lo factura esa empresa directamente al cliente (p. ej. áridos Cemex). '↩ Sacar de la factura' los devuelve a pendientes. Avisa si se mezclan empresas, meses, o si ya estaban en otra factura. La chapa '✓ Nos facturó' dice al pasar el ratón en qué factura y pestaña está. SQL ANTES: v816_factura_interna.sql (columnas albaranes.fi_ref y fi_grupo). Siguiente fase: tarjeta en Facturación con el cuadrante y el Excel. VUELTA ATRAS: resubir v815.
+
+---
+
 v815 (09/10/2026): PRIMAS · 'Traer viajes' ya NO cambia ni borra una prima que ya tenga importe (ni la azul que puso la app ni la tecleada): una vez repasada se queda. Solo rellena los días con la prima VACÍA. Si los albaranes dicen otra cosa, el día muestra '⚠ puesta X € (se respeta)' junto a lo que propone la app, y el aviso de abajo cuenta cuántos días están así. Excepción que se mantiene: día de VACACIONES/BAJA con prima azul → se quita (v677). Sin SQL. VUELTA ATRAS: resubir v814.
 
 ---
