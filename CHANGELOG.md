@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v824 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · los albaranes con marca 🟠 naranja (ya pagado) o 🚫 no facturable, POR DEFECTO NO SE ABONAN: cuentan 0 €, salen tachados en 👁 VER y aviso rojo arriba; en su fila hay '✓ Abonar' para pagarlo igualmente en esa factura (y '✗ No abonar' para volver atrás), sin quitar la marca del albarán (se guarda en fi_lineas tipo 'abonar'). En el Excel van al final de su pestaña en 'NO SE ABONAN'. Avisos al meterlos desde Albaranes (🧾) y desde Sodira. Sin SQL. VUELTA ATRAS: resubir v823.
+
+---
+
 v823 (09/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · (1) ✎ junto al nombre de cada pestaña para RENOMBRARLA desde la tarjeta (cambia la pestaña de todos sus albaranes y se lleva sus precios cambiados; si el nombre ya existe, pregunta si juntarlas). Aviso ✂ si pasa de 31 letras (Excel lo corta). (2) Las pestañas de HORAS (interior cantera / fábrica) salen con unidad HORA, y en su hoja 'HORAS' y 'PRECIO (€/HORA)'. Importes iguales. Sin SQL. VUELTA ATRAS: resubir v822.
 
 ---

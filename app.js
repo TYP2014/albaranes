@@ -15276,6 +15276,7 @@ function _fiAbrir() {
       '<div style="font-size:19px;font-weight:800;margin-bottom:4px">🧾 A factura ' + esc2(_FI_NOM[emp]) + '</div>' +
       '<div style="margin-bottom:14px;color:#111"><b>' + recs.length + '</b> albarán(es) · <b>' + tn.toLocaleString('es-ES', { maximumFractionDigits: 3 }) + '</b> TN</div>' +
       (mesesDistintos > 1 ? '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700;color:#b45309">⚠ Hay albaranes de ' + mesesDistintos + ' meses distintos (' + Object.keys(cMes).sort().map(_fiMesTxt).join(', ') + '). Revisa el mes.</div>' : '') +
+      (recs.filter(r => r.revisar_pago || r.estado_facturacion === 'no_facturable').length ? '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700;color:#b91c1c">⛔ ' + recs.filter(r => r.revisar_pago || r.estado_facturacion === 'no_facturable').length + ' tienen marca 🟠 ya pagado o 🚫 no facturable: entran en la factura pero NO se abonan, salvo que en la tarjeta pulses "✓ Abonar".</div>' : '') +   // v824
       (yaEn.length ? '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700;color:#b45309">⚠ ' + yaEn.length + ' ya estaban metidos (' + esc2(_fiTxtRef(yaEn[0].fi_ref)) + (yaEn[0].fi_grupo ? ' · ' + esc2(yaEn[0].fi_grupo) : '') + '). Si sigues, se cambian a lo que pongas aquí.</div>' : '') +
       '<label style="display:block;font-weight:700;margin:8px 0 4px">Mes de la factura</label>' +
       '<input id="fiMes" type="month" value="' + mes + '" style="font-size:16px;padding:8px 10px;border:1px solid #999;border-radius:8px;width:100%;box-sizing:border-box">' +
@@ -15386,34 +15387,42 @@ async function fiCalcular() {
     lineas = q.data || [];
   } catch (e) { console.error('[v820 fi] fi_lineas', e); toast('Falta ejecutar el SQL de la v820 (tabla fi_lineas): las líneas a mano no se cargan', 'err'); }
   const precioMan = lineas.filter(l => l.tipo === 'precio');
+  const abonarIds = new Set(lineas.filter(l => l.tipo === 'abonar').map(l => String(l.concepto)));   // v824: marcados 'abonar igualmente'
+  let nFueraTot = 0;
   const gm = new Map();
   filas.sort((a, b) => String(a.factura_recibida_fecha || '').localeCompare(String(b.factura_recibida_fecha || '')) || (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)));
   filas.forEach(r => { const g = String(r.fi_grupo || '').replace(/^[\s\-–]+/, '') || '(SIN PESTAÑA)'; if (!gm.has(g)) gm.set(g, []); gm.get(g).push(r); });   // v821: '-ADEC' se ve como 'ADEC'
   let sinPrecio = 0;
   const grupos = Array.from(gm.entries()).map(([nombre, fs]) => {
     fs.sort((a, b) => (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)) || String(a.albaran || '').localeCompare(String(b.albaran || ''), 'es', { numeric: true }));
-    const porViaje = _rutaEsPorViaje(fs);
+    const _cuentan = fs.filter(r => !((r.revisar_pago || r.estado_facturacion === 'no_facturable') && !abonarIds.has(String(r.id))));
+    const porViaje = _rutaEsPorViaje(_cuentan.length ? _cuentan : fs);
     const rutas = {}; const precios = []; const origs = [];
-    let tn = 0, eur = 0, nSin = 0, cambiado = false;
+    let tn = 0, eur = 0, nSin = 0, cambiado = false, nFuera = 0, nOk = 0;
     fs.forEach(r => {
+      // v824: 🟠 naranja (ya pagado) o 🚫 no facturable → por defecto NO se abona, salvo que JC lo marque
+      r._fiMarca = r.revisar_pago ? '🟠 ya pagado' : (r.estado_facturacion === 'no_facturable' ? '🚫 no facturable' : '');
+      r._fiForzado = !!(r._fiMarca && abonarIds.has(String(r.id)));
+      r._fiFuera = !!(r._fiMarca && !r._fiForzado);
       const pp = _rutaPrecioDe(r);
       const orig = Math.round((Number(pp.precio) || 0) * 10000) / 10000;
       const man = precioMan.find(l => l.grupo === nombre && Math.abs((Number(l.precio_de) || 0) - orig) < 0.00005);
       r._fiPrecioOrig = orig; r._fiPrecio = man ? Number(man.precio) : orig; r._fiTramo = pp.tramo; r._fiMan = !!man;
       if (man) cambiado = true;
       if (origs.indexOf(orig) === -1) origs.push(orig);
-      const tm = parseFloat(r.tm) || 0; r._fiTot = _fiR2(tm * r._fiPrecio);
-      tn += tm; eur += r._fiTot;
+      const tm = parseFloat(r.tm) || 0; r._fiTot = r._fiFuera ? 0 : _fiR2(tm * r._fiPrecio);
+      if (r._fiFuera) { nFuera++; return; }
+      nOk++; tn += tm; eur += r._fiTot;
       if (!(r._fiPrecio > 0)) nSin++; else if (precios.indexOf(r._fiPrecio) === -1) precios.push(r._fiPrecio);
       const k = String(r.planta || '').trim() + ' → ' + String(r.obra || '').trim(); rutas[k] = (rutas[k] || 0) + 1;
     });
-    sinPrecio += nSin;
+    sinPrecio += nSin; nFueraTot += nFuera;
     const concepto = Object.keys(rutas).sort((a, b) => rutas[b] - rutas[a])[0] || '';
     const esHora = !porViaje && /\bHORA/i.test(concepto + ' ' + nombre);   // v823: horas interior cantera/fábrica → la unidad es HORA (se guardan en el campo TN)
-    return { nombre, filas: fs, porViaje, esHora, concepto, nRutas: Object.keys(rutas).length, n: fs.length, cant: porViaje ? fs.length : tn, ud: porViaje ? 'VIAJE' : (esHora ? 'HORA' : 'TN'), precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
+    return { nombre, filas: fs, porViaje, esHora, concepto, nRutas: Object.keys(rutas).length, n: nOk, nFuera, cant: porViaje ? nOk : tn, ud: porViaje ? 'VIAJE' : (esHora ? 'HORA' : 'TN'), precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
   });
   const pend = (records || []).filter(r => !r._dup && _fiEmpDe(r) === emp && _fiMesDe(r) === ym && !r.fi_ref && r.estado_facturacion !== 'no_facturable');
-  _fiDatos = { emp, ym, grupos, pend, sinPrecio, lineas: lineas.filter(l => l.tipo === 'linea'), gastos: lineas.filter(l => l.tipo === 'gasto') };
+  _fiDatos = { emp, ym, grupos, pend, sinPrecio, nFuera: nFueraTot, lineas: lineas.filter(l => l.tipo === 'linea'), gastos: lineas.filter(l => l.tipo === 'gasto') };
   _fiTotales();
   fiRender();
   console.log('[v820 fi] factura', { ref, albaranes: filas.length, pestanas: grupos.length, lineas: _fiDatos.lineas.length, gastos: _fiDatos.gastos.length, precios: precioMan.length, base: _fiDatos.base });
@@ -15436,6 +15445,7 @@ function fiRender() {
   const ea = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   let h = '<div style="font-size:17px;font-weight:800;color:#111;margin-bottom:8px">' + esc(_FI_NOM[D.emp]) + ' · ' + esc(_fiMesTxt(D.ym)) + '</div>';
   if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio o con ✎ en su pestaña.</div>';
+  if (D.nFuera) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⛔ ' + D.nFuera + ' albarán(es) con marca 🟠 ya pagado o 🚫 no facturable: NO se abonan (0 €). Están en 👁 VER de su pestaña; si alguno sí se abona, pulsa "✓ Abonar" en su fila.</div>';
   if (D.pend.length) h += '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b45309;font-weight:800;cursor:pointer" onclick="fiVerPend()">⚠ ' + D.pend.length + ' albarán(es) de ' + esc(_FI_NOM[D.emp]) + ' de este mes sin meter en ninguna factura ni marcados "Fuera". <u>Ver cuáles</u></div><div id="fiPendBox"></div>';
   h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>' +
     ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE', ''].map((t, i) => '<th style="' + th + (i >= 2 && i <= 6 ? ';text-align:right' : '') + '">' + t + '</th>').join('') + '</tr></thead><tbody>';
@@ -15445,7 +15455,7 @@ function fiRender() {
     h += '<tr>' +
       '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">✎</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>' +
       '<td style="' + td + '">' + esc(g.concepto) + (g.nRutas > 1 ? ' <span style="color:#b45309">(+' + (g.nRutas - 1) + ' ruta' + (g.nRutas > 2 ? 's' : '') + ' más)</span>' : '') + '</td>' +
-      '<td style="' + td + ';text-align:right">' + g.n + '</td>' +
+      '<td style="' + td + ';text-align:right">' + g.n + (g.nFuera ? ' <span style="color:#b91c1c" title="Con marca naranja / no facturable: no se abonan">(+' + g.nFuera + ' ⛔)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
       '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, g.esHora ? 2 : 3)) + '</td>' +
       '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button></td>' +
@@ -15539,7 +15549,7 @@ function fiVerGrupo(i) {
   const g = _fiDatos.grupos[i]; const td = 'padding:5px 8px;border-bottom:1px solid #eee;color:#111;font-weight:600';
   tr.firstChild.innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#faf7ff"><tr>' +
     ['FECHA', 'MATRÍCULA', g.porViaje ? 'VIAJES' : 'TN', 'PRECIO', 'TOTAL', 'TRAMO', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL'].map(t => '<th style="padding:5px 8px;text-align:left;color:#4c1d95">' + t + '</th>').join('') + '</tr>' +
-    g.filas.map(r => '<tr><td style="' + td + '">' + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
+    g.filas.map(r => '<tr' + (r._fiFuera ? ' style="background:#fde8e8;text-decoration:line-through"' : '') + '><td style="' + td + '">' + (r._fiMarca ? '<span style="text-decoration:none;display:inline-block;color:' + (r._fiFuera ? '#b91c1c' : '#16a34a') + ';font-weight:800;margin-right:6px">' + esc(r._fiMarca) + ' <button class="btn bs" style="padding:1px 7px;font-weight:800" onclick="fiAbonar(\'' + r.id + '\',' + (r._fiFuera ? 'true' : 'false') + ')">' + (r._fiFuera ? '✓ Abonar' : '✗ No abonar') + '</button></span>' : '') + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
     '</table>';
   tr.style.display = '';
 }
@@ -15587,9 +15597,10 @@ function fiExcel() {
   D.grupos.forEach(g => {
     let nom = String(g.nombre).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31) || 'PESTAÑA'; let k = 2; while (usados.has(nom)) nom = (String(g.nombre).slice(0, 28) + ' ' + (k++)); usados.add(nom);
     const rows = [['FECHA', 'MATRICULA', g.porViaje ? 'VIAJES' : (g.esHora ? 'HORAS' : 'TN NETAS'), g.porViaje ? 'PRECIO (€/VIAJE)' : (g.esHora ? 'PRECIO (€/HORA)' : 'PRECIO (€/TN)'), 'TOTAL (€)', 'TRAMO', 'Nº DE ALBARAN', 'ORIGEN', 'DESTINO', 'MATERIAL']];
-    g.filas.forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, r._fiPrecio, r._fiTot, r._fiTramo || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '']));
+    g.filas.filter(r => !r._fiFuera).forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, r._fiPrecio, r._fiTot, r._fiTramo || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '']));
     const nD = rows.length;
     rows.push(['TOTAL', '', g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, '', g.eur]);
+    if (g.nFuera) { rows.push(['']); rows.push(['NO SE ABONAN (marca naranja / no facturable)']); g.filas.filter(r => r._fiFuera).forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, '', 0, r._fiMarca, r.albaran || '', r.planta || '', r.obra || '', r.producto || ''])); }   // v824
     const ws = XLSX.utils.aoa_to_sheet(rows);
     for (let R = 2; R <= nD; R++) ws['E' + R] = { t: 'n', f: 'ROUND(C' + R + '*D' + R + ',2)', v: ws['E' + R].v };
     if (nD >= 2) { ws['C' + (nD + 1)] = { t: 'n', f: 'SUM(C2:C' + nD + ')', v: ws['C' + (nD + 1)].v }; ws['E' + (nD + 1)] = { t: 'n', f: 'SUM(E2:E' + nD + ')', v: g.eur }; }
@@ -15612,6 +15623,19 @@ function fiExcel() {
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
   toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
+}
+
+// v824: marcar / desmarcar "abonar igualmente" un albarán con marca naranja o no facturable (solo en esta factura)
+async function fiAbonar(id, abonar) {
+  const D = _fiDatos; if (!D) return;
+  try {
+    const del = await sb.from('fi_lineas').delete().eq('emp', D.emp).eq('mes', D.ym).eq('tipo', 'abonar').eq('concepto', String(id));
+    if (del.error) throw del.error;
+    if (abonar) { const ins = await sb.from('fi_lineas').insert({ emp: D.emp, mes: D.ym, tipo: 'abonar', concepto: String(id) }); if (ins.error) throw ins.error; }
+  } catch (e) { console.error('[v824 fi] abonar', e); toast('No se guardó: ' + (e.message || e), 'err'); return; }
+  console.log('[v824 fi] abonar', id, abonar);
+  toast(abonar ? '✓ Este albarán SÍ se abona en esta factura' : '✗ Este albarán NO se abona', 'ok');
+  fiCalcular();
 }
 
 // v823: renombrar una pestaña de la factura (cambia fi_grupo de sus albaranes y mueve sus precios cambiados)
@@ -15654,6 +15678,7 @@ async function fiDesdeSodira(trans) {
   const sug = Object.keys(cG).sort((a, b) => cG[b] - cG[a])[0] || 'SODIRA';
   const grupo = prompt('Meter ' + faltan.length + ' albarán(es) de Sodira en la factura de ' + _FI_NOM[emp] + ' · ' + _fiMesTxt(u.mes) + '.' +
     (enOtra.length ? '\n\n⚠ ' + enOtra.length + ' ya estaban en otra factura o marcados "Fuera": se cambian a esta.' : '') +
+    (faltan.filter(r => r.revisar_pago || r.estado_facturacion === 'no_facturable').length ? '\n\n⛔ ' + faltan.filter(r => r.revisar_pago || r.estado_facturacion === 'no_facturable').length + ' tienen marca naranja / no facturable: entran pero NO se abonan salvo que lo marques en la tarjeta.' : '') +   // v824
     '\n\nNombre de la pestaña:', sug);
   if (grupo === null) return;
   const g = String(grupo).trim().toUpperCase().replace(/^[\s\-–]+/, '');
