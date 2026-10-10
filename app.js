@@ -15288,6 +15288,7 @@ function _fiAbrir() {
         '<button class="btn" onclick="_fiGuardar(\'' + emp + '\',false)" style="background:#7c3aed;color:#fff;font-weight:800;font-size:15px;padding:9px 14px">🧾 Meter en la factura</button>' +
         '<button class="btn" onclick="_fiGuardar(\'' + emp + '\',true)" style="background:#475569;color:#fff;font-weight:700;font-size:15px;padding:9px 14px" title="Lo factura ' + esc2(_FI_NOM[emp]) + ' directamente al cliente (p. ej. áridos de Cemex): no entra en esta factura ni volverá a salir como pendiente">🚫 Fuera: factura directa</button>' +
         (yaEn.length ? '<button class="btn" onclick="_fiQuitar()" style="background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:700;font-size:15px;padding:9px 14px">↩ Sacar de la factura</button>' : '') +
+        '<button class="btn" onclick="_fiDuplicado(\'' + emp + '\')" style="background:#b91c1c;color:#fff;font-weight:700;font-size:15px;padding:9px 14px" title="Duplicados YA PAGADOS en un mes anterior: salen en NEGATIVO, con su precio, en la factura del mes que pongas arriba">➖ Descontar como duplicado</button>' +   // v825
         '<button class="btn" onclick="_fiCerrar()" style="background:transparent;border:1px solid #999;color:#111;font-weight:700;font-size:15px;padding:9px 14px;margin-left:auto">Cancelar</button>' +
       '</div>' +
     '</div>';
@@ -15421,6 +15422,32 @@ async function fiCalcular() {
     const esHora = !porViaje && /\bHORA/i.test(concepto + ' ' + nombre);   // v823: horas interior cantera/fábrica → la unidad es HORA (se guardan en el campo TN)
     return { nombre, filas: fs, porViaje, esHora, concepto, nRutas: Object.keys(rutas).length, n: nOk, nFuera, cant: porViaje ? nOk : tn, ud: porViaje ? 'VIAJE' : (esHora ? 'HORA' : 'TN'), precios: precios.sort((a, b) => a - b), origs: origs.sort((a, b) => a - b), eur: _fiR2(eur), nSin, cambiado };
   });
+  // v825: DUPLICADOS (descuento): albaranes ya pagados que se restan en esta factura, con su precio (Tarifas o el ✎ de su factura original)
+  const dupIds = lineas.filter(l => l.tipo === 'dup').map(l => String(l.concepto));
+  if (dupIds.length) {
+    try {
+      const q = await sb.from('albaranes').select('*').in('id', dupIds);
+      if (q.error) throw q.error;
+      const dr = q.data || [];
+      const refs = Array.from(new Set(dr.map(r => r.fi_ref).filter(x => x && x.indexOf('|') > 0)));
+      let pmOrig = [];
+      for (const rf of refs) { const p = rf.split('|'); const qq = await sb.from('fi_lineas').select('*').eq('emp', p[0]).eq('mes', p[1]).eq('tipo', 'precio'); if (!qq.error) pmOrig = pmOrig.concat(qq.data || []); }
+      let tnD = 0, eurD = 0; const prD = [];
+      dr.sort((a, b) => fechaSortNum(a.fecha) - fechaSortNum(b.fecha)).forEach(r => {
+        const pp = _rutaPrecioDe(r); const orig = Math.round((Number(pp.precio) || 0) * 10000) / 10000;
+        const p0 = String(r.fi_ref || '').split('|'); const gOrig = String(r.fi_grupo || '').replace(/^[\s\-–]+/, '');
+        const man = pmOrig.find(l => l.emp === p0[0] && l.mes === p0[1] && l.grupo === gOrig && Math.abs((Number(l.precio_de) || 0) - orig) < 0.00005);
+        r._fiDup = true; r._fiPrecio = man ? Number(man.precio) : orig; r._fiTramo = pp.tramo; r._fiMarca = '';
+        const tm = parseFloat(r.tm) || 0; r._fiTot = -_fiR2(tm * r._fiPrecio);
+        tnD += tm; eurD += r._fiTot; if (prD.indexOf(r._fiPrecio) === -1) prD.push(r._fiPrecio);
+        if (!(r._fiPrecio > 0)) sinPrecio++;
+      });
+      if (dr.length) {
+        const pv = _rutaEsPorViaje(dr);
+        grupos.push({ nombre: 'DUPLICADOS (DESCUENTO)', esDup: true, filas: dr, porViaje: false, esHora: false, concepto: 'Albaranes duplicados ya pagados en otra factura', nRutas: 1, n: dr.length, nFuera: 0, cant: tnD, ud: pv ? 'VIAJE' : 'TN', precios: prD.sort((a, b) => a - b), origs: [], eur: _fiR2(eurD), nSin: 0, cambiado: false });
+      }
+    } catch (e) { console.error('[v825 fi] duplicados', e); toast('No se pudieron leer los duplicados: ' + (e.message || e), 'err'); }
+  }
   const pend = (records || []).filter(r => !r._dup && _fiEmpDe(r) === emp && _fiMesDe(r) === ym && !r.fi_ref && r.estado_facturacion !== 'no_facturable');
   _fiDatos = { emp, ym, grupos, pend, sinPrecio, nFuera: nFueraTot, lineas: lineas.filter(l => l.tipo === 'linea'), gastos: lineas.filter(l => l.tipo === 'gasto') };
   _fiTotales();
@@ -15453,13 +15480,13 @@ function fiRender() {
   D.grupos.forEach((g, i) => {
     const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
     h += '<tr>' +
-      '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">✎</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>' +
+      (g.esDup ? '<td style="' + td + ';white-space:nowrap;color:#b91c1c">➖ ' + esc(g.nombre) + '</td>' : '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">✎</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>') +
       '<td style="' + td + '">' + esc(g.concepto) + (g.nRutas > 1 ? ' <span style="color:#b45309">(+' + (g.nRutas - 1) + ' ruta' + (g.nRutas > 2 ? 's' : '') + ' más)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.n + (g.nFuera ? ' <span style="color:#b91c1c" title="Con marca naranja / no facturable: no se abonan">(+' + g.nFuera + ' ⛔)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
       '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, g.esHora ? 2 : 3)) + '</td>' +
-      '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button></td>' +
-      '<td style="' + td + ';text-align:right">' + _fiN(g.eur, 2) + ' €</td>' +
+      '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + (g.esDup ? '' : ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button>') + '</td>' +
+      '<td style="' + td + ';text-align:right' + (g.esDup ? ';color:#b91c1c' : '') + '">' + _fiN(g.eur, 2) + ' €</td>' +
       '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">👁 VER</button></td>' +
       '</tr><tr id="fiDet' + i + '" style="display:none"><td colspan="8" style="padding:0 0 10px 0"></td></tr>';
   });
@@ -15549,7 +15576,7 @@ function fiVerGrupo(i) {
   const g = _fiDatos.grupos[i]; const td = 'padding:5px 8px;border-bottom:1px solid #eee;color:#111;font-weight:600';
   tr.firstChild.innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#faf7ff"><tr>' +
     ['FECHA', 'MATRÍCULA', g.porViaje ? 'VIAJES' : 'TN', 'PRECIO', 'TOTAL', 'TRAMO', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL'].map(t => '<th style="padding:5px 8px;text-align:left;color:#4c1d95">' + t + '</th>').join('') + '</tr>' +
-    g.filas.map(r => '<tr' + (r._fiFuera ? ' style="background:#fde8e8;text-decoration:line-through"' : '') + '><td style="' + td + '">' + (r._fiMarca ? '<span style="text-decoration:none;display:inline-block;color:' + (r._fiFuera ? '#b91c1c' : '#16a34a') + ';font-weight:800;margin-right:6px">' + esc(r._fiMarca) + ' <button class="btn bs" style="padding:1px 7px;font-weight:800" onclick="fiAbonar(\'' + r.id + '\',' + (r._fiFuera ? 'true' : 'false') + ')">' + (r._fiFuera ? '✓ Abonar' : '✗ No abonar') + '</button></span>' : '') + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
+    g.filas.map(r => '<tr' + (r._fiFuera ? ' style="background:#fde8e8;text-decoration:line-through"' : '') + '><td style="' + td + '">' + (r._fiDup ? '<button class="btn bs" style="padding:1px 7px;font-weight:800;color:#b91c1c;margin-right:6px" title="Quitar este descuento" onclick="fiQuitarDup(\'' + r.id + '\')">✗ Quitar</button>' : '') + (r._fiMarca ? '<span style="text-decoration:none;display:inline-block;color:' + (r._fiFuera ? '#b91c1c' : '#16a34a') + ';font-weight:800;margin-right:6px">' + esc(r._fiMarca) + ' <button class="btn bs" style="padding:1px 7px;font-weight:800" onclick="fiAbonar(\'' + r.id + '\',' + (r._fiFuera ? 'true' : 'false') + ')">' + (r._fiFuera ? '✓ Abonar' : '✗ No abonar') + '</button></span>' : '') + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
     '</table>';
   tr.style.display = '';
 }
@@ -15602,7 +15629,7 @@ function fiExcel() {
     rows.push(['TOTAL', '', g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, '', g.eur]);
     if (g.nFuera) { rows.push(['']); rows.push(['NO SE ABONAN (marca naranja / no facturable)']); g.filas.filter(r => r._fiFuera).forEach(r => rows.push([r.fecha || '', r.tractora || r.matricula || '', parseFloat(r.tm) || 0, '', 0, r._fiMarca, r.albaran || '', r.planta || '', r.obra || '', r.producto || ''])); }   // v824
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    for (let R = 2; R <= nD; R++) ws['E' + R] = { t: 'n', f: 'ROUND(C' + R + '*D' + R + ',2)', v: ws['E' + R].v };
+    for (let R = 2; R <= nD; R++) ws['E' + R] = { t: 'n', f: (g.esDup ? '-' : '') + 'ROUND(C' + R + '*D' + R + ',2)', v: ws['E' + R].v };   // v825: duplicados en negativo
     if (nD >= 2) { ws['C' + (nD + 1)] = { t: 'n', f: 'SUM(C2:C' + nD + ')', v: ws['C' + (nD + 1)].v }; ws['E' + (nD + 1)] = { t: 'n', f: 'SUM(E2:E' + nD + ')', v: g.eur }; }
     ws['!cols'] = [11, 11, 10, 14, 13, 9, 16, 24, 24, 26].map(w => ({ wch: w }));
     _estilo(ws, 0, [3, 4]);
@@ -15623,6 +15650,45 @@ function fiExcel() {
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
   toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
+}
+
+// v825: DUPLICADOS ya pagados → se descuentan (en negativo, con su precio) en la factura del mes elegido.
+// Se guarda en fi_lineas tipo 'dup' (concepto = id del albarán). Candado: un albarán solo se descuenta UNA vez.
+async function _fiDuplicado(emp) {
+  const recs = _fiSeleccionados();
+  if (!recs.length) { _fiCerrar(); return; }
+  const mes = String((document.getElementById('fiMes') || {}).value || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(mes)) { toast('Pon arriba el MES de la factura donde se descuenta', 'err'); return; }
+  const ref = emp + '|' + mes;
+  const enEsta = recs.filter(r => r.fi_ref === ref);
+  if (enEsta.length) { toast('⚠ ' + enEsta.length + ' están en esta MISMA factura (' + _fiMesTxt(mes) + '): para esos usa "↩ Sacar de la factura", no descontar.', 'err'); return; }
+  let ya = [];
+  try {
+    const q = await sb.from('fi_lineas').select('concepto,emp,mes').eq('tipo', 'dup').in('concepto', recs.map(r => String(r.db_id)));
+    if (q.error) throw q.error; ya = q.data || [];
+  } catch (e) { console.error('[v825 fi] dup leer', e); toast('No se pudo comprobar: ' + (e.message || e), 'err'); return; }
+  const yaIds = new Set(ya.map(x => String(x.concepto)));
+  const nuevos = recs.filter(r => !yaIds.has(String(r.db_id)));
+  const sinPagar = nuevos.filter(r => !r.fi_ref || r.fi_ref === 'FUERA');
+  if (!nuevos.length) { toast('🔒 Ya estaban descontados como duplicado (' + ya.map(x => (_FI_NOM[x.emp] || x.emp) + ' ' + _fiMesTxt(x.mes)).filter((v, i, a) => a.indexOf(v) === i).join(', ') + ')', 'err'); return; }
+  if (!confirm('Descontar ' + nuevos.length + ' albarán(es) como DUPLICADO en la factura de ' + _FI_NOM[emp] + ' · ' + _fiMesTxt(mes) + '.\n\nSaldrán en NEGATIVO con su precio.' +
+    (yaIds.size ? '\n\n🔒 ' + yaIds.size + ' ya estaban descontados: se saltan.' : '') +
+    (sinPagar.length ? '\n\n⚠ ' + sinPagar.length + ' NO constan en ninguna factura (puede que no se pagaran). ¿Seguro?' : '') + '\n\n¿Continuar?')) return;
+  try {
+    const ins = await sb.from('fi_lineas').insert(nuevos.map(r => ({ emp, mes, tipo: 'dup', concepto: String(r.db_id) })));
+    if (ins.error) throw ins.error;
+  } catch (e) { console.error('[v825 fi] dup guardar', e); toast('No se guardó: ' + (e.message || e), 'err'); return; }
+  _fiCerrar();
+  document.querySelectorAll('.chk-sel').forEach(c => { c.checked = false; }); try { _selUno(); } catch (e) {}
+  toast('➖ ' + nuevos.length + ' duplicado(s) se descontarán en ' + _FI_NOM[emp] + ' · ' + _fiMesTxt(mes), 'ok');
+  console.log('[v825 fi] duplicados', { emp, mes, n: nuevos.length, saltados: yaIds.size });
+}
+async function fiQuitarDup(id) {
+  const D = _fiDatos; if (!D) return;
+  if (!confirm('¿Quitar este descuento por duplicado?')) return;
+  try { const q = await sb.from('fi_lineas').delete().eq('tipo', 'dup').eq('concepto', String(id)).eq('emp', D.emp).eq('mes', D.ym); if (q.error) throw q.error; }
+  catch (e) { console.error('[v825 fi] quitar dup', e); toast('No se quitó: ' + (e.message || e), 'err'); return; }
+  toast('Descuento quitado', 'ok'); fiCalcular();
 }
 
 // v824: marcar / desmarcar "abonar igualmente" un albarán con marca naranja o no facturable (solo en esta factura)
