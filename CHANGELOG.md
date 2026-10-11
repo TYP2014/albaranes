@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v826 (11/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · IMPORTE A MANO POR ALBARÁN. En 👁 VER de cada pestaña, la columna TOTAL es una casilla: escribes el importe de ese albarán (horas de interior, viajes de rechazo… cada día distinto) y la pestaña suma sola; vacío = TN × precio como antes. Sale en naranja con ✱ y en la línea de la pestaña '(N a mano)'; no cuenta como 'sin precio'. El VER se queda abierto al guardar. Excel: esas filas con 'A MANO' en precio y su importe. Solo en esa factura (fi_lineas tipo 'imp'). Sin SQL. VUELTA ATRAS: resubir v825.
+
+---
+
 v825 (10/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · DUPLICADOS YA PAGADOS. En la ventana 🧾 (Albaranes › Selección) botón nuevo '➖ Descontar como duplicado': los seleccionados se descuentan EN NEGATIVO en la factura del mes puesto arriba, con su precio (el ✎ de su factura original si lo tenía; si no, Tarifas). En la tarjeta salen en la pestaña 'DUPLICADOS (DESCUENTO)' (en rojo, restan antes de IVA); en 👁 VER, '✗ Quitar' deshace. Candado: un albarán solo se descuenta UNA vez (ni en Híspalis ni en Transmargaz); no deja descontar uno que está en esa misma factura (para eso, 'Sacar de la factura'); avisa si no consta pagado en ninguna. El albarán no se mueve de su factura original. Excel: línea negativa en FACTURA + hoja con totales negativos. Se guarda en fi_lineas tipo 'dup'. Sin SQL. VUELTA ATRAS: resubir v824.
 
 ---
