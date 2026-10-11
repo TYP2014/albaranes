@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v827 (11/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · PRECIO A MANO POR ALBARÁN (lo que pidió JC en vez de la v826). En 👁 VER la casilla pasa a la columna PRECIO: pones el precio de ese albarán y el TOTAL lo calcula (6 × 50 = 300). Vacío = el precio de la pestaña / Tarifas (sale en gris dentro). Naranja con ✱ cuando está a mano; en rojo si sigue sin precio. El TOTAL vuelve a ser solo lectura (si alguno se puso con la v826, se respeta y lleva ✱). Excel normal con su fórmula TN × precio. Solo en esa factura (fi_lineas tipo 'palb'). Sin SQL. VUELTA ATRAS: resubir v826.
+
+---
+
 v826 (11/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · IMPORTE A MANO POR ALBARÁN. En 👁 VER de cada pestaña, la columna TOTAL es una casilla: escribes el importe de ese albarán (horas de interior, viajes de rechazo… cada día distinto) y la pestaña suma sola; vacío = TN × precio como antes. Sale en naranja con ✱ y en la línea de la pestaña '(N a mano)'; no cuenta como 'sin precio'. El VER se queda abierto al guardar. Excel: esas filas con 'A MANO' en precio y su importe. Solo en esa factura (fi_lineas tipo 'imp'). Sin SQL. VUELTA ATRAS: resubir v825.
 
 ---

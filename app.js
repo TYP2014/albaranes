@@ -15389,7 +15389,8 @@ async function fiCalcular() {
   } catch (e) { console.error('[v820 fi] fi_lineas', e); toast('Falta ejecutar el SQL de la v820 (tabla fi_lineas): las líneas a mano no se cargan', 'err'); }
   const precioMan = lineas.filter(l => l.tipo === 'precio');
   const abonarIds = new Set(lineas.filter(l => l.tipo === 'abonar').map(l => String(l.concepto)));
-  const impAlb = {}; lineas.filter(l => l.tipo === 'imp').forEach(l => { impAlb[String(l.concepto)] = Number(l.importe) || 0; });   // v826: importe a mano por albarán   // v824: marcados 'abonar igualmente'
+  const impAlb = {}; lineas.filter(l => l.tipo === 'imp').forEach(l => { impAlb[String(l.concepto)] = Number(l.importe) || 0; });
+  const pAlb = {}; lineas.filter(l => l.tipo === 'palb').forEach(l => { pAlb[String(l.concepto)] = Number(l.precio) || 0; });   // v827: precio a mano por albarán   // v826: importe a mano por albarán   // v824: marcados 'abonar igualmente'
   let nFueraTot = 0;
   const gm = new Map();
   filas.sort((a, b) => String(a.factura_recibida_fecha || '').localeCompare(String(b.factura_recibida_fecha || '')) || (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)));
@@ -15410,6 +15411,7 @@ async function fiCalcular() {
       const orig = Math.round((Number(pp.precio) || 0) * 10000) / 10000;
       const man = precioMan.find(l => l.grupo === nombre && Math.abs((Number(l.precio_de) || 0) - orig) < 0.00005);
       r._fiPrecioOrig = orig; r._fiPrecio = man ? Number(man.precio) : orig; r._fiTramo = pp.tramo; r._fiMan = !!man;
+      r._fiPAlb = Object.prototype.hasOwnProperty.call(pAlb, String(r.id)); if (r._fiPAlb) { r._fiPrecio = pAlb[String(r.id)]; r._fiMan = true; }   // v827
       if (man) cambiado = true;
       if (origs.indexOf(orig) === -1) origs.push(orig);
       const tm = parseFloat(r.tm) || 0; r._fiTot = r._fiFuera ? 0 : _fiR2(tm * r._fiPrecio);
@@ -15580,7 +15582,7 @@ function fiVerGrupo(i) {
   const g = _fiDatos.grupos[i]; const td = 'padding:5px 8px;border-bottom:1px solid #eee;color:#111;font-weight:600';
   tr.firstChild.innerHTML = '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#faf7ff"><tr>' +
     ['FECHA', 'MATRÍCULA', g.porViaje ? 'VIAJES' : 'TN', 'PRECIO', 'TOTAL', 'TRAMO', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL'].map(t => '<th style="padding:5px 8px;text-align:left;color:#4c1d95">' + t + '</th>').join('') + '</tr>' +
-    g.filas.map(r => '<tr' + (r._fiFuera ? ' style="background:#fde8e8;text-decoration:line-through"' : '') + '><td style="' + td + '">' + (r._fiDup ? '<button class="btn bs" style="padding:1px 7px;font-weight:800;color:#b91c1c;margin-right:6px" title="Quitar este descuento" onclick="fiQuitarDup(\'' + r.id + '\')">✗ Quitar</button>' : '') + (r._fiMarca ? '<span style="text-decoration:none;display:inline-block;color:' + (r._fiFuera ? '#b91c1c' : '#16a34a') + ';font-weight:800;margin-right:6px">' + esc(r._fiMarca) + ' <button class="btn bs" style="padding:1px 7px;font-weight:800" onclick="fiAbonar(\'' + r.id + '\',' + (r._fiFuera ? 'true' : 'false') + ')">' + (r._fiFuera ? '✓ Abonar' : '✗ No abonar') + '</button></span>' : '') + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + (r._fiPrecio > 0 ? (r._fiMan ? ';color:#c2410c' : '') : ';color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</td><td style="' + td + '">' + ((r._fiFuera || r._fiDup) ? _fiN(r._fiTot, 2) : '<input style="width:90px;text-align:right;font-weight:800;font-size:13px;padding:3px 5px;border:1px solid ' + (r._fiImpMan ? '#c2410c;color:#c2410c' : '#bbb;color:#111') + ';border-radius:5px" title="Importe de este albarán (vacío = TN × precio)" placeholder="' + _fiN(_fiR2((parseFloat(r.tm) || 0) * r._fiPrecio), 2) + '" value="' + (r._fiImpMan ? String(r._fiTot).replace('.', ',') : '') + '" onchange="fiImporteAlb(\'' + r.id + '\',this.value)">' + (r._fiImpMan ? ' ✱' : '')) + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
+    g.filas.map(r => '<tr' + (r._fiFuera ? ' style="background:#fde8e8;text-decoration:line-through"' : '') + '><td style="' + td + '">' + (r._fiDup ? '<button class="btn bs" style="padding:1px 7px;font-weight:800;color:#b91c1c;margin-right:6px" title="Quitar este descuento" onclick="fiQuitarDup(\'' + r.id + '\')">✗ Quitar</button>' : '') + (r._fiMarca ? '<span style="text-decoration:none;display:inline-block;color:' + (r._fiFuera ? '#b91c1c' : '#16a34a') + ';font-weight:800;margin-right:6px">' + esc(r._fiMarca) + ' <button class="btn bs" style="padding:1px 7px;font-weight:800" onclick="fiAbonar(\'' + r.id + '\',' + (r._fiFuera ? 'true' : 'false') + ')">' + (r._fiFuera ? '✓ Abonar' : '✗ No abonar') + '</button></span>' : '') + esc(r.fecha || '') + '</td><td style="' + td + '">' + esc(r.tractora || r.matricula || '') + '</td><td style="' + td + '">' + _fiN(r.tm, g.porViaje ? 0 : 3) + '</td><td style="' + td + '">' + ((r._fiFuera || r._fiDup || r._fiImpMan) ? '<span style="' + (r._fiPrecio > 0 ? (r._fiMan ? 'color:#c2410c' : '') : 'color:#b91c1c') + '">' + (r._fiPrecio > 0 ? _fiN(r._fiPrecio, 2) + (r._fiMan ? ' ✱' : '') : 'SIN PRECIO') + '</span>' : '<input style="width:80px;text-align:right;font-weight:800;font-size:13px;padding:3px 5px;border:1px solid ' + (r._fiPAlb ? '#c2410c;color:#c2410c' : (r._fiPrecio > 0 ? '#bbb;color:#111' : '#b91c1c;color:#b91c1c')) + ';border-radius:5px" title="Precio de ESTE albarán en esta factura (vacío = el de la pestaña / Tarifas)" placeholder="' + ((r._fiPAlb ? r._fiPrecioOrig : r._fiPrecio) > 0 ? _fiN(r._fiPAlb ? r._fiPrecioOrig : r._fiPrecio, 2) : 'sin precio') + '" value="' + (r._fiPAlb ? String(r._fiPrecio).replace('.', ',') : '') + '" onchange="fiPrecioAlb(\'' + r.id + '\',this.value)">' + (r._fiPAlb ? ' ✱' : '')) + '</td><td style="' + td + '">' + _fiN(r._fiTot, 2) + (r._fiImpMan ? ' <span style="color:#c2410c" title="Importe puesto a mano (v826)">✱</span>' : '') + '</td><td style="' + td + '">' + esc(r._fiTramo || '') + '</td><td style="' + td + '">' + esc(r.albaran || '') + '</td><td style="' + td + '">' + esc(r.planta || '') + '</td><td style="' + td + '">' + esc(r.obra || '') + '</td><td style="' + td + '">' + esc(r.producto || '') + '</td></tr>').join('') +
     '</table>';
   tr.style.display = '';
 }
@@ -15655,6 +15657,22 @@ function fiExcel() {
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
   toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
+}
+
+// v827: precio a mano de UN albarán en esta factura; el total = TN (u horas/viajes) × ese precio. Vacío = el de la pestaña / Tarifas.
+async function fiPrecioAlb(id, valor) {
+  const D = _fiDatos; if (!D) return;
+  const v = _fiNum(valor);
+  if (String(valor || '').trim() !== '' && v === null) { toast('Número no válido: ' + valor, 'err'); return; }
+  try {
+    const del = await sb.from('fi_lineas').delete().eq('emp', D.emp).eq('mes', D.ym).eq('tipo', 'palb').eq('concepto', String(id));
+    if (del.error) throw del.error;
+    if (v !== null) { const ins = await sb.from('fi_lineas').insert({ emp: D.emp, mes: D.ym, tipo: 'palb', concepto: String(id), precio: v }); if (ins.error) throw ins.error; }
+  } catch (e) { console.error('[v827 fi] precio alb', e); toast('No se guardó: ' + (e.message || e), 'err'); return; }
+  console.log('[v827 fi] precio a mano', id, v);
+  const abiertos = D.grupos.map((g, i) => { const t = document.getElementById('fiDet' + i); return t && t.style.display !== 'none' ? g.nombre : null; }).filter(Boolean);
+  await fiCalcular();
+  (_fiDatos.grupos || []).forEach((g, i) => { if (abiertos.indexOf(g.nombre) !== -1) fiVerGrupo(i); });
 }
 
 // v826: importe a mano de UN albarán en esta factura (horas, viajes de rechazo… cada día distinto). Vacío = TN × precio.
