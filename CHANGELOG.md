@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v828 (13/10/2026): PANEL · PRECIOS HOLCIM CON MÁS MESES. Antes solo salían el último mes subido + los 2 anteriores. Ahora hay un selector 'Meses a ver: 3 / 6 / 12 / Todos los subidos' (por defecto 6; se recuerda en ese navegador). Sirve para seguir mes a mes la variación por gasoil. La columna RUTA se queda fija al desplazar a la derecha. Si se suben preliquidaciones antiguas (feb, mar…) por el sitio de siempre, salen solas (aunque no haya albaranes de esos meses, se clasifican por el texto de la preliquidación). Solo admin, solo LEE. Sin SQL. VUELTA ATRAS: resubir v827.
+
+---
+
 v827 (11/10/2026): FACTURA HÍSPALIS / TRANSMARGAZ · PRECIO A MANO POR ALBARÁN (lo que pidió JC en vez de la v826). En 👁 VER la casilla pasa a la columna PRECIO: pones el precio de ese albarán y el TOTAL lo calcula (6 × 50 = 300). Vacío = el precio de la pestaña / Tarifas (sale en gris dentro). Naranja con ✱ cuando está a mano; en rojo si sigue sin precio. El TOTAL vuelve a ser solo lectura (si alguno se puso con la v826, se respeta y lleva ✱). Excel normal con su fórmula TN × precio. Solo en esa factura (fi_lineas tipo 'palb'). Sin SQL. VUELTA ATRAS: resubir v826.
 
 ---

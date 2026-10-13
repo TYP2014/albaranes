@@ -13408,6 +13408,10 @@ const _PH_HAB = [
   { n: 'Escoria', t: T => /ESCORIA/.test(T) },
 ];
 let _phDatos = null;
+// v828: cuántos meses enseñar (antes fijo 3). JC 13/10/2026: quiere ver más histórico para comprobar la
+// subida/bajada por gasoil mes a mes. 0 = todos los que haya subidos. Se recuerda en este navegador.
+let _phNMeses = (() => { try { const v = parseInt(localStorage.getItem('ph_nmeses'), 10); return isNaN(v) ? 6 : v; } catch (e) { return 6; } })();
+function phCambiarMeses(v) { _phNMeses = parseInt(v, 10) || 0; try { localStorage.setItem('ph_nmeses', String(_phNMeses)); } catch (e) {} abrirPreciosHolcim(); }
 // v776: días del precio. Si los viajes son de OTRO mes (Holcim paga en la preliquidación de septiembre viajes de agosto)
 // se ponen con su mes: '01/08–11/08'. Si son del mismo mes de la columna, solo los días: '1–11'.
 function _phDias(p, mes, conDia) {
@@ -13426,7 +13430,15 @@ async function abrirPreciosHolcim() {
     if (u.error) throw u.error;
     const ult = String(((u.data || [])[0] || {}).mes || '').slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(ult)) { cont.innerHTML = '<div style="color:var(--mu);padding:10px">No hay preliquidaciones de Holcim subidas.</div>'; return; }
-    const meses = [ult, _phMesMenos(ult, 1), _phMesMenos(ult, 2)];
+    // v828: N meses hacia atrás desde el último subido (o TODOS desde el primero que haya).
+    let nM = _phNMeses;
+    if (!nM) {
+      const pr = await sb.from('autofacturas_lineas').select('mes').eq('proveedor', 'HOLCIM').order('mes', { ascending: true }).limit(1);
+      const pri = String(((pr.data || [])[0] || {}).mes || '').slice(0, 7);
+      nM = /^\d{4}-\d{2}$/.test(pri) ? ((+ult.slice(0, 4) - +pri.slice(0, 4)) * 12 + (+ult.slice(5, 7) - +pri.slice(5, 7)) + 1) : 3;
+      nM = Math.min(Math.max(nM, 1), 36);
+    }
+    const meses = []; for (let i = 0; i < nM; i++) meses.push(_phMesMenos(ult, i));
     let lin = [];
     for (let d = 0, i = 0; i < 40; i++, d += 1000) {
       const r = await sb.from('autofacturas_lineas').select('mes,origen,destino,tn,importe,es_ajuste,numero_albaran,fecha,matricula,concepto').eq('proveedor', 'HOLCIM').in('mes', meses).range(d, d + 999);
@@ -13484,7 +13496,7 @@ async function abrirPreciosHolcim() {
       p.filas.push({ fecha: fe, mat: String(L.matricula || ''), albPreliq: String(L.numero_albaran || ''), alb: (a && a.alb) || '', origen, destino, material: String(L.concepto || (a && a.prod) || ''), tn: tn > 0 ? tn : null, imp });
     });
     _phDatos = { meses, hab };
-    console.log('[v773] Precios Holcim · meses ' + meses.join(', ') + ' · ' + lin.length + ' líneas');
+    console.log('[v828] Precios Holcim · ' + meses.length + ' meses ' + meses.join(', ') + ' · ' + lin.length + ' líneas');
     _phRender();
   } catch (e) { console.error('[v773] Precios Holcim', e); cont.innerHTML = '<div style="color:var(--er);padding:10px">No se pudo cargar: ' + _fichajeEsc(e.message || e) + '</div>'; }
 }
@@ -13501,14 +13513,18 @@ function _phRender() {
       + '<b style="text-decoration:underline dotted' + (ps.length > 1 ? ';color:#b45309' : '') + '">' + eur(p.pu) + (x.viaje ? '/viaje' : '') + '</b> <span style="font-size:10px;color:var(--mu)">'
       + (_phDias(p, m, true) ? _phDias(p, m, true) + ' · ' : '') + p.v + ' v' + (x.viaje ? '' : ' · ' + Math.round(p.tn) + ' TN') + ' ⬇</span></div>').join('') + '</td>';
   };
-  const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)">RUTA</th>'
+  const stk = ';position:sticky;left:0;background:var(--bg2,var(--bg));z-index:1';   // v828: la ruta se queda fija al desplazar
+  const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)' + stk + '">RUTA</th>'
     + meses.map((m, i) => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:' + (i === 0 ? 'var(--tx)' : 'var(--mu)') + '">' + _histMesNombre(m) + (i === 0 ? ' (último)' : '') + '</th>').join('') + '</tr></thead>';
   const filas = _PH_HAB.slice().sort((a, b) => (a.orden || 0) - (b.orden || 0)).map(x => {   // v774: áridos siguen saliendo abajo
     const g = hab[x.n];
-    return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)">' + _fichajeEsc(x.n) + (x.viaje ? ' <span style="font-size:10px;font-weight:400;color:var(--mu)">(por viaje)</span>' : '') + '</td>'
+    return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)' + stk + '">' + _fichajeEsc(x.n) + (x.viaje ? ' <span style="font-size:10px;font-weight:400;color:var(--mu)">(por viaje)</span>' : '') + '</td>'
       + meses.map((m, i) => celda(x, g, m, i === 0)).join('') + '</tr>';
   }).join('');
-  cont.innerHTML = '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
+  const sel = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--mu)">Meses a ver: <select onchange="phCambiarMeses(this.value)" style="background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 8px;font-size:12px">'
+    + [[3, '3'], [6, '6'], [12, '12'], [0, 'Todos los subidos']].map(o => '<option value="' + o[0] + '"' + (o[0] === _phNMeses ? ' selected' : '') + '>' + o[1] + '</option>').join('')
+    + '</select><span>(' + meses.length + ' meses: ' + _histMesNombre(meses[meses.length - 1]) + ' → ' + _histMesNombre(meses[0]) + ')</span></div>';
+  cont.innerHTML = sel + '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
     + '<div style="font-size:10.5px;color:var(--mu);margin-top:8px">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
 }
 // v773: Excel de los viajes de UN precio (ruta + mes + precio). Hoja "Viajes" + hoja "Resumen" con TODOS los
