@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v834 (14/10/2026): NEUMÁTICOS · EL STOCK LO MANDAN LAS FACTURAS DE SOLEDAD. Pedido por JC: Soledad no manda todos los albaranes y pedirlos cuesta mucho trabajo. En las empresas con corte (TYP2014 e Híspalis) el número grande de cada tarjeta y los avisos de stock bajo salen ahora 'SEGÚN FACTURAS'; 'Mis albaranes' queda debajo solo de referencia. Las cubiertas facturadas sin albarán ya no salen en rojo 'reclamar' (🧾 ya restadas). Transmargaz (sin corte) igual que antes. Solo pantalla, no crea ni toca movimientos. Sin SQL de estructura. VUELTA ATRAS: resubir v833.
+
+---
+
 v828 (13/10/2026): PANEL · PRECIOS HOLCIM CON MÁS MESES. Antes solo salían el último mes subido + los 2 anteriores. Ahora hay un selector 'Meses a ver: 3 / 6 / 12 / Todos los subidos' (por defecto 6; se recuerda en ese navegador). Sirve para seguir mes a mes la variación por gasoil. La columna RUTA se queda fija al desplazar a la derecha. Si se suben preliquidaciones antiguas (feb, mar…) por el sitio de siempre, salen solas (aunque no haya albaranes de esos meses, se clasifican por el texto de la preliquidación). Solo admin, solo LEE. Sin SQL. VUELTA ATRAS: resubir v827.
 
 ---
