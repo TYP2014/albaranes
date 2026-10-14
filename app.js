@@ -35839,6 +35839,9 @@ async function tacoGuardar() {
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v388 · v422: tambien los camiones
+    if (r.tipo === 'vehiculo' && r.matricula) {                                  // v831: km al dia en Taller
+      try { await _tacoKmATallerAuto([r.matricula]); } catch (e) { console.warn('[v831] km a taller:', e.message || e); }
+    }
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
   } catch (e) {
@@ -36183,6 +36186,11 @@ async function tacoGuardarLote() {
     para elegirles la empresa a mano.</div>`;
   toast(`${ok} guardados`, ok ? 'ok' : 'err');
   await _tacoBuzonMarcar();                                                    // v829: los que venian del buzon, marcados
+  try {                                                                        // v831: km al dia en Taller
+    await _tacoKmATallerAuto((_tacoLote || [])
+      .filter(it => (it.estado === 'guardado' || it.estado === 'duplicado') && it.r && it.r.tipo === 'vehiculo' && it.r.matricula)
+      .map(it => it.r.matricula));
+  } catch (e) { console.warn('[v831] km a taller (lote):', e.message || e); }
   tacoCargarLista();
   _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v422: que salgan ya en los desplegables
 }
@@ -36328,6 +36336,7 @@ async function tacoBuzonAuto() {
 
     console.log('[v830 buzon] ' + data.length + ' descargas por procesar');
     const fallos = [];
+    const matsOk = [];        // v831: camiones tocados, para refrescar sus km en Taller
     let ok = 0;
 
     for (const r of data) {
@@ -36347,6 +36356,7 @@ async function tacoBuzonAuto() {
         const res = await _tacoGuardarUno(it);
         if (res === 'guardado' || res === 'duplicado') {
           ok++;
+          if (it.r.tipo === 'vehiculo' && it.r.matricula) matsOk.push(it.r.matricula);   // v831
           await sb.from('tacografo_entrada').update({
             procesado: true,
             procesado_el: new Date().toISOString(),
@@ -36363,6 +36373,13 @@ async function tacoBuzonAuto() {
     }
 
     console.log('[v830 buzon] guardadas ' + ok + ' · sin guardar ' + fallos.length);
+
+    // v831: los km de esas descargas, derechos a la ficha de Taller
+    if (matsOk.length) {
+      const n = await _tacoKmATallerAuto(matsOk);
+      if (n) console.log('[v831] ' + n + ' camión(es) con los km al día en Taller');
+    }
+
     _tacoBuzonFallos = fallos;
     renderTacoBuzonBanner();
 
@@ -36398,6 +36415,62 @@ function renderTacoBuzonBanner() {
     </div>
     <button class="btn bs" onclick="irABuzonTacografo()">VER</button>
   </div>`;
+}
+
+// ============================================================
+// TACOGRAFO — v831 (14/10/2026) · LOS KM VAN SOLOS A TALLER
+//
+// Cada descarga de CAMION trae el cuentakilometros de cada dia.
+// Hasta ahora esos km llegaban a Taller de dos maneras, las dos a
+// mano: subiendo el Excel de km, o pulsando el boton del informe
+// de kilometros. Ahora, ademas, se pasan SOLOS en cuanto se guarda
+// una descarga — venga del buzon o soltada a mano.
+//
+// EL EXCEL SIGUE IGUAL. No se quita nada: mientras media flota siga
+// en el sistema viejo, los dos caminos conviven sin estorbarse.
+//
+// MISMAS REGLAS PRUDENTES QUE EL BOTON DE SIEMPRE:
+//  · SOLO SUBE. Si Taller ya tiene un numero mayor, no se toca.
+//  · La fecha que se guarda es la del dia de la lectura, no la de hoy.
+//  · Solo camiones que YA existen en Taller. No se da de alta ninguno.
+// ============================================================
+async function _tacoKmATallerAuto(matriculas) {
+  const mats = [...new Set((matriculas || []).filter(Boolean))];
+  if (!mats.length) return 0;
+  let puestos = 0;
+
+  for (const mat of mats) {
+    try {
+      // la ultima lectura de cuentakilometros que tenemos de ese camion
+      const { data: dias, error: eD } = await sb.from('tacografo_dias')
+        .select('fecha, odometro')
+        .eq('matricula', mat).eq('origen', 'vehiculo')
+        .not('odometro', 'is', null)
+        .order('fecha', { ascending: false }).limit(1);
+      if (eD) throw eD;
+      if (!dias || !dias.length || !(dias[0].odometro > 0)) continue;
+
+      const km = dias[0].odometro, fecha = dias[0].fecha;
+
+      const { data: vehs, error: eV } = await sb.from('taller_vehiculos')
+        .select('id, km_actual').eq('matricula', mat).limit(1);
+      if (eV) throw eV;
+      if (!vehs || !vehs.length) continue;                 // no esta en Taller: no se crea
+      if ((vehs[0].km_actual || 0) >= km) continue;        // ya tiene mas: no se baja
+
+      const { error: eU } = await sb.from('taller_vehiculos').update({
+        km_actual: km,
+        km_actual_fecha: fecha,
+        updated_at: new Date().toISOString()
+      }).eq('id', vehs[0].id);
+      if (eU) throw eU;
+      puestos++;
+      console.log('[v831 km->taller] ' + mat + ': ' + km.toLocaleString('es-ES') + ' km (' + fecha + ')');
+    } catch (e) {
+      console.warn('[v831 km->taller] ' + mat + ':', e.message || e);
+    }
+  }
+  return puestos;
 }
 
 function irABuzonTacografo() {
