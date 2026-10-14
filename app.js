@@ -36522,7 +36522,7 @@ async function _tacoKmAGasoilAuto(matriculas) {
       let dias = [], desde = 0;
       for (let i = 0; i < 10; i++) {
         const { data, error } = await sb.from('tacografo_dias')
-          .select('fecha, odometro')
+          .select('fecha, odometro, empresa')
           .eq('matricula', mat).eq('origen', 'vehiculo')
           .not('odometro', 'is', null)
           .order('fecha', { ascending: true }).range(desde, desde + 999);
@@ -36532,6 +36532,13 @@ async function _tacoKmAGasoilAuto(matriculas) {
         desde += 1000;
       }
       if (dias.length < 2) continue;
+
+      // v833: la empresa la pone la propia descarga (la app ya la decidio al
+      // guardarla, por la matricula). El mapa fijo de Gasoil no tiene todas
+      // las matriculas, y la columna no admite vacio.
+      const empDia = (dias.slice().reverse().find(d => d.empresa) || {}).empresa || null;
+      const empresaFila = _MAT_EMP_GAS[mat] || empDia;
+      if (!empresaFila) { console.warn('[v833 km->gasoil] ' + mat + ': sin empresa, no se toca'); continue; }
 
       // 2) Agrupar por mes natural
       const porMes = {};
@@ -36564,7 +36571,7 @@ async function _tacoKmAGasoilAuto(matriculas) {
 
         const fila = {
           matricula: mat,
-          empresa: _MAT_EMP_GAS[mat] || null,
+          empresa: empresaFila,
           fecha_inicio: pri.fecha, fecha_fin: ult.fecha,
           km_inicio: pri.odometro, km_fin: ult.odometro, km_diferencia: dif,
           origen: 'tacografo',
