@@ -454,6 +454,12 @@ async function loadUserMap() {
       if (tabTaco) tabTaco.style.display = _permTaco ? '' : 'none';
       window._tieneTaco = _permTaco;
 
+      // v830: el buzon de descargas remotas se vacia SOLO, en segundo plano.
+      // Se espera unos segundos para no competir con la carga de la pantalla.
+      if (_permTaco) setTimeout(() => {
+        try { tacoBuzonAuto(); } catch (e) { console.warn('[v830 buzon auto]', e); }
+      }, 8000);
+
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
       const tabItv = document.getElementById('tabItv');
       if (tabItv) tabItv.style.display = tienePermisoITV ? '' : 'none';
@@ -36285,6 +36291,120 @@ async function _tacoBuzonMarcar() {
     }
   }
   tacoBuzonMirar();
+}
+
+// ============================================================
+// TACOGRAFO — v830 (14/10/2026) · EL BUZON SE VACIA SOLO
+//
+// Nadie tiene que pulsar nada. Al abrir la app, en segundo plano,
+// se recogen las descargas que haya dejado el robot y se guardan
+// las que estan claras — mismo lector, misma huella, misma forma
+// de adivinar la empresa por la matricula.
+//
+// Si todo va bien, NO se dice nada: el silencio es la buena noticia.
+// Solo se avisa (cartel rojo arriba, en todas las pantallas) de lo
+// que NO se ha podido guardar. Eso se queda en el buzon y se vuelve
+// a intentar al dia siguiente, asi que nunca se pierde una descarga.
+//
+// El boton de "traer y leer" sigue ahi para cuando quieras mirarlas
+// a mano o resolver las que se han quedado atascadas.
+// ============================================================
+
+let _tacoBuzonFallos = [];     // lo que no se ha podido guardar en la ultima pasada
+let _tacoBuzonTrabajando = false;
+
+async function tacoBuzonAuto() {
+  if (_tacoBuzonTrabajando) return;
+  _tacoBuzonTrabajando = true;
+  try {
+    const { data, error } = await sb.from('tacografo_entrada')
+      .select('id, file_nombre, file_url, matricula, conductor')
+      .eq('procesado', false)
+      .order('download_time', { ascending: true })
+      .limit(50);
+    if (error) throw error;
+
+    if (!data || !data.length) { _tacoBuzonFallos = []; renderTacoBuzonBanner(); return; }
+
+    console.log('[v830 buzon] ' + data.length + ' descargas por procesar');
+    const fallos = [];
+    let ok = 0;
+
+    for (const r of data) {
+      try {
+        const { data: blob, error: eD } = await sb.storage.from('documentos').download(r.file_url);
+        if (eD) throw eD;
+
+        const f = new File([blob], r.file_nombre, { type: 'application/octet-stream' });
+        const it = await _tacoLeerUno(f);
+
+        if (it.estado !== 'leido' || !it.empresa || !it.r || !it.r.completo) {
+          fallos.push({ id: r.id, nombre: r.file_nombre, quien: r.matricula || r.conductor || '',
+                        motivo: it.motivo || 'no se ha leido entero' });
+          continue;
+        }
+
+        const res = await _tacoGuardarUno(it);
+        if (res === 'guardado' || res === 'duplicado') {
+          ok++;
+          await sb.from('tacografo_entrada').update({
+            procesado: true,
+            procesado_el: new Date().toISOString(),
+            resultado: res
+          }).eq('id', r.id);
+        } else {
+          fallos.push({ id: r.id, nombre: r.file_nombre, quien: r.matricula || r.conductor || '',
+                        motivo: it.detalle || 'no se ha podido guardar' });
+        }
+      } catch (e) {
+        fallos.push({ id: r.id, nombre: r.file_nombre, quien: r.matricula || r.conductor || '',
+                      motivo: e.message || String(e) });
+      }
+    }
+
+    console.log('[v830 buzon] guardadas ' + ok + ' · sin guardar ' + fallos.length);
+    _tacoBuzonFallos = fallos;
+    renderTacoBuzonBanner();
+
+    // si estamos mirando la pestaña, que se refresque lo que se ve
+    if (ok) {
+      try { tacoCargarLista(); } catch (e) {}
+      try { _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector(); } catch (e) {}
+    }
+    try { tacoBuzonMirar(); } catch (e) {}
+
+  } catch (e) {
+    console.warn('[v830 buzon auto] no se ha podido repasar el buzon:', e.message || e);
+  } finally {
+    _tacoBuzonTrabajando = false;
+  }
+}
+
+// El cartel rojo de arriba. Solo sale cuando hay algo que NO ha entrado.
+function renderTacoBuzonBanner() {
+  const b = document.getElementById('tacoBuzonBanner');
+  if (!b) return;
+  const n = _tacoBuzonFallos.length;
+  if (!n) { b.style.display = 'none'; b.innerHTML = ''; return; }
+
+  const quien = [...new Set(_tacoBuzonFallos.map(x => x.quien).filter(Boolean))];
+  const lista = quien.slice(0, 5).join(' · ') + (quien.length > 5 ? ' y ' + (quien.length - 5) + ' más' : '');
+
+  b.style.display = 'block';
+  b.innerHTML = `<div style="background:rgba(230,70,70,.12);border:1px solid rgba(230,70,70,.5);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:var(--erd);line-height:1.5">
+      <b>⏱️ ${n} descarga${n === 1 ? '' : 's'} de tacógrafo sin guardar</b>${lista ? ' · ' + lista : ''}
+      <div style="color:var(--mu);font-size:10.5px;margin-top:2px">Siguen en el buzón — se reintentan solas, pero conviene mirarlas</div>
+    </div>
+    <button class="btn bs" onclick="irABuzonTacografo()">VER</button>
+  </div>`;
+}
+
+function irABuzonTacografo() {
+  try { _tacoSecActiva = 'subir'; } catch (e) {}
+  try { switchTab('taco'); } catch (e) {}
+  try { tacoSec('subir'); } catch (e) {}
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
 }
 
 async function tacoSoltarVarios(files) {
