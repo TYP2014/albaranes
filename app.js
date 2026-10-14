@@ -26277,11 +26277,22 @@ async function gasImportarKmExcel(file) {
       // si una tractora de Portes viene dentro del Excel de otra empresa del
       // grupo, su fila se guarda igualmente como PORTES.
       const empFila = (_MAT_EMP_GAS[mat]) ? _MAT_EMP_GAS[mat] : (empresaDoc || null);
+      // v832: EL EXCEL MANDA. Si el tacógrafo había puesto solo un bloque de
+      // esas fechas, se retira antes de meter este — un camión y un periodo
+      // tienen UN bloque de km, nunca dos (si no, el consumo saldría a la mitad).
+      if (fIni && fFin) {
+        try {
+          const { error: eDel } = await sb.from('km_periodos').delete()
+            .eq('matricula', mat).eq('origen', 'tacografo')
+            .lte('fecha_inicio', fFin).gte('fecha_fin', fIni);
+          if (eDel) console.warn('[v832] no pude retirar el bloque del tacógrafo de ' + mat + ':', eDel.message);
+        } catch (e) { console.warn('[v832] retirada bloque tacógrafo:', e.message || e); }
+      }
       const { error } = await sb.from('km_periodos').insert({
         matricula: mat, empresa: empFila,
         fecha_inicio: fIni, fecha_fin: fFin,
         km_inicio: kIni || null, km_fin: kFin || null, km_diferencia: dif,
-        cif: cifDoc || null,
+        cif: cifDoc || null, origen: 'excel',
         user_id: currentUser ? currentUser.id : null
       });
       if (!error) { guardados++; claveExiste.add(clave); }
@@ -35839,8 +35850,9 @@ async function tacoGuardar() {
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v388 · v422: tambien los camiones
-    if (r.tipo === 'vehiculo' && r.matricula) {                                  // v831: km al dia en Taller
+    if (r.tipo === 'vehiculo' && r.matricula) {                                  // v831/v832: km al dia en Taller y Gasoil
       try { await _tacoKmATallerAuto([r.matricula]); } catch (e) { console.warn('[v831] km a taller:', e.message || e); }
+      try { await _tacoKmAGasoilAuto([r.matricula]); } catch (e) { console.warn('[v832] km a gasoil:', e.message || e); }
     }
     toast('Guardado', 'ok');
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
@@ -36186,11 +36198,13 @@ async function tacoGuardarLote() {
     para elegirles la empresa a mano.</div>`;
   toast(`${ok} guardados`, ok ? 'ok' : 'err');
   await _tacoBuzonMarcar();                                                    // v829: los que venian del buzon, marcados
-  try {                                                                        // v831: km al dia en Taller
-    await _tacoKmATallerAuto((_tacoLote || [])
+  try {                                                                        // v831/v832: km al dia en Taller y Gasoil
+    const _mats = (_tacoLote || [])
       .filter(it => (it.estado === 'guardado' || it.estado === 'duplicado') && it.r && it.r.tipo === 'vehiculo' && it.r.matricula)
-      .map(it => it.r.matricula));
-  } catch (e) { console.warn('[v831] km a taller (lote):', e.message || e); }
+      .map(it => it.r.matricula);
+    await _tacoKmATallerAuto(_mats);
+    await _tacoKmAGasoilAuto(_mats);
+  } catch (e) { console.warn('[v831/v832] km a taller/gasoil (lote):', e.message || e); }
   tacoCargarLista();
   _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v422: que salgan ya en los desplegables
 }
@@ -36378,6 +36392,8 @@ async function tacoBuzonAuto() {
     if (matsOk.length) {
       const n = await _tacoKmATallerAuto(matsOk);
       if (n) console.log('[v831] ' + n + ' camión(es) con los km al día en Taller');
+      const g = await _tacoKmAGasoilAuto(matsOk);                               // v832
+      if (g) console.log('[v832] ' + g + ' bloque(s) de km al día en el consumo de Gasoil');
     }
 
     _tacoBuzonFallos = fallos;
@@ -36471,6 +36487,112 @@ async function _tacoKmATallerAuto(matriculas) {
     }
   }
   return puestos;
+}
+
+// ============================================================
+// TACOGRAFO — v832 (14/10/2026) · LOS KM VAN SOLOS AL CONSUMO DE GASOIL
+//
+// La vista de CONSUMO saca la media de L/100km de la tabla km_periodos,
+// que hasta ahora SOLO se llenaba subiendo el Excel de km a mano. Ahora
+// tambien se llena sola con el cuentakilometros que viene dentro de cada
+// descarga del tacografo.
+//
+// EL EXCEL NO SE TOCA Y SIGUE MANDANDO. Mientras media flota siga en el
+// sistema viejo hacen falta los dos caminos, asi que:
+//
+//   · Un camion y un mes tienen UN bloque de km, nunca dos. Si hubiera
+//     dos, el consumo saldria a la mitad (se suman los km y los litros no).
+//   · Si el mes ya tiene bloque del EXCEL, el del tacografo NO se crea.
+//   · Si el Excel llega despues, en gasImportarKmExcel se retira el bloque
+//     del tacografo de ese mes antes de meter el suyo.
+//   · El mes en curso se va actualizando con cada descarga nueva.
+//
+// Se cuentan los km DENTRO de cada mes natural (primera y ultima lectura
+// del mes). Es como viene el Excel, asi los dos hablan el mismo idioma.
+// ============================================================
+async function _tacoKmAGasoilAuto(matriculas) {
+  const mats = [...new Set((matriculas || []).filter(Boolean)
+    .map(m => String(m).toUpperCase().replace(/[\s-]/g, '')))];
+  if (!mats.length) return 0;
+  let tocados = 0;
+
+  for (const mat of mats) {
+    try {
+      // 1) Todas las lecturas de cuentakilometros de ese camion
+      let dias = [], desde = 0;
+      for (let i = 0; i < 10; i++) {
+        const { data, error } = await sb.from('tacografo_dias')
+          .select('fecha, odometro')
+          .eq('matricula', mat).eq('origen', 'vehiculo')
+          .not('odometro', 'is', null)
+          .order('fecha', { ascending: true }).range(desde, desde + 999);
+        if (error) throw error;
+        dias = dias.concat(data || []);
+        if (!data || data.length < 1000) break;
+        desde += 1000;
+      }
+      if (dias.length < 2) continue;
+
+      // 2) Agrupar por mes natural
+      const porMes = {};
+      dias.forEach(d => {
+        if (!d.fecha || !(d.odometro > 0)) return;
+        const mes = String(d.fecha).slice(0, 7);
+        (porMes[mes] = porMes[mes] || []).push(d);
+      });
+
+      // 3) Lo que ya hay guardado de ese camion
+      const { data: yaBd, error: eY } = await sb.from('km_periodos')
+        .select('id, fecha_inicio, fecha_fin, origen').eq('matricula', mat);
+      if (eY) throw eY;
+
+      for (const mes in porMes) {
+        const lista = porMes[mes];
+        if (lista.length < 2) continue;
+        const pri = lista[0], ult = lista[lista.length - 1];
+        const dif = ult.odometro - pri.odometro;
+        if (!(dif > 0)) continue;                       // contador cambiado o a la baja: no se toca
+
+        const mIni = mes + '-01';
+        const mFin = mes + '-31';
+
+        // ¿el Excel ya cubre ese mes? entonces manda el Excel
+        const pisaExcel = (yaBd || []).some(p =>
+          (p.origen || 'excel') === 'excel' &&
+          String(p.fecha_fin || '') >= mIni && String(p.fecha_inicio || '') <= mFin);
+        if (pisaExcel) continue;
+
+        const fila = {
+          matricula: mat,
+          empresa: _MAT_EMP_GAS[mat] || null,
+          fecha_inicio: pri.fecha, fecha_fin: ult.fecha,
+          km_inicio: pri.odometro, km_fin: ult.odometro, km_diferencia: dif,
+          origen: 'tacografo',
+          user_id: currentUser ? currentUser.id : null
+        };
+
+        // ¿ya teniamos el bloque del tacografo de ese mes? se actualiza
+        const mio = (yaBd || []).find(p =>
+          (p.origen || '') === 'tacografo' &&
+          String(p.fecha_inicio || '').slice(0, 7) === mes);
+
+        if (mio) {
+          const { error } = await sb.from('km_periodos').update(fila).eq('id', mio.id);
+          if (error) throw error;
+        } else {
+          const { error } = await sb.from('km_periodos').insert(fila);
+          if (error) throw error;
+        }
+        tocados++;
+        console.log('[v832 km->gasoil] ' + mat + ' ' + mes + ': ' + dif.toLocaleString('es-ES') + ' km');
+      }
+    } catch (e) {
+      console.warn('[v832 km->gasoil] ' + mat + ':', e.message || e);
+    }
+  }
+
+  if (tocados) { try { _kmPeriodos = null; } catch (e) {} }   // que el consumo lo relea
+  return tocados;
 }
 
 function irABuzonTacografo() {
