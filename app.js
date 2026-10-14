@@ -36176,8 +36176,115 @@ async function tacoGuardarLote() {
     Los que no se han guardado siguen en la lista de arriba con el motivo. Súbelos de uno en uno
     para elegirles la empresa a mano.</div>`;
   toast(`${ok} guardados`, ok ? 'ok' : 'err');
+  await _tacoBuzonMarcar();                                                    // v829: los que venian del buzon, marcados
   tacoCargarLista();
   _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v422: que salgan ya en los desplegables
+}
+
+// ============================================================
+// TACOGRAFO — v829 (14/10/2026) · BUZON DE DESCARGAS REMOTAS
+//
+// El robot de Apps Script pregunta cada mañana a TachoSync si hay
+// descargas nuevas, se las baja y las deja en el almacen (carpeta
+// tacografo/_entrada/) apuntando su ficha en tacografo_entrada.
+//
+// Aqui NO se lee ni se interpreta nada nuevo: los ficheros del buzon
+// se recogen y se meten por el MISMO lector de siempre (tacoSoltarVarios),
+// con su misma huella anti-duplicados y su misma forma de adivinar la
+// empresa por la matricula. Para el usuario es como si los hubiera
+// soltado el mismo, pero sin ir a buscarlos.
+//
+// Una fila del buzon solo se marca como procesada cuando el fichero
+// se ha GUARDADO (o ya estaba). Si se queda sin guardar, sigue en el
+// buzon para el dia siguiente.
+// ============================================================
+
+let _tacoBuzonPend = [];     // filas sin procesar, de la ultima mirada
+
+async function tacoBuzonMirar() {
+  const box = document.getElementById('tacoBuzon');
+  if (!box) return;
+  try {
+    const { data, error } = await sb.from('tacografo_entrada')
+      .select('id, origen, matricula, conductor, file_nombre, file_url, download_time')
+      .eq('procesado', false)
+      .order('download_time', { ascending: true })
+      .limit(100);
+    if (error) throw error;
+    _tacoBuzonPend = data || [];
+    if (!_tacoBuzonPend.length) { box.innerHTML = ''; return; }
+
+    const n = _tacoBuzonPend.length;
+    const quien = [...new Set(_tacoBuzonPend.map(r => r.matricula || r.conductor || '?'))];
+    const lista = quien.slice(0, 8).join(' · ') + (quien.length > 8 ? ' y ' + (quien.length - 8) + ' más' : '');
+
+    box.innerHTML = `<div style="background:rgba(123,143,240,.12);border:1px solid rgba(123,143,240,.45);border-radius:9px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--wnd);margin-bottom:4px">
+        📥 ${n} descarga${n === 1 ? '' : 's'} nueva${n === 1 ? '' : 's'} esperando</div>
+      <div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;margin-bottom:10px">
+        ${lista}</div>
+      <button class="btn bp" id="tacoBuzonBtn" onclick="tacoBuzonTraer()">📥 Traer y leer ${n === 1 ? 'la descarga' : 'las ' + n + ' descargas'}</button>
+    </div>`;
+  } catch (e) {
+    console.warn('[v829 buzon] no se ha podido mirar:', e.message || e);
+    box.innerHTML = '';
+  }
+}
+
+async function tacoBuzonTraer() {
+  const btn = document.getElementById('tacoBuzonBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Trayendo…'; }
+
+  const files = [];
+  let fallos = 0;
+  for (const r of _tacoBuzonPend) {
+    try {
+      const { data, error } = await sb.storage.from('documentos').download(r.file_url);
+      if (error) throw error;
+      const f = new File([data], r.file_nombre, { type: 'application/octet-stream' });
+      f._entradaId = r.id;                 // para poder marcar la fila despues de guardar
+      files.push(f);
+    } catch (e) {
+      fallos++;
+      console.warn('[v829 buzon] no pude traer ' + r.file_nombre + ':', e.message || e);
+    }
+  }
+
+  if (!files.length) {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Reintentar'; }
+    toast('No se ha podido traer ninguna descarga', 'err');
+    return;
+  }
+
+  const box = document.getElementById('tacoBuzon');
+  if (box) box.innerHTML = `<div style="background:rgba(123,143,240,.12);border:1px solid rgba(123,143,240,.45);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-family:var(--mn);font-size:11.5px;color:var(--wnd);line-height:1.6">
+    📥 <b>${files.length} descarga${files.length === 1 ? '' : 's'}</b> traída${files.length === 1 ? '' : 's'} del buzón${fallos ? ` · <span style="color:var(--erd)">${fallos} no se han podido traer</span>` : ''}.
+    Repásalas abajo y pulsa el botón de guardar.</div>`;
+
+  await tacoSoltarVarios(files);
+}
+
+// Marca en el buzon las filas de los ficheros que ya se han guardado.
+// Solo toca las que vinieron del buzon (las que llevan _entradaId).
+async function _tacoBuzonMarcar() {
+  const hechos = (_tacoLote || []).filter(it =>
+    it.file && it.file._entradaId && (it.estado === 'guardado' || it.estado === 'duplicado'));
+  if (!hechos.length) return;
+
+  for (const it of hechos) {
+    try {
+      const { error } = await sb.from('tacografo_entrada').update({
+        procesado: true,
+        procesado_el: new Date().toISOString(),
+        resultado: it.estado,
+        detalle: it.detalle || null
+      }).eq('id', it.file._entradaId);
+      if (error) throw error;
+    } catch (e) {
+      console.warn('[v829 buzon] no pude marcar ' + it.file.name + ':', e.message || e);
+    }
+  }
+  tacoBuzonMirar();
 }
 
 async function tacoSoltarVarios(files) {
@@ -36404,6 +36511,7 @@ function tacoSec(sec) {
     if (b) { b.classList.remove('bp', 'bs'); b.classList.add(x === sec ? 'bp' : 'bs'); }
   });
   // cada seccion carga lo suyo al entrar (y no antes)
+  if (sec === 'subir') tacoBuzonMirar();              // v829
   if (sec === 'archivo') tacoCargarLista();
   if (sec === 'conductores') tacoInfPintarSelector();
   if (sec === 'vehiculos') tacoVehPintarSelector();   // v406
