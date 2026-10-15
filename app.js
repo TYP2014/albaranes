@@ -27185,7 +27185,7 @@ function _primasQuien() {
 }
 
 // v802: los días que el trabajador tiene apuntados en VACACIONES (vacaciones, asuntos propios, baja,
-// permiso, falta, excedencia) se escriben solos en "Lo que dice el conductor". Solo si está vacío.
+// permiso, falta, excedencia) se escriben solos en "Lo que dice el conductor". v835: si ya hay texto, se pone DELANTE (no se borra).
 const _PRIMAS_AUS_TXT = { vacaciones: 'VACACIONES', asuntos_propios: 'ASUNTOS PROPIOS', baja_medica: 'BAJA MEDICA',
   permiso_retribuido: 'PERMISO', falta_injustificada: 'FALTA INJUSTIFICADA', excedencia: 'EXCEDENCIA' };
 async function _primasAusenciasAuto() {
@@ -27197,10 +27197,12 @@ async function _primasAusenciasAuto() {
     const per = pers.find(p => String(p.fecha_inicio).slice(0, 10) <= iso && iso <= String(p.fecha_fin || p.fecha_inicio).slice(0, 10));
     if (!per) continue;
     const f = primasRows[iso] || {};
-    if (String(f.parte_conductor || '').trim()) continue;   // lo escrito no se pisa
+    const _txt835 = String(f.parte_conductor || '').trim();
+    if (_primasAusente(_txt835, f.notas)) continue;   // v835: ya pone la ausencia → nada que hacer
+    // v835: si ya hay texto (p. ej. "ESTA MALO") no se borra: se pone la ausencia DELANTE
     filas.push({
       trabajador_id: String(primasTrabId), fecha: iso, vehiculo: f.vehiculo || null,
-      parte_conductor: _PRIMAS_AUS_TXT[per.tipo], trabajo: f.trabajo || null, notas: f.notas || null,
+      parte_conductor: _PRIMAS_AUS_TXT[per.tipo] + (_txt835 ? ' · ' + _txt835 : ''), trabajo: f.trabajo || null, notas: f.notas || null,
       prima: f.prima_auto ? 0 : _primasNum(f.prima), prima_auto: f.prima_auto ? false : !!f.prima_auto,
       tipos: f.tipos || null, prima_sugerida: f.prima_auto ? 0 : _primasNum(f.prima_sugerida),
       plus_manual: f.plus_manual != null ? f.plus_manual : null,

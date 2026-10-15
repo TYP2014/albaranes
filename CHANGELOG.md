@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v835 (15/10/2026): PRIMAS · LAS VACACIONES SALEN EN EL PARTE AUNQUE YA HAYA TEXTO. Caso real: Manuel Barrero, vacaciones el 09/10 en el módulo Vacaciones, pero en el parte ese día no salía porque 'Lo que dice el conductor' ya tenía escrito 'ESTA MALO' (la v802 solo escribía la ausencia si la casilla estaba vacía). Ahora, si el día cae en un periodo de Vacaciones/asuntos propios/baja/permiso/falta/excedencia y la casilla no lo dice ya, se pone DELANTE: 'VACACIONES · ESTA MALO' (lo escrito no se borra). Con eso salta el aviso naranja de 'lleva albaranes de su camión' y la prima azul se quita (la puesta a mano se respeta). Se aplica al abrir el parte del trabajador. Sin SQL. VUELTA ATRAS: resubir v834.
+
+---
+
 v834 (14/10/2026): NEUMÁTICOS · EL STOCK LO MANDAN LAS FACTURAS DE SOLEDAD. Pedido por JC: Soledad no manda todos los albaranes y pedirlos cuesta mucho trabajo. En las empresas con corte (TYP2014 e Híspalis) el número grande de cada tarjeta y los avisos de stock bajo salen ahora 'SEGÚN FACTURAS'; 'Mis albaranes' queda debajo solo de referencia. Las cubiertas facturadas sin albarán ya no salen en rojo 'reclamar' (🧾 ya restadas). Transmargaz (sin corte) igual que antes. Solo pantalla, no crea ni toca movimientos. Sin SQL de estructura. VUELTA ATRAS: resubir v833.
 
 ---
