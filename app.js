@@ -27400,7 +27400,13 @@ function _primasAusente(parteConductor, notas) {
 }
 // Linea pequeña bajo TRABAJO REALIZADO: desglose por tipos, propuesta y aviso si no cuadra con el conductor
 function _primasInfoDia(f) {
-  if (!f || !f.tipos) return '';
+  if (!f) return '';
+  // v836: pone VACACIONES / BAJA... y hay TRABAJO apuntado → avisa SIEMPRE (antes solo si quedaba el desglose de albaranes)
+  if (!f.tipos) {
+    const _aus836 = _primasAusente(f.parte_conductor, f.notas);
+    if (_aus836 && String(f.trabajo || '').trim()) return '<span style="color:#e65100;font-weight:700">⚠ Pone ' + esc(_aus836) + ', pero tiene trabajo apuntado: ese día NO debería tener viajes. Si los hizo otro conductor, bórralo aquí y apúntalo en el parte de quien lo llevó.</span>';
+    return '';
+  }
   const _aus = _primasAusente(f.parte_conductor, f.notas);   // v677
   if (_aus) {
     const _n = (String(f.tipos).match(/\d+(?= )/g) || []).reduce((s, x) => s + parseInt(x, 10), 0);
