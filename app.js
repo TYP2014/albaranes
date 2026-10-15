@@ -41374,7 +41374,7 @@ function _xpPintar() {
     lbl('3. Kilos del ticket de báscula') + '<input id="xpPeso" type="number" inputmode="numeric" style="' + inp + ';font-size:22px" placeholder="28480">' +
     '<button id="xpBtnGen" onclick="_xpGenerar()" style="margin-top:22px;width:100%;padding:16px;border:none;border-radius:10px;background:var(--ac);color:#fff;font-size:18px;font-weight:600;font-family:var(--ss);cursor:pointer">📄 Generar DeCA</button>' +
     '<div id="xpResultado"></div>' +
-    '<div style="font-size:13px;color:var(--mu);margin:26px 0 8px">Mis DeCA de hoy</div><div id="xpHoy"></div>' +
+    '<div style="font-size:13px;color:var(--mu);margin:26px 0 8px">Mis DeCA de hoy y de ayer</div><div id="xpHoy"></div>' +
     '</div>';
   if (_xpUltimo) _xpPintarResultado(_xpUltimo);
 }
@@ -41476,18 +41476,24 @@ function _xpPintarResultado(d) {
 async function _xpCargarHoy() {
   const box = document.getElementById('xpHoy'); if (!box || !currentUser) return;
   try {
+    // v837: también los de AYER (el camión que se queda cargado sale por la mañana con el DeCA del día anterior)
+    const _hoy = _xpHoy(), _d = new Date(); _d.setDate(_d.getDate() - 1);
+    const _ayer = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0');
     const { data, error } = await sb.from('deca').select('*')
-      .eq('creado_por', currentUser.id).eq('fecha_carga', _xpHoy())
-      .order('id', { ascending: false }).limit(50);
+      .eq('creado_por', currentUser.id).in('fecha_carga', [_hoy, _ayer])
+      .order('id', { ascending: false }).limit(100);
     if (error) throw error;
     window._xpHoyLista = data || [];
-    if (!window._xpHoyLista.length) { box.innerHTML = '<div style="font-size:13px;color:var(--mu)">Todavía ninguno.</div>'; return; }
-    box.innerHTML = window._xpHoyLista.map(d =>
+    const _fila837 = d =>
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd);font-size:14px' + (d.anulado ? ';opacity:.45;text-decoration:line-through' : '') + '">' +
       '<div><b>' + _xpE(d.numero || '') + '</b><br><span style="color:var(--mu);font-size:12px">' + _xpE(d.tractora || '') + ' · ' + Number(d.peso_kg || 0).toLocaleString('es-ES') + ' kg · ' + _xpE(String(d.mercancia || '').slice(0, 22)) + '</span></div>' +
       (d.file_url ? '<a href="' + _xpE(d.file_url) + '" target="_blank" class="btn bs" style="text-decoration:none">PDF</a>' :
         '<button class="btn bs" onclick="_xpRehacer(' + JSON.stringify(String(d.id)).replace(/"/g, '&quot;') + ')">Hacer PDF</button>') +
-      '</div>').join('');
+      '</div>';
+    const _lHoy = window._xpHoyLista.filter(d => String(d.fecha_carga).slice(0, 10) === _hoy);
+    const _lAyer = window._xpHoyLista.filter(d => String(d.fecha_carga).slice(0, 10) === _ayer);
+    box.innerHTML = (_lHoy.length ? _lHoy.map(_fila837).join('') : '<div style="font-size:13px;color:var(--mu)">Hoy todavía ninguno.</div>') +
+      (_lAyer.length ? '<div style="font-size:13px;color:var(--mu);margin:20px 0 4px">Ayer (por si te quedaste cargado)</div>' + _lAyer.map(_fila837).join('') : '');
   } catch (e) {
     console.warn('[v753] hoy', e);
     box.innerHTML = '<div style="font-size:13px;color:var(--er)">No se pudo cargar la lista.</div>';

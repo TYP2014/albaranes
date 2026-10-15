@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v837 (15/10/2026): DeCA EXPRÉS · 'MIS DeCA' ENSEÑA HOY Y AYER. Pedido por JC: muchos conductores se quedan cargados por la noche y por la mañana ya no les salía el DeCA del día anterior (la lista era solo de hoy) y le pedían que se lo reenviara. Ahora la lista se llama 'Mis DeCA de hoy y de ayer': arriba los de hoy y debajo, en un apartado 'Ayer (por si te quedaste cargado)', los del día anterior, con su botón PDF. Pasado mañana desaparecen solos. No cambia nada del DeCA ni de la oficina. Sin SQL. VUELTA ATRAS: resubir v836.
+
+---
+
 v836 (15/10/2026): PRIMAS · AVISO SIEMPRE QUE UN DÍA DE VACACIONES/BAJA TENGA TRABAJO APUNTADO. Caso: Manuel Barrero 09/10, 'VACACIONES · ESTA MALO' y en TRABAJO REALIZADO '1V. PONTILS → FÁBRICA MONTCADA', sin ningún aviso (el de la v677 solo salía si quedaba guardado el desglose de albaranes del día). Ahora, si el día pone vacaciones, baja, permiso, festivo, asuntos propios, excedencia o falta y hay algo en TRABAJO REALIZADO, sale en naranja: 'ese día NO debería tener viajes; si los hizo otro conductor, bórralo aquí y apúntalo en el parte de quien lo llevó'. Solo aviso en pantalla, no borra nada. Sin SQL. VUELTA ATRAS: resubir v835.
 
 ---
