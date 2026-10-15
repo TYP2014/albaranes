@@ -4,7 +4,7 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
-v835 (15/10/2026): PRIMAS · LAS VACACIONES SALEN EN EL PARTE AUNQUE YA HAYA TEXTO. Caso real: Manuel Barrero, vacaciones el 09/10 en el módulo Vacaciones, pero en el parte ese día no salía porque 'Lo que dice el conductor' ya tenía escrito 'ESTA MALO' (la v802 solo escribía la ausencia si la casilla estaba vacía). Ahora, si el día cae en un periodo de Vacaciones/asuntos propios/baja/permiso/falta/excedencia y la casilla no lo dice ya, se pone DELANTE: 'VACACIONES · ESTA MALO' (lo escrito no se borra). Con eso salta el aviso naranja de 'lleva albaranes de su camión' y la prima azul se quita (la puesta a mano se respeta). Se aplica al abrir el parte del trabajador. Sin SQL. VUELTA ATRAS: resubir v834.
+v835 (15/10/2026): PRIMAS · LAS VACACIONES SALEN EN EL PARTE AUNQUE YA HAYA TEXTO. Caso real: Manuel Barrero, vacaciones el 09/10 en el módulo Vacaciones, pero en el parte ese día no salía porque 'Lo que dice el conductor' ya tenía escrito 'ESTA MALO' (la v802 solo escribía la ausencia si la casilla estaba vacía). Ahora, si el día cae en un periodo de Vacaciones/asuntos propios/baja/permiso/falta/excedencia y la casilla no lo dice ya, se pone DELANTE: 'VACACIONES · ESTA MALO' (lo escrito no se borra). Con eso salta el aviso naranja de 'lleva albaranes de su camión' y la prima azul se quita (la puesta a mano se respeta). Además, al abrir el parte las vacaciones se leen en ese momento de la base de datos (antes solo lo cargado al entrar en la app: si se apuntaban después, en otro ordenador o con el parte abierto, no salían). Se aplica al abrir el parte del trabajador. Sin SQL. VUELTA ATRAS: resubir v834.
 
 ---
 

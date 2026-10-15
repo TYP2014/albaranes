@@ -27189,8 +27189,16 @@ function _primasQuien() {
 const _PRIMAS_AUS_TXT = { vacaciones: 'VACACIONES', asuntos_propios: 'ASUNTOS PROPIOS', baja_medica: 'BAJA MEDICA',
   permiso_retribuido: 'PERMISO', falta_injustificada: 'FALTA INJUSTIFICADA', excedencia: 'EXCEDENCIA' };
 async function _primasAusenciasAuto() {
-  if (!primasTrabId || !Array.isArray(vacPeriodos)) return;
-  const pers = vacPeriodos.filter(p => String(p.trabajador_id) === String(primasTrabId) && p.fecha_inicio && _PRIMAS_AUS_TXT[p.tipo]);
+  if (!primasTrabId) return;
+  // v835: las vacaciones se leen FRESCAS de la base de datos (antes solo lo cargado al abrir la app:
+  // si se apuntaban despues, en otro ordenador o con el parte abierto, el parte no se enteraba)
+  let _fuente835 = Array.isArray(vacPeriodos) ? vacPeriodos : [];
+  try {
+    const qv = await sb.from('vacaciones_periodos').select('*').eq('trabajador_id', primasTrabId);
+    if (!qv.error && Array.isArray(qv.data)) _fuente835 = qv.data;
+    else if (qv.error) console.warn('[v835 primas] vacaciones', qv.error);
+  } catch (e) { console.warn('[v835 primas] vacaciones', e); }
+  const pers = _fuente835.filter(p => String(p.trabajador_id) === String(primasTrabId) && p.fecha_inicio && _PRIMAS_AUS_TXT[p.tipo]);
   if (!pers.length) return;
   const r = _primasRango(), hoy = _primasISO(new Date()), filas = [];
   for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) {
