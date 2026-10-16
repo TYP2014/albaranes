@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v840 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → Nº DE ALBARÁN SIN PUNTO. En la prueba de la v839 la IA guardó uno como '8.864' y otro como '8818'. Ahora, en estos albaranes (Cubelles → Puerto de Barcelona), si el nº viene con punto de miles se quita al guardar: siempre '8864'. Así cuadran igual al buscarlos o cruzarlos. Además, el cliente pasa a llamarse 'UTE 4ª Fase Ampliación Adosado (Sato y Cnes. Rubau)' para que en la columna se lea 'UTE 4ª Fase…' (el nombre anterior y el del logo 'UTE 4 FASE AMP ADOSADO' quedan como alias). Sin SQL de estructura (los 2 ya subidos se arreglan con el UPDATE del chat). VUELTA ATRAS: resubir v839.
+
+---
+
 v839 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → PROVEEDOR ESTRUCTURAS CONDAL. Los albaranes de la escollera del Foix (Cubelles → Puerto de Barcelona) se guardan con proveedor 'Estructuras Condal, S.A.' (quien carga; Endesa solo es la dueña de la central). En la prueba de la v838 la IA puso 'IDS' en el 8818 y nada en el 8864: ahora lo fija el código al guardar. Estructuras Condal añadida a la lista oficial de proveedores. Los 2 ya subidos se corrigen con el SQL del chat. VUELTA ATRAS: resubir v838.
 
 ---
