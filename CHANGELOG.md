@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v838 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → PUERTO DE BARCELONA. Nuevo cliente y ruta (cargamos en la antigua central del Foix, Cubelles). La IA reconoce la hoja de dos tickets: manda el ticket de DESCARGA (izquierda, impreso): nº = 'ALBARÁN ENTRADA' (no el Resguardo), toneladas = su NETO. Si se lee el ticket térmico de Cubelles (derecha), su nº y su neto van a observaciones. Se guarda: origen 'Cubelles', destino 'Puerto de Barcelona' (el papel pone 'ACOPIO'), cliente 'Sato y Cnes. Rubau UTE 4ª Fase Ampliación Adosado', material 'Escollera 100-200'. Red en el punto de guardado: si la IA falla, lo corrige igual (no pisa lo editado a mano ni un destino distinto escrito, p. ej. Àrids Antón). Cliente y origen añadidos a las listas oficiales. Sin SQL. VUELTA ATRAS: resubir v837.
+
+---
+
 v837 (15/10/2026): DeCA EXPRÉS · 'MIS DeCA' ENSEÑA HOY Y AYER. Pedido por JC: muchos conductores se quedan cargados por la noche y por la mañana ya no les salía el DeCA del día anterior (la lista era solo de hoy) y le pedían que se lo reenviara. Ahora la lista se llama 'Mis DeCA de hoy y de ayer': arriba los de hoy y debajo, en un apartado 'Ayer (por si te quedaste cargado)', los del día anterior, con su botón PDF. Pasado mañana desaparecen solos. No cambia nada del DeCA ni de la oficina. Sin SQL. VUELTA ATRAS: resubir v836.
 
 ---
