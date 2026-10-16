@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v839 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → PROVEEDOR ESTRUCTURAS CONDAL. Los albaranes de la escollera del Foix (Cubelles → Puerto de Barcelona) se guardan con proveedor 'Estructuras Condal, S.A.' (quien carga; Endesa solo es la dueña de la central). En la prueba de la v838 la IA puso 'IDS' en el 8818 y nada en el 8864: ahora lo fija el código al guardar. Estructuras Condal añadida a la lista oficial de proveedores. Los 2 ya subidos se corrigen con el SQL del chat. VUELTA ATRAS: resubir v838.
+
+---
+
 v838 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → PUERTO DE BARCELONA. Nuevo cliente y ruta (cargamos en la antigua central del Foix, Cubelles). La IA reconoce la hoja de dos tickets: manda el ticket de DESCARGA (izquierda, impreso): nº = 'ALBARÁN ENTRADA' (no el Resguardo), toneladas = su NETO. Si se lee el ticket térmico de Cubelles (derecha), su nº y su neto van a observaciones. Se guarda: origen 'Cubelles', destino 'Puerto de Barcelona' (el papel pone 'ACOPIO'), cliente 'Sato y Cnes. Rubau UTE 4ª Fase Ampliación Adosado', material 'Escollera 100-200'. Red en el punto de guardado: si la IA falla, lo corrige igual (no pisa lo editado a mano ni un destino distinto escrito, p. ej. Àrids Antón). Cliente y origen añadidos a las listas oficiales. Sin SQL. VUELTA ATRAS: resubir v837.
 
 ---
