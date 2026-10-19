@@ -4586,6 +4586,7 @@ async function _processOne(it, type, key, timeoutMs) {
         // v107FY: si el usuario lo pasó a "Guardar como manual", salimos sin reintentar
         // (lo guarda guardarComoManual con una lectura ligera).
         if (it._cancelado) break;
+        if (retryErr && retryErr.code === 'SIN_ALBARAN') throw retryErr; // v841: no reintentar
         attempts++;
         // Manejo especial de RATE LIMIT (429): esperar mucho más tiempo
         if (retryErr.status === 429 || (retryErr.message && /rate.?limit|exceed.*token|usage limit/i.test(retryErr.message))) {
@@ -6289,6 +6290,15 @@ async function _processOne(it, type, key, timeoutMs) {
     console.log(`${_logPrefix} ✓ guardado en ${_durTotal}s`);
     return true;
   } catch (e) {
+    // v841: página sin albarán (reverso, hoja en blanco) → se salta sin error ni reintentos
+    if (e && e.code === 'SIN_ALBARAN') {
+      it.status = 'done';
+      it.b64 = null;
+      console.log(`${_logPrefix} ⏭ página sin albarán — se salta (${e.message})`);
+      try { toast('⏭ ' + it.name + ': página sin albarán (reverso o en blanco), se ha saltado', 'warn'); } catch (e2) {}
+      renderQueues();
+      return false;
+    }
     it.status = 'error';
     // v107BC: log de error con tiempo total
     const _durErr = ((Date.now() - _tInicio) / 1000).toFixed(1);
@@ -6842,6 +6852,15 @@ SOLO JSON válido, sin markdown.`;
   }
   const d = await res.json();
   const text = d.content.map(x => x.text || '').join('').trim().replace(/```json|```/g, '').trim();
+  // v841 (19/10/2026): si la IA contesta SOLO con texto (ni '{' ni '['), la página no es
+  // un albarán (reverso de condiciones generales de Molins, hoja en blanco...). Caso real:
+  // N-25356 pág. 2 → "Entiendo que..." → 3 reintentos y ✗ Error. Ahora se marca como
+  // "página sin albarán" y se salta, sin error ni reintentos.
+  if (text.indexOf('{') < 0 && text.indexOf('[') < 0) {
+    const eSin = new Error('Página sin albarán (la IA no encontró datos): ' + text.slice(0, 80));
+    eSin.code = 'SIN_ALBARAN';
+    throw eSin;
+  }
   const parsed = _jsonRespuestaIA(text);
   const results = Array.isArray(parsed) ? parsed : [parsed];
 

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v841 (19/10/2026): ALBARANES · PÁGINAS SIN ALBARÁN SE SALTAN (YA NO DAN ERROR). Caso real: Molins N-25356 (Olesa → Montcada), PDF de 2 páginas. La página 2 es el reverso con las condiciones generales; la IA contestaba con texto ('Entiendo que...') en vez de datos, la app hacía 3 reintentos y la dejaba en rojo con '✗ Error'. Ahora, si la IA contesta SOLO texto (sin ningún dato), la página se marca como 'página sin albarán', sale un aviso naranja '⏭ ... se ha saltado' y desaparece de la cola sin reintentos. Si la IA devuelve datos (aunque sean pocos), todo sigue igual que antes (incluido el reintento con Sonnet). Sin SQL. VUELTA ATRAS: resubir v840.
+
+---
+
 v840 (16/10/2026): ALBARANES · ESCOLLERA CUBELLES → Nº DE ALBARÁN SIN PUNTO. En la prueba de la v839 la IA guardó uno como '8.864' y otro como '8818'. Ahora, en estos albaranes (Cubelles → Puerto de Barcelona), si el nº viene con punto de miles se quita al guardar: siempre '8864'. Así cuadran igual al buscarlos o cruzarlos. Además, el cliente pasa a llamarse 'UTE 4ª Fase Ampliación Adosado (Sato y Cnes. Rubau)' para que en la columna se lea 'UTE 4ª Fase…' (el nombre anterior y el del logo 'UTE 4 FASE AMP ADOSADO' quedan como alias). Sin SQL de estructura (los 2 ya subidos se arreglan con el UPDATE del chat). VUELTA ATRAS: resubir v839.
 
 ---
