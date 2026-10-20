@@ -24790,7 +24790,10 @@ function openTrabajadorModal(id) {
     <div class="fg full" style="margin-bottom:10px"><label class="fl">🏠 Dirección (donde vive de verdad, aunque no coincida con el DNI)</label>
       <input class="fi" id="trabF_direccion" value="${v('direccion')}" placeholder="Calle, nº, piso · CP · Población">
     </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px">
+    <!-- v848: antes era 2fr 1fr 1fr y las dos fechas salian CORTADAS ("04/11/20"
+         en vez de 04/11/2029). Ahora las columnas de fecha tienen un minimo de
+         130px y la del numero de tarjeta cede, que es texto y se puede encoger. -->
+    <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(130px,1fr) minmax(130px,1fr);gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">Nº tarjeta tacógrafo</label>
         <input class="fi" id="trabF_tarjeta" value="${v('tarjeta_num')}" placeholder="E49932334R000001"
                style="font-family:var(--mn)" maxlength="16"></div>
@@ -24802,7 +24805,7 @@ function openTrabajadorModal(id) {
     <!-- v845: los tres documentos que NO salen de ninguna descarga y hay que
          meter a mano. La tarjeta de tacografo va arriba porque esa SI sale
          sola del fichero. Estas tres avisan igual en VENCIMIENTOS. -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">🚗 Caduca el permiso de conducir</label>
         <input class="fi" type="date" id="trabF_carnetcad" value="${t?.carnet_caduca || ''}"></div>
       <div class="fg"><label class="fl">🎓 Caduca el CAP</label>
@@ -36899,7 +36902,7 @@ function tacoSec(sec) {
 //                  calibracion (v454 en G1, v455 en G2)
 //   · conductor -> fecha de caducidad grabada en la tarjeta (v383)
 //
-// ESCALERA DE AVISOS pedida por JC: 60 · 45 · 30 · 15 · 5 · 1 dia
+// ESCALERA DE AVISOS pedida por JC: 60 · 30 · 15 · 5 · 3 · 1 dia (v846)
 // y VENCIDO. El vencido NO desaparece hasta que se marca como
 // hecho (revision pasada / tarjeta renovada), y al marcarlo se
 // apunta quien y cuando, que es lo que vale ante una inspeccion.
@@ -37472,7 +37475,11 @@ function _vencPintar() {
     ? '<span style="font-family:var(--mn);font-size:13px;color:var(--mu)">Viendo <b>TODAS</b> las empresas</span>'
     : '<span style="font-family:var(--mn);font-size:13px;color:var(--in)">Viendo solo <b>' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + '</b> — cambia la empresa en la barra de arriba</span>';
   box.innerHTML = '<div style="margin-bottom:14px">' + rotuloEmp + '</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(600px,1fr));gap:26px;align-items:start">'
+    // v848: antes se partia en dos columnas con 600px para cada una, y no daba:
+    // con los botones (COPIAR / EN TRAMITE / HECHA) cada tabla necesita unos 800.
+    // El resultado era que las dos salian cortadas por la derecha. Ahora solo se
+    // ponen al lado cuando de verdad caben; si no, una debajo de otra y enteras.
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(880px,1fr));gap:26px;align-items:start">'
     + tabla('REVISIÓN DEL TACÓGRAFO', '', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '', _vencCache.con, false)
     + _vencTablaDocs()
