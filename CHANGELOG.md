@@ -4,7 +4,7 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
-v843 (20/10/2026): GASOIL · LECTURA CON HAIKU 5.5. Los tres lectores de Gasoil (tickets, facturas/extractos de Soledad, SOLRED/Repsol, Petromiralles y Moeve) pasan de Haiku 4.5 a Haiku 5.5, igual que Albaranes. Solo cambia el modelo; los prompts y la lógica son los mismos. Se prueba con las facturas de principios de noviembre. Sin SQL. VUELTA ATRAS: resubir v842.
+v843 (20/10/2026): GASOIL · FACTURAS CON HAIKU 5.5. Los dos lectores de IA de facturas/extractos de Gasoil (Soledad cuando falla el lector exacto, SOLRED/Repsol, Petromiralles y Moeve) pasan de Haiku 4.5 a Haiku 5.5, igual que Albaranes. El lector de tickets sueltos NO se toca (ya no se suben tickets). Solo cambia el modelo; prompts y lógica iguales. Se prueba con las facturas de principios de noviembre. Sin SQL. VUELTA ATRAS: resubir v842.
 
 ---
 
