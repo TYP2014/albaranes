@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v855 (20/10/2026): RECONOCIMIENTOS MEDICOS · LA CUENTA ATRAS, ESCRITA ENTERA. Ponia '4 d.' a secas y JC tuvo que preguntar que era eso. Un numero suelto no dice de que. Ahora pone 'faltan 4 dias', 'caduca HOY' o 'vencio hace 3 dias', y la linea de abajo empieza por 'caduca' antes de la fecha. Solo cambia el texto. Sin SQL. VUELTA ATRAS: resubir v854.
+
+---
+
 v854 (20/10/2026): RECONOCIMIENTOS MEDICOS · EL PANEL DE CADUCIDADES, LIMPIO. Pedido de JC, y con razon. (1) FUERA LA EXPLICACION: se queda solo el titulo. Lo de '30 dias o menos' se sabe despues de usarlo dos dias y ocupaba media tarjeta. (2) FUERA LOS COLORINES: nada de fondos de color. Letra limpia y espaciada, y el ROJO solo donde dice algo — el filete de la izquierda y el 'sin cita' de quien no la tiene. El que ya tiene cita va en gris: no hay nada que hacer con el. Antes salia un verde dentro de un fondo rosa, que era ruido. (3) TOPE DE ALTURA con desplazamiento: hay meses de 7 u 8 y en el recuadro se apelotonaban. Cada linea: nombre y dias a la derecha arriba; debajo, fecha y la cita (o 'sin cita' en rojo). Solo cambia como se ve. Sin SQL. VUELTA ATRAS: resubir v853.
 
 ---

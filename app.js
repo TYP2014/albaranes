@@ -28696,15 +28696,18 @@ async function renderRecmedCaducidades() {
     const iso = t.recmed_caduca;
     const dias = _vencDias(iso);
     const c = citaDe(t);
-    const cuenta = dias < 0 ? 'vencido hace ' + Math.abs(dias) + ' d.'
-                 : (dias === 0 ? 'caduca hoy' : dias + ' d.');
+    // v855: antes ponia solo "4 d." y JC pregunto que era eso. Un numero
+    // suelto no dice de que. Se escribe entero.
+    const cuenta = dias < 0
+      ? 'venció hace ' + Math.abs(dias) + ' día' + (Math.abs(dias) === 1 ? '' : 's')
+      : (dias === 0 ? 'caduca HOY' : 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's'));
     filas += '<div style="border-left:3px solid ' + (c ? 'var(--bd)' : ROJO)
       + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:11.5px;line-height:1.7">'
       + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
       + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '—') + '</span>'
       + '<span style="font-weight:800;white-space:nowrap' + (c ? '' : ';color:' + ROJO) + '">' + cuenta + '</span>'
       + '</div>'
-      + '<div style="color:var(--mu)">' + iso.split('-').reverse().join('/') + ' · '
+      + '<div style="color:var(--mu)">caduca ' + iso.split('-').reverse().join('/') + ' · '
       + (c ? 'cita ' + c.fecha_cita.split('-').reverse().join('/')
            : '<span style="color:' + ROJO + ';font-weight:700">sin cita</span>')
       + '</div></div>';
