@@ -36876,7 +36876,7 @@ function tacoSec(sec) {
   // vez que se entra en una seccion, la pantalla de informes vuelve a su
   // parrilla - que es lo que uno espera al llegar.
   _tacoRepReset();
-  ['subir', 'conductores', 'vehiculos', 'vencimientos', 'informes', 'archivo'].forEach(x => {
+  ['subir', 'conductores', 'vehiculos', 'vencimientos', 'carnetcap', 'informes', 'archivo'].forEach(x => {
     const d = document.getElementById('tacoSec' + x);
     if (d) d.style.display = (x === sec) ? '' : 'none';
     const b = document.getElementById('tacoSecBtn' + x);
@@ -36888,6 +36888,7 @@ function tacoSec(sec) {
   if (sec === 'conductores') tacoInfPintarSelector();
   if (sec === 'vehiculos') tacoVehPintarSelector();   // v406
   if (sec === 'vencimientos') tacoVencVer();          // v457
+  if (sec === 'carnetcap') tacoCarnetCapVer();        // v851
 }
 
 // ============================================================
@@ -37162,16 +37163,22 @@ function vencCopiarTodos(tipo) {
 // dos marcas existen arriba porque alli la fecha viene de la
 // descarga y no se puede tocar a mano; aqui si.
 // ============================================================
+// v851: cada documento dice A QUIEN se avisa.
+//   'conductor' -> es cosa suya renovarlo: sale en CARNET Y CAP y se le
+//                  puede mandar el aviso por WhatsApp.
+//   'empresa'   -> lo gestionamos NOSOTROS (la cita medica la pedimos en la
+//                  oficina, no el conductor): solo aviso interno, SIN boton
+//                  de WhatsApp. Su sitio es el modulo de Reconocimientos
+//                  Medicos, junto a las citas.
 const _VENC_DOCS = [
-  { campo: 'carnet_caduca', clave: 'carnet', corto: 'PERMISO DE CONDUCIR', icono: '🚗',
+  { campo: 'carnet_caduca', clave: 'carnet', corto: 'PERMISO DE CONDUCIR', icono: '🚗', aviso: 'conductor',
     cierre: 'Hay que renovarlo ANTES de esa fecha. Sin el permiso en vigor no se puede conducir.',
     vencido: 'El permiso YA ESTÁ CADUCADO: no se puede conducir. Hay que renovarlo YA.' },
-  { campo: 'cap_caduca', clave: 'cap', corto: 'CAP', icono: '🎓',
+  { campo: 'cap_caduca', clave: 'cap', corto: 'CAP', icono: '🎓', aviso: 'conductor',
     cierre: 'Hay que hacer el curso de renovación ANTES de esa fecha. Sin CAP en vigor no se puede conducir profesionalmente.',
     vencido: 'El CAP YA ESTÁ CADUCADO: no se puede conducir profesionalmente. Hay que renovarlo YA.' },
-  { campo: 'recmed_caduca', clave: 'recmed', corto: 'RECONOCIMIENTO MÉDICO', icono: '🩺',
-    cierre: 'Hay que pedir cita para el reconocimiento ANTES de esa fecha.',
-    vencido: 'El reconocimiento médico YA ESTÁ PASADO. Hay que pedir cita YA.' }
+  { campo: 'recmed_caduca', clave: 'recmed', corto: 'RECONOCIMIENTO MÉDICO', icono: '🩺', aviso: 'empresa',
+    cierre: '', vencido: '' }
 ];
 
 // Monta la lista: un apunte por trabajador EN ACTIVO y documento.
@@ -37222,7 +37229,9 @@ function _vencTextoDoc(r) {
     ? 'VENCIDO — ' + _vencTxtDias(dias)
     : (esc ? esc.txt + ' — ' + _vencTxtDias(dias) : _vencTxtDias(dias));
   const emp = _TACO_EMP_NOM[r.trab.empresa] || r.trab.empresa || '';
-  return r.doc.icono + ' AVISO — CADUCIDAD: ' + r.doc.corto + '\n\n'
+  // v851: SIN EMOJI delante. JC lo vio salir como un cuadradito en WhatsApp,
+  // igual que paso en la v486 con los botones. La palabra ya lo dice todo.
+  return 'AVISO — CADUCIDAD: ' + r.doc.corto + '\n\n'
     + 'Conductor: ' + (r.trab.nombre || '—') + '\n'
     + 'DNI: ' + (r.trab.dni || '(no consta en la app)') + '\n'
     + (emp ? 'Empresa: ' + emp + '\n' : '')
@@ -37251,12 +37260,12 @@ function vencWhatsAppDoc(clave) {
 
 function vencCopiarTodosDocs() {
   const filas = (_vencCache.docs || [])
-    .filter(r => r.iso && _vencEscalon(_vencDias(r.iso)))
+    .filter(r => r.iso && r.doc.aviso === 'conductor' && _vencEscalon(_vencDias(r.iso)))   // v851
     .sort((a, b) => _vencDias(a.iso) - _vencDias(b.iso));
   if (!filas.length) { toast('No hay ningún aviso que copiar'); return; }
   const hoy = new Date().toLocaleDateString('es-ES');
   const ambito = _tacoEmpGlobal === 'TODAS' ? 'todas las empresas' : (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal);
-  let txt = 'DOCUMENTOS DE CONDUCTOR — AVISOS\n(' + ambito + ' · al ' + hoy + ')\n\n';
+  let txt = 'PERMISO DE CONDUCIR Y CAP — AVISOS\n(' + ambito + ' · al ' + hoy + ')\n\n';
   filas.forEach(r => {
     const dmy = r.iso.split('-').reverse().join('/');
     const esc = _vencEscalon(_vencDias(r.iso));
@@ -37290,12 +37299,16 @@ function _vencFilaDoc(r) {
       + '</div></td></tr>';
 }
 
-// La tabla entera de documentos. Va aparte de la funcion `tabla` de
-// _vencPintar porque alli todo gira sobre descargas (hecho, tramite,
-// "vuelve a subir su descarga") y aqui nada de eso aplica.
+// La tabla de CARNET Y CAP. Va aparte de la funcion `tabla` de _vencPintar
+// porque alli todo gira sobre descargas (hecho, tramite, "vuelve a subir su
+// descarga") y aqui nada de eso aplica.
+// v851: SOLO los documentos que renueva el propio conductor. El reconocimiento
+// medico no sale: la cita la pide la oficina, no el, y su sitio es el modulo
+// de Reconocimientos Medicos.
 function _vencTablaDocs() {
-  const conFecha = (_vencCache.docs || []).filter(r => r.iso);
-  const sinFecha = _vencCache.docsSin || [];
+  const soloSuyos = r => r.doc.aviso === 'conductor';
+  const conFecha = (_vencCache.docs || []).filter(r => r.iso && soloSuyos(r));
+  const sinFecha = (_vencCache.docsSin || []).filter(soloSuyos);
   const ord = [...conFecha].sort((a, b) => _vencDias(a.iso) - _vencDias(b.iso));
 
   const cuenta = new Map();
@@ -37340,9 +37353,12 @@ function _vencTablaDocs() {
     : '<div style="font-family:var(--mn);font-size:13.5px;color:var(--mu);padding:14px;border:1px dashed var(--bd);border-radius:8px">'
       + 'Todavía no hay ninguna fecha puesta. Se rellenan en <b>Empleados → ficha del trabajador</b>.</div>';
 
-  return '<div style="grid-column:1/-1">'
+  return '<div>'
+    + '<div style="margin-bottom:14px">' + (_tacoEmpGlobal === 'TODAS'
+        ? '<span style="font-family:var(--mn);font-size:13px;color:var(--mu)">Viendo <b>TODAS</b> las empresas</span>'
+        : '<span style="font-family:var(--mn);font-size:13px;color:var(--in)">Viendo solo <b>' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal) + '</b> — cambia la empresa en la barra de arriba</span>') + '</div>'
     + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
-    + '<b style="font-family:var(--mn);font-size:17px">DOCUMENTOS DEL CONDUCTOR</b>'
+    + '<b style="font-family:var(--mn);font-size:17px">PERMISO DE CONDUCIR Y CAP</b>'
     + '<span style="display:flex;align-items:center;gap:12px">'
     + (avisando ? '<button class="btn bs" style="font-size:12px;padding:7px 13px;white-space:nowrap" onclick="vencCopiarTodosDocs()">' + (avisando === 1 ? 'COPIAR EL AVISO' : 'COPIAR LOS ' + avisando + ' AVISOS') + '</button>' : '')
     + '<span style="font-family:var(--mn);font-size:12.5px;color:var(--mu)">' + ord.length + ' con fecha</span>'
@@ -37351,7 +37367,30 @@ function _vencTablaDocs() {
     + cuerpo
     + (pendientes ? '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.6;margin-top:10px">'
         + '<b>Por rellenar en su ficha:</b>' + pendientes + '</div>' : '')
+    + '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.7;border-top:1px solid var(--bd);padding-top:12px;margin-top:22px">'
+    + 'Estas dos fechas <b>no salen de ninguna descarga</b>: se escriben a mano en <b>Empleados → ficha del trabajador</b>. '
+    + 'Por eso aquí no hay «hecha» ni «en trámite»: cuando el conductor renueve, se cambia la fecha en su ficha y el aviso desaparece solo.<br>'
+    + 'El botón <b>WHATSAPP</b> abre su chat con el aviso ya escrito, si tiene teléfono en la ficha; <b>COPIAR</b> lo deja en el portapapeles. '
+    + 'Son documentos que renueva <b>él</b>, por eso se le avisa a él.<br>'
+    + 'El <b>reconocimiento médico</b> no está aquí a propósito: la cita la pedimos nosotros, así que su control va en <b>Empleados → Reconocimientos médicos</b>.'
+    + '</div>'
     + '</div>';
+}
+
+// v851: la sub-pestaña CARNET Y CAP. Necesita lo mismo que VENCIMIENTOS
+// (las descargas son las que dicen qué empresas puede ver este usuario, y de
+// ahí sale el filtro de privacidad), así que se apoya en la misma carga.
+async function tacoCarnetCapVer() {
+  const box = document.getElementById('tacoCarnetCapBox');
+  if (!box) return;
+  box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Mirando las fichas…</div>';
+  try {
+    await tacoVencVer();
+    box.innerHTML = _vencTablaDocs();
+  } catch (e) {
+    console.error('[v851 carnetcap]', e);
+    box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--erd)">No pude preparar la lista: ' + (e.message || e) + '</div>';
+  }
 }
 
 function _vencFila(f, esVeh) {
@@ -37495,10 +37534,9 @@ function _vencPintar() {
     // El resultado era que las dos salian cortadas por la derecha. Ahora solo se
     // ponen al lado cuando de verdad caben; si no, una debajo de otra y enteras.
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(880px,1fr));gap:26px;align-items:start">'
-    // v850: los DOCUMENTOS DEL CONDUCTOR van ARRIBA del todo. Son los unicos
-    // datos que se meten a mano, la tabla es corta y es la que hay que mirar;
-    // debajo de 48 camiones y 32 tarjetas no la veia nadie.
-    + _vencTablaDocs()
+    // v851: el carnet y el CAP YA NO salen aqui. Se mudaron a su propia
+    // sub-pestaña (CARNET Y CAP): son gestiones distintas de la revision del
+    // tacografo y de la tarjeta, y JC pidio expresamente no mezclarlas.
     + tabla('REVISIÓN DEL TACÓGRAFO', '', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '', _vencCache.con, false)
     + '</div>'
@@ -37684,10 +37722,18 @@ function renderVencBanner() {
   // v850: los documentos que van a mano (permiso, CAP, reconocimiento medico)
   // TAMBIEN avisan aqui arriba. Hasta ahora solo salian en su tabla, al final
   // de la pantalla de VENCIMIENTOS, y por eso parecia que no avisaban de nada.
+  // v851: separados. Carnet y CAP los renueva el conductor; el reconocimiento
+  // medico lo gestionamos nosotros, asi que va en su propia linea y se dice.
   (_vencCache.docs || []).forEach(r => {
     if (!r.iso) return;
     const d = _vencDias(r.iso), e = _vencEscalon(d);
-    if (e) todo.push({ e, d, txt: (r.trab.nombre || '?') + ' — ' + r.doc.corto, iso: r.iso, tipo: 'doc' });
+    if (!e) return;
+    const esMed = r.doc.aviso === 'empresa';
+    todo.push({
+      e, d, iso: r.iso,
+      txt: esMed ? (r.trab.nombre || '?') : ((r.trab.nombre || '?') + ' — ' + r.doc.corto),
+      tipo: esMed ? 'med' : 'doc'
+    });
   });
   if (!todo.length) { b.style.display = 'none'; return; }
   const porEsc = new Map();
@@ -37712,10 +37758,12 @@ function renderVencBanner() {
     const _vVeh = g.lista.filter(x => x.tipo === 'veh');
     const _vCon = g.lista.filter(x => x.tipo === 'con');
     const _vDoc = g.lista.filter(x => x.tipo === 'doc');   // v850
+    const _vMed = g.lista.filter(x => x.tipo === 'med');   // v851
     const det = [
       _vencBloque(_vVeh, 'REVISIÓN DEL TACÓGRAFO (camión)'),
       _vencBloque(_vCon, 'TARJETA DE CONDUCTOR (renovación)'),
-      _vencBloque(_vDoc, 'DOCUMENTOS DEL CONDUCTOR')
+      _vencBloque(_vDoc, 'CARNET Y CAP'),
+      _vencBloque(_vMed, 'RECONOCIMIENTO MÉDICO (la cita la pedimos nosotros)')
     ].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
     const resto = '';
     const cab = e.clave === 'vencido'

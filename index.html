@@ -638,6 +638,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <button class="btn bs" id="tacoSecBtnconductores" onclick="tacoSec('conductores')">👤 CONDUCTORES</button>
         <button class="btn bs" id="tacoSecBtnvehiculos"   onclick="tacoSec('vehiculos')">🚛 VEHÍCULOS</button>
         <button class="btn bs" id="tacoSecBtnvencimientos" onclick="tacoSec('vencimientos')">⏱ VENCIMIENTOS</button>
+        <button class="btn bs" id="tacoSecBtncarnetcap"   onclick="tacoSec('carnetcap')">🚗 CARNET Y CAP</button>
         <button class="btn bs" id="tacoSecBtninformes"    onclick="tacoSec('informes')">📊 INFORMES</button>
         <button class="btn bs" id="tacoSecBtnarchivo"     onclick="tacoSec('archivo')">🗂 ARCHIVO</button>
       </div>
@@ -754,6 +755,22 @@ if (typeof pdfjsLib !== 'undefined') {
             </div>
           </div>
           <div class="card-bd"><div id="tacoVencBox"></div></div>
+        </div>
+      </div>
+
+      <!-- ======== SECCION CARNET Y CAP (v851) ========
+           Aparte de VENCIMIENTOS a proposito: la revision del tacografo y la
+           tarjeta salen de las descargas; esto se mete a mano en la ficha del
+           trabajador y son gestiones distintas. No se mezclan. -->
+      <div id="tacoSeccarnetcap" style="display:none">
+        <div class="card">
+          <div class="card-hd">
+            <div class="st"><div class="dot" style="--c:var(--wn)"></div>CARNET Y CAP <span style="color:var(--mu);font-size:10px;font-weight:400">· caducidad del permiso de conducir y del CAP · se escriben a mano en la ficha del trabajador</span></div>
+            <div class="tbl-acts">
+              <button class="btn bs" onclick="tacoCarnetCapVer()" style="font-size:11px" title="Volver a mirar">🔄 Actualizar</button>
+            </div>
+          </div>
+          <div class="card-bd"><div id="tacoCarnetCapBox"></div></div>
         </div>
       </div>
 
@@ -2039,6 +2056,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=850"></script>
+<script src="app.js?v=851"></script>
 </body>
 </html>

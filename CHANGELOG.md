@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v851 (20/10/2026): CARNET Y CAP SE SEPARAN DEL TACOGRAFO, Y EL RECONOCIMIENTO MEDICO SALE DE AHI. Correccion de criterio pedida por JC: en la v847 se metieron los tres documentos juntos dentro de VENCIMIENTOS, y eso mezcla gestiones distintas. (1) VENCIMIENTOS vuelve a ser SOLO revision del tacografo y tarjeta de conductor, como antes. (2) Sub-pestaña NUEVA en Tacografo, 'CARNET Y CAP', con el permiso de conducir y el CAP: esos los renueva el conductor, asi que ahi si hay boton de WhatsApp para avisarle. (3) El RECONOCIMIENTO MEDICO ya NO tiene boton de WhatsApp al conductor: la cita la pide la oficina, no el. Su caducidad sigue avisando arriba, en su propia linea ('RECONOCIMIENTO MEDICO (la cita la pedimos nosotros)'), como recordatorio INTERNO. En la v852 pasara al modulo de Reconocimientos Medicos, junto a las citas. (4) El aviso de WhatsApp ya NO lleva emoji delante: JC lo vio salir como un cuadradito en WhatsApp, misma leccion que la v486. Las tres fechas se siguen escribiendo igual en la ficha del trabajador. Sin SQL. VUELTA ATRAS: resubir v850.
+
+---
+
 v850 (20/10/2026): VENCIMIENTOS · LOS DOCUMENTOS DEL CONDUCTOR, DONDE SE VEAN. Caso real: JC puso una caducidad de permiso de conducir y 'no aparecia por ningun sitio'. Estaba, pero en el peor sitio posible. Dos arreglos: (1) EL AVISO ROJO DE ARRIBA solo miraba las revisiones de tacografo y las tarjetas; los tres documentos de la v845 (permiso, CAP, reconocimiento medico) NO entraban. Ahora si, con su propia etiqueta 'DOCUMENTOS DEL CONDUCTOR' y diciendo de quien y de que documento es cada uno. (2) La tabla DOCUMENTOS DEL CONDUCTOR se pintaba DEBAJO de las otras dos, o sea despues de 48 camiones y 32 tarjetas: ahora va ARRIBA DEL TODO. Es la unica tabla con datos metidos a mano, es corta y es la que hay que mirar. Sin SQL. VUELTA ATRAS: resubir v849.
 
 ---
