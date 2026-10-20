@@ -28674,69 +28674,60 @@ async function renderRecmedCaducidades() {
 
   const emp = _recmedEmpresas();
   const activos = (trabs || []).filter(t => !t.archivado && !t.fecha_baja && emp.includes(t.empresa));
-  const conFecha = activos.filter(t => t.recmed_caduca)
-    .sort((a, b) => _vencDias(a.recmed_caduca) - _vencDias(b.recmed_caduca));
   const sinFecha = activos.filter(t => !t.recmed_caduca);
 
-  const cuenta = new Map();
-  conFecha.forEach(t => {
-    const e = _vencEscalonMed(_vencDias(t.recmed_caduca));   // v852: escalera corta
-    if (e) cuenta.set(e.clave, (cuenta.get(e.clave) || 0) + 1);
-  });
-  let chips = '';
-  _VENC_ESC_MED.forEach(e => {
-    const n = cuenta.get(e.clave);
-    if (!n) return;
-    chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:' + e.fondo + ';border:2px solid ' + e.color
-      + ';border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:' + e.color + '">'
-      + n + ' · ' + e.txt + '</span>';
-  });
-  const avisando = [...cuenta.values()].reduce((a, b) => a + b, 0);
-  const tranquilos = conFecha.length - avisando;
-  if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,160,60,.22);border:2px solid #1b5e20;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#1b5e20">' + tranquilos + ' · AL DÍA</span>';
-  if (sinFecha.length) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:2px dashed var(--mu);border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--mu)">' + sinFecha.length + ' · SIN FECHA</span>';
+  // v853: SOLO los que ya avisan (30 dias o menos, y los vencidos). Los que
+  // caducan dentro de un año no pintan nada aqui: llenaban la lista y habia
+  // que buscar lo urgente entre medias.
+  const avisan = activos
+    .filter(t => t.recmed_caduca && _vencEscalonMed(_vencDias(t.recmed_caduca)))
+    .sort((a, b) => _vencDias(a.recmed_caduca) - _vencDias(b.recmed_caduca));
 
-  let filas = '';
-  conFecha.forEach(t => {
+  // ¿Tiene ya cita pedida? Se busca en las citas de arriba, por nombre
+  // (con el comparador de siempre, que aguanta comas, acentos y el orden
+  // apellidos/nombre). Vale cualquier cita de hoy en adelante.
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const citaDe = t => (tallerRecmed || [])
+    .filter(c => c.fecha_cita && c.fecha_cita >= hoyISO && _tacoMismoNombre(c.trabajador || '', t.nombre || ''))
+    .sort((a, b) => (a.fecha_cita || '').localeCompare(b.fecha_cita || ''))[0] || null;
+
+  let tarjetas = '';
+  avisan.forEach(t => {
     const iso = t.recmed_caduca;
     const dias = _vencDias(iso);
-    const e = _vencEscalonMed(dias);   // v852
-    filas += '<tr style="border-bottom:1px solid var(--bd);background:' + (e ? e.fondo : 'transparent') + '">'
-      + '<td style="padding:7px 8px;font-weight:700">' + esc(t.nombre || '—') + '</td>'
-      + '<td style="padding:7px 8px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[t.empresa] || t.empresa || '') + '</td>'
-      + '<td style="padding:7px 8px;white-space:nowrap">' + iso.split('-').reverse().join('/')
-        + '<br><span style="color:var(--mu);font-size:10px">' + _vencTxtDias(dias) + '</span></td>'
-      + '<td style="padding:7px 8px;white-space:nowrap">' + (e
-          ? '<span style="color:' + e.color + ';font-weight:800">' + e.txt + '</span>'
-          : '<span style="color:var(--mu)">—</span>') + '</td>'
-      + '</tr>';
+    const e = _vencEscalonMed(dias);
+    const c = citaDe(t);
+    const cuenta = dias < 0 ? 'VENCIDO hace ' + Math.abs(dias) + ' d.'
+                 : (dias === 0 ? 'caduca HOY' : 'faltan ' + dias + ' d.');
+    const pie = c
+      ? '<span style="color:#1b5e20;font-weight:800">✓ cita ' + c.fecha_cita.split('-').reverse().join('/') + '</span>'
+      : '<span style="color:#b71c1c;font-weight:900">⚠ SIN CITA — hay que pedirla</span>';
+    tarjetas += '<div style="border-left:5px solid ' + e.color + ';background:' + e.fondo
+      + ';border-radius:5px;padding:6px 9px;margin-bottom:6px;font-family:var(--mn);font-size:11px;line-height:1.45">'
+      + '<div style="font-weight:800;color:#111">' + esc(t.nombre || '—') + '</div>'
+      + '<div style="color:#111">' + iso.split('-').reverse().join('/') + ' · <b>' + cuenta + '</b></div>'
+      + '<div>' + pie + '</div></div>';
   });
 
-  const tabla = conFecha.length
-    ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">'
-      + '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">'
-      + '<th style="padding:6px 8px">TRABAJADOR</th><th style="padding:6px 8px">EMPRESA</th><th style="padding:6px 8px">CADUCA</th><th style="padding:6px 8px">AVISO</th>'
-      + '</tr></thead><tbody>' + filas + '</tbody></table></div>'
-    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:14px;border:1px dashed var(--bd);border-radius:8px">'
-      + 'Todavía no hay ninguna fecha puesta. Se rellena en <b>Empleados → ficha del trabajador</b>.</div>';
+  const cuerpo = avisan.length
+    ? tarjetas
+    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:12px;border:1px dashed var(--bd);border-radius:6px">'
+      + 'Nadie caduca en los próximos 30 días.</div>';
 
   const pendientes = sinFecha.length
-    ? '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;margin-top:10px">'
-      + '<b>Sin fecha de caducidad (' + sinFecha.length + '):</b> '
-      + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div>'
+    ? '<details style="margin-top:10px"><summary style="font-family:var(--mn);font-size:10.5px;color:var(--mu);cursor:pointer">'
+      + sinFecha.length + ' sin fecha de caducidad — ver quiénes</summary>'
+      + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);line-height:1.6;margin-top:6px">'
+      + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div></details>'
     : '';
 
-  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
-    + '<b style="font-family:var(--mn);font-size:15px">CADUCIDAD DEL RECONOCIMIENTO</b>'
-    + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">' + conFecha.length + ' con fecha</span>'
-    + '</div>'
-    + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">'
-    + 'Hasta cuándo vale el reconocimiento que ya se hizo — distinto de las citas de arriba, que son cuándo le toca ir. '
-    + 'Control <b>interno</b>: la cita la pedimos nosotros, así que aquí no se avisa a nadie por WhatsApp. '
-    + 'Aquí se avisa <b>solo a 30, 5 y 1 día</b> (y vencido), no a 60 como en el resto: con 30 días ya da tiempo a pedir cita. '
-    + 'La fecha se escribe en <b>Empleados → ficha del trabajador</b>.</div>'
-    + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + chips + '</div>' : '')
-    + tabla + pendientes;
+  box.innerHTML = '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px">'
+    + '<div style="font-family:var(--mn);font-size:13px;font-weight:800;margin-bottom:2px">CADUCIDAD DEL RECONOCIMIENTO</div>'
+    + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);line-height:1.5;margin-bottom:10px">'
+    + 'Solo los de <b>30 días o menos</b>. Hasta cuándo vale el que ya se hizo — no es la cita. '
+    + 'La cita la pedimos nosotros, aquí no se avisa a nadie.</div>'
+    + cuerpo + pendientes
+    + '</div>';
 }
 
 // ---------- modal ----------
