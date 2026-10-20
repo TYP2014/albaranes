@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v845 (20/10/2026): EMPLEADOS · LA FICHA DEL TRABAJADOR GUARDA TRES CADUCIDADES MAS. Debajo del nº de tarjeta de tacografo aparecen tres fechas nuevas que hay que meter A MANO, porque no salen de ninguna descarga: PERMISO DE CONDUCIR, CAP y RECONOCIMIENTO MEDICO. La caducidad de la TARJETA no se toca: esa sigue saliendo sola del fichero. De momento solo se guardan; los avisos de 60 y 30 dias con su mensaje para WhatsApp van en la v846. LLEVA SQL, Y VA PRIMERO (el codigo necesita las columnas nuevas): alter table public.trabajadores add column if not exists carnet_caduca date, add column if not exists cap_caduca date, add column if not exists recmed_caduca date; VUELTA ATRAS: resubir v844 (las columnas pueden quedarse, no molestan).
+
+---
+
 v844 (20/10/2026): NEUMÁTICOS · FACTURAS DE SOLEDAD: LLANTAS Y 19,5 FUERA, Y REMOLQUE SIN MODELO A SU FICHA. Caso real: factura N0000150864 (TYP2014). (1) La LLANTA '11,75X22,5' salía como cubierta comprada y el PINCHAZO de 19,5 como cubierta de su stock: ahora solo cuenta como cubierta una medida de ancho/perfil (con '/', p. ej. 315/80, 385/65); lo demás se quita y se ve en consola '[v844 neum] fuera'. (2) Las 2 cubiertas 385/65 montadas en el R1879BDR salían en ROJO porque la factura no dice el modelo ('CONT.H'): ahora, si la matrícula es de SEMIRREMOLQUE (R+4 cifras+3 letras) y de esa medida solo hay UNA ficha de REMOLQUE, se restan de esa ficha (aquí, HT3 SR). Si hay varias o ninguna, sigue el aviso rojo. Para aplicarlo a una factura ya subida, volver a subirla (se sustituye, no se duplica). Sin SQL. VUELTA ATRAS: resubir v843.
 
 ---

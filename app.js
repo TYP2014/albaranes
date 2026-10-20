@@ -24799,6 +24799,17 @@ function openTrabajadorModal(id) {
       <div class="fg"><label class="fl">Fecha de baja</label>
         <input class="fi" type="date" id="trabF_baja" value="${t?.fecha_baja || ''}"></div>
     </div>
+    <!-- v845: los tres documentos que NO salen de ninguna descarga y hay que
+         meter a mano. La tarjeta de tacografo va arriba porque esa SI sale
+         sola del fichero. Estas tres avisan igual en VENCIMIENTOS. -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="fl">🚗 Caduca el permiso de conducir</label>
+        <input class="fi" type="date" id="trabF_carnetcad" value="${t?.carnet_caduca || ''}"></div>
+      <div class="fg"><label class="fl">🎓 Caduca el CAP</label>
+        <input class="fi" type="date" id="trabF_capcad" value="${t?.cap_caduca || ''}"></div>
+      <div class="fg"><label class="fl">🩺 Caduca el reconocimiento médico</label>
+        <input class="fi" type="date" id="trabF_recmedcad" value="${t?.recmed_caduca || ''}"></div>
+    </div>
     <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
       <input class="fi" id="trabF_notas" value="${v('notas')}" placeholder="opcional">
     </div>
@@ -24828,6 +24839,9 @@ async function saveTrabModal() {
     empresa: document.getElementById('trabF_empresa').value || null,
     tarjeta_num: (document.getElementById('trabF_tarjeta')?.value || '').toUpperCase().replace(/\s/g, '') || null,
     tarjeta_caduca: document.getElementById('trabF_tarjcad')?.value || null,
+    carnet_caduca: document.getElementById('trabF_carnetcad')?.value || null,   // v845
+    cap_caduca: document.getElementById('trabF_capcad')?.value || null,         // v845
+    recmed_caduca: document.getElementById('trabF_recmedcad')?.value || null,   // v845
     fecha_baja: document.getElementById('trabF_baja')?.value || null,
     rol: (document.getElementById('trabF_rol').value || '').trim() || null,
     fecha_alta: document.getElementById('trabF_alta').value || null,
