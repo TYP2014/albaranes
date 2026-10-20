@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v843 (20/10/2026): GASOIL · LECTURA CON HAIKU 5.5. Los tres lectores de Gasoil (tickets, facturas/extractos de Soledad, SOLRED/Repsol, Petromiralles y Moeve) pasan de Haiku 4.5 a Haiku 5.5, igual que Albaranes. Solo cambia el modelo; los prompts y la lógica son los mismos. Se prueba con las facturas de principios de noviembre. Sin SQL. VUELTA ATRAS: resubir v842.
+
+---
+
 v842 (20/10/2026): GENERAL · BOT DE AYUDA ELIMINADO. Se quita el botón flotante 💬 de abajo a la derecha y su ventana de chat: no lo usaba nadie. Fuera también su código (helpBotToggle, helpBotSend, _HELPBOT_SYS). No afecta a nada más. Sin SQL. VUELTA ATRAS: resubir v841.
 
 ---

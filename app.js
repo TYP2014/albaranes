@@ -7861,7 +7861,7 @@ SOLO JSON válido, sin markdown.`;
   const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
     headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 1000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),   // v843: gasoil a Haiku 5.5
     signal: signal
   });
   if (!res.ok) {
@@ -8059,7 +8059,7 @@ async function _llamarIAGasoilFactura(b64, mediaType, key, isPdf, signal, prompt
   const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
     headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),   // v843: gasoil a Haiku 5.5
     signal: signal
   });
   if (!res.ok) {
@@ -8187,7 +8187,7 @@ async function callClaudeFacturaGasoil(b64, mediaType, key, isPdf, signal) {
   const res = await fetch(IA_PROXY_URL, {
     method: 'POST',
     headers: await _iaCabeceras(),  // v344: por el portero, sin clave en el navegador
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),
+    body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 8000, messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }] }),   // v843: gasoil a Haiku 5.5
     signal: signal
   });
   if (!res.ok) {
