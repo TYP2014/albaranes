@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v846 (20/10/2026): VENCIMIENTOS · LOS ESCALONES DE AVISO, COMO LOS QUIERE JC. La tabla de avisos pasa a ser VENCIDO · 1 DIA · 3 DIAS · 5 DIAS · 15 DIAS · 30 DIAS · 60 DIAS. Se QUITA el escalon de 45 dias (entre 60 y 30 no se hace nada distinto) y se AÑADE el de 3 dias. Es la MISMA tabla para todo: tarjetas de conductor, revision del tacografo del camion y los documentos nuevos de la v845. Un solo criterio en toda la app. Lo unico que se nota: lo que antes salia en verde '45 DIAS' ahora sale en azul '60 DIAS'. Sin SQL. VUELTA ATRAS: resubir v845.
+
+---
+
 v845 (20/10/2026): EMPLEADOS · LA FICHA DEL TRABAJADOR GUARDA TRES CADUCIDADES MAS. Debajo del nº de tarjeta de tacografo aparecen tres fechas nuevas que hay que meter A MANO, porque no salen de ninguna descarga: PERMISO DE CONDUCIR, CAP y RECONOCIMIENTO MEDICO. La caducidad de la TARJETA no se toca: esa sigue saliendo sola del fichero. De momento solo se guardan; los avisos de 60 y 30 dias con su mensaje para WhatsApp van en la v846. LLEVA SQL, Y VA PRIMERO (el codigo necesita las columnas nuevas): alter table public.trabajadores add column if not exists carnet_caduca date, add column if not exists cap_caduca date, add column if not exists recmed_caduca date; VUELTA ATRAS: resubir v844 (las columnas pueden quedarse, no molestan).
 
 ---

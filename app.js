@@ -36915,10 +36915,10 @@ function tacoSec(sec) {
 const _VENC_ESC = [
   { max:  -1, clave: 'vencido', color: '#5c0d0d', fondo: 'rgba(183,28,28,.52)',  txt: 'VENCIDO',        orden: 0 },
   { max:   1, clave: 'd1',      color: '#8f0f0f', fondo: 'rgba(255,59,48,.55)',  txt: '1 DÍA',          orden: 1 },
-  { max:   5, clave: 'd5',      color: '#a81b1b', fondo: 'rgba(255,80,80,.45)',  txt: '5 DÍAS O MENOS', orden: 2 },
-  { max:  15, clave: 'd15',     color: '#b23c00', fondo: 'rgba(255,140,0,.48)',  txt: '15 DÍAS',        orden: 3 },
-  { max:  30, clave: 'd30',     color: '#7a5c00', fondo: 'rgba(255,200,0,.52)',  txt: '30 DÍAS',        orden: 4 },
-  { max:  45, clave: 'd45',     color: '#1b5e20', fondo: 'rgba(46,160,60,.34)',  txt: '45 DÍAS',        orden: 5 },
+  { max:   3, clave: 'd3',      color: '#9c1515', fondo: 'rgba(255,70,64,.50)',  txt: '3 DÍAS',         orden: 2 },
+  { max:   5, clave: 'd5',      color: '#a81b1b', fondo: 'rgba(255,80,80,.45)',  txt: '5 DÍAS O MENOS', orden: 3 },
+  { max:  15, clave: 'd15',     color: '#b23c00', fondo: 'rgba(255,140,0,.48)',  txt: '15 DÍAS',        orden: 4 },
+  { max:  30, clave: 'd30',     color: '#7a5c00', fondo: 'rgba(255,200,0,.52)',  txt: '30 DÍAS',        orden: 5 },
   { max:  60, clave: 'd60',     color: '#0d47a1', fondo: 'rgba(21,101,192,.30)', txt: '60 DÍAS',        orden: 6 }
 ];
 
