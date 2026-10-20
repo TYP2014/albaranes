@@ -8538,13 +8538,18 @@ async function handleNeumCuadreFiles(fileList) {
   // que JC lo mire en el papel si alguna vez fuera un fallo de lectura.
   alb.forEach(a => {
     if (!a || !a.es_neumatico) return;
-    const buenas = (a.neumaticos || []).filter(n => String(n && n.medida || '').trim() && (Number(n.cantidad) || 0) > 0);
+    // v844: ademas la medida tiene que ser de CUBIERTA (ancho/perfil, con "/": 315/80, 385/65).
+    // Caso N0000150864: una LLANTA "11,75X22,5" salia como cubierta comprada y un PINCHAZO
+    // de 19,5 como cubierta de su stock. Ni llantas ni 19,5 sueltos cuentan como cubiertas.
+    const _esCubierta844 = (n) => /\d{3}\s*\/\s*\d{2}/.test(String(n && n.medida || ''));
+    (a.neumaticos || []).forEach(n => { if (n && String(n.medida || '').trim() && !_esCubierta844(n)) console.log('[v844 neum] fuera (no es cubierta):', a.num_albaran, n.medida, n.marca || ''); });
+    const buenas = (a.neumaticos || []).filter(n => String(n && n.medida || '').trim() && _esCubierta844(n) && (Number(n.cantidad) || 0) > 0);
     if (buenas.length !== (a.neumaticos || []).length) {
       a.neumaticos = buenas;
       a.total_cubiertas = buenas.reduce((t, n) => t + (Number(n.cantidad) || 0), 0);
       if (!buenas.length) {
         a.es_neumatico = false;
-        a.motivo_descarte = 'sin medida legible — compruébalo en el papel';
+        a.motivo_descarte = 'sin cubierta (llanta, 19,5 o sin medida) — compruébalo en el papel';   // v844
       }
     }
   });
@@ -23295,11 +23300,22 @@ function _neumNormModelo(t) {
     .replace(/^(CONTINENTAL|CONTI)/, '').replace(/^(HYBRID|HYBR|HYB|ECO)/, '');
 }
 // Casa una cubierta leida en la FACTURA con una ficha de stock de la misma medida.
-function _neumCasarFicha(fichas, n) {
+function _neumCasarFicha(fichas, n, matricula) {
   const med = _neumTxtCmp(n.medida);
   const marca = _neumTxtCmp(n.marca);
   const mod = _neumNormModelo(n.modelo);
-  if (!med || !mod) return null;
+  if (!med) return null;
+  if (!mod) {
+    // v844 (JC 20/10/2026): la factura no dice el modelo (p. ej. "CONT.H"), pero si la
+    // matricula es de SEMIRREMOLQUE (R1234ABC) y de esa medida solo hay UNA ficha de
+    // REMOLQUE, es esa (caso N0000150864: 2 x 385/65 en R1879BDR -> HT3 SR remolque).
+    // Si hay 0 o varias fichas de remolque, sigue saliendo el aviso rojo como antes.
+    const mat = String(matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^R\d{4}[A-Z]{3}$/.test(mat)) return null;
+    const rem = fichas.filter(s => _neumTxtCmp(s.medida) === med && (!marca || !s.marca || _neumTxtCmp(s.marca) === marca) && /REMOLQ/i.test(String(s.uso || '')));
+    if (rem.length === 1) { console.log('[v844 neum] sin modelo, remolque ' + mat + ' -> ficha', rem[0].medida, rem[0].marca, rem[0].modelo); return rem[0]; }
+    return null;
+  }
   const cand = fichas.filter(s => _neumTxtCmp(s.medida) === med && (!marca || !s.marca || _neumTxtCmp(s.marca) === marca));
   const exact = cand.filter(s => _neumNormModelo(s.modelo) === mod);
   if (exact.length === 1) return exact[0];
@@ -23395,7 +23411,7 @@ function _neumCalcularGuiaSoledad(empresa, fichas) {
       if (String(n.propiedad || '') !== 'SU_PROPIEDAD') return;
       const uds = Math.abs(parseInt(n.cantidad) || 0);
       if (!uds || !String(n.medida || '').trim()) return;
-      const ficha = _neumCasarFicha(fichas, n);
+      const ficha = _neumCasarFicha(fichas, n, a.matricula);   // v844: + matricula
       const item = { num: num, uds: uds, factura: facturado[num].factura, texto: [n.medida, n.marca, n.modelo].filter(Boolean).join(' ') };
       if (ficha) hueco(keyDe(ficha)).sinAlbaran.push(item);
       else res.sinIdentificar.push(item);

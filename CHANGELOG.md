@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v844 (20/10/2026): NEUMÁTICOS · FACTURAS DE SOLEDAD: LLANTAS Y 19,5 FUERA, Y REMOLQUE SIN MODELO A SU FICHA. Caso real: factura N0000150864 (TYP2014). (1) La LLANTA '11,75X22,5' salía como cubierta comprada y el PINCHAZO de 19,5 como cubierta de su stock: ahora solo cuenta como cubierta una medida de ancho/perfil (con '/', p. ej. 315/80, 385/65); lo demás se quita y se ve en consola '[v844 neum] fuera'. (2) Las 2 cubiertas 385/65 montadas en el R1879BDR salían en ROJO porque la factura no dice el modelo ('CONT.H'): ahora, si la matrícula es de SEMIRREMOLQUE (R+4 cifras+3 letras) y de esa medida solo hay UNA ficha de REMOLQUE, se restan de esa ficha (aquí, HT3 SR). Si hay varias o ninguna, sigue el aviso rojo. Para aplicarlo a una factura ya subida, volver a subirla (se sustituye, no se duplica). Sin SQL. VUELTA ATRAS: resubir v843.
+
+---
+
 v843 (20/10/2026): GASOIL · FACTURAS CON HAIKU 5.5. Los dos lectores de IA de facturas/extractos de Gasoil (Soledad cuando falla el lector exacto, SOLRED/Repsol, Petromiralles y Moeve) pasan de Haiku 4.5 a Haiku 5.5, igual que Albaranes. El lector de tickets sueltos NO se toca (ya no se suben tickets). Solo cambia el modelo; prompts y lógica iguales. Se prueba con las facturas de principios de noviembre. Sin SQL. VUELTA ATRAS: resubir v842.
 
 ---
