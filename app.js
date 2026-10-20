@@ -24793,7 +24793,7 @@ function openTrabajadorModal(id) {
     <!-- v848: antes era 2fr 1fr 1fr y las dos fechas salian CORTADAS ("04/11/20"
          en vez de 04/11/2029). Ahora las columnas de fecha tienen un minimo de
          130px y la del numero de tarjeta cede, que es texto y se puede encoger. -->
-    <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(130px,1fr) minmax(130px,1fr);gap:10px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(155px,1fr) minmax(155px,1fr);gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">Nº tarjeta tacógrafo</label>
         <input class="fi" id="trabF_tarjeta" value="${v('tarjeta_num')}" placeholder="E49932334R000001"
                style="font-family:var(--mn)" maxlength="16"></div>
@@ -24805,7 +24805,7 @@ function openTrabajadorModal(id) {
     <!-- v845: los tres documentos que NO salen de ninguna descarga y hay que
          meter a mano. La tarjeta de tacografo va arriba porque esa SI sale
          sola del fichero. Estas tres avisan igual en VENCIMIENTOS. -->
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:10px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(155px,1fr));gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">🚗 Caduca el permiso de conducir</label>
         <input class="fi" type="date" id="trabF_carnetcad" value="${t?.carnet_caduca || ''}"></div>
       <div class="fg"><label class="fl">🎓 Caduca el CAP</label>
@@ -36938,10 +36938,25 @@ function _vencEscalon(dias) {
   for (const e of _VENC_ESC) { if (e.max >= 0 && dias <= e.max) return e; }
   return null;   // mas de 60 dias: tranquilo, sin color
 }
+// v849: a partir del año, "faltan 1111 días" no se lee de un vistazo.
+// Se pasa a años y meses. Por debajo del año se queda en días, que es
+// cuando el número de verdad importa. La fecha exacta va al lado, así
+// que no se pierde nada.
+function _vencAniosMeses(dias) {
+  const anios = Math.floor(dias / 365);
+  const meses = Math.floor((dias - anios * 365) / 30);
+  let t = anios + (anios === 1 ? ' año' : ' años');
+  if (meses > 0) t += ' y ' + meses + (meses === 1 ? ' mes' : ' meses');
+  return t;
+}
 function _vencTxtDias(dias) {
   if (dias === null) return '—';
-  if (dias < 0) return 'venció hace ' + Math.abs(dias) + ' día' + (Math.abs(dias) === 1 ? '' : 's');
+  if (dias < 0) {
+    const d = Math.abs(dias);
+    return 'venció hace ' + (d > 365 ? _vencAniosMeses(d) : d + ' día' + (d === 1 ? '' : 's'));
+  }
   if (dias === 0) return 'HOY';
+  if (dias > 365) return 'faltan ' + _vencAniosMeses(dias);
   return 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's');
 }
 

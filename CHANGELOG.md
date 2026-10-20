@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v849 (20/10/2026): VENCIMIENTOS · A PARTIR DEL AÑO, AÑOS Y MESES EN VEZ DE DIAS. 'faltan 1111 dias' no se lee de un vistazo: ahora, cuando queda MAS DE UN AÑO, pone 'faltan 3 años' o 'faltan 2 años y 5 meses'. Por debajo del año se queda en dias, que es cuando el numero importa de verdad. Lo mismo para lo ya vencido ('vencio hace 1 año y 2 meses'). La fecha exacta sigue al lado, asi que no se pierde nada, y el aviso que se copia a WhatsApp lo dice igual. ADEMAS, remate de la v848: en la ficha del trabajador 'Caduca la tarjeta' SEGUIA cortandose ('04/11/20'), porque en esa fila el nº de tarjeta se lleva el doble de ancho y a las fechas les tocaban 130px justos; las tres de abajo si cabian porque les tocaban 153. Las columnas de fecha pasan a 155px minimo en las dos filas. Solo es como se ve. Sin SQL. VUELTA ATRAS: resubir v848.
+
+---
+
 v848 (20/10/2026): VENCIMIENTOS Y FICHA DEL TRABAJADOR · SE VEIAN CORTADOS. (1) En VENCIMIENTOS las tablas se ponian en DOS COLUMNAS en cuanto habia 600px para cada una, y no daba: con los botones COPIAR / EN TRAMITE / HECHA cada tabla necesita unos 800. Resultado: las dos salian cortadas por la derecha, sobre todo con las herramientas de desarrollo abiertas. Ahora el minimo es 880px, asi que solo se ponen al lado cuando caben de verdad; si no, una debajo de otra y ENTERAS. (2) En la ficha del trabajador, 'Caduca la tarjeta' y 'Fecha de baja' salian cortadas ('04/11/20' en vez de 04/11/2029): las columnas de fecha pasan a tener un minimo de 130px, y lo mismo las tres caducidades de la v845. (3) Se corrige un comentario del codigo que seguia citando el escalon de 45 dias quitado en la v846. Solo es como se ve: no cambia ningun calculo ni ningun dato. Sin SQL. VUELTA ATRAS: resubir v847.
 
 ---
