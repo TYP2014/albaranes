@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v854 (20/10/2026): RECONOCIMIENTOS MEDICOS · EL PANEL DE CADUCIDADES, LIMPIO. Pedido de JC, y con razon. (1) FUERA LA EXPLICACION: se queda solo el titulo. Lo de '30 dias o menos' se sabe despues de usarlo dos dias y ocupaba media tarjeta. (2) FUERA LOS COLORINES: nada de fondos de color. Letra limpia y espaciada, y el ROJO solo donde dice algo — el filete de la izquierda y el 'sin cita' de quien no la tiene. El que ya tiene cita va en gris: no hay nada que hacer con el. Antes salia un verde dentro de un fondo rosa, que era ruido. (3) TOPE DE ALTURA con desplazamiento: hay meses de 7 u 8 y en el recuadro se apelotonaban. Cada linea: nombre y dias a la derecha arriba; debajo, fecha y la cita (o 'sin cita' en rojo). Solo cambia como se ve. Sin SQL. VUELTA ATRAS: resubir v853.
+
+---
+
 v853 (20/10/2026): RECONOCIMIENTOS MEDICOS · EL PANEL DE CADUCIDADES, A LA DERECHA Y SOLO LO QUE CORRE PRISA. Estaba al final de la pantalla, debajo de todas las citas, y habia que ir a buscarlo. Ahora va ARRIBA A LA DERECHA, al lado del recuadro de subir la carta de la mutua, donde sobraba sitio, y se ve nada mas entrar. Solo salen los de 30 DIAS O MENOS (y los vencidos): los que caducan dentro de meses ya no llenan la lista. Cada uno, en una tarjeta pequeña: NOMBRE, fecha de caducidad, CUENTA ATRAS en dias y, lo importante, SI YA TIENE CITA PEDIDA o no ('✓ cita 02/11' en verde / '⚠ SIN CITA — hay que pedirla' en rojo). La cita se busca entre las de arriba por nombre, con el comparador que aguanta comas, acentos y el orden de apellidos. La cuenta atras sale SIEMPRE, aunque ya tenga cita: sirve para negociar la fecha con la mutua. Los que no tienen fecha de caducidad puesta quedan recogidos en una linea desplegable, para no ocupar. Sin SQL. VUELTA ATRAS: resubir v852.
 
 ---

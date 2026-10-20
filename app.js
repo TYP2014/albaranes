@@ -28676,56 +28676,53 @@ async function renderRecmedCaducidades() {
   const activos = (trabs || []).filter(t => !t.archivado && !t.fecha_baja && emp.includes(t.empresa));
   const sinFecha = activos.filter(t => !t.recmed_caduca);
 
-  // v853: SOLO los que ya avisan (30 dias o menos, y los vencidos). Los que
-  // caducan dentro de un año no pintan nada aqui: llenaban la lista y habia
-  // que buscar lo urgente entre medias.
+  // Solo los que ya avisan (30 dias o menos, y los vencidos).
   const avisan = activos
     .filter(t => t.recmed_caduca && _vencEscalonMed(_vencDias(t.recmed_caduca)))
     .sort((a, b) => _vencDias(a.recmed_caduca) - _vencDias(b.recmed_caduca));
 
-  // ¿Tiene ya cita pedida? Se busca en las citas de arriba, por nombre
-  // (con el comparador de siempre, que aguanta comas, acentos y el orden
-  // apellidos/nombre). Vale cualquier cita de hoy en adelante.
   const hoyISO = new Date().toISOString().slice(0, 10);
   const citaDe = t => (tallerRecmed || [])
     .filter(c => c.fecha_cita && c.fecha_cita >= hoyISO && _tacoMismoNombre(c.trabajador || '', t.nombre || ''))
     .sort((a, b) => (a.fecha_cita || '').localeCompare(b.fecha_cita || ''))[0] || null;
 
-  let tarjetas = '';
+  // v854: SIN COLORINES. Lo pidio JC y lleva razon: un verde dentro de un
+  // fondo rosa es ruido. Nada de fondos; letra limpia y espaciada, y el rojo
+  // SOLO donde dice algo — el filete de la izquierda y el "SIN CITA" de quien
+  // no la tiene. El que ya la tiene va en gris: no hay nada que hacer con el.
+  const ROJO = '#b71c1c';
+  let filas = '';
   avisan.forEach(t => {
     const iso = t.recmed_caduca;
     const dias = _vencDias(iso);
-    const e = _vencEscalonMed(dias);
     const c = citaDe(t);
-    const cuenta = dias < 0 ? 'VENCIDO hace ' + Math.abs(dias) + ' d.'
-                 : (dias === 0 ? 'caduca HOY' : 'faltan ' + dias + ' d.');
-    const pie = c
-      ? '<span style="color:#1b5e20;font-weight:800">✓ cita ' + c.fecha_cita.split('-').reverse().join('/') + '</span>'
-      : '<span style="color:#b71c1c;font-weight:900">⚠ SIN CITA — hay que pedirla</span>';
-    tarjetas += '<div style="border-left:5px solid ' + e.color + ';background:' + e.fondo
-      + ';border-radius:5px;padding:6px 9px;margin-bottom:6px;font-family:var(--mn);font-size:11px;line-height:1.45">'
-      + '<div style="font-weight:800;color:#111">' + esc(t.nombre || '—') + '</div>'
-      + '<div style="color:#111">' + iso.split('-').reverse().join('/') + ' · <b>' + cuenta + '</b></div>'
-      + '<div>' + pie + '</div></div>';
+    const cuenta = dias < 0 ? 'vencido hace ' + Math.abs(dias) + ' d.'
+                 : (dias === 0 ? 'caduca hoy' : dias + ' d.');
+    filas += '<div style="border-left:3px solid ' + (c ? 'var(--bd)' : ROJO)
+      + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:11.5px;line-height:1.7">'
+      + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
+      + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '—') + '</span>'
+      + '<span style="font-weight:800;white-space:nowrap' + (c ? '' : ';color:' + ROJO) + '">' + cuenta + '</span>'
+      + '</div>'
+      + '<div style="color:var(--mu)">' + iso.split('-').reverse().join('/') + ' · '
+      + (c ? 'cita ' + c.fecha_cita.split('-').reverse().join('/')
+           : '<span style="color:' + ROJO + ';font-weight:700">sin cita</span>')
+      + '</div></div>';
   });
 
   const cuerpo = avisan.length
-    ? tarjetas
-    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:12px;border:1px dashed var(--bd);border-radius:6px">'
-      + 'Nadie caduca en los próximos 30 días.</div>';
+    ? '<div style="max-height:320px;overflow-y:auto">' + filas + '</div>'
+    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:10px 0">Nadie en los próximos 30 días.</div>';
 
   const pendientes = sinFecha.length
-    ? '<details style="margin-top:10px"><summary style="font-family:var(--mn);font-size:10.5px;color:var(--mu);cursor:pointer">'
-      + sinFecha.length + ' sin fecha de caducidad — ver quiénes</summary>'
+    ? '<details style="margin-top:10px;border-top:1px solid var(--bd);padding-top:8px"><summary style="font-family:var(--mn);font-size:10.5px;color:var(--mu);cursor:pointer">'
+      + sinFecha.length + ' sin fecha</summary>'
       + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);line-height:1.6;margin-top:6px">'
       + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div></details>'
     : '';
 
-  box.innerHTML = '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px">'
-    + '<div style="font-family:var(--mn);font-size:13px;font-weight:800;margin-bottom:2px">CADUCIDAD DEL RECONOCIMIENTO</div>'
-    + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);line-height:1.5;margin-bottom:10px">'
-    + 'Solo los de <b>30 días o menos</b>. Hasta cuándo vale el que ya se hizo — no es la cita. '
-    + 'La cita la pedimos nosotros, aquí no se avisa a nadie.</div>'
+  box.innerHTML = '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px 14px">'
+    + '<div style="font-family:var(--mn);font-size:12.5px;font-weight:800;letter-spacing:.3px;margin-bottom:10px">CADUCIDAD DEL RECONOCIMIENTO</div>'
     + cuerpo + pendientes
     + '</div>';
 }
