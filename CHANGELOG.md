@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v842 (20/10/2026): GENERAL · BOT DE AYUDA ELIMINADO. Se quita el botón flotante 💬 de abajo a la derecha y su ventana de chat: no lo usaba nadie. Fuera también su código (helpBotToggle, helpBotSend, _HELPBOT_SYS). No afecta a nada más. Sin SQL. VUELTA ATRAS: resubir v841.
+
+---
+
 v841 (19/10/2026): ALBARANES · PÁGINAS SIN ALBARÁN SE SALTAN (YA NO DAN ERROR). Caso real: Molins N-25356 (Olesa → Montcada), PDF de 2 páginas. La página 2 es el reverso con las condiciones generales; la IA contestaba con texto ('Entiendo que...') en vez de datos, la app hacía 3 reintentos y la dejaba en rojo con '✗ Error'. Ahora, si la IA contesta SOLO texto (sin ningún dato), la página se marca como 'página sin albarán', sale un aviso naranja '⏭ ... se ha saltado' y desaparece de la cola sin reintentos. Si la IA devuelve datos (aunque sean pocos), todo sigue igual que antes (incluido el reintento con Sonnet). Sin SQL. VUELTA ATRAS: resubir v840.
 
 ---
