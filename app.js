@@ -28596,6 +28596,7 @@ async function loadRecmed() {
     if (error) throw error;
     tallerRecmed = data || [];
     renderRecmed();
+    renderRecmedCaducidades();   // v852
     renderRecmedGlobalBanner();
   } catch (e) {
     console.error('[loadRecmed]', e);
@@ -28649,6 +28650,93 @@ function renderRecmed() {
     '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
     '<th style="padding:6px 8px">AVISO</th><th style="padding:6px 8px">TRABAJADOR</th><th style="padding:6px 8px">EMPRESA</th><th style="padding:6px 8px">DÍA · HORA</th><th style="padding:6px 8px">CENTRO</th><th style="padding:6px 8px">DOCUMENTO</th><th style="padding:6px 8px;text-align:right">ACCIONES</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+}
+
+// ============================================================
+// v852 (20/10/2026) — CADUCIDAD DEL RECONOCIMIENTO MEDICO
+//
+// OJO, no confundir con las CITAS de arriba: la cita es "cuando le
+// toca ir"; esto es "hasta cuando le vale el que ya se hizo".
+//
+// Es un control INTERNO. Lo dijo JC con todas las letras: la cita la
+// pedimos nosotros, no el conductor, asi que aqui NO hay boton de
+// WhatsApp al trabajador. Solo saber quien se acerca a la fecha.
+//
+// La fecha se escribe a mano en Empleados -> ficha del trabajador.
+// El permiso de quien ve que empresa es el de EMPLEADOS
+// (_recmedEmpresas), no el de Tacografo.
+// ============================================================
+async function renderRecmedCaducidades() {
+  const box = document.getElementById('recmedCadBox');
+  if (!box) return;
+  let trabs = [];
+  try { trabs = await _tacoCargarTrabajadores(); } catch (e) { trabs = []; }
+
+  const emp = _recmedEmpresas();
+  const activos = (trabs || []).filter(t => !t.archivado && !t.fecha_baja && emp.includes(t.empresa));
+  const conFecha = activos.filter(t => t.recmed_caduca)
+    .sort((a, b) => _vencDias(a.recmed_caduca) - _vencDias(b.recmed_caduca));
+  const sinFecha = activos.filter(t => !t.recmed_caduca);
+
+  const cuenta = new Map();
+  conFecha.forEach(t => {
+    const e = _vencEscalonMed(_vencDias(t.recmed_caduca));   // v852: escalera corta
+    if (e) cuenta.set(e.clave, (cuenta.get(e.clave) || 0) + 1);
+  });
+  let chips = '';
+  _VENC_ESC_MED.forEach(e => {
+    const n = cuenta.get(e.clave);
+    if (!n) return;
+    chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:' + e.fondo + ';border:2px solid ' + e.color
+      + ';border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:' + e.color + '">'
+      + n + ' · ' + e.txt + '</span>';
+  });
+  const avisando = [...cuenta.values()].reduce((a, b) => a + b, 0);
+  const tranquilos = conFecha.length - avisando;
+  if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,160,60,.22);border:2px solid #1b5e20;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#1b5e20">' + tranquilos + ' · AL DÍA</span>';
+  if (sinFecha.length) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:2px dashed var(--mu);border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--mu)">' + sinFecha.length + ' · SIN FECHA</span>';
+
+  let filas = '';
+  conFecha.forEach(t => {
+    const iso = t.recmed_caduca;
+    const dias = _vencDias(iso);
+    const e = _vencEscalonMed(dias);   // v852
+    filas += '<tr style="border-bottom:1px solid var(--bd);background:' + (e ? e.fondo : 'transparent') + '">'
+      + '<td style="padding:7px 8px;font-weight:700">' + esc(t.nombre || '—') + '</td>'
+      + '<td style="padding:7px 8px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[t.empresa] || t.empresa || '') + '</td>'
+      + '<td style="padding:7px 8px;white-space:nowrap">' + iso.split('-').reverse().join('/')
+        + '<br><span style="color:var(--mu);font-size:10px">' + _vencTxtDias(dias) + '</span></td>'
+      + '<td style="padding:7px 8px;white-space:nowrap">' + (e
+          ? '<span style="color:' + e.color + ';font-weight:800">' + e.txt + '</span>'
+          : '<span style="color:var(--mu)">—</span>') + '</td>'
+      + '</tr>';
+  });
+
+  const tabla = conFecha.length
+    ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">'
+      + '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">'
+      + '<th style="padding:6px 8px">TRABAJADOR</th><th style="padding:6px 8px">EMPRESA</th><th style="padding:6px 8px">CADUCA</th><th style="padding:6px 8px">AVISO</th>'
+      + '</tr></thead><tbody>' + filas + '</tbody></table></div>'
+    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:14px;border:1px dashed var(--bd);border-radius:8px">'
+      + 'Todavía no hay ninguna fecha puesta. Se rellena en <b>Empleados → ficha del trabajador</b>.</div>';
+
+  const pendientes = sinFecha.length
+    ? '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;margin-top:10px">'
+      + '<b>Sin fecha de caducidad (' + sinFecha.length + '):</b> '
+      + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div>'
+    : '';
+
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
+    + '<b style="font-family:var(--mn);font-size:15px">CADUCIDAD DEL RECONOCIMIENTO</b>'
+    + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">' + conFecha.length + ' con fecha</span>'
+    + '</div>'
+    + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">'
+    + 'Hasta cuándo vale el reconocimiento que ya se hizo — distinto de las citas de arriba, que son cuándo le toca ir. '
+    + 'Control <b>interno</b>: la cita la pedimos nosotros, así que aquí no se avisa a nadie por WhatsApp. '
+    + 'Aquí se avisa <b>solo a 30, 5 y 1 día</b> (y vencido), no a 60 como en el resto: con 30 días ya da tiempo a pedir cita. '
+    + 'La fecha se escribe en <b>Empleados → ficha del trabajador</b>.</div>'
+    + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + chips + '</div>' : '')
+    + tabla + pendientes;
 }
 
 // ---------- modal ----------
@@ -36926,6 +37014,21 @@ const _VENC_ESC = [
   { max:  60, clave: 'd60',     color: '#0d47a1', fondo: 'rgba(21,101,192,.30)', txt: '60 DÍAS',        orden: 6 }
 ];
 
+// v852: EL RECONOCIMIENTO MEDICO AVISA MENOS QUE EL RESTO.
+// Lo pidio JC y tiene razon: con 30 dias ya planifica las citas, y con
+// 40 y pico trabajadores el escalon de 60 convertiria esto en un aviso
+// permanente que se acaba ignorando. Se queda en 30 · 5 · 1 y VENCIDO.
+// NO son escalones nuevos: son los MISMOS de _VENC_ESC (mismo color,
+// mismo texto), solo que los de 60, 15 y 3 no se miran para esto.
+const _VENC_ESC_MED = _VENC_ESC.filter(e => ['vencido', 'd1', 'd5', 'd30'].includes(e.clave));
+
+function _vencEscalonMed(dias) {
+  if (dias === null) return null;
+  if (dias < 0) return _VENC_ESC_MED[0];
+  for (const e of _VENC_ESC_MED) { if (e.max >= 0 && dias <= e.max) return e; }
+  return null;   // mas de 30 dias: tranquilo, sin color
+}
+
 function _vencDias(iso) {
   if (!iso) return null;
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
@@ -37726,9 +37829,10 @@ function renderVencBanner() {
   // medico lo gestionamos nosotros, asi que va en su propia linea y se dice.
   (_vencCache.docs || []).forEach(r => {
     if (!r.iso) return;
-    const d = _vencDias(r.iso), e = _vencEscalon(d);
-    if (!e) return;
+    const d = _vencDias(r.iso);
     const esMed = r.doc.aviso === 'empresa';
+    const e = esMed ? _vencEscalonMed(d) : _vencEscalon(d);   // v852
+    if (!e) return;   // v852: el medico, con su escalera corta, se calla por encima de 30 dias
     todo.push({
       e, d, iso: r.iso,
       txt: esMed ? (r.trab.nombre || '?') : ((r.trab.nombre || '?') + ' — ' + r.doc.corto),
