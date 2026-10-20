@@ -37495,9 +37495,12 @@ function _vencPintar() {
     // El resultado era que las dos salian cortadas por la derecha. Ahora solo se
     // ponen al lado cuando de verdad caben; si no, una debajo de otra y enteras.
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(880px,1fr));gap:26px;align-items:start">'
+    // v850: los DOCUMENTOS DEL CONDUCTOR van ARRIBA del todo. Son los unicos
+    // datos que se meten a mano, la tabla es corta y es la que hay que mirar;
+    // debajo de 48 camiones y 32 tarjetas no la veia nadie.
+    + _vencTablaDocs()
     + tabla('REVISIÓN DEL TACÓGRAFO', '', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '', _vencCache.con, false)
-    + _vencTablaDocs()
     + '</div>'
     + '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.7;border-top:1px solid var(--bd);padding-top:12px;margin-top:22px">'
     + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
@@ -37678,6 +37681,14 @@ function renderVencBanner() {
     const d = _vencDias(iso), e = _vencEscalon(d);
     if (e) todo.push({ e, d, txt: (f.conductor_nombre || f.tarjeta_num), iso, tipo: 'con' });   // v542
   });
+  // v850: los documentos que van a mano (permiso, CAP, reconocimiento medico)
+  // TAMBIEN avisan aqui arriba. Hasta ahora solo salian en su tabla, al final
+  // de la pantalla de VENCIMIENTOS, y por eso parecia que no avisaban de nada.
+  (_vencCache.docs || []).forEach(r => {
+    if (!r.iso) return;
+    const d = _vencDias(r.iso), e = _vencEscalon(d);
+    if (e) todo.push({ e, d, txt: (r.trab.nombre || '?') + ' — ' + r.doc.corto, iso: r.iso, tipo: 'doc' });
+  });
   if (!todo.length) { b.style.display = 'none'; return; }
   const porEsc = new Map();
   todo.forEach(x => { if (!porEsc.has(x.e.clave)) porEsc.set(x.e.clave, { e: x.e, lista: [] }); porEsc.get(x.e.clave).lista.push(x); });
@@ -37698,11 +37709,13 @@ function renderVencBanner() {
       const mas = lista.length > 4 ? ' · +' + (lista.length - 4) + ' más' : '';
       return '<span style="font-weight:900;color:#111">' + etiqueta + ':</span> ' + cuerpo + mas;
     };
-    const _vVeh = g.lista.filter(x => x.tipo === 'con' ? false : true);
+    const _vVeh = g.lista.filter(x => x.tipo === 'veh');
     const _vCon = g.lista.filter(x => x.tipo === 'con');
+    const _vDoc = g.lista.filter(x => x.tipo === 'doc');   // v850
     const det = [
       _vencBloque(_vVeh, 'REVISIÓN DEL TACÓGRAFO (camión)'),
-      _vencBloque(_vCon, 'TARJETA DE CONDUCTOR (renovación)')
+      _vencBloque(_vCon, 'TARJETA DE CONDUCTOR (renovación)'),
+      _vencBloque(_vDoc, 'DOCUMENTOS DEL CONDUCTOR')
     ].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
     const resto = '';
     const cab = e.clave === 'vencido'

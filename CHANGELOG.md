@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v850 (20/10/2026): VENCIMIENTOS · LOS DOCUMENTOS DEL CONDUCTOR, DONDE SE VEAN. Caso real: JC puso una caducidad de permiso de conducir y 'no aparecia por ningun sitio'. Estaba, pero en el peor sitio posible. Dos arreglos: (1) EL AVISO ROJO DE ARRIBA solo miraba las revisiones de tacografo y las tarjetas; los tres documentos de la v845 (permiso, CAP, reconocimiento medico) NO entraban. Ahora si, con su propia etiqueta 'DOCUMENTOS DEL CONDUCTOR' y diciendo de quien y de que documento es cada uno. (2) La tabla DOCUMENTOS DEL CONDUCTOR se pintaba DEBAJO de las otras dos, o sea despues de 48 camiones y 32 tarjetas: ahora va ARRIBA DEL TODO. Es la unica tabla con datos metidos a mano, es corta y es la que hay que mirar. Sin SQL. VUELTA ATRAS: resubir v849.
+
+---
+
 v849 (20/10/2026): VENCIMIENTOS · A PARTIR DEL AÑO, AÑOS Y MESES EN VEZ DE DIAS. 'faltan 1111 dias' no se lee de un vistazo: ahora, cuando queda MAS DE UN AÑO, pone 'faltan 3 años' o 'faltan 2 años y 5 meses'. Por debajo del año se queda en dias, que es cuando el numero importa de verdad. Lo mismo para lo ya vencido ('vencio hace 1 año y 2 meses'). La fecha exacta sigue al lado, asi que no se pierde nada, y el aviso que se copia a WhatsApp lo dice igual. ADEMAS, remate de la v848: en la ficha del trabajador 'Caduca la tarjeta' SEGUIA cortandose ('04/11/20'), porque en esa fila el nº de tarjeta se lleva el doble de ancho y a las fechas les tocaban 130px justos; las tres de abajo si cabian porque les tocaban 153. Las columnas de fecha pasan a 155px minimo en las dos filas. Solo es como se ve. Sin SQL. VUELTA ATRAS: resubir v848.
 
 ---
