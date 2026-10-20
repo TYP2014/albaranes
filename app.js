@@ -34857,7 +34857,7 @@ function _tacoMismoNombre(a, b) {
 async function _tacoCargarTrabajadores() {
   if (_tacoTrabajadores) return _tacoTrabajadores;
   try {
-    const { data, error } = await sb.from('trabajadores').select('nombre, dni, empresa, archivado, tarjeta_num, fecha_baja');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp)
+    const { data, error } = await sb.from('trabajadores').select('id, nombre, dni, empresa, archivado, tarjeta_num, fecha_baja, telefono, carnet_caduca, cap_caduca, recmed_caduca');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp) · v847 anade telefono y las tres caducidades manuales
     if (error) throw error;
     _tacoTrabajadores = data || [];
   } catch (e) {
@@ -36973,6 +36973,12 @@ async function tacoVencVer() {
     // v485: la ficha del trabajador (para sacar el DNI del aviso).
     // _tacoCargarTrabajadores ya cachea: si la lista esta leida, no vuelve a la BD.
     try { _vencCache.trabs = await _tacoCargarTrabajadores(); } catch (e) { _vencCache.trabs = []; }
+    // v847: los tres documentos que van a mano, de la ficha del trabajador
+    try {
+      const d = _vencDocsDe(_vencCache.trabs);
+      _vencCache.docs = d.conFecha;
+      _vencCache.docsSin = d.sinFecha;
+    } catch (e) { _vencCache.docs = []; _vencCache.docsSin = []; console.warn('[v847 docs]', e); }
     _vencPintar();
     renderVencBanner();
   } catch (e) {
@@ -37122,6 +37128,214 @@ function vencCopiarTodos(tipo) {
   _vencAlPortapapeles(txt, 'Listado de ' + filas.length + ' aviso' + (filas.length === 1 ? '' : 's'));
 }
 
+// ============================================================
+// v847 (20/10/2026) — LOS DOCUMENTOS DEL CONDUCTOR QUE VAN A MANO
+//
+// Permiso de conducir, CAP y reconocimiento medico. NO salen de
+// ninguna descarga: se escriben en la ficha del trabajador
+// (Empleados) y desde aqui solo se miran.
+//
+// Una fila por DOCUMENTO, no por persona: asi cada uno tiene su
+// color, su cuenta atras y su propio aviso, igual que las otras
+// dos tablas.
+//
+// A PROPOSITO no hay HECHO ni EN TRAMITE: cuando se renueva, se
+// cambia la fecha en su ficha y el aviso desaparece solo. Esas
+// dos marcas existen arriba porque alli la fecha viene de la
+// descarga y no se puede tocar a mano; aqui si.
+// ============================================================
+const _VENC_DOCS = [
+  { campo: 'carnet_caduca', clave: 'carnet', corto: 'PERMISO DE CONDUCIR', icono: '🚗',
+    cierre: 'Hay que renovarlo ANTES de esa fecha. Sin el permiso en vigor no se puede conducir.',
+    vencido: 'El permiso YA ESTÁ CADUCADO: no se puede conducir. Hay que renovarlo YA.' },
+  { campo: 'cap_caduca', clave: 'cap', corto: 'CAP', icono: '🎓',
+    cierre: 'Hay que hacer el curso de renovación ANTES de esa fecha. Sin CAP en vigor no se puede conducir profesionalmente.',
+    vencido: 'El CAP YA ESTÁ CADUCADO: no se puede conducir profesionalmente. Hay que renovarlo YA.' },
+  { campo: 'recmed_caduca', clave: 'recmed', corto: 'RECONOCIMIENTO MÉDICO', icono: '🩺',
+    cierre: 'Hay que pedir cita para el reconocimiento ANTES de esa fecha.',
+    vencido: 'El reconocimiento médico YA ESTÁ PASADO. Hay que pedir cita YA.' }
+];
+
+// Monta la lista: un apunte por trabajador EN ACTIVO y documento.
+// Los archivados y los que tienen fecha de baja no salen.
+function _vencDocsDe(trabs) {
+  const conFecha = [], sinFecha = [];
+  // PRIVACIDAD: la tabla `trabajadores` tiene a TODO el mundo, pero el modulo
+  // de tacografo solo enseña las empresas de las que este usuario ve descargas
+  // (asi se ocultan las pestañas arriba). Aqui se hace lo mismo: si no ve
+  // descargas de una empresa, tampoco ve a su gente. Si no hubiera ninguna
+  // descarga todavia, no se filtra (misma regla que la barra de empresas).
+  const permitidas = new Set();
+  (_vencCache.veh || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
+  (_vencCache.con || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
+
+  (trabs || []).forEach(t => {
+    if (t.archivado || t.fecha_baja) return;
+    if (permitidas.size && !permitidas.has(t.empresa)) return;
+    if (_tacoEmpGlobal !== 'TODAS' && t.empresa !== _tacoEmpGlobal) return;
+    _VENC_DOCS.forEach(d => {
+      const iso = t[d.campo] || null;
+      (iso ? conFecha : sinFecha).push({ trab: t, doc: d, iso: iso });
+    });
+  });
+  return { conFecha, sinFecha };
+}
+
+// El telefono, listo para wa.me. Si no hay, se abre WhatsApp sin
+// destinatario y el mensaje va igual: solo hay que elegir a quien.
+function _vencTelWa(tel) {
+  const d = String(tel || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length === 9) return '34' + d;
+  return d;
+}
+
+function _vencBuscaDoc(clave) {
+  const p = String(clave || '').split('|');
+  return (_vencCache.docs || []).find(r => String(r.trab.id) === p[0] && r.doc.clave === p[1]) || null;
+}
+
+function _vencTextoDoc(r) {
+  if (!r || !r.iso) return null;
+  const dmy = r.iso.split('-').reverse().join('/');
+  const dias = _vencDias(r.iso);
+  const esc = _vencEscalon(dias);
+  const aviso = dias < 0
+    ? 'VENCIDO — ' + _vencTxtDias(dias)
+    : (esc ? esc.txt + ' — ' + _vencTxtDias(dias) : _vencTxtDias(dias));
+  const emp = _TACO_EMP_NOM[r.trab.empresa] || r.trab.empresa || '';
+  return r.doc.icono + ' AVISO — CADUCIDAD: ' + r.doc.corto + '\n\n'
+    + 'Conductor: ' + (r.trab.nombre || '—') + '\n'
+    + 'DNI: ' + (r.trab.dni || '(no consta en la app)') + '\n'
+    + (emp ? 'Empresa: ' + emp + '\n' : '')
+    + 'Caduca: ' + dmy + '\n'
+    + 'Situación: ' + aviso + '\n\n'
+    + (dias < 0 ? r.doc.vencido : r.doc.cierre);
+}
+
+function vencCopiarDoc(clave) {
+  const txt = _vencTextoDoc(_vencBuscaDoc(clave));
+  if (!txt) { toast('Ese no tiene fecha todavía', 'err'); return; }
+  _vencAlPortapapeles(txt, 'Aviso');
+}
+
+// Abre WhatsApp con el mensaje YA ESCRITO. Si el trabajador tiene
+// telefono en su ficha, va directo a su chat; si no, WhatsApp pide
+// a quien mandarlo y el texto va puesto igual.
+function vencWhatsAppDoc(clave) {
+  const r = _vencBuscaDoc(clave);
+  const txt = _vencTextoDoc(r);
+  if (!txt) { toast('Ese no tiene fecha todavía', 'err'); return; }
+  const tel = _vencTelWa(r.trab.telefono);
+  if (!tel) toast('Ese conductor no tiene teléfono en su ficha — elige tú el chat', 'warn');
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(txt), '_blank');
+}
+
+function vencCopiarTodosDocs() {
+  const filas = (_vencCache.docs || [])
+    .filter(r => r.iso && _vencEscalon(_vencDias(r.iso)))
+    .sort((a, b) => _vencDias(a.iso) - _vencDias(b.iso));
+  if (!filas.length) { toast('No hay ningún aviso que copiar'); return; }
+  const hoy = new Date().toLocaleDateString('es-ES');
+  const ambito = _tacoEmpGlobal === 'TODAS' ? 'todas las empresas' : (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal);
+  let txt = 'DOCUMENTOS DE CONDUCTOR — AVISOS\n(' + ambito + ' · al ' + hoy + ')\n\n';
+  filas.forEach(r => {
+    const dmy = r.iso.split('-').reverse().join('/');
+    const esc = _vencEscalon(_vencDias(r.iso));
+    txt += '• ' + (r.trab.nombre || '—') + (r.trab.dni ? ' (DNI ' + r.trab.dni + ')' : '')
+         + ' — ' + r.doc.corto + ' — ' + dmy + ' — ' + (esc ? esc.txt : '')
+         + ' (' + _vencTxtDias(_vencDias(r.iso)) + ')\n';
+  });
+  txt += '\nHay que renovar cada uno antes de su fecha.';
+  _vencAlPortapapeles(txt, 'Listado de ' + filas.length + ' aviso' + (filas.length === 1 ? '' : 's'));
+}
+
+function _vencFilaDoc(r) {
+  const dias = _vencDias(r.iso);
+  const esc = _vencEscalon(dias);
+  const clave = r.trab.id + '|' + r.doc.clave;
+  const dmy = r.iso.split('-').reverse().join('/');
+  const fondo = esc ? esc.fondo : 'transparent';
+  const etiqueta = esc
+    ? '<span style="color:' + esc.color + ';font-weight:900;font-size:13px">' + esc.txt + '</span>'
+    : '<span style="color:var(--mu);font-size:13px">—</span>';
+  return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
+    + '<td style="padding:11px 8px 11px 12px;font-family:var(--mn);font-size:15px;font-weight:800;width:1px;white-space:nowrap">' + esc2(r.trab.nombre || '—')
+      + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + r.doc.icono + ' ' + esc2(r.doc.corto) + '</span></td>'
+    + '<td style="padding:11px 10px;font-family:var(--mn);font-size:14.5px;white-space:nowrap;width:1px">' + dmy
+      + '<br><span style="color:var(--mu);font-size:12px">' + _vencTxtDias(dias) + '</span></td>'
+    + '<td style="padding:11px 10px;font-family:var(--mn);width:100%;line-height:1.45">' + etiqueta + '</td>'
+    + '<td style="padding:11px 14px 11px 6px;text-align:right;width:1px;white-space:nowrap">'
+      + '<div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:nowrap;align-items:center">'
+      + '<button class="btn bs" title="Abrir WhatsApp con el aviso ya escrito" style="font-size:11.5px;padding:6px 9px;white-space:nowrap" onclick="vencWhatsAppDoc(\'' + clave + '\')">WHATSAPP</button>'
+      + '<button class="btn bs" title="Copiar el aviso al portapapeles" style="font-size:11.5px;padding:6px 9px;white-space:nowrap" onclick="vencCopiarDoc(\'' + clave + '\')">COPIAR</button>'
+      + '</div></td></tr>';
+}
+
+// La tabla entera de documentos. Va aparte de la funcion `tabla` de
+// _vencPintar porque alli todo gira sobre descargas (hecho, tramite,
+// "vuelve a subir su descarga") y aqui nada de eso aplica.
+function _vencTablaDocs() {
+  const conFecha = (_vencCache.docs || []).filter(r => r.iso);
+  const sinFecha = _vencCache.docsSin || [];
+  const ord = [...conFecha].sort((a, b) => _vencDias(a.iso) - _vencDias(b.iso));
+
+  const cuenta = new Map();
+  ord.forEach(r => {
+    const e = _vencEscalon(_vencDias(r.iso));
+    if (e) cuenta.set(e.clave, (cuenta.get(e.clave) || 0) + 1);
+  });
+  let chips = '';
+  _VENC_ESC.forEach(e => {
+    const n = cuenta.get(e.clave);
+    if (!n) return;
+    chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:' + e.fondo + ';border:2px solid ' + e.color
+      + ';border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:' + e.color + '">'
+      + n + ' · ' + e.txt + '</span>';
+  });
+  const avisando = [...cuenta.values()].reduce((a, b) => a + b, 0);
+  const tranquilos = ord.length - avisando;
+  if (tranquilos > 0) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,160,60,.22);border:2px solid #1b5e20;border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:800;color:#1b5e20">' + tranquilos + ' · AL DÍA</span>';
+  if (sinFecha.length) chips += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:2px dashed var(--mu);border-radius:20px;padding:5px 13px;font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--mu)">' + sinFecha.length + ' · SIN FECHA</span>';
+
+  // Lo que falta por rellenar, agrupado por documento y con nombres:
+  // esta es la lista de tareas para ir completando las fichas.
+  let pendientes = '';
+  if (sinFecha.length) {
+    _VENC_DOCS.forEach(d => {
+      const quienes = sinFecha.filter(r => r.doc.clave === d.clave).map(r => r.trab.nombre || '?');
+      if (!quienes.length) return;
+      pendientes += '<div style="margin-top:6px"><b>' + d.icono + ' ' + esc2(d.corto) + '</b> — falta en ' + quienes.length + ': '
+        + esc2(quienes.sort().join(' · ')) + '</div>';
+    });
+  }
+
+  const cuerpo = ord.length
+    ? '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px">'
+      + '<table style="width:100%;border-collapse:collapse">'
+      + '<tr style="background:var(--s2)">'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:1px;white-space:nowrap">CONDUCTOR / DOCUMENTO</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu)">CADUCA</th>'
+      + '<th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:12px;letter-spacing:.4px;color:var(--mu);width:100%">AVISO</th>'
+      + '<th></th></tr>'
+      + ord.map(_vencFilaDoc).join('') + '</table></div>'
+    : '<div style="font-family:var(--mn);font-size:13.5px;color:var(--mu);padding:14px;border:1px dashed var(--bd);border-radius:8px">'
+      + 'Todavía no hay ninguna fecha puesta. Se rellenan en <b>Empleados → ficha del trabajador</b>.</div>';
+
+  return '<div style="grid-column:1/-1">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
+    + '<b style="font-family:var(--mn);font-size:17px">DOCUMENTOS DEL CONDUCTOR</b>'
+    + '<span style="display:flex;align-items:center;gap:12px">'
+    + (avisando ? '<button class="btn bs" style="font-size:12px;padding:7px 13px;white-space:nowrap" onclick="vencCopiarTodosDocs()">' + (avisando === 1 ? 'COPIAR EL AVISO' : 'COPIAR LOS ' + avisando + ' AVISOS') + '</button>' : '')
+    + '<span style="font-family:var(--mn);font-size:12.5px;color:var(--mu)">' + ord.length + ' con fecha</span>'
+    + '</span></div>'
+    + (chips ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + chips + '</div>' : '')
+    + cuerpo
+    + (pendientes ? '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.6;margin-top:10px">'
+        + '<b>Por rellenar en su ficha:</b>' + pendientes + '</div>' : '')
+    + '</div>';
+}
+
 function _vencFila(f, esVeh) {
   const iso = esVeh ? f.proxima_revision : f.tarjeta_caduca;
   const dias = _vencDias(iso);
@@ -37261,11 +37475,15 @@ function _vencPintar() {
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(600px,1fr));gap:26px;align-items:start">'
     + tabla('REVISIÓN DEL TACÓGRAFO', '', _vencCache.veh, true)
     + tabla('TARJETA DE CONDUCTOR', '', _vencCache.con, false)
+    + _vencTablaDocs()
     + '</div>'
     + '<div style="font-family:var(--mn);font-size:12.5px;color:var(--mu);line-height:1.7;border-top:1px solid var(--bd);padding-top:12px;margin-top:22px">'
     + 'Las dos fechas salen de las PROPIAS DESCARGAS, no se calculan: la revisión, del último registro de calibración del camión; la caducidad, de la tarjeta. Se mira la descarga más reciente de cada uno. '
     + 'Lo que ponga <b>sin dato</b> es que su descarga se subió antes de que la app leyera esta fecha: vuelve a soltarla en SUBIR y se rellena sola. '
-    + 'Escalera de avisos: 60 · 45 · 30 · 15 · 5 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.<br>'
+    + 'Escalera de avisos: 60 · 30 · 15 · 5 · 3 · 1 día y VENCIDO — el vencido no se va hasta marcarlo como hecho.<br>'
+    + '<b>DOCUMENTOS DEL CONDUCTOR</b> (permiso de conducir, CAP y reconocimiento médico) es distinto: esas fechas NO salen de ninguna descarga, '
+    + 'se escriben a mano en <b>Empleados → ficha del trabajador</b>. Por eso ahí no hay «hecha» ni «en trámite»: cuando se renueva, se cambia la fecha en su ficha y el aviso se va solo. '
+    + 'El botón WHATSAPP abre el chat del conductor con el aviso ya escrito, si tiene teléfono en su ficha. Debajo de esa tabla sale la lista de a quién le falta cada documento por rellenar.<br>'
     + 'El botón COPIAR deja el aviso YA ESCRITO en el portapapeles para pegarlo en WhatsApp: del camión va la matrícula (para el taller) y del conductor su nombre, DNI y número de tarjeta. '
     + 'El DNI sale de su ficha de trabajador; si ahí no está puesto, el aviso lo dice en vez de inventárselo.<br>'
     + '<b style="color:#0d47a1">EN TRÁMITE</b> es para cuando la renovación ya está pedida o la revisión ya está citada: la fila se queda aquí en azul, con su escalón debajo, '

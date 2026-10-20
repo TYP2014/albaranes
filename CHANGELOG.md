@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v847 (20/10/2026): VENCIMIENTOS · TABLA NUEVA 'DOCUMENTOS DEL CONDUCTOR', CON AVISO POR WHATSAPP. Debajo de las dos tablas de siempre aparece una tercera con el PERMISO DE CONDUCIR, el CAP y el RECONOCIMIENTO MEDICO, usando las fechas que se meten a mano en la ficha del trabajador (v845). Una fila por documento, con el mismo semaforo y los mismos escalones que el resto. Dos botones por fila: WHATSAPP (abre el chat del conductor con el aviso YA ESCRITO, si tiene telefono en su ficha) y COPIAR (al portapapeles), mas 'COPIAR LOS N AVISOS' para toda la tabla. El aviso lleva nombre, DNI, empresa, documento, fecha y cuanto falta. Debajo sale la lista de A QUIEN LE FALTA cada documento por rellenar, para ir completando las fichas. NO hay 'hecha' ni 'en tramite' a proposito: como la fecha se escribe a mano, al renovarla se cambia en su ficha y el aviso se va solo. PRIVACIDAD: solo salen trabajadores de las empresas de las que este usuario ve descargas, igual que las pestañas de arriba; los archivados y los de baja no salen. Se corrige ademas el texto de ayuda del pie, que seguia diciendo '60 · 45 · 30...' despues de la v846. Sin SQL (las columnas son de la v845). VUELTA ATRAS: resubir v846.
+
+---
+
 v846 (20/10/2026): VENCIMIENTOS · LOS ESCALONES DE AVISO, COMO LOS QUIERE JC. La tabla de avisos pasa a ser VENCIDO · 1 DIA · 3 DIAS · 5 DIAS · 15 DIAS · 30 DIAS · 60 DIAS. Se QUITA el escalon de 45 dias (entre 60 y 30 no se hace nada distinto) y se AÑADE el de 3 dias. Es la MISMA tabla para todo: tarjetas de conductor, revision del tacografo del camion y los documentos nuevos de la v845. Un solo criterio en toda la app. Lo unico que se nota: lo que antes salia en verde '45 DIAS' ahora sale en azul '60 DIAS'. Sin SQL. VUELTA ATRAS: resubir v845.
 
 ---
