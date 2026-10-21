@@ -25118,7 +25118,23 @@ function vacDetalleNuevo() {
 // ============================================================
 // MÓDULO TALLER (v107AE) — control de mantenimientos de flota
 // ============================================================
-let tallerVehiculos = [];      // filas de taller_vehiculos
+let tallerVehiculos = [];      // filas de taller_vehiculos (SOLO los activos, como siempre)
+let tallerVehiculosBaja = [];  // v864: los dados de baja (vendidos, siniestro total, desguace)
+
+// v864: por que se da de baja un vehiculo. Lista corta a proposito (JC, 21/10):
+// 'siniestro' ya incluye los que se quedan para piezas, y lo de renting/leasing
+// no hace falta porque los leasing se quedan todos y renting practicamente no hay.
+const _TALLER_BAJA_NOM = {
+  vendido:   'Vendido',
+  siniestro: 'Siniestro total',
+  desguace:  'Desguace / achatarrado',
+  otro:      'Otro'
+};
+function _tallerVehPorId(id) {
+  return (tallerVehiculos || []).find(x => x.id === id)
+      || (tallerVehiculosBaja || []).find(x => x.id === id)
+      || null;
+}
 let tallerMantenimientos = []; // filas de taller_mantenimientos
 let tallerVencimientos = [];   // v107L1: filas de taller_vencimientos (lista de avisos por vehículo)
 let tallerVencHistorico = [];  // v107L3: filas de taller_venc_historico (vencimientos ya cumplidos)
@@ -25137,7 +25153,7 @@ async function loadTallerData() {
     if (!permitidas.includes(tallerEmpresaActiva)) tallerEmpresaActiva = permitidas[0] || 'TYP2014';
 
     const [vehRes, manRes, vencRes, vencHistRes] = await Promise.all([
-      sb.from('taller_vehiculos').select('*').eq('activo', true),
+      sb.from('taller_vehiculos').select('*'),   // v864: tambien los de baja, se parten abajo
       sb.from('taller_mantenimientos').select('*').order('fecha', { ascending: false }),
       sb.from('taller_vencimientos').select('*').eq('activo', true),
       sb.from('taller_venc_historico').select('*').order('created_at', { ascending: false })
@@ -25149,8 +25165,16 @@ async function loadTallerData() {
     // v107AO: filtrar por empresas permitidas (window._empresaTaller).
     // Admin pasa a ver solo TYP2014+HISPALIS → Transmargaz queda fuera de
     // TODO el Taller (mantenimientos, recambios, banner). Caja cerrada.
-    tallerVehiculos = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
+    // v864: se leen TODOS y se parten en dos. tallerVehiculos sigue siendo
+    // EXACTAMENTE lo de antes (solo los activos), para no mover ni un aviso ni
+    // una cuenta de las que ya habia; los de baja van en su propia lista.
+    const _vehTodos864 = (vehRes.data || []).filter(v => permitidas.includes(v.empresa));
+    tallerVehiculos = _vehTodos864.filter(v => v.activo !== false);
+    tallerVehiculosBaja = _vehTodos864.filter(v => v.activo === false)
+      .sort((a, b) => String(b.baja_fecha || '').localeCompare(String(a.baja_fecha || ''))
+                   || String(a.matricula || '').localeCompare(String(b.matricula || '')));
     try { await firmarCampo(tallerVehiculos, 'ficha_tecnica_url'); } catch (e) { console.warn('[v322] firmado fichas técnicas:', e); }
+    try { await firmarCampo(tallerVehiculosBaja, 'ficha_tecnica_url'); } catch (e) { console.warn('[v864] firmado fichas de los de baja:', e); }
     tallerMantenimientos = (manRes.data || []).filter(m => permitidas.includes(m.empresa));
     tallerVencimientos = (vencRes.data || []);
     tallerVencHistorico = (vencHistRes.data || []);
@@ -25324,6 +25348,7 @@ function _tallerSemaforo(estado) {
 function renderTallerTabla() {
   const body = document.getElementById('tallerTablaBody');
   if (!body) return;
+  try { renderTallerBajas(); } catch (e) { console.warn('[v864 bajas]', e); }   // v864
   // v107K41: filtro por matrícula (campo de búsqueda encima de la tabla)
   const _q = (document.getElementById('tallerSearchMat')?.value || '').toUpperCase().replace(/\s+/g, '');
   const vs = tallerVehiculos
@@ -25389,7 +25414,7 @@ function renderTallerAvisos() {
 // Modal de un vehículo: historial de mantenimientos editable (mín. 15 líneas)
 let _tallerVehIdActual = null;
 function tallerAbrirModal(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   _tallerVehIdActual = vehId;
   const mants = tallerMantenimientos
@@ -25417,6 +25442,9 @@ function tallerAbrirModal(vehId) {
       <span>KM actual: <b style="color:var(--fg)">${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'}</b></span>
       ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
     </div>
+    ${v.activo === false ? `<div style="background:rgba(199,54,49,.10);border:1px solid rgba(199,54,49,.45);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-family:var(--mn);font-size:12px;color:var(--er)">
+      🚫 <b>VEHÍCULO DE BAJA</b> · ${esc(_TALLER_BAJA_NOM[v.baja_motivo] || v.baja_motivo || 'sin motivo')}${v.baja_fecha ? ' · ' + String(v.baja_fecha).split('-').reverse().join('/') : ''}${v.baja_nota ? ' · ' + esc(v.baja_nota) : ''}
+      <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Ya no da avisos de mantenimiento, ni de descarga de tacógrafo, ni de revisión. Todo lo que se le hizo sigue aquí abajo.</div></div>` : ''}
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">📄 FICHA TÉCNICA</span>
       ${v.ficha_tecnica_url
@@ -25429,7 +25457,9 @@ function tallerAbrirModal(vehId) {
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual del vehículo</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:120px;font-size:11px;padding:4px"></div>
       <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar km</button>
-      <button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerEliminarVehiculo('${vehId}')">🗑 Eliminar vehículo</button>
+      ${v.activo === false
+        ? `<button class="btn bs" style="font-size:11px;margin-left:auto;color:#1e8a55;border-color:#1e8a55" onclick="tallerVolverDeAlta('${vehId}')">↩ Volver a dar de alta</button>`
+        : `<button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerDarDeBaja('${vehId}')">🚫 Dar de baja</button>`}
     </div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">🔔 VENCIMIENTOS PROGRAMADOS</div>
@@ -25564,7 +25594,7 @@ function tallerBloqueAddTarea() {
 // del bloque son MAYORES que el km_actual del vehículo, también actualiza el km_actual
 // (nunca lo baja: así registrar un servicio antiguo no estropea los avisos).
 async function tallerGuardarBloque(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const fecha = document.getElementById('tallerBloqueFecha')?.value || '';
   const kmRaw = document.getElementById('tallerBloqueKm')?.value || '';
@@ -25603,7 +25633,7 @@ async function tallerGuardarBloque(vehId) {
 }
 
 async function tallerGuardarMantenimientos(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const filas = [...document.querySelectorAll('#tallerModalBody tr')];
   const aInsertar = [], aActualizar = [];
@@ -25659,7 +25689,7 @@ async function tallerBorrarLinea(manId, vehId) {
 }
 
 async function tallerGuardarVehiculo(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const intMeses = parseInt(document.getElementById('tallerVintMeses')?.value || '12', 10);
   const intKm = parseInt(document.getElementById('tallerVintKm')?.value || '60000', 10);
@@ -25781,7 +25811,7 @@ function _tallerRefrescarVencUI(vehId) {
 async function tallerVencBulkHecho(vehId) {
   const ids = _tallerVencSeleccionados();
   if (!ids.length) { toast('Marca al menos un vencimiento (casilla de la izquierda)', 'warn'); return; }
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const kmReal = prompt(`¿A cuántos KM se han hecho estos ${ids.length} vencimiento(s)?\n(déjalo vacío para usar los km actuales del vehículo: ${v.km_actual ? v.km_actual.toLocaleString('es-ES') : '—'})`, v.km_actual || '');
   if (kmReal === null) return; // canceló
@@ -25849,7 +25879,7 @@ async function _tallerRecargarVencimientos() {
 
 // v107L1: añade un vencimiento al vehículo. Exige descripción + (fecha o km).
 async function tallerAddVencimiento(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const desc = (document.getElementById('tallerVencDesc')?.value || '').trim();
   const fecha = document.getElementById('tallerVencFecha')?.value || '';
@@ -25904,7 +25934,7 @@ async function _tallerRecargarHistorico() {
 // reales a los que se hizo), lo quita de la lista de pendientes y deja el formulario preparado para
 // reprogramar el siguiente igual (misma descripción).
 async function tallerVencHecho(id, vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   const venc = tallerVencimientos.find(x => x.id === id);
   if (!v || !venc) return;
   const kmReal = prompt(`¿A cuántos KM se ha hecho "${venc.descripcion}"?\n(déjalo vacío si no aplica)`, v.km_actual || '');
@@ -25948,7 +25978,7 @@ function tallerVerHistorico(vehId) {
   const box = document.getElementById('tallerHistBox');
   if (!box) return;
   if (box.style.display !== 'none') { box.style.display = 'none'; return; }
-  const v = tallerVehiculos.find(x => x.id === vehId);
+  const v = _tallerVehPorId(vehId);
   const esc2 = (typeof esc === 'function') ? esc : (s => String(s == null ? '' : s));
 
   // --- Sección 1: mantenimientos hechos, agrupados por día ---
@@ -26019,31 +26049,106 @@ async function tallerSubirFicha(vehId, input) {
   } catch (e) { toast('Error subiendo ficha: ' + (e.message || e), 'err'); }
 }
 
-// v107K42: eliminar vehículo (cualquier usuario con acceso a Taller) con DOBLE
-// confirmación. Borrado reversible: marca activo=false (loadTallerData solo carga
-// activo=true), así el vehículo desaparece de Mantenimientos pero NO se pierde de la BD.
-// Para recuperarlo: UPDATE taller_vehiculos SET activo=true WHERE matricula='XXXX';
-async function tallerEliminarVehiculo(vehId) {
-  const v = tallerVehiculos.find(x => x.id === vehId);
+// v864: DAR DE BAJA UN VEHICULO (antes se llamaba "eliminar", y asustaba sin
+// motivo: nunca borro nada). Deja la ficha con activo=false y apunta POR QUE.
+// A partir de ahi el vehiculo:
+//   · sale de la lista de Mantenimientos y deja de dar avisos de taller
+//   · deja de pedir descarga de tacografo y revision (v863)
+//   · PERO sigue viendose, en el apartado "VEHICULOS DE BAJA", con todo su
+//     historico: util sobre todo cuando se queda para piezas y hay que mirar
+//     que se le cambio y cuando (JC, 21/10).
+// Se puede deshacer en cualquier momento con "Volver a dar de alta".
+async function tallerDarDeBaja(vehId) {
+  const v = _tallerVehPorId(vehId);
   if (!v) return;
   const mat = v.matricula || '';
-  // 1ª confirmación: intención
-  if (!confirm(`¿ELIMINAR el vehículo ${mat} (${v.empresa})?\n\nDejará de aparecer en Mantenimientos.`)) return;
-  // 2ª confirmación: escribir la matrícula exacta (a prueba de errores)
-  const tecleado = prompt(`CONFIRMA: escribe la matrícula ${mat} para eliminarla.`);
-  if (tecleado === null) return; // canceló
-  const norm = s => (s || '').toUpperCase().replace(/\s+/g, '');
-  if (norm(tecleado) !== norm(mat)) { toast('La matrícula no coincide. No se ha eliminado.', 'err'); return; }
+  const n = prompt('¿Por qué se da de baja ' + mat + '?\n\n'
+    + '1 = Vendido\n'
+    + '2 = Siniestro total (incluye los que se quedan para piezas)\n'
+    + '3 = Desguace / achatarrado\n'
+    + '4 = Otro\n\n'
+    + 'Escribe el número:');
+  if (n === null) return;
+  const motivo = { '1': 'vendido', '2': 'siniestro', '3': 'desguace', '4': 'otro' }[String(n).trim()];
+  if (!motivo) { toast('No se ha dado de baja: hay que escribir 1, 2, 3 o 4', 'err'); return; }
+  let nota = '';
+  if (motivo === 'otro') {
+    nota = prompt('Escribe el motivo de la baja de ' + mat + ':') || '';
+    if (!nota.trim()) { toast('No se ha dado de baja: falta escribir el motivo', 'err'); return; }
+  } else {
+    nota = prompt('¿Quieres añadir alguna nota? (puedes dejarlo vacío)') || '';
+  }
+  if (!confirm('DAR DE BAJA ' + mat + '\n\n'
+    + 'Motivo: ' + _TALLER_BAJA_NOM[motivo] + (nota.trim() ? '\nNota: ' + nota.trim() : '') + '\n\n'
+    + 'Deja de dar avisos de mantenimiento, de descarga de tacógrafo y de revisión.\n'
+    + 'NO se borra nada: sigue en el apartado VEHÍCULOS DE BAJA con todo su histórico.\n\n'
+    + '¿Seguimos?')) return;
   try {
-    const { error } = await sb.from('taller_vehiculos').update({ activo: false }).eq('id', vehId);
+    const { error } = await sb.from('taller_vehiculos').update({
+      activo: false,
+      baja_motivo: motivo,
+      baja_fecha: new Date().toISOString().slice(0, 10),
+      baja_nota: nota.trim() || null,
+      updated_at: new Date().toISOString()
+    }).eq('id', vehId);
     if (error) throw error;
-    toast(`Vehículo ${mat} eliminado`, 'ok');
+    _tacoVehBajaCache = null;          // v864: que el tacografo se entere ya, sin recargar la pagina
+    toast(mat + ' dado de baja · ' + _TALLER_BAJA_NOM[motivo], 'ok');
     closeTallerMant();
     await loadTallerData();
   } catch (e) {
-    console.error('[tallerEliminarVehiculo]', e);
-    toast('Error eliminando: ' + (e.message || e), 'err');
+    console.error('[v864 tallerDarDeBaja]', e);
+    const msg = String(e.message || e);
+    toast('No se ha podido dar de baja' + (/baja_motivo|baja_fecha|baja_nota/.test(msg) ? ' — falta ejecutar el SQL de la v864' : ': ' + msg), 'err');
   }
+}
+
+// v864: deshacer la baja. Vuelve a la lista y vuelve a dar avisos.
+async function tallerVolverDeAlta(vehId) {
+  const v = _tallerVehPorId(vehId);
+  if (!v) return;
+  const mat = v.matricula || '';
+  if (!confirm('VOLVER A DAR DE ALTA ' + mat + '\n\n'
+    + 'Vuelve a la lista de Mantenimientos y vuelve a dar avisos de taller y de tacógrafo.\n\n'
+    + '¿Seguimos?')) return;
+  try {
+    const { error } = await sb.from('taller_vehiculos').update({
+      activo: true, baja_motivo: null, baja_fecha: null, baja_nota: null,
+      updated_at: new Date().toISOString()
+    }).eq('id', vehId);
+    if (error) throw error;
+    _tacoVehBajaCache = null;
+    toast(mat + ' vuelve a estar de alta', 'ok');
+    closeTallerMant();
+    await loadTallerData();
+  } catch (e) {
+    console.error('[v864 tallerVolverDeAlta]', e);
+    toast('No se ha podido dar de alta: ' + (e.message || e), 'err');
+  }
+}
+
+// El boton de antes seguia llamandose asi en algun sitio: que no se rompa nada.
+function tallerEliminarVehiculo(vehId) { return tallerDarDeBaja(vehId); }
+
+// v864: el apartado de los que estan de baja, debajo de la tabla de Mantenimientos.
+function renderTallerBajas() {
+  const box = document.getElementById('tallerBajasBox');
+  if (!box) return;
+  const vs = (tallerVehiculosBaja || []).filter(v => v.empresa === tallerEmpresaActiva);
+  if (!vs.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="card">
+    <div class="card-hd"><div class="st"><div class="dot" style="--c:var(--er)"></div>VEHÍCULOS DE BAJA (${vs.length})</div></div>
+    <div style="padding:10px 14px 4px;font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6">
+      No dan avisos de mantenimiento, ni de descarga de tacógrafo, ni de revisión. No se ha borrado nada:
+      pincha en cualquiera para ver todo lo que se le hizo.</div>
+    <div style="padding:0 14px 14px">${vs.map(v => `
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--bd)">
+        <b style="font-family:var(--mn);color:var(--ac);min-width:92px">${esc(v.matricula)}</b>
+        <span style="font-family:var(--mn);font-size:11.5px">${esc(_TALLER_BAJA_NOM[v.baja_motivo] || v.baja_motivo || 'sin motivo')}</span>
+        <span style="font-family:var(--mn);font-size:11px;color:var(--mu)">${v.baja_fecha ? String(v.baja_fecha).split('-').reverse().join('/') : ''}${v.baja_nota ? ' · ' + esc(v.baja_nota) : ''}</span>
+        <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:auto" onclick="tallerAbrirModal('${v.id}')">Ver lo que se le hizo</button>
+        <button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="tallerVolverDeAlta('${v.id}')">↩ Volver a dar de alta</button>
+      </div>`).join('')}</div></div>`;
 }
 
 // Añadir vehículo nuevo manualmente (compra de camión, etc.)
