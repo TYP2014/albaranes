@@ -36540,7 +36540,7 @@ function _tacoBuzonNotaCortadas() {
   const n = _tacoBuzonCortados;
   if (!n) return '';
   return `<div style="background:rgba(130,130,130,.10);border:1px solid rgba(130,130,130,.35);border-radius:9px;padding:10px 13px;margin-bottom:14px;font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6">
-    ⏸ <b>${n} descarga${n === 1 ? '' : 's'} llegó${n === 1 ? '' : 'n'} cortada${n === 1 ? '' : 's'}</b> y se ${n === 1 ? 'ha' : 'han'} apartado.
+    ⏸ <b>${n === 1 ? '1 descarga llegó cortada' : n + ' descargas llegaron cortadas'}</b> y se ${n === 1 ? 'ha' : 'han'} apartado.
     La bajada se interrumpió a medias y el fichero no se puede leer. El original sigue guardado en el almacén, intacto.</div>`;
 }
 

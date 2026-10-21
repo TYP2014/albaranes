@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v859 (21/10/2026): ARREGLO DE UNA FALTA DE LA v858. El aviso gris de las descargas apartadas ponia '30 descargas llegon cortadas' — se armaba el plural pegandole una 'n' al verbo y salia un disparate. Ahora pone '30 descargas llegaron cortadas y se han apartado' (o '1 descarga llego cortada y se ha apartado'). Solo cambia ese texto. Sin SQL. VUELTA ATRAS: resubir v858.
+
+---
+
 v858 (21/10/2026): TACOGRAFO · LAS DESCARGAS QUE LLEGAN CORTADAS SE APARTAN SOLAS, YA NO DEJAN EL CARTEL ROJO ENCENDIDO. PROBLEMA: 30 descargas de tarjeta de conductor de Movertis llevaban dias en el buzon sin poder entrar, con el cartel rojo '30 descargas sin guardar' permanente. Al abrir uno (tarjeta de ARIDANY SANTANA, 06/10) se vio por que: el fichero ocupa 65.260 bytes pero solo 3.996 son datos de verdad — los otros 61.264 son relleno (FF), y se corta A MITAD de un registro. Es una bajada remota que se interrumpio (el camion se apaga, se va la cobertura) y que el proveedor guarda igual. Un fichero asi NO se puede leer y NUNCA se va a poder, asi que reintentarlo cada dia solo servia para tener el aviso rojo encendido para siempre y acabar ignorandolo. ARREGLO: si la app no puede leer el fichero ENTERO, lo APARCA (sale del buzon con resultado 'cortado') y deja constancia en gris: '⏸ N descargas llegaron cortadas y se han apartado'. EL FICHERO ORIGINAL NO SE BORRA — sigue en el almacen, intacto, por si algun dia sirviera. MATIZ IMPORTANTE: solo se aparta lo que no se puede LEER. Un fichero que se lee bien pero cuyo conductor no esta dado de alta SIGUE reintentandose cada dia, porque eso si se arregla manyana dandolo de alta. NO SE FILTRA POR EL NOMBRE del fichero a proposito: TachoSync tambien manda ficheros llamados 'C_20261019_...' y esos entran perfectamente — lo que decide es el contenido, no el nombre. Las descargas BUENAS de Movertis (las .TGD con el numero de tarjeta en el nombre) siguen entrando como siempre. Sin SQL. VUELTA ATRAS: resubir v857.
 
 ---
