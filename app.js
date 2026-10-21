@@ -27040,7 +27040,7 @@ function renderPrimas() {
     const finde = (w === 0 || w === 6);
     filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
-      '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
+      '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos.&#10;&#10;DÉJALA EN BLANCO si ese día no llevó ninguno (taller, curso, no trabajó): entonces no se le trae ningún albarán ni se le pone prima." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\', true)"></td>' +
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
@@ -27249,11 +27249,18 @@ async function _primasUpsert(filas) {
   (data || []).forEach(f => { primasRows[String(f.fecha).slice(0, 10)] = f; });
 }
 
-async function primasSaveRow(iso) {
+async function primasSaveRow(iso, vehAMano) {
   if (!primasTrabId) return;
   const g = (k) => { const el = document.getElementById('pr_' + k + '_' + iso); return el ? String(el.value || '').trim() : ''; };
   const previa = primasRows[iso];
   let veh = _primasMatsTxt(g('vehiculo'));   // v671: puede llevar varios
+  // v860: LO QUE SE ESCRIBE A MANO EN VEHICULO MANDA. Antes, si la casilla se
+  // dejaba vacia, la app volvia a meter sola el camion habitual: no habia forma
+  // de decir "este dia no llevo ninguno" (taller, curso, no trabajo) y le seguia
+  // trayendo los albaranes del de siempre, con su prima. Desde que se toca a
+  // mano, la casilla manda SIEMPRE, y vacia significa NINGUN CAMION.
+  const vehManual = !!vehAMano || !!(previa && previa.vehiculo_manual);
+  const vehCambio = !!vehAMano && _primasMatsTxt(previa && previa.vehiculo) !== veh;
   const parte = g('parte_conductor'), trabajo = g('trabajo'), notas = g('notas'), primaTxt = g('prima');
   const hExtraTxt = g('horas_extra');   // v792
   let primaTxtV677 = primaTxt;
@@ -27261,9 +27268,16 @@ async function primasSaveRow(iso) {
     primaTxtV677 = '';
     const _ep = document.getElementById('pr_prima_' + iso); if (_ep) _ep.value = '';
   }
+  // v860: si se cambia el camion a mano, la prima AZUL y el desglose que habia
+  // ese dia eran del camion ANTERIOR, asi que se quitan. El texto escrito a mano
+  // NO se toca: es suyo. Para rellenarlo con el camion nuevo, boton TRAER.
+  if (vehCambio && previa && previa.prima_auto) {
+    primaTxtV677 = '';
+    const _ev860 = document.getElementById('pr_prima_' + iso); if (_ev860) _ev860.value = '';
+  }
   const hayAlgo = !!(veh || parte || trabajo || notas || primaTxtV677 || hExtraTxt);   // v792: + horas extra
   if (!hayAlgo && !previa) return;                 // fila vacia que nunca existio: nada que guardar
-  if (!veh && hayAlgo && (trabajo || primaTxtV677)) veh = primasHabitual;   // deja escrito con que camion fue
+  if (!veh && !vehManual && hayAlgo && (trabajo || primaTxtV677)) veh = primasHabitual;   // deja escrito con que camion fue (v860: salvo si lo han puesto a mano)
   const fila = {
     trabajador_id: primasTrabId, fecha: iso,
     vehiculo: veh || null, parte_conductor: parte || null, trabajo: trabajo || null, notas: notas || null,
@@ -27271,8 +27285,10 @@ async function primasSaveRow(iso) {
     prima_auto: !!(previa && previa.prima_auto && _primasNum(previa.prima) === _primasNum(primaTxtV677) && _primasNum(primaTxtV677) !== 0),   // v670: tecleada a mano → ya no es de la app
     plus_manual: previa ? previa.plus_manual : null,
     horas_extra: hExtraTxt === '' ? null : _primasNum(hExtraTxt),   // v792
+    vehiculo_manual: vehManual,   // v860
     editado_por: _primasQuien(), updated_at: new Date().toISOString()
   };
+  if (vehCambio) { fila.tipos = null; fila.prima_sugerida = 0; }   // v860: el desglose era del camion de antes
   try {
     _primasEstado('Guardando...');
     await _primasUpsert([fila]);
@@ -27485,7 +27501,17 @@ async function primasTraerAlbaranes(soloIso, _opt) {
   const dias = [];
   for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if (!soloIso || soloIso === iso) dias.push(iso);
   // v671: cada dia puede llevar VARIOS vehiculos → se suman los albaranes de todos
-  const vehsDe = (iso) => { const el = _todos ? null : document.getElementById('pr_vehiculo_' + iso); let l = _primasMats(el && el.value); if (!l.length) l = _primasMats((primasRows[iso] || {}).vehiculo); if (!l.length && primasHabitual) l = [primasHabitual]; return l; };
+  // v860: manda la casilla de VEHICULO, aunque este VACIA. Si se vacio a mano,
+  // ese dia no llevo camion: no se le trae NADA (antes se colaba el habitual y
+  // le ponia albaranes y prima de un camion que ese dia llevaba otro).
+  const vehsDe = (iso) => {
+    const prev = primasRows[iso] || {};
+    const el = _todos ? null : document.getElementById('pr_vehiculo_' + iso);
+    const l = _primasMats(el ? el.value : prev.vehiculo);
+    if (l.length) return l;
+    if (prev.vehiculo_manual) return [];
+    return primasHabitual ? [primasHabitual] : [];
+  };
   const vehs = Array.from(new Set([].concat.apply([], dias.map(vehsDe))));
   if (!vehs.length && _todos) return { aGuardar: [], pisados: [], sinVeh: true };   // v727
   if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }

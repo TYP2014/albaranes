@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v860 (21/10/2026): PRIMAS · PARTE DIARIO — LO QUE ESCRIBES A MANO EN LA CASILLA VEHICULO MANDA SIEMPRE. NECESITA SQL ANTES (columna vehiculo_manual en primas_partes). PROBLEMA, con el caso real de ANTON PERA (sabado 17/10): tiene el 9499LHT como camion habitual, pero ese sabado no trabajo el — el camion lo llevo otro conductor. Se le puso otra matricula (4839NBF) para quitarle la prima y aun asi se la seguia poniendo, y el desglose del dia seguia siendo el del camion de antes. Dos motivos: (1) si la casilla se dejaba VACIA, la app volvia a meter sola el camion habitual, asi que NO habia manera de decir 'este dia no llevo ninguno'; (2) cambiar la matricula no rehacia nada — la prima azul y el desglose se quedaban como estaban, del camion anterior. ARREGLO: desde que se toca la casilla a mano, manda ella y nada la pisa. SE PUEDE DEJAR EN BLANCO: ese dia no lleva camion, no se le trae ningun albaran y no se le pone prima (taller, curso de formacion, no trabajo). SE PUEDEN PONER VARIOS separados por + (9499LHT + 4839NBF + 8735MYM) y solo cuentan esos. Y al cambiar la matricula a mano se quitan la PRIMA AZUL (la que puso la app) y el desglose del dia, porque eran del camion de antes; para rellenarlo con el nuevo, boton ⬇ TRAER. EL TEXTO ESCRITO A MANO NO SE TOCA: es tuyo, no lo borra nadie. Los dias que no se hayan tocado nunca siguen funcionando igual que siempre (si estan vacios, se usa el camion habitual). SQL (ejecutar ANTES de subir esta version): alter table public.primas_partes add column if not exists vehiculo_manual boolean not null default false; VUELTA ATRAS: resubir v859 (la columna puede quedarse, no estorba).
+
+---
+
 v859 (21/10/2026): ARREGLO DE UNA FALTA DE LA v858. El aviso gris de las descargas apartadas ponia '30 descargas llegon cortadas' — se armaba el plural pegandole una 'n' al verbo y salia un disparate. Ahora pone '30 descargas llegaron cortadas y se han apartado' (o '1 descarga llego cortada y se ha apartado'). Solo cambia ese texto. Sin SQL. VUELTA ATRAS: resubir v858.
 
 ---
