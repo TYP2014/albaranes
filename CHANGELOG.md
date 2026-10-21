@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v865 (21/10/2026): PRIMAS · PARTE DIARIO — AVISO ⏳ MAS CORTO. El texto de la v864 ('⏳ no hay de SODIRA · ese dia hay: DEMETER (1), HOLCIM (1)') ocupaba mucho y alargaba la fila, sobre todo con dos clientes mal puestos. Ahora pone solo '⏳ no hay de SODIRA' (o '⏳ ningun albaran' si ese camion no tiene nada ese dia). Lo que SI hay ese dia sigue saliendo al poner el raton encima del aviso. Sin SQL. VUELTA ATRAS: resubir v864.
+
+---
+
 v864 (21/10/2026): PRIMAS · PARTE DIARIO — EL AVISO ⏳ DICE SI FALTA EL ALBARAN O SI EL CLIENTE ESTA MAL PUESTO. Antes '⏳ falta albaran' salia igual en dos casos muy distintos: (1) falta el albaran de verdad, (2) se marco mal el cliente y el albaran es de otro. Ahora: si el camion NO tiene ningun albaran ese dia → '⏳ ningun albaran ese dia' (falta de verdad). Si tiene albaranes pero de OTRO cliente → '⏳ no hay de SODIRA · ese dia hay: HOLCIM (2)' (seguramente el cliente esta mal puesto). Asi no hace falta pulsar 👁 VER para saberlo. Solo cambia el texto del aviso. Sin SQL. VUELTA ATRAS: resubir v863.
 
 ---

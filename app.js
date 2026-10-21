@@ -27267,8 +27267,9 @@ async function _primasCliEstados(soloIso) {
           delDia.filter(a => a.est !== 'no_facturable').forEach(a => { const n = _primasCliCorto(a); otros[n] = (otros[n] || 0) + 1; });
           const lo = Object.keys(otros).map(n => n + ' (' + otros[n] + ')');
           col = '#c62828';
-          if (!lo.length) { txt = '⏳ ningún albarán ese día'; tit = 'El camión ' + vs.join(' + ') + ' no tiene ningún albarán este día: falta el albarán.' + (iso >= hoy ? ' (Es hoy: puede que aún no haya llegado.)' : ''); }
-          else { txt = '⏳ no hay de ' + k + ' · ese día hay: ' + lo.join(', '); tit = 'No hay albaranes de ' + k + ', pero el camión ' + vs.join(' + ') + ' sí tiene albaranes de otro cliente este día. ¿El cliente está bien puesto?'; }
+          // v865 (JC): texto CORTO. Lo que si hay ese dia pasa al aviso al poner el raton encima.
+          if (!lo.length) { txt = '⏳ ningún albarán'; tit = 'El camión ' + vs.join(' + ') + ' no tiene ningún albarán este día: falta el albarán.' + (iso >= hoy ? ' (Es hoy: puede que aún no haya llegado.)' : ''); }
+          else { txt = '⏳ no hay de ' + k; tit = 'No hay albaranes de ' + k + '. Ese día el camión ' + vs.join(' + ') + ' tiene: ' + lo.join(', ') + '. ¿El cliente está bien puesto?'; }
         }
         else {
           const pend = suyos.filter(a => a.est !== 'facturado').length;
