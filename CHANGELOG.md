@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v857 (21/10/2026): TACOGRAFO · LAS DESCARGAS DEL BUZON SE LEEN SOLAS, YA NO HAY QUE PULSAR EL BOTON. Desde la v830 el buzon se vaciaba solo, pero SOLO UNA VEZ: 8 segundos despues de entrar en la app. Si los robots dejaban las descargas DESPUES de haber entrado (el de TachoSync a las 10:00 y el de Movertis a las 11:00), se quedaban esperando con el cartel azul '30 descargas nuevas esperando' y habia que darle al boton a mano. Ahora, al abrir TACOGRAFO > SUBIR, las descargas que todavia no se han intentado en esta sesion se leen SOLAS: sale 'leyendolas...' y en unos segundos entran. El boton sigue existiendo, pero ya SOLO para las que no han podido entrar solas (cartel '⏱️ N descargas que no han entrado solas' + boton 'Intentarlo a mano') — asi se distingue de un vistazo lo que esta en marcha de lo que esta atascado. No se lee ni se guarda nada distinto: mismo lector, misma huella anti-duplicados, misma forma de adivinar la empresa por la matricula. Sin SQL. VUELTA ATRAS: resubir v856.
+
+---
+
 v856 (21/10/2026): RECONOCIMIENTOS MEDICOS · EL WHATSAPP DE LA CITA VA DIRECTO AL CHAT DEL TRABAJADOR. Antes abria WhatsApp sin destinatario y habia que buscarlo a mano. Ahora saca su telefono de la ficha del trabajador y abre SU conversacion. EL CRUCE VA POR DNI, que es exacto: la IA ya lo lee de la carta de la mutua y se guarda con la cita. Solo si esa cita no tuviera DNI se prueba por nombre. Si no se encuentra a nadie, se abre WhatsApp sin destinatario como antes — nunca se adivina un numero, que un mensaje al conductor equivocado es feo. Ademas, debajo del nombre se VE el telefono al que va a ir (o 'sin telefono en su ficha'), para comprobarlo antes de pulsar. LIMITE, que conviene saber: por ahi solo viaja TEXTO. WhatsApp no deja adjuntar un PDF desde un enlace, asi que la carta de la mutua se sigue mandando con el boton COMPARTIR. Sin SQL. VUELTA ATRAS: resubir v855.
 
 ---

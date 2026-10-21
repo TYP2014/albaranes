@@ -36421,12 +36421,35 @@ async function tacoBuzonMirar() {
     const quien = [...new Set(_tacoBuzonPend.map(r => r.matricula || r.conductor || '?'))];
     const lista = quien.slice(0, 8).join(' · ') + (quien.length > 8 ? ' y ' + (quien.length - 8) + ' más' : '');
 
+    // v857: NO hay que pulsar nada. El repaso solo (tacoBuzonAuto) se lanzaba una
+    // unica vez al entrar en la app; si el robot dejaba descargas DESPUES, se
+    // quedaban esperando a que alguien pulsara el boton. Ahora, al abrir SUBIR,
+    // las que todavia no se han intentado en esta sesion se leen solas aqui mismo.
+    // El boton se queda SOLO para las que no han podido entrar, por si quieres
+    // reintentarlo a mano.
+    const yaFallaron = new Set((_tacoBuzonFallos || []).map(x => x.id));
+    const porIntentar = _tacoBuzonPend.filter(r => !yaFallaron.has(r.id));
+
+    if (porIntentar.length && !_tacoBuzonTrabajando) {
+      box.innerHTML = `<div style="background:rgba(123,143,240,.12);border:1px solid rgba(123,143,240,.45);border-radius:9px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--wnd);margin-bottom:4px">
+          📥 ${n} descarga${n === 1 ? '' : 's'} nueva${n === 1 ? '' : 's'} — leyéndola${n === 1 ? '' : 's'}…</div>
+        <div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6">
+          ${lista}</div>
+        <div style="font-family:var(--mn);font-size:10.5px;color:var(--mu);margin-top:6px">
+          No hace falta pulsar nada. Tarda unos segundos.</div>
+      </div>`;
+      setTimeout(() => { try { tacoBuzonAuto(); } catch (e) { console.warn('[v857 buzon]', e); } }, 60);
+      return;
+    }
+
+    // Aqui solo se llega si TODAS las que quedan ya se intentaron y no entraron.
     box.innerHTML = `<div style="background:rgba(123,143,240,.12);border:1px solid rgba(123,143,240,.45);border-radius:9px;padding:12px 14px;margin-bottom:14px">
       <div style="font-family:var(--mn);font-size:12.5px;font-weight:700;color:var(--wnd);margin-bottom:4px">
-        📥 ${n} descarga${n === 1 ? '' : 's'} nueva${n === 1 ? '' : 's'} esperando</div>
+        ⏱️ ${n} descarga${n === 1 ? '' : 's'} que no ha${n === 1 ? '' : 'n'} entrado sola${n === 1 ? '' : 's'}</div>
       <div style="font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6;margin-bottom:10px">
         ${lista}</div>
-      <button class="btn bp" id="tacoBuzonBtn" onclick="tacoBuzonTraer()">📥 Traer y leer ${n === 1 ? 'la descarga' : 'las ' + n + ' descargas'}</button>
+      <button class="btn bp" id="tacoBuzonBtn" onclick="tacoBuzonTraer()">📥 Intentarlo a mano</button>
     </div>`;
   } catch (e) {
     console.warn('[v829 buzon] no se ha podido mirar:', e.message || e);
