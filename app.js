@@ -35444,6 +35444,28 @@ function _tacoEsBaja(bajas, tarjeta, nombre) {
   return false;
 }
 
+// v863: CAMIONES QUE YA NO SON NUESTROS (vendidos, siniestros...). El
+// interruptor es el que ya existe en Taller: el boton de eliminar vehiculo NO
+// borra nada, deja la fila con activo=false. Aqui solo se LEE.
+// Si por lo que sea no se puede leer la flota del taller, NO se silencia nada:
+// mejor un aviso de mas que uno de menos.
+let _tacoVehBajaCache = null;
+async function _tacoVehDeBaja() {
+  if (_tacoVehBajaCache) return _tacoVehBajaCache;
+  try {
+    const { data, error } = await sb.from('taller_vehiculos').select('matricula').eq('activo', false);
+    if (error) throw error;
+    const s = new Set();
+    (data || []).forEach(v => { const m = String(v.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (m) s.add(m); });
+    _tacoVehBajaCache = s;
+    return s;
+  } catch (e) {
+    console.warn('[v863] no se pudo leer que camiones estan de baja en Taller:', e.message || e);
+    return new Set();
+  }
+}
+function _tacoNormMat(m) { return String(m || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
 let _tacoInfVerBajas = false;   // v862: casilla "ver tambien los que ya no estan"
 function tacoInfToggleBajas(v) { _tacoInfVerBajas = !!v; tacoInfPintarSelector(); }
 
@@ -37011,7 +37033,9 @@ async function tacoPintarAvisos() {
 
   const vencidos = [], proximos = [], nunca = [], caducan = [];
 
+  const _vehBaja863 = await _tacoVehDeBaja();   // v863
   ultVeh.forEach((f, mat) => {
+    if (_vehBaja863.has(_tacoNormMat(mat))) return;   // v863: vendido o de baja en Taller: ya no hay nada que descargarle
     const d = _tacoDiasDesde(f.fecha_hasta);
     if (d === null) return;
     if (d > TACO_DIAS_VEHICULO) vencidos.push({ q: mat, d, t: 'camión', emp: f.empresa });
@@ -37274,11 +37298,18 @@ async function tacoVencVer() {
       if (f.tipo === 'vehiculo' && f.matricula) { if (!veh.has(f.matricula)) veh.set(f.matricula, f); }
       else if (f.tipo === 'conductor' && f.tarjeta_num) { if (!con.has(f.tarjeta_num)) con.set(f.tarjeta_num, f); }
     });
-    _vencCache.veh = [...veh.values()];
-    _vencCache.con = [...con.values()];
     // v485: la ficha del trabajador (para sacar el DNI del aviso).
     // _tacoCargarTrabajadores ya cachea: si la lista esta leida, no vuelve a la BD.
     try { _vencCache.trabs = await _tacoCargarTrabajadores(); } catch (e) { _vencCache.trabs = []; }
+    // v863: FUERA DE LOS AVISOS LO QUE YA NO ES NUESTRO NI ESTA EN LA EMPRESA.
+    // Una tractora vendida no necesita la revision del tacografo, y la tarjeta
+    // de quien se fue no hay que renovarla. LOS FICHEROS NO SE TOCAN: siguen
+    // enteros en ARCHIVO, que para una inspeccion hay que guardarlos.
+    _vencCache.empresas = [...new Set([...veh.values(), ...con.values()].map(f => f.empresa).filter(Boolean))];
+    const _vehBaja863 = await _tacoVehDeBaja();
+    const _conBaja863 = _tacoBajasSet();
+    _vencCache.veh = [...veh.values()].filter(f => !_vehBaja863.has(_tacoNormMat(f.matricula)));
+    _vencCache.con = [...con.values()].filter(f => !_tacoEsBaja(_conBaja863, f.tarjeta_num, f.conductor_nombre));
     // v847: los tres documentos que van a mano, de la ficha del trabajador
     try {
       const d = _vencDocsDe(_vencCache.trabs);
@@ -37477,9 +37508,14 @@ function _vencDocsDe(trabs) {
   // (asi se ocultan las pestañas arriba). Aqui se hace lo mismo: si no ve
   // descargas de una empresa, tampoco ve a su gente. Si no hubiera ninguna
   // descarga todavia, no se filtra (misma regla que la barra de empresas).
-  const permitidas = new Set();
-  (_vencCache.veh || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
-  (_vencCache.con || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
+  // v863: la lista de empresas sale de TODAS las descargas, incluidas las de
+  // camiones y tarjetas ya dados de baja. Si no, al dar de baja el ultimo
+  // camion de una empresa desaparecia tambien su gente de estos vencimientos.
+  const permitidas = new Set(_vencCache.empresas || []);
+  if (!permitidas.size) {
+    (_vencCache.veh || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
+    (_vencCache.con || []).forEach(f => { if (f.empresa) permitidas.add(f.empresa); });
+  }
 
   (trabs || []).forEach(t => {
     if (t.archivado || t.fecha_baja) return;
