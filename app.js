@@ -26923,6 +26923,17 @@ async function _primasCargarMatriculas() {
   console.log('[v660 primas] matrículas en el desplegable:', mats.size);
 }
 
+// v861: el camion habitual se enseña de fondo (placeholder) en las casillas de
+// VEHICULO vacias, como pista. PERO una casilla que se ha dejado en blanco A
+// PROPOSITO no debe enseñar nada: si lo hace se ve EXACTAMENTE igual que un dia
+// que si lleva ese camion, y lleva a error (JC, 21/10: Anton Pera, sabado 17).
+function _primasPlaceholderVeh() {
+  document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => {
+    const f = primasRows[x.id.replace('pr_vehiculo_', '')] || {};
+    x.placeholder = (f.vehiculo_manual && !f.vehiculo) ? '' : (primasHabitual || '');
+  });
+}
+
 // v660: guarda el vehiculo habitual EN LA FICHA del trabajador (se pone una vez y ya sale solo)
 async function primasSaveHabitual() {
   if (!primasTrabId) { toast('Elige primero un trabajador', 'warn'); return; }
@@ -26935,7 +26946,7 @@ async function primasSaveHabitual() {
     const t = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId));
     if (t) t.vehiculo_habitual = veh || null;
     primasHabitual = veh;
-    document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
+    _primasPlaceholderVeh();   // v861
     const opt = document.querySelector('#primasTrab option[value="' + primasTrabId + '"]');
     if (opt && t) opt.textContent = (t.nombre || '') + (veh ? ' · ' + veh : '');
     _primasEstado('✓ Vehículo habitual guardado' + (veh ? ': ' + veh : ' (vacío)'));
@@ -27040,7 +27051,7 @@ function renderPrimas() {
     const finde = (w === 0 || w === 6);
     filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
-      '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos.&#10;&#10;DÉJALA EN BLANCO si ese día no llevó ninguno (taller, curso, no trabajó): entonces no se le trae ningún albarán ni se le pone prima." style="' + inS + ';text-transform:uppercase" placeholder="' + _primasAttr(primasHabitual) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\', true)"></td>' +
+      '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos.&#10;&#10;DÉJALA EN BLANCO si ese día no llevó ninguno (taller, curso, no trabajó): entonces no se le trae ningún albarán ni se le pone prima." style="' + inS + ';text-transform:uppercase" placeholder="' + ((f.vehiculo_manual && !f.vehiculo) ? '' : _primasAttr(primasHabitual)) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\', true)"></td>' +
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
@@ -27294,13 +27305,14 @@ async function primasSaveRow(iso, vehAMano) {
     await _primasUpsert([fila]);
     const elV = document.getElementById('pr_vehiculo_' + iso);
     if (elV && veh && !elV.value) elV.value = veh;
+    _primasPlaceholderVeh();   // v861: la casilla dejada en blanco a proposito se queda en blanco DE VERDAD
     const _elP = document.getElementById('pr_prima_' + iso), _fN = primasRows[iso] || {};   // v670
     if (_elP) { _elP.style.color = _fN.prima_auto ? '#1565c0' : ''; _elP.title = _fN.prima_auto ? 'Puesta por la app según los albaranes. Escribe encima para cambiarla.' : ''; }
     const _elI = document.getElementById('pr_info_' + iso); if (_elI) _elI.innerHTML = _primasInfoDia(_fN);
     { const _d9 = document.getElementById('pr_desf_' + iso), _t9 = document.getElementById('pr_trabajo_' + iso); if (_d9) _d9.innerHTML = ''; if (_t9) _t9.style.outline = ''; }   // v729: editado a mano → se quita la marca
     if (!primasHabitual && veh) {   // (solo si no tiene habitual ni en ficha ni en historico)
       primasHabitual = veh;
-      document.querySelectorAll('#primasBox input[id^="pr_vehiculo_"]').forEach(x => { x.placeholder = veh; });
+      _primasPlaceholderVeh();   // v861
     }
     _primasPintaTotales();
     _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -27514,7 +27526,14 @@ async function primasTraerAlbaranes(soloIso, _opt) {
   };
   const vehs = Array.from(new Set([].concat.apply([], dias.map(vehsDe))));
   if (!vehs.length && _todos) return { aGuardar: [], pisados: [], sinVeh: true };   // v727
-  if (!vehs.length) { toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return; }
+  if (!vehs.length) {
+    // v861: si los dias que se piden estan en blanco A PROPOSITO, no es un fallo:
+    // es justo lo que se ha pedido. Antes salia "Escribe la matricula...", que
+    // hacia pensar que no habia funcionado.
+    const _enBlanco861 = dias.length && dias.every(d => { const q = primasRows[d] || {}; return q.vehiculo_manual && !q.vehiculo; });
+    if (_enBlanco861) { toast(dias.length === 1 ? 'Ese día está en blanco: no lleva camión, así que no se le trae ningún albarán' : 'Esos días están en blanco: no llevan camión, así que no se les trae ningún albarán', 'ok'); return; }
+    toast('Escribe la matrícula en VEHÍCULO (al menos un día) para poder buscar sus albaranes', 'warn'); return;
+  }
   const p = primasMes.split('-'); const mm = p[1], m1 = String(+p[1]), yy = p[0];
   const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
   if (!(_opt && _opt.silencioso)) _primasEstado('Buscando albaranes...');   // v729
