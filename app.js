@@ -27140,6 +27140,13 @@ const PRIMAS_CLIENTES = [
 ];
 let _v862Cache = {};   // veh -> lista de albaranes del mes {iso, cli, est, n}
 function _primasCliNorm(s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, ''); }
+// v864: nombre corto del cliente de un albaran (el del boton si coincide; si no, el del albaran recortado)
+function _primasCliCorto(a) {
+  const c = PRIMAS_CLIENTES.find(x => x.clave.some(cl => a.cli.includes(cl)));
+  if (c) return c.k;
+  const r = String(a.raw || '').toUpperCase().replace(/,?\s*(S\.?\s*L\.?\s*U?\.?|S\.?\s*A\.?\s*U?\.?)\s*$/, '').trim();
+  return r ? (r.length > 18 ? r.slice(0, 18) + '…' : r) : 'SIN CLIENTE';
+}
 function _primasCliLista(iso) {
   return String((primasRows[iso] || {}).clientes || '').split(',').map(x => x.trim()).filter(Boolean);
 }
@@ -27151,7 +27158,7 @@ function _primasCliCelda(iso) {
   const l = _primasCliLista(iso);
   const chip = (k) => '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;white-space:nowrap">' +
     '<span style="background:#eef2f7;border:1px solid #c5cfdb;border-radius:12px;padding:2px 8px;font-size:12.5px;font-weight:800">' + esc(k) + '</span>' +
-    '<span id="pr_cliest_' + iso + '_' + _primasCliNorm(k) + '" style="font-size:12px;font-weight:800;color:#777">…</span>' +
+    '<span id="pr_cliest_' + iso + '_' + _primasCliNorm(k) + '" style="font-size:12px;font-weight:800;color:#777;white-space:normal">…</span>' +
     '<button title="Quitar este cliente de este día" style="border:none;background:none;color:#c62828;font-weight:800;cursor:pointer;padding:0 2px" onclick="primasCliQuitar(\'' + iso + '\',\'' + _primasAttr(k) + '\')">×</button></div>';
   return l.map(chip).join('') + (l.length < 3 ? '<button class="btn bs" style="font-size:12px;padding:3px 8px;font-weight:700" onclick="primasCliElegir(\'' + iso + '\')">+ cliente</button>' : '');
 }
@@ -27237,7 +27244,7 @@ async function _primasCliEstados(soloIso) {
         (q.data || []).forEach(a => {
           const iso = _primasFechaAlb(a.fecha); if (!iso) return;
           const cl = String(a.albaran || '') + '|' + iso; if (a.albaran && vistos.has(cl)) return; vistos.add(cl);
-          lista.push({ iso, cli: _primasCliNorm(a.cliente), est: a.estado_facturacion || 'pendiente' });
+          lista.push({ iso, cli: _primasCliNorm(a.cliente), raw: String(a.cliente || '').trim(), est: a.estado_facturacion || 'pendiente' });
         });
         if ((q.data || []).length < 1000) break;
       }
@@ -27254,7 +27261,15 @@ async function _primasCliEstados(soloIso) {
         const suyos = delDia.filter(a => a.est !== 'no_facturable' && claves.some(c => a.cli.includes(c)));
         let txt, col, tit;
         if (!vs.length) { txt = '— sin camión'; col = '#777'; tit = 'Este día no tiene camión en VEHÍCULO: no se puede buscar.'; }
-        else if (!suyos.length) { txt = '⏳ falta albarán'; col = '#c62828'; tit = 'No hay ningún albarán de ' + k + ' del camión ' + vs.join(' + ') + ' este día.' + (iso >= hoy ? ' (Es hoy: puede que aún no haya llegado.)' : ''); }
+        else if (!suyos.length) {
+          // v864: ¿falta el albaran de verdad, o el cliente esta mal puesto? Se enseña lo que SI hay ese dia.
+          const otros = {};
+          delDia.filter(a => a.est !== 'no_facturable').forEach(a => { const n = _primasCliCorto(a); otros[n] = (otros[n] || 0) + 1; });
+          const lo = Object.keys(otros).map(n => n + ' (' + otros[n] + ')');
+          col = '#c62828';
+          if (!lo.length) { txt = '⏳ ningún albarán ese día'; tit = 'El camión ' + vs.join(' + ') + ' no tiene ningún albarán este día: falta el albarán.' + (iso >= hoy ? ' (Es hoy: puede que aún no haya llegado.)' : ''); }
+          else { txt = '⏳ no hay de ' + k + ' · ese día hay: ' + lo.join(', '); tit = 'No hay albaranes de ' + k + ', pero el camión ' + vs.join(' + ') + ' sí tiene albaranes de otro cliente este día. ¿El cliente está bien puesto?'; }
+        }
         else {
           const pend = suyos.filter(a => a.est !== 'facturado').length;
           if (!pend) { txt = '🟢 facturado'; col = '#2e7d32'; tit = suyos.length + ' albarán(es) de ' + k + ', todos facturados.'; }

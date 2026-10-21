@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v864 (21/10/2026): PRIMAS · PARTE DIARIO — EL AVISO ⏳ DICE SI FALTA EL ALBARAN O SI EL CLIENTE ESTA MAL PUESTO. Antes '⏳ falta albaran' salia igual en dos casos muy distintos: (1) falta el albaran de verdad, (2) se marco mal el cliente y el albaran es de otro. Ahora: si el camion NO tiene ningun albaran ese dia → '⏳ ningun albaran ese dia' (falta de verdad). Si tiene albaranes pero de OTRO cliente → '⏳ no hay de SODIRA · ese dia hay: HOLCIM (2)' (seguramente el cliente esta mal puesto). Asi no hace falta pulsar 👁 VER para saberlo. Solo cambia el texto del aviso. Sin SQL. VUELTA ATRAS: resubir v863.
+
+---
+
 v863 (21/10/2026): PRIMAS · PARTE DIARIO — MAS CLIENTES EN LOS BOTONES. Al '+ cliente' de la v862 se añaden LLANTADA, SODIRA, UTE AMPLIACION (UTE 4ª Fase Ampliacion Muelle Adosado, Puerto de Barcelona), CANRO y SATIG, ademas de CEMEX, HOLCIM, DEMETER, OP TRANS y ARIDFLOT. 'Otro…' sigue para cualquier otro. Solo cambia la lista de botones. Sin SQL. VUELTA ATRAS: resubir v862.
 
 ---
