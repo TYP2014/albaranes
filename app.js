@@ -28595,6 +28595,8 @@ async function loadRecmed() {
       .select('*').order('fecha_cita', { ascending: true });
     if (error) throw error;
     tallerRecmed = data || [];
+    // v856: la ficha del trabajador, para sacar su telefono y abrir SU chat
+    try { _recmedTrabs = await _tacoCargarTrabajadores(); } catch (e) { _recmedTrabs = []; }
     renderRecmed();
     renderRecmedCaducidades();   // v852
     renderRecmedGlobalBanner();
@@ -28602,6 +28604,38 @@ async function loadRecmed() {
     console.error('[loadRecmed]', e);
     toast('Error cargando reconocimientos: ' + (e.message || e), 'err');
   }
+}
+
+// ============================================================
+// v856 — EL WHATSAPP DE LA CITA VA DIRECTO A SU CHAT
+//
+// Hasta ahora abria WhatsApp sin destinatario y habia que buscar
+// al trabajador a mano. Ahora se saca su telefono de la ficha.
+//
+// El cruce va POR DNI, que es exacto: la IA lo lee de la carta de
+// la mutua y se guarda con la cita. Solo si esa cita no tuviera
+// DNI se prueba por nombre, con el comparador de siempre.
+// Si no se encuentra, se abre WhatsApp sin destinatario como antes
+// — nunca se adivina un numero.
+//
+// OJO: por este camino solo viaja TEXTO. WhatsApp no deja adjuntar
+// un PDF desde un enlace, asi que la carta se sigue mandando con
+// el boton COMPARTIR.
+// ============================================================
+let _recmedTrabs = [];
+
+function _recmedTrabDe(c) {
+  const lista = _recmedTrabs || [];
+  const norm = x => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (c.dni) {
+    const porDni = lista.find(t => t.dni && norm(t.dni) === norm(c.dni));
+    if (porDni) return porDni;
+  }
+  if (c.trabajador) {
+    const porNombre = lista.find(t => t.nombre && _tacoMismoNombre(t.nombre, c.trabajador));
+    if (porNombre) return porNombre;
+  }
+  return null;
 }
 
 function _recmedLista() {
@@ -28632,7 +28666,15 @@ function renderRecmed() {
     const finde = c.fecha_cita ? ' <span style="color:var(--mu)">(' + _tacoDiaSemana(c.fecha_cita) + ')</span>' : '';
     filas += '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
       '<td style="padding:7px 8px;white-space:nowrap"><span style="color:' + s.color + ';font-weight:800">' + s.txt + '</span></td>' +
-      '<td style="padding:7px 8px;font-weight:700">' + esc(c.trabajador || '') + (c.puesto ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(c.puesto) + '</span>' : '') + '</td>' +
+      '<td style="padding:7px 8px;font-weight:700">' + esc(c.trabajador || '')
+        + (c.puesto ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(c.puesto) + '</span>' : '')
+        + (function () {   // v856: a que numero va a ir el WhatsApp
+            const t = _recmedTrabDe(c);
+            return (t && t.telefono)
+              ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">\uD83D\uDCF2 ' + esc(t.telefono) + '</span>'
+              : '<br><span style="color:var(--mu);font-weight:400;font-size:10px">sin tel\u00e9fono en su ficha</span>';
+          })()
+        + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[c.empresa] || c.empresa) + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap">' + dia + finde + (c.hora_cita ? ' · <strong>' + esc(c.hora_cita) + '</strong>' : '') + '</td>' +
       '<td style="padding:7px 8px">' + esc(c.centro || '') + '</td>' +
@@ -28901,7 +28943,11 @@ function _recmedTexto(c) {
 function recmedWhatsApp(id) {
   const c = tallerRecmed.find(x => x.id === id);
   if (!c) return;
-  window.open('https://wa.me/?text=' + encodeURIComponent(_recmedTexto(c)), '_blank');
+  // v856: si sabemos su telefono, directo a su chat; si no, como antes.
+  const t = _recmedTrabDe(c);
+  const tel = _vencTelWa(t && t.telefono);
+  if (!tel) toast('No tengo su tel\u00e9fono en la ficha \u2014 elige t\u00fa el chat', 'warn');
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(_recmedTexto(c)), '_blank');
 }
 
 // v565: boton COMPARTIR de una cita medica (solo sale si tiene documento).
