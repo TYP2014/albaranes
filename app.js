@@ -27130,7 +27130,13 @@ const PRIMAS_CLIENTES = [
   { k: 'HOLCIM', clave: ['HOLCIM'] },
   { k: 'DEMETER', clave: ['DEMETER'] },
   { k: 'OP TRANS', clave: ['OPTRANS'] },
-  { k: 'ARIDFLOT', clave: ['ARIDFLOT'] }
+  { k: 'ARIDFLOT', clave: ['ARIDFLOT'] },
+  // v863 (JC 21/10/2026): mas clientes habituales
+  { k: 'LLANTADA', clave: ['LLANTADA'] },
+  { k: 'SODIRA', clave: ['SODIRA'] },
+  { k: 'UTE AMPLIACIÓN', clave: ['ADOSADO', 'AMPLIACION'] },
+  { k: 'CANRO', clave: ['CANRO'] },
+  { k: 'SATIG', clave: ['SATIG'] }
 ];
 let _v862Cache = {};   // veh -> lista de albaranes del mes {iso, cli, est, n}
 function _primasCliNorm(s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, ''); }

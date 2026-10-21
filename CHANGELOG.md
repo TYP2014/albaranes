@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v863 (21/10/2026): PRIMAS · PARTE DIARIO — MAS CLIENTES EN LOS BOTONES. Al '+ cliente' de la v862 se añaden LLANTADA, SODIRA, UTE AMPLIACION (UTE 4ª Fase Ampliacion Muelle Adosado, Puerto de Barcelona), CANRO y SATIG, ademas de CEMEX, HOLCIM, DEMETER, OP TRANS y ARIDFLOT. 'Otro…' sigue para cualquier otro. Solo cambia la lista de botones. Sin SQL. VUELTA ATRAS: resubir v862.
+
+---
+
 v862 (21/10/2026): PRIMAS · PARTE DIARIO — COLUMNA CLIENTE CON AVISO DE FACTURADO. NECESITA SQL ANTES (columna clientes en primas_partes). PROBLEMA: los conductores mandan por WhatsApp lo que han hecho antes de que lleguen los albaranes, y cada cliente corta la factura en un dia distinto (Control Demeter del 16 al 15, otros el 20 o el 30). Se han quedado dias sin facturar sin que nadie lo viera (caso real: un conductor de Hispalis estuvo el dia 9 en Control Demeter y no se facturo). ARREGLO: nueva columna CLIENTE en el parte diario, al lado de 'Lo que dice el conductor'. Boton '+ cliente' → botones grandes CEMEX · HOLCIM · DEMETER · OP TRANS · ARIDFLOT, y 'Otro…' para escribir uno corto (LLANTADA, CANRO…). Maximo 3 por dia; la × quita uno. Al lado de cada cliente la app mira los albaranes de ESE camion ESE dia y de ESE cliente y pone: 🟢 facturado · 📌 pendiente (hay albaran sin facturar; si son varios, 'pendiente 1/3') · ⏳ falta albaran (no hay ninguno: o no ha llegado o se subio a otro cliente/camion) · — sin camion (el dia esta en blanco). Pasando el raton por encima explica el detalle. El cruce es por el nombre del cliente del albaran (contiene CEMEX, HOLCIM, DEMETER, OPTRANS o ARIDFLOT). SOLO LEE los albaranes: no cambia nada en ellos ni en las primas. Se actualiza al abrir el parte y al cambiar el camion de ese dia. SQL (ejecutar ANTES de subir esta version): alter table public.primas_partes add column if not exists clientes text; VUELTA ATRAS: resubir v861 (la columna puede quedarse, no estorba).
 
 ---
