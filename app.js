@@ -36415,7 +36415,7 @@ async function tacoBuzonMirar() {
       .limit(100);
     if (error) throw error;
     _tacoBuzonPend = data || [];
-    if (!_tacoBuzonPend.length) { box.innerHTML = ''; return; }
+    if (!_tacoBuzonPend.length) { box.innerHTML = _tacoBuzonNotaCortadas(); return; }
 
     const n = _tacoBuzonPend.length;
     const quien = [...new Set(_tacoBuzonPend.map(r => r.matricula || r.conductor || '?'))];
@@ -36532,6 +36532,17 @@ async function _tacoBuzonMarcar() {
 
 let _tacoBuzonFallos = [];     // lo que no se ha podido guardar en la ultima pasada
 let _tacoBuzonTrabajando = false;
+let _tacoBuzonCortados = 0;    // v858: descargas que llegaron a medias y se han aparcado
+
+// v858: aviso discreto, en gris. NO es un error que haya que resolver: es para
+// que quede constancia de que esas descargas llegaron rotas y se han apartado.
+function _tacoBuzonNotaCortadas() {
+  const n = _tacoBuzonCortados;
+  if (!n) return '';
+  return `<div style="background:rgba(130,130,130,.10);border:1px solid rgba(130,130,130,.35);border-radius:9px;padding:10px 13px;margin-bottom:14px;font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6">
+    ⏸ <b>${n} descarga${n === 1 ? '' : 's'} llegó${n === 1 ? '' : 'n'} cortada${n === 1 ? '' : 's'}</b> y se ${n === 1 ? 'ha' : 'han'} apartado.
+    La bajada se interrumpió a medias y el fichero no se puede leer. El original sigue guardado en el almacén, intacto.</div>`;
+}
 
 async function tacoBuzonAuto() {
   if (_tacoBuzonTrabajando) return;
@@ -36550,6 +36561,7 @@ async function tacoBuzonAuto() {
     const fallos = [];
     const matsOk = [];        // v831: camiones tocados, para refrescar sus km en Taller
     let ok = 0;
+    let cortados = 0;         // v858: descargas que llegaron a medias
 
     for (const r of data) {
       try {
@@ -36558,6 +36570,29 @@ async function tacoBuzonAuto() {
 
         const f = new File([blob], r.file_nombre, { type: 'application/octet-stream' });
         const it = await _tacoLeerUno(f);
+
+        // v858: DESCARGAS CORTADAS. A veces la bajada remota se corta a medias
+        // (el camion se apaga, se va la cobertura) y el proveedor guarda igual
+        // lo que le dio tiempo, rellenando el resto con FF. Ese fichero NO se
+        // puede leer, y NUNCA se va a poder: reintentarlo cada dia solo servia
+        // para dejar el cartel rojo encendido para siempre. Se APARCA (sale del
+        // buzon con resultado 'cortado'). El fichero original NO SE BORRA: sigue
+        // en el almacen, intacto, por si algun dia sirviera para algo.
+        // OJO AL MATIZ: solo se aparca lo que no se puede LEER. Un fichero que
+        // se lee bien pero cuyo conductor no esta de alta SIGUE reintentandose,
+        // porque eso si se arregla manyana dandolo de alta.
+        if (it.estado === 'leido' && it.r && !it.r.completo) {
+          cortados++;
+          console.warn('[v858] descarga CORTADA, se aparca: ' + r.file_nombre
+            + ' \u2014 solo ' + (it.r.leidos || 0).toLocaleString('es-ES')
+            + ' de ' + (it.r.bytes || 0).toLocaleString('es-ES') + ' bytes');
+          await sb.from('tacografo_entrada').update({
+            procesado: true,
+            procesado_el: new Date().toISOString(),
+            resultado: 'cortado'
+          }).eq('id', r.id);
+          continue;
+        }
 
         if (it.estado !== 'leido' || !it.empresa || !it.r || !it.r.completo) {
           fallos.push({ id: r.id, nombre: r.file_nombre, quien: r.matricula || r.conductor || '',
@@ -36584,7 +36619,9 @@ async function tacoBuzonAuto() {
       }
     }
 
-    console.log('[v830 buzon] guardadas ' + ok + ' · sin guardar ' + fallos.length);
+    console.log('[v830 buzon] guardadas ' + ok + ' · sin guardar ' + fallos.length
+      + (cortados ? ' · cortadas (aparcadas) ' + cortados : ''));
+    _tacoBuzonCortados = cortados;                                             // v858
 
     // v831: los km de esas descargas, derechos a la ficha de Taller
     if (matsOk.length) {
