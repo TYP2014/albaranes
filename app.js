@@ -27144,7 +27144,7 @@ function renderPrimas() {
   const filaPlus = (lun, nota) => {
     const dom = _primasMas(lun, 6);
     return '<tr style="background:rgba(46,125,50,.10);border-bottom:2px solid var(--bd)">' +
-      '<td colspan="6" style="padding:7px 8px;text-align:right;font-weight:800">PLUS SEMANA ' + lun.slice(8) + '/' + lun.slice(5, 7) +
+      '<td colspan="7" style="padding:7px 8px;text-align:right;font-weight:800">PLUS SEMANA ' + lun.slice(8) + '/' + lun.slice(5, 7) +
       ' <span id="prPlusInfo_' + lun + '" style="font-weight:600;color:#222"></span>' + (nota ? ' <span style="font-weight:600;color:#222">' + nota + '</span>' : '') + '</td>' +
       '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusVal_' + lun + '"></strong>' +
       ' <input class="fi" id="prPlusMan_' + lun + '" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app. Escribe un importe solo si esta semana hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
@@ -27158,6 +27158,7 @@ function renderPrimas() {
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
       '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos.&#10;&#10;DÉJALA EN BLANCO si ese día no llevó ninguno (taller, curso, no trabajó): entonces no se le trae ningún albarán ni se le pone prima." style="' + inS + ';text-transform:uppercase" placeholder="' + ((f.vehiculo_manual && !f.vehiculo) ? '' : _primasAttr(primasHabitual)) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\', true)"></td>' +
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
+      '<td style="padding:3px 4px;min-width:150px;vertical-align:top" id="pr_cli_' + iso + '">' + _primasCliCelda(iso) + '</td>' +   // v862
       '<td style="padding:3px 4px;width:40%;min-width:340px"><textarea class="fi" id="pr_trabajo_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.trabajo || '') + '</textarea><div id="pr_info_' + iso + '" style="white-space:normal;overflow-wrap:anywhere;font-size:12.5px;font-weight:600;margin-top:3px;line-height:1.3">' + _primasInfoDia(f) + '</div><div id="pr_desf_' + iso + '"></div></td>' +
       '<td style="padding:3px 4px;min-width:120px"><input class="fi" id="pr_notas_' + iso + '" style="' + inS + '" value="' + _primasAttr(f.notas) + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;width:86px"><input class="fi" id="pr_horas_extra_' + iso + '" type="number" step="0.5" min="0" title="' + (w === 6 ? 'SÁBADO trabajado: pon las horas que hizo (se paga el precio fijo del sábado; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : (w === 0 ? 'DOMINGO trabajado: pon las horas que hizo (se paga el precio fijo del domingo; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : 'Horas extra de este día (se pagan por hora)')) + '" style="' + inS + ';text-align:right;color:#6a1b9a' + (finde ? ';background:rgba(106,27,154,.06)' : '') + '" value="' + (f.horas_extra != null && _primasNum(f.horas_extra) !== 0 ? _primasAttr(f.horas_extra) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +   // v792
@@ -27169,13 +27170,13 @@ function renderPrimas() {
       if (_primasSemanaEsDelMes(lun)) {
         filas += filaPlus(lun, (w !== 0 ? '· la semana acaba el mes que viene; cuenta aquí' : (lun < r.ini ? '· incluye días del mes anterior' : '')));
       } else if (iso === r.fin && w !== 0) {
-        filas += '<tr><td colspan="8" style="padding:8px;text-align:right;color:#222;font-weight:600;font-size:12.5px">La semana del ' + lun.slice(8) + '/' + lun.slice(5, 7) + ' se cuenta en el mes siguiente.</td></tr>';
+        filas += '<tr><td colspan="9" style="padding:8px;text-align:right;color:#222;font-weight:600;font-size:12.5px">La semana del ' + lun.slice(8) + '/' + lun.slice(5, 7) + ' se cuenta en el mes siguiente.</td></tr>';
       }
     }
   }
   // v675: PLUS DEL MES, ultima fila de la tabla
   filas += '<tr style="background:rgba(25,118,210,.12);border-top:2px solid var(--bd)">' +
-    '<td colspan="6" style="padding:9px 8px;text-align:right;font-weight:800">PLUS DEL MES <span id="prPlusMesInfo" style="font-weight:600;color:#222"></span></td>' +
+    '<td colspan="7" style="padding:9px 8px;text-align:right;font-weight:800">PLUS DEL MES <span id="prPlusMesInfo" style="font-weight:600;color:#222"></span></td>' +
     '<td style="padding:5px 8px;white-space:nowrap"><strong id="prPlusMesVal"></strong>' +
     ' <input class="fi" id="prPlusMesMan" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app (75 € si consigue el plus TODAS las semanas · 150 € si tiene prima TODOS los días laborables). Escribe un importe solo si este mes hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
     ((primasRows[r.fin] && primasRows[r.fin].plus_mes_manual != null) ? _primasAttr(primasRows[r.fin].plus_mes_manual) : '') + '" onchange="primasSavePlusMes()"></td><td></td></tr>';
@@ -27183,12 +27184,13 @@ function renderPrimas() {
     '<style>#primasBox input::placeholder,#primasBox textarea::placeholder{color:#333;opacity:1;font-weight:600}#primasBox th{color:#111;font-weight:800;font-size:12.5px}</style>' +   // v672: la matricula habitual "de fondo" en oscuro
     '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +   // v672: grande y en negro
     '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd);color:#111;font-size:12.5px;font-weight:800">' +
-    '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right" title="Horas extra de ese día. En SÁBADO o DOMINGO: pon las horas que hizo; se paga el precio fijo del sábado/domingo de su Ficha.">EXTRA (h)</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
+    '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px" title="A qué cliente fue ese día (lo que dice el WhatsApp). Al lado sale si sus albaranes están facturados.">CLIENTE</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right" title="Horas extra de ese día. En SÁBADO o DOMINGO: pon las horas que hizo; se paga el precio fijo del sábado/domingo de su Ficha.">EXTRA (h)</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
   _primasPintaTotales();
   document.querySelectorAll('#primasBox textarea').forEach(_primasAutoAlto);   // v678: que se lea entero lo que dice el conductor
   _primasMarcaDesfase();   // v729: en segundo plano, marca los dias cuyo texto ya no cuadra con los albaranes
+  _primasCliEstados();     // v862: en segundo plano, facturado / pendiente / falta albarán por cliente
 }
 
 // v729: DIAS DESFASADOS EN COLOR. Sin pulsar nada: al abrir el parte, mira los albaranes (igual que
@@ -27221,6 +27223,168 @@ async function _primasMarcaDesfase() {
     });
     if (nNar || nAzul) console.log('[v729 primas] desfasados', { naranja: nNar, azul: nAzul });
   } catch (e) { console.warn('[v729 primas] no se pudo mirar el desfase', e); }
+}
+
+// v862 (JC 21/10/2026): CLIENTE EN EL PARTE DIARIO. Al pasar el WhatsApp del conductor se marca a que
+// cliente(s) fue ese dia (maximo 3). Al lado, la app mira los albaranes de ESE camion ESE dia y de ESE
+// cliente: 🟢 facturado · 📌 pendiente (hay albaran sin facturar) · ⏳ falta albaran (no hay ninguno).
+// Caso real: Control Demeter corta del 16 al 15; un dia 9 de Hispalis se quedo sin facturar y nadie lo vio.
+// Columna primas_partes.clientes (texto, separado por comas). Solo LEE albaranes: no cambia nada en ellos.
+const PRIMAS_CLIENTES = [
+  { k: 'CEMEX', clave: ['CEMEX'] },
+  { k: 'HOLCIM', clave: ['HOLCIM'] },
+  { k: 'DEMETER', clave: ['DEMETER'] },
+  { k: 'OP TRANS', clave: ['OPTRANS'] },
+  { k: 'ARIDFLOT', clave: ['ARIDFLOT'] },
+  // v863 (JC 21/10/2026): mas clientes habituales
+  { k: 'LLANTADA', clave: ['LLANTADA'] },
+  { k: 'SODIRA', clave: ['SODIRA'] },
+  { k: 'UTE AMPLIACIÓN', clave: ['ADOSADO', 'AMPLIACION'] },
+  { k: 'CANRO', clave: ['CANRO'] },
+  { k: 'SATIG', clave: ['SATIG'] }
+];
+let _v862Cache = {};   // veh -> lista de albaranes del mes {iso, cli, est, n}
+function _primasCliNorm(s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, ''); }
+// v864: nombre corto del cliente de un albaran (el del boton si coincide; si no, el del albaran recortado)
+function _primasCliCorto(a) {
+  const c = PRIMAS_CLIENTES.find(x => x.clave.some(cl => a.cli.includes(cl)));
+  if (c) return c.k;
+  const r = String(a.raw || '').toUpperCase().replace(/,?\s*(S\.?\s*L\.?\s*U?\.?|S\.?\s*A\.?\s*U?\.?)\s*$/, '').trim();
+  return r ? (r.length > 18 ? r.slice(0, 18) + '…' : r) : 'SIN CLIENTE';
+}
+function _primasCliLista(iso) {
+  return String((primasRows[iso] || {}).clientes || '').split(',').map(x => x.trim()).filter(Boolean);
+}
+function _primasCliClaves(k) {
+  const c = PRIMAS_CLIENTES.find(x => x.k === k);
+  return c ? c.clave : [_primasCliNorm(k)].filter(x => x.length >= 3);
+}
+function _primasCliCelda(iso) {
+  const l = _primasCliLista(iso);
+  const chip = (k) => '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;white-space:nowrap">' +
+    '<span style="background:#eef2f7;border:1px solid #c5cfdb;border-radius:12px;padding:2px 8px;font-size:12.5px;font-weight:800">' + esc(k) + '</span>' +
+    '<span id="pr_cliest_' + iso + '_' + _primasCliNorm(k) + '" style="font-size:12px;font-weight:800;color:#777;white-space:normal">…</span>' +
+    '<button title="Quitar este cliente de este día" style="border:none;background:none;color:#c62828;font-weight:800;cursor:pointer;padding:0 2px" onclick="primasCliQuitar(\'' + iso + '\',\'' + _primasAttr(k) + '\')">×</button></div>';
+  return l.map(chip).join('') + (l.length < 3 ? '<button class="btn bs" style="font-size:12px;padding:3px 8px;font-weight:700" onclick="primasCliElegir(\'' + iso + '\')">+ cliente</button>' : '');
+}
+function primasCliElegir(iso) {
+  const ya = _primasCliLista(iso);
+  let ov = document.getElementById('primasCliOv');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'primasCliOv'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px';
+  const btn = (k) => '<button class="btn ' + (ya.includes(k) ? 'bs' : 'bp') + '" ' + (ya.includes(k) ? 'disabled ' : '') + 'style="font-size:16px;padding:12px 10px;font-weight:800" onclick="primasCliPoner(\'' + iso + '\',\'' + _primasAttr(k) + '\')">' + esc(k) + '</button>';
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:420px;width:100%;padding:20px;box-sizing:border-box;font-family:var(--mn)">' +
+    '<div style="font-size:17px;font-weight:800;color:#111;margin-bottom:12px">¿A qué cliente fue el ' + iso.slice(8) + '/' + iso.slice(5, 7) + '?</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + PRIMAS_CLIENTES.map(c => btn(c.k)).join('') +
+    '<button class="btn bs" style="font-size:15px;padding:12px 10px;font-weight:800" onclick="primasCliOtro(\'' + iso + '\')">✎ Otro…</button></div>' +
+    '<div style="text-align:right;margin-top:14px"><button class="btn bs" style="font-size:14px;padding:8px 18px;font-weight:700" onclick="document.getElementById(\'primasCliOv\').remove()">Cerrar</button></div></div>';
+  ov.onclick = (ev) => { if (ev.target === ov) ov.remove(); };
+}
+function primasCliOtro(iso) {
+  const t = prompt('Nombre corto del cliente (como sale en los albaranes, ej. LLANTADA, CANRO, SATIG):', '');
+  if (t == null) return;
+  const k = String(t).trim().toUpperCase().slice(0, 20);
+  if (_primasCliNorm(k).length < 3) { toast('Pon al menos 3 letras', 'warn'); return; }
+  primasCliPoner(iso, k);
+}
+async function primasCliPoner(iso, k) {
+  const ov = document.getElementById('primasCliOv'); if (ov) ov.remove();
+  const l = _primasCliLista(iso);
+  if (l.includes(k)) return;
+  if (l.length >= 3) { toast('Máximo 3 clientes por día', 'warn'); return; }
+  l.push(k);
+  await _primasCliGuardar(iso, l);
+}
+async function primasCliQuitar(iso, k) { await _primasCliGuardar(iso, _primasCliLista(iso).filter(x => x !== k)); }
+async function _primasCliGuardar(iso, lista) {
+  if (!primasTrabId) return;
+  const previa = primasRows[iso];
+  const val = lista.length ? lista.join(',') : null;
+  try {
+    _primasEstado('Guardando...');
+    if (previa) {
+      const { data, error } = await sb.from('primas_partes').update({ clientes: val, editado_por: _primasQuien(), updated_at: new Date().toISOString() })
+        .eq('trabajador_id', primasTrabId).eq('fecha', iso).select();
+      if (error) throw error;
+      (data || []).forEach(f => { primasRows[String(f.fecha).slice(0, 10)] = f; });
+    } else {
+      if (!val) return;
+      await _primasUpsert([{ trabajador_id: String(primasTrabId), fecha: iso, clientes: val, prima: 0, editado_por: _primasQuien(), updated_at: new Date().toISOString() }]);
+    }
+    const c = document.getElementById('pr_cli_' + iso); if (c) c.innerHTML = _primasCliCelda(iso);
+    _primasCliEstados(iso);
+    _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  } catch (e) {
+    console.error('[v862 cliente]', iso, e);
+    const msg = String(e.message || e);
+    _primasEstado('✗ NO guardado: ' + msg, true);
+    toast('No se pudo guardar el cliente' + (/clientes/.test(msg) ? ' — falta ejecutar el SQL de la v862 (columna clientes)' : ': ' + msg), 'err');
+  }
+}
+function _primasCliVehs(iso) {
+  const prev = primasRows[iso] || {};
+  const el = document.getElementById('pr_vehiculo_' + iso);
+  const l = _primasMats(el ? el.value : prev.vehiculo);
+  if (l.length) return l;
+  if (prev.vehiculo_manual) return [];
+  return primasHabitual ? [primasHabitual] : [];
+}
+let _v862Tok = 0;
+async function _primasCliEstados(soloIso) {
+  const tok = soloIso ? _v862Tok : ++_v862Tok, trab = primasTrabId, mes = primasMes;
+  if (!soloIso) _v862Cache = {};
+  const r = _primasRango(), dias = [];
+  for (let iso = r.ini; iso <= r.fin; iso = _primasMas(iso, 1)) if ((!soloIso || soloIso === iso) && _primasCliLista(iso).length) dias.push(iso);
+  if (!dias.length) return;
+  const p = mes.split('-'), mm = p[1], m1 = String(+p[1]), yy = p[0];
+  const patrones = ['fecha.like.' + yy + '-' + mm + '-*', 'fecha.like.*/' + mm + '/' + yy, 'fecha.like.*/' + m1 + '/' + yy, 'fecha.like.*-' + mm + '-' + yy].join(',');
+  try {
+    const vehs = Array.from(new Set([].concat.apply([], dias.map(_primasCliVehs))));
+    for (const veh of vehs) {
+      if (_v862Cache[veh]) continue;
+      const lista = [], vistos = new Set();
+      for (let desde = 0; desde < 5000; desde += 1000) {
+        const q = await sb.from('albaranes').select('albaran,tractora,fecha,cliente,estado_facturacion').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        if (q.error) throw q.error;
+        (q.data || []).forEach(a => {
+          const iso = _primasFechaAlb(a.fecha); if (!iso) return;
+          const cl = String(a.albaran || '') + '|' + iso; if (a.albaran && vistos.has(cl)) return; vistos.add(cl);
+          lista.push({ iso, cli: _primasCliNorm(a.cliente), raw: String(a.cliente || '').trim(), est: a.estado_facturacion || 'pendiente' });
+        });
+        if ((q.data || []).length < 1000) break;
+      }
+      _v862Cache[veh] = lista;
+    }
+    if (tok !== _v862Tok || trab !== primasTrabId || mes !== primasMes) return;
+    const hoy = _primasISO(new Date());
+    dias.forEach(iso => {
+      const vs = _primasCliVehs(iso);
+      const delDia = [].concat.apply([], vs.map(v => (_v862Cache[v] || []).filter(a => a.iso === iso)));
+      _primasCliLista(iso).forEach(k => {
+        const el = document.getElementById('pr_cliest_' + iso + '_' + _primasCliNorm(k)); if (!el) return;
+        const claves = _primasCliClaves(k);
+        const suyos = delDia.filter(a => a.est !== 'no_facturable' && claves.some(c => a.cli.includes(c)));
+        let txt, col, tit;
+        if (!vs.length) { txt = '— sin camión'; col = '#777'; tit = 'Este día no tiene camión en VEHÍCULO: no se puede buscar.'; }
+        else if (!suyos.length) {
+          // v864: ¿falta el albaran de verdad, o el cliente esta mal puesto? Se enseña lo que SI hay ese dia.
+          const otros = {};
+          delDia.filter(a => a.est !== 'no_facturable').forEach(a => { const n = _primasCliCorto(a); otros[n] = (otros[n] || 0) + 1; });
+          const lo = Object.keys(otros).map(n => n + ' (' + otros[n] + ')');
+          col = '#c62828';
+          // v865 (JC): texto CORTO. Lo que si hay ese dia pasa al aviso al poner el raton encima.
+          if (!lo.length) { txt = '⏳ ningún albarán'; tit = 'El camión ' + vs.join(' + ') + ' no tiene ningún albarán este día: falta el albarán.' + (iso >= hoy ? ' (Es hoy: puede que aún no haya llegado.)' : ''); }
+          else { txt = '⏳ no hay de ' + k; tit = 'No hay albaranes de ' + k + '. Ese día el camión ' + vs.join(' + ') + ' tiene: ' + lo.join(', ') + '. ¿El cliente está bien puesto?'; }
+        }
+        else {
+          const pend = suyos.filter(a => a.est !== 'facturado').length;
+          if (!pend) { txt = '🟢 facturado'; col = '#2e7d32'; tit = suyos.length + ' albarán(es) de ' + k + ', todos facturados.'; }
+          else { txt = '📌 pendiente' + (suyos.length > 1 ? ' ' + pend + '/' + suyos.length : ''); col = '#e65100'; tit = pend + ' de ' + suyos.length + ' albarán(es) de ' + k + ' sin facturar.'; }
+        }
+        el.textContent = txt; el.style.color = col; el.title = tit;
+      });
+    });
+  } catch (e) { console.warn('[v862 primas] estado de clientes', e); }
 }
 
 // v675: plus del mes abierto, calculado sobre primasRows. Devuelve { semanas, semanasOk, dias, diasOk, auto, manual, valor }
@@ -27420,6 +27584,7 @@ async function primasSaveRow(iso, vehAMano) {
       _primasPlaceholderVeh();   // v861
     }
     _primasPintaTotales();
+    if (vehAMano && _primasCliLista(iso).length) { _v862Cache = {}; _primasCliEstados(iso); }   // v862: otro camion → otros albaranes
     _primasEstado('✓ Guardado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   } catch (e) {
     console.error('[v659 primasSaveRow]', iso, e);
