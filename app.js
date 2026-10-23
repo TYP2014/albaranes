@@ -32333,12 +32333,12 @@ function _factRepasosPintar() {
     h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:12px">'
       + '<span style="font-weight:700">' + esc(r.proveedor) + '</span>'
       + '<span>' + esc(_factMesBonito(r.mes)) + '</span>'
-      + '<span style="color:' + (viejo ? 'var(--wn)' : 'var(--mu)') + '">' + esc(_bonito(r.fecha)) + (viejo ? ' (hace más de 1 día)' : '') + '</span>'
+      + '<span><strong style="color:var(--ac)" title="Última vez que se subió y cruzó la liquidación">' + esc(_bonito(r.fecha)) + '</strong>' + (viejo ? ' <span style="color:var(--wnd);font-size:11px">(hace más de 1 día)</span>' : '') + '</span>'
       // v888: cada cifra lleva su palabra (antes iban solo con un icono de color y no se entendian).
       // Solo dos colores con sentido: verde apagado = abonados (todo bien), ambar = no abonados (hay que mirar).
       + '<span style="display:inline-flex;flex-wrap:wrap;gap:4px 14px;color:var(--tx)">'
       + '<span><strong style="color:var(--ok)">' + r.n.ab + '</strong> abonados</span>'
-      + (r.n.pos ? '<span><strong>' + r.n.pos + '</strong> a revisar</span>' : '')
+      + '<span><strong style="color:' + (r.n.pos ? 'var(--wnd)' : 'var(--tx)') + '">' + (r.n.pos || 0) + '</strong> a revisar</span>'
       + '<span><strong style="color:' + (r.n.no ? 'var(--wnd)' : 'var(--tx)') + '">' + r.n.no + '</strong> no abonados</span>'
       + '<span><strong>' + r.n.sin + '</strong> sin copia</span>'
       + (r.n.dup ? '<span><strong style="color:var(--er)">' + r.n.dup + '</strong> duplicados</span>' : '')
@@ -32365,7 +32365,19 @@ function _factRepasosPintar() {
       }
     }
     // Pastillas: todas visibles, repartidas en las líneas que hagan falta.
-    const fams = _factRepasoFamilias(r);
+    // v889: orden por uso habitual (pedido por Juan Carlos): las de cada mes primero, los 3 aridos de Garraf juntos;
+    // las que se hacen de vez en cuando al final: Escombros (3.º por la cola), Clinker (penultimo) y Otros (ultimo).
+    const _famOrden = (f) => {
+      const t = String(f).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+      const L = [/CALIZA GARRAF.*ZAHORRA/, /CALIZA PROMSA/, /ARIDOS GARRAF.*LA ROCA/, /ARIDOS GARRAF.*MONTCADA/, /ARIDOS GARRAF.*ZONA FRANCA/,
+        /CALIZA CEMEX/, /ARIDO RECICLADO|TECNOCATALANA/, /ESCORIAS|ADEC/, /^YESO/, /CISTERNAS|SACOS|PALETS/, /NUCLEO GARRAF|PUERTO BARCELONA/, /ARENA MARTORELL/];
+      for (let i = 0; i < L.length; i++) if (L[i].test(t)) return i;
+      if (/^ESCOMBROS/.test(t)) return 101;
+      if (/^CLINKER/.test(t)) return 102;
+      if (/^OTROS/.test(t)) return 103;
+      return 50;   // familia nueva que no conozco: en medio, por orden alfabetico
+    };
+    const fams = _factRepasoFamilias(r).slice().sort((x, y) => (_famOrden(x) - _famOrden(y)) || String(x).localeCompare(String(y), 'es'));
     if (fams.length) {
       // v888: rejilla de columnas iguales (antes pastillas sueltas de distinto ancho, una fila hasta el fondo y otra a medias).
       h += '<div style="color:var(--mu);font-size:11px;margin-top:10px">o cada familia por separado:</div>'

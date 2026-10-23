@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v889 (23/10/2026): REPASOS GUARDADOS · ORDEN DE FAMILIAS, FECHA Y 'A REVISAR'. (1) Las pastillas de familias se ordenan por uso habitual: Caliza Garraf Zahorra, Caliza Promsa, los 3 Aridos Garraf juntos (La Roca, Montcada, Zona Franca), Caliza Cemex, Arido reciclado/Tecnocatalana, Escorias/ADEC, Yeso, Cisternas/sacos/palets, Nucleo Garraf, Arena Martorell; y al final las de vez en cuando: Escombros (3.º por la cola), Clinker (penultimo) y Otros (ultimo). Una familia nueva que no conozca sale en medio. El orden es solo de pantalla: el Excel completo y su orden de pestañas NO cambian. (2) La fecha y hora de la ultima vez que se subio la liquidacion sale en azul marino y negrita; el aviso '(hace mas de 1 dia)' va aparte, mas pequeño y en ambar. (3) 'a revisar' sale siempre (aunque sea 0) para que todas las filas lleven las mismas cinco cifras. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v888.
+
+---
+
 v888 (23/10/2026): 'ULTIMOS REPASOS GUARDADOS' MAS CLARO. (1) Las cifras llevaban solo un icono de color (🟢 ⚠ 📋 🔁) y no se entendian: ahora cada una lleva su palabra: 'N abonados', 'N a revisar', 'N no abonados', 'N sin copia', 'N duplicados'. Solo dos colores con significado: verde apagado para abonados y ambar para no abonados si hay alguno; duplicados en rojo apagado. (2) Las pastillas de 'cada familia por separado' (ARENA MARTORELL, CALIZA CEMEX...) pasan de pastillas sueltas de distinto ancho a una rejilla de columnas iguales, MAXIMO 6 POR FILA, para que las filas queden a la misma altura y ordenadas como un texto. (3) Se quita el emoji del titulo y el ⏳ de repaso antiguo pasa a texto '(hace mas de 1 dia)'. Los iconos de los botones de descarga (VER, EXCEL COMPLETO, EXCEL DEL TRANSPORTISTA, familias) SE MANTIENEN porque sirven para localizar rapido los Excel. Los calculos y los Excel no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v887.
 
 ---
