@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v888 (23/10/2026): 'ULTIMOS REPASOS GUARDADOS' MAS CLARO. (1) Las cifras llevaban solo un icono de color (🟢 ⚠ 📋 🔁) y no se entendian: ahora cada una lleva su palabra: 'N abonados', 'N a revisar', 'N no abonados', 'N sin copia', 'N duplicados'. Solo dos colores con significado: verde apagado para abonados y ambar para no abonados si hay alguno; duplicados en rojo apagado. (2) Las pastillas de 'cada familia por separado' (ARENA MARTORELL, CALIZA CEMEX...) pasan de pastillas sueltas de distinto ancho a una rejilla de columnas iguales, MAXIMO 6 POR FILA, para que las filas queden a la misma altura y ordenadas como un texto. (3) Se quita el emoji del titulo y el ⏳ de repaso antiguo pasa a texto '(hace mas de 1 dia)'. Los iconos de los botones de descarga (VER, EXCEL COMPLETO, EXCEL DEL TRANSPORTISTA, familias) SE MANTIENEN porque sirven para localizar rapido los Excel. Los calculos y los Excel no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v887.
+
+---
+
 v887 (23/10/2026): FACTURACION · SE QUITA LA TARJETA 'PROMOTORA MEDITERRANEA'. Era un boton por mes que bajaba un Excel con los aridos de Promsa; no se usaba (se prefiere sacar los Excel de otra manera). Se elimina SOLO la tarjeta de la pantalla (index.html). El codigo de app.js que la rellenaba se queda sin usar y sin efecto: comprobado que si la tarjeta no existe, la funcion sale sin hacer nada y no afecta a Holcim, Sodira ni CEMEX. No se borra ningun dato. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v886 (app.js solo cambia el numero).
 
 ---

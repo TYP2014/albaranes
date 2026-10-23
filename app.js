@@ -32323,7 +32323,7 @@ function _factRepasosPintar() {
   const _viejo = (iso) => { const d = new Date(iso); return !isNaN(d) && (Date.now() - d.getTime()) > 86400000; };
 
   let h = '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;background:var(--bg2)">'
-        + '<div style="font-weight:700;margin-bottom:8px">📊 ÚLTIMOS REPASOS GUARDADOS '
+        + '<div style="font-weight:700;margin-bottom:8px">ÚLTIMOS REPASOS GUARDADOS '
         + '<span style="font-weight:400;color:var(--mu);font-size:11px">· es una foto del momento en que se cruzó; si has subido cosas después, vuelve a cruzar</span></div>';
 
   lista.forEach((r, idx) => {
@@ -32333,13 +32333,15 @@ function _factRepasosPintar() {
     h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:12px">'
       + '<span style="font-weight:700">' + esc(r.proveedor) + '</span>'
       + '<span>' + esc(_factMesBonito(r.mes)) + '</span>'
-      + '<span style="color:' + (viejo ? '#e0a000' : 'var(--mu)') + '">' + (viejo ? '⏳ ' : '') + esc(_bonito(r.fecha)) + '</span>'
-      + '<span style="white-space:nowrap">'
-      + '<span style="color:var(--ok);font-weight:700">' + r.n.ab + ' 🟢</span>'
-      + (r.n.pos ? ' <span style="color:#7cc4ff">' + r.n.pos + ' ⚠</span>' : '')
-      + ' <span style="color:#e0a000">' + r.n.no + ' ⚠</span>'
-      + ' <span style="color:#7cc4ff">' + r.n.sin + ' 📋</span>'
-      + (r.n.dup ? ' <span style="color:var(--err)">' + r.n.dup + ' 🔁</span>' : '')
+      + '<span style="color:' + (viejo ? 'var(--wn)' : 'var(--mu)') + '">' + esc(_bonito(r.fecha)) + (viejo ? ' (hace más de 1 día)' : '') + '</span>'
+      // v888: cada cifra lleva su palabra (antes iban solo con un icono de color y no se entendian).
+      // Solo dos colores con sentido: verde apagado = abonados (todo bien), ambar = no abonados (hay que mirar).
+      + '<span style="display:inline-flex;flex-wrap:wrap;gap:4px 14px;color:var(--tx)">'
+      + '<span><strong style="color:var(--ok)">' + r.n.ab + '</strong> abonados</span>'
+      + (r.n.pos ? '<span><strong>' + r.n.pos + '</strong> a revisar</span>' : '')
+      + '<span><strong style="color:' + (r.n.no ? 'var(--wnd)' : 'var(--tx)') + '">' + r.n.no + '</strong> no abonados</span>'
+      + '<span><strong>' + r.n.sin + '</strong> sin copia</span>'
+      + (r.n.dup ? '<span><strong style="color:var(--er)">' + r.n.dup + '</strong> duplicados</span>' : '')
       + '</span>'
       + '<span style="margin-left:auto;white-space:nowrap">'
       + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">👁 VER</button> '
@@ -32365,10 +32367,11 @@ function _factRepasosPintar() {
     // Pastillas: todas visibles, repartidas en las líneas que hagan falta.
     const fams = _factRepasoFamilias(r);
     if (fams.length) {
-      h += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px">'
-        + '<span style="color:var(--mu);font-size:11px;margin-right:4px">o cada familia por separado:</span>';
+      // v888: rejilla de columnas iguales (antes pastillas sueltas de distinto ancho, una fila hasta el fondo y otra a medias).
+      h += '<div style="color:var(--mu);font-size:11px;margin-top:10px">o cada familia por separado:</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(150px,calc(100% / 6 - 6px)),1fr));gap:6px;margin-top:6px">';
       fams.forEach(f => {
-        h += '<button class="btn bs" style="font-size:10px;padding:2px 8px" '
+        h += '<button class="btn bs" style="font-size:11px;padding:5px 10px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(f) + '" '
           + 'onclick="_factRepasoExcel(\'' + esc(r.id) + '\',\'' + esc(f).replace(/'/g, "\\'") + '\')">📄 ' + esc(f) + '</button>';
       });
       h += '</div>';
