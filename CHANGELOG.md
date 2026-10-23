@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v880 (23/10/2026): EMPLEADOS · FILA DE BOTONES UNIFICADA. Los 4 botones de la fila de abajo (Añadir trabajador, Registrar vacaciones, Ver archivados, Refrescar) pasan de letra 11 a 13 px, mismo tamaño que los de empresa, y pierden los iconitos de colores (+, calendario, ojo, flechas). El boton Ver archivados/Ver activos tambien cambia su texto sin emoji. No cambia ninguna funcion. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v879.
+
+---
+
 v879 (23/10/2026): EMPLEADOS SIN ILUSTRACIONES. Se quitan los 3 dibujos (maleta, portapapeles medico, fajo de billetes) de los botones Vacaciones / Reconocimientos medicos / Primas: quedan solo con texto, mas formales. Los tres siguen del mismo ancho (300 px). Los archivos de imagen siguen en el repo sin usarse (no se borran). Solo index.html; sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v878.
 
 ---

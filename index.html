@@ -1350,11 +1350,11 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- Resumen + acciones arriba -->
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:18px">
         <div></div>
-        <div style="display:flex;gap:36px;flex-wrap:wrap;justify-content:center">
-          <button class="btn bp" onclick="openTrabajadorModal()" style="font-size:11px">➕ Añadir trabajador</button>
-          <button class="btn bw" onclick="openVacPeriodoModal()" style="font-size:11px">📅 Registrar vacaciones</button>
-          <button class="btn bs" onclick="vacToggleArchivados()" id="vacBtnArchivados" style="font-size:11px">👁️ Ver archivados</button>
-          <button class="btn bs" onclick="loadVacData()" style="font-size:11px">🔄 Refrescar</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button class="btn bp" onclick="openTrabajadorModal()" style="font-size:13px;padding:8px 18px;min-width:150px">Añadir trabajador</button>
+          <button class="btn bw" onclick="openVacPeriodoModal()" style="font-size:13px;padding:8px 18px;min-width:150px">Registrar vacaciones</button>
+          <button class="btn bs" onclick="vacToggleArchivados()" id="vacBtnArchivados" style="font-size:13px;padding:8px 18px;min-width:150px">Ver archivados</button>
+          <button class="btn bs" onclick="loadVacData()" style="font-size:13px;padding:8px 18px;min-width:150px">Refrescar</button>
         </div>
         <div style="justify-self:end;display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px;color:var(--mu)">
           Año:
@@ -2063,6 +2063,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=879"></script>
+<script src="app.js?v=880"></script>
 </body>
 </html>

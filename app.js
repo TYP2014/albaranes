@@ -24778,7 +24778,7 @@ function _vacRenderCalendarioAnio() {
 function vacToggleArchivados() {
   vacMostrarArchivados = !vacMostrarArchivados;
   const btn = document.getElementById('vacBtnArchivados');
-  if (btn) btn.textContent = vacMostrarArchivados ? '👤 Ver activos' : '👁️ Ver archivados';
+  if (btn) btn.textContent = vacMostrarArchivados ? 'Ver activos' : 'Ver archivados';
   renderVac();
 }
 
