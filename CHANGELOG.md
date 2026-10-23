@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v886 (23/10/2026): CAJAS DE SUBIDA MAS SOBRIAS (Liquidacion CEMEX, Depositos Sodira, Liquidacion Holcim y Excel de ayuda 908). Se quitan el sobre/flecha (📤) y el libro verde (📗); cajas mas compactas (menos alto, borde fino, esquinas menos redondas) para que ocupen menos y queden mas arriba; el Excel de ayuda 908 pasa del verde al mismo azul marino que las demas. Siguen funcionando igual: arrastrar el archivo o pinchar. El texto del Excel 908 vuelve a 'Excel de ayuda (908)' sin emoji tras leer. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v885.
+
+---
+
 v885 (23/10/2026): FACTURACION SIN ICONITOS EN BOTONES Y TITULOS. Se quitan los emojis de: Guardar tarifas, Guardar precios cliente, los botones de mes (📅) y 'Ver subidas' (📎) de Liquidacion CEMEX / Holcim / Sodira, y de los titulos FACTURA HISPALIS / TRANSMARGAZ (🧾) y LIQUIDACION SUBCONTRATADOS (💼). Solo texto. Los iconos de estado (facturado, pendiente, abonado en verde...) NO se tocan. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v884.
 
 ---

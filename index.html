@@ -477,9 +477,8 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--ok)"></div>LIQUIDACIÓN CEMEX <span style="font-size:10px;color:var(--mu);font-weight:400">(detalle por albarán)</span></div>
           <div class="tbl-acts">
-            <div id="factAutoDropZone" onclick="document.getElementById('factAutoFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'CEMEX');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:3px dashed var(--ac);border-radius:12px;padding:18px 28px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;line-height:1.3;background:#f2f8ff;min-width:320px;min-height:104px">
-              <span style="font-size:26px;line-height:1">📤</span>
-              <span style="font-size:16px;font-weight:800;color:var(--tx)">Subir liquidación CEMEX</span>
+            <div id="factAutoDropZone" onclick="document.getElementById('factAutoFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'CEMEX');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:2px dashed var(--ac);border-radius:8px;padding:10px 22px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.3;background:#f2f8ff;min-width:300px">
+              <span style="font-size:15px;font-weight:800;color:var(--tx)">Subir liquidación CEMEX</span>
               <span style="font-size:12px;color:var(--mu)">Suelta aquí el PDF, o pincha para buscarlo</span>
             </div>
             <input type="file" id="factAutoFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofactura(this.files)">
@@ -529,9 +528,8 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#f59e0b"></div>DEPÓSITOS SODIRA <span style="font-size:10px;color:var(--mu);font-weight:400">(Garraf · detalle por albarán)</span></div>
           <div class="tbl-acts">
-            <div id="factSodiraDropZone" onclick="document.getElementById('factSodiraFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'SODIRA');" title="Arrastra aquí el PDF del depósito de Sodira (uno por empresa), o pincha para buscarlo" style="cursor:pointer;border:3px dashed var(--ac);border-radius:12px;padding:18px 28px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;line-height:1.3;background:#f2f8ff;min-width:320px;min-height:104px">
-              <span style="font-size:26px;line-height:1">📤</span>
-              <span style="font-size:16px;font-weight:800;color:var(--tx)">Subir depósito SODIRA</span>
+            <div id="factSodiraDropZone" onclick="document.getElementById('factSodiraFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'SODIRA');" title="Arrastra aquí el PDF del depósito de Sodira (uno por empresa), o pincha para buscarlo" style="cursor:pointer;border:2px dashed var(--ac);border-radius:8px;padding:10px 22px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.3;background:#f2f8ff;min-width:300px">
+              <span style="font-size:15px;font-weight:800;color:var(--tx)">Subir depósito SODIRA</span>
               <span style="font-size:12px;color:var(--mu)">Suelta aquí el PDF, o pincha para buscarlo</span>
             </div>
             <input type="file" id="factSodiraFileInput" accept="application/pdf" style="display:none" onchange="factSubirDepositoSodira(this.files)">
@@ -551,15 +549,13 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#7cc4ff"></div>LIQUIDACIÓN HOLCIM <span style="font-size:10px;color:var(--mu);font-weight:400">(detalle por albarán) · solo admin</span></div>
           <div class="tbl-acts">
-            <div id="factHolcimDropZone" onclick="document.getElementById('factHolcimFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'HOLCIM');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:3px dashed var(--ac);border-radius:12px;padding:18px 28px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;line-height:1.3;background:#f2f8ff;min-width:320px;min-height:104px">
-              <span style="font-size:26px;line-height:1">📤</span>
-              <span style="font-size:16px;font-weight:800;color:var(--tx)">Subir liquidación HOLCIM</span>
+            <div id="factHolcimDropZone" onclick="document.getElementById('factHolcimFileInput').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)'; factLiqDrop(event,'HOLCIM');" title="Arrastra aquí el PDF de la liquidación (el detalle de cada albarán), o pincha para buscarlo" style="cursor:pointer;border:2px dashed var(--ac);border-radius:8px;padding:10px 22px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.3;background:#f2f8ff;min-width:300px">
+              <span style="font-size:15px;font-weight:800;color:var(--tx)">Subir liquidación HOLCIM</span>
               <span style="font-size:12px;color:var(--mu)">Suelta aquí el PDF, o pincha para buscarlo</span>
             </div>
             <input type="file" id="factHolcimFileInput" accept="application/pdf" style="display:none" onchange="factSubirAutofacturaHolcim(this.files)">
-            <div id="factExcel908Zone" onclick="document.getElementById('factExcel908Input').click()" ondragover="event.preventDefault(); this.style.background='#bbf7d0'; this.style.borderColor='#16a34a';" ondragleave="this.style.background='#f0fdf4'; this.style.borderColor='#16a34a';" ondrop="event.preventDefault(); this.style.background='#f0fdf4'; factExcelAyuda908(event.dataTransfer.files);" title="Excel de ayuda de Holcim (números 908): cambia automáticamente el nº de cantera por el nº 908 de pago en los albaranes que casen por nº + matrícula; los que no casan salen en un Excel de repaso" style="cursor:pointer;border:3px dashed #16a34a;border-radius:12px;padding:18px 28px;margin-left:16px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;line-height:1.3;background:#f0fdf4;min-width:320px;min-height:104px">
-              <span style="font-size:26px;line-height:1">📗</span>
-              <span id="factExcel908Txt" style="font-size:16px;font-weight:800;color:#15803d">Excel de ayuda (908)</span>
+            <div id="factExcel908Zone" onclick="document.getElementById('factExcel908Input').click()" ondragover="event.preventDefault(); this.style.background='#dbeafe'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#f2f8ff'; this.style.borderColor='var(--ac)';" ondrop="event.preventDefault(); this.style.background='#f2f8ff'; factExcelAyuda908(event.dataTransfer.files);" title="Excel de ayuda de Holcim (números 908): cambia automáticamente el nº de cantera por el nº 908 de pago en los albaranes que casen por nº + matrícula; los que no casan salen en un Excel de repaso" style="cursor:pointer;border:2px dashed var(--ac);border-radius:8px;padding:10px 22px;margin-left:16px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.3;background:#f2f8ff;min-width:300px">
+              <span id="factExcel908Txt" style="font-size:16px;font-weight:800;color:var(--tx)">Excel de ayuda (908)</span>
               <span style="font-size:12px;color:var(--mu)">Suelta aquí el Excel de Holcim, o pincha</span>
               <span style="font-size:11px;color:var(--mu)">Cambia nº cantera → nº 908 y descarga repaso de los que no casan</span>
             </div>
@@ -2063,6 +2059,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=885"></script>
+<script src="app.js?v=886"></script>
 </body>
 </html>

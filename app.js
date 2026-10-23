@@ -32615,7 +32615,7 @@ async function factExcelAyuda908(files) {
   toast('📗 Leyendo el Excel de ayuda… en un momento te pido confirmación', 'ok'); // v279: que se vea que está trabajando
   const _z908 = document.getElementById('factExcel908Txt');
   if (_z908) _z908.textContent = '⏳ Leyendo Excel…';
-  const _z908fin = () => { if (_z908) _z908.textContent = '📗 Excel de ayuda (908)'; };
+  const _z908fin = () => { if (_z908) _z908.textContent = 'Excel de ayuda (908)'; };
   let filas = [];
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
