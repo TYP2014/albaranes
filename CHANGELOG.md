@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v887 (23/10/2026): FACTURACION · SE QUITA LA TARJETA 'PROMOTORA MEDITERRANEA'. Era un boton por mes que bajaba un Excel con los aridos de Promsa; no se usaba (se prefiere sacar los Excel de otra manera). Se elimina SOLO la tarjeta de la pantalla (index.html). El codigo de app.js que la rellenaba se queda sin usar y sin efecto: comprobado que si la tarjeta no existe, la funcion sale sin hacer nada y no afecta a Holcim, Sodira ni CEMEX. No se borra ningun dato. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v886 (app.js solo cambia el numero).
+
+---
+
 v886 (23/10/2026): CAJAS DE SUBIDA MAS SOBRIAS (Liquidacion CEMEX, Depositos Sodira, Liquidacion Holcim y Excel de ayuda 908). Se quitan el sobre/flecha (📤) y el libro verde (📗); cajas mas compactas (menos alto, borde fino, esquinas menos redondas) para que ocupen menos y queden mas arriba; el Excel de ayuda 908 pasa del verde al mismo azul marino que las demas. Siguen funcionando igual: arrastrar el archivo o pinchar. El texto del Excel 908 vuelve a 'Excel de ayuda (908)' sin emoji tras leer. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v885.
 
 ---
