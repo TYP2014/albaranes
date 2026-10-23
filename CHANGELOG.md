@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v874 (23/10/2026): AVISO 'CUADRE MENSUAL DE RECAMBIOS' CON EL MISMO ESTILO. Era el bloque grande de fondo melocoton (naranja suave) que sale arriba en toda la app a partir del dia 10 con lo que no cuadra de recambios. Ahora lleva fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px): NARANJA si hay cosas que no cuadran, VERDE apagado si todo cuadra. Las lineas de 'Arrastre' (abonos de meses anteriores sin aplicar) siguen en rojo, negrita y cursiva, pero con el rojo apagado de la paleta (#9d2b27) en vez del rojo vivo. Textos, botones y a quien avisa NO cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v873.
+
+---
+
 v873 (23/10/2026): TALLER · LA FRANJA DE AVISO DE DENTRO DE LA PESTAÑA, CON EL MISMO ESTILO. Al probar los avisos de Taller (v872) con un semirremolque se vio que dentro de la pestaña Taller queda una franja beige-naranja ('N vehiculo(s) requieren mantenimiento: ...') con el estilo viejo. Ahora lleva fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px): BURDEOS si hay algun vehiculo VENCIDO, NARANJA si solo hay 'pronto'. El texto, los iconos y a quien avisa no cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v872.
 
 ---

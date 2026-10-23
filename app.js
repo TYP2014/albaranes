@@ -16941,8 +16941,8 @@ async function recambiosAvisoDia10() {
         if (abonosMes.length > TOPE) cuerpo += fila(`… +${abonosMes.length - TOPE} abonos más de ${mesNombre} sin aplicar`);
       }
       if (abonosArr.length) {
-        const filaArr = t => `<div style="margin:2px 0 2px 26px;line-height:1.5;color:#c0392b;font-weight:700;font-style:italic">${t}</div>`;
-        cuerpo += `<div style="margin:8px 0 2px 14px;color:#c0392b;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:.3px">🔴 Arrastre · ${abonosArr.length} abono${abonosArr.length === 1 ? '' : 's'} de meses anteriores TODAVÍA sin aplicar:</div>`;
+        const filaArr = t => `<div style="margin:2px 0 2px 26px;line-height:1.5;color:#9d2b27;font-weight:700;font-style:italic">${t}</div>`;
+        cuerpo += `<div style="margin:8px 0 2px 14px;color:#9d2b27;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:.3px">🔴 Arrastre · ${abonosArr.length} abono${abonosArr.length === 1 ? '' : 's'} de meses anteriores TODAVÍA sin aplicar:</div>`;
         abonosArr.slice(0, TOPE).forEach(a =>
           cuerpo += filaArr(`💶 Abono ${esc(a.num_documento || '?')} de ${esc(a.proveedor || 'proveedor ?')} (${_fEs(a.fecha)}${_mesesAtras(a.fecha)})${_impAb(a)}: SIGUE sin aplicar en ninguna factura`));
         if (abonosArr.length > TOPE) cuerpo += filaArr(`… +${abonosArr.length - TOPE} abonos más arrastrados de meses anteriores`);
@@ -16951,10 +16951,10 @@ async function recambiosAvisoDia10() {
 
     let html = '';
     if (hayAlgo) {
-      const color = hayProblemas ? '#ff9500' : '#2ecc71';
-      const bg = hayProblemas ? 'rgba(255,149,0,.10)' : 'rgba(46,204,113,.10)';
+      const color = hayProblemas ? '#f29900' : '#2e7d5b';   // v874: naranja / verde apagado
+      const bg = '#ffffff';                                  // v874: fondo blanco, el color va en el marco
       html = `
-      <div style="order:99;grid-column:1 / -1;background:${bg};border:1px solid ${color};border-left:4px solid ${color};border-radius:6px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
+      <div style="order:99;grid-column:1 / -1;background:${bg};border:3px solid ${color};border-left:12px solid ${color};border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
           <div style="display:flex;gap:6px">
