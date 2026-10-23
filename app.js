@@ -16869,6 +16869,8 @@ async function recambiosAvisoDia10() {
     let cuerpo = '';
     let hayProblemas = false;
     let hayAlgo = false;
+    let totalProb = 0;           // v875: total de cosas sin cuadrar (para el resumen de una linea)
+    const resumenEmp = [];       // v875: 'TYP2014 11' · 'HISPALIS 3'...
     const TOPE = 6;   // líneas por apartado; el resto se resume con "+N más"
 
     for (const emp of permitidas) {
@@ -16912,10 +16914,12 @@ async function recambiosAvisoDia10() {
       const fila = t => `<div style="margin:2px 0 2px 14px;line-height:1.5">${t}</div>`;
       const nProb = sinFactura.length + noSubidos.length + abonosPend.length;
       if (!nProb) {
+        resumenEmp.push(esc(emp) + ' ✓');
         cuerpo += `<div style="margin:6px 0"><strong style="color:#2ecc71">✅ ${esc(emp)}</strong> · los ${albsPrev.length} albaranes de ${mesNombre} están casados con factura.</div>`;
         continue;
       }
       hayProblemas = true;
+      totalProb += nProb; resumenEmp.push(esc(emp) + ' ' + nProb);
       cuerpo += `<div style="margin:8px 0 2px"><strong>⚠️ ${esc(emp)}</strong> · ${nProb} cosa${nProb === 1 ? '' : 's'} que no cuadra${nProb === 1 ? '' : 'n'} en ${mesNombre}:</div>`;
       if (sinFactura.length) {
         sinFactura.slice(0, TOPE).forEach(a =>
@@ -16956,13 +16960,14 @@ async function recambiosAvisoDia10() {
       html = `
       <div style="order:99;grid-column:1 / -1;background:${bg};border:3px solid ${color};border-left:12px solid ${color};border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre}</div>
+          <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre} · <span style="font-weight:800">${hayProblemas ? totalProb + ' sin cuadrar' : 'todo cuadra'}</span> <span style="font-weight:400;color:var(--mu)">(${resumenEmp.join(' · ')})</span></div>
           <div style="display:flex;gap:6px">
+            <button id="recambDia10Btn" class="btn bs" style="font-size:10px;padding:6px 10px" onclick="toggleRecambDia10Detalle()">▾ Ver detalle</button>
             <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Recambios</button>
             <button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideRecambDia10Banner()" title="Ocultar hasta mañana">✕</button>
           </div>
         </div>
-        <div style="color:var(--tx);margin-top:4px">${cuerpo}</div>
+        <div id="recambDia10Cuerpo" style="display:none;color:var(--tx);margin-top:4px">${cuerpo}</div>
       </div>`;
     }
     _recambD10Cache = { dia: today, html };
@@ -16972,6 +16977,19 @@ async function recambiosAvisoDia10() {
     console.warn('[v337 recambios día10]', e);
     banner.style.display = 'none';
   }
+}
+
+// v875: despliega/pliega el detalle del cuadre de recambios. Se guarda el estado en la cache del dia
+// para que, cuando la app repinte el aviso (loadTallerData lo hace a menudo), no se pliegue solo.
+function toggleRecambDia10Detalle() {
+  const c = document.getElementById('recambDia10Cuerpo');
+  const b = document.getElementById('recambDia10Btn');
+  const ban = document.getElementById('recambDia10Banner');
+  if (!c || !b) return;
+  const abrir = c.style.display === 'none';
+  c.style.display = abrir ? 'block' : 'none';
+  b.textContent = abrir ? '▴ Ocultar detalle' : '▾ Ver detalle';
+  if (typeof _recambD10Cache !== 'undefined' && _recambD10Cache && ban) _recambD10Cache.html = ban.innerHTML;
 }
 
 function hideRecambDia10Banner() {

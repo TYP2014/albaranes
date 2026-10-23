@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v875 (23/10/2026): CUADRE MENSUAL DE RECAMBIOS · PLEGABLE (OPCION B). El bloque ocupaba casi 300 px arriba en toda la app y empujaba la tabla hacia abajo. Ahora sale PLEGADO: una sola linea con el resumen ('Cuadre mensual de RECAMBIOS · septiembre 2026 · 14 sin cuadrar (TYP2014 11 · HISPALIS 3)', o 'todo cuadra') y un boton '▾ Ver detalle' que despliega la lista completa (y '▴ Ocultar detalle' para plegarla). Si la pantalla se repinta con el detalle abierto, no se pliega solo (el estado se guarda en la cache del dia). El contenido de la lista, los calculos, el boton 'Ver Recambios' y la X (ocultar hasta mañana) NO cambian: solo se esconde por defecto lo que antes se veia siempre. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v874.
+
+---
+
 v874 (23/10/2026): AVISO 'CUADRE MENSUAL DE RECAMBIOS' CON EL MISMO ESTILO. Era el bloque grande de fondo melocoton (naranja suave) que sale arriba en toda la app a partir del dia 10 con lo que no cuadra de recambios. Ahora lleva fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px): NARANJA si hay cosas que no cuadran, VERDE apagado si todo cuadra. Las lineas de 'Arrastre' (abonos de meses anteriores sin aplicar) siguen en rojo, negrita y cursiva, pero con el rojo apagado de la paleta (#9d2b27) en vez del rojo vivo. Textos, botones y a quien avisa NO cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v873.
 
 ---
