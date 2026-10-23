@@ -24429,8 +24429,8 @@ function renderVac() {
           <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
             <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">NOMBRE</th>
             <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">EMPRESA</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🏖️ VACACIONES (usadas / bolsa)</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">🎯 ASUNTOS PROPIOS</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">VACACIONES (usadas / bolsa)</th>
+            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">ASUNTOS PROPIOS</th>
             <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">PERIODOS</th>
             <th style="padding:11px 10px"></th>
           </tr>
@@ -24439,11 +24439,11 @@ function renderVac() {
         ${trabs.map(t => {
           const s = _vacSaldoTrabajador(t.id, vacAnioActivo);
           const pctVac = s.bolsa > 0 ? Math.min(100, (s.vac_disfrutadas / s.bolsa) * 100) : 0;
-          const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? '#ffb84d' : 'var(--ok)');
+          const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? 'var(--wn)' : 'var(--ok)');
           const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:11px;padding:3px 8px;border-radius:3px;margin-left:8px">ARCHIVADO</span>` : '';
           return `<tr style="border-bottom:1px solid var(--bd)">
             <td style="padding:11px 10px;color:var(--ac);font-size:14px">${esc(t.nombre)}${archivadoBadge}</td>
-            <td style="padding:11px 10px;color:var(--mu)">${esc(t.empresa || '—')}</td>
+            <td style="padding:11px 10px;color:var(--tx);font-size:14px">${esc(t.empresa || '—')}</td>
             <td style="padding:11px 10px">
               <div style="display:flex;align-items:center;gap:10px">
                 <div style="flex:1;height:11px;background:#e2e8f0;border-radius:6px;overflow:hidden;min-width:90px">
@@ -24452,8 +24452,8 @@ function renderVac() {
                 <span style="color:${colorVac};font-weight:bold;font-size:15px;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
                 <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
               </div>
-              <div style="font-size:12px;color:var(--mu);margin-top:5px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
-              ${s.vac_faltas > 0 ? `<div style="font-size:12px;color:#ff5252;margin-top:3px">❌ De esos ${s.vac_disfrutadas}: <strong>${s.vac_solo_vacaciones}</strong> de vacaciones + <strong>${s.vac_faltas}</strong> de falta injustificada</div>` : ''}
+              <div style="font-size:13px;color:var(--tx);margin-top:5px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
+              ${s.vac_faltas > 0 ? `<div style="font-size:13px;color:var(--er);margin-top:3px">De esos ${s.vac_disfrutadas}: <strong>${s.vac_solo_vacaciones}</strong> de vacaciones + <strong>${s.vac_faltas}</strong> de falta injustificada</div>` : ''}
             </td>
             <td style="padding:11px 10px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
             <td style="padding:11px 10px">${s.periodos.length}</td>

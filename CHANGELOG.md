@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v881 (23/10/2026): EMPLEADOS · TABLA DE TRABAJADORES MAS LEGIBLE. Columna EMPRESA a letra 14 px y color oscuro (antes gris claro pequeño); la linea 'Generado a hoy...' a 13 px y color oscuro; se quitan los emojis de las cabeceras VACACIONES y ASUNTOS PROPIOS y el ❌ del aviso de faltas; el naranja y el rojo de la barra de vacaciones pasan a los tonos sobrios de la paleta (var(--wn) / var(--er)). Los umbrales (<=5 rojo, <=10 amarillo) no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v880.
+
+---
+
 v880 (23/10/2026): EMPLEADOS · FILA DE BOTONES UNIFICADA. Los 4 botones de la fila de abajo (Añadir trabajador, Registrar vacaciones, Ver archivados, Refrescar) pasan de letra 11 a 13 px, mismo tamaño que los de empresa, y pierden los iconitos de colores (+, calendario, ojo, flechas). El boton Ver archivados/Ver activos tambien cambia su texto sin emoji. No cambia ninguna funcion. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v879.
 
 ---
