@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v890 (23/10/2026): TEXTOS DE AYUDA DE FACTURACION MAS CORTOS. Los parrafos explicativos de Liquidacion CEMEX, Depositos Sodira y Liquidacion Holcim eran muy largos para 3-4 usuarios que ya conocen el proceso. Ahora 2-3 lineas con lo esencial (que se guarda por mes, que se pulsa el mes para revisar, por que cruza, y 'abonados, a revisar, no abonados y sin copia' en palabras, sin iconos de colores), y con letra un poco mayor (13 px) y color mas oscuro para que se lean mejor. Solo texto en index.html: ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v889 (app.js solo cambia el numero).
+
+---
+
 v889 (23/10/2026): REPASOS GUARDADOS · ORDEN DE FAMILIAS, FECHA Y 'A REVISAR'. (1) Las pastillas de familias se ordenan por uso habitual: Caliza Garraf Zahorra, Caliza Promsa, los 3 Aridos Garraf juntos (La Roca, Montcada, Zona Franca), Caliza Cemex, Arido reciclado/Tecnocatalana, Escorias/ADEC, Yeso, Cisternas/sacos/palets, Nucleo Garraf, Arena Martorell; y al final las de vez en cuando: Escombros (3.º por la cola), Clinker (penultimo) y Otros (ultimo). Una familia nueva que no conozca sale en medio. El orden es solo de pantalla: el Excel completo y su orden de pestañas NO cambian. (2) La fecha y hora de la ultima vez que se subio la liquidacion sale en azul marino y negrita; el aviso '(hace mas de 1 dia)' va aparte, mas pequeño y en ambar. (3) 'a revisar' sale siempre (aunque sea 0) para que todas las filas lleven las mismas cinco cifras. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v888.
 
 ---

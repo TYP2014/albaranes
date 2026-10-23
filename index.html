@@ -485,8 +485,8 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
         <div class="card-bd">
-          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
-            Sube el PDF de la preliquidación/autofactura que te envía CEMEX. Se <strong style="color:var(--tx)">guarda por mes</strong>: súbela una vez y luego, cualquier día, pulsa el mes para <strong style="color:var(--tx)">revisar</strong> sin volver a subirla (la app la cruza con tus albaranes del momento por nº albarán + fecha + TN + matrícula). Los abonados quedan en verde 🟢.
+          <div style="font-family:var(--mn);font-size:13px;color:var(--tx);line-height:1.6">
+            Sube el PDF de la liquidación de CEMEX. Se <strong style="color:var(--tx)">guarda por mes</strong>: pulsa el mes para <strong style="color:var(--tx)">revisar</strong> sin volver a subirla. Saca: abonados, a revisar, no abonados y sin copia.
           </div>
           <div id="factMesesBar" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px"></div>
           <div id="factAutoEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
@@ -536,8 +536,8 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
         <div class="card-bd">
-          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
-            Sube el PDF del <strong style="color:var(--tx)">Depósito</strong> que te envía Sodira (uno por empresa: TYP2014, Híspalis, Transmargaz; se pueden subir los tres, se acumulan en el mes). Se <strong style="color:var(--tx)">guarda por mes</strong> y luego pulsa el mes para <strong style="color:var(--tx)">revisar</strong> cuando quieras. Cruza por el <strong style="color:var(--tx)">nº de albarán entero</strong> (01718/NNNNNN); los que casan quedan facturados con la ref del depósito (Sodira TR2026/NNN). Avisa de fecha/TN distintas, de los tuyos que no están pagados y de los pagados sin copia. El Excel trae además la hoja <strong style="color:var(--tx)">"Facturar a TYP2014"</strong> (portes de Híspalis/Transmargaz pagados en el depósito de TYP2014).
+          <div style="font-family:var(--mn);font-size:13px;color:var(--tx);line-height:1.6">
+            Sube el PDF del <strong style="color:var(--tx)">Depósito</strong> de Sodira (uno por empresa; se acumulan en el mes). Se <strong style="color:var(--tx)">guarda por mes</strong>: pulsa el mes para <strong style="color:var(--tx)">revisar</strong>. Cruza por el <strong style="color:var(--tx)">nº de albarán entero</strong>. El Excel trae la hoja <strong style="color:var(--tx)">"Facturar a TYP2014"</strong>.
           </div>
           <div id="factMesesBarSodira" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px"></div>
           <div id="factSodiraEstado" style="display:none;margin-top:12px;font-family:var(--mn);font-size:12px"></div>
@@ -563,8 +563,8 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
         <div class="card-bd">
-          <div style="font-family:var(--mn);font-size:12px;color:var(--mu);line-height:1.7">
-            Sube la liquidación/autofactura que te envía Holcim (PDF, aunque tenga muchas páginas). Se <strong style="color:var(--tx)">guarda por mes</strong>: súbela una vez y luego pulsa el mes para <strong style="color:var(--tx)">revisar</strong> sin volver a subirla. Cruza cemento, áridos, clinker y paletizado <strong style="color:var(--tx)">por nº de albarán (Num. Entrega)</strong>; las materias primas (yeso, caliza, arcilla…) <strong style="color:var(--tx)">por fecha + matrícula + TN</strong>. Saca: abonados 🟢, a revisar ⚠️, no abonados ⚠️ y sin copia 📋, con Excel resumen.
+          <div style="font-family:var(--mn);font-size:13px;color:var(--tx);line-height:1.6">
+            Sube el PDF de la liquidación de Holcim. Se <strong style="color:var(--tx)">guarda por mes</strong>: pulsa el mes para <strong style="color:var(--tx)">revisar</strong>. Cruza por <strong style="color:var(--tx)">nº de albarán</strong> (cemento, áridos, clinker, paletizado) o por <strong style="color:var(--tx)">fecha + matrícula + TN</strong> (yeso, caliza, arcilla…). Saca: abonados, a revisar, no abonados y sin copia.
           </div>
           <div id="factMesesBarHolcim" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px"></div>
           <div style="margin-top:10px"><button class="btn bs" style="font-size:11px" onclick="factVerAyudas908()" title="Lista de los Excels de ayuda (908) ya pasados, con cuántos números cambió cada uno">📗 Ayudas subidas</button></div>
@@ -2046,6 +2046,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=889"></script>
+<script src="app.js?v=890"></script>
 </body>
 </html>
