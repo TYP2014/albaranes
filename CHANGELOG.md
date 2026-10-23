@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v882 (23/10/2026): PRIMAS · MORADO FUERA. En el modulo Primas (Empleados) el recuadro 'HORAS EXTRA Y FINES DE SEMANA', su TOTAL, las casillas 'del parte' (resaltadas en morado), el aviso de 'OTROS viajes que los albaranes' y el texto 'del parte' pasan del morado #6a1b9a al azul marino #1f3a5f de la paleta. Solo colores; ningun calculo cambia. NO se toca el morado de 'pasada sin cerrar' de las citas de Taller (otro modulo, otro significado). Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v881.
+
+---
+
 v881 (23/10/2026): EMPLEADOS · TABLA DE TRABAJADORES MAS LEGIBLE. Columna EMPRESA a letra 14 px y color oscuro (antes gris claro pequeño); la linea 'Generado a hoy...' a 13 px y color oscuro; se quitan los emojis de las cabeceras VACACIONES y ASUNTOS PROPIOS y el ❌ del aviso de faltas; el naranja y el rojo de la barra de vacaciones pasan a los tonos sobrios de la paleta (var(--wn) / var(--er)). Los umbrales (<=5 rojo, <=10 amarillo) no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v880.
 
 ---
