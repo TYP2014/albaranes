@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v867 (23/10/2026): ASPECTO MAS FORMAL · PASO 1: PALETA AZUL MARINO. Solo cambia la paleta de colores (las variables de styles.css), NADA de logica ni de datos. Color principal: de azul vivo (#2b7bd0) a azul marino (#1f3a5f), con el 'hover' de botones en #2c4d7a. Fondo y bordes en gris neutro. Verde, ambar y rojo se APAGAN pero siguen distinguiendose bien (facturado / pendiente / error no cambian de significado). El violeta/lila desaparece: pasa a gris azulado. Tambien se ajustan los avisos, el boton anexo (texto blanco sobre marino) y el punto verde. NO TOCADO a proposito: los colores sueltos dentro de app.js e index.html (unos 600), la tipografia de titulos y los emojis; van en pasos siguientes viendo antes como queda esto. Se sube con styles.css, que lleva su propio ?v=64 para que Chrome no use la cache antigua. Sin SQL. VUELTA ATRAS: resubir styles.css, index.html y CHANGELOG.md de la v866 (app.js es el mismo).
+
+---
+
 v866 (22/10/2026): PRIMAS · VUELVE LA COLUMNA CLIENTE DEL PARTE DIARIO. La noche del 21/10 se subieron desde otro chat tres versiones (tacografo y taller) numeradas v862, v863 y v864 que partian de la v861, y PISARON las v862-v865 de la tarde (columna CLIENTE del parte diario). Esta version junta las dos cosas: lo de tacografo/taller de anoche SIN TOCAR + la columna CLIENTE tal como quedo dada por buena en la v865: boton '+ cliente' (CEMEX, HOLCIM, DEMETER, OP TRANS, ARIDFLOT, LLANTADA, SODIRA, UTE AMPLIACION, CANRO, SATIG y 'Otro…', maximo 3 por dia) y al lado 🟢 facturado · 📌 pendiente · ⏳ no hay de [cliente] · ⏳ ningun albaran (lo que si hay ese dia, al poner el raton encima). Los clientes ya marcados ayer NO se perdieron: estan en la columna primas_partes.clientes y vuelven a salir. Sin SQL. NOTA: para evitar que vuelva a pasar, antes de preparar una version se parte SIEMPRE de lo ultimo que hay en GitHub. VUELTA ATRAS: resubir la v864 de anoche (taller).
 
 ---
