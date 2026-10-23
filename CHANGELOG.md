@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v877 (23/10/2026): ICONOS DE LAS PESTAÑAS EN UN SOLO TONO. Los iconitos de la barra de pestañas (Albaranes, Empleados, Taller, Gasoil...) iban cada uno de un color vivo (morado, naranja, verde, turquesa...). Ahora todos en gris azulado sobrio y el de la pestaña activa en azul marino. Solo CSS (styles.css v66), no se toca ninguna logica. Las burbujas de numeros ya eran todas iguales. Sin SQL. VUELTA ATRAS: resubir styles.css, index.html y CHANGELOG.md de la v876 (app.js no cambia).
+
+---
+
 v876 (23/10/2026): Cuadre de RECAMBIOS sin icono. El emoji 🧾 salia como un cuadradito gris palido casi invisible en el aviso plegado; se quita del titulo (queda 'Cuadre mensual de RECAMBIOS · mes · N sin cuadrar'). El resto del aviso no cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v875.
 
 ---
