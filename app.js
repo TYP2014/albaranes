@@ -31460,7 +31460,7 @@ async function factCargarMeses() {
     return;
   }
   cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'CEMEX\')">📎 Ver subidas</button>').join(' ');
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'CEMEX\')">Ver subidas</button>').join(' ');
 }
 
 // Revisar un mes: carga de la tabla TODO lo guardado de ese mes y lo cruza con tus
@@ -31513,7 +31513,7 @@ async function factCargarMesesHolcim() {
     return;
   }
   cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'HOLCIM\')">📎 Ver subidas</button>').join(' ');
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'HOLCIM\')">Ver subidas</button>').join(' ');
 }
 
 // v107J59 — APARTADO PROMOTORA (lista para facturar; NO cruza nada). Recoge tus albaranes de áridos
@@ -41668,7 +41668,7 @@ async function factCargarMesesSodira() {
     return;
   }
   cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesSodira(\'' + m + '\')">📅 ' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'SODIRA\')">📎 Ver subidas</button>').join(' ');
+    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesSodira(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'SODIRA\')">Ver subidas</button>').join(' ');
 }
 
 // Revisar un mes: carga TODO lo guardado de Sodira ese mes y lo cruza con los albaranes.

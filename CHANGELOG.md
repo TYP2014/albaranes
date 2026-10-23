@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v885 (23/10/2026): FACTURACION SIN ICONITOS EN BOTONES Y TITULOS. Se quitan los emojis de: Guardar tarifas, Guardar precios cliente, los botones de mes (📅) y 'Ver subidas' (📎) de Liquidacion CEMEX / Holcim / Sodira, y de los titulos FACTURA HISPALIS / TRANSMARGAZ (🧾) y LIQUIDACION SUBCONTRATADOS (💼). Solo texto. Los iconos de estado (facturado, pendiente, abonado en verde...) NO se tocan. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v884.
+
+---
+
 v884 (23/10/2026): PUNTITOS DE LOS TITULOS EN UN SOLO COLOR. El puntito que va delante del titulo de cada tarjeta (Precio cliente y beneficio, Liquidacion CEMEX, Primas de productividad...) salia de un color distinto segun la tarjeta (naranja, verde, morado, celeste) y con un brillo. Ahora todos azul marino y sin brillo. Es un solo cambio en styles.css (v67), afecta a toda la app pero solo al adorno: ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir styles.css, index.html y CHANGELOG.md de la v883 (app.js no cambia salvo el numero).
 
 ---
