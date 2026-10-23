@@ -14155,6 +14155,13 @@ async function saveModal() {
         if (_mIso) newVal = `${_mIso[3]}/${_mIso[2]}/${_mIso[1]}`;
       }
       else if (f.k === 'remolque') newVal = String(newVal).toUpperCase().replace(/\s+/g, '').replace(/-/g, '');
+      // v869: TN / tara / bruto escritos con COMA decimal ("27,96") hacian que la BD los rechazara
+      // (invalid input syntax for type numeric). Si lleva coma, se quitan los puntos de miles y la
+      // coma pasa a punto: "27,96" -> "27.96" · "1.234,5" -> "1234.5". Sin coma NO se toca nada.
+      else if (f.k === 'tm' || f.k === 'tara_kg' || f.k === 'bruto_kg') {
+        const _t = String(newVal).trim();
+        if (_t.includes(',')) newVal = _t.replace(/\./g, '').replace(',', '.');
+      }
     }
     if (String(r[f.k] || '') !== String(newVal || '')) {
       cambios.push(`${f.l}: "${r[f.k]}" → "${newVal}"`);
