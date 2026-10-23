@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v883 (23/10/2026): PRIMAS · BOTONES SIN ICONITOS. En la cabecera de Primas se quitan los emojis de los botones Traer viajes de albaranes, Traer viajes a TODOS, Revisar el mes, Actualizar, Parte diario, Cuadrante del mes y de la etiqueta 'Vehiculo habitual'. Solo texto, igual que Empleados > Vacaciones. Ninguna funcion cambia (los botones se identifican por su id, no por el texto). Los estados del parte (facturado, pendiente, avisos de 'sin regla') NO se tocan: dan informacion. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v882 (app.js no cambia salvo el numero de version).
+
+---
+
 v882 (23/10/2026): PRIMAS · MORADO FUERA. En el modulo Primas (Empleados) el recuadro 'HORAS EXTRA Y FINES DE SEMANA', su TOTAL, las casillas 'del parte' (resaltadas en morado), el aviso de 'OTROS viajes que los albaranes' y el texto 'del parte' pasan del morado #6a1b9a al azul marino #1f3a5f de la paleta. Solo colores; ningun calculo cambia. NO se toca el morado de 'pasada sin cerrar' de las citas de Taller (otro modulo, otro significado). Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v881.
 
 ---
