@@ -25413,7 +25413,9 @@ function renderTallerAvisos() {
   });
   if (!alertas.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
-  box.innerHTML = `<div style="background:#ffe3c4;border:1px solid #e8841a;border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">
+  // v873: fondo blanco y marco fuerte, como los demas avisos. Burdeos si hay algun VENCIDO; naranja si solo hay 'pronto'.
+  const _marcoTA = alertas.some(x => x.startsWith('🔴')) ? '#7f1d1d' : '#f29900';
+  box.innerHTML = `<div style="background:#ffffff;border:3px solid ${_marcoTA};border-left:12px solid ${_marcoTA};border-radius:7px;padding:10px 14px;font-family:var(--mn);font-size:12px;color:var(--fg)">
     🔧 <b>${alertas.length}</b> vehículo(s) requieren mantenimiento: ${alertas.slice(0, 8).map(esc).join(' · ')}${alertas.length > 8 ? ` · +${alertas.length - 8} más` : ''}
   </div>`;
 }

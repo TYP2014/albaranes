@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v873 (23/10/2026): TALLER · LA FRANJA DE AVISO DE DENTRO DE LA PESTAÑA, CON EL MISMO ESTILO. Al probar los avisos de Taller (v872) con un semirremolque se vio que dentro de la pestaña Taller queda una franja beige-naranja ('N vehiculo(s) requieren mantenimiento: ...') con el estilo viejo. Ahora lleva fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px): BURDEOS si hay algun vehiculo VENCIDO, NARANJA si solo hay 'pronto'. El texto, los iconos y a quien avisa no cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v872.
+
+---
+
 v872 (23/10/2026): AVISOS DE TALLER · MISMO ESTILO QUE LOS DE VENCIMIENTOS. Los avisos de mantenimiento de Taller (arriba, en toda la app) usaban rojo, naranja y amarillo de neon sobre fondo de color. Ahora llevan fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px), igual que los avisos de vencimientos de la v870: VENCIDO burdeos oscuro · PROXIMO naranja · PLANIFICAR amarillo. Los iconos de estado (🔴 🟠 🟡), los textos, los botones y a quien avisa NO cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v871.
 
 ---
