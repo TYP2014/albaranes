@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v870 (23/10/2026): AVISOS DE VENCIMIENTOS · FONDO BLANCO Y MARCO FUERTE POR ESCALON. Pedido por JC al ver la v868: con los fondos tenues apenas se distinguian el aviso de 5 dias, el de 3 y el de 1. AHORA: el aviso de arriba lleva fondo BLANCO (el texto se lee igual) y el color va en el MARCO (borde de 3 px y barra izquierda de 12 px), distinto en cada escalon: VENCIDO burdeos oscuro · 1 DIA rojo · 3 DIAS naranja rojizo · 5 DIAS naranja · 15 DIAS amarillo · 30 DIAS gris azulado · 60 DIAS azul marino. La etiqueta ('VENCE EN 1 DIA:') va en un tono oscuro del mismo color para que se lea tambien en el amarillo. NO CAMBIA: los escalones, su orden, los botones, ni a quien avisa. Las filas de la tabla de vencimientos y los chips conservan los colores de la v868. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v869.
+
+---
+
 v869 (23/10/2026): ALBARANES · EDITAR UN ALBARAN CON COMA DECIMAL YA NO DA ERROR. Salio del chivato de errores (revision de los 79 de 14 dias). Caso real: Aridflot, 19/10, v840: al guardar un albaran escribio la TN como '27,96' (coma, como se escribe en España) y la base de datos lo rechazo con 'invalid input syntax for type numeric: "27,96"'. El guardado fallaba tras los reintentos y el cambio no se guardaba. Mismo patron en otras entradas de Aridflot del 9, 15 y 16/10. ARREGLO: al guardar desde el modal de edicion, en TN netas, Tara y Bruto, si el numero lleva coma se quitan los puntos de miles y la coma pasa a punto ('27,96' -> '27.96'; '1.234,5' -> '1234.5'). Si NO lleva coma no se toca nada (lo que ya se escribia con punto sigue igual). Revision del resto del chivato: los errores 'pag002.jpg ... Unexpected token' ya estan resueltos desde la v841 (paginas sin albaran se saltan) y los 'Failed to fetch / Load failed' son cortes de conexion, no de la app. Sin SQL. VUELTA ATRAS: resubir v868.
 
 ---

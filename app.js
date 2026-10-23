@@ -37499,6 +37499,16 @@ const _VENC_ESC = [
   { max:  60, clave: 'd60',     color: '#1f3a5f', fondo: 'rgba(31,58,95,.10)', txt: '60 DÍAS',        orden: 6 }
 ];
 
+// v870: COLORES DEL AVISO DE ARRIBA. Fondo BLANCO y MARCO fuerte, distinto en cada escalon, para que
+// 1 dia / 3 dias / 5 dias se distingan de un vistazo (con los fondos tenues de la v868 casi no se veia).
+// 'marco' = color del borde y de la barra izquierda · 'texto' = color de la etiqueta (VENCE EN...).
+// SOLO lo usa el aviso de arriba: las filas de la tabla y los chips siguen con color/fondo de la v868.
+const _VENC_MARCO = {
+  vencido: ['#7f1d1d', '#7f1d1d'], d1: ['#d32f2f', '#b71c1c'], d3: ['#e65100', '#bf360c'],
+  d5: ['#f29900', '#a85f00'], d15: ['#e6c200', '#7a5c00'], d30: ['#4a6385', '#4a6385'], d60: ['#1f3a5f', '#1f3a5f']
+};
+_VENC_ESC.forEach(e => { const m = _VENC_MARCO[e.clave]; if (m) { e.marco = m[0]; e.texto = m[1]; } });
+
 // v852: EL RECONOCIMIENTO MEDICO AVISA MENOS QUE EL RESTO.
 // Lo pidio JC y tiene razon: con 30 dias ya planifica las citas, y con
 // 40 y pico trabajadores el escalon de 60 convertiria esto en un aviso
@@ -38370,10 +38380,10 @@ function renderVencBanner() {
     const cab = e.clave === 'vencido'
       ? (g.lista.length === 1 ? 'YA VENCIDO' : g.lista.length + ' YA VENCIDOS')
       : 'VENCE EN ' + e.txt;
-    html += '<div style="order:' + Math.max(0, e.max) + ';background:' + e.fondo + ';border:2px solid ' + e.color + ';border-left:7px solid ' + e.color
+    html += '<div style="order:' + Math.max(0, e.max) + ';background:#ffffff;border:3px solid ' + (e.marco || e.color) + ';border-left:12px solid ' + (e.marco || e.color)
       + ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">'
       + '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">⏱</span> '
-      + '<span style="color:' + e.color + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
+      + '<span style="color:' + (e.texto || e.color) + ';font-weight:900">' + cab + ':</span> ' + det + resto + '</div>'
       + _vencBotonera(e) + '</div>';
   });
   if (!html) { b.style.display = 'none'; return; }
