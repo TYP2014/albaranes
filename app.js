@@ -16960,7 +16960,7 @@ async function recambiosAvisoDia10() {
       html = `
       <div style="order:99;grid-column:1 / -1;background:${bg};border:3px solid ${color};border-left:12px solid ${color};border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;color:var(--tx);font-weight:600">🧾 Cuadre mensual de RECAMBIOS · ${mesNombre} · <span style="font-weight:800">${hayProblemas ? totalProb + ' sin cuadrar' : 'todo cuadra'}</span> <span style="font-weight:400;color:var(--mu)">(${resumenEmp.join(' · ')})</span></div>
+          <div style="flex:1;color:var(--tx);font-weight:600">Cuadre mensual de RECAMBIOS · ${mesNombre} · <span style="font-weight:800">${hayProblemas ? totalProb + ' sin cuadrar' : 'todo cuadra'}</span> <span style="font-weight:400;color:var(--mu)">(${resumenEmp.join(' · ')})</span></div>
           <div style="display:flex;gap:6px">
             <button id="recambDia10Btn" class="btn bs" style="font-size:10px;padding:6px 10px" onclick="toggleRecambDia10Detalle()">▾ Ver detalle</button>
             <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Recambios</button>

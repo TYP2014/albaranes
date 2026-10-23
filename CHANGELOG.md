@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v876 (23/10/2026): Cuadre de RECAMBIOS sin icono. El emoji 🧾 salia como un cuadradito gris palido casi invisible en el aviso plegado; se quita del titulo (queda 'Cuadre mensual de RECAMBIOS · mes · N sin cuadrar'). El resto del aviso no cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v875.
+
+---
+
 v875 (23/10/2026): CUADRE MENSUAL DE RECAMBIOS · PLEGABLE (OPCION B). El bloque ocupaba casi 300 px arriba en toda la app y empujaba la tabla hacia abajo. Ahora sale PLEGADO: una sola linea con el resumen ('Cuadre mensual de RECAMBIOS · septiembre 2026 · 14 sin cuadrar (TYP2014 11 · HISPALIS 3)', o 'todo cuadra') y un boton '▾ Ver detalle' que despliega la lista completa (y '▴ Ocultar detalle' para plegarla). Si la pantalla se repinta con el detalle abierto, no se pliega solo (el estado se guarda en la cache del dia). El contenido de la lista, los calculos, el boton 'Ver Recambios' y la X (ocultar hasta mañana) NO cambian: solo se esconde por defecto lo que antes se veia siempre. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v874.
 
 ---
