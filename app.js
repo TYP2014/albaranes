@@ -32336,7 +32336,7 @@ function _factRepasosPintar() {
       + '<span><strong style="color:var(--ac)" title="Última vez que se subió y cruzó la liquidación">' + esc(_bonito(r.fecha)) + '</strong>' + (viejo ? ' <span style="color:var(--wnd);font-size:11px">(hace más de 1 día)</span>' : '') + '</span>'
       // v888: cada cifra lleva su palabra (antes iban solo con un icono de color y no se entendian).
       // Solo dos colores con sentido: verde apagado = abonados (todo bien), ambar = no abonados (hay que mirar).
-      + '<span style="display:inline-flex;flex-wrap:wrap;gap:4px 14px;color:var(--tx)">'
+      + '<span style="display:inline-flex;flex-wrap:wrap;gap:4px 14px;color:var(--tx);font-weight:700">'
       + '<span><strong style="color:var(--ok)">' + r.n.ab + '</strong> abonados</span>'
       + '<span><strong style="color:' + (r.n.pos ? 'var(--wnd)' : 'var(--tx)') + '">' + (r.n.pos || 0) + '</strong> a revisar</span>'
       + '<span><strong style="color:' + (r.n.no ? 'var(--wnd)' : 'var(--tx)') + '">' + r.n.no + '</strong> no abonados</span>'

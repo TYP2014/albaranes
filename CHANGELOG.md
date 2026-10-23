@@ -4,6 +4,14 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v892 (23/10/2026): REPASOS GUARDADOS · PALABRAS DE LAS CIFRAS EN NEGRITA. En cada fila de 'Ultimos repasos guardados' (Holcim, CEMEX, Sodira), no solo el numero sino tambien la palabra que lo acompaña ('abonados', 'a revisar', 'no abonados', 'sin copia', 'duplicados') sale en negrita, para ver de un vistazo cuantos estan abonados y cuantos no. Los colores no cambian (verde apagado abonados, ambar no abonados, rojo apagado duplicados). Solo estilo. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v891.
+
+---
+
+v891 (23/10/2026): FACTURACION · 'SACA: ABONADOS, A REVISAR, NO ABONADOS Y SIN COPIA' EN NEGRITA. En los textos de ayuda de Liquidacion CEMEX y Liquidacion Holcim, la frase de lo que saca la revision pasa a negrita, igual que 'se guarda por mes' y 'fecha + matricula + TN', para que quien quiera saber como se cruza y que sale lo vea de un vistazo. Solo texto en index.html. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v890 (app.js solo cambia el numero).
+
+---
+
 v890 (23/10/2026): TEXTOS DE AYUDA DE FACTURACION MAS CORTOS. Los parrafos explicativos de Liquidacion CEMEX, Depositos Sodira y Liquidacion Holcim eran muy largos para 3-4 usuarios que ya conocen el proceso. Ahora 2-3 lineas con lo esencial (que se guarda por mes, que se pulsa el mes para revisar, por que cruza, y 'abonados, a revisar, no abonados y sin copia' en palabras, sin iconos de colores), y con letra un poco mayor (13 px) y color mas oscuro para que se lean mejor. Solo texto en index.html: ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v889 (app.js solo cambia el numero).
 
 ---
