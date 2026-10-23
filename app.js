@@ -16682,9 +16682,9 @@ function renderTallerGlobalBanner() {
 
   // Config visual de cada nivel. La key se usa para ocultar ese color por separado.
   const niveles = [
-    { key: 'vencido', orden: 0, icon: '🔴', label: 'VENCIDO',  color: '#ff5050', bg: 'rgba(255,80,80,.10)', txt: 'MANTENIMIENTO DE TALLER VENCIDO',  txtPl: 'vehículos con el MANTENIMIENTO DE TALLER VENCIDO' },
-    { key: 'pronto',  orden: 15, icon: '🟠', label: 'PRÓXIMO',  color: '#ff9500', bg: 'rgba(255,149,0,.10)', txt: 'MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)' },
-    { key: 'plan',    orden: 30, icon: '🟡', label: 'PLANIFICAR', color: '#ffd000', bg: 'rgba(255,208,0,.10)', txt: 'MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)' }
+    { key: 'vencido', orden: 0, icon: '🔴', label: 'VENCIDO',  color: '#7f1d1d', bg: '#ffffff', txt: 'MANTENIMIENTO DE TALLER VENCIDO',  txtPl: 'vehículos con el MANTENIMIENTO DE TALLER VENCIDO' },
+    { key: 'pronto',  orden: 15, icon: '🟠', label: 'PRÓXIMO',  color: '#f29900', bg: '#ffffff', txt: 'MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER próximo (≤15 días o ≤5.000 km)' },
+    { key: 'plan',    orden: 30, icon: '🟡', label: 'PLANIFICAR', color: '#e6c200', bg: '#ffffff', txt: 'MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)', txtPl: 'vehículos con el MANTENIMIENTO DE TALLER a planificar (≤1 mes o ≤10.000 km)' }
   ];
 
   const today = new Date().toISOString().slice(0, 10);
@@ -16709,7 +16709,7 @@ function renderTallerGlobalBanner() {
       mensaje = `<strong>${lista.length} ${n.txtPl}:</strong> ${top3}${resto}`;
     }
     html += `
-      <div style="order:${n.orden};background:${n.bg};border:1px solid ${n.color};border-left:4px solid ${n.color};border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
+      <div style="order:${n.orden};background:${n.bg};border:3px solid ${n.color};border-left:12px solid ${n.color};border-radius:7px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">
         <div style="flex:1;color:var(--tx);font-weight:600;line-height:1.5">🔧 ${mensaje}</div>
         <div style="display:flex;gap:6px">
           <button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab('taller')">🔧 Ver Taller</button>

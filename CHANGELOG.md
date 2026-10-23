@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v872 (23/10/2026): AVISOS DE TALLER · MISMO ESTILO QUE LOS DE VENCIMIENTOS. Los avisos de mantenimiento de Taller (arriba, en toda la app) usaban rojo, naranja y amarillo de neon sobre fondo de color. Ahora llevan fondo BLANCO y MARCO grueso (3 px + barra izquierda de 12 px), igual que los avisos de vencimientos de la v870: VENCIDO burdeos oscuro · PROXIMO naranja · PLANIFICAR amarillo. Los iconos de estado (🔴 🟠 🟡), los textos, los botones y a quien avisa NO cambian. Solo colores y marco. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v871.
+
+---
+
 v871 (23/10/2026): ASPECTO MAS FORMAL · PASO 3: TIPOGRAFIA DE TITULOS. Los titulos (REGISTRO DE ALBARANES, logo de cabecera, titulos de ventanas, DeCA, Subir documentos, Fichaje, Produccion) usaban Bebas Neue, una letra de rotulo muy alta y estrecha. Pasan a IBM Plex Sans en seminegrita (la misma letra del resto de la app), con tamaño y espaciado entre letras algo menores para que no resulten pesados. Se cambia el valor --dp una sola vez y los 11 sitios que lo usan lo heredan. El reloj de Fichaje lleva cifras de ancho fijo para que no baile al cambiar de segundo. SOLO tipografia: nada de logica ni datos. NO TOCADO: tipografia de datos y tablas (IBM Plex Mono), emojis y colores sueltos de otros modulos. Se sube con styles.css (?v=65) para saltarse la cache. Sin SQL. VUELTA ATRAS: resubir styles.css, app.js, index.html y CHANGELOG.md de la v870.
 
 ---
