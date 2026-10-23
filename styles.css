@@ -295,7 +295,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .card-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .card-bd{padding:18px 20px}
 .st{font-family:var(--dp);font-weight:600;font-size:14px;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
-.dot{width:6px;height:6px;background:var(--c,var(--ac));border-radius:50%;box-shadow:0 0 6px var(--c,var(--ac));flex-shrink:0}
+/* v884: puntito de los titulos siempre azul marino, sin brillo (antes cada tarjeta lo traia de un color: naranja, verde, morado...). */
+.dot{width:6px;height:6px;background:var(--ac);border-radius:50%;flex-shrink:0}
 
 /* QUEUE */
 .queue{display:flex;flex-direction:column;gap:6px;margin-top:12px}

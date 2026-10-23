@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v884 (23/10/2026): PUNTITOS DE LOS TITULOS EN UN SOLO COLOR. El puntito que va delante del titulo de cada tarjeta (Precio cliente y beneficio, Liquidacion CEMEX, Primas de productividad...) salia de un color distinto segun la tarjeta (naranja, verde, morado, celeste) y con un brillo. Ahora todos azul marino y sin brillo. Es un solo cambio en styles.css (v67), afecta a toda la app pero solo al adorno: ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir styles.css, index.html y CHANGELOG.md de la v883 (app.js no cambia salvo el numero).
+
+---
+
 v883 (23/10/2026): PRIMAS · BOTONES SIN ICONITOS. En la cabecera de Primas se quitan los emojis de los botones Traer viajes de albaranes, Traer viajes a TODOS, Revisar el mes, Actualizar, Parte diario, Cuadrante del mes y de la etiqueta 'Vehiculo habitual'. Solo texto, igual que Empleados > Vacaciones. Ninguna funcion cambia (los botones se identifican por su id, no por el texto). Los estados del parte (facturado, pendiente, avisos de 'sin regla') NO se tocan: dan informacion. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v882 (app.js no cambia salvo el numero de version).
 
 ---
