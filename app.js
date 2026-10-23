@@ -42289,7 +42289,7 @@ function _xpPintar() {
   ov.innerHTML =
     '<div style="max-width:460px;margin:0 auto;padding:18px 16px 90px;font-family:var(--ss)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<div><div style="font-family:var(--dp);font-size:26px;letter-spacing:2px;color:var(--ac)">HACER DeCA</div>' +
+      '<div><div style="font-family:var(--dp);font-weight:600;font-size:21px;letter-spacing:.8px;color:var(--ac)">HACER DeCA</div>' +
       '<div style="font-size:13px;color:var(--mu)">' + _xpE(P.nombre || '') + (_xpTrans ? ' · ' + _xpE(_xpTrans) : '') + '</div></div>' +
       (_xpSolo ? '<button class="btn bs" onclick="_xpSalir()">Salir</button>' : '<button class="btn bs" onclick="_xpCerrar()">✕ Cerrar</button>') +
     '</div>' +
@@ -42629,7 +42629,7 @@ async function _cliArrancar() {
   const P = window._decaPerfil || {};
   ov.innerHTML = '<div style="max-width:1100px;margin:0 auto;padding:18px 16px 60px;font-family:var(--ss)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
-      '<div><div style="font-family:var(--dp);font-size:24px;letter-spacing:2px;color:var(--ac)">DeCA · CONSULTA</div>' +
+      '<div><div style="font-family:var(--dp);font-weight:600;font-size:20px;letter-spacing:.8px;color:var(--ac)">DeCA · CONSULTA</div>' +
       '<div style="font-size:12px;color:var(--mu)">' + esc(P.nombre || '') + ' · Grupo Transportes y Portes 2014</div></div>' +
       '<button class="btn bs" onclick="_xpSalir()">Salir</button></div>' +
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:16px 0">' +

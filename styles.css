@@ -3,7 +3,7 @@
   --ac:#1f3a5f;--ok:#2e7d5b;--wn:#c58a1b;--er:#b83a36;--in:#4a6385;--pu:#5b6b82;
   --wnd:#8f5f0f;--erd:#9d2b27;
   --tx:#1b2430;--mu:#5d6878;--fg:#141b24;
-  --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'Bebas Neue',sans-serif;
+  --mn:'IBM Plex Mono',monospace;--ss:'IBM Plex Sans',sans-serif;--dp:'IBM Plex Sans',sans-serif;
   --nu:'Outfit','IBM Plex Sans',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -12,7 +12,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 /* LOGIN */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .login-box{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:40px;width:100%;max-width:420px}
-.login-logo{font-family:var(--dp);font-size:28px;letter-spacing:4px;color:var(--ac);margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.login-logo{font-family:var(--dp);font-weight:600;font-size:23px;letter-spacing:1.5px;color:var(--ac);margin-bottom:8px;display:flex;align-items:center;gap:10px}
 .login-logo-sq{width:32px;height:32px;background:var(--ac);border-radius:6px;display:grid;place-items:center;font-size:16px}
 .login-sub{font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:32px;letter-spacing:1px}
 .login-field{margin-bottom:16px}
@@ -25,7 +25,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 
 /* HEADER */
 .hdr{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--bd);padding:0 24px;height:48px;display:flex;align-items:center;justify-content:space-between}/* v435: 56->48, todo sube */
-.logo{font-family:var(--dp);font-size:22px;letter-spacing:3px;color:var(--ac);display:flex;align-items:center;gap:8px}
+.logo{font-family:var(--dp);font-weight:600;font-size:18px;letter-spacing:1.2px;color:var(--ac);display:flex;align-items:center;gap:8px}
 .logo-sq{width:26px;height:26px;background:var(--ac);border-radius:5px;display:grid;place-items:center;font-size:13px}
 .hdr-r{display:flex;align-items:center;gap:8px}
 .hdr-user{font-family:var(--mn);font-size:10px;color:var(--mu);padding:4px 10px;background:var(--s2);border-radius:4px;border:1px solid var(--bd)}
@@ -57,7 +57,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 /* CONDUCTOR VIEW */
 .conductor-wrap{max-width:600px;margin:0 auto;padding:24px}
 .upload-card{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:28px;margin-bottom:16px}
-.upload-card-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac);margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.upload-card-title{font-family:var(--dp);font-weight:600;font-size:15px;letter-spacing:.8px;color:var(--ac);margin-bottom:6px;display:flex;align-items:center;gap:10px}
 .upload-card-sub{font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:20px;letter-spacing:1px}
 /* v83b: dropzone con tamaño FIJO y sin temblor. El truco es:
    - box-sizing:border-box para que padding+border NO afecten al tamaño total
@@ -260,12 +260,12 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .prod-month-selector{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:18px;padding:14px;background:var(--bg2);border-radius:9px;border:1px solid var(--bd);flex-wrap:wrap}
 .prod-month-selector button{background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mn);font-size:14px;font-weight:600;transition:all .12s}
 .prod-month-selector button:hover{background:var(--bd);border-color:var(--ac);color:var(--ac)}
-#prodMonthLabel{font-family:var(--dp);font-size:20px;letter-spacing:2px;color:var(--ac);min-width:200px;text-align:center}
+#prodMonthLabel{font-family:var(--dp);font-weight:600;font-size:17px;letter-spacing:.8px;color:var(--ac);min-width:200px;text-align:center}
 .prod-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
 .prod-kpi{background:var(--sf);border:1px solid var(--bd);border-radius:9px;padding:14px 16px;position:relative;overflow:hidden}
 .prod-kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--pu)}
 .prod-kpi-l{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
-.prod-kpi-v{font-family:var(--dp);font-size:26px;line-height:1;color:var(--ac)}
+.prod-kpi-v{font-family:var(--dp);font-weight:600;font-size:22px;line-height:1;color:var(--ac)}
 .prod-kpi-s{font-size:13px;color:var(--mu);margin-left:4px}
 .prod-table{width:100%;border-collapse:collapse}
 .prod-table th{font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px;padding:10px 12px;border-bottom:1px solid var(--bd)}
@@ -291,7 +291,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--ss);min-height:100vh
 .card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;margin-bottom:18px;overflow:hidden}
 .card-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .card-bd{padding:18px 20px}
-.st{font-family:var(--dp);font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:8px}
+.st{font-family:var(--dp);font-weight:600;font-size:14px;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
 .dot{width:6px;height:6px;background:var(--c,var(--ac));border-radius:50%;box-shadow:0 0 6px var(--c,var(--ac));flex-shrink:0}
 
 /* QUEUE */
@@ -383,7 +383,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
    limitaba el modal en pantallas grandes y dejaba espacio vacío. */
 .modal{background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:calc(100% - 24px);max-width:none;max-height:92vh;overflow-y:auto;margin:12px}
 .modal-hd{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;background:var(--sf);z-index:10}
-.modal-title{font-family:var(--dp);font-size:18px;letter-spacing:2px;color:var(--ac)}
+.modal-title{font-family:var(--dp);font-weight:600;font-size:15px;letter-spacing:.8px;color:var(--ac)}
 .modal-bd{padding:20px 24px}
 .modal-ft{padding:16px 24px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--sf)}
 /* v73: rejilla del modal - 2 columnas en PC (campos | imagen), 1 columna en móvil */

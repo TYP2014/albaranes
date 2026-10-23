@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v871 (23/10/2026): ASPECTO MAS FORMAL · PASO 3: TIPOGRAFIA DE TITULOS. Los titulos (REGISTRO DE ALBARANES, logo de cabecera, titulos de ventanas, DeCA, Subir documentos, Fichaje, Produccion) usaban Bebas Neue, una letra de rotulo muy alta y estrecha. Pasan a IBM Plex Sans en seminegrita (la misma letra del resto de la app), con tamaño y espaciado entre letras algo menores para que no resulten pesados. Se cambia el valor --dp una sola vez y los 11 sitios que lo usan lo heredan. El reloj de Fichaje lleva cifras de ancho fijo para que no baile al cambiar de segundo. SOLO tipografia: nada de logica ni datos. NO TOCADO: tipografia de datos y tablas (IBM Plex Mono), emojis y colores sueltos de otros modulos. Se sube con styles.css (?v=65) para saltarse la cache. Sin SQL. VUELTA ATRAS: resubir styles.css, app.js, index.html y CHANGELOG.md de la v870.
+
+---
+
 v870 (23/10/2026): AVISOS DE VENCIMIENTOS · FONDO BLANCO Y MARCO FUERTE POR ESCALON. Pedido por JC al ver la v868: con los fondos tenues apenas se distinguian el aviso de 5 dias, el de 3 y el de 1. AHORA: el aviso de arriba lleva fondo BLANCO (el texto se lee igual) y el color va en el MARCO (borde de 3 px y barra izquierda de 12 px), distinto en cada escalon: VENCIDO burdeos oscuro · 1 DIA rojo · 3 DIAS naranja rojizo · 5 DIAS naranja · 15 DIAS amarillo · 30 DIAS gris azulado · 60 DIAS azul marino. La etiqueta ('VENCE EN 1 DIA:') va en un tono oscuro del mismo color para que se lea tambien en el amarillo. NO CAMBIA: los escalones, su orden, los botones, ni a quien avisa. Las filas de la tabla de vencimientos y los chips conservan los colores de la v868. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v869.
 
 ---
