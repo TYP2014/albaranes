@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v868 (23/10/2026): ASPECTO MAS FORMAL · PASO 2: AVISOS, ETIQUETAS DE FACTURACION Y PAPELERA (pantalla de Albaranes). Solo colores, ninguna logica ni dato. AVISOS DE VENCIMIENTOS (los rojos de arriba): se mantienen los 7 escalones y su ORDEN de urgencia (vencido el mas oscuro, luego 1 dia, 3, 5, 15 en ambar, 30 en ambar claro y 60 en azul marino), pero el rojo salmon chillon pasa a rojo apagado; el borde grueso y la barra izquierda siguen marcando la urgencia. ETIQUETAS DE FACTURACION: Pendiente (rojo apagado), Facturado (verde apagado), Facturado fijado (azul marino), Nos facturo y Sin factura (gris azulado en vez de lila). Siguen leyendose igual: el SIGNIFICADO no cambia. PAPELERA: fondo rosa a rosa muy suave. NO TOCADO: emojis, tipografia, y los colores sueltos de otros modulos (Taller, Neumaticos, Gasoil, Facturacion...), que van uno a uno. Sin SQL. Si los avisos se ven demasiado flojos, se sube la intensidad en una linea (la tabla _VENC_ESC). VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v867.
+
+---
+
 v867 (23/10/2026): ASPECTO MAS FORMAL · PASO 1: PALETA AZUL MARINO. Solo cambia la paleta de colores (las variables de styles.css), NADA de logica ni de datos. Color principal: de azul vivo (#2b7bd0) a azul marino (#1f3a5f), con el 'hover' de botones en #2c4d7a. Fondo y bordes en gris neutro. Verde, ambar y rojo se APAGAN pero siguen distinguiendose bien (facturado / pendiente / error no cambian de significado). El violeta/lila desaparece: pasa a gris azulado. Tambien se ajustan los avisos, el boton anexo (texto blanco sobre marino) y el punto verde. NO TOCADO a proposito: los colores sueltos dentro de app.js e index.html (unos 600), la tipografia de titulos y los emojis; van en pasos siguientes viendo antes como queda esto. Se sube con styles.css, que lleva su propio ?v=64 para que Chrome no use la cache antigua. Sin SQL. VUELTA ATRAS: resubir styles.css, index.html y CHANGELOG.md de la v866 (app.js es el mismo).
 
 ---

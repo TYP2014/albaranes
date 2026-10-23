@@ -11537,8 +11537,8 @@ function factProvIcon(r) {
   const est = r.estado_factura_recibida || 'pendiente';
   // Nos han facturado los SUBCONTRATADOS: morado=nos facturó, rojo=sin recibir.
   if (r.fi_ref === 'FUERA') return _pill('Fact. directa', '#475569', 'Lo factura directamente al cliente: no va en la factura interna');   // v816
-  if (est === 'recibida') return _pill('✓ Nos facturó', '#7c3aed', r.fi_ref ? (_fiTxtRef(r.fi_ref) + (r.fi_grupo ? ' · pestaña ' + r.fi_grupo : '')) : 'El transportista ya nos ha facturado');   // v816: dice en qué factura/pestaña está
-  return _pillOut('Sin factura', '#a855f7', 'Pendiente de que el transportista nos facture');
+  if (est === 'recibida') return _pill('✓ Nos facturó', '#4a6385', r.fi_ref ? (_fiTxtRef(r.fi_ref) + (r.fi_grupo ? ' · pestaña ' + r.fi_grupo : '')) : 'El transportista ya nos ha facturado');   // v816: dice en qué factura/pestaña está
+  return _pillOut('Sin factura', '#4a6385', 'Pendiente de que el transportista nos facture');
 }
 
 // v107K26 — contenido completo de la primera celda (estado) de la fila de Albaranes. Se usa tanto en
@@ -11571,10 +11571,10 @@ function factIcon(r) {
   const est = r.estado_facturacion || 'pendiente';
   // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
   if (est === 'facturado')      return r.fact_fija
-    ? _pill('🔒 Facturado', '#0e7490', 'Facturado FIJADO a mano: el cruce de Holcim no lo puede devolver a pendiente')
-    : _pill('✓ Facturado', '#16a34a', 'Facturado a cliente');
+    ? _pill('🔒 Facturado', '#1f3a5f', 'Facturado FIJADO a mano: el cruce de Holcim no lo puede devolver a pendiente')
+    : _pill('✓ Facturado', '#2e7d5b', 'Facturado a cliente');
   if (est === 'no_facturable')  return _pill('No facturable', '#6b7280', 'No facturable');
-  return _pill('Pendiente', '#dc2626', 'Pendiente de facturar al cliente');
+  return _pill('Pendiente', '#b83a36', 'Pendiente de facturar al cliente');
 }
 
 // Marca el estado de facturación de UN albarán y lo guarda en Supabase.
@@ -13027,7 +13027,7 @@ function updateStats() {
       <div class="stat"><div class="stat-l">Vehículos</div><div class="stat-v">${vehs}</div><div class="stat-s">matrículas distintas</div></div>
       <div class="stat" style="--c:var(--erd)"><div class="stat-l">Duplicados</div><div class="stat-v" style="color:var(--erd)">${dups.length}</div><div class="stat-s">no contabilizados</div></div>
       <div class="stat" style="--c:var(--wnd)"><div class="stat-l">A revisar</div><div class="stat-v" style="color:var(--wnd)">${warns.length}</div><div class="stat-s">calidad/ilegibles</div></div>`
-      + (window._veOficina ? `<div class="stat" id="statPapelera" onclick="abrirPapelera()" style="--c:#c73631;cursor:pointer;background:rgba(255,59,48,.10);border-color:rgba(199,54,49,.35)" title="Ver la papelera de albaranes"><div class="stat-l" style="color:#8e1c18">🗑 Papelera</div><div class="stat-v" id="statPapeleraN" style="color:#b71c1c">${_papeleraN === null ? '…' : _papeleraN}</div><div class="stat-s" style="color:#8e1c18">últimos 90 días</div></div>` : '');
+      + (window._veOficina ? `<div class="stat" id="statPapelera" onclick="abrirPapelera()" style="--c:#b83a36;cursor:pointer;background:rgba(184,58,54,.06);border-color:rgba(184,58,54,.28)" title="Ver la papelera de albaranes"><div class="stat-l" style="color:#8e1c18">🗑 Papelera</div><div class="stat-v" id="statPapeleraN" style="color:#9d2b27">${_papeleraN === null ? '…' : _papeleraN}</div><div class="stat-s" style="color:#8e1c18">últimos 90 días</div></div>` : '');
     box.classList.toggle('stats-7', !!window._veOficina);   // v647: 7 columnas si esta la Papelera
     if (window._veOficina) _papeleraContar();   // v646
     const hdrInfo = document.getElementById('hdrInfo');
@@ -37483,13 +37483,13 @@ function tacoSec(sec) {
 // pantalla no se distinguian; ahora van al 30-55%. Las letras se oscurecen
 // un punto para que sigan leyendose encima del fondo nuevo.
 const _VENC_ESC = [
-  { max:  -1, clave: 'vencido', color: '#5c0d0d', fondo: 'rgba(183,28,28,.52)',  txt: 'VENCIDO',        orden: 0 },
-  { max:   1, clave: 'd1',      color: '#8f0f0f', fondo: 'rgba(255,59,48,.55)',  txt: '1 DÍA',          orden: 1 },
-  { max:   3, clave: 'd3',      color: '#9c1515', fondo: 'rgba(255,70,64,.50)',  txt: '3 DÍAS',         orden: 2 },
-  { max:   5, clave: 'd5',      color: '#a81b1b', fondo: 'rgba(255,80,80,.45)',  txt: '5 DÍAS O MENOS', orden: 3 },
-  { max:  15, clave: 'd15',     color: '#b23c00', fondo: 'rgba(255,140,0,.48)',  txt: '15 DÍAS',        orden: 4 },
-  { max:  30, clave: 'd30',     color: '#7a5c00', fondo: 'rgba(255,200,0,.52)',  txt: '30 DÍAS',        orden: 5 },
-  { max:  60, clave: 'd60',     color: '#0d47a1', fondo: 'rgba(21,101,192,.30)', txt: '60 DÍAS',        orden: 6 }
+  { max:  -1, clave: 'vencido', color: '#7f1d1d', fondo: 'rgba(184,58,54,.24)',  txt: 'VENCIDO',        orden: 0 },
+  { max:   1, clave: 'd1',      color: '#8f2420', fondo: 'rgba(184,58,54,.20)',  txt: '1 DÍA',          orden: 1 },
+  { max:   3, clave: 'd3',      color: '#9d2b27', fondo: 'rgba(184,58,54,.17)',  txt: '3 DÍAS',         orden: 2 },
+  { max:   5, clave: 'd5',      color: '#a33430', fondo: 'rgba(184,58,54,.14)',  txt: '5 DÍAS O MENOS', orden: 3 },
+  { max:  15, clave: 'd15',     color: '#8f5f0f', fondo: 'rgba(197,138,27,.20)',  txt: '15 DÍAS',        orden: 4 },
+  { max:  30, clave: 'd30',     color: '#7a5c00', fondo: 'rgba(197,138,27,.12)',  txt: '30 DÍAS',        orden: 5 },
+  { max:  60, clave: 'd60',     color: '#1f3a5f', fondo: 'rgba(31,58,95,.10)', txt: '60 DÍAS',        orden: 6 }
 ];
 
 // v852: EL RECONOCIMIENTO MEDICO AVISA MENOS QUE EL RESTO.
