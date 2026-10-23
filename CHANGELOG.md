@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v879 (23/10/2026): EMPLEADOS SIN ILUSTRACIONES. Se quitan los 3 dibujos (maleta, portapapeles medico, fajo de billetes) de los botones Vacaciones / Reconocimientos medicos / Primas: quedan solo con texto, mas formales. Los tres siguen del mismo ancho (300 px). Los archivos de imagen siguen en el repo sin usarse (no se borran). Solo index.html; sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v878.
+
+---
+
 v878 (23/10/2026): EMPLEADOS · CABECERA UNIFICADA. Los 3 botones de arriba (Vacaciones, Reconocimientos medicos, Primas) tenian cada uno un ancho distinto segun su texto; ahora los tres miden lo mismo (320 px, letra 15 px) y estan mas juntos. Los botones de empresa de debajo (TYP2014, HISPALIS, TRANSMARGAZ, PORTES 2014 IMPORT) pasan de letra 11 a 13 px, con ancho minimo igual y menos separacion. Los iconos fijos de Gemini se mantienen. Solo estilos en index.html; sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v877 (app.js no cambia).
 
 ---

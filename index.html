@@ -1282,7 +1282,7 @@ if (typeof pdfjsLib !== 'undefined') {
 
     <div id="tabContentVac" class="wrap" style="display:none">
       <style>/* v741: pestañas de Empleados con iconos SVG (diseño propuesto por ChatGPT, integrado por Claude) */
-        [data-emptab]{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;width:320px;max-width:100%;padding:8px 16px;font-size:15px;line-height:1.25;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,border-color 160ms ease}
+        [data-emptab]{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;width:300px;max-width:100%;padding:8px 16px;font-size:15px;letter-spacing:1px;line-height:1.25;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,border-color 160ms ease}
         [data-emptab] svg{display:block;flex:0 0 32px;width:32px;height:32px;overflow:visible}
         [data-emptab]:focus-visible{outline:3px solid currentColor;outline-offset:4px}
         [data-emptab]:is(:hover,:focus-visible,.bp) .vac-handle{animation:emptab-handle 520ms ease-out;transform-box:view-box;transform-origin:16px 9px}
@@ -1332,13 +1332,10 @@ if (typeof pdfjsLib !== 'undefined') {
       </style>
       <div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;justify-content:center">
         <button class="btn bp" id="empVistaVac" onclick="switchEmpleadosVista('vac')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img src="ico_emp_vac.webp?v747" alt=""></span>
           <span>Vacaciones</span></button>
         <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img src="ico_emp_rec.webp?v747" alt=""></span>
           <span>Reconocimientos médicos</span></button>
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" data-emptab>
-          <span class="eiLay" aria-hidden="true"><img src="ico_emp_pri.webp?v747" alt=""></span>
           <span>Primas</span></button>
       </div>
       <div id="empVistaVacBox">
@@ -2066,6 +2063,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=878"></script>
+<script src="app.js?v=879"></script>
 </body>
 </html>
