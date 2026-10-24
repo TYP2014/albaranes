@@ -30021,7 +30021,7 @@ function renderRecambios() {
       : '';
     // v251: icono si tiene anotación (pasa el ratón para leerla; ábrelo para editarla)
     const notaTag = d.notas
-      ? ` <span style="background:#fffbe8;border:1px solid #f0e4b0;border-radius:4px;padding:1px 5px;font-size:10px;cursor:help" title="${esc(d.notas)}">📝</span>`
+      ? ` <span style="background:#fbecc4;color:#4a3200;border:1px solid #c58a1b;border-radius:5px;padding:3px 9px;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:help" title="${esc(d.notas)}">NOTA</span>`
       : '';
     return `<tr style="${trStyle}" onclick="recambiosVerDetalle('${d.id}')">
       <td>${tipoBadge(d.tipo_doc)}</td>

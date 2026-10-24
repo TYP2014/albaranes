@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v907 (24/10/2026): RECAMBIOS · EL ICONO DE NOTA PASA A ETIQUETA 'NOTA'. En la tabla de documentos, el papelito amarillo (anotacion del documento) se sustituye por una etiqueta de texto NOTA (ambar, 12 px, negrita); al pasar el raton sigue saliendo el texto de la anotacion. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v906.
+
+---
+
 v906 (24/10/2026): RECAMBIOS · CUADRE Y MESES MAS GRANDES. El Cuadre (cajas azul/naranja/roja y vista por piezas) pasa de letra de maquina de escribir a la letra normal de la app y mas grande (titulo 18 px, cajas 16 px, detalle 15 px), con mas aire. La linea de cada mes en la tabla de documentos pasa a 17 px el mes y 15 px el resumen. Solo CSS (styles.css v73) y dos tamaños en app.js; ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v905.
 
 ---
