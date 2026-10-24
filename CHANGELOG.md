@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v934 (24/10/2026): ORIGINALES PARA INSPECCION · ZIP MAS LIMPIO. Probado con datos reales (Hispalis, 4 camiones): el ZIP trae las carpetas CAMIONES y CONDUCTORES y un RESUMEN.txt, y los ficheros son identicos byte a byte a los originales. Ajustes: las carpetas de conductores van sin acentos ni Ñ (antes salia 'MU#U00d1OZ' en algunos programas) y el RESUMEN.txt dice '1 día' en singular. Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v933.
+
+---
+
 v933 (24/10/2026): SUBIR · PDF DE PAGINAS ENORMES. Fran subio 'Albaranes 3.pdf' y la IA rechazo dos paginas con el error 'at least one of the image dimensions exceed max allowed size: 8000 pixels' (chivato, 24/10 13:05). Al partir un PDF en paginas, ahora el lado mayor de la imagen se limita a 3500 px; las hojas normales (A4) no cambian. Si ese PDF vuelve a fallar, avisar. Sin SQL. VUELTA ATRAS: volver a la v932.
 
 ---

@@ -38807,12 +38807,12 @@ async function tacoRepInspVer() {
     // ficheros unicos
     const vistos = new Set(); _tacoInspFich = [];
     ficCam.forEach(f => { if (!vistos.has(f.id)) { vistos.add(f.id); _tacoInspFich.push({ f, carpeta: 'CAMIONES/' + (f.matricula || 'sin_matricula') }); } });
-    ficCon.forEach(f => { if (!vistos.has(f.id)) { vistos.add(f.id); _tacoInspFich.push({ f, carpeta: 'CONDUCTORES/' + String(f.conductor_nombre || 'sin_nombre').replace(/[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ ._-]+/g, '_') }); } });
+    ficCon.forEach(f => { if (!vistos.has(f.id)) { vistos.add(f.id); _tacoInspFich.push({ f, carpeta: 'CONDUCTORES/' + String(f.conductor_nombre || 'sin_nombre').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ._-]+/g, '_') }); } });
     // texto del resumen para el ZIP
     let rs = 'ORIGINALES PARA INSPECCIÓN\nEmpresa: ' + (_TACO_EMP_NOM[_tacoInspEmp] || _tacoInspEmp) + '\nPeriodo: ' + _tacoDMY2(desde) + ' → ' + _tacoDMY2(hasta) + ' (' + nDias + ' días)\nGenerado: ' + new Date().toLocaleString('es-ES') + '\n\nCAMIONES\n';
-    filasCam.forEach(x => { rs += '- ' + x.m + ': ' + (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + ' días: ' + _tacoInspTxtHuecos(x.hu) : (x.sinNada ? 'SIN NINGUNA DESCARGA' : 'completo')) + '\n'; });
+    filasCam.forEach(x => { rs += '- ' + x.m + ': ' + (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + (diasTxt(x.hu) === 1 ? ' día: ' : ' días: ') + _tacoInspTxtHuecos(x.hu) : (x.sinNada ? 'SIN NINGUNA DESCARGA' : 'completo')) + '\n'; });
     rs += '\nCONDUCTORES QUE LOS LLEVARON\n';
-    filasCon.forEach(x => { rs += '- ' + x.nom + ' (' + x.nDiasQ + ' días con tarjeta metida): ' + (x.sinNada ? 'SIN NINGUNA DESCARGA DE SU TARJETA' : (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + ' días: ' + _tacoInspTxtHuecos(x.hu) : 'completo')) + '\n'; });
+    filasCon.forEach(x => { rs += '- ' + x.nom + ' (' + x.nDiasQ + (x.nDiasQ === 1 ? ' día' : ' días') + ' con tarjeta metida): ' + (x.sinNada ? 'SIN NINGUNA DESCARGA DE SU TARJETA' : (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + ' días: ' + _tacoInspTxtHuecos(x.hu) : 'completo')) + '\n'; });
     _tacoInspResumen = rs;
     const fl = _tacoInspFich.map(({ f, carpeta }) => `<tr><td>${f.tipo === 'vehiculo' ? 'Camión' : 'Tarjeta'}</td><td><b>${esc2(f.tipo === 'vehiculo' ? (f.matricula || '—') : _tacoNomCorto(f.conductor_nombre || '—'))}</b></td><td>${_tacoDMY2(f.fecha_desde)} → ${_tacoDMY2(f.fecha_hasta)}</td><td>${f.file_url ? '<a class="btn bs" style="text-decoration:none;font-weight:700;color:#111" href="' + f.file_url + '" target="_blank" rel="noopener">⬇ Descargar</a>' : ''}</td></tr>`).join('');
     out.innerHTML = `
