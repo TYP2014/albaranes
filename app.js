@@ -13287,12 +13287,12 @@ function _renderHistPreciosUI() {
   cont.innerHTML =
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
     + btn('CEMEX') + btn('HOLCIM')
-    + '<input id="histOrigen" type="text" list="histOrigList" placeholder="🔎 Origen…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
-    + '<input id="histDestino" type="text" list="histDestList" placeholder="🔎 Destino…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
+    + '<input id="histOrigen" type="text" list="histOrigList" placeholder="Buscar origen…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
+    + '<input id="histDestino" type="text" list="histDestList" placeholder="Buscar destino…" oninput="_histFiltroInput()" class="fi" style="min-width:150px;font-size:12px">'
     + '<datalist id="histOrigList"></datalist><datalist id="histDestList"></datalist>'
     + '<span style="font-size:12px;color:var(--mu)">Desde</span><select id="histDesde" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
     + '<span style="font-size:12px;color:var(--mu)">Hasta</span><select id="histHasta" onchange="_histPreciosTabla()" class="fi" style="font-size:12px">' + opts + '</select>'
-    + '<button class="btn bs" onclick="_histLimpiar()" style="font-size:12px" title="Quitar los filtros">✕ Limpiar</button>'
+    + '<button class="btn bs" onclick="_histLimpiar()" style="font-size:12px" title="Quitar los filtros">Limpiar</button>'
     + '</div>'
     + '<div id="histPreciosTablaCont" style="overflow-x:auto"></div>';
   document.getElementById('histDesde').value = meses[0];
@@ -13340,30 +13340,30 @@ function _histPreciosTabla() {
     return (!fo || _tarifaNorm(partes[0]).indexOf(fo) !== -1) && (!fd || _tarifaNorm(partes[1]).indexOf(fd) !== -1);
   });
   if (!meses.length || !rutas.length) { tc.innerHTML = '<div style="color:var(--mu);padding:10px">Sin datos para ese filtro.</div>'; return; }
-  const th = t => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu);white-space:nowrap">' + t + '</th>';
-  let html = '<table style="border-collapse:collapse;min-width:100%;font-size:12px"><thead><tr>'
-    + '<th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu);position:sticky;left:0;background:var(--sf)">RUTA (' + prov + ')</th>'
+  const th = t => '<th class="hpTh">' + t + '</th>';
+  let html = '<div class="hpScroll"><table class="hpTbl"><thead><tr>'
+    + '<th class="hpRutaTh">RUTA (' + prov + ')</th>'
     + meses.map(m => th(_histMesNombre(m))).join('') + '</tr></thead><tbody>';
   rutas.forEach(ruta => {
-    html += '<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bd);color:var(--tx);font-weight:600;position:sticky;left:0;background:var(--sf);white-space:nowrap">' + _fichajeEsc(ruta) + '</td>';
+    html += '<tr><td class="hpRuta">' + _fichajeEsc(ruta) + '</td>';
     let prev = null;
     meses.forEach(m => {
       const d = _histPrecios.agg[prov][ruta] && _histPrecios.agg[prov][ruta][m];
-      if (!d || !(d.tn > 0)) { html += '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);text-align:right;color:var(--mu)">—</td>'; prev = null; return; }
+      if (!d || !(d.tn > 0)) { html += '<td class="hpTd"><span class="hpVacio">—</span></td>'; prev = null; return; }
       const eur = d.imp / d.tn;
       let pct = '';
       if (prev != null && prev > 0) {
         const p = (eur - prev) / prev * 100;
-        const col = p > 0.05 ? '#1f9d55' : (p < -0.05 ? '#d9534f' : 'var(--mu)');
-        const arr = p > 0.05 ? '▲' : (p < -0.05 ? '▼' : '');
-        pct = '<div style="font-size:10px;color:' + col + ';font-weight:600">' + arr + ' ' + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</div>';
+        const cls = p > 0.05 ? 'hpSube' : (p < -0.05 ? 'hpBaja' : 'hpIgual');
+        const arr = p > 0.05 ? '▲ ' : (p < -0.05 ? '▼ ' : '= ');
+        pct = '<div class="hpPct ' + cls + '">' + arr + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</div>';
       }
-      html += '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap"><b>' + eur.toFixed(2) + ' €</b>' + pct + '<div style="font-size:9px;color:var(--mu)">' + d.viajes + ' v · ' + Math.round(d.tn) + ' TN</div></td>';
+      html += '<td class="hpTd"><div class="hpPr">' + eur.toFixed(2).replace('.', ',') + ' €</div>' + pct + '<div class="hpDe">' + d.viajes + (d.viajes === 1 ? ' viaje' : ' viajes') + ' · ' + Math.round(d.tn).toLocaleString('es-ES') + ' TN</div></td>';
       prev = eur;
     });
     html += '</tr>';
   });
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   tc.innerHTML = html;
 }
 

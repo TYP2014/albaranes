@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v938 (24/10/2026): PANEL · HISTORICO DE PRECIOS CLARO Y SIN DIBUJITOS. La tabla del Historico de precios por ruta tenia letra de 9-12 px en gris. Ahora: precio a 16 px en negrita, % de subida/bajada a 13 px (verde oscuro / rojo oscuro), viajes y TN a 12,5 px en oscuro, cabeceras en negrita, marco alrededor y columna de ruta fija al desplazar. Filtros y botones mas grandes y en negro. Quitados los iconos del Panel (grafica y euros de los titulos, lupas de Origen/Destino, flechas de Actualizar, aspa de Limpiar y Mes actual). Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v937.
+
+---
+
 v937 (24/10/2026): PANEL · LETRAS PEQUENAS DE LAS CAJAS. Las letras gris claro de debajo de las cifras (albaranes, TN sin facturar, caducadas/proximas, vencidos/proximos, media L/100km) casi no se veian. Ahora van en negro y a 15 px; los rotulos de arriba a 13 px en negrita y las cifras a 34 px. Solo CSS (styles.css v96). Sin SQL. VUELTA ATRAS: volver a la v936.
 
 ---

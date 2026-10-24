@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=96">
+<link rel="stylesheet" href="styles.css?v=97">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1049,7 +1049,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--ac)"></div>PANEL — RESUMEN</div>
           <div class="tbl-acts">
-            <button class="btn bs" onclick="loadPanel()" style="display:flex;align-items:center;gap:5px" title="Actualizar el panel">🔄 Actualizar</button>
+            <button class="btn bs" onclick="loadPanel()" style="display:flex;align-items:center;gap:5px" title="Actualizar el panel">Actualizar</button>
           </div>
         </div>
         <div class="card-bd">
@@ -1061,14 +1061,14 @@ if (typeof pdfjsLib !== 'undefined') {
             <input type="date" id="panelDesde" class="fi" style="max-width:145px" onchange="loadPanel()">
             <label style="font-size:11px;color:var(--mu)">Hasta:</label>
             <input type="date" id="panelHasta" class="fi" style="max-width:145px" onchange="loadPanel()">
-            <button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('panelMes').value='';document.getElementById('panelDesde').value='';document.getElementById('panelHasta').value='';loadPanel()">✕ Mes actual</button>
+            <button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('panelMes').value='';document.getElementById('panelDesde').value='';document.getElementById('panelHasta').value='';loadPanel()">Mes actual</button>
           </div>
           <div id="panelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
             <div style="color:var(--mu);font-size:12px;padding:20px">Cargando panel...</div>
           </div>
           <div style="margin-top:24px;border-top:1px solid var(--bd);padding-top:16px">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-              <div style="font-weight:bold;font-size:15px;color:var(--tx)">📈 Histórico de precios por ruta (autofacturas)</div>
+              <div style="font-weight:bold;font-size:15px;color:var(--tx)">Histórico de precios por ruta (autofacturas)</div>
               <button class="btn bp" id="btnHistPrecios" onclick="abrirHistoricoPrecios()">Cargar histórico</button>
             </div>
             <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN que te pagan Holcim/CEMEX por ruta, mes a mes (calculado importe ÷ toneladas de las autofacturas guardadas). Subida en verde, bajada en rojo.</div>
@@ -1076,7 +1076,7 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
           <div style="margin-top:24px;border-top:1px solid var(--bd);padding-top:16px">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-              <div style="font-weight:bold;font-size:15px;color:var(--tx)">💶 Precios Holcim (rutas habituales)</div>
+              <div style="font-weight:bold;font-size:15px;color:var(--tx)">Precios Holcim (rutas habituales)</div>
               <button class="btn bp" id="btnPrecHolcim" onclick="abrirPreciosHolcim()">Ver precios Holcim</button>
             </div>
             <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN de las preliquidaciones de Holcim: el último mes subido y los anteriores (eliges cuántos: 3, 6, 12 o todos). Si un mes tiene varios precios, salen todos con sus días. Pincha un precio para bajar sus viajes en Excel.</div>
@@ -2052,6 +2052,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=937"></script>
+<script src="app.js?v=938"></script>
 </body>
 </html>
