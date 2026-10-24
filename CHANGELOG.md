@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v921 (24/10/2026): RECONOCIMIENTOS MEDICOS · DIBUJO MAS GRANDE. El dibujo de subir la carta de la mutua pasa de 210 a 380 px de ancho (casi el doble, ocupa el recuadro). Solo CSS (styles.css v83). Sin SQL. VUELTA ATRAS: volver a la v920.
+
+---
+
 v920 (24/10/2026): RECONOCIMIENTOS MEDICOS · DIBUJO MAS PEQUEÑO Y CADUCIDAD MAS GRANDE. El dibujo de subir la carta de la mutua pasa a la mitad de tamaño (se mantiene el dibujo animado) y el panel de CADUCIDAD DEL RECONOCIMIENTO ocupa mas ancho, con letra de 15 px, y queda a la misma altura que el recuadro de subir (el '5 sin fecha' queda dentro). Arreglado el boton que ponia 'WhatsApp WhatsApp'. Solo CSS (styles.css v82) y un cambio de texto. Sin SQL. VUELTA ATRAS: volver a la v919.
 
 ---

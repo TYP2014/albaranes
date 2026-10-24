@@ -753,7 +753,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 
 /* v920 Reconocimientos: dibujo a la mitad, caducidad mas grande y a la misma altura */
 #dzRecmed{display:flex;flex-direction:column;justify-content:center;height:100%;box-sizing:border-box}
-#dzRecmed .recFoto{max-width:210px;margin-bottom:8px}
+#dzRecmed .recFoto{max-width:380px;margin-bottom:8px}
 #dzRecmed .dz-t{font-size:14px!important}
 #dzRecmed .dz-s{font-size:12px!important}
 #recmedCadBox{display:flex;flex-direction:column;min-height:0}
