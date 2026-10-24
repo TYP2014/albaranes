@@ -796,3 +796,16 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentTaco #tacoInfResultado [style*="font-size:12.5px"],#tabContentTaco #tacoVehResultado [style*="font-size:12.5px"]{font-size:14px!important}
 #tabContentTaco #tacoInfResultado [style*="height:18px"] span,#tabContentTaco #tacoVehResultado [style*="height:18px"] span{font-size:13px;font-weight:600;color:var(--tx)}
 #tabContentTaco #tacoInfSelector label[style*="font-size:11.5px"]{font-size:14px!important}
+
+/* v925 Tacografo: VENCIMIENTOS y CARNET Y CAP mas legibles (negro, mas grandes) */
+#tabContentTaco #tacoVencBox [style*="color:var(--mu)"],#tabContentTaco #tacoCarnetCapBox [style*="color:var(--mu)"]{color:var(--tx)!important}
+#tabContentTaco #tacoVencBox,#tabContentTaco #tacoCarnetCapBox{font-size:15px}
+#tabContentTaco #tacoVencBox th,#tabContentTaco #tacoCarnetCapBox th{font-size:13.5px!important;font-weight:700;color:var(--tx)!important;padding:12px 14px!important}
+#tabContentTaco #tacoVencBox td,#tabContentTaco #tacoCarnetCapBox td{padding-top:13px!important;padding-bottom:13px!important}
+#tabContentTaco #tacoVencBox td span[style*="font-size:12px"],#tabContentTaco #tacoCarnetCapBox td span[style*="font-size:12px"]{font-size:13.5px!important}
+#tabContentTaco #tacoVencBox td span[style*="font-size:11px"],#tabContentTaco #tacoCarnetCapBox td span[style*="font-size:11px"]{font-size:13px!important}
+#tabContentTaco #tacoVencBox td span[style*="font-size:13px"]{font-size:14.5px!important}
+#tabContentTaco #tacoVencBox .btn,#tabContentTaco #tacoCarnetCapBox .btn{font-size:13px!important;padding:8px 12px!important;font-weight:700;color:#111}
+#tabContentTaco #tacoVencBox span[style*="border-radius:20px"],#tabContentTaco #tacoCarnetCapBox span[style*="border-radius:20px"]{font-size:14px!important;padding:6px 15px!important}
+#tabContentTaco #tacoVencBox>div[style*="border-top"],#tabContentTaco #tacoCarnetCapBox div[style*="border-top"]{font-size:14px!important;line-height:1.8!important}
+#tabContentTaco #tacoVencBox b[style*="font-size:17px"],#tabContentTaco #tacoCarnetCapBox b[style*="font-size:17px"]{font-size:19px!important}

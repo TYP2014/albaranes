@@ -36228,7 +36228,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
               ? `<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga · el tacógrafo contó hasta las ${_tacoHHMM(corte)}; lo registrado hasta ahí sí cuenta</span>`
               : '<span style="color:var(--wnd);font-weight:700"> ⚠ día de la descarga: jornada sin cerrar, no se suma a la semana</span>') : ''}
             ${huboDos ? '<span style="font-family:var(--mn);font-size:12.5px;background:rgba(30,41,51,.08);border-radius:999px;padding:3px 11px;margin-left:6px">≡ dos conductores</span>' : ''}
-            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:14.5px;font-weight:600;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
+            ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:14.5px;font-weight:600;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">${_quienDia.has(iso) ? _tacoNomCorto(_quienDia.get(iso)) : 'sin tarjeta metida'}</span>` : ''}
             ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:14.5px;margin-left:8px" title="Contador del tacógrafo a las 00:00 del día siguiente menos el de este día. Si falta el día siguiente (p. ej. el día de la descarga), aún no se puede calcular.">🛣 ${kmDia != null ? '<b>' + kmDia.toLocaleString('es-ES') + ' km</b>' : '<span style="color:var(--mu)">km —</span>'}</span>` : ''}
           </div>
           <div class="tacoBarraCaja" style="position:relative;height:110px;border:1px solid #9aa5b4;border-radius:4px;overflow:hidden;background:#fff">
@@ -38147,12 +38147,12 @@ function _vencFila(f, esVeh) {
   // aviso vuelve sin que nadie tenga que acordarse de nada.
   const tramite = !hecho && !!f.venc_tramite && f.venc_tramite === iso;
   const esAdmin = (typeof currentRole !== 'undefined' && currentRole === 'admin');
-  const quien = esVeh ? (f.matricula || '—') : (f.conductor_nombre || '—');
+  const quien = esVeh ? (f.matricula || '—') : _tacoNomCorto(f.conductor_nombre || '—');   // v925: nombre + 1er apellido
   const sub = esVeh ? (_TACO_EMP_NOM[f.empresa] || f.empresa || '') : (f.tarjeta_num || '');
   const dmy = x => x ? x.split('-').reverse().join('/') : '—';
   let etiqueta;
   if (!iso) etiqueta = '<span style="color:var(--mu);font-family:var(--mn);font-size:12px">sin dato</span>';
-  else if (hecho) etiqueta = '<span style="color:#1b5e20;font-weight:800;font-size:13px">✓ ' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
+  else if (hecho) etiqueta = '<span style="color:#1b5e20;font-weight:800;font-size:13px">' + (esVeh ? 'HECHA' : 'RENOVADA') + '</span>';
   else if (tramite) {
     // v488: se dice que esta en tramite, PERO SIN ESCONDER lo que le queda:
     // debajo, en pequenio, sigue el escalon de siempre. Que este pedida no
@@ -38174,7 +38174,7 @@ function _vencFila(f, esVeh) {
     ? '<span style="color:var(--mu);font-size:12px">vuelve a subir su descarga</span>'
     : dmy(iso) + '<br><span style="color:var(--mu);font-size:12px">' + _vencTxtDias(hecho ? null : dias) + '</span>';
   const btn = (iso && !hecho && esc)
-    ? '<button class="btn bs" style="font-size:11.5px;padding:6px 9px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">✓ ' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
+    ? '<button class="btn bs" style="font-size:11.5px;padding:6px 9px;white-space:nowrap" onclick="vencMarcarHecho(\'' + (esVeh ? 'V' : 'C') + '\',\'' + (esVeh ? f.matricula : f.tarjeta_num) + '\')">' + (esVeh ? 'Hecha' : 'Renovada') + '</button>'
     : (hecho && f.venc_hecho_el ? '<span style="font-family:var(--mn);font-size:11.5px;color:var(--mu)">' + new Date(f.venc_hecho_el).toLocaleDateString('es-ES') + '</span>' : '');
   // v488: marcar / quitar el tramite. SOLO EL ADMIN, como pidio JC: los demas
   // lo ven pero no lo tocan. Solo tiene sentido si hay fecha, no esta hecho y

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v925 (24/10/2026): TACOGRAFO · VENCIMIENTOS Y CARNET Y CAP MAS LEGIBLES. Letra mas grande y en negro (cabeceras, fechas, 'faltan N dias', avisos, textos de ayuda), botones COPIAR / EN TRAMITE / HECHA / RENOVADA mas grandes y sin el tic, boton 'Actualizar' solo texto. Los conductores salen con nombre y primer apellido tambien en Vencimientos y en el titulo de cada dia de Vehiculos (sin el dibujito del hombrecito). Los colores de aviso no cambian. Sin SQL. VUELTA ATRAS: volver a la v924.
+
+---
+
 v924 (24/10/2026): TACOGRAFO · TEXTOS DE AYUDA EN NEGRO Y MAS GRANDES. El aviso naranja de SUBIR ('Suelta un fichero…') pasa a letra negra de 15 px. En Conductores y Vehiculos: la linea 'Pasa el raton por la barra…' (hora inicio/fin/duracion), las horas del eje, los textos grises de ayuda y la casilla 'Ver tambien los que ya no estan' pasan a negro y mas grandes. Solo CSS (styles.css v86). Sin SQL. VUELTA ATRAS: volver a la v923.
 
 ---
