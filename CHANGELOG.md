@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v901 (24/10/2026): TALLER · CABECERA Y TABLA MAS GRANDES Y ESPACIADAS. Botones de empresa (TYP2014, T. Hispalis 2016, Transmargaz 2018) a 13 px, mas grandes y separados. Los tres botones MANTENIMIENTOS, RECAMBIOS y CITAS SERVICIO OFICIAL, en texto sin emoji, mas grandes y mas separados entre si. Caja IMPORTAR KM (Excel) mas grande y boton AÑADIR VEHICULO en azul marino, sin emoji. En la tabla de vehiculos cabecera 13 px y filas 14 px con mas espacio. Ninguna funcion cambia. Sin SQL. (Las fotos de tractora/semirremolque se cambiaran mas adelante, cuando el usuario tenga las nuevas.) VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v900.
+
+---
+
 v900 (24/10/2026): GASOIL · TABLA DEL REGISTRO MAS LEGIBLE. En la tabla del Registro de Gasoil la cabecera pasa a 13 px y las filas a 14 px, con mas espacio entre filas (14 px) y un fondo suave al pasar el raton. El boton '👁 Ver' pasa a 'VER' en texto, mas grande. Solo afecta a esta tabla (CSS limitado a #gasVistaRegistro, styles.css v69). Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v899.
 
 ---

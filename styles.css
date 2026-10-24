@@ -685,3 +685,6 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #gasVistaRegistro td{font-size:14px;padding:14px 14px}
 #gasVistaRegistro td .preview-btn{font-size:12px;padding:7px 14px;margin-top:0;letter-spacing:.8px;font-weight:700}
 #gasVistaRegistro tbody tr:hover{background:rgba(31,58,95,.05)}
+/* v901: tabla de vehiculos de Taller mas legible */
+#tallerTabla th{font-size:13px;padding:12px 14px;letter-spacing:1px}
+#tallerTabla td{font-size:14px;padding:12px 14px}
