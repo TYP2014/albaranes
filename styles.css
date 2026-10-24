@@ -849,3 +849,23 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 /* v932 Inspeccion: el boton de empresa elegido se lee (letra blanca sobre azul marino) */
 #tacoInspCard .btn.bp,#tacoInspCard .insp-fila .btn.bp{color:#fff!important}
 #tacoInspCard .btn.bs{color:#111}
+
+/* v935 Produccion: mas formal, letra negra y mas grande */
+#tabContentProduccion .st{font-size:15px;font-weight:700;color:var(--tx)}
+#tabContentProduccion .tbl-acts .btn{font-size:13px;padding:9px 16px;font-weight:700;color:#111}
+#tabContentProduccion .prod-month-selector{padding:16px;gap:18px}
+#tabContentProduccion #prodMonthLabel{font-size:20px!important;font-weight:700;color:var(--tx)!important;min-width:200px;text-align:center}
+#tabContentProduccion .prod-month-selector button{font-size:15px!important;padding:9px 18px!important;color:#111;font-weight:700}
+#tabContentProduccion .prod-kpi{padding:18px 20px;border:1px solid #9aa5b4}
+#tabContentProduccion .prod-kpi-l{font-size:13px;color:var(--tx);letter-spacing:1.2px;font-weight:700;margin-bottom:10px}
+#tabContentProduccion .prod-kpi-v{font-size:32px;color:#111}
+#tabContentProduccion .prod-kpi-s{font-size:16px;color:var(--tx)}
+#tabContentProduccion .prod-table th{font-size:13px;color:var(--tx);font-weight:700;padding:14px 14px;letter-spacing:1px;border-bottom:2px solid #9aa5b4}
+#tabContentProduccion .prod-table td{padding:14px 14px;font-size:16px;color:var(--tx)}
+#tabContentProduccion .prod-tn{color:#111;font-weight:700}
+#tabContentProduccion .prod-tag-propia{font-size:11px;padding:3px 8px;color:#10243f;background:#e3eaf4;border:1px solid #1f3a5f;font-weight:700}
+#tabContentProduccion .prod-bar-cell{width:240px}
+#tabContentProduccion .prod-bar{height:20px;background:#1f3a5f}
+#tabContentProduccion .prod-row-propia .prod-bar{background:#10243f}
+#tabContentProduccion .prod-total-row td{font-size:16px;padding:16px 14px}
+#tabContentProduccion .prod-empty{font-size:16px;color:var(--tx)}

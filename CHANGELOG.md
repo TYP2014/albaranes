@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v935 (24/10/2026): PRODUCCION MAS FORMAL. Selector de mes con letra de 20 px, botones mas grandes, las cuatro cajas de resumen con cifras de 32 px y rotulos en negro, tabla por transportista a 16 px con cabeceras en negrita, etiqueta PROPIA con palabra legible y barras de reparto en azul marino liso y mas gruesas. Solo CSS (styles.css v94). Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v934.
+
+---
+
 v934 (24/10/2026): ORIGINALES PARA INSPECCION · ZIP MAS LIMPIO. Probado con datos reales (Hispalis, 4 camiones): el ZIP trae las carpetas CAMIONES y CONDUCTORES y un RESUMEN.txt, y los ficheros son identicos byte a byte a los originales. Ajustes: las carpetas de conductores van sin acentos ni Ñ (antes salia 'MU#U00d1OZ' en algunos programas) y el RESUMEN.txt dice '1 día' en singular. Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v933.
 
 ---
