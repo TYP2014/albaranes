@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v923 (24/10/2026): TACOGRAFO · BARRA DE ACTIVIDAD MAS CLARA. En Conductores y Vehiculos la barra de cada dia es mas alta (110 px) y cada actividad tiene su altura, como en el grafico del tacografo: Conduccion arriba (rojo), Otros trabajos (azul), Disponible (amarillo), Descanso abajo (verde), con lineas de nivel y un hilo blanco entre tramos. Al pasar el raton por un tramo sale un globo junto al puntero con actividad, inicio, fin, duracion y conductor, y el tramo se resalta; la linea de abajo sigue funcionando. Los datos y los calculos no cambian. Sin SQL. VUELTA ATRAS: volver a la v922.
+
+---
+
 v922 (24/10/2026): TACOGRAFO · NOMBRES CORTOS Y ASPECTO MAS FORMAL. Los conductores se muestran con nombre y primer apellido (sin el segundo) en las descargas pendientes, el desplegable de conductor y el titulo de la actividad; solo es para mostrar, los datos guardados no cambian. Botones de empresa y de seccion (SUBIR, CONDUCTORES, VEHICULOS, VENCIMIENTOS, CARNET Y CAP, INFORMES, ARCHIVO) sin dibujitos, mas grandes y en negrita; chips de descargas pendientes mas grandes; textos grises a negro. Sin SQL. VUELTA ATRAS: volver a la v921.
 
 ---

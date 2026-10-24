@@ -775,3 +775,16 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentTaco .fl{font-size:13px!important;color:var(--tx)!important}
 #tabContentTaco select.fi,#tabContentTaco input.fi{font-size:15px!important}
 #tabContentTaco label{color:var(--tx)}
+
+/* v923 Tacografo: barra de actividad tipo grafico del tacografo, mas alta, colores vivos y globo al pasar el raton */
+.tacoSeg{cursor:crosshair;box-shadow:inset -1px 0 0 rgba(255,255,255,.85),inset 1px 0 0 rgba(255,255,255,.85)}
+.tacoSeg:hover{filter:brightness(1.12) saturate(1.2);outline:2px solid #111;outline-offset:-2px;z-index:5}
+.tacoNiveles{position:absolute;inset:0;pointer-events:none;background:
+ linear-gradient(to top,transparent 25%,rgba(30,41,51,.18) 25%,rgba(30,41,51,.18) calc(25% + 1px),transparent calc(25% + 1px)),
+ linear-gradient(to top,transparent 49%,rgba(30,41,51,.18) 49%,rgba(30,41,51,.18) calc(49% + 1px),transparent calc(49% + 1px)),
+ linear-gradient(to top,transparent 73%,rgba(30,41,51,.18) 73%,rgba(30,41,51,.18) calc(73% + 1px),transparent calc(73% + 1px));z-index:0}
+.tacoBarraCaja>div[style*="width:1px"]{z-index:1}
+#tacoTip{position:fixed;display:none;z-index:99999;pointer-events:none;background:#fff;border:2px solid #111;border-radius:10px;padding:12px 16px;min-width:210px;box-shadow:0 8px 24px rgba(0,0,0,.28);font-family:var(--mn);color:#111}
+#tacoTip .tt-a{font-size:17px;font-weight:800;margin-bottom:8px;font-family:var(--ss)}
+#tacoTip .tt-r{display:flex;justify-content:space-between;gap:24px;font-size:15px;line-height:1.7}
+#tacoTip .tt-r b{font-size:16px}

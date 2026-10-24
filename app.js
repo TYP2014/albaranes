@@ -35700,6 +35700,42 @@ function _tacoDMY2(iso) { return iso ? iso.split('-').reverse().join('/') : '—
 // fin / Duracion" de la referencia externa. Cada trocito de la barra lleva sus datos encima
 // (data-...) y al pasar el raton se vuelcan aqui. Se queda puesto lo ultimo
 // tocado, igual que en la referencia externa.
+// v923: altura de cada actividad en la barra (como el grafico del tacografo: conducir arriba, descanso abajo)
+function _tacoAltN(a) { return [26, 50, 74, 100][a] != null ? [26, 50, 74, 100][a] : 100; }
+// v923: globo flotante junto al raton con inicio, fin y duracion del tramo
+(function () {
+  if (window._tacoTipOn) return; window._tacoTipOn = true;
+  const col = { 'Conducción': '#e51c23', 'Otros trabajos': '#0a53d8', 'Disponible': '#b89b00', 'Descanso': '#16a036' };
+  function tip() {
+    let t = document.getElementById('tacoTip');
+    if (!t) { t = document.createElement('div'); t.id = 'tacoTip'; document.body.appendChild(t); }
+    return t;
+  }
+  document.addEventListener('mouseover', e => {
+    const el = e.target && e.target.closest ? e.target.closest('.tacoSeg') : null;
+    const t = document.getElementById('tacoTip');
+    if (!el) { if (t) t.style.display = 'none'; return; }
+    const d = el.dataset, c = d.cn;
+    const base = (d.ac || '').replace(/ \(.*\)$/, '').replace(/^Ayudante · /, '');
+    const color = col[base] || '#1b2430';
+    const x = tip();
+    x.innerHTML = '<div class="tt-a" style="color:' + color + '">' + (d.ac || '') + '</div>' +
+      '<div class="tt-r"><span>Inicio</span><b>' + (d.hi || '—') + '</b></div>' +
+      '<div class="tt-r"><span>Fin</span><b>' + (d.hf || '—') + '</b></div>' +
+      '<div class="tt-r"><span>Duración</span><b>' + (d.du || '—') + '</b></div>' +
+      (c ? '<div class="tt-r"><span>Conductor</span><b>' + c + '</b></div>' : '');
+    x.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    const t = document.getElementById('tacoTip');
+    if (!t || t.style.display !== 'block') return;
+    const w = t.offsetWidth, h = t.offsetHeight;
+    let l = e.clientX + 16, tp = e.clientY + 18;
+    if (l + w > window.innerWidth - 8) l = e.clientX - w - 16;
+    if (tp + h > window.innerHeight - 8) tp = e.clientY - h - 16;
+    t.style.left = l + 'px'; t.style.top = tp + 'px';
+  });
+})();
 function _tacoTrHover(el, id) {
   const d = document.getElementById(id);
   if (!d || !el || !el.dataset) return;
@@ -36135,7 +36171,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         // empezo, no cuanto duro.
         if (_esAbierto(t)) {
           const tit = `${_tacoHHMM(t.minuto_ini)} → … · SIN CERRAR: la descarga se hizo a mitad de este tramo (iba en ${_TACO_NOM[t.actividad]}). Duración: aún sin saber. Se completará con la próxima descarga.`;
-          return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad] + ' (sin cerrar)', '…', 'aún sin saber')} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div class="tacoSeg"${_datos(t, _TACO_NOM[t.actividad] + ' (sin cerrar)', '…', 'aún sin saber')} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
             background:#fff;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 8px)"></div>`;
         }
         // v409: tarjeta fuera, DOS casos (lo destapo JC con el dia 21/07 de
@@ -36144,17 +36180,17 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
         // tenue de descanso presunto.
         if (t.sin_tarjeta && !t.sin_anotar) {
           const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} ANOTADO A MANO (tarjeta fuera): vale · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}`;
-          return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad] + ' (anotado a mano, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div class="tacoSeg"${_datos(t, _TACO_NOM[t.actividad] + ' (anotado a mano, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;bottom:0;height:${_tacoAltN(t.actividad)}%;
             background:${_TACO_COL[t.actividad]};background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.38) 0 2px,transparent 2px 7px)"></div>`;
         }
         if (t.sin_tarjeta) {
           const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · tarjeta fuera SIN ANOTAR: se presume descanso · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}. Recuérdale que lo anote al meter la tarjeta.`;
-          return `<div title="${tit}"${_datos(t, 'Sin anotar (presunto descanso, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+          return `<div class="tacoSeg"${_datos(t, 'Sin anotar (presunto descanso, tarjeta fuera)', _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;bottom:0;height:${_tacoAltN(0)}%;
             background:#bfe9cf;background-image:repeating-linear-gradient(45deg,rgba(30,41,51,.14) 0 2px,transparent 2px 7px)"></div>`;
         }
         const _qn = _quienEn(t);
         const tit = `${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}${_qn ? ' · 👤 ' + _qn : ''}`;
-        return `<div title="${tit}"${_datos(t, _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;
+        return `<div class="tacoSeg"${_datos(t, _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;bottom:0;height:${_tacoAltN(t.actividad)}%;
           background:${_TACO_COL[t.actividad]}"></div>`;
       }).join('');
 
@@ -36195,14 +36231,14 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
             ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:14.5px;font-weight:600;margin-left:8px;color:${_quienDia.has(iso) ? '#1e8a55' : 'var(--erd)'}">👤 ${_quienDia.get(iso) || 'sin tarjeta metida'}</span>` : ''}
             ${(tipo === 'V' && !vacio) ? `<span style="font-family:var(--mn);font-size:14.5px;margin-left:8px" title="Contador del tacógrafo a las 00:00 del día siguiente menos el de este día. Si falta el día siguiente (p. ej. el día de la descarga), aún no se puede calcular.">🛣 ${kmDia != null ? '<b>' + kmDia.toLocaleString('es-ES') + ' km</b>' : '<span style="color:var(--mu)">km —</span>'}</span>` : ''}
           </div>
-          <div style="position:relative;height:46px;border:1px solid var(--bd);border-radius:4px;overflow:hidden;background:#fff">
-            ${barras}${ejes}${(esIncompleto && corte != null) ? `
+          <div class="tacoBarraCaja" style="position:relative;height:110px;border:1px solid #9aa5b4;border-radius:4px;overflow:hidden;background:#fff">
+            <div class="tacoNiveles"></div>${barras}${ejes}${(esIncompleto && corte != null) ? `
               <div title="Sin datos aún: la descarga se hizo a las ${_tacoHHMM(corte)}. El resto del día vendrá en la próxima descarga." style="position:absolute;left:${(corte / 1440 * 100).toFixed(3)}%;right:0;top:0;bottom:0;background:#eef0f2"></div>
               <div style="position:absolute;left:${(corte / 1440 * 100).toFixed(3)}%;top:0;bottom:0;width:2px;background:#1e2933"></div>` : ''}
           </div>
           ${huboDos ? `<div style="position:relative;height:14px;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;background:#fff" title="Segundo conductor (hueco del ayudante)">${tsAyuV.map(t => {
             const izq = (t.minuto_ini / 1440 * 100).toFixed(3), anc = ((t.minuto_fin - t.minuto_ini) / 1440 * 100).toFixed(3);
-            return `<div title="Ayudante · ${_tacoHHMM(t.minuto_ini)}–${_tacoHHMM(t.minuto_fin)} · ${_TACO_NOM[t.actividad]} · Duración: ${_tacoHM(t.minuto_fin - t.minuto_ini)}"${_datos(t, 'Ayudante · ' + _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
+            return `<div class="tacoSeg"${_datos(t, 'Ayudante · ' + _TACO_NOM[t.actividad], _tacoHHMM(t.minuto_fin), _tacoHM(t.minuto_fin - t.minuto_ini))} style="position:absolute;left:${izq}%;width:${anc}%;top:0;bottom:0;background:${_esAbierto(t) ? '#fff' : (t.sin_tarjeta && t.sin_anotar) ? '#bfe9cf' : _TACO_COL[t.actividad]};opacity:.75"></div>`;
           }).join('')}</div>` : ''}
           <div style="position:relative;height:18px;font-family:var(--mn);font-size:12px;color:var(--mu);margin-top:3px">${nums}</div>
           ${vacio ? '' : `<div id="${_infId}" style="font-family:var(--mn);font-size:14px;background:rgba(30,41,51,.05);border:1px solid var(--bd);border-radius:6px;padding:9px 14px;margin-top:7px;color:var(--mu)">Pasa el ratón por la barra para ver hora de inicio, fin, duración${tipo === 'V' ? ' y conductor' : ''} de cada tramo…</div>`}
