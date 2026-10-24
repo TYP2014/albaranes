@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=83">
+<link rel="stylesheet" href="styles.css?v=84">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -627,13 +627,13 @@ if (typeof pdfjsLib !== 'undefined') {
 
       <div id="tacoDesconocidos"></div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px" id="tacoSecBar">
-        <button class="btn bp" id="tacoSecBtnsubir"       onclick="tacoSec('subir')">📥 SUBIR</button>
-        <button class="btn bs" id="tacoSecBtnconductores" onclick="tacoSec('conductores')">👤 CONDUCTORES</button>
-        <button class="btn bs" id="tacoSecBtnvehiculos"   onclick="tacoSec('vehiculos')">🚛 VEHÍCULOS</button>
-        <button class="btn bs" id="tacoSecBtnvencimientos" onclick="tacoSec('vencimientos')">⏱ VENCIMIENTOS</button>
-        <button class="btn bs" id="tacoSecBtncarnetcap"   onclick="tacoSec('carnetcap')">🚗 CARNET Y CAP</button>
-        <button class="btn bs" id="tacoSecBtninformes"    onclick="tacoSec('informes')">📊 INFORMES</button>
-        <button class="btn bs" id="tacoSecBtnarchivo"     onclick="tacoSec('archivo')">🗂 ARCHIVO</button>
+        <button class="btn bp" id="tacoSecBtnsubir"       onclick="tacoSec('subir')">SUBIR</button>
+        <button class="btn bs" id="tacoSecBtnconductores" onclick="tacoSec('conductores')">CONDUCTORES</button>
+        <button class="btn bs" id="tacoSecBtnvehiculos"   onclick="tacoSec('vehiculos')">VEHÍCULOS</button>
+        <button class="btn bs" id="tacoSecBtnvencimientos" onclick="tacoSec('vencimientos')">VENCIMIENTOS</button>
+        <button class="btn bs" id="tacoSecBtncarnetcap"   onclick="tacoSec('carnetcap')">CARNET Y CAP</button>
+        <button class="btn bs" id="tacoSecBtninformes"    onclick="tacoSec('informes')">INFORMES</button>
+        <button class="btn bs" id="tacoSecBtnarchivo"     onclick="tacoSec('archivo')">ARCHIVO</button>
       </div>
 
       <!-- ======== SECCION SUBIR ======== -->
@@ -648,9 +648,8 @@ if (typeof pdfjsLib !== 'undefined') {
                ondragover="event.preventDefault();this.classList.add('dzover')"
                ondragleave="this.classList.remove('dzover')"
                ondrop="event.preventDefault();this.classList.remove('dzover');tacoSoltar(event.dataTransfer.files)">
-            <div class="dz-ic">⏱️</div>
             <div class="dz-t">Arrastra los ficheros de tacógrafo · o haz clic para seleccionar · <b>varios a la vez</b></div>
-            <div class="dz-t" style="font-size:10px">.TGD · .DDD · de camión (V_...) o de tarjeta de conductor (C_... / D_...) · sin renombrar</div>
+            <div class="dz-t" style="font-size:14px">.TGD · .DDD · de camión (V_...) o de tarjeta de conductor (C_... / D_...) · sin renombrar</div>
             <input type="file" id="tacoInput" multiple accept=".TGD,.tgd,.DDD,.ddd,.V1B,.C1B" onchange="tacoSoltar(this.files);this.value=''">
           </div>
           <div id="tacoResultado" style="margin-top:16px"></div>
@@ -2053,6 +2052,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=921"></script>
+<script src="app.js?v=922"></script>
 </body>
 </html>

@@ -35673,6 +35673,11 @@ async function tacoIgnorarDesconocido(id) {
 const _TACO_COL = ['#1fc94c', '#ffd800', '#0a53d8', '#e51c23'];   // descanso, dispon., otros, conduciendo
 const _TACO_NOM = ['Descanso', 'Disponible', 'Otros trabajos', 'Conducción'];
 
+// v922: en pantalla solo nombre + primer apellido (con 3 o mas palabras se quita la ultima = 2o apellido). Solo para MOSTRAR.
+function _tacoNomCorto(n) {
+  const p = String(n == null ? '' : n).trim().split(/\s+/);
+  return p.length >= 3 ? p.slice(0, -1).join(' ') : p.join(' ');
+}
 let _tacoInfPersonas = null;   // quien hay para elegir
 
 function _tacoHHMM(min) {
@@ -35898,7 +35903,7 @@ async function tacoInfPintarSelector() {
     // si TODOS los de esta empresa estan de baja, no dejes la pantalla vacia
     if (!conds.length && _condsTodos.length) { _tacoInfVerBajas = true; conds = _condsTodos; }
     const _sel862 = (document.getElementById('tacoInfQuien') || {}).value || '';
-    const op = l => l.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}${_esBaja862(x) ? ' · YA NO ESTÁ' : ''}</option>`).join('');
+    const op = l => l.map(x => `<option value="${x.clave}">${_tacoNomCorto(x.nombre)} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}${_esBaja862(x) ? ' · YA NO ESTÁ' : ''}</option>`).join('');
     if (!conds.length) {
       box.innerHTML = `<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">
         Todavía no hay tarjetas de conductor guardadas${_tacoEmpGlobal === 'TODAS' ? '' : ' de ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}. Súbelas en SUBIR y vuelve.</div>`;
@@ -36036,7 +36041,7 @@ async function _tacoVerSemana(idQuien, idDesde, idHasta, idCont) {
       } catch (e) { console.warn('[v394] hora de descarga:', e); }
     }
 
-    const nom = (_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id;
+    const nom = (tipo === 'C') ? _tacoNomCorto((_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id) : ((_tacoInfPersonas || []).find(x => x.clave === quien)?.nombre || id);
     // v424: la BISEMANAL como la referencia externa — lo conducido en el periodo MAS lo de los
     // 7 dias ANTERIORES al inicio. Sale de tacografo_dias, que ya guarda los
     // totales de cada dia (los dias de descarga, a medias, no se cuentan).
@@ -37431,11 +37436,11 @@ async function tacoPintarAvisos() {
     if (_estaDeBaja(f)) return;              // v383
     const d = _tacoDiasDesde(f.fecha_hasta);
     if (d === null) return;
-    if (d > TACO_DIAS_TARJETA) vencidos.push({ q: nom, d, t: 'tarjeta', emp: f.empresa });
-    else if (d >= TACO_DIAS_TARJETA - 7) proximos.push({ q: nom, d, t: 'tarjeta', emp: f.empresa, quedan: TACO_DIAS_TARJETA - d });
+    if (d > TACO_DIAS_TARJETA) vencidos.push({ q: _tacoNomCorto(nom), d, t: 'tarjeta', emp: f.empresa });
+    else if (d >= TACO_DIAS_TARJETA - 7) proximos.push({ q: _tacoNomCorto(nom), d, t: 'tarjeta', emp: f.empresa, quedan: TACO_DIAS_TARJETA - d });
     // y de paso, tarjetas a punto de caducar
     const c = f.tarjeta_caduca ? -_tacoDiasDesde(f.tarjeta_caduca) : null;
-    if (c !== null && c < 90) caducan.push({ q: nom, dias: c, emp: f.empresa });
+    if (c !== null && c < 90) caducan.push({ q: _tacoNomCorto(nom), dias: c, emp: f.empresa });
   });
 
   // Camiones de la flota sin NI UNA descarga.
@@ -37474,19 +37479,19 @@ async function tacoPintarAvisos() {
   if (vencidos.length) {
     vencidos.sort((a, b) => b.d - a.d);
     h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
-      color:#9d2b27;text-transform:uppercase">⛔ Fuera de plazo (${vencidos.length})</b><br>` +
+      color:#9d2b27;text-transform:uppercase">Fuera de plazo (${vencidos.length})</b><br>` +
       vencidos.map(v => chip(`<b>${v.q}</b> · ${v.d} días sin descargar`, ROJO)).join('') + '</div>';
   }
   if (proximos.length) {
     proximos.sort((a, b) => a.quedan - b.quedan);
     h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
-      color:#8a570f;text-transform:uppercase">⚠ Toca pronto (${proximos.length})</b><br>` +
+      color:#8a570f;text-transform:uppercase">Toca pronto (${proximos.length})</b><br>` +
       proximos.map(v => chip(`<b>${v.q}</b> · quedan ${v.quedan} días`, AMBAR)).join('') + '</div>';
   }
   if (caducan.length) {
     caducan.sort((a, b) => a.dias - b.dias);
     h += `<div style="margin-bottom:8px"><b style="font-family:var(--ss);font-size:11.5px;letter-spacing:1.2px;
-      color:#8a570f;text-transform:uppercase">🪪 Tarjetas que caducan (${caducan.length})</b><br>` +
+      color:#8a570f;text-transform:uppercase">Tarjetas que caducan (${caducan.length})</b><br>` +
       caducan.map(v => chip(`<b>${v.q}</b> · ${v.dias > 0 ? 'en ' + v.dias + ' días' : 'CADUCADA'}`, v.dias > 0 ? AMBAR : ROJO)).join('') + '</div>';
   }
   if (nunca.length) {

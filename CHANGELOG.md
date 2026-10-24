@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v922 (24/10/2026): TACOGRAFO · NOMBRES CORTOS Y ASPECTO MAS FORMAL. Los conductores se muestran con nombre y primer apellido (sin el segundo) en las descargas pendientes, el desplegable de conductor y el titulo de la actividad; solo es para mostrar, los datos guardados no cambian. Botones de empresa y de seccion (SUBIR, CONDUCTORES, VEHICULOS, VENCIMIENTOS, CARNET Y CAP, INFORMES, ARCHIVO) sin dibujitos, mas grandes y en negrita; chips de descargas pendientes mas grandes; textos grises a negro. Sin SQL. VUELTA ATRAS: volver a la v921.
+
+---
+
 v921 (24/10/2026): RECONOCIMIENTOS MEDICOS · DIBUJO MAS GRANDE. El dibujo de subir la carta de la mutua pasa de 210 a 380 px de ancho (casi el doble, ocupa el recuadro). Solo CSS (styles.css v83). Sin SQL. VUELTA ATRAS: volver a la v920.
 
 ---

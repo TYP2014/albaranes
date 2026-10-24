@@ -760,3 +760,18 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #recmedCadBox .rmCadCaja{border:1px solid var(--bd);border-radius:8px;padding:14px 18px;flex:1;display:flex;flex-direction:column;min-height:0}
 #recmedCadBox .rmCadLista{max-height:300px;overflow-y:auto;flex:1}
 #recmedCadBox .rmCadCaja details summary{font-size:14px!important}
+
+/* v922 Tacografo: empresas y secciones mas formales y grandes, letra negra */
+#tabContentTaco #tacoEmpGlobalBar{gap:10px!important;margin-bottom:14px!important}
+#tabContentTaco #tacoEmpGlobalBar>span{font-size:13px!important;color:var(--tx)!important;margin-right:6px}
+#tabContentTaco #tacoEmpGlobalBar .btn{font-size:14px!important;padding:10px 18px!important;font-weight:700;letter-spacing:.4px}
+#tabContentTaco #tacoSecBar{gap:10px!important;margin-bottom:20px!important}
+#tabContentTaco #tacoSecBar .btn{font-size:14px!important;padding:11px 20px!important;font-weight:700;letter-spacing:.4px}
+#tabContentTaco #tacoSecBar .btn.bs,#tabContentTaco #tacoEmpGlobalBar .btn.bs{color:var(--tx)}
+#tabContentTaco .dz-t{font-size:16px!important;color:var(--tx)!important}
+#tabContentTaco #tacoAvisos span[style*="border-radius:999px"]{font-size:14px!important;padding:8px 15px!important;margin:4px 7px 4px 0!important;font-weight:600!important}
+#tabContentTaco #tacoAvisos b[style*="letter-spacing"]{font-size:13.5px!important}
+#tabContentTaco #tacoAvisos div[style*="color:var(--mu)"],#tabContentTaco #tacoAvisos span[style*="color:var(--mu)"]{color:var(--tx)!important;font-size:13px!important}
+#tabContentTaco .fl{font-size:13px!important;color:var(--tx)!important}
+#tabContentTaco select.fi,#tabContentTaco input.fi{font-size:15px!important}
+#tabContentTaco label{color:var(--tx)}
