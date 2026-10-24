@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v937 (24/10/2026): PANEL · LETRAS PEQUENAS DE LAS CAJAS. Las letras gris claro de debajo de las cifras (albaranes, TN sin facturar, caducadas/proximas, vencidos/proximos, media L/100km) casi no se veian. Ahora van en negro y a 15 px; los rotulos de arriba a 13 px en negrita y las cifras a 34 px. Solo CSS (styles.css v96). Sin SQL. VUELTA ATRAS: volver a la v936.
+
+---
+
 v936 (24/10/2026): PANEL · PRECIOS HOLCIM MAS CLAROS. Cada precio sale ahora en un bloque con la misma forma: precio en grande y negro, debajo los dias y debajo viajes y toneladas, siempre pegado a la izquierda y empezando a la misma altura (antes iban a la derecha y se descolocaban cuando un mes tenia varios precios). Las columnas de meses tienen ancho fijo y la tabla ya no se sale del cuadro (si hay muchos meses, se desliza dentro de su marco). Varios precios en un mes: separados por una linea de puntos y el precio en naranja oscuro. El ultimo mes subido, en verde suave. Letra negra y mas grande tambien en los rotulos, botones y selectores del Panel. Los datos no cambian. Sin SQL. Solo app.js, index.html y styles.css (v95). VUELTA ATRAS: volver a la v935.
 
 ---
