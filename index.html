@@ -273,12 +273,12 @@ if (typeof pdfjsLib !== 'undefined') {
     <!-- TAB GASOIL -->
     <div id="tabContentGas" class="wrap" style="display:none">
 
-      <div style="display:flex;gap:28px;margin:8px 0 22px;flex-wrap:wrap;align-items:center;justify-content:space-between" id="gasSubtabs">
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(150px,auto));gap:12px">
-        <button class="btn bp" id="gasSubTYP2014" onclick="switchGasEmpresa('TYP2014')" style="font-size:13px;padding:13px 22px;letter-spacing:.5px">TYP2014</button>
-        <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:13px;padding:13px 22px;letter-spacing:.5px">T. HISPALIS 2016</button>
-        <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:13px;padding:13px 22px;letter-spacing:.5px">TRANSMARGAZ 2018</button>
-        <button class="btn bs" id="gasSubPORTES" onclick="switchGasEmpresa('PORTES')" style="font-size:13px;padding:13px 22px;letter-spacing:.5px">PORTES 2014 IMPORT</button>
+      <div style="display:flex;gap:28px;margin:10px 0 24px;flex-wrap:wrap;align-items:center;justify-content:space-between" id="gasSubtabs">
+        <div style="display:flex;flex-wrap:nowrap;gap:16px;align-items:center">
+        <button class="btn bp" id="gasSubTYP2014" onclick="switchGasEmpresa('TYP2014')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">TYP2014</button>
+        <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">T. HISPALIS 2016</button>
+        <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">TRANSMARGAZ 2018</button>
+        <button class="btn bs" id="gasSubPORTES" onclick="switchGasEmpresa('PORTES')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">PORTES 2014 IMPORT</button>
         <!-- J18: SUBIR FACTURA y SUBIR KM globales. Da igual la empresa de la subpestaña:
              la factura/Excel llevan el CIF (y matrículas) y la app los manda solos a la
              empresa correcta. Por eso van aquí arriba, fuera de cada empresa. -->
@@ -300,13 +300,13 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>REGISTRO GASOIL · <span id="gasEmpresaTitulo">TYP2014</span></div>
-          <div class="tbl-acts">
+          <div class="tbl-acts" style="gap:14px">
             <!-- J18: Subir ticket/factura/km se han movido ARRIBA (factura y km, por CIF)
                  o quitado (ticket: no se usa en TYP2014/Hispalis). Aquí dentro de cada
                  empresa solo quedan las consultas: Excel detalle, Consumo y Excel consumo. -->
-            <button class="btn bs" onclick="exportGasoilExcel()">📊 Excel detalle</button>
-            <button class="btn bs" onclick="verFacturasGasoilSubidas()">📎 Facturas subidas</button>
-            <button class="btn bp" id="gasBtnConsumo" onclick="gasToggleConsumo()">📈 Consumo</button>
+            <button class="btn bs" onclick="exportGasoilExcel()" style="font-size:12px;padding:10px 20px;letter-spacing:.8px">EXCEL DETALLE</button>
+            <button class="btn bs" onclick="verFacturasGasoilSubidas()" style="font-size:12px;padding:10px 20px;letter-spacing:.8px">FACTURAS SUBIDAS</button>
+            <button class="btn bp" id="gasBtnConsumo" onclick="gasToggleConsumo()" style="font-size:12px;padding:10px 20px;letter-spacing:.8px">CONSUMO</button>
           </div>
         </div>
         <div class="card-bd">
@@ -2036,6 +2036,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=898"></script>
+<script src="app.js?v=899"></script>
 </body>
 </html>

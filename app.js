@@ -12594,12 +12594,12 @@ async function gasToggleConsumo() {
     // Volver al registro normal
     vCon.style.display = 'none';
     vReg.style.display = '';
-    if (btn) btn.textContent = '📈 Consumo';
+    if (btn) btn.textContent = 'CONSUMO';
   } else {
     // Mostrar consumo
     vReg.style.display = 'none';
     vCon.style.display = '';
-    if (btn) btn.textContent = '📋 Ver registro';
+    if (btn) btn.textContent = 'VER REGISTRO';
     await gasRenderConsumo();
   }
 }

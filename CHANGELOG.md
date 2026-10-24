@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v899 (24/10/2026): GASOIL · EMPRESAS EN UNA FILA Y BOTONES SIN ICONO. Los botones de empresa van todos en una sola fila arriba a la izquierda (antes el ultimo caia debajo), mas grandes y separados; si la pantalla es estrecha, las cajas de subir bajan en bloque pero las empresas siguen arriba. EXCEL DETALLE, FACTURAS SUBIDAS y CONSUMO (y VER REGISTRO al alternar) pasan a solo texto, letra 12 px y mas separados, porque los iconos se veian borrosos. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v898.
+
+---
+
 v898 (24/10/2026): GASOIL · CABECERA MAS GRANDE Y ESPACIADA. Los 4 botones de empresa (TYP2014, T. Hispalis 2016, Transmargaz 2018, Portes 2014 Import) pasan a una cuadricula 2x2 a la izquierda, mas grandes (letra 13 px) y separados. Las dos cajas SUBIR FACTURA y SUBIR KM (tacografo) pasan a la derecha, mas grandes (titulo 18 px en azul marino, texto 13 px) y separadas entre si, con mas aire arriba y abajo. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v897.
 
 ---
