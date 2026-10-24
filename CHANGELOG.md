@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v911 (24/10/2026): RECAMBIOS · CUADRE, LA CAJA 'FACTURAS QUE NO CUADRAN' IGUAL QUE LAS DEMAS. Esa caja se pinta dentro de un contenedor aparte (recCuadreFacDif) y el CSS de la v906 no le llegaba, por eso salia mas pequeña. Se añaden sus reglas (styles.css v74): mismo relleno, separacion y letra (16 px la cabecera, 15 px el detalle) que las otras cajas del Cuadre. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir index.html, styles.css y CHANGELOG.md de la v910 (app.js no cambia).
+
+---
+
 v910 (24/10/2026): RECAMBIOS · CUADRE, TAMAÑOS DE LETRA CORREGIDOS. En la v904 se escribieron 26 tamaños de letra del Cuadre sin la unidad 'px' (por ejemplo 'font-size:14'), asi que el navegador los ignoraba y algunas cajas se veian mas pequeñas que otras (en especial FACTURAS QUE NO CUADRAN). Ahora todas llevan 'px' y el Cuadre se ve con el mismo tamaño en todas sus cajas y en el detalle de cada una. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v909.
 
 ---

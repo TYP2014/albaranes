@@ -704,3 +704,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #recambiosCuadre > div > details > summary{font-size:16px !important;line-height:1.6}
 #recambiosCuadre details details > summary{font-size:15px !important}
 #recambiosCuadre details details{padding:9px 12px !important}
+/* v911: la caja 'Facturas que no cuadran' va dentro de un contenedor propio; mismas medidas que las otras cajas */
+#recCuadreFacDif > details{padding:12px 16px !important;margin-bottom:12px !important}
+#recCuadreFacDif > details > summary{font-size:16px !important;line-height:1.6}
+#recCuadreFacDif details details > summary{font-size:15px !important}
+#recCuadreFacDif details details{padding:9px 12px !important}
