@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v896 (24/10/2026): NEUMATICOS · TARJETAS DE STOCK MAS CLARAS. Antes cada tarjeta tenia fondo gris oscuro y letra muy pequeña (9-11 px) y poco contraste. Ahora: fondo blanco, marco de 3 px del color del nivel (rojo = en o por debajo del umbral, ambar = cerca, verde = bien) y la cifra grande en un tono mas oscuro del mismo color para que se lea; medida 14 px y marca/modelo 15 px; el uso (DIRECCION/TRACCION/REMOLQUE) en azul marino y negrita; en el bloque de abajo, 'Según facturas (manda)' en negrita y las demas lineas a 12 px en color oscuro (antes 10-11 px grises); se quitan los emojis 🔵 y 🧾 de las lineas de aviso (queda el numero en negrita); 'Las dos guias coinciden' en verde y negrita; la nota del corte (📌) a 12,5 px y color oscuro. Los calculos, los umbrales y los ✓ / ⚠ NO cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v895.
+
+---
+
 v895 (24/10/2026): NEUMATICOS · CAJAS DE SUBIDA MAS SOBRIAS. En 'Subir a Neumaticos - Soledad' las 3 cajas (1 Albaranes, 2 Facturas de compra, 3 Cuadre) iban cada una de un color (verde, azul, ambar) con un dibujo grande (rueda, documento, lupa) y flechas ⬅ ➡ en los titulos. Ahora las 3 en azul marino, mas bajas (menos relleno) y sin dibujos ni flechas; los titulos conservan las palabras DESCUENTAN stock / SUMAN stock y el texto de cada caja. Siguen funcionando igual (arrastrar o pinchar). El stock de arriba (tarjetas con ✓ y ⚠) NO se toca: ese color da informacion. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v894 (app.js solo cambia el numero).
 
 ---

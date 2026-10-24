@@ -23510,11 +23510,13 @@ function renderNeum() {
       const umbral = _neumUmbral(neumEmpresaActiva, s.marca, s.modelo, s.medida);
       const _st834 = _neumStockFacturas(_g2, s);   // v834: con corte manda la factura
       const alerta = _st834 <= umbral;
-      const color = alerta ? '#e53935' : (_st834 <= umbral * 2 ? '#e8841a' : 'var(--ok)');
+      // v896: marco fuerte del color del nivel (rojo = en/por debajo del umbral, ambar = cerca, verde = bien) y numero en tono mas oscuro para que se lea sobre blanco.
+      const color = alerta ? '#d32f2f' : (_st834 <= umbral * 2 ? '#f29900' : '#2e7d5b');
+      const colorTxt = alerta ? '#b71c1c' : (_st834 <= umbral * 2 ? '#a85f00' : '#1f6b47');
       const icon = alerta ? '⚠️' : '✅';
       const precio = s.precio_neto_unitario_ultimo
-        ? `<div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-top:4px">~${parseFloat(s.precio_neto_unitario_ultimo).toFixed(2)} €/ud</div>` : '';
-      const usoLabel = s.uso ? `<span style="font-family:var(--mn);font-size:9px;color:var(--mu);text-transform:uppercase">${esc(s.uso)}</span>` : '';
+        ? `<div style="font-family:var(--mn);font-size:12px;color:var(--tx);margin-top:4px">~${parseFloat(s.precio_neto_unitario_ultimo).toFixed(2)} €/ud</div>` : '';
+      const usoLabel = s.uso ? `<span style="font-family:var(--mn);font-size:11px;font-weight:700;color:var(--ac);text-transform:uppercase">${esc(s.uso)}</span>` : '';
       // v674 · bloque "SEGUN SOLEDAD" (solo con corte). Informativo.
       let g2Html = '';
       if (_g2) {
@@ -23523,19 +23525,19 @@ function renderNeum() {
         const menos = d.sinAlbaran.reduce((t, x) => t + x.uds, 0);
         const sol = s.stock + mas - menos;
         const lista = (arr) => arr.map(x => esc(x.num) + ' (' + x.uds + ')').join(', ');
-        g2Html = `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd);font-family:var(--mn);font-size:11px">
-            <div style="display:flex;justify-content:space-between;color:var(--mu)"><span>SEGÚN FACTURAS (manda)</span><strong style="color:var(--tx)">${sol} ud</strong></div>
-            <div style="display:flex;justify-content:space-between;color:var(--mu)"><span>Mis albaranes (referencia)</span><span>${s.stock} ud</span></div>
-            ${mas ? `<div style="margin-top:4px;color:#4a90d9;font-size:10px;line-height:1.35">🔵 ${mas} montada(s) con albarán que Soledad aún no ha facturado (las restará su factura): ${lista(d.sinFacturar)}</div>` : ''}
-            ${menos ? `<div style="margin-top:4px;color:var(--mu);font-size:10px;line-height:1.35">🧾 ${menos} facturada(s) sin albarán (ya restadas): ${lista(d.sinAlbaran)}</div>` : ''}
-            ${(!mas && !menos) ? `<div style="margin-top:4px;color:var(--ok);font-size:10px">✓ Las dos guías coinciden</div>` : ''}
+        g2Html = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd);font-family:var(--mn);font-size:12px;line-height:1.5;color:var(--tx)">
+            <div style="display:flex;justify-content:space-between;gap:8px;font-weight:700"><span>Según facturas (manda)</span><span>${sol} ud</span></div>
+            <div style="display:flex;justify-content:space-between;gap:8px"><span>Mis albaranes (referencia)</span><span>${s.stock} ud</span></div>
+            ${mas ? `<div style="margin-top:4px;color:var(--ac);font-size:11.5px;line-height:1.4"><strong>${mas} montada(s)</strong> con albarán que Soledad aún no ha facturado (las restará su factura): ${lista(d.sinFacturar)}</div>` : ''}
+            ${menos ? `<div style="margin-top:4px;font-size:11.5px;line-height:1.4"><strong>${menos} facturada(s)</strong> sin albarán (ya restadas): ${lista(d.sinAlbaran)}</div>` : ''}
+            ${(!mas && !menos) ? `<div style="margin-top:4px;color:#1f6b47;font-size:12px;font-weight:700">✓ Las dos guías coinciden</div>` : ''}
           </div>`;
       }
       return `
-        <div style="border:1px solid ${color};border-radius:8px;padding:12px;background:rgba(0,0,0,.15)">
-          <div style="font-family:var(--mn);font-size:13px;font-weight:600;color:var(--fg)">${esc(s.medida || '—')} · ${usoLabel}</div>
-          <div style="font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
-          <div style="font-size:28px;font-weight:bold;color:${color};margin-top:6px">${icon} ${_st834} ud</div>
+        <div style="border:3px solid ${color};border-radius:8px;padding:12px;background:#ffffff">
+          <div style="font-family:var(--mn);font-size:14px;font-weight:700;color:var(--fg)">${esc(s.medida || '—')} · ${usoLabel}</div>
+          <div style="font-family:var(--mn);font-size:15px;font-weight:700;color:var(--tx);margin-top:2px">${esc(s.marca || '')} ${esc(s.modelo || '')}</div>
+          <div style="font-size:30px;font-weight:bold;color:${colorTxt};margin-top:6px">${icon} ${_st834} ud</div>
           ${precio}
           ${g2Html}
         </div>`;
@@ -23543,7 +23545,7 @@ function renderNeum() {
   }
   // v674 · cabecera del corte + cubiertas facturadas que no se han podido casar con ninguna ficha.
   if (_g2) {
-    let extra = `<div style="grid-column:1/-1;font-family:var(--mn);font-size:11px;color:var(--mu);padding:2px 2px 6px">📌 Stock contado desde el <strong style="color:var(--tx)">corte del ${esc(_g2Fecha)}</strong>. Lo anterior sigue en el histórico (en gris) pero ya no suma ni resta. El número grande es <strong>SEGÚN FACTURAS</strong> de Soledad (las subidas al cuadre); los albaranes quedan solo de referencia (v834).</div>`;
+    let extra = `<div style="grid-column:1/-1;font-family:var(--mn);font-size:12.5px;line-height:1.5;color:var(--tx);padding:2px 2px 8px">📌 Stock contado desde el <strong style="color:var(--tx)">corte del ${esc(_g2Fecha)}</strong>. Lo anterior sigue en el histórico (en gris) pero ya no suma ni resta. El número grande es <strong>SEGÚN FACTURAS</strong> de Soledad (las subidas al cuadre); los albaranes quedan solo de referencia (v834).</div>`;
     if (_g2.sinIdentificar.length) {
       extra += `<div style="grid-column:1/-1;border:1px solid #e53935;border-radius:8px;padding:10px;font-family:var(--mn);font-size:11px;color:#e53935">🔴 Soledad ha facturado cubiertas de tu stock SIN albarán en la app y no sé a qué ficha restarlas (la factura no dice bien el modelo):<br>${_g2.sinIdentificar.map(x => '· ' + esc(x.num) + ' — ' + x.uds + ' × ' + esc(x.texto) + ' (factura ' + esc(x.factura || '') + ')').join('<br>')}</div>`;
     }
