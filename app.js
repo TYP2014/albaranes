@@ -12263,7 +12263,7 @@ function renderGasTable() {
       <td><span class="tag-n">${r.num_ticket || '—'}</span></td>
       <td style="opacity:.7">${r.user_email || '—'}</td>
       <td style="color:var(--tx);font-size:14px">${fmtTS(r.created_at || r._ts)}</td>
-      <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">👁 Ver</a> <span onclick="event.stopPropagation();_descargarGas(event,'${r.db_id || r._id}')" title="Descargar factura/ticket" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar', 3.2)}</span>` : '—'}</td>
+      <td>${hasValidUrl(r.file_url) ? `<a href="${r.file_url}" target="_blank" class="preview-btn">VER</a> <span onclick="event.stopPropagation();_descargarGas(event,'${r.db_id || r._id}')" title="Descargar factura/ticket" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar', 3.2)}</span>` : '—'}</td>
     </tr>`).join('');
 }
 

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v900 (24/10/2026): GASOIL · TABLA DEL REGISTRO MAS LEGIBLE. En la tabla del Registro de Gasoil la cabecera pasa a 13 px y las filas a 14 px, con mas espacio entre filas (14 px) y un fondo suave al pasar el raton. El boton '👁 Ver' pasa a 'VER' en texto, mas grande. Solo afecta a esta tabla (CSS limitado a #gasVistaRegistro, styles.css v69). Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v899.
+
+---
+
 v899 (24/10/2026): GASOIL · EMPRESAS EN UNA FILA Y BOTONES SIN ICONO. Los botones de empresa van todos en una sola fila arriba a la izquierda (antes el ultimo caia debajo), mas grandes y separados; si la pantalla es estrecha, las cajas de subir bajan en bloque pero las empresas siguen arriba. EXCEL DETALLE, FACTURAS SUBIDAS y CONSUMO (y VER REGISTRO al alternar) pasan a solo texto, letra 12 px y mas separados, porque los iconos se veian borrosos. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v898.
 
 ---
