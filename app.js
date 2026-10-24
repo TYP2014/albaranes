@@ -11554,15 +11554,15 @@ function _celdaEstadoHtml(r) {
   // La 1a columna pasa de 58 a 88 px: es el ancho de la chapa mas larga (REV DUP), asi ninguna
   // se sale. El 4o parametro (true) = reservar el hueco aunque no haya nada que pintar.
   const _col = (html, w, fijo) => (html || fijo) ? `<span style="display:inline-flex;align-items:center;justify-content:center;flex:0 0 ${w}px;width:${w}px">${html || ''}</span>` : '';
-  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 88, true)}${_col(factIcon(r), 92)}${_col(factProvIcon(r), 90)}${_col(dl, 22, true)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:6px">${_col(rowBadge(r), 92, true)}${_col(factIcon(r), 108)}${_col(factProvIcon(r), 108)}${_col(dl, 22, true)}</span>`;
 }
 
 // v107K35 — etiqueta de estado (pill de texto). Con color/relleno = hecho; rojo = pendiente.
 function _pill(txt, bg, title) {
-  return `<span title="${title || txt}" style="display:inline-block;background:${bg};color:#fff;font-size:9px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
+  return `<span title="${title || txt}" style="display:inline-block;background:${bg};color:#fff;font-size:11px;font-weight:700;line-height:1;padding:5px 8px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
 }
 function _pillOut(txt, color, title) {
-  return `<span title="${title || txt}" style="display:inline-block;background:transparent;color:${color};border:1.2px solid ${color};font-size:9px;font-weight:600;line-height:1;padding:1px 4px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
+  return `<span title="${title || txt}" style="display:inline-block;background:transparent;color:${color};border:1.5px solid ${color};font-size:11px;font-weight:700;line-height:1;padding:4px 7px;border-radius:4px;white-space:nowrap;vertical-align:middle">${txt}</span>`;
 }
 function factIcon(r) {
   if (!_puedeVerFacturacion()) return '';
@@ -12211,7 +12211,7 @@ function renderTable() {
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
-      <td style="color:var(--mu);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:10px;cursor:pointer;border:2px solid #b71c1c;background:var(--er);color:#fff;font-weight:800;border-radius:8px;padding:5px 12px;font-size:15px;line-height:1.2;vertical-align:middle;box-shadow:0 2px 5px rgba(0,0,0,.28)">🗑 BORRAR</button>` : ''}</td>
+      <td style="color:var(--tx);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:10px;cursor:pointer;border:2px solid #b71c1c;background:var(--er);color:#fff;font-weight:800;border-radius:8px;padding:5px 12px;font-size:15px;line-height:1.2;vertical-align:middle;box-shadow:0 2px 5px rgba(0,0,0,.28)">🗑 BORRAR</button>` : ''}</td>
     </tr>`).join('')
     + (totalFil > lim
       ? `<tr class="fila-vermas"><td colspan="16" style="text-align:center;padding:14px;background:var(--s2)">

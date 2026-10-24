@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=77">
+<link rel="stylesheet" href="styles.css?v=78">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -246,7 +246,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <table>
               <thead><tr>
                 <th id="th-chksel" style="display:none;width:34px;text-align:center" title="Seleccionar para borrar"><input type="checkbox" id="chkSelAll" onclick="event.stopPropagation();_selTodos(this.checked)" style="cursor:pointer;width:16px;height:16px"></th>
-                <th style="cursor:default"><span style="display:inline-flex;align-items:center;gap:6px"><span style="min-width:58px;text-align:center">Est</span><span style="min-width:92px;text-align:center">Facturación</span><span style="min-width:90px;text-align:center">Recibida</span><span style="min-width:22px"></span></span></th>
+                <th style="cursor:default"><span style="display:inline-flex;align-items:center;gap:6px"><span style="min-width:92px;text-align:center">Est</span><span style="min-width:108px;text-align:center">Facturación</span><span style="min-width:108px;text-align:center">Recibida</span><span style="min-width:22px"></span></span></th>
                 <th id="th-fecha" onclick="sortBy('fecha')">Fecha</th>
                 <th id="th-tractora" onclick="sortBy('tractora')">Matrícula</th>
                 <th id="th-transportista">Transp.</th>
@@ -2053,6 +2053,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=915"></script>
+<script src="app.js?v=916"></script>
 </body>
 </html>

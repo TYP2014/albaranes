@@ -728,3 +728,5 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #filtersAlb .fil-sel,#filtersAlb .fil-inp,#filtersAlb .fil-multi summary{font-size:14px;padding:10px 12px}
 #tabContentAlb .card-hd .tbl-acts{gap:12px}
 #tabContentAlb .card-hd .tbl-acts .btn{font-size:12px;padding:11px 20px;letter-spacing:.6px}
+/* v916: Albaranes - cabecera de la tabla mas legible */
+#tabContentAlb .tbl-wrap th{font-size:13px;padding:12px 10px}

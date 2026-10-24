@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v916 (24/10/2026): ALBARANES · TABLA MAS LEGIBLE (2 de 2). Las etiquetas de estado de cada fila (Pendiente, Facturado, No facturable, Sin factura, Nos facturo, Fact. directa) pasan de 9 px a 11 px en negrita y con mas relleno, y sus columnas se ensanchan para que quepan (92 / 108 / 108 px); los titulos Est / Facturacion / Recibida de la cabecera se ajustan a esas mismas anchuras para que queden justo encima. La fecha de 'Subido' pasa de gris a negro. Cabecera de la tabla a 13 px con mas espacio. Se mantienen los colores de las marcas (amarillo, naranja, violeta) y los iconos que dan informacion. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v915.
+
+---
+
 v915 (24/10/2026): ALBARANES · PARTE DE ARRIBA MAS LEGIBLE (1 de 2). 'Pendientes de hoy': fondo blanco, titulo en azul marino, cada aviso con su palabra en negro 14 px y numero en negrita 22 px, con el marco de color segun gravedad (rojo duplicados, ambar a revisar, azul pendientes IA); se quitan los iconos duplicados (la palabra ya lo dice). Filtros: etiquetas en negro y negrita, campos a 14 px con mas espacio. Botones de cabecera (EXCEL COMPLETO, ALBARAN A MANO, FACTURAS RECIBIDAS, SELECCION, etc.) mas grandes y separados; ALBARAN A MANO, FACTURAS RECIBIDAS y SELECCION sin emoji (los iconos de Excel y descarga se mantienen). Caja del historico: fondo blanco con filete azul marino, letra negra de 14 px, campos y boton BUSCAR mas grandes, sin emojis. La tabla se hace en la v916. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v914.
 
 ---
