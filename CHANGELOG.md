@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v898 (24/10/2026): GASOIL · CABECERA MAS GRANDE Y ESPACIADA. Los 4 botones de empresa (TYP2014, T. Hispalis 2016, Transmargaz 2018, Portes 2014 Import) pasan a una cuadricula 2x2 a la izquierda, mas grandes (letra 13 px) y separados. Las dos cajas SUBIR FACTURA y SUBIR KM (tacografo) pasan a la derecha, mas grandes (titulo 18 px en azul marino, texto 13 px) y separadas entre si, con mas aire arriba y abajo. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v897.
+
+---
+
 v897 (24/10/2026): NEUMATICOS · SE OCULTA LA CAJA ACCIONES. Se quita de la pantalla la caja ACCIONES (Inventario inicial, Nueva compra, Registrar montaje, Baja), que no se usaba porque las compras y montajes entran por las facturas/albaranes subidos. El boton Refrescar pasa a la cabecera del Historico. La ventana de movimientos y el boton EDITAR del historico siguen funcionando igual. Tambien sin emoji VER FACTURAS SUBIDAS y VER RESUMEN MENSUAL, y 'N ud' no se parte en dos lineas en las tarjetas de stock. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v896.
 
 ---
