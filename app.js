@@ -18785,10 +18785,10 @@ function renderIncidencias() {
     if (nAdj) extras.push(`${nAdj} adjunto${nAdj === 1 ? '' : 's'}`);
     return `
     <tr onclick="openIncidencia('${i.id}')" style="cursor:pointer">
-      <td style="white-space:nowrap"><span style="display:inline-block;background:${m.bg};color:${m.tx};border:1px solid ${m.bd};font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;padding:6px 14px;border-radius:6px">${_incE(i.estado || 'Pendiente')}</span></td>
+      <td style="white-space:nowrap"><span style="display:block;width:176px;box-sizing:border-box;text-align:center;background:${m.bg};color:${m.tx};border:1px solid ${m.bd};font-weight:700;font-size:11.5px;letter-spacing:.3px;text-transform:uppercase;padding:7px 6px;border-radius:6px;white-space:nowrap">${_incE(i.estado || 'Pendiente')}</span></td>
       <td style="font-weight:700">${_incE(i.cliente || '—')}</td>
       <td style="white-space:nowrap;font-family:var(--mn);text-align:right">${_incFmtImporte(i.importe)}</td>
-      <td>${_incE(corto)} ${extras.length ? `<span style="color:var(--ac);font-weight:700;font-size:12px;margin-left:8px">${extras.join(' · ')}</span>` : ''}</td>
+      <td style="white-space:normal;min-width:260px;line-height:1.45">${_incE(corto)} ${extras.length ? `<span style="color:var(--ac);font-weight:700;font-size:12px;margin-left:8px">${extras.join(' · ')}</span>` : ''}</td>
       <td style="white-space:nowrap">${_incFmtFecha(i.updated_at)}</td>
     </tr>`;
   }).join('');

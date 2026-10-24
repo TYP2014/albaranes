@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v913 (24/10/2026): INCIDENCIAS · ETIQUETAS DE ESTADO ALINEADAS. Las tres etiquetas (PENDIENTE, HABLADO CON CLIENTE, RESUELTO) tienen ahora el mismo ancho (176 px) y el texto centrado, asi la columna empieza y acaba igual en todas las filas. La descripcion ya puede partirse en dos lineas, para que la columna ACTUALIZADA no se corte por la derecha. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v912.
+
+---
+
 v912 (24/10/2026): INCIDENCIAS · LISTA MAS CLARA Y SOBRIA. Aviso 'Tienes N incidencias SIN RESOLVER' en el estilo de los avisos de la app (marco rojo, letra negra 16 px, sin circulo). Botones NUEVA INCIDENCIA, ACTUALIZAR y LIMPIAR en texto y mas grandes; filtro de estado sin circulos de colores. Tabla a 15 px en negro con mas aire; el estado es una etiqueta de texto (PENDIENTE rojo claro, HABLADO CON CLIENTE ambar claro, RESUELTO verde claro) en vez del punto de color; la descripcion muestra hasta 120 caracteres y 'N notas · N adjuntos' en texto en lugar de los iconos. No se toca la ventana de editar incidencia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v911.
 
 ---
