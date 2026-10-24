@@ -709,3 +709,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #recCuadreFacDif > details > summary{font-size:16px !important;line-height:1.6}
 #recCuadreFacDif details details > summary{font-size:15px !important}
 #recCuadreFacDif details details{padding:9px 12px !important}
+/* v912: lista de Incidencias mas legible */
+#filtersInc .fil-label{font-size:13px;color:var(--tx);font-weight:700}
+#filtersInc .fil-sel{font-size:14px;padding:10px 12px}
+#incTable th{font-size:13px;padding:12px 14px;letter-spacing:1px;color:var(--ac)}
+#incTable td{font-size:15px;padding:15px 14px;color:var(--tx)}

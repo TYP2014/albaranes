@@ -18697,9 +18697,9 @@ const INC_ESTADOS = ['Pendiente', 'Hablado con cliente', 'Resuelto'];
 
 // Color + emoji por estado (para pintar de un vistazo)
 function _incEstadoMeta(estado) {
-  if (estado === 'Resuelto')            return { color: 'var(--ac)', emoji: '🟢' };
-  if (estado === 'Hablado con cliente') return { color: 'var(--wn)', emoji: '🟠' };
-  return { color: 'var(--er)', emoji: '🔴' }; // Pendiente (por defecto)
+  if (estado === 'Resuelto')            return { color: 'var(--ac)', emoji: '🟢', bg: '#dcefe5', tx: '#12402b', bd: '#2e7d5b' };
+  if (estado === 'Hablado con cliente') return { color: 'var(--wn)', emoji: '🟠', bg: '#fbecc4', tx: '#4a3200', bd: '#c58a1b' };
+  return { color: 'var(--er)', emoji: '🔴', bg: '#f8dcda', tx: '#5c1412', bd: '#b83a36' }; // Pendiente (por defecto)
 }
 function _incOrden(estado) {
   const i = INC_ESTADOS.indexOf(estado);
@@ -18753,8 +18753,8 @@ function renderIncidencias() {
   const aviso = document.getElementById('incAviso');
   if (aviso) {
     aviso.innerHTML = nPend > 0
-      ? `<div style="background:rgba(244,67,54,.12);border:1px solid var(--er);color:var(--er);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">🔴 Tienes ${nPend} incidencia${nPend === 1 ? '' : 's'} SIN RESOLVER</div>`
-      : `<div style="background:rgba(0,232,122,.10);border:1px solid var(--ac);color:var(--ac);border-radius:8px;padding:10px 14px;font-family:var(--mn);font-size:12px;font-weight:600">✅ No hay incidencias pendientes</div>`;
+      ? `<div style="background:#fff;border:3px solid #b83a36;border-left:12px solid #b83a36;color:var(--tx);border-radius:7px;padding:12px 16px;font-size:16px;font-weight:700">Tienes ${nPend} incidencia${nPend === 1 ? '' : 's'} SIN RESOLVER</div>`
+      : `<div style="background:#fff;border:3px solid #2e7d5b;border-left:12px solid #2e7d5b;color:var(--tx);border-radius:7px;padding:12px 16px;font-size:16px;font-weight:700">No hay incidencias pendientes</div>`;
   }
 
   // Filtrar + ordenar (pendientes arriba; dentro de cada estado, la más reciente primero)
@@ -18779,17 +18779,17 @@ function renderIncidencias() {
     const nSeg = Array.isArray(i.seguimientos) ? i.seguimientos.length : 0;
     const nAdj = Array.isArray(i.adjuntos) ? i.adjuntos.length : 0;
     const desc = String(i.descripcion || '').replace(/\s+/g, ' ').trim();
-    const corto = desc.length > 70 ? desc.slice(0, 70) + '…' : desc;
+    const corto = desc.length > 120 ? desc.slice(0, 120) + '…' : desc;
     const extras = [];
-    if (nSeg) extras.push(`💬 ${nSeg}`);
-    if (nAdj) extras.push(`📎 ${nAdj}`);
+    if (nSeg) extras.push(`${nSeg} nota${nSeg === 1 ? '' : 's'}`);
+    if (nAdj) extras.push(`${nAdj} adjunto${nAdj === 1 ? '' : 's'}`);
     return `
     <tr onclick="openIncidencia('${i.id}')" style="cursor:pointer">
-      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px;color:${m.color};font-weight:600;font-size:11px"><span style="width:9px;height:9px;border-radius:50%;background:${m.color};display:inline-block"></span>${_incE(i.estado || 'Pendiente')}</span></td>
-      <td style="font-weight:600">${_incE(i.cliente || '—')}</td>
+      <td style="white-space:nowrap"><span style="display:inline-block;background:${m.bg};color:${m.tx};border:1px solid ${m.bd};font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;padding:6px 14px;border-radius:6px">${_incE(i.estado || 'Pendiente')}</span></td>
+      <td style="font-weight:700">${_incE(i.cliente || '—')}</td>
       <td style="white-space:nowrap;font-family:var(--mn);text-align:right">${_incFmtImporte(i.importe)}</td>
-      <td style="color:var(--mu);font-size:12px">${_incE(corto)} ${extras.length ? `<span style="color:var(--mu);font-family:var(--mn);font-size:10px;margin-left:4px">${extras.join(' · ')}</span>` : ''}</td>
-      <td style="white-space:nowrap;color:var(--mu);font-family:var(--mn);font-size:11px">${_incFmtFecha(i.updated_at)}</td>
+      <td>${_incE(corto)} ${extras.length ? `<span style="color:var(--ac);font-weight:700;font-size:12px;margin-left:8px">${extras.join(' · ')}</span>` : ''}</td>
+      <td style="white-space:nowrap">${_incFmtFecha(i.updated_at)}</td>
     </tr>`;
   }).join('');
 }

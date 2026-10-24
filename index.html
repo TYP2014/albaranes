@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=74">
+<link rel="stylesheet" href="styles.css?v=75">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -987,20 +987,20 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>INCIDENCIAS CON CLIENTES</div>
-          <div class="tbl-acts">
-            <button class="btn bp" onclick="nuevaIncidencia()" style="display:flex;align-items:center;gap:5px">➕ Nueva incidencia</button>
-            <button class="btn bs" onclick="loadIncidenciasData()" style="display:flex;align-items:center;gap:5px" title="Actualizar la lista">🔄 Actualizar</button>
+          <div class="tbl-acts" style="gap:16px">
+            <button class="btn bp" onclick="nuevaIncidencia()" style="font-size:12px;padding:12px 24px;letter-spacing:.8px">NUEVA INCIDENCIA</button>
+            <button class="btn bs" onclick="loadIncidenciasData()" style="font-size:12px;padding:12px 24px;letter-spacing:.8px" title="Actualizar la lista">ACTUALIZAR</button>
           </div>
         </div>
         <div class="card-bd">
           <div id="incAviso" style="margin-bottom:14px"></div>
           <div class="filters" id="filtersInc">
             <div class="fil-group"><label class="fil-label">Buscar cliente</label><input class="fil-sel" id="incBuscar" oninput="applyIncidenciasFilters()" placeholder="Todos" autocomplete="off"></div>
-            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="incFiltroEstado" onchange="applyIncidenciasFilters()"><option value="">Todos</option><option value="Pendiente">🔴 Pendiente</option><option value="Hablado con cliente">🟠 Hablado con cliente</option><option value="Resuelto">🟢 Resuelto</option></select></div>
-            <div class="filter-actions"><button class="btn bs" onclick="_incResetFilters()">✕ Limpiar</button></div>
+            <div class="fil-group"><label class="fil-label">Estado</label><select class="fil-sel" id="incFiltroEstado" onchange="applyIncidenciasFilters()"><option value="">Todos</option><option value="Pendiente">Pendiente</option><option value="Hablado con cliente">Hablado con cliente</option><option value="Resuelto">Resuelto</option></select></div>
+            <div class="filter-actions"><button class="btn bs" onclick="_incResetFilters()" style="font-size:12px;padding:12px 22px;letter-spacing:.8px">LIMPIAR</button></div>
           </div>
           <div id="incTableBox" style="overflow-x:auto;margin-top:14px">
-            <table class="t" id="incTable"><thead><tr><th>ESTADO</th><th>CLIENTE</th><th style="text-align:right">IMPORTE</th><th>DESCRIPCIÓN</th><th>ACTUALIZADA</th></tr></thead><tbody id="incTableBody"><tr><td colspan="5" style="color:var(--mu);font-family:var(--mn);font-size:12px;padding:16px">Cargando...</td></tr></tbody></table>
+            <table class="t" id="incTable"><thead><tr><th style="width:190px">ESTADO</th><th>CLIENTE</th><th style="text-align:right">IMPORTE</th><th>DESCRIPCIÓN</th><th>ACTUALIZADA</th></tr></thead><tbody id="incTableBody"><tr><td colspan="5" style="color:var(--mu);font-family:var(--mn);font-size:12px;padding:16px">Cargando...</td></tr></tbody></table>
           </div>
         </div>
       </div>
@@ -2053,6 +2053,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=911"></script>
+<script src="app.js?v=912"></script>
 </body>
 </html>

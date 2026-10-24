@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v912 (24/10/2026): INCIDENCIAS · LISTA MAS CLARA Y SOBRIA. Aviso 'Tienes N incidencias SIN RESOLVER' en el estilo de los avisos de la app (marco rojo, letra negra 16 px, sin circulo). Botones NUEVA INCIDENCIA, ACTUALIZAR y LIMPIAR en texto y mas grandes; filtro de estado sin circulos de colores. Tabla a 15 px en negro con mas aire; el estado es una etiqueta de texto (PENDIENTE rojo claro, HABLADO CON CLIENTE ambar claro, RESUELTO verde claro) en vez del punto de color; la descripcion muestra hasta 120 caracteres y 'N notas · N adjuntos' en texto en lugar de los iconos. No se toca la ventana de editar incidencia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v911.
+
+---
+
 v911 (24/10/2026): RECAMBIOS · CUADRE, LA CAJA 'FACTURAS QUE NO CUADRAN' IGUAL QUE LAS DEMAS. Esa caja se pinta dentro de un contenedor aparte (recCuadreFacDif) y el CSS de la v906 no le llegaba, por eso salia mas pequeña. Se añaden sus reglas (styles.css v74): mismo relleno, separacion y letra (16 px la cabecera, 15 px el detalle) que las otras cajas del Cuadre. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir index.html, styles.css y CHANGELOG.md de la v910 (app.js no cambia).
 
 ---
