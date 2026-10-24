@@ -1207,14 +1207,14 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--in)"></div>FACTURAS GUARDADAS</div>
-          <button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="neumFacturasGuardadas()">&#128193; VER FACTURAS SUBIDAS</button>
+          <button class="btn bs" style="font-size:11px;padding:5px 12px" onclick="neumFacturasGuardadas()">VER FACTURAS SUBIDAS</button>
         </div>
       </div>
 
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--ac)"></div>RESUMEN POR MESES</div>
-          <button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="neumResumenMes()">&#128197; VER RESUMEN MENSUAL</button>
+          <button class="btn bs" style="font-size:11px;padding:5px 12px" onclick="neumResumenMes()">VER RESUMEN MENSUAL</button>
         </div>
       </div>
 
@@ -1239,23 +1239,11 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-bd" id="neumCruceBox"></div>
       </div>
 
-      <div class="card" style="margin-top:14px">
-        <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--pu)"></div>ACCIONES</div>
-        </div>
-        <div class="card-bd" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn bw" onclick="openNeumMovimientoModal('inventario_inicial')" style="font-size:11px">📥 Inventario inicial</button>
-          <button class="btn bp" onclick="openNeumMovimientoModal('compra')" style="font-size:11px">➕ Nueva compra</button>
-          <button class="btn bi" onclick="openNeumMovimientoModal('montaje')" style="font-size:11px">🔧 Registrar montaje</button>
-          <button class="btn br" onclick="openNeumMovimientoModal('baja')" style="font-size:11px">🗑️ Baja (rotura/desecho)</button>
-          <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;margin-left:auto">🔄 Refrescar</button>
-        </div>
-      </div>
-
       <!-- Histórico de movimientos -->
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--ok)"></div>HISTÓRICO DE MOVIMIENTOS</div>
+          <button class="btn bs" onclick="loadNeumData()" style="font-size:11px;padding:5px 12px;margin-left:auto">Refrescar</button>
         </div>
         <div class="card-bd" id="neumHistBox" style="overflow-x:auto">
           <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando histórico...</div>
@@ -2046,6 +2034,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=896"></script>
+<script src="app.js?v=897"></script>
 </body>
 </html>

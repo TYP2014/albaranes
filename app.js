@@ -23526,8 +23526,8 @@ function renderNeum() {
         const sol = s.stock + mas - menos;
         const lista = (arr) => arr.map(x => esc(x.num) + ' (' + x.uds + ')').join(', ');
         g2Html = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd);font-family:var(--mn);font-size:12px;line-height:1.5;color:var(--tx)">
-            <div style="display:flex;justify-content:space-between;gap:8px;font-weight:700"><span>Según facturas (manda)</span><span>${sol} ud</span></div>
-            <div style="display:flex;justify-content:space-between;gap:8px"><span>Mis albaranes (referencia)</span><span>${s.stock} ud</span></div>
+            <div style="display:flex;justify-content:space-between;gap:8px;font-weight:700"><span>Según facturas (manda)</span><span style="white-space:nowrap">${sol} ud</span></div>
+            <div style="display:flex;justify-content:space-between;gap:8px"><span>Mis albaranes (referencia)</span><span style="white-space:nowrap">${s.stock} ud</span></div>
             ${mas ? `<div style="margin-top:4px;color:var(--ac);font-size:11.5px;line-height:1.4"><strong>${mas} montada(s)</strong> con albarán que Soledad aún no ha facturado (las restará su factura): ${lista(d.sinFacturar)}</div>` : ''}
             ${menos ? `<div style="margin-top:4px;font-size:11.5px;line-height:1.4"><strong>${menos} facturada(s)</strong> sin albarán (ya restadas): ${lista(d.sinAlbaran)}</div>` : ''}
             ${(!mas && !menos) ? `<div style="margin-top:4px;color:#1f6b47;font-size:12px;font-weight:700">✓ Las dos guías coinciden</div>` : ''}

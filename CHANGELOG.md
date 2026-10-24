@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v897 (24/10/2026): NEUMATICOS · SE OCULTA LA CAJA ACCIONES. Se quita de la pantalla la caja ACCIONES (Inventario inicial, Nueva compra, Registrar montaje, Baja), que no se usaba porque las compras y montajes entran por las facturas/albaranes subidos. El boton Refrescar pasa a la cabecera del Historico. La ventana de movimientos y el boton EDITAR del historico siguen funcionando igual. Tambien sin emoji VER FACTURAS SUBIDAS y VER RESUMEN MENSUAL, y 'N ud' no se parte en dos lineas en las tarjetas de stock. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v896.
+
+---
+
 v896 (24/10/2026): NEUMATICOS · TARJETAS DE STOCK MAS CLARAS. Antes cada tarjeta tenia fondo gris oscuro y letra muy pequeña (9-11 px) y poco contraste. Ahora: fondo blanco, marco de 3 px del color del nivel (rojo = en o por debajo del umbral, ambar = cerca, verde = bien) y la cifra grande en un tono mas oscuro del mismo color para que se lea; medida 14 px y marca/modelo 15 px; el uso (DIRECCION/TRACCION/REMOLQUE) en azul marino y negrita; en el bloque de abajo, 'Según facturas (manda)' en negrita y las demas lineas a 12 px en color oscuro (antes 10-11 px grises); se quitan los emojis 🔵 y 🧾 de las lineas de aviso (queda el numero en negrita); 'Las dos guias coinciden' en verde y negrita; la nota del corte (📌) a 12,5 px y color oscuro. Los calculos, los umbrales y los ✓ / ⚠ NO cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v895.
 
 ---
