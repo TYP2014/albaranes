@@ -730,3 +730,13 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentAlb .card-hd .tbl-acts .btn{font-size:12px;padding:11px 20px;letter-spacing:.6px}
 /* v916: Albaranes - cabecera de la tabla mas legible */
 #tabContentAlb .tbl-wrap th{font-size:13px;padding:12px 10px}
+/* v917: Albaranes - listas desplegables de filtros y caja del historico con campos mas anchos */
+#filtersAlb .fil-multi-list{right:auto;min-width:380px;width:max-content;max-width:560px;max-height:340px;padding:8px}
+#filtersAlb .fil-multi-opt{font-size:14px;padding:8px 10px;white-space:normal;line-height:1.35}
+#filtersAlb .fil-multi-search{font-size:14px;padding:9px 10px}
+#filtersAlb .fil-multi-actions button{font-size:11px;padding:7px 10px;color:var(--tx)}
+#avisoHistorico input[type=date]{width:175px}
+#avisoHistorico #bhMat{width:170px}
+#avisoHistorico #bhOrigen,#avisoHistorico #bhDestino{width:240px}
+#avisoHistorico #bhAlb{width:170px}
+#avisoHistorico > div{gap:16px !important}

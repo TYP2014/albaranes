@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v917 (24/10/2026): ALBARANES · FILTROS DESPLEGABLES, CAJA DEL HISTORICO E ICONOS DE EXCEL/DESCARGA. (1) Las listas desplegables de los filtros pasan a letra de 14 px y son mas anchas (380-560 px) y altas, para que los nombres no se partan en varias lineas. (2) En la caja del historico los campos se ensanchan (fechas 175 px, Matricula 170 px, Origen y Destino 240 px, N. albaran 170 px) y se separan 16 px; antes Matricula salia cortada. (3) Los tres botones de Excel (completo, filtrado y por rutas) llevan el MISMO icono de Excel (antes 'por rutas' tenia otro que parecia un folio); lo mismo en EXCEL DEL TRANSPORTISTA de los repasos de Facturacion. DESCARGAR ARCHIVOS pasa de la cajita a la flecha de descarga. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v916.
+
+---
+
 v916 (24/10/2026): ALBARANES · TABLA MAS LEGIBLE (2 de 2). Las etiquetas de estado de cada fila (Pendiente, Facturado, No facturable, Sin factura, Nos facturo, Fact. directa) pasan de 9 px a 11 px en negrita y con mas relleno, y sus columnas se ensanchan para que quepan (92 / 108 / 108 px); los titulos Est / Facturacion / Recibida de la cabecera se ajustan a esas mismas anchuras para que queden justo encima. La fecha de 'Subido' pasa de gris a negro. Cabecera de la tabla a 13 px con mas espacio. Se mantienen los colores de las marcas (amarillo, naranja, violeta) y los iconos que dan informacion. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v915.
 
 ---

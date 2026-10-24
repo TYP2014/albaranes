@@ -16086,7 +16086,7 @@ async function descargarArchivosFiltrados() {
     console.error('Error generando ZIP:', err);
     toast('Error generando ZIP: ' + (err.message || err), 'err');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '📦 Descargar archivos'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ Descargar archivos'; }
   }
 }
 
@@ -32417,7 +32417,7 @@ function _factRepasosPintar() {
           + _trs.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('')
           + '</select>'
           + ' <button class="btn bs" style="font-size:11px;padding:3px 10px" title="Excel mensual completo de ese transportista: una pestaña por familia, con los precios de las tarifas" '
-          + 'onclick="_factRepasoExcelTrans(\'' + esc(r.id) + '\')">📑 EXCEL DEL TRANSPORTISTA</button>'
+          + 'onclick="_factRepasoExcelTrans(\'' + esc(r.id) + '\')">📊 EXCEL DEL TRANSPORTISTA</button>'
           + '</div>';
       }
     }
