@@ -38744,7 +38744,8 @@ async function tacoRepInspVer() {
   if (!desde || !hasta || hasta < desde) { out.innerHTML = '<div class="insp-aviso">Pon las fechas que piden (del día / al día).</div>'; return; }
   out.innerHTML = '<div class="insp-aviso">Comprobando las descargas…</div>';
   try {
-    const dias = _tacoInspDias(desde, hasta);
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const dias = _tacoInspDias(desde, hasta).filter(d => d < hoyISO);   // v931: hoy no cuenta (el dia no ha terminado)
     const nDias = dias.length;
     // ---- 1) camiones: que cubren sus descargas
     const filasCam = [];
@@ -38783,18 +38784,20 @@ async function tacoRepInspVer() {
     [...quien.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([nom, setDias]) => {
       const fs = tacoFicheros.filter(f => f.tipo === 'conductor' && f.conductor_nombre && _tacoMismoNombre(f.conductor_nombre, nom));
       const iv = fs.filter(f => f.fecha_desde && f.fecha_hasta).map(f => [f.fecha_desde, f.fecha_hasta]);
-      const diasQ = [...setDias].sort();
+      const diasQ = [...setDias].filter(d => d < hoyISO).sort();
       const hu = _tacoInspHuecos(iv, diasQ);
       const usados = fs.filter(f => f.fecha_desde && f.fecha_hasta && f.fecha_desde <= hasta && f.fecha_hasta >= desde);
       usados.forEach(f => ficCon.push(f));
+      if (!diasQ.length) return;
       filasCon.push({ nom, nDiasQ: diasQ.length, hu, nFich: usados.length, sinNada: !fs.length });
     });
     // ---- 3) pintar
     const nHuecoCam = filasCam.filter(x => x.hu.length).length, nHuecoCon = filasCon.filter(x => x.hu.length).length;
     const todoOk = !nHuecoCam && !nHuecoCon;
     const diasTxt = t => t.reduce((s, x) => s + x[2], 0);
-    const fCam = filasCam.map(x => `<tr class="${x.hu.length ? 'insp-mal' : ''}"><td><b>${esc2(x.m)}</b></td><td>${x.nFich}</td><td>${x.hu.length ? '<b class="insp-rojo">FALTAN ' + diasTxt(x.hu) + ' DÍAS</b><br>' + _tacoInspTxtHuecos(x.hu) : (x.sinNada ? '<b class="insp-rojo">SIN NINGUNA DESCARGA</b>' : '<b class="insp-verde">COMPLETO</b>')}</td></tr>`).join('');
-    const fCon = filasCon.length ? filasCon.map(x => `<tr class="${x.hu.length || x.sinNada ? 'insp-mal' : ''}"><td><b>${esc2(_tacoNomCorto(x.nom))}</b></td><td>${x.nDiasQ}</td><td>${x.nFich}</td><td>${x.sinNada ? '<b class="insp-rojo">SIN NINGUNA DESCARGA DE SU TARJETA</b>' : (x.hu.length ? '<b class="insp-rojo">FALTAN ' + diasTxt(x.hu) + ' DÍAS</b><br>' + _tacoInspTxtHuecos(x.hu) : '<b class="insp-verde">COMPLETO</b>')}</td></tr>`).join('')
+    const diasPl = t => { const n = diasTxt(t); return n + (n === 1 ? ' DÍA' : ' DÍAS'); };
+    const fCam = filasCam.map(x => `<tr class="${x.hu.length ? 'insp-mal' : ''}"><td><b>${esc2(x.m)}</b></td><td>${x.nFich}</td><td>${x.hu.length ? '<b class="insp-rojo">FALTAN ' + diasPl(x.hu) + '</b><br>' + _tacoInspTxtHuecos(x.hu) : (x.sinNada ? '<b class="insp-rojo">SIN NINGUNA DESCARGA</b>' : '<b class="insp-verde">COMPLETO</b>')}</td></tr>`).join('');
+    const fCon = filasCon.length ? filasCon.map(x => `<tr class="${x.hu.length || x.sinNada ? 'insp-mal' : ''}"><td><b>${esc2(_tacoNomCorto(x.nom))}</b></td><td>${x.nDiasQ}</td><td>${x.nFich}</td><td>${x.sinNada ? '<b class="insp-rojo">SIN NINGUNA DESCARGA DE SU TARJETA</b>' : (x.hu.length ? '<b class="insp-rojo">FALTAN ' + diasPl(x.hu) + '</b><br>' + _tacoInspTxtHuecos(x.hu) : '<b class="insp-verde">COMPLETO</b>')}</td></tr>`).join('')
       : '<tr><td colspan="4">No hay conductores guardados para esos camiones en ese periodo.</td></tr>';
     // ficheros unicos
     const vistos = new Set(); _tacoInspFich = [];
@@ -38810,7 +38813,7 @@ async function tacoRepInspVer() {
     out.innerHTML = `
       <div class="${todoOk ? 'insp-ok' : 'insp-ko'}">${todoOk
         ? 'TODO CUBIERTO: de los ' + mats.length + ' camiones y de sus conductores hay descargas para todos los días del periodo.'
-        : 'FALTAN DESCARGAS: ' + (nHuecoCam ? nHuecoCam + ' camión' + (nHuecoCam === 1 ? '' : 'es') + ' con huecos' : '') + (nHuecoCam && nHuecoCon ? ' y ' : '') + (nHuecoCon ? nHuecoCon + ' conductor' + (nHuecoCon === 1 ? '' : 'es') + ' con huecos' : '') + '. Hay que hacer la descarga a mano con el pincho (un año de golpe vale) y subirla en SUBIR.'}</div>
+        : 'FALTAN DESCARGAS: ' + (nHuecoCam ? nHuecoCam + (nHuecoCam === 1 ? ' camión' : ' camiones') + ' con huecos' : '') + (nHuecoCam && nHuecoCon ? ' y ' : '') + (nHuecoCon ? nHuecoCon + ' conductor' + (nHuecoCon === 1 ? '' : 'es') + ' con huecos' : '') + '. Hay que hacer la descarga a mano con el pincho (un año de golpe vale) y subirla en SUBIR.'}</div>
       <h4 class="insp-h">Camiones</h4>
       <table class="tbl"><thead><tr><th>Camión</th><th>Ficheros</th><th>Estado del periodo</th></tr></thead><tbody>${fCam}</tbody></table>
       <h4 class="insp-h">Conductores que llevaron esos camiones</h4>

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v931 (24/10/2026): ORIGINALES PARA INSPECCION · PEQUEÑOS AJUSTES. El dia de HOY ya no cuenta como hueco (no se puede haber descargado un dia que no ha terminado). Se corrige 'camiónes' y '1 DÍAS' (ahora 'camiones' y '1 DÍA'). Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v930.
+
+---
+
 v930 (24/10/2026): TACOGRAFO · ORIGINALES PARA INSPECCION POR EMPRESA. La inspeccion es de UNA empresa, asi que ya no se mezclan: lo primero es elegir la empresa (TYP2014, Hispalis, Transmargaz o Portes) y solo salen los camiones de esa empresa. Si ya estaba elegida una arriba en Tacografo, viene puesta. Se quitan los botones de 6/12/18 meses: se ponen las fechas que piden (del dia / al dia). El ZIP y el RESUMEN.txt llevan el nombre de la empresa. Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v929.
 
 ---
