@@ -740,3 +740,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #avisoHistorico #bhOrigen,#avisoHistorico #bhDestino{width:240px}
 #avisoHistorico #bhAlb{width:170px}
 #avisoHistorico > div{gap:16px !important}
+/* v918: pestana Subir - textos de las cajas de arrastre mas grandes y en negro */
+#tabContentSubir .dz-t{font-size:17px;font-weight:600;color:var(--tx);margin-top:6px;margin-bottom:6px}
+#tabContentSubir .dz-t .hl{color:var(--ac);font-weight:700}
+#tabContentSubir .dz-s{font-size:14px;color:var(--tx);opacity:1}

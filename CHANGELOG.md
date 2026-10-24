@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v918 (24/10/2026): SUBIR · TEXTOS DE LAS CAJAS DE ARRASTRE MAS GRANDES. En la pestaña Subir, 'Arrastra fotos o PDFs · o haz clic para seleccionar' pasa de 12 px gris a 17 px en negro (el 'haz clic' en azul marino) y la linea de formatos (JPG · PNG · PDF...) de 11 px casi transparente a 14 px en negro. La ilustracion no se toca. Solo CSS (styles.css v80), limitado a la pestaña Subir. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir index.html, styles.css y CHANGELOG.md de la v917 (app.js no cambia).
+
+---
+
 v917 (24/10/2026): ALBARANES · FILTROS DESPLEGABLES, CAJA DEL HISTORICO E ICONOS DE EXCEL/DESCARGA. (1) Las listas desplegables de los filtros pasan a letra de 14 px y son mas anchas (380-560 px) y altas, para que los nombres no se partan en varias lineas. (2) En la caja del historico los campos se ensanchan (fechas 175 px, Matricula 170 px, Origen y Destino 240 px, N. albaran 170 px) y se separan 16 px; antes Matricula salia cortada. (3) Los tres botones de Excel (completo, filtrado y por rutas) llevan el MISMO icono de Excel (antes 'por rutas' tenia otro que parecia un folio); lo mismo en EXCEL DEL TRANSPORTISTA de los repasos de Facturacion. DESCARGAR ARCHIVOS pasa de la cajita a la flecha de descarga. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v916.
 
 ---
