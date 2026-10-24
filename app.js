@@ -13495,25 +13495,28 @@ function _phRender() {
   const tdS = 'padding:6px 10px;border-bottom:1px solid var(--bd);vertical-align:top;white-space:nowrap';
   const celda = (x, g, m, nuevo) => {
     const ps = Object.values((g && g.m[m]) || {}).sort((a, b) => (a.d1 - b.d1) || (a.pu - b.pu));
-    if (!ps.length) return '<td style="' + tdS + ';text-align:right;color:var(--mu)">—</td>';
-    return '<td style="' + tdS + ';text-align:right' + (nuevo ? ';background:rgba(0,232,122,.06)' : '') + '">' + ps.map(p =>
-      '<div style="margin-bottom:3px;cursor:pointer" title="Pincha para bajar en Excel estos viajes (fecha, matrícula, nº albarán…)" onclick="phExcel(\'' + _fichajeEsc(x.n).replace(/'/g, "\\'") + '\',\'' + m + '\',\'' + p.pu.toFixed(2) + '\')">'
-      + '<b style="text-decoration:underline dotted' + (ps.length > 1 ? ';color:#b45309' : '') + '">' + eur(p.pu) + (x.viaje ? '/viaje' : '') + '</b> <span style="font-size:10px;color:var(--mu)">'
-      + (_phDias(p, m, true) ? _phDias(p, m, true) + ' · ' : '') + p.v + ' v' + (x.viaje ? '' : ' · ' + Math.round(p.tn) + ' TN') + ' ⬇</span></div>').join('') + '</td>';
+    if (!ps.length) return '<td class="phTd' + (nuevo ? ' phNuevo' : '') + '"><span class="phVacio">—</span></td>';
+    return '<td class="phTd' + (nuevo ? ' phNuevo' : '') + '">' + ps.map(p => {
+      const dias = _phDias(p, m, false);
+      return '<div class="phP' + (ps.length > 1 ? ' phMulti' : '') + '" title="Pincha para bajar en Excel estos viajes (fecha, matrícula, nº albarán…)" onclick="phExcel(\'' + _fichajeEsc(x.n).replace(/'/g, "\\'") + '\',\'' + m + '\',\'' + p.pu.toFixed(2) + '\')">'
+        + '<div class="phPr">' + eur(p.pu) + (x.viaje ? ' <small>/viaje</small>' : '') + '</div>'
+        + (dias ? '<div class="phDi">Días ' + dias + '</div>' : '')
+        + '<div class="phDe">' + p.v + (p.v === 1 ? ' viaje' : ' viajes') + (x.viaje ? '' : ' · ' + Math.round(p.tn).toLocaleString('es-ES') + ' TN') + ' <span class="phXl">Excel</span></div></div>';
+    }).join('') + '</td>';
   };
-  const stk = ';position:sticky;left:0;background:var(--bg2,var(--bg));z-index:1';   // v828: la ruta se queda fija al desplazar
-  const cab = '<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:var(--mu)' + stk + '">RUTA</th>'
-    + meses.map((m, i) => '<th style="text-align:right;padding:6px 10px;border-bottom:2px solid var(--bd);font-size:11px;color:' + (i === 0 ? 'var(--tx)' : 'var(--mu)') + '">' + _histMesNombre(m) + (i === 0 ? ' (último)' : '') + '</th>').join('') + '</tr></thead>';
+  const stk = '';   // v828: la ruta se queda fija al desplazar
+  const cab = '<thead><tr><th class="phRutaTh">RUTA</th>'
+    + meses.map((m, i) => '<th class="phMesTh' + (i === 0 ? ' phNuevo' : '') + '">' + _histMesNombre(m) + (i === 0 ? '<small>último subido</small>' : '') + '</th>').join('') + '</tr></thead>';
   const filas = _PH_HAB.slice().sort((a, b) => (a.orden || 0) - (b.orden || 0)).map(x => {   // v774: áridos siguen saliendo abajo
     const g = hab[x.n];
-    return '<tr><td style="' + tdS + ';font-weight:700;color:var(--tx)' + stk + '">' + _fichajeEsc(x.n) + (x.viaje ? ' <span style="font-size:10px;font-weight:400;color:var(--mu)">(por viaje)</span>' : '') + '</td>'
+    return '<tr><td class="phRuta">' + _fichajeEsc(x.n) + (x.viaje ? '<small>cobro por viaje</small>' : '') + '</td>'
       + meses.map((m, i) => celda(x, g, m, i === 0)).join('') + '</tr>';
   }).join('');
   const sel = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--mu)">Meses a ver: <select onchange="phCambiarMeses(this.value)" style="background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 8px;font-size:12px">'
     + [[3, '3'], [6, '6'], [12, '12'], [0, 'Todos los subidos']].map(o => '<option value="' + o[0] + '"' + (o[0] === _phNMeses ? ' selected' : '') + '>' + o[1] + '</option>').join('')
     + '</select><span>(' + meses.length + ' meses: ' + _histMesNombre(meses[meses.length - 1]) + ' → ' + _histMesNombre(meses[0]) + ')</span></div>';
-  cont.innerHTML = sel + '<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%;font-size:12px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
-    + '<div style="font-size:10.5px;color:var(--mu);margin-top:8px">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
+  cont.innerHTML = sel + '<div class="phScroll"><table class="phTbl" style="min-width:' + (190 + meses.length * 150) + 'px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
+    + '<div class="phNota">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
 }
 // v773: Excel de los viajes de UN precio (ruta + mes + precio). Hoja "Viajes" + hoja "Resumen" con TODOS los
 // precios de esa ruta ese mes, para ver de un vistazo cuál es el raro.

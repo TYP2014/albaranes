@@ -869,3 +869,33 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentProduccion .prod-row-propia .prod-bar{background:#10243f}
 #tabContentProduccion .prod-total-row td{font-size:16px;padding:16px 14px}
 #tabContentProduccion .prod-empty{font-size:16px;color:var(--tx)}
+
+/* v936 Panel: tabla Precios Holcim clara, alineada y sin salirse */
+#tabContentPanel [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tabContentPanel label{font-size:13px!important;color:#111!important}
+#tabContentPanel .st{font-size:15px;font-weight:700;color:var(--tx)}
+#tabContentPanel .tbl-acts .btn,#tabContentPanel .btn{font-size:13px;font-weight:700;padding:9px 16px}
+#tabContentPanel .btn.bp{color:#fff!important}
+#tabContentPanel .btn.bs{color:#111!important}
+#tabContentPanel .fi{font-size:14px}
+#precHolcimCont .phScroll{overflow-x:auto;border:1px solid #9aa5b4;border-radius:6px;max-width:100%}
+#precHolcimCont .phTbl{border-collapse:collapse;table-layout:fixed;width:100%}
+#precHolcimCont .phRutaTh,#precHolcimCont .phMesTh{padding:12px 14px;border-bottom:2px solid #9aa5b4;font-size:13px;font-weight:700;color:#111;text-align:left;background:#eef2f7;letter-spacing:.5px;vertical-align:bottom}
+#precHolcimCont .phRutaTh,#precHolcimCont .phRuta{width:190px}
+#precHolcimCont .phMesTh small{display:block;font-size:11px;font-weight:400;color:#2f3a48;letter-spacing:0;margin-top:2px}
+#precHolcimCont .phRuta{padding:14px;border-bottom:1px solid #c3ccd8;border-right:1px solid #c3ccd8;font-size:14px;font-weight:700;color:#111;vertical-align:top;background:#f7f9fc}
+#precHolcimCont .phRuta small{display:block;font-size:11px;font-weight:400;color:#2f3a48;margin-top:3px}
+#precHolcimCont .phTd{padding:14px;border-bottom:1px solid #c3ccd8;border-right:1px solid #e0e6ee;vertical-align:top;text-align:left}
+#precHolcimCont .phNuevo{background:#eaf5ee}
+#precHolcimCont .phVacio{color:#2f3a48;font-size:15px}
+#precHolcimCont .phP{cursor:pointer;line-height:1.35}
+#precHolcimCont .phP+.phP{margin-top:12px;padding-top:12px;border-top:1px dashed #9aa5b4}
+#precHolcimCont .phP:hover .phPr{text-decoration:underline}
+#precHolcimCont .phPr{font-size:16px;font-weight:700;color:#111;white-space:nowrap}
+#precHolcimCont .phPr small{font-size:11px;font-weight:400}
+#precHolcimCont .phMulti .phPr{color:#9a3f00}
+#precHolcimCont .phDi{font-size:13px;color:#111;margin-top:2px}
+#precHolcimCont .phDe{font-size:12.5px;color:#2f3a48;margin-top:2px}
+#precHolcimCont .phXl{display:inline-block;font-size:11px;font-weight:700;color:#1f3a5f;border:1px solid #1f3a5f;border-radius:3px;padding:0 5px;margin-left:4px}
+#precHolcimCont .phNota{font-size:13px;color:#2f3a48;margin-top:10px;line-height:1.5}
+#precHolcimCont select{font-size:14px!important;color:#111!important}
