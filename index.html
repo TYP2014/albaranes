@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=70">
+<link rel="stylesheet" href="styles.css?v=71">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1478,18 +1478,20 @@ if (typeof pdfjsLib !== 'undefined') {
     <!-- ============================================================ -->
     <div id="tabContentTaller" class="wrap" style="display:none">
 
-      <!-- Subpestañas por empresa -->
-      <div style="display:flex;gap:16px;margin:10px 0 18px;flex-wrap:wrap" id="tallerSubtabs">
+      <!-- Subpestañas por empresa (izquierda) y vistas (mitad derecha) en la misma fila -->
+      <div id="tallerCabecera" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:center;margin:10px 0 16px;border-bottom:1px solid var(--bd);padding-bottom:14px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap" id="tallerSubtabs">
         <button class="btn bp" id="tallerSubTYP2014" onclick="switchTallerEmpresa('TYP2014')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">TYP2014</button>
         <button class="btn bs" id="tallerSubHISPALIS" onclick="switchTallerEmpresa('HISPALIS')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">T. HISPALIS 2016</button>
         <button class="btn bs" id="tallerSubTRANSMARGAZ" onclick="switchTallerEmpresa('TRANSMARGAZ')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">TRANSMARGAZ 2018</button>
       </div>
 
-      <div style="display:flex;gap:18px;margin-bottom:20px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:16px" id="tallerVistaSel">
-        <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:12px;padding:11px 22px;letter-spacing:.8px">MANTENIMIENTOS</button>
-        <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:12px;padding:11px 22px;letter-spacing:.8px">RECAMBIOS</button>
-        <button class="btn bs" id="tallerVistaCitas" onclick="switchTallerVista('citas')" style="font-size:12px;padding:11px 22px;letter-spacing:.8px">CITAS SERVICIO OFICIAL</button>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-start" id="tallerVistaSel">
+        <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">MANTENIMIENTOS</button>
+        <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">RECAMBIOS</button>
+        <button class="btn bs" id="tallerVistaCitas" onclick="switchTallerVista('citas')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">CITAS SERVICIO OFICIAL</button>
       </div>
+      </div><!-- fin tallerCabecera -->
 
       <!-- ===== VISTA MANTENIMIENTOS (la de siempre) ===== -->
       <div id="tallerVistaMantBox">
@@ -1499,10 +1501,10 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>VEHÍCULOS · <span id="tallerEmpresaTitulo">TYP2014</span></div>
-          <div class="tbl-acts" style="gap:18px">
-            <div id="tallerKmBtn" onclick="document.getElementById('tallerExcelInput').click()" ondragenter="event.preventDefault();" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; tallerKmDrop(event);" title="Arrastra aquí el Excel de km (.xls/.xlsx), o pincha para buscarlo en el ordenador" style="cursor:pointer;border:2px dashed var(--bd);border-radius:10px;padding:10px 26px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.25;background:#fff"><span style="font-size:14px;font-weight:700;color:var(--ac)">Importar km (Excel)</span><span style="font-size:12px;color:var(--mu)">arrastra el Excel aquí o pincha</span></div>
+          <div class="tbl-acts" style="gap:30px;margin-right:36px">
+            <div id="tallerKmBtn" onclick="document.getElementById('tallerExcelInput').click()" ondragenter="event.preventDefault();" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; tallerKmDrop(event);" title="Arrastra aquí el Excel de km (.xls/.xlsx), o pincha para buscarlo en el ordenador" style="cursor:pointer;border:2px dashed #111;border-radius:10px;padding:10px 26px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.25;background:#fff"><span style="font-size:14px;font-weight:700;color:#111">Importar km (Excel)</span><span style="font-size:12px;color:#333">arrastra el Excel aquí o pincha</span></div>
             <input type="file" id="tallerExcelInput" accept=".xls,.xlsx" style="display:none" onchange="tallerImportarKmExcel(this.files[0])">
-            <button class="btn bp" onclick="tallerAddVehiculoModal()" style="font-size:12px;padding:14px 24px;letter-spacing:.8px">AÑADIR VEHÍCULO</button>
+            <button class="btn" onclick="tallerAddVehiculoModal()" style="font-size:12px;padding:14px 24px;letter-spacing:.8px;background:#111;color:#fff;border:2px solid #111;font-weight:700">AÑADIR VEHÍCULO</button>
           </div>
         </div>
         <div class="card-bd" style="overflow-x:auto">
@@ -2036,6 +2038,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=901"></script>
+<script src="app.js?v=902"></script>
 </body>
 </html>

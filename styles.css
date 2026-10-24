@@ -688,3 +688,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 /* v901: tabla de vehiculos de Taller mas legible */
 #tallerTabla th{font-size:13px;padding:12px 14px;letter-spacing:1px}
 #tallerTabla td{font-size:14px;padding:12px 14px}
+/* v902: botones de vista de Taller con diseno distinto al de las empresas (pestanas claras) */
+#tallerVistaSel .btn{background:#fff;color:var(--in);border:1.5px solid var(--in);font-weight:600}
+#tallerVistaSel .btn.bp{background:#e8eef6;color:var(--ac);border:2px solid var(--ac);font-weight:700}
+#tallerVistaSel .btn:hover{background:#eef2f8}
