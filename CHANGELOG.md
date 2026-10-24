@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v893 (24/10/2026): FACTURACION · UNA TARJETA CADA VEZ. Antes las tarjetas (Tarifas, Precio cliente, CEMEX, Factura Hispalis, Subcontratados, Sodira, Holcim) iban una debajo de otra y habia que bajar mucho con el scroll. Ahora arriba hay una fila de botones: Holcim (la primera), CEMEX, Sodira, Subcontratados, Factura Hispalis / Transmargaz, Tarifas por servicio y Precio cliente. Al pulsar uno solo se ve esa tarjeta; las demas quedan escondidas (no se borran ni se descargan: siguen ahi y funcionan igual). La elegida se recuerda en ese navegador. Cada usuario solo ve los botones de las tarjetas que ya podia ver (los permisos no cambian: si no es admin no sale Holcim, y se abre la primera que pueda ver). Cambios: index.html (barra + 2 ids), styles.css v68 (clase .fact-oculto), app.js (funciones factPaneles*). Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v892.
+
+---
+
 v892 (23/10/2026): REPASOS GUARDADOS · PALABRAS DE LAS CIFRAS EN NEGRITA. En cada fila de 'Ultimos repasos guardados' (Holcim, CEMEX, Sodira), no solo el numero sino tambien la palabra que lo acompaña ('abonados', 'a revisar', 'no abonados', 'sin copia', 'duplicados') sale en negrita, para ver de un vistazo cuantos estan abonados y cuantos no. Los colores no cambian (verde apagado abonados, ambar no abonados, rojo apagado duplicados). Solo estilo. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v891.
 
 ---

@@ -19039,7 +19039,7 @@ function switchTab(tab) {
   if (tab === 'admin') loadUsers();
   if (tab === 'preli') { loadPreliquidaciones(); }
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
-  if (tab === 'facturacion') { try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); factCargarMesesSodira(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
+  if (tab === 'facturacion') { try { factPanelesInit(); } catch (e) { console.warn('[v893] paneles:', e); } try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); factCargarMesesSodira(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
   if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
@@ -32302,6 +32302,43 @@ function _factRepasoBorrar(id) {
 // v515 (Juan Carlos 11/08/2026) — TODAS LAS FAMILIAS A LA VISTA. Antes iban en una fila de tabla y
 // salía una barra de desplazamiento horizontal: había que arrastrar para ver las últimas. Ahora cada
 // repaso es un bloque y las pastillas se reparten en varias líneas, todas visibles de golpe.
+// ============================================================================
+// v893 — FACTURACION: UNA TARJETA CADA VEZ. Arriba una fila de botones (Holcim primero); se pulsa uno y solo se ve
+// esa tarjeta, para no tener que bajar con el scroll. Los botones solo salen para las tarjetas que cada usuario
+// puede ver (los permisos siguen poniendo/quitando el display de cada tarjeta como siempre; aqui solo se mira).
+// La tarjeta elegida se recuerda en este navegador (localStorage, con try/catch).
+// ============================================================================
+const _FACT_PANELES = [
+  ['factHolcimCard', 'Holcim'], ['factCemexCard', 'CEMEX'], ['factSodiraCard', 'Sodira'],
+  ['liqAutCard', 'Subcontratados'], ['fiCard', 'Factura Híspalis / Transmargaz'],
+  ['factTarifasCard', 'Tarifas por servicio'], ['tarifasCliCard', 'Precio cliente']
+];
+let _factPanelObs = null;
+function _factPanelVisible(id) { const c = document.getElementById(id); return !!c && c.style.display !== 'none'; }
+function factPanelesRefrescar() {
+  const bar = document.getElementById('factPanelBar'); if (!bar) return;
+  const vis = _FACT_PANELES.filter(p => _factPanelVisible(p[0]));
+  let act = window._factPanelActivo;
+  if (!act) { try { act = localStorage.getItem('factPanelActivo'); } catch (e) {} }
+  if (!vis.some(p => p[0] === act)) act = vis.length ? vis[0][0] : '';
+  window._factPanelActivo = act;
+  _FACT_PANELES.forEach(p => { const c = document.getElementById(p[0]); if (c) c.classList.toggle('fact-oculto', p[0] !== act); });
+  const h = vis.map(p => '<button class="btn ' + (p[0] === act ? 'bp' : 'bs') + '" style="font-size:13px;padding:9px 18px;min-width:150px" onclick="factPanelElegir(\'' + p[0] + '\')">' + p[1] + '</button>').join('');
+  if (bar.getAttribute('data-h') !== h) { bar.innerHTML = h; bar.setAttribute('data-h', h); }
+}
+function factPanelElegir(id) {
+  window._factPanelActivo = id;
+  try { localStorage.setItem('factPanelActivo', id); } catch (e) {}
+  factPanelesRefrescar();
+}
+function factPanelesInit() {
+  factPanelesRefrescar();
+  if (_factPanelObs || typeof MutationObserver === 'undefined') return;
+  // Si los permisos muestran u ocultan una tarjeta mas tarde (cambia su style), la barra se actualiza sola.
+  _factPanelObs = new MutationObserver(() => { try { factPanelesRefrescar(); } catch (e) { console.warn('[v893] paneles:', e); } });
+  _FACT_PANELES.forEach(p => { const c = document.getElementById(p[0]); if (c) _factPanelObs.observe(c, { attributes: true, attributeFilter: ['style'] }); });
+}
+
 function _factRepasosPintar() {
   const ancla = document.getElementById('factHolcimEstado');
   if (!ancla || !ancla.parentNode) return;
