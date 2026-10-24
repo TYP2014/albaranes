@@ -38030,8 +38030,8 @@ function _vencFilaDoc(r) {
     ? '<span style="color:' + esc.color + ';font-weight:900;font-size:13px">' + esc.txt + '</span>'
     : '<span style="color:var(--mu);font-size:13px">—</span>';
   return '<tr style="border-bottom:1px solid var(--bd);background:' + fondo + '">'
-    + '<td style="padding:11px 8px 11px 12px;font-family:var(--mn);font-size:15px;font-weight:800;width:1px;white-space:nowrap">' + esc2(r.trab.nombre || '—')
-      + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + r.doc.icono + ' ' + esc2(r.doc.corto) + '</span></td>'
+    + '<td style="padding:11px 8px 11px 12px;font-family:var(--mn);font-size:15px;font-weight:800;width:1px;white-space:nowrap">' + esc2(_tacoNomCorto(r.trab.nombre || '—'))
+      + '<br><span style="font-weight:400;font-size:12px;color:var(--mu)">' + esc2(r.doc.corto) + '</span></td>'
     + '<td style="padding:11px 10px;font-family:var(--mn);font-size:14.5px;white-space:nowrap;width:1px">' + dmy
       + '<br><span style="color:var(--mu);font-size:12px">' + _vencTxtDias(dias) + '</span></td>'
     + '<td style="padding:11px 10px;font-family:var(--mn);width:100%;line-height:1.45">' + etiqueta + '</td>'

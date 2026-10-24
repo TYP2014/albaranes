@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v926 (24/10/2026): TACOGRAFO · CARNET Y CAP SIN DIBUJITOS Y CON NOMBRES CORTOS. En la tabla de Carnet y CAP los conductores salen con nombre y primer apellido y se quitan los iconos de coche y birrete delante de 'PERMISO DE CONDUCIR' y 'CAP' (queda la palabra). Sin SQL. VUELTA ATRAS: volver a la v925.
+
+---
+
 v925 (24/10/2026): TACOGRAFO · VENCIMIENTOS Y CARNET Y CAP MAS LEGIBLES. Letra mas grande y en negro (cabeceras, fechas, 'faltan N dias', avisos, textos de ayuda), botones COPIAR / EN TRAMITE / HECHA / RENOVADA mas grandes y sin el tic, boton 'Actualizar' solo texto. Los conductores salen con nombre y primer apellido tambien en Vencimientos y en el titulo de cada dia de Vehiculos (sin el dibujito del hombrecito). Los colores de aviso no cambian. Sin SQL. VUELTA ATRAS: volver a la v924.
 
 ---
