@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v929 (24/10/2026): TACOGRAFO · INFORMES · ORIGINALES PARA INSPECCION (ya funciona). Se eligen uno, varios o todos los camiones y un periodo (botones de 6, 12 y 18 meses, o fechas libres). La app comprueba, de CADA camion, si sus descargas cubren todos los dias y enseña los huecos ('FALTAN 15 DIAS: 03/02 → 17/02'). Despues busca que conductores llevaron esos camiones (por la tarjeta metida cada dia) y comprueba lo mismo con las descargas de SU tarjeta. Arriba sale un cuadro verde 'TODO CUBIERTO' o rojo 'FALTAN DESCARGAS' (hay que descargar a mano con el pincho y subirlo en SUBIR). Lista de ficheros originales con boton Descargar y boton 'Bajar todo en un ZIP' (carpetas CAMIONES y CONDUCTORES + RESUMEN.txt con lo que falta). Solo LEE: no cambia ni borra nada guardado. Sin SQL. VUELTA ATRAS: volver a la v928.
+
+---
+
 v928 (24/10/2026): TACOGRAFO · ARCHIVO MAS LEGIBLE. La tabla de camiones y de tarjetas pasa a letra de 15 px en negro con cabeceras en negrita; los botones de empresa son mas grandes; el boton de bajar el original pasa de un icono diminuto a 'Descargar' con letra; se quitan los dibujitos de los titulos; los conductores salen con nombre y primer apellido; el contador de ficheros y la nota de abajo, en negro y mas grandes. Los ficheros no cambian. Sin SQL. VUELTA ATRAS: volver a la v927.
 
 ---

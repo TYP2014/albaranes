@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=90">
+<link rel="stylesheet" href="styles.css?v=91">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -724,9 +724,9 @@ if (typeof pdfjsLib !== 'undefined') {
               <button class="taco-rep-card" onclick="tacoRep('km')">
                 <span style="font-size:26px">⛽</span><b>Km · Gasóleo Profesional</b>
                 <span class="trc-nota">para las ayudas · conecta con Taller</span></button>
-              <button class="taco-rep-card trc-pronto" onclick="toast('En preparación','warn')">
+              <button class="taco-rep-card" onclick="tacoRep('inspeccion')">
                 <span style="font-size:26px">📦</span><b>Originales para inspección (ZIP)</b>
-                <span class="trc-nota">en preparación · hoy: uno a uno en ARCHIVO</span></button>
+                <span class="trc-nota">camiones y conductores · avisa de lo que falta</span></button>
             </div>
           </div>
         </div>
@@ -2052,6 +2052,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=928"></script>
+<script src="app.js?v=929"></script>
 </body>
 </html>
