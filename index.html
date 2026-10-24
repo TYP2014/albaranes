@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=71">
+<link rel="stylesheet" href="styles.css?v=72">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1536,28 +1536,35 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card">
           <div class="card-hd">
             <div class="st"><div class="dot" style="--c:var(--ac)"></div>RECAMBIOS · <span id="recambiosEmpresaTitulo">TYP2014</span></div>
-            <div class="tbl-acts">
-              <button class="btn bp" id="recambiosBtnSubirAlb" onclick="document.getElementById('recambiosFileAlb').click()" title="Arrastra aquí el albarán (PDF o foto), o pincha para buscarlo" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; recambiosDrop(event,'albaran');" style="font-size:14px;padding:16px 38px;min-width:230px;border-radius:10px;letter-spacing:1px;">➕ Subir albarán</button>
+            <div class="tbl-acts" style="gap:22px">
+              <button class="btn bp" id="recambiosBtnSubirAlb" onclick="document.getElementById('recambiosFileAlb').click()" title="Arrastra aquí el albarán (PDF o foto), o pincha para buscarlo" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; recambiosDrop(event,'albaran');" style="font-size:14px;padding:15px 36px;min-width:230px;border-radius:10px;letter-spacing:1px;font-weight:700">SUBIR ALBARÁN</button>
               <input type="file" id="recambiosFileAlb" accept="image/*,.pdf" multiple style="display:none" onchange="recambiosSubir(this.files,'albaran')">
-              <button class="btn bs" id="recambiosBtnSubirFac" onclick="document.getElementById('recambiosFileFac').click()" title="Arrastra aquí la factura (PDF o foto), o pincha para buscarla" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; recambiosDrop(event,'factura');" style="font-size:14px;padding:16px 38px;min-width:230px;border-radius:10px;letter-spacing:1px;margin-left:5cm;display:none">🧾 Subir factura</button>
+              <button class="btn bs" id="recambiosBtnSubirFac" onclick="document.getElementById('recambiosFileFac').click()" title="Arrastra aquí la factura (PDF o foto), o pincha para buscarla" ondragover="event.preventDefault(); this.style.outline='2px dashed var(--ac)'; this.style.outlineOffset='2px';" ondragleave="this.style.outline='';" ondrop="event.preventDefault(); this.style.outline=''; recambiosDrop(event,'factura');" style="font-size:14px;padding:15px 36px;min-width:230px;border-radius:10px;letter-spacing:1px;font-weight:700;color:var(--tx);display:none">SUBIR FACTURA</button>
               <input type="file" id="recambiosFileFac" accept="image/*,.pdf" multiple style="display:none" onchange="recambiosSubir(this.files,'factura')">
             </div>
           </div>
           <div class="card-bd">
-            <div id="recambiosChipsProv" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+            <!-- v904: dos botones; solo se ve una cosa a la vez -->
+            <div id="recPanelBar" style="display:flex;gap:16px;margin:4px 0 20px;flex-wrap:wrap">
+              <button class="btn bp" id="recPanelBtnDocs" onclick="recPanelElegir('docs')" style="font-size:13px;padding:13px 30px;letter-spacing:.8px;font-weight:700">DOCUMENTOS</button>
+              <button class="btn bs" id="recPanelBtnCuadre" onclick="recPanelElegir('cuadre')" style="font-size:13px;padding:13px 30px;letter-spacing:.8px;font-weight:700;display:none">CUADRE · QUÉ FALTA</button>
+            </div>
+            <div id="recambiosCuadre" style="display:none"></div>
+            <div id="recDocsPanel">
+            <div id="recambiosChipsProv" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
             <!-- Filtros -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-              <select class="fi" id="recambiosFiltroTipo" onchange="renderRecambios()" style="font-size:11px;max-width:160px">
+              <select class="fi" id="recambiosFiltroTipo" onchange="renderRecambios()" style="font-size:13px;max-width:200px;padding:9px 10px">
                 <option value="">Todos los tipos</option>
                 <option value="albaran">Solo albaranes</option>
                 <option value="factura">Solo facturas</option>
                 <option value="abono">Solo abonos</option>
               </select>
-              <select class="fi" id="recambiosFiltroProv" onchange="renderRecambios()" style="font-size:11px;max-width:200px;display:none">
+              <select class="fi" id="recambiosFiltroProv" onchange="renderRecambios()" style="font-size:13px;max-width:240px;padding:9px 10px;display:none">
                 <option value="">Todos los proveedores</option>
               </select>
-              <input class="fi" id="recambiosFiltroBuscar" oninput="renderRecambios()" placeholder="Buscar nº, ref..." style="font-size:11px;max-width:180px">
-              <span id="recambiosResumen" style="font-size:11px;color:var(--mu);font-family:var(--mn);margin-left:auto"></span>
+              <input class="fi" id="recambiosFiltroBuscar" oninput="renderRecambios()" placeholder="Buscar nº, ref..." style="font-size:13px;max-width:240px;padding:9px 10px">
+              <span id="recambiosResumen" style="font-size:13px;color:var(--tx);font-family:var(--mn);margin-left:auto"></span>
             </div>
             <div id="recambiosColaBox" style="display:none;margin-bottom:10px"></div>
             <div style="overflow-x:auto">
@@ -1573,6 +1580,7 @@ if (typeof pdfjsLib !== 'undefined') {
                 </tbody>
               </table>
             </div>
+            </div><!-- fin recDocsPanel -->
           </div>
         </div>
       </div><!-- fin vista recambios -->
@@ -2040,6 +2048,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=903"></script>
+<script src="app.js?v=904"></script>
 </body>
 </html>

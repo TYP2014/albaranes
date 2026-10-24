@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v904 (24/10/2026): TALLER · RECAMBIOS REORGANIZADO EN DOS BOTONES. Arriba SUBIR ALBARAN y SUBIR FACTURA (texto, sin emoji, mas separados). Debajo dos botones, DOCUMENTOS (chips de proveedor, filtros y tabla) y CUADRE · QUE FALTA (las cajas azul/naranja/roja y la vista por piezas); solo se ve una cosa a la vez, como en Facturacion. Por defecto se ve DOCUMENTOS; en Taller (sin cuadre) el boton CUADRE no sale. Letra del cuadre y de la tabla mas grande y en negro en vez de gris (cuadre 13-14 px, tabla 13/14 px, chips 13 px). Los colores de las cajas del cuadre se mantienen porque indican el tipo de problema. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v903.
+
+---
+
 v903 (24/10/2026): TALLER · CITAS SERVICIO OFICIAL MAS LEGIBLES. La leyenda de colores se reescribe mas clara y a 13 px, con el nombre de cada color (5 dias amarillo, 3 dias naranja, 1 dia rojo, HOY rojo fuerte, pasada sin cerrar morado, hecha verde). La tabla de citas pasa de 11 a 14 px, cabecera en azul marino, filas con mas aire. Botones NUEVA CITA, ACTUALIZAR, HECHA y EDITAR en texto, mas grandes (sin emojis; la etiqueta HOY pierde el circulo rojo). Los colores y avisos no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v902.
 
 ---
