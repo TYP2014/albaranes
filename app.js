@@ -13358,7 +13358,7 @@ function _histPreciosTabla() {
         const arr = p > 0.05 ? '▲ ' : (p < -0.05 ? '▼ ' : '= ');
         pct = '<div class="hpPct ' + cls + '">' + arr + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</div>';
       }
-      html += '<td class="hpTd"><div class="hpPr">' + eur.toFixed(2).replace('.', ',') + ' €</div>' + pct + '<div class="hpDe">' + d.viajes + (d.viajes === 1 ? ' viaje' : ' viajes') + ' · ' + Math.round(d.tn).toLocaleString('es-ES') + ' TN</div></td>';
+      html += '<td class="hpTd"><div class="hpPr">' + eur.toFixed(2).replace('.', ',') + ' €</div>' + pct + '<div class="hpDe">' + d.viajes + (d.viajes === 1 ? ' viaje' : ' viajes') + '</div><div class="hpDe">' + Math.round(d.tn).toLocaleString('es-ES') + ' TN</div></td>';
       prev = eur;
     });
     html += '</tr>';

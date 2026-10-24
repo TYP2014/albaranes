@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v939 (24/10/2026): PANEL · HISTORICO DE PRECIOS, QUE QUEPAN LOS MESES. Con la pantalla estrecha el ultimo mes quedaba cortado a la derecha. Ahora el nombre de la ruta se parte en dos lineas (columna fija de 230 px) y debajo de cada precio los viajes y las TN van en dos renglones, asi cada mes ocupa menos y caben los 7 meses. Si aun asi hay muchos meses, se desliza dentro de su marco. Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v938.
+
+---
+
 v938 (24/10/2026): PANEL · HISTORICO DE PRECIOS CLARO Y SIN DIBUJITOS. La tabla del Historico de precios por ruta tenia letra de 9-12 px en gris. Ahora: precio a 16 px en negrita, % de subida/bajada a 13 px (verde oscuro / rojo oscuro), viajes y TN a 12,5 px en oscuro, cabeceras en negrita, marco alrededor y columna de ruta fija al desplazar. Filtros y botones mas grandes y en negro. Quitados los iconos del Panel (grafica y euros de los titulos, lupas de Origen/Destino, flechas de Actualizar, aspa de Limpiar y Mes actual). Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v937.
 
 ---
