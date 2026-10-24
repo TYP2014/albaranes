@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v894 (24/10/2026): AVISO DE CITAS DE ITV CON EL MISMO ESTILO QUE LOS DEMAS AVISOS. El aviso global 'CITA DE ITV EN 3 DIAS / 2 DIAS / MAÑANA / HOY' salia con fondo amarillo/naranja relleno y un emoji de color; ahora fondo blanco y marco fuerte del color del nivel, igual que los avisos de vencimientos y de Taller: HOY burdeos, MAÑANA rojo, 2 DIAS naranja, 3 DIAS ambar. Se quitan el emoji de color y el 🛡️ del boton (queda 'VER CITAS ITV'). Mismos dias, mismos textos y misma logica de ocultar hasta mañana. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v893.
+
+---
+
 v893 (24/10/2026): FACTURACION · UNA TARJETA CADA VEZ. Antes las tarjetas (Tarifas, Precio cliente, CEMEX, Factura Hispalis, Subcontratados, Sodira, Holcim) iban una debajo de otra y habia que bajar mucho con el scroll. Ahora arriba hay una fila de botones: Holcim (la primera), CEMEX, Sodira, Subcontratados, Factura Hispalis / Transmargaz, Tarifas por servicio y Precio cliente. Al pulsar uno solo se ve esa tarjeta; las demas quedan escondidas (no se borran ni se descargan: siguen ahi y funcionan igual). La elegida se recuerda en ese navegador. Cada usuario solo ve los botones de las tarjetas que ya podia ver (los permisos no cambian: si no es admin no sale Holcim, y se abre la primera que pueda ver). Cambios: index.html (barra + 2 ids), styles.css v68 (clase .fact-oculto), app.js (funciones factPaneles*). Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v892.
 
 ---

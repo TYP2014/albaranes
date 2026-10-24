@@ -16618,10 +16618,11 @@ function renderItvCitasBanner() {
 
   // Mismos colores que el aviso de citas de taller (v543: fondo cargado + letra oscura, que se lea)
   const niveles = [
-    { key:'hoy', orden:0, color:'#ff3b30', bg:'rgba(255,59,48,.18)',  icon:'🔴', titulo:'CITA DE ITV HOY' },
-    { key:'d1',  orden:1, color:'#ff5050', bg:'rgba(255,80,80,.12)',  icon:'🟥', titulo:'CITA DE ITV MAÑANA' },
-    { key:'d2',  orden:2, color:'#b34700', bg:'rgba(255,149,0,.34)',  icon:'🟠', titulo:'CITA DE ITV EN 2 DÍAS' },
-    { key:'d3',  orden:3, color:'#8a6100', bg:'rgba(255,208,0,.44)',  icon:'🟡', titulo:'CITA DE ITV EN 3 DÍAS' }
+    // v894: mismo patron que los avisos de vencimientos: fondo blanco y marco fuerte del color del nivel (color = marco, txt = letra del titulo).
+    { key:'hoy', orden:0, color:'#7f1d1d', txt:'#7f1d1d', titulo:'CITA DE ITV HOY' },
+    { key:'d1',  orden:1, color:'#d32f2f', txt:'#b71c1c', titulo:'CITA DE ITV MAÑANA' },
+    { key:'d2',  orden:2, color:'#e65100', txt:'#bf360c', titulo:'CITA DE ITV EN 2 DÍAS' },
+    { key:'d3',  orden:3, color:'#f29900', txt:'#a85f00', titulo:'CITA DE ITV EN 3 DÍAS' }
   ];
 
   const hoyStr = new Date().toISOString().slice(0, 10);
@@ -16640,13 +16641,13 @@ function renderItvCitasBanner() {
     const resto = lista.length > 3 ? ' · +' + (lista.length - 3) + ' más' : '';
     const cabecera = lista.length === 1 ? n.titulo : lista.length + ' ' + n.titulo.replace('CITA', 'CITAS');
 
-    html += '<div style="order:' + n.orden + ';background:' + n.bg + ';border:1px solid ' + n.color + ';border-left:5px solid ' + n.color +
-      ';border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
-      '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' + n.icon +
-      ' <span style="color:' + n.color + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
+    html += '<div style="order:' + n.orden + ';background:#ffffff;border:3px solid ' + n.color + ';border-left:12px solid ' + n.color +
+      ';border-radius:7px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
+      '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">' +
+      '<span style="color:' + n.txt + ';font-weight:900">' + cabecera + ':</span> ' + detalle + resto + '</div>' +
       '<div style="display:flex;gap:6px">' +
-        '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irACitasItv()">🛡️ Ver citas ITV</button>' +
-        '<button class="btn" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid ' + n.color + ';color:' + n.color + ';font-weight:700;line-height:1" onclick="hideItvCitasBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
+        '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irACitasItv()">VER CITAS ITV</button>' +
+        '<button class="btn" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid ' + n.color + ';color:' + n.txt + ';font-weight:700;line-height:1" onclick="hideItvCitasBannerToday(\'' + n.key + '\')" title="Ocultar este aviso hasta mañana">✕</button>' +
       '</div></div>';
   }
   if (!html) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
