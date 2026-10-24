@@ -26614,7 +26614,7 @@ function _tcitaSemaforo(c) {
   const d = _tcitaDias(c.fecha_cita);
   if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',          orden: 8 };
   if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
-  if (d === 0)                return { clave:'hoy',     color:'#b71c1c', fondo:'rgba(255,59,48,.22)',   txt:'🔴 HOY',     orden: 1 };
+  if (d === 0)                return { clave:'hoy',     color:'#b71c1c', fondo:'rgba(255,59,48,.22)',   txt:'HOY',     orden: 1 };
   if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.16)',   txt:'MAÑANA',     orden: 2 };
   if (d <= 3)                 return { clave:'d3',      color:'#e8841a', fondo:'rgba(232,132,26,.16)',  txt:'En ' + d + ' días', orden: 3 };
   if (d <= 5)                 return { clave:'d5',      color:'#b58900', fondo:'rgba(245,197,24,.20)',  txt:'En ' + d + ' días', orden: 4 };
@@ -26639,30 +26639,30 @@ function renderTallerCitas() {
   if (!box) return;
   const citas = _tcitaDeEmpresa();
   if (!citas.length) {
-    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">No hay citas apuntadas en <strong>' + esc(tallerEmpresaActiva) + '</strong>. Pulsa <strong>➕ Nueva cita</strong>.</div>';
+    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">No hay citas apuntadas en <strong>' + esc(tallerEmpresaActiva) + '</strong>. Pulsa <strong>NUEVA CITA</strong>.</div>';
     return;
   }
-  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
-    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
-      '<th style="padding:7px">CUÁNDO</th><th style="padding:7px">FECHA</th><th style="padding:7px">HORA</th>' +
-      '<th style="padding:7px">MATRÍCULA</th><th style="padding:7px">MARCA</th><th style="padding:7px">TALLER</th>' +
-      '<th style="padding:7px">MOTIVO</th><th style="padding:7px"></th></tr></thead><tbody>' +
+  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px">' +
+    '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd);color:var(--ac);font-size:13px;letter-spacing:1px">' +
+      '<th style="padding:13px 12px">CUÁNDO</th><th style="padding:13px 12px">FECHA</th><th style="padding:13px 12px">HORA</th>' +
+      '<th style="padding:13px 12px">MATRÍCULA</th><th style="padding:13px 12px">MARCA</th><th style="padding:13px 12px">TALLER</th>' +
+      '<th style="padding:13px 12px">MOTIVO</th><th style="padding:13px 12px"></th></tr></thead><tbody>' +
     citas.map(c => {
       const s = _tcitaSemaforo(c);
       const pend = (c.estado !== 'hecha' && c.estado !== 'anulada');
       const fechaTxt = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '—';
       return '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
-        '<td style="padding:7px;font-weight:700;color:' + s.color + ';white-space:nowrap">' + s.txt + '</td>' +
-        '<td style="padding:7px;white-space:nowrap">' + fechaTxt + '</td>' +
-        '<td style="padding:7px">' + esc(c.hora_cita || '—') + '</td>' +
-        '<td style="padding:7px;font-weight:600">' + esc(c.matricula || '—') + '</td>' +
-        '<td style="padding:7px">' + esc(c.marca || '—') + '</td>' +
-        '<td style="padding:7px">' + esc(c.taller || '—') + '</td>' +
-        '<td style="padding:7px">' + esc(c.motivo || '—') + '</td>' +
-        '<td style="padding:7px;text-align:right;white-space:nowrap">' +
-          (pend ? '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="tcitaMarcarHecha(\'' + c.id + '\')" title="Marcar que ya se ha hecho">✓ Hecha</button> ' : '') +
-          '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="tcitaWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
-          '<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="openTCitaModal(\'' + c.id + '\')">Editar</button>' +
+        '<td style="padding:13px 12px;font-weight:700;color:' + s.color + ';white-space:nowrap">' + s.txt + '</td>' +
+        '<td style="padding:13px 12px;white-space:nowrap">' + fechaTxt + '</td>' +
+        '<td style="padding:13px 12px">' + esc(c.hora_cita || '—') + '</td>' +
+        '<td style="padding:13px 12px;font-weight:600">' + esc(c.matricula || '—') + '</td>' +
+        '<td style="padding:13px 12px">' + esc(c.marca || '—') + '</td>' +
+        '<td style="padding:13px 12px">' + esc(c.taller || '—') + '</td>' +
+        '<td style="padding:13px 12px">' + esc(c.motivo || '—') + '</td>' +
+        '<td style="padding:13px 12px;text-align:right;white-space:nowrap">' +
+          (pend ? '<button class="btn bs" style="font-size:12px;padding:8px 14px;letter-spacing:.6px" onclick="tcitaMarcarHecha(\'' + c.id + '\')" title="Marcar que ya se ha hecho">HECHA</button> ' : '') +
+          '<button class="btn bs" style="font-size:12px;padding:8px 14px;letter-spacing:.6px" onclick="tcitaWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
+          '<button class="btn bs" style="font-size:12px;padding:8px 14px;letter-spacing:.6px" onclick="openTCitaModal(\'' + c.id + '\')">EDITAR</button>' +
         '</td></tr>';
     }).join('') + '</tbody></table>';
 }

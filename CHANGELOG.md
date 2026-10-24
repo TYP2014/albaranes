@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v903 (24/10/2026): TALLER · CITAS SERVICIO OFICIAL MAS LEGIBLES. La leyenda de colores se reescribe mas clara y a 13 px, con el nombre de cada color (5 dias amarillo, 3 dias naranja, 1 dia rojo, HOY rojo fuerte, pasada sin cerrar morado, hecha verde). La tabla de citas pasa de 11 a 14 px, cabecera en azul marino, filas con mas aire. Botones NUEVA CITA, ACTUALIZAR, HECHA y EDITAR en texto, mas grandes (sin emojis; la etiqueta HOY pierde el circulo rojo). Los colores y avisos no cambian. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v902.
+
+---
+
 v902 (24/10/2026): TALLER · CABECERA EN UNA SOLA FILA. Las empresas quedan a la izquierda y MANTENIMIENTOS / RECAMBIOS / CITAS SERVICIO OFICIAL en la mitad derecha de la misma fila, asi la tabla de vehiculos sube y se ven mas vehiculos de un vistazo. Los botones de vista cambian de diseno respecto a las empresas: fondo blanco, borde y letra azul acero, y el activo con fondo azul claro y borde marino (styles.css v71). IMPORTAR KM y AÑADIR VEHICULO en negro fuerte y mas separados entre si y del borde. Ninguna funcion cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v901.
 
 ---

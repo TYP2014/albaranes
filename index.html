@@ -1582,18 +1582,20 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card">
           <div class="card-hd">
             <div class="st"><div class="dot" style="--c:var(--wn)"></div>CITAS SERVICIO OFICIAL · <span id="tcitaEmpresaTitulo">TYP2014</span></div>
-            <div class="tbl-acts">
-              <button class="btn bp" onclick="openTCitaModalNew()" style="font-size:11px">➕ Nueva cita</button>
-              <button class="btn bs" onclick="loadTallerCitas()" style="font-size:11px" title="Actualizar la lista">🔄 Actualizar</button>
+            <div class="tbl-acts" style="gap:16px">
+              <button class="btn bp" onclick="openTCitaModalNew()" style="font-size:12px;padding:12px 22px;letter-spacing:.8px">NUEVA CITA</button>
+              <button class="btn bs" onclick="loadTallerCitas()" style="font-size:12px;padding:12px 22px;letter-spacing:.8px" title="Actualizar la lista">ACTUALIZAR</button>
             </div>
           </div>
           <div class="card-bd">
-            <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">
-              Colores según lo que falte: <strong style="color:#b58900">5 días</strong> ·
-              <strong style="color:#e8841a">3 días</strong> ·
-              <strong style="color:#c62828">1 día</strong> ·
-              <strong style="color:#b71c1c">HOY</strong> ·
-              <strong style="color:#6a1b9a">pasada sin cerrar</strong>
+            <div style="font-family:var(--mn);font-size:13px;color:var(--tx);margin-bottom:16px;line-height:1.9">
+              <strong>Colores de la cita según los días que faltan:</strong>
+              <strong style="color:#b58900">5 días (amarillo)</strong> ·
+              <strong style="color:#e8841a">3 días (naranja)</strong> ·
+              <strong style="color:#c62828">1 día (rojo)</strong> ·
+              <strong style="color:#b71c1c">HOY (rojo fuerte)</strong> ·
+              <strong style="color:#6a1b9a">pasada sin cerrar (morado)</strong> ·
+              <strong style="color:#2e7d32">hecha (verde)</strong>
             </div>
             <div id="tcitaBox"></div>
           </div>
@@ -2038,6 +2040,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=902"></script>
+<script src="app.js?v=903"></script>
 </body>
 </html>
