@@ -38686,42 +38686,51 @@ function _tacoInspTxtHuecos(tr) {
   return tr.map(t => t[0] === t[1] ? _tacoDMY2(t[0]) + ' (1 día)' : _tacoDMY2(t[0]) + ' → ' + _tacoDMY2(t[1]) + ' (' + t[2] + ' días)').join(' · ');
 }
 
+let _tacoInspEmp = null;      // v930: la inspeccion es de UNA empresa; no se mezclan
+let _tacoInspVehs = [];
 async function tacoRepInspUI() {
   const panel = document.getElementById('tacoRepPanel');
   if (!tacoFicheros || !tacoFicheros.length) { try { await tacoCargarLista(); } catch (e) { /* se avisa abajo */ } }
   const p = await _tacoInfCargarPersonas();
-  const vehs = p.filter(x => x.tipo !== 'conductor').filter(_tacoEmpPasa);
-  const hoy = new Date().toISOString().slice(0, 10);
-  const d1 = _tacoInspSumaDias(hoy, -365);
-  const lista = vehs.map(x => `<label class="insp-v"><input type="checkbox" class="inspChk" value="${esc2(x.nombre)}"> <b>${esc2(x.nombre)}</b> <span>${esc2(_TACO_EMP_NOM[x.empresa] || x.empresa)}</span></label>`).join('');
+  _tacoInspVehs = p.filter(x => x.tipo !== 'conductor');
+  const emps = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].filter(e => _tacoInspVehs.some(x => x.empresa === e));
+  _tacoInspEmp = (_tacoEmpGlobal !== 'TODAS' && emps.includes(_tacoEmpGlobal)) ? _tacoEmpGlobal : null;
+  const btns = emps.map(e => `<button class="btn ${_tacoInspEmp === e ? 'bp' : 'bs'}" id="inspEmp${e}" onclick="tacoInspEmpresa('${e}')">${esc2(_TACO_EMP_NOM[e] || e)}</button>`).join('');
   panel.innerHTML = _tacoRepBarra('ORIGINALES PARA INSPECCIÓN') + `
     <div class="card" id="tacoInspCard">
       <div class="card-hd"><div class="card-ti">ORIGINALES PARA INSPECCIÓN · camiones, conductores y huecos</div></div>
       <div class="card-bd">
-        <div class="insp-ayuda">Elige los camiones que piden y el periodo. La app te dice si de cada camión y de cada conductor que lo llevó hay descargas que cubran todos los días, y qué días faltan. Después puedes bajar todos los originales en un solo ZIP.</div>
-        <div class="insp-fila">
-          <div class="fg"><label class="fl">Del día</label><input class="fi" type="date" id="tacoInspDesde" value="${d1}"></div>
-          <div class="fg"><label class="fl">Al día</label><input class="fi" type="date" id="tacoInspHasta" value="${hoy}"></div>
-          <button class="btn bs" onclick="tacoInspRango(6)">Últimos 6 meses</button>
-          <button class="btn bs" onclick="tacoInspRango(12)">Últimos 12 meses</button>
-          <button class="btn bs" onclick="tacoInspRango(18)">Últimos 18 meses</button>
+        <div class="insp-ayuda">Una inspección es de UNA empresa. Elige la empresa, los camiones que piden y las fechas que piden. La app te dice si de cada camión y de cada conductor que lo llevó hay descargas que cubran todos los días, y qué días faltan. Después puedes bajar todos los originales en un solo ZIP.</div>
+        <div class="insp-fila"><label class="fl" style="margin:0">Empresa</label>${btns}</div>
+        <div class="insp-fila" style="margin-top:14px">
+          <div class="fg"><label class="fl">Del día</label><input class="fi" type="date" id="tacoInspDesde"></div>
+          <div class="fg"><label class="fl">Al día</label><input class="fi" type="date" id="tacoInspHasta"></div>
         </div>
-        <div class="insp-fila" style="margin-top:6px">
-          <label class="fl" style="margin:0">Camiones</label>
-          <button class="btn bs" onclick="tacoInspTodos(true)">Marcar todos</button>
-          <button class="btn bs" onclick="tacoInspTodos(false)">Quitar todos</button>
-          <span id="tacoInspN" class="insp-n">0 elegidos</span>
-        </div>
-        <div class="insp-lista" onchange="tacoInspCuenta()">${lista || '<i>No hay descargas de camión guardadas.</i>'}</div>
+        <div id="tacoInspCamBox" style="margin-top:14px"></div>
         <div style="margin-top:14px"><button class="btn bp" style="font-size:14px;padding:11px 22px;font-weight:700" onclick="tacoRepInspVer()">Comprobar descargas</button></div>
         <div id="tacoInspOut" style="margin-top:18px"></div>
       </div>
     </div>`;
+  tacoInspPintaCamiones();
 }
-function tacoInspRango(meses) {
-  const hoy = new Date(); const d = new Date(hoy); d.setUTCMonth(d.getUTCMonth() - meses);
-  document.getElementById('tacoInspHasta').value = hoy.toISOString().slice(0, 10);
-  document.getElementById('tacoInspDesde').value = d.toISOString().slice(0, 10);
+function tacoInspEmpresa(e) {
+  _tacoInspEmp = e;
+  document.querySelectorAll('[id^="inspEmp"]').forEach(b => { const on = b.id === 'inspEmp' + e; b.classList.toggle('bp', on); b.classList.toggle('bs', !on); });
+  document.getElementById('tacoInspOut').innerHTML = '';
+  tacoInspPintaCamiones();
+}
+function tacoInspPintaCamiones() {
+  const box = document.getElementById('tacoInspCamBox');
+  if (!box) return;
+  if (!_tacoInspEmp) { box.innerHTML = '<div class="insp-aviso"><b>Elige primero la empresa.</b></div>'; return; }
+  const vehs = _tacoInspVehs.filter(x => x.empresa === _tacoInspEmp);
+  const lista = vehs.map(x => `<label class="insp-v"><input type="checkbox" class="inspChk" value="${esc2(x.nombre)}"> <b>${esc2(x.nombre)}</b></label>`).join('');
+  box.innerHTML = `<div class="insp-fila">
+      <label class="fl" style="margin:0">Camiones de ${esc2(_TACO_EMP_NOM[_tacoInspEmp] || _tacoInspEmp)}</label>
+      <button class="btn bs" onclick="tacoInspTodos(true)">Marcar todos</button>
+      <button class="btn bs" onclick="tacoInspTodos(false)">Quitar todos</button>
+      <span id="tacoInspN" class="insp-n">0 elegidos</span></div>
+    <div class="insp-lista" onchange="tacoInspCuenta()">${lista || '<i>No hay descargas de camión guardadas de esta empresa.</i>'}</div>`;
 }
 function tacoInspTodos(v) { document.querySelectorAll('.inspChk').forEach(c => { c.checked = v; }); tacoInspCuenta(); }
 function tacoInspCuenta() { const n = document.querySelectorAll('.inspChk:checked').length; const e = document.getElementById('tacoInspN'); if (e) e.textContent = n + (n === 1 ? ' elegido' : ' elegidos'); }
@@ -38730,8 +38739,9 @@ async function tacoRepInspVer() {
   const out = document.getElementById('tacoInspOut');
   const desde = document.getElementById('tacoInspDesde').value, hasta = document.getElementById('tacoInspHasta').value;
   const mats = [...document.querySelectorAll('.inspChk:checked')].map(c => c.value);
+  if (!_tacoInspEmp) { out.innerHTML = '<div class="insp-aviso">Elige primero la empresa.</div>'; return; }
   if (!mats.length) { out.innerHTML = '<div class="insp-aviso">Marca al menos un camión.</div>'; return; }
-  if (!desde || !hasta || hasta < desde) { out.innerHTML = '<div class="insp-aviso">Revisa las fechas.</div>'; return; }
+  if (!desde || !hasta || hasta < desde) { out.innerHTML = '<div class="insp-aviso">Pon las fechas que piden (del día / al día).</div>'; return; }
   out.innerHTML = '<div class="insp-aviso">Comprobando las descargas…</div>';
   try {
     const dias = _tacoInspDias(desde, hasta);
@@ -38791,7 +38801,7 @@ async function tacoRepInspVer() {
     ficCam.forEach(f => { if (!vistos.has(f.id)) { vistos.add(f.id); _tacoInspFich.push({ f, carpeta: 'CAMIONES/' + (f.matricula || 'sin_matricula') }); } });
     ficCon.forEach(f => { if (!vistos.has(f.id)) { vistos.add(f.id); _tacoInspFich.push({ f, carpeta: 'CONDUCTORES/' + String(f.conductor_nombre || 'sin_nombre').replace(/[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ ._-]+/g, '_') }); } });
     // texto del resumen para el ZIP
-    let rs = 'ORIGINALES PARA INSPECCIÓN\nPeriodo: ' + _tacoDMY2(desde) + ' → ' + _tacoDMY2(hasta) + ' (' + nDias + ' días)\nGenerado: ' + new Date().toLocaleString('es-ES') + '\n\nCAMIONES\n';
+    let rs = 'ORIGINALES PARA INSPECCIÓN\nEmpresa: ' + (_TACO_EMP_NOM[_tacoInspEmp] || _tacoInspEmp) + '\nPeriodo: ' + _tacoDMY2(desde) + ' → ' + _tacoDMY2(hasta) + ' (' + nDias + ' días)\nGenerado: ' + new Date().toLocaleString('es-ES') + '\n\nCAMIONES\n';
     filasCam.forEach(x => { rs += '- ' + x.m + ': ' + (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + ' días: ' + _tacoInspTxtHuecos(x.hu) : (x.sinNada ? 'SIN NINGUNA DESCARGA' : 'completo')) + '\n'; });
     rs += '\nCONDUCTORES QUE LOS LLEVARON\n';
     filasCon.forEach(x => { rs += '- ' + x.nom + ' (' + x.nDiasQ + ' días con tarjeta metida): ' + (x.sinNada ? 'SIN NINGUNA DESCARGA DE SU TARJETA' : (x.hu.length ? 'FALTAN ' + diasTxt(x.hu) + ' días: ' + _tacoInspTxtHuecos(x.hu) : 'completo')) + '\n'; });
@@ -38835,7 +38845,7 @@ async function tacoInspZip() {
     if (est) est.textContent = 'Creando el ZIP…';
     const blob = await zip.generateAsync({ type: 'blob' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'Inspeccion_tacografo_' + new Date().toISOString().slice(0, 10) + '.zip';
+    a.download = 'Inspeccion_' + (_tacoInspEmp || 'tacografo') + '_' + new Date().toISOString().slice(0, 10) + '.zip';
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
     if (est) est.textContent = fallos.length ? 'ZIP listo, pero ' + fallos.length + ' ficheros no se pudieron bajar (míralo en NO_SE_PUDIERON_BAJAR.txt).' : 'ZIP listo (' + _tacoInspFich.length + ' ficheros).';
   } catch (e) {

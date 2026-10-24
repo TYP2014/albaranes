@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v930 (24/10/2026): TACOGRAFO · ORIGINALES PARA INSPECCION POR EMPRESA. La inspeccion es de UNA empresa, asi que ya no se mezclan: lo primero es elegir la empresa (TYP2014, Hispalis, Transmargaz o Portes) y solo salen los camiones de esa empresa. Si ya estaba elegida una arriba en Tacografo, viene puesta. Se quitan los botones de 6/12/18 meses: se ponen las fechas que piden (del dia / al dia). El ZIP y el RESUMEN.txt llevan el nombre de la empresa. Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v929.
+
+---
+
 v929 (24/10/2026): TACOGRAFO · INFORMES · ORIGINALES PARA INSPECCION (ya funciona). Se eligen uno, varios o todos los camiones y un periodo (botones de 6, 12 y 18 meses, o fechas libres). La app comprueba, de CADA camion, si sus descargas cubren todos los dias y enseña los huecos ('FALTAN 15 DIAS: 03/02 → 17/02'). Despues busca que conductores llevaron esos camiones (por la tarjeta metida cada dia) y comprueba lo mismo con las descargas de SU tarjeta. Arriba sale un cuadro verde 'TODO CUBIERTO' o rojo 'FALTAN DESCARGAS' (hay que descargar a mano con el pincho y subirlo en SUBIR). Lista de ficheros originales con boton Descargar y boton 'Bajar todo en un ZIP' (carpetas CAMIONES y CONDUCTORES + RESUMEN.txt con lo que falta). Solo LEE: no cambia ni borra nada guardado. Sin SQL. VUELTA ATRAS: volver a la v928.
 
 ---
