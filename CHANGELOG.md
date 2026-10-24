@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v928 (24/10/2026): TACOGRAFO · ARCHIVO MAS LEGIBLE. La tabla de camiones y de tarjetas pasa a letra de 15 px en negro con cabeceras en negrita; los botones de empresa son mas grandes; el boton de bajar el original pasa de un icono diminuto a 'Descargar' con letra; se quitan los dibujitos de los titulos; los conductores salen con nombre y primer apellido; el contador de ficheros y la nota de abajo, en negro y mas grandes. Los ficheros no cambian. Sin SQL. VUELTA ATRAS: volver a la v927.
+
+---
+
 v927 (24/10/2026): TACOGRAFO · INFORMES MAS FORMAL. Las fichas de Informes (Conductores y Vehiculos) pierden los dibujitos, pasan a ser mas grandes (260 px) con el titulo en 16 px negro y la explicacion en 13,5 px negro, con una raya azul marino a la izquierda; las que estan 'en preparacion' se ven mas apagadas. Solo CSS (styles.css v89). Sin SQL. VUELTA ATRAS: volver a la v926.
 
 ---

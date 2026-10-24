@@ -36686,7 +36686,7 @@ function tacoPintarLista() {
 
   const dmy = s2 => s2 ? s2.split('-').reverse().join('/') : '—';
   const desc = f => f.file_url
-    ? `<a class="btn bs" style="padding:4px 9px;font-size:10px;text-decoration:none" href="${f.file_url}" target="_blank" rel="noopener" title="Descargar el fichero original, tal cual se guardó">⬇</a>`
+    ? `<a class="btn bs" style="padding:7px 13px;font-size:13px;font-weight:700;text-decoration:none;color:#111" href="${f.file_url}" target="_blank" rel="noopener" title="Descargar el fichero original, tal cual se guardó">⬇ Descargar</a>`
     : `<span title="No se ha podido preparar la descarga" style="color:var(--wnd);font-weight:700">⚠</span>`;
 
   // v381: CAMIONES y TARJETAS en tablas SEPARADAS. Mezclados no se leian bien y
@@ -36701,7 +36701,7 @@ function tacoPintarLista() {
   let h = '';
 
   if (cams.length) {
-    h += titulo('🚛 Camiones', cams.length, 'var(--ac)');
+    h += titulo('Camiones', cams.length, 'var(--ac)');
     h += `<div style="overflow-x:auto;margin-bottom:20px"><table class="tbl"><thead><tr>
       <th>Descarga</th><th>Matrícula</th><th>Empresa</th><th style="text-align:center">Días</th>
       <th>Periodo que cubre</th><th>Gen.</th><th style="text-align:right">Tamaño</th>
@@ -36719,7 +36719,7 @@ function tacoPintarLista() {
   }
 
   if (tars.length) {
-    h += titulo('🪪 Tarjetas de conductor', tars.length, '#1e8a55');
+    h += titulo('Tarjetas de conductor', tars.length, '#1e8a55');
     h += `<div style="overflow-x:auto"><table class="tbl"><thead><tr>
       <th>Descarga</th><th>Conductor</th><th>Nº de tarjeta</th><th>Caduca</th><th>Empresa</th>
       <th style="text-align:center">Días</th><th>Periodo que cubre</th>
@@ -36727,8 +36727,8 @@ function tacoPintarLista() {
       </tr></thead><tbody>` +
       tars.map(f => `<tr>
         <td>${dmy(f.fecha_hasta)}</td>
-        <td><b>${f.conductor_nombre || '—'}</b></td>
-        <td style="font-family:var(--mn);font-size:11px">${f.tarjeta_num || '—'}</td>
+        <td><b>${_tacoNomCorto(f.conductor_nombre || '—')}</b></td>
+        <td style="font-family:var(--mn);font-size:14px">${f.tarjeta_num || '—'}</td>
         <td>${dmy(f.tarjeta_caduca)}</td>
         <td>${_TACO_EMP_NOM[f.empresa] || f.empresa}</td>
         <td style="text-align:center;font-weight:700">${f.dias_datos ?? '—'}</td>
