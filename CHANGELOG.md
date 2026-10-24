@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v914 (24/10/2026): DeCA · PANTALLA DE OFICINA MAS CLARA. Botones DeCA EXPRES, CONDUCTORES, CLIENTES DeCA, SUBCONTRATADOS y NUEVO DeCA en texto, mas grandes y separados, sin emojis. Caja informativa en blanco con filete azul marino y letra negra de 14 px (antes gris). Filtros con etiquetas negras y letra mayor; REFRESCAR en texto. Tabla de documentos emitidos a 14 px en negro con mas aire, cabecera 13 px en azul marino, columnas de cargador/destino/mercancia algo mas anchas; botones VER / EDITAR, VER PDF (o GENERAR PDF), ENVIAR y ANULAR en texto y mas grandes. NO se tocan el DeCA exprés de los conductores, el PDF/QR ni ninguna logica. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v913.
+
+---
+
 v913 (24/10/2026): INCIDENCIAS · ETIQUETAS DE ESTADO ALINEADAS. Las tres etiquetas (PENDIENTE, HABLADO CON CLIENTE, RESUELTO) tienen ahora el mismo ancho (176 px) y el texto centrado, asi la columna empieza y acaba igual en todas las filas. La descripcion ya puede partirse en dos lineas, para que la columna ACTUALIZADA no se corte por la derecha. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v912.
 
 ---

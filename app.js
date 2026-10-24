@@ -40792,24 +40792,24 @@ function _decaRender() {
   if (cont) cont.textContent = filas.length + (filas.length === 1 ? ' documento' : ' documentos');
 
   if (!filas.length) {
-    box.innerHTML = '<div style="padding:22px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px">No hay ningún DeCA con esos filtros.<br>Usa <strong>➕ NUEVO DeCA</strong> para crear el primero.</div>';
+    box.innerHTML = '<div style="padding:22px;text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px">No hay ningún DeCA con esos filtros.<br>Usa <strong>NUEVO DeCA</strong> para crear el primero.</div>';
     return;
   }
 
   box.innerHTML = `
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">
+    <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:var(--tx)">
       <thead>
-        <tr style="border-bottom:2px solid var(--bd);color:var(--ac);text-align:left">
-          <th style="padding:6px">Nº</th>
-          <th style="padding:6px">FECHA</th>
-          <th style="padding:6px">EMPRESA</th>
-          <th style="padding:6px">CARGADOR</th>
-          <th style="padding:6px">ORIGEN → DESTINO</th>
-          <th style="padding:6px">MERCANCÍA</th>
-          <th style="padding:6px;text-align:right">KG</th>
-          <th style="padding:6px">MATRÍCULA</th>
-          <th style="padding:6px;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">ACCIONES</th>
+        <tr style="border-bottom:2px solid var(--bd);color:var(--ac);text-align:left;font-size:13px;letter-spacing:1px">
+          <th style="padding:13px 10px">Nº</th>
+          <th style="padding:13px 10px">FECHA</th>
+          <th style="padding:13px 10px">EMPRESA</th>
+          <th style="padding:13px 10px">CARGADOR</th>
+          <th style="padding:13px 10px">ORIGEN → DESTINO</th>
+          <th style="padding:13px 10px">MERCANCÍA</th>
+          <th style="padding:13px 10px;text-align:right">KG</th>
+          <th style="padding:13px 10px">MATRÍCULA</th>
+          <th style="padding:13px 10px;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">ACCIONES</th>
         </tr>
       </thead>
       <tbody>
@@ -40819,19 +40819,19 @@ function _decaRender() {
           const mat = esc(d.tractora || '') + (d.semirremolque ? ' / ' + esc(d.semirremolque) : '');
           return `
           <tr style="border-bottom:1px solid var(--bd)">
-            <td style="padding:6px;${est}"><strong>${esc(d.numero || '—')}</strong>${anul ? ' <span style="color:var(--er);text-decoration:none">ANULADO</span>' : ''}</td>
-            <td style="padding:6px;${est}">${esc(_decaFechaEs(d.fecha_carga))}</td>
-            <td style="padding:6px;${est}">${esc(d.empresa || '')}</td>
-            <td style="padding:6px;${est}"><div style="max-width:200px;white-space:normal;overflow-wrap:anywhere">${esc(d.carg_nombre || '')}</div></td>
-            <td style="padding:6px;${est}" title="${esc((d.origen || '') + ' → ' + (d.destino || '')).replace(/"/g, '&quot;')}"><div style="max-width:240px;white-space:normal;overflow-wrap:anywhere">${esc(_decaCorto(d.origen))} → ${esc(_decaCorto(d.destino))}</div></td>
-            <td style="padding:6px;${est}"><div style="max-width:180px;white-space:normal;overflow-wrap:anywhere">${esc(d.mercancia || '')}</div></td>
-            <td style="padding:6px;text-align:right;${est}">${d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : ''}</td>
-            <td style="padding:6px;${est}">${mat}</td>
-            <td style="padding:6px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">
-              <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="openDecaModal('${d.id}')">✏️ Ver / editar</button>
-              ${anul ? '' : `<button class="btn bi" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="abrirDecaPDF('${d.id}')" title="${d.file_url ? 'Abrir el PDF' : 'Generar el PDF con el QR'}">📄 ${d.file_url ? 'Ver PDF' : 'Generar PDF'}</button>`}
-              ${anul ? '' : `<button class="btn bs" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="compartirDecaPDF('${d.id}')" title="Copia el enlace y abre WhatsApp">🔗 Enviar</button>`}
-              ${anul ? '' : `<button class="btn br" style="font-size:9px;padding:4px 8px;margin-left:5px" onclick="anularDeca('${d.id}')" title="Marcar como anulado (no se borra)">🚫 Anular</button>`}
+            <td style="padding:13px 10px;${est}"><strong>${esc(d.numero || '—')}</strong>${anul ? ' <span style="color:var(--er);text-decoration:none">ANULADO</span>' : ''}</td>
+            <td style="padding:13px 10px;${est}">${esc(_decaFechaEs(d.fecha_carga))}</td>
+            <td style="padding:13px 10px;${est}">${esc(d.empresa || '')}</td>
+            <td style="padding:13px 10px;${est}"><div style="max-width:260px;white-space:normal;overflow-wrap:anywhere">${esc(d.carg_nombre || '')}</div></td>
+            <td style="padding:13px 10px;${est}" title="${esc((d.origen || '') + ' → ' + (d.destino || '')).replace(/"/g, '&quot;')}"><div style="max-width:300px;white-space:normal;overflow-wrap:anywhere">${esc(_decaCorto(d.origen))} → ${esc(_decaCorto(d.destino))}</div></td>
+            <td style="padding:13px 10px;${est}"><div style="max-width:220px;white-space:normal;overflow-wrap:anywhere">${esc(d.mercancia || '')}</div></td>
+            <td style="padding:13px 10px;text-align:right;${est}">${d.peso_kg != null ? Number(d.peso_kg).toLocaleString('es-ES') : ''}</td>
+            <td style="padding:13px 10px;${est}">${mat}</td>
+            <td style="padding:13px 10px;white-space:nowrap;text-align:center;position:sticky;right:0;background:var(--sf);box-shadow:-6px 0 8px -6px rgba(0,0,0,.25)">
+              <button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="openDecaModal('${d.id}')">VER / EDITAR</button>
+              ${anul ? '' : `<button class="btn bi" style="font-size:12px;padding:9px 14px;margin-left:8px;letter-spacing:.5px" onclick="abrirDecaPDF('${d.id}')" title="${d.file_url ? 'Abrir el PDF' : 'Generar el PDF con el QR'}">${d.file_url ? 'VER PDF' : 'GENERAR PDF'}</button>`}
+              ${anul ? '' : `<button class="btn bs" style="font-size:12px;padding:9px 14px;margin-left:8px;letter-spacing:.5px" onclick="compartirDecaPDF('${d.id}')" title="Copia el enlace y abre WhatsApp">ENVIAR</button>`}
+              ${anul ? '' : `<button class="btn br" style="font-size:12px;padding:9px 14px;margin-left:8px;letter-spacing:.5px" onclick="anularDeca('${d.id}')" title="Marcar como anulado (no se borra)">ANULAR</button>`}
             </td>
           </tr>`;
         }).join('')}
