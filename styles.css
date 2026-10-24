@@ -809,3 +809,13 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentTaco #tacoVencBox span[style*="border-radius:20px"],#tabContentTaco #tacoCarnetCapBox span[style*="border-radius:20px"]{font-size:14px!important;padding:6px 15px!important}
 #tabContentTaco #tacoVencBox>div[style*="border-top"],#tabContentTaco #tacoCarnetCapBox div[style*="border-top"]{font-size:14px!important;line-height:1.8!important}
 #tabContentTaco #tacoVencBox b[style*="font-size:17px"],#tabContentTaco #tacoCarnetCapBox b[style*="font-size:17px"]{font-size:19px!important}
+
+/* v927 Tacografo > INFORMES: fichas sin dibujitos, mas grandes y en negro */
+#tacoRepParrilla .card-bd>div{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important;gap:14px!important}
+#tacoRepParrilla .taco-rep-card{align-items:flex-start;justify-content:flex-start;text-align:left;gap:8px;padding:18px 20px;min-height:110px;border:1px solid #9aa5b4;border-left:4px solid var(--ac)}
+#tacoRepParrilla .taco-rep-card>span:first-child{display:none}
+#tacoRepParrilla .taco-rep-card b{font-size:16px;line-height:1.35;color:#111}
+#tacoRepParrilla .taco-rep-card .trc-nota{font-size:13.5px;color:var(--tx);line-height:1.5}
+#tacoRepParrilla .taco-rep-card.trc-pronto{opacity:.7;border-left-color:#9aa5b4;background:#f3f5f8}
+#tacoRepParrilla .taco-rep-card.trc-pronto .trc-nota{font-style:italic}
+#tacoRepParrilla .card-ti{font-size:15px;font-weight:700;color:var(--tx)}

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v927 (24/10/2026): TACOGRAFO · INFORMES MAS FORMAL. Las fichas de Informes (Conductores y Vehiculos) pierden los dibujitos, pasan a ser mas grandes (260 px) con el titulo en 16 px negro y la explicacion en 13,5 px negro, con una raya azul marino a la izquierda; las que estan 'en preparacion' se ven mas apagadas. Solo CSS (styles.css v89). Sin SQL. VUELTA ATRAS: volver a la v926.
+
+---
+
 v926 (24/10/2026): TACOGRAFO · CARNET Y CAP SIN DIBUJITOS Y CON NOMBRES CORTOS. En la tabla de Carnet y CAP los conductores salen con nombre y primer apellido y se quitan los iconos de coche y birrete delante de 'PERMISO DE CONDUCIR' y 'CAP' (queda la palabra). Sin SQL. VUELTA ATRAS: volver a la v925.
 
 ---
