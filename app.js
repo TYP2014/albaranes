@@ -24423,18 +24423,18 @@ function renderVac() {
   if (!trabs.length) {
     const msg = vacMostrarArchivados
       ? `No hay trabajadores archivados en ${vacEmpresaActiva}.`
-      : `No hay trabajadores activos en <strong>${vacEmpresaActiva}</strong>. Pulsa <strong>➕ Añadir trabajador</strong> para empezar.`;
-    box.innerHTML = `<div style="color:var(--mu);font-family:var(--mn);font-size:13px;padding:20px;text-align:center">${msg}</div>`;
+      : `No hay trabajadores activos en <strong>${vacEmpresaActiva}</strong>. Pulsa <strong>Añadir trabajador</strong> para empezar.`;
+    box.innerHTML = `<div style="color:var(--tx);font-family:var(--mn);font-size:13px;padding:20px;text-align:center">${msg}</div>`;
   } else {
     box.innerHTML = `
-      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:13px">
+      <table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px">
         <thead>
-          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">NOMBRE</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">EMPRESA</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">VACACIONES (usadas / bolsa)</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">ASUNTOS PROPIOS</th>
-            <th style="padding:11px 10px;font-size:12px;letter-spacing:.4px">PERIODOS</th>
+          <tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--tx)">
+            <th style="padding:11px 10px;font-size:13px;font-weight:700;letter-spacing:.4px">NOMBRE</th>
+            <th style="padding:11px 10px;font-size:13px;font-weight:700;letter-spacing:.4px">EMPRESA</th>
+            <th style="padding:11px 10px;font-size:13px;font-weight:700;letter-spacing:.4px">VACACIONES (usadas / bolsa)</th>
+            <th style="padding:11px 10px;font-size:13px;font-weight:700;letter-spacing:.4px">ASUNTOS PROPIOS</th>
+            <th style="padding:11px 10px;font-size:13px;font-weight:700;letter-spacing:.4px">PERIODOS</th>
             <th style="padding:11px 10px"></th>
           </tr>
         </thead>
@@ -24445,24 +24445,24 @@ function renderVac() {
           const colorVac = s.vac_restantes <= 5 ? 'var(--er)' : (s.vac_restantes <= 10 ? 'var(--wn)' : 'var(--ok)');
           const archivadoBadge = t.archivado ? `<span style="background:#888;color:#000;font-size:11px;padding:3px 8px;border-radius:3px;margin-left:8px">ARCHIVADO</span>` : '';
           return `<tr style="border-bottom:1px solid var(--bd)">
-            <td style="padding:11px 10px;color:var(--ac);font-size:14px">${esc(t.nombre)}${archivadoBadge}</td>
+            <td style="padding:11px 10px;color:var(--tx);font-size:15px;font-weight:700">${esc(t.nombre)}${archivadoBadge}</td>
             <td style="padding:11px 10px;color:var(--tx);font-size:14px">${esc(t.empresa || '—')}</td>
             <td style="padding:11px 10px">
               <div style="display:flex;align-items:center;gap:10px">
                 <div style="flex:1;height:11px;background:#e2e8f0;border-radius:6px;overflow:hidden;min-width:90px">
                   <div style="width:${pctVac}%;height:100%;background:${colorVac};transition:width .3s"></div>
                 </div>
-                <span style="color:${colorVac};font-weight:bold;font-size:15px;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
-                <span style="color:var(--mu);white-space:nowrap">(${s.vac_restantes} rest.)</span>
+                <span style="color:${colorVac};font-weight:bold;font-size:16px;white-space:nowrap">${s.vac_disfrutadas}/${s.bolsa}</span>
+                <span style="color:var(--tx);white-space:nowrap">(${s.vac_restantes} rest.)</span>
               </div>
               <div style="font-size:13px;color:var(--tx);margin-top:5px">Generado a hoy: <strong>${s.generado}</strong> de ${s.bolsa} · (año completo: ${VAC_DIAS_VACACIONES})</div>
               ${s.vac_faltas > 0 ? `<div style="font-size:13px;color:var(--er);margin-top:3px">De esos ${s.vac_disfrutadas}: <strong>${s.vac_solo_vacaciones}</strong> de vacaciones + <strong>${s.vac_faltas}</strong> de falta injustificada</div>` : ''}
             </td>
-            <td style="padding:11px 10px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--mu)">(${s.ap_restantes} rest.)</span></td>
+            <td style="padding:11px 10px">${s.ap_disfrutados}/${VAC_DIAS_ASUNTOS_PROPIOS} <span style="color:var(--tx)">(${s.ap_restantes} rest.)</span></td>
             <td style="padding:11px 10px">${s.periodos.length}</td>
             <td style="padding:11px 10px;text-align:right;white-space:nowrap">
-              <button class="btn bs" style="font-size:11px;padding:6px 11px;margin-right:5px" onclick="openVacTrabajadorDetalle('${t.id}')">Ver periodos</button>
-              <button class="btn bs" style="font-size:11px;padding:6px 11px" onclick="openTrabajadorModal('${t.id}')">Editar</button>
+              <button class="btn bs" style="font-size:13px;padding:8px 14px;font-weight:700;color:#111;margin-right:5px" onclick="openVacTrabajadorDetalle('${t.id}')">VER PERIODOS</button>
+              <button class="btn bs" style="font-size:13px;padding:8px 14px;font-weight:700;color:#111" onclick="openTrabajadorModal('${t.id}')">EDITAR</button>
             </td>
           </tr>`;
         }).join('')}
@@ -29001,41 +29001,41 @@ function renderRecmed() {
   if (!box) return;
   const citas = _recmedLista();
   if (!citas.length) {
-    box.innerHTML = '<div style="color:var(--mu);font-family:var(--mn);font-size:11px;padding:16px;text-align:center">No hay reconocimientos apuntados. Pulsa <strong>➕ Nueva cita médica</strong> y sube el PDF de la mutua.</div>';
+    box.innerHTML = '<div style="color:var(--tx);font-family:var(--mn);font-size:14px;padding:16px;text-align:center">No hay reconocimientos apuntados. Pulsa <strong>Nueva cita médica</strong> y sube el PDF de la mutua.</div>';
     return;
   }
   let filas = '';
   citas.forEach(c => {
     const s = _recmedSemaforo(c);   // v448
     const dia = c.fecha_cita ? c.fecha_cita.split('-').reverse().join('/') : '—';
-    const finde = c.fecha_cita ? ' <span style="color:var(--mu)">(' + _tacoDiaSemana(c.fecha_cita) + ')</span>' : '';
+    const finde = c.fecha_cita ? ' <span style="color:var(--tx)">(' + _tacoDiaSemana(c.fecha_cita) + ')</span>' : '';
     filas += '<tr style="border-bottom:1px solid var(--bd);background:' + s.fondo + '">' +
-      '<td style="padding:7px 8px;white-space:nowrap"><span style="color:' + s.color + ';font-weight:800">' + s.txt + '</span></td>' +
-      '<td style="padding:7px 8px;font-weight:700">' + esc(c.trabajador || '')
-        + (c.puesto ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">' + esc(c.puesto) + '</span>' : '')
+      '<td style="padding:10px 10px;white-space:nowrap"><span style="color:' + s.color + ';font-weight:800">' + s.txt + '</span></td>' +
+      '<td style="padding:10px 10px;font-weight:700">' + esc(c.trabajador || '')
+        + (c.puesto ? '<br><span style="color:var(--tx);font-weight:400;font-size:12px">' + esc(c.puesto) + '</span>' : '')
         + (function () {   // v856: a que numero va a ir el WhatsApp
             const t = _recmedTrabDe(c);
             return (t && t.telefono)
-              ? '<br><span style="color:var(--mu);font-weight:400;font-size:10px">\uD83D\uDCF2 ' + esc(t.telefono) + '</span>'
-              : '<br><span style="color:var(--mu);font-weight:400;font-size:10px">sin tel\u00e9fono en su ficha</span>';
+              ? '<br><span style="color:var(--tx);font-weight:400;font-size:12px">\uD83D\uDCF2 ' + esc(t.telefono) + '</span>'
+              : '<br><span style="color:var(--tx);font-weight:400;font-size:12px">sin tel\u00e9fono en su ficha</span>';
           })()
         + '</td>' +
-      '<td style="padding:7px 8px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[c.empresa] || c.empresa) + '</td>' +
-      '<td style="padding:7px 8px;white-space:nowrap">' + dia + finde + (c.hora_cita ? ' · <strong>' + esc(c.hora_cita) + '</strong>' : '') + '</td>' +
-      '<td style="padding:7px 8px">' + esc(c.centro || '') + '</td>' +
-      '<td style="padding:7px 8px;white-space:nowrap">' + (c.archivo_path
-        ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedDescargar(\'' + c.id + '\')" title="' + esc(c.archivo_nombre || 'documento') + '">📄 Descargar</button>'
-        : '<span style="color:var(--mu);font-size:10px">sin doc.</span>') + '</td>' +
-      '<td style="padding:7px 8px;white-space:nowrap;text-align:right">' +
-        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button> ' +
-        (c.archivo_path ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedCompartir(\'' + c.id + '\')" title="Compartir el documento y el texto de una vez (móvil)">📤 Compartir</button> ' : '') +
-        (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="recmedMarcarHecha(\'' + c.id + '\')">✓ Hecha</button> ' : '') +
-        '<button class="btn bs" style="font-size:10px;padding:4px 9px" onclick="openRecmedEdit(\'' + c.id + '\')">✎ Editar</button>' +
+      '<td style="padding:10px 10px;white-space:nowrap">' + esc(_RECMED_EMP_NOM[c.empresa] || c.empresa) + '</td>' +
+      '<td style="padding:10px 10px;white-space:nowrap">' + dia + finde + (c.hora_cita ? ' · <strong>' + esc(c.hora_cita) + '</strong>' : '') + '</td>' +
+      '<td style="padding:10px 10px">' + esc(c.centro || '') + '</td>' +
+      '<td style="padding:10px 10px;white-space:nowrap">' + (c.archivo_path
+        ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedDescargar(\'' + c.id + '\')" title="' + esc(c.archivo_nombre || 'documento') + '">⬇ Descargar</button>'
+        : '<span style="color:var(--tx);font-size:12px">sin doc.</span>') + '</td>' +
+      '<td style="padding:10px 10px;white-space:nowrap;text-align:right">' +
+        '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp">WhatsApp WhatsApp</button> ' +
+        (c.archivo_path ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedCompartir(\'' + c.id + '\')" title="Compartir el documento y el texto de una vez (móvil)">Compartir</button> ' : '') +
+        (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedMarcarHecha(\'' + c.id + '\')">Hecha</button> ' : '') +
+        '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="openRecmedEdit(\'' + c.id + '\')">Editar</button>' +
       '</td></tr>';
   });
-  box.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:11px">' +
-    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--mu)">' +
-    '<th style="padding:6px 8px">AVISO</th><th style="padding:6px 8px">TRABAJADOR</th><th style="padding:6px 8px">EMPRESA</th><th style="padding:6px 8px">DÍA · HORA</th><th style="padding:6px 8px">CENTRO</th><th style="padding:6px 8px">DOCUMENTO</th><th style="padding:6px 8px;text-align:right">ACCIONES</th>' +
+  box.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px">' +
+    '<thead><tr style="text-align:left;border-bottom:1px solid var(--bd);color:var(--tx)">' +
+    '<th style="padding:10px 10px;font-size:13px;font-weight:700">AVISO</th><th style="padding:10px 10px;font-size:13px;font-weight:700">TRABAJADOR</th><th style="padding:10px 10px;font-size:13px;font-weight:700">EMPRESA</th><th style="padding:10px 10px;font-size:13px;font-weight:700">DÍA · HORA</th><th style="padding:10px 10px;font-size:13px;font-weight:700">CENTRO</th><th style="padding:10px 10px;font-size:13px;font-weight:700">DOCUMENTO</th><th style="padding:10px 10px;font-size:13px;font-weight:700;text-align:right">ACCIONES</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 }
 
@@ -29089,12 +29089,12 @@ async function renderRecmedCaducidades() {
       ? 'venció hace ' + Math.abs(dias) + ' día' + (Math.abs(dias) === 1 ? '' : 's')
       : (dias === 0 ? 'caduca HOY' : 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's'));
     filas += '<div style="border-left:3px solid ' + (c ? 'var(--bd)' : ROJO)
-      + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:11.5px;line-height:1.7">'
+      + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:14px;line-height:1.7">'
       + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
       + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '—') + '</span>'
       + '<span style="font-weight:800;white-space:nowrap' + (c ? '' : ';color:' + ROJO) + '">' + cuenta + '</span>'
       + '</div>'
-      + '<div style="color:var(--mu)">caduca ' + iso.split('-').reverse().join('/') + ' · '
+      + '<div style="color:var(--tx)">caduca ' + iso.split('-').reverse().join('/') + ' · '
       + (c ? 'cita ' + c.fecha_cita.split('-').reverse().join('/')
            : '<span style="color:' + ROJO + ';font-weight:700">sin cita</span>')
       + '</div></div>';
@@ -29102,17 +29102,17 @@ async function renderRecmedCaducidades() {
 
   const cuerpo = avisan.length
     ? '<div style="max-height:320px;overflow-y:auto">' + filas + '</div>'
-    : '<div style="font-family:var(--mn);font-size:11px;color:var(--mu);padding:10px 0">Nadie en los próximos 30 días.</div>';
+    : '<div style="font-family:var(--mn);font-size:14px;color:var(--tx);padding:10px 0">Nadie en los próximos 30 días.</div>';
 
   const pendientes = sinFecha.length
-    ? '<details style="margin-top:10px;border-top:1px solid var(--bd);padding-top:8px"><summary style="font-family:var(--mn);font-size:10.5px;color:var(--mu);cursor:pointer">'
+    ? '<details style="margin-top:10px;border-top:1px solid var(--bd);padding-top:8px"><summary style="font-family:var(--mn);font-size:13px;color:var(--tx);cursor:pointer">'
       + sinFecha.length + ' sin fecha</summary>'
-      + '<div style="font-family:var(--mn);font-size:10px;color:var(--mu);line-height:1.6;margin-top:6px">'
+      + '<div style="font-family:var(--mn);font-size:13px;color:var(--tx);line-height:1.6;margin-top:6px">'
       + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div></details>'
     : '';
 
   box.innerHTML = '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px 14px">'
-    + '<div style="font-family:var(--mn);font-size:12.5px;font-weight:800;letter-spacing:.3px;margin-bottom:10px">CADUCIDAD DEL RECONOCIMIENTO</div>'
+    + '<div style="font-family:var(--mn);font-size:15px;font-weight:800;letter-spacing:.3px;margin-bottom:10px">CADUCIDAD DEL RECONOCIMIENTO</div>'
     + cuerpo + pendientes
     + '</div>';
 }

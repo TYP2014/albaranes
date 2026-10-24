@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v919 (24/10/2026): EMPLEADOS · VACACIONES Y RECONOCIMIENTOS MEDICOS MAS FORMALES. Vacaciones: nombres, empresa, 'Generado a hoy', saldos y cabeceras en negro y mas grandes (14-15 px); botones VER PERIODOS / EDITAR en negrita; botones Mes/3 meses/Año y flechas del calendario mas grandes. Las barras de color de los saldos y el calendario no cambian. Reconocimientos: botones 'Nueva cita medica' y 'Actualizar' solo texto; linea de ayuda y recuadro de subir en negro y mas grandes; tabla de citas a 14 px con botones de texto (Descargar, WhatsApp, Compartir, Hecha, Editar); panel de caducidad en 14 px negro. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: volver a la v918.
+
+---
+
 v918 (24/10/2026): SUBIR · TEXTOS DE LAS CAJAS DE ARRASTRE MAS GRANDES. En la pestaña Subir, 'Arrastra fotos o PDFs · o haz clic para seleccionar' pasa de 12 px gris a 17 px en negro (el 'haz clic' en azul marino) y la linea de formatos (JPG · PNG · PDF...) de 11 px casi transparente a 14 px en negro. La ilustracion no se toca. Solo CSS (styles.css v80), limitado a la pestaña Subir. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir index.html, styles.css y CHANGELOG.md de la v917 (app.js no cambia).
 
 ---

@@ -744,3 +744,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentSubir .dz-t{font-size:17px;font-weight:600;color:var(--tx);margin-top:6px;margin-bottom:6px}
 #tabContentSubir .dz-t .hl{color:var(--ac);font-weight:700}
 #tabContentSubir .dz-s{font-size:14px;color:var(--tx);opacity:1}
+
+/* v919 Reconocimientos: textos del recuadro de subir */
+#dzRecmed .dz-t{font-size:15px!important;color:var(--tx)!important}
+#dzRecmed .dz-s{font-size:13px!important;color:var(--tx)!important;line-height:1.6}
+#dzRecmed .dz-t .hl{color:var(--ac)}
+#recmedBox th,#recmedBox td{color:var(--tx)}

@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=80">
+<link rel="stylesheet" href="styles.css?v=81">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1347,7 +1347,7 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- Tabla de trabajadores con saldos -->
       <div class="card">
         <div class="card-hd">
-          <div class="st"><div class="dot" style="--c:var(--ac)"></div>TRABAJADORES Y SALDOS · <span id="vacEmpresaTitulo">TYP2014</span> <span id="vacAnioTitulo" style="color:var(--mu);font-weight:normal">· 2026</span></div>
+          <div class="st"><div class="dot" style="--c:var(--ac)"></div>TRABAJADORES Y SALDOS · <span id="vacEmpresaTitulo">TYP2014</span> <span id="vacAnioTitulo" style="color:var(--tx);font-weight:normal">· 2026</span></div>
         </div>
         <div class="card-bd" id="vacTablaBox" style="overflow-x:auto">
           <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando trabajadores...</div>
@@ -1358,16 +1358,16 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card" style="margin-top:14px">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--pu)"></div><span id="vacCalTit">CALENDARIO MENSUAL</span></div>
-          <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:11px;flex-wrap:wrap">
+          <div style="display:flex;gap:6px;align-items:center;font-family:var(--mn);font-size:13px;flex-wrap:wrap">
             <div style="display:flex;gap:4px;margin-right:8px;border:1px solid var(--bd);border-radius:4px;padding:2px">
-              <button class="btn bp" id="vacBtnVistaMes" onclick="vacCambiarVista('mes')" style="padding:3px 8px;font-size:10px">Mes</button>
-              <button class="btn bs" id="vacBtnVista3m" onclick="vacCambiarVista('3meses')" style="padding:3px 8px;font-size:10px">3 meses</button>
-              <button class="btn bs" id="vacBtnVistaAnio" onclick="vacCambiarVista('anio')" style="padding:3px 8px;font-size:10px">Año</button>
+              <button class="btn bp" id="vacBtnVistaMes" onclick="vacCambiarVista('mes')" style="padding:6px 12px;font-size:13px">Mes</button>
+              <button class="btn bs" id="vacBtnVista3m" onclick="vacCambiarVista('3meses')" style="padding:6px 12px;font-size:13px">3 meses</button>
+              <button class="btn bs" id="vacBtnVistaAnio" onclick="vacCambiarVista('anio')" style="padding:6px 12px;font-size:13px">Año</button>
             </div>
             <div id="vacNavMes" style="display:flex;gap:6px;align-items:center">
-              <button class="btn bs" onclick="vacCambiarMes(-1)" style="padding:4px 8px;font-size:11px">◀</button>
+              <button class="btn bs" onclick="vacCambiarMes(-1)" style="padding:6px 12px;font-size:13px">◀</button>
               <span id="vacMesTitulo" style="min-width:130px;text-align:center;color:var(--ac)">—</span>
-              <button class="btn bs" onclick="vacCambiarMes(1)" style="padding:4px 8px;font-size:11px">▶</button>
+              <button class="btn bs" onclick="vacCambiarMes(1)" style="padding:6px 12px;font-size:13px">▶</button>
             </div>
           </div>
         </div>
@@ -1381,19 +1381,19 @@ if (typeof pdfjsLib !== 'undefined') {
       <div id="empVistaRecmedBox" style="display:none">
         <div class="card">
           <div class="card-hd">
-            <div class="st"><div class="dot" style="--c:var(--wn)"></div>RECONOCIMIENTOS MÉDICOS <span style="color:var(--mu);font-size:10px;font-weight:400">· todas tus empresas juntas (Portes incluida)</span></div>
+            <div class="st"><div class="dot" style="--c:var(--wn)"></div>RECONOCIMIENTOS MÉDICOS <span style="color:var(--tx);font-size:13px;font-weight:400">· todas tus empresas juntas (Portes incluida)</span></div>
             <div class="tbl-acts">
-              <button class="btn bp" onclick="openRecmedModalNew()" style="font-size:11px">➕ Nueva cita médica</button>
-              <button class="btn bs" onclick="loadRecmed()" style="font-size:11px" title="Actualizar la lista">🔄 Actualizar</button>
+              <button class="btn bp" onclick="openRecmedModalNew()" style="font-size:13px;padding:9px 16px;font-weight:700">Nueva cita médica</button>
+              <button class="btn bs" onclick="loadRecmed()" style="font-size:13px;padding:9px 16px;font-weight:700" title="Actualizar la lista">Actualizar</button>
             </div>
           </div>
           <div class="card-bd">
-            <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:10px">
+            <div style="font-family:var(--mn);font-size:14px;line-height:1.7;color:var(--tx);margin-bottom:12px">
               Sube el PDF de la mutua al crear la cita · aviso arriba en toda la app según se acerque:
               <strong style="color:#c9a100">3 días</strong> ·
               <strong style="color:#e8841a">2 días</strong> ·
               <strong style="color:#b71c1c">1 día (mañana)</strong>
-              · botón 📲 para mandar el recordatorio por WhatsApp al trabajador.
+              · botón WhatsApp para mandar el recordatorio al trabajador.
             </div>
             <!-- v853: el recuadro de subir y el panel de caducidades, lado a lado.
                  El panel estaba al final del todo y JC tenia que ir a buscarlo;
@@ -2053,6 +2053,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=918"></script>
+<script src="app.js?v=919"></script>
 </body>
 </html>
