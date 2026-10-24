@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v909 (24/10/2026): FACTURAS EMITIDAS · CAJAS DE SUBIDA CON TEXTO MAS GRANDE. Los titulos SUBIR FACTURA EMITIDA (azul marino) y SUBIR LIQUIDACION CONFIRMING BBVA (verde oscuro) pasan a 22 px en negrita, el 'Arrastra el PDF aqui o pincha' a 15 px y la explicacion a 14 px, dentro de cajas del mismo tamaño que antes (se reduce el relleno). Se quita la frase 'Control de las facturas que emites a tus clientes y si estan cobradas.' junto al titulo. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v908.
+
+---
+
 v908 (24/10/2026): FACTURAS EMITIDAS · CABECERA COMPACTA Y TABLA MAS LEGIBLE. Cabecera mucho mas pequeña (titulo y explicacion en una linea) y las dos cajas de subida, FACTURA EMITIDA y LIQUIDACION CONFIRMING BBVA, una a la izquierda y otra a la derecha (si la pantalla es estrecha, una debajo de otra), mas bajas y con el texto en negro; se quitan los emojis. Los textos y la logica de las liquidaciones automaticas NO cambian (mismos ids y funciones). Se quita el boton TRANSMARGAZ de los filtros por empresa (no sube facturas aqui). Filtros de empresa, fechas, cliente y estado en texto, mas grandes y separados. Tabla a 15 px en negro con mas aire; el clip se sustituye por un boton PDF; los botones COBRADA / A PENDIENTE / EDITAR en texto y mas grandes; PENDIENTE pasa de naranja con letra blanca a ambar claro con letra oscura, VENCIDA y COBRADA sin simbolos. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v907.
 
 ---

@@ -583,27 +583,26 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="card">
         <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:12px">
           <div style="font-weight:800;font-size:19px;color:var(--ac);letter-spacing:.5px">FACTURAS EMITIDAS</div>
-          <div style="color:var(--tx);font-size:13px">Control de las facturas que emites a tus clientes y si están cobradas.</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:22px;margin-bottom:16px">
         <div onclick="document.getElementById('factEmitFileInput').click()"
              ondragover="event.preventDefault();this.style.borderColor='var(--ac)';this.style.background='#e8f2fc'"
              ondragleave="this.style.borderColor='var(--ac)';this.style.background='#fff'"
              ondrop="event.preventDefault();this.style.borderColor='var(--ac)';this.style.background='#fff';factEmitSubir(event.dataTransfer.files)"
-             style="border:2px dashed var(--ac);border-radius:12px;padding:18px 22px;text-align:center;cursor:pointer;background:#fff">
-          <div style="font-size:16px;font-weight:700;color:var(--ac)">SUBIR FACTURA EMITIDA</div>
-          <div style="color:var(--tx);font-size:13px;margin-top:4px">Arrastra el PDF aquí o pincha</div>
-          <div style="color:var(--tx);font-size:12px;margin-top:6px;line-height:1.5">La IA lee nº, fecha, empresa (TYP2014 / Híspalis / Portes 2014 Import), cliente, base, IVA, total y vencimiento. Formatos: Quipu, autofactura CEMEX y autofactura Holcim.</div>
+             style="border:2px dashed var(--ac);border-radius:12px;padding:12px 20px;text-align:center;cursor:pointer;background:#fff">
+          <div style="font-size:22px;font-weight:800;color:var(--ac);letter-spacing:.5px">SUBIR FACTURA EMITIDA</div>
+          <div style="color:var(--tx);font-size:15px;font-weight:600;margin-top:3px">Arrastra el PDF aquí o pincha</div>
+          <div style="color:var(--tx);font-size:14px;margin-top:5px;line-height:1.4">La IA lee nº, fecha, empresa (TYP2014 / Híspalis / Portes 2014 Import), cliente, base, IVA, total y vencimiento. Formatos: Quipu, autofactura CEMEX y autofactura Holcim.</div>
           <input type="file" id="factEmitFileInput" accept="application/pdf" multiple style="display:none" onchange="factEmitSubir(this.files)">
         </div>
         <div onclick="document.getElementById('liqConfirmFileInput').click()"
              ondragover="event.preventDefault();this.style.borderColor='#1b5e3f';this.style.background='#e6f3ec'"
              ondragleave="this.style.borderColor='#1b5e3f';this.style.background='#fff'"
              ondrop="event.preventDefault();this.style.borderColor='#1b5e3f';this.style.background='#fff';liqConfirmSubir(event.dataTransfer.files)"
-             style="border:2px dashed #1b5e3f;border-radius:12px;padding:18px 22px;text-align:center;cursor:pointer;background:#fff">
-          <div style="font-size:16px;font-weight:700;color:#1b5e3f">SUBIR LIQUIDACIÓN CONFIRMING BBVA</div>
-          <div style="color:var(--tx);font-size:13px;margin-top:4px">Arrastra el PDF aquí o pincha</div>
-          <div style="color:var(--tx);font-size:12px;margin-top:6px;line-height:1.5">Marca <strong>cobradas solas</strong> las facturas que casan por nº + importe (forma "Confirming BBVA"). Las que no casen te las avisa y NO las toca. La misma liquidación no se procesa dos veces.</div>
+             style="border:2px dashed #1b5e3f;border-radius:12px;padding:12px 20px;text-align:center;cursor:pointer;background:#fff">
+          <div style="font-size:22px;font-weight:800;color:#1b5e3f;letter-spacing:.5px">SUBIR LIQUIDACIÓN CONFIRMING BBVA</div>
+          <div style="color:var(--tx);font-size:15px;font-weight:600;margin-top:3px">Arrastra el PDF aquí o pincha</div>
+          <div style="color:var(--tx);font-size:14px;margin-top:5px;line-height:1.4">Marca <strong>cobradas solas</strong> las facturas que casan por nº + importe (forma "Confirming BBVA"). Las que no casen te las avisa y NO las toca. La misma liquidación no se procesa dos veces.</div>
           <input type="file" id="liqConfirmFileInput" accept="application/pdf" multiple style="display:none" onchange="liqConfirmSubir(this.files)">
         </div>
         </div>
@@ -2054,6 +2053,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=908"></script>
+<script src="app.js?v=909"></script>
 </body>
 </html>
