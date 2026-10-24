@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v908 (24/10/2026): FACTURAS EMITIDAS · CABECERA COMPACTA Y TABLA MAS LEGIBLE. Cabecera mucho mas pequeña (titulo y explicacion en una linea) y las dos cajas de subida, FACTURA EMITIDA y LIQUIDACION CONFIRMING BBVA, una a la izquierda y otra a la derecha (si la pantalla es estrecha, una debajo de otra), mas bajas y con el texto en negro; se quitan los emojis. Los textos y la logica de las liquidaciones automaticas NO cambian (mismos ids y funciones). Se quita el boton TRANSMARGAZ de los filtros por empresa (no sube facturas aqui). Filtros de empresa, fechas, cliente y estado en texto, mas grandes y separados. Tabla a 15 px en negro con mas aire; el clip se sustituye por un boton PDF; los botones COBRADA / A PENDIENTE / EDITAR en texto y mas grandes; PENDIENTE pasa de naranja con letra blanca a ambar claro con letra oscura, VENCIDA y COBRADA sin simbolos. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v907.
+
+---
+
 v907 (24/10/2026): RECAMBIOS · EL ICONO DE NOTA PASA A ETIQUETA 'NOTA'. En la tabla de documentos, el papelito amarillo (anotacion del documento) se sustituye por una etiqueta de texto NOTA (ambar, 12 px, negrita); al pasar el raton sigue saliendo el texto de la anotacion. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v906.
 
 ---

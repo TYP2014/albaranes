@@ -18224,7 +18224,7 @@ function renderFactEmit() {
   const cont = document.getElementById('factEmitBody');
   if (!cont) return;
   // v220: primero se filtra por EMPRESA; el "Pendiente de cobro" es el de la empresa elegida.
-  const EMPS220 = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES 2014 IMPORT'];
+  const EMPS220 = ['TYP2014', 'HISPALIS', 'PORTES 2014 IMPORT']; // v908: Transmargaz no sube aqui
   const base220 = (_factEmit || []).filter(f => _feEmpresa === 'TODAS' ? true : (f.empresa || '') === _feEmpresa);
   // v555: FECHA de la factura. Si la fecha viene vacia o con formato raro NO se descarta, para no perder ninguna factura de vista.
   const baseFe555 = base220.filter(f => {
@@ -18259,65 +18259,65 @@ function renderFactEmit() {
   const arr = baseFin555.filter(f => _feFiltro === 'todas' ? true : _feFiltro === 'vencida' ? _feEsVencida(f) : (f.estado || 'pendiente') === _feFiltro); // v708: + vencidas
   const pend = baseFin555.filter(f => (f.estado || 'pendiente') === 'pendiente');
   const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
-  let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+  let h = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">';
   ['TODAS'].concat(EMPS220).forEach(e => {
     const n = e === 'TODAS' ? (_factEmit || []).length : (_factEmit || []).filter(f => (f.empresa || '') === e).length;
-    h += '<button class="btn ' + (_feEmpresa === e ? 'bp' : 'bs') + '" style="font-size:10px;padding:6px 12px" onclick="_feEmpresa=\'' + e + '\';renderFactEmit()">' + (e === 'TODAS' ? '\ud83c\udfe2 TODAS' : e) + ' (' + n + ')</button>';
+    h += '<button class="btn ' + (_feEmpresa === e ? 'bp' : 'bs') + '" style="font-size:13px;padding:12px 22px;letter-spacing:.5px" onclick="_feEmpresa=\'' + e + '\';renderFactEmit()">' + (e === 'TODAS' ? 'TODAS' : e) + ' (' + n + ')</button>';
   });
   h += '</div>';
   // v555: fila de filtros por FECHA y CLIENTE
-  const inpSty555 = 'padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--s2);color:var(--tx);font-size:12px;font-family:var(--mn)';
-  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">';
-  h += '<span style="font-size:11px;color:var(--mu);font-weight:bold">FECHA FACTURA:</span>';
+  const inpSty555 = 'padding:9px 10px;border:1px solid var(--bd);border-radius:6px;background:#fff;color:var(--tx);font-size:14px;font-family:var(--mn)';
+  h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">';
+  h += '<span style="font-size:13px;color:var(--tx);font-weight:bold">FECHA FACTURA:</span>';
   h += '<input type="date" value="' + esc2(_feDesde) + '" title="Desde esta fecha" onchange="_feDesde=this.value;renderFactEmit()" style="' + inpSty555 + '">';
-  h += '<span style="font-size:11px;color:var(--mu)">a</span>';
+  h += '<span style="font-size:13px;color:var(--tx)">a</span>';
   h += '<input type="date" value="' + esc2(_feHasta) + '" title="Hasta esta fecha" onchange="_feHasta=this.value;renderFactEmit()" style="' + inpSty555 + '">';
-  h += '<span style="font-size:11px;color:var(--mu);font-weight:bold;margin-left:10px">CLIENTE:</span>';
+  h += '<span style="font-size:13px;color:var(--tx);font-weight:bold;margin-left:16px">CLIENTE:</span>';
   h += '<select onchange="_feCliente=this.value;renderFactEmit()" style="' + inpSty555 + ';max-width:320px">';
   h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos (' + baseFe555.length + ')</option>';
   cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>'; });
   h += '</select>';
-  if (hayFiltro555) h += '<button class="btn bs" style="font-size:10px;padding:5px 10px" title="Quitar el filtro de fechas y de cliente" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';renderFactEmit()">\u2715 Limpiar</button>';
+  if (hayFiltro555) h += '<button class="btn bs" style="font-size:12px;padding:10px 16px" title="Quitar el filtro de fechas y de cliente" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';renderFactEmit()">LIMPIAR</button>';
   h += '</div>';
-  h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">';
-  h += '<span style="padding:6px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;font-family:var(--mn);font-size:13px">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + (hayFiltro555 ? ' \u00b7 <span style="color:var(--ac)">filtrado</span>' : '') + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
+  h += '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:18px">';
+  h += '<span style="padding:10px 16px;background:#fff;border:2px solid var(--ac);border-radius:8px;font-family:var(--mn);font-size:14px;color:var(--tx)">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + (hayFiltro555 ? ' \u00b7 <span style="color:var(--ac)">filtrado</span>' : '') + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
   ['todas', 'pendiente', 'vencida', 'cobrada'].forEach(f => {
-    h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:10px;padding:5px 10px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'Todas' : f === 'pendiente' ? '\u23f3 Pendientes' : f === 'vencida' ? '\ud83d\udd34 Vencidas' : '\u2705 Cobradas') + '</button>';
+    h += '<button class="btn ' + (_feFiltro === f ? 'bp' : 'bs') + '" style="font-size:12px;padding:11px 20px;letter-spacing:.6px" onclick="_feFiltro=\'' + f + '\';renderFactEmit()">' + (f === 'todas' ? 'TODAS' : f === 'pendiente' ? 'PENDIENTES' : f === 'vencida' ? 'VENCIDAS' : 'COBRADAS') + '</button>';
   });
-  h += '<button class="btn bs" style="font-size:10px;padding:5px 10px;margin-left:10px" onclick="feAbrirPlazos()" title="Días que tarda en pagar cada cliente: pone solo el vencimiento real">⚙️ Plazos de pago</button>'; // v723
+  h += '<button class="btn bs" style="font-size:12px;padding:11px 20px;letter-spacing:.6px;margin-left:18px" onclick="feAbrirPlazos()" title="Días que tarda en pagar cada cliente: pone solo el vencimiento real">PLAZOS DE PAGO</button>'; // v723
   h += '</div>';
   if (!arr.length) {
     h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
     cont.innerHTML = h; return;
   }
-  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px;font-family:var(--mn)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac)">'
-     + '<th style="padding:8px">N\u00ba</th><th style="padding:8px">FECHA</th><th style="padding:8px">EMPRESA</th><th style="padding:8px">CLIENTE</th>'
-     + '<th style="padding:8px;text-align:right">BASE</th><th style="padding:8px;text-align:right">IVA</th><th style="padding:8px;text-align:right">TOTAL</th>'
-     + '<th style="padding:8px">VENCE</th><th style="padding:8px">ESTADO</th><th style="padding:8px"></th></tr></thead><tbody>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:15px;font-family:var(--mn);color:var(--tx)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac);font-size:13px;letter-spacing:1px">'
+     + '<th style="padding:13px 10px">N\u00ba</th><th style="padding:13px 10px">FECHA</th><th style="padding:13px 10px">EMPRESA</th><th style="padding:13px 10px">CLIENTE</th>'
+     + '<th style="padding:13px 10px;text-align:right">BASE</th><th style="padding:13px 10px;text-align:right">IVA</th><th style="padding:13px 10px;text-align:right">TOTAL</th>'
+     + '<th style="padding:13px 10px">VENCE</th><th style="padding:13px 10px">ESTADO</th><th style="padding:13px 10px"></th></tr></thead><tbody>';
   arr.forEach(f => {
     const cobrada = (f.estado || 'pendiente') === 'cobrada';
     let vencida = false;
     if (!cobrada && f.vencimiento && /^\d{4}-\d{2}-\d{2}/.test(f.vencimiento)) vencida = new Date(f.vencimiento + 'T00:00:00') < new Date();
     const badge = cobrada
-      ? '<span style="display:inline-block;background:var(--ok);color:#fff;font-size:13px;font-weight:bold;padding:6px 16px;border-radius:8px;white-space:nowrap">\u2713 COBRADA</span>' + (f.fecha_cobro ? '<div style="font-size:15px;font-weight:bold;color:#178a54;margin-top:6px;letter-spacing:.02em">' + f.fecha_cobro.split('-').reverse().join('/') + '</div>' : '')
-      : '<span style="display:inline-block;background:' + (vencida ? 'var(--er)' : '#e8960c') + ';color:#fff;font-size:13px;font-weight:bold;padding:6px 16px;border-radius:8px;white-space:nowrap">' + (vencida ? '\u26a0 VENCIDA' : 'PENDIENTE') + '</span>';
+      ? '<span style="display:inline-block;background:var(--ok);color:#fff;font-size:13px;font-weight:bold;padding:7px 16px;border-radius:8px;white-space:nowrap;letter-spacing:.5px">COBRADA</span>' + (f.fecha_cobro ? '<div style="font-size:15px;font-weight:bold;color:#178a54;margin-top:6px;letter-spacing:.02em">' + f.fecha_cobro.split('-').reverse().join('/') + '</div>' : '')
+      : '<span style="display:inline-block;background:' + (vencida ? 'var(--er)' : '#fbecc4') + ';color:' + (vencida ? '#fff' : '#4a3200') + ';border:1px solid ' + (vencida ? 'var(--er)' : '#c58a1b') + ';font-size:13px;font-weight:bold;padding:7px 16px;border-radius:8px;white-space:nowrap;letter-spacing:.5px">' + (vencida ? 'VENCIDA' : 'PENDIENTE') + '</span>';
     const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
     h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.85' : '') + '">'
-       + '<td style="padding:8px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver PDF" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;padding:1px 5px;border-radius:6px;background:var(--s2);border:1px solid var(--bd);vertical-align:middle;margin-left:2px">' + _svgIco('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 'var(--ac)', 'Ver PDF', 2) + '</a>' : '') + '</td>'
-       + '<td style="padding:8px">' + fmtF(f.fecha) + '</td>'
-       + '<td style="padding:8px">' + esc(f.empresa || '\u2014') + '</td>'
-       + '<td style="padding:8px">' + esc(f.cliente || '\u2014') + ((f.cliente && !_esClienteFEoficial(f.cliente)) ? ' <span title="Este nombre no esta en la lista oficial de clientes. Si es un cliente nuevo, avisa para a\u00f1adirlo." style="color:#b34700;font-size:11px;font-weight:bold;white-space:nowrap">\u26a0 no oficial</span>' : '') + '</td>'
-       + '<td style="padding:8px;text-align:right">' + _feFmt(f.base) + '</td>'
-       + '<td style="padding:8px;text-align:right">' + _feFmt(f.iva) + '</td>'
-       + '<td style="padding:8px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
-       + '<td style="padding:8px;cursor:pointer" title="Pincha para editar el vencimiento real" onclick="factEmitEditarVenc(\'' + f.id + '\')">' + fmtF(f.vencimiento) + ' <span style="color:var(--mu);font-size:12px">\u270f\ufe0f</span></td>'
-       + '<td style="padding:8px">' + badge + '</td>'
-       + '<td style="padding:8px;text-align:right;white-space:nowrap">'
+       + '<td style="padding:13px 10px;font-weight:bold">' + esc(f.numero || '\u2014') + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver el PDF de la factura" style="text-decoration:none;display:inline-block;padding:4px 10px;border-radius:6px;border:1.5px solid var(--ac);color:var(--ac);font-size:11px;font-weight:700;letter-spacing:.5px;margin-left:6px;vertical-align:middle">PDF</a>' : '') + '</td>'
+       + '<td style="padding:13px 10px">' + fmtF(f.fecha) + '</td>'
+       + '<td style="padding:13px 10px">' + esc(f.empresa || '\u2014') + '</td>'
+       + '<td style="padding:13px 10px">' + esc(f.cliente || '\u2014') + ((f.cliente && !_esClienteFEoficial(f.cliente)) ? ' <span title="Este nombre no esta en la lista oficial de clientes. Si es un cliente nuevo, avisa para a\u00f1adirlo." style="color:#b34700;font-size:11px;font-weight:bold;white-space:nowrap">\u26a0 no oficial</span>' : '') + '</td>'
+       + '<td style="padding:13px 10px;text-align:right">' + _feFmt(f.base) + '</td>'
+       + '<td style="padding:13px 10px;text-align:right">' + _feFmt(f.iva) + '</td>'
+       + '<td style="padding:13px 10px;text-align:right;font-weight:bold">' + _feFmt(f.total) + '</td>'
+       + '<td style="padding:13px 10px;cursor:pointer" title="Pincha para editar el vencimiento real" onclick="factEmitEditarVenc(\'' + f.id + '\')">' + fmtF(f.vencimiento) + ' <span style="color:var(--ac);font-size:11px;font-weight:700;letter-spacing:.5px;margin-left:4px">EDITAR</span></td>'
+       + '<td style="padding:13px 10px">' + badge + '</td>'
+       + '<td style="padding:13px 10px;text-align:right;white-space:nowrap">'
        + (cobrada
-          ? '<button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitDesmarcar(\'' + f.id + '\')">\u21a9 Pendiente</button>'
-          : '<button class="btn bp" style="font-size:9px;padding:4px 8px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">\u2705 Cobrada</button>')
-       + ' <button class="btn bs" style="font-size:9px;padding:4px 8px" onclick="factEmitEditar(\'' + f.id + '\')">\u270f Editar</button>'
-       + ' <button class="btn br" style="padding:4px 9px;background:var(--er);border-color:var(--er);display:inline-flex;align-items:center;justify-content:center" title="Eliminar esta factura" onclick="factEmitBorrar(\'' + f.id + '\')"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>'
+          ? '<button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitDesmarcar(\'' + f.id + '\')">A PENDIENTE</button>'
+          : '<button class="btn bp" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">COBRADA</button>')
+       + ' <button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitEditar(\'' + f.id + '\')">EDITAR</button>'
+       + ' <button class="btn br" style="padding:9px 12px;background:var(--er);border-color:var(--er);display:inline-flex;align-items:center;justify-content:center" title="Eliminar esta factura" onclick="factEmitBorrar(\'' + f.id + '\')"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>'
        + '</td></tr>';
   });
   h += '</tbody></table></div>';
