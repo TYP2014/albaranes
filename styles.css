@@ -788,3 +788,11 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tacoTip .tt-a{font-size:17px;font-weight:800;margin-bottom:8px;font-family:var(--ss)}
 #tacoTip .tt-r{display:flex;justify-content:space-between;gap:24px;font-size:15px;line-height:1.7}
 #tacoTip .tt-r b{font-size:16px}
+
+/* v924 Tacografo: textos de ayuda en negro y mas grandes */
+#tabContentTaco #tacoSecsubir .card-bd>div[style*="rgba(245,166,35"]{font-size:15px!important;color:#111!important;line-height:1.7!important;background:#fdf3dc!important;border-color:#c58a1b!important}
+#tabContentTaco #tacoInfResultado [style*="color:var(--mu)"],#tabContentTaco #tacoVehResultado [style*="color:var(--mu)"],#tabContentTaco #tacoInfSelector [style*="color:var(--mu)"]{color:var(--tx)!important}
+#tabContentTaco #tacoInfResultado [id*="_ti_"],#tabContentTaco #tacoVehResultado [id*="_ti_"]{font-size:15px!important;color:var(--tx)!important;padding:11px 16px!important}
+#tabContentTaco #tacoInfResultado [style*="font-size:12.5px"],#tabContentTaco #tacoVehResultado [style*="font-size:12.5px"]{font-size:14px!important}
+#tabContentTaco #tacoInfResultado [style*="height:18px"] span,#tabContentTaco #tacoVehResultado [style*="height:18px"] span{font-size:13px;font-weight:600;color:var(--tx)}
+#tabContentTaco #tacoInfSelector label[style*="font-size:11.5px"]{font-size:14px!important}

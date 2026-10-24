@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v924 (24/10/2026): TACOGRAFO · TEXTOS DE AYUDA EN NEGRO Y MAS GRANDES. El aviso naranja de SUBIR ('Suelta un fichero…') pasa a letra negra de 15 px. En Conductores y Vehiculos: la linea 'Pasa el raton por la barra…' (hora inicio/fin/duracion), las horas del eje, los textos grises de ayuda y la casilla 'Ver tambien los que ya no estan' pasan a negro y mas grandes. Solo CSS (styles.css v86). Sin SQL. VUELTA ATRAS: volver a la v923.
+
+---
+
 v923 (24/10/2026): TACOGRAFO · BARRA DE ACTIVIDAD MAS CLARA. En Conductores y Vehiculos la barra de cada dia es mas alta (110 px) y cada actividad tiene su altura, como en el grafico del tacografo: Conduccion arriba (rojo), Otros trabajos (azul), Disponible (amarillo), Descanso abajo (verde), con lineas de nivel y un hilo blanco entre tramos. Al pasar el raton por un tramo sale un globo junto al puntero con actividad, inicio, fin, duracion y conductor, y el tramo se resalta; la linea de abajo sigue funcionando. Los datos y los calculos no cambian. Sin SQL. VUELTA ATRAS: volver a la v922.
 
 ---
