@@ -2224,11 +2224,11 @@ function _actualizarAvisoHistorico() {
     // suyo esta ARRIBA del todo aunque la fecha haya salido mal, y no lo suba otra vez.
     // v638: caja "Buscar en el histórico" (trae solo lo que cumple los criterios); "ver todo" en pequeño.
     const b = window._busqHist || {};
-    const inp = (id, ph, val, extra) => '<input id="' + id + '" ' + (extra || '') + ' placeholder="' + ph + '" value="' + esc(val || '') + '" style="font-family:var(--mn);font-size:11px;padding:3px 5px;border:1px solid var(--bd);border-radius:4px;background:var(--s1);color:var(--tx)">';
-    aviso.innerHTML = '📅 Mostrando los albaranes de los <b>últimos ' + (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2) + ' meses</b> (por fecha de transporte, para que la app abra rápido). '
-      + '<span style="color:var(--mu)">¿Algo más antiguo? Búscalo aquí y se añade a la tabla sin cargar todo.</span>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px">'
-      + '<b>🔎 Histórico:</b> '
+    const inp = (id, ph, val, extra) => '<input id="' + id + '" ' + (extra || '') + ' placeholder="' + ph + '" value="' + esc(val || '') + '" style="font-family:var(--mn);font-size:13px;padding:7px 9px;border:1px solid var(--bd);border-radius:4px;background:var(--s1);color:var(--tx)">';
+    aviso.innerHTML = 'Mostrando los albaranes de los <b>últimos ' + (typeof _MESES_VENTANA_TXT === 'number' ? _MESES_VENTANA_TXT : 2) + ' meses</b> (por fecha de transporte, para que la app abra rápido). '
+      + '<span style="color:var(--tx)">¿Algo más antiguo? Búscalo aquí y se añade a la tabla sin cargar todo.</span>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px">'
+      + '<b>HISTÓRICO:</b> '
       + inp('bhDesde', 'desde', b.desde, 'type="date" title="Fecha de transporte desde"') + inp('bhHasta', 'hasta', b.hasta, 'type="date" title="Fecha de transporte hasta (vacía = solo ese día)"')
       // v639: sugerencias al escribir (datalist) con lo que la app ya conoce: matriculas de lo cargado +
       // diccionario MATRICULAS_APRENDIDAS; origenes (planta) y destinos (obra) de lo cargado. Texto libre
@@ -2238,11 +2238,11 @@ function _actualizarAvisoHistorico() {
       // de cada casilla se estrechan con lo escrito en las otras dos. Si la vista falla, sigue el v639.
       + inp('bhMat', 'Matrícula', b.mat, 'size="9" list="bhMatList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhOrigen', 'Origen', b.origen, 'size="12" list="bhOrigenList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhDestino', 'Destino', b.destino, 'size="12" list="bhDestinoList" autocomplete="off" onfocus="_bhCargarDim()" oninput="_bhRefrescar()"') + inp('bhAlb', 'Nº albarán', b.alb, 'size="10"')
       + _bhDatalists()
-      + '<button type="button" id="bhBtn" onclick="buscarHistorico()" style="font-family:var(--mn);font-size:11px;padding:3px 10px;cursor:pointer;font-weight:700">Buscar</button>'
-      + (b.ultima ? '<span style="color:var(--mu)">· ' + esc(b.ultima) + '</span>' : '')
-      + '<span style="color:var(--mu)">· o <a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--mu);text-decoration:underline;cursor:pointer">ver todo el histórico</a> (lento)</span>'
+      + '<button type="button" id="bhBtn" onclick="buscarHistorico()" style="font-family:var(--mn);font-size:12px;padding:9px 20px;cursor:pointer;font-weight:700;letter-spacing:.6px">Buscar</button>'
+      + (b.ultima ? '<span style="color:var(--tx)">· ' + esc(b.ultima) + '</span>' : '')
+      + '<span style="color:var(--tx)">· o <a href="#" onclick="cargarTodoHistorico();return false;" style="color:var(--tx);text-decoration:underline;cursor:pointer">ver todo el histórico</a> (lento)</span>'
       + '</div>'
-      + '<span style="color:var(--mu)">🆕 Lo subido en las <b>últimas 24 h</b> se ve siempre arriba del todo, aunque la fecha se haya leído mal — corrígela ahí mismo.</span>';
+      + '<span style="color:var(--tx)">Lo subido en las <b>últimas 24 h</b> se ve siempre arriba del todo, aunque la fecha se haya leído mal — corrígela ahí mismo.</span>';
   }
 }
 
@@ -9647,7 +9647,7 @@ function renderPendientes() {
 
   box.innerHTML = `
     <div class="pend-wrap">
-      <div class="pend-hd">🎯 Pendientes de hoy</div>
+      <div class="pend-hd">Pendientes de hoy</div>
       <div class="pend-chips">
         ${chips.map(c => `<button class="pend-chip ${c.cls}" onclick="${c.click}" title="${c.tx}"><span class="pic">${c.ic}</span><span class="pn">${c.n}</span><span class="ptx">${c.tx}</span></button>`).join('')}
       </div>

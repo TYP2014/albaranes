@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v915 (24/10/2026): ALBARANES · PARTE DE ARRIBA MAS LEGIBLE (1 de 2). 'Pendientes de hoy': fondo blanco, titulo en azul marino, cada aviso con su palabra en negro 14 px y numero en negrita 22 px, con el marco de color segun gravedad (rojo duplicados, ambar a revisar, azul pendientes IA); se quitan los iconos duplicados (la palabra ya lo dice). Filtros: etiquetas en negro y negrita, campos a 14 px con mas espacio. Botones de cabecera (EXCEL COMPLETO, ALBARAN A MANO, FACTURAS RECIBIDAS, SELECCION, etc.) mas grandes y separados; ALBARAN A MANO, FACTURAS RECIBIDAS y SELECCION sin emoji (los iconos de Excel y descarga se mantienen). Caja del historico: fondo blanco con filete azul marino, letra negra de 14 px, campos y boton BUSCAR mas grandes, sin emojis. La tabla se hace en la v916. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v914.
+
+---
+
 v914 (24/10/2026): DeCA · PANTALLA DE OFICINA MAS CLARA. Botones DeCA EXPRES, CONDUCTORES, CLIENTES DeCA, SUBCONTRATADOS y NUEVO DeCA en texto, mas grandes y separados, sin emojis. Caja informativa en blanco con filete azul marino y letra negra de 14 px (antes gris). Filtros con etiquetas negras y letra mayor; REFRESCAR en texto. Tabla de documentos emitidos a 14 px en negro con mas aire, cabecera 13 px en azul marino, columnas de cargador/destino/mercancia algo mas anchas; botones VER / EDITAR, VER PDF (o GENERAR PDF), ENVIAR y ANULAR en texto y mas grandes. NO se tocan el DeCA exprés de los conductores, el PDF/QR ni ninguna logica. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v913.
 
 ---
