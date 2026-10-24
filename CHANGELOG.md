@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v906 (24/10/2026): RECAMBIOS · CUADRE Y MESES MAS GRANDES. El Cuadre (cajas azul/naranja/roja y vista por piezas) pasa de letra de maquina de escribir a la letra normal de la app y mas grande (titulo 18 px, cajas 16 px, detalle 15 px), con mas aire. La linea de cada mes en la tabla de documentos pasa a 17 px el mes y 15 px el resumen. Solo CSS (styles.css v73) y dos tamaños en app.js; ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v905.
+
+---
+
 v905 (24/10/2026): RECAMBIOS · TABLA SIN ICONITOS Y EN NEGRO. Las etiquetas de tipo pasan a texto en negrita con colores bien distinguibles: ALBARAN (azul marino), FACTURA (amarillo/ambar con texto oscuro) y ABONO (rojo con texto oscuro), sin emojis. Estado CONCILIADO (verde oscuro) / PENDIENTE (negro). Todo el texto de la tabla en negro (antes gris/verde) y mas grande (14 px); el TOTAL en negrita 15 px. Botones CONCILIAR, A MANO, DESCARGAR y VER en texto y mas grandes. Cabecera de cada mes mas clara (OCTUBRE 2026 · 24 albaranes · 19 conciliados · 15 pendientes · FACTURA RECIBIDA / SIN FACTURA) sin emojis. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v904.
 
 ---

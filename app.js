@@ -30068,9 +30068,9 @@ function renderRecambios() {
       ? '<span style="color:#1b5e3f;font-weight:700">FACTURA RECIBIDA</span>'
       : '<span style="color:#8f5f0f;font-weight:700">SIN FACTURA</span>';
     html += `<tr style="cursor:pointer;background:var(--s2)" onclick="_recToggleMes('${m}')">
-      <td colspan="9" style="padding:13px 12px;font-weight:700;font-size:15px;color:var(--tx);border-top:2px solid var(--bd)">
+      <td colspan="9" style="padding:15px 12px;font-weight:700;font-size:17px;color:var(--tx);border-top:2px solid var(--bd)">
         ${abierto ? '▼' : '▶'} ${_recMesTitulo(m)}
-        <span style="font-weight:400;color:var(--tx);font-size:13px;margin-left:14px">${nAlbM} albaranes · ${conc.length} conciliados · ${pend.length} pendientes · ${facTag}</span>
+        <span style="font-weight:400;color:var(--tx);font-size:15px;margin-left:16px">${nAlbM} albaranes · ${conc.length} conciliados · ${pend.length} pendientes · ${facTag}</span>
       </td></tr>`;
     if (abierto) {
       html += pend.map(filaDoc).join('');

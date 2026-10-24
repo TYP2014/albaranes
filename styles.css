@@ -695,3 +695,12 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 /* v904: tabla de Recambios mas legible */
 #recambiosTabla th{font-size:13px;padding:12px 14px;letter-spacing:1px}
 #recambiosTabla td{font-size:14px;padding:12px 14px}
+/* v906: Cuadre de Recambios con letra normal (no maquina de escribir) y mas grande */
+#recambiosCuadre, #recambiosCuadre *{font-family:var(--ss) !important}
+#recambiosCuadre > div{padding:16px 18px !important}
+#recambiosCuadre > div > div:first-child{font-size:18px !important;margin-bottom:6px !important}
+#recambiosCuadre > div > div:nth-child(2){font-size:14px !important;margin-bottom:14px !important}
+#recambiosCuadre > div > details{padding:12px 16px !important;margin-bottom:12px !important}
+#recambiosCuadre > div > details > summary{font-size:16px !important;line-height:1.6}
+#recambiosCuadre details details > summary{font-size:15px !important}
+#recambiosCuadre details details{padding:9px 12px !important}
