@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v933 (24/10/2026): SUBIR · PDF DE PAGINAS ENORMES. Fran subio 'Albaranes 3.pdf' y la IA rechazo dos paginas con el error 'at least one of the image dimensions exceed max allowed size: 8000 pixels' (chivato, 24/10 13:05). Al partir un PDF en paginas, ahora el lado mayor de la imagen se limita a 3500 px; las hojas normales (A4) no cambian. Si ese PDF vuelve a fallar, avisar. Sin SQL. VUELTA ATRAS: volver a la v932.
+
+---
+
 v932 (24/10/2026): ORIGINALES PARA INSPECCION · BOTON DE EMPRESA LEGIBLE. El boton de la empresa elegida (azul marino) tenia la letra negra y casi no se leia; ahora va en blanco. Solo CSS (styles.css v93). Sin SQL. VUELTA ATRAS: volver a la v931.
 
 ---

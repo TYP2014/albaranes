@@ -3500,7 +3500,12 @@ async function addFiles(files, type) {
               };
               const _intentarRenderPagina = async (escalaIntento) => {
                 const page = await pdf.getPage(p);
-                const viewport = page.getViewport({ scale: escalaIntento });
+                // v933: tope de tamaño. Una pagina de PDF muy grande (escaneo de formato enorme) a escala 2.5
+                // daba una imagen de mas de 8000 px y la IA la rechazaba (error de Fran, 24/10/2026).
+                // Se limita el lado mayor a 3500 px; una hoja A4 normal (~2100 px) no se toca.
+                const _v1 = page.getViewport({ scale: 1 });
+                const _escTope = 3500 / Math.max(_v1.width, _v1.height, 1);
+                const viewport = page.getViewport({ scale: Math.min(escalaIntento, _escTope) });
                 const canvas = document.createElement('canvas');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
