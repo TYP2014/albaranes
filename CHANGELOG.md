@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v932 (24/10/2026): ORIGINALES PARA INSPECCION · BOTON DE EMPRESA LEGIBLE. El boton de la empresa elegida (azul marino) tenia la letra negra y casi no se leia; ahora va en blanco. Solo CSS (styles.css v93). Sin SQL. VUELTA ATRAS: volver a la v931.
+
+---
+
 v931 (24/10/2026): ORIGINALES PARA INSPECCION · PEQUEÑOS AJUSTES. El dia de HOY ya no cuenta como hueco (no se puede haber descargado un dia que no ha terminado). Se corrige 'camiónes' y '1 DÍAS' (ahora 'camiones' y '1 DÍA'). Solo LEE. Sin SQL. VUELTA ATRAS: volver a la v930.
 
 ---

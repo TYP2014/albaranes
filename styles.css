@@ -845,3 +845,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tacoInspCard .insp-mal td{background:#fbeceb}
 #tacoInspCard .insp-rojo{color:#b83a36}
 #tacoInspCard .insp-verde{color:#1b5e3f}
+
+/* v932 Inspeccion: el boton de empresa elegido se lee (letra blanca sobre azul marino) */
+#tacoInspCard .btn.bp,#tacoInspCard .insp-fila .btn.bp{color:#fff!important}
+#tacoInspCard .btn.bs{color:#111}
