@@ -29957,7 +29957,7 @@ function renderRecambios() {
     const nAlb = docs.filter(d => d.tipo_doc === 'albaran').length;
     const nFac = docs.filter(d => d.tipo_doc === 'factura').length;
     const nPend = docs.filter(d => !d.conciliado).length;
-    resumen.textContent = `${docs.length} doc · ${nAlb} albaranes · ${nFac} facturas · ${nPend} pendientes`;
+    resumen.textContent = `${docs.length} documentos · ${nAlb} albaranes · ${nFac} facturas · ${nPend} pendientes`;
   }
 
   if (!docs.length) {
@@ -29981,10 +29981,10 @@ function renderRecambios() {
   }
 
   const tipoBadge = t => t === 'factura'
-    ? '<span style="background:rgba(255,180,0,.15);color:#ffb400;padding:2px 7px;border-radius:4px;font-size:10px">🧾 Factura</span>'
+    ? '<span style="background:#fbecc4;color:#4a3200;border:1px solid #c58a1b;padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;letter-spacing:.5px">FACTURA</span>'
     : t === 'abono'
-    ? '<span style="background:rgba(255,80,80,.15);color:#ff5050;padding:2px 7px;border-radius:4px;font-size:10px">↩️ Abono</span>'
-    : '<span style="background:rgba(0,232,122,.12);color:var(--ac);padding:2px 7px;border-radius:4px;font-size:10px">📦 Albarán</span>';
+    ? '<span style="background:#f8dcda;color:#5c1412;border:1px solid #b83a36;padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;letter-spacing:.5px">ABONO</span>'
+    : '<span style="background:#e3eaf4;color:#10243f;border:1px solid #1f3a5f;padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;letter-spacing:.5px">ALBARÁN</span>';
 
   // v250: fila de un documento (misma fila de siempre, extraída para reutilizar)
   const filaDoc = (d) => {
@@ -29998,9 +29998,9 @@ function renderRecambios() {
     const _puedeQuitar = _puedeMano || (d.tipo_doc === 'factura' && (_recambiosEsOficina() || (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ'))); // v700
     const est = d.conciliado
       ? (_puedeQuitar
-        ? `<span style="color:var(--ac);font-size:11px;cursor:pointer" title="Pincha para QUITAR el conciliado (si se marcó por error)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', true)">🟢 Conciliado</span>`
-        : '<span style="color:var(--ac);font-size:11px">🟢 Conciliado</span>')
-      : '<span style="color:var(--mu);font-size:11px">⚪ Pendiente</span>';
+        ? `<span style="color:#1b5e3f;font-size:13px;font-weight:700;cursor:pointer" title="Pincha para QUITAR el conciliado (si se marcó por error)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', true)">CONCILIADO</span>`
+        : '<span style="color:#1b5e3f;font-size:13px;font-weight:700">CONCILIADO</span>')
+      : '<span style="color:var(--tx);font-size:13px">PENDIENTE</span>';
     const fecha = d.fecha ? d.fecha.split('-').reverse().join('/') : '—';
     const nLin = (d.lineas || []).length;
     const puedeConciliar = (d.tipo_doc === 'factura' || _recEsFacturaAbono(d)) && ( // v692
@@ -30008,9 +30008,9 @@ function renderRecambios() {
       (_recambiosEsTransmargaz() && d.empresa === 'TRANSMARGAZ')
     );
     const btnConciliar = puedeConciliar
-      ? `<button class="btn bp" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">🔍 Conciliar</button>`
+      ? `<button class="btn bp" style="font-size:12px;padding:8px 14px;margin-right:6px;letter-spacing:.5px" onclick="event.stopPropagation();recambiosConciliar('${d.id}')">CONCILIAR</button>`
       : (_puedeMano && !d.conciliado
-        ? `<button class="btn bs" style="font-size:10px;padding:3px 8px;margin-right:4px" title="Marcarlo conciliado a mano (cuando ves claro que pertenece a una factura)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', false)">✓ A mano</button>`
+        ? `<button class="btn bs" style="font-size:12px;padding:8px 14px;margin-right:6px;letter-spacing:.5px" title="Marcarlo conciliado a mano (cuando ves claro que pertenece a una factura)" onclick="event.stopPropagation();recambiosConciliarMano('${d.id}', false)">A MANO</button>`
         : '');
     const dup = esDuplicado(d);
     const trStyle = dup
@@ -30025,14 +30025,14 @@ function renderRecambios() {
       : '';
     return `<tr style="${trStyle}" onclick="recambiosVerDetalle('${d.id}')">
       <td>${tipoBadge(d.tipo_doc)}</td>
-      <td style="font-size:11px">${esc(d.proveedor || '—')}</td>
-      <td style="font-family:var(--mn);font-size:11px;color:var(--ac)">${esc(d.num_documento || '—')}${dupTag}${notaTag}</td>
-      <td style="font-size:11px">${fecha}</td>
-      <td style="font-family:var(--mn);font-size:11px">${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</td>
-      <td style="font-family:var(--mn);font-size:11px">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
-      <td style="font-family:var(--mn);font-size:12px;color:var(--fg)"><b>${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
+      <td style="font-size:14px;color:var(--tx)">${esc(d.proveedor || '—')}</td>
+      <td style="font-family:var(--mn);font-size:14px;color:var(--tx)">${esc(d.num_documento || '—')}${dupTag}${notaTag}</td>
+      <td style="font-size:14px;color:var(--tx)">${fecha}</td>
+      <td style="font-family:var(--mn);font-size:14px;color:var(--tx)">${d.base_imponible != null ? d.base_imponible.toFixed(2) + '€' : '—'}</td>
+      <td style="font-family:var(--mn);font-size:14px;color:var(--tx)">${d.iva != null ? d.iva.toFixed(2) + '€' : '—'}</td>
+      <td style="font-family:var(--mn);font-size:15px;color:var(--tx)"><b style="font-weight:800">${d.total != null ? d.total.toFixed(2) + '€' : '—'}</b></td>
       <td>${est}</td>
-      <td style="white-space:nowrap">${btnConciliar}${d.file_url ? `<button class="btn bs" style="font-size:10px;padding:3px 10px;margin-right:4px" title="Descargar el PDF/foto de este documento con un clic" onclick="event.stopPropagation();recambiosDescargarDoc('${d.id}')">⬇ Descargar</button>` : ''}<button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">Ver / ${nLin}</button></td>
+      <td style="white-space:nowrap">${btnConciliar}${d.file_url ? `<button class="btn bs" style="font-size:12px;padding:8px 14px;margin-right:6px;letter-spacing:.5px" title="Descargar el PDF/foto de este documento con un clic" onclick="event.stopPropagation();recambiosDescargarDoc('${d.id}')">DESCARGAR</button>` : ''}<button class="btn bs" style="font-size:12px;padding:8px 14px;letter-spacing:.5px" onclick="event.stopPropagation();recambiosVerDetalle('${d.id}')">VER / ${nLin}</button></td>
     </tr>`;
   };
 
@@ -30065,20 +30065,20 @@ function renderRecambios() {
     const hayFac = del.some(d => d.tipo_doc === 'factura');
     const abierto = !!_recMesAbierto[m];
     const facTag = hayFac
-      ? '<span style="color:var(--ac);font-weight:600">🧾 factura ✓</span>'
-      : '<span style="color:#ffb400;font-weight:600">⚠️ SIN factura</span>';
+      ? '<span style="color:#1b5e3f;font-weight:700">FACTURA RECIBIDA</span>'
+      : '<span style="color:#8f5f0f;font-weight:700">SIN FACTURA</span>';
     html += `<tr style="cursor:pointer;background:var(--s2)" onclick="_recToggleMes('${m}')">
-      <td colspan="9" style="padding:9px 10px;font-weight:700;font-size:12px;color:var(--tx);border-top:2px solid var(--bd)">
+      <td colspan="9" style="padding:13px 12px;font-weight:700;font-size:15px;color:var(--tx);border-top:2px solid var(--bd)">
         ${abierto ? '▼' : '▶'} ${_recMesTitulo(m)}
-        <span style="font-weight:400;color:var(--mu);font-size:11px;margin-left:10px">📦 ${nAlbM} alb · 🟢 ${conc.length} conciliados · ⚪ ${pend.length} pendientes · ${facTag}</span>
+        <span style="font-weight:400;color:var(--tx);font-size:13px;margin-left:14px">${nAlbM} albaranes · ${conc.length} conciliados · ${pend.length} pendientes · ${facTag}</span>
       </td></tr>`;
     if (abierto) {
       html += pend.map(filaDoc).join('');
       if (conc.length) {
         const ver = !!_recVerConc[m];
         html += `<tr style="cursor:pointer" onclick="_recToggleConc('${m}')">
-          <td colspan="9" style="padding:6px 10px;font-size:11px;color:var(--mu);text-align:center;background:rgba(0,0,0,.02)">
-            👁 ${ver ? 'Ocultar' : 'Ver'} ${conc.length} conciliado${conc.length === 1 ? '' : 's'} ${ver ? '▲' : '▼'}
+          <td colspan="9" style="padding:9px 10px;font-size:13px;color:var(--tx);text-align:center;background:rgba(0,0,0,.02)">
+            ${ver ? 'Ocultar' : 'Ver'} ${conc.length} conciliado${conc.length === 1 ? '' : 's'} ${ver ? '▲' : '▼'}
           </td></tr>`;
         if (ver) html += conc.map(filaDoc).join('');
       }

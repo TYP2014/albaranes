@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v905 (24/10/2026): RECAMBIOS · TABLA SIN ICONITOS Y EN NEGRO. Las etiquetas de tipo pasan a texto en negrita con colores bien distinguibles: ALBARAN (azul marino), FACTURA (amarillo/ambar con texto oscuro) y ABONO (rojo con texto oscuro), sin emojis. Estado CONCILIADO (verde oscuro) / PENDIENTE (negro). Todo el texto de la tabla en negro (antes gris/verde) y mas grande (14 px); el TOTAL en negrita 15 px. Botones CONCILIAR, A MANO, DESCARGAR y VER en texto y mas grandes. Cabecera de cada mes mas clara (OCTUBRE 2026 · 24 albaranes · 19 conciliados · 15 pendientes · FACTURA RECIBIDA / SIN FACTURA) sin emojis. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v904.
+
+---
+
 v904 (24/10/2026): TALLER · RECAMBIOS REORGANIZADO EN DOS BOTONES. Arriba SUBIR ALBARAN y SUBIR FACTURA (texto, sin emoji, mas separados). Debajo dos botones, DOCUMENTOS (chips de proveedor, filtros y tabla) y CUADRE · QUE FALTA (las cajas azul/naranja/roja y la vista por piezas); solo se ve una cosa a la vez, como en Facturacion. Por defecto se ve DOCUMENTOS; en Taller (sin cuadre) el boton CUADRE no sale. Letra del cuadre y de la tabla mas grande y en negro en vez de gris (cuadre 13-14 px, tabla 13/14 px, chips 13 px). Los colores de las cajas del cuadre se mantienen porque indican el tipo de problema. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html, styles.css y CHANGELOG.md de la v903.
 
 ---
