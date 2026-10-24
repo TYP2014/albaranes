@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=81">
+<link rel="stylesheet" href="styles.css?v=82">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1398,7 +1398,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <!-- v853: el recuadro de subir y el panel de caducidades, lado a lado.
                  El panel estaba al final del todo y JC tenia que ir a buscarlo;
                  aqui lo ve nada mas entrar, y sobraba sitio a la derecha. -->
-            <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,370px);gap:16px;align-items:start;margin-bottom:12px">
+            <div style="display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:16px;align-items:stretch;margin-bottom:12px">
             <div class="dz" id="dzRecmed" style="padding:16px;margin:0" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="recmedDrop(event)">
               <input type="file" accept=".pdf,image/*" multiple onchange="recmedAddFiles(this.files);this.value=''">
               <div class="recFoto" aria-hidden="true"><div class="recArt recBase"></div><div class="recArt recJer"></div><div class="recArt recCor"></div><div class="recArt recCarp"></div><div class="recArt recCab"></div><div class="recPunto"></div></div>
@@ -2053,6 +2053,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=919"></script>
+<script src="app.js?v=920"></script>
 </body>
 </html>

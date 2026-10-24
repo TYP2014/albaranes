@@ -750,3 +750,13 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #dzRecmed .dz-s{font-size:13px!important;color:var(--tx)!important;line-height:1.6}
 #dzRecmed .dz-t .hl{color:var(--ac)}
 #recmedBox th,#recmedBox td{color:var(--tx)}
+
+/* v920 Reconocimientos: dibujo a la mitad, caducidad mas grande y a la misma altura */
+#dzRecmed{display:flex;flex-direction:column;justify-content:center;height:100%;box-sizing:border-box}
+#dzRecmed .recFoto{max-width:210px;margin-bottom:8px}
+#dzRecmed .dz-t{font-size:14px!important}
+#dzRecmed .dz-s{font-size:12px!important}
+#recmedCadBox{display:flex;flex-direction:column;min-height:0}
+#recmedCadBox .rmCadCaja{border:1px solid var(--bd);border-radius:8px;padding:14px 18px;flex:1;display:flex;flex-direction:column;min-height:0}
+#recmedCadBox .rmCadLista{max-height:300px;overflow-y:auto;flex:1}
+#recmedCadBox .rmCadCaja details summary{font-size:14px!important}

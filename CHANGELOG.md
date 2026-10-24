@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v920 (24/10/2026): RECONOCIMIENTOS MEDICOS · DIBUJO MAS PEQUEÑO Y CADUCIDAD MAS GRANDE. El dibujo de subir la carta de la mutua pasa a la mitad de tamaño (se mantiene el dibujo animado) y el panel de CADUCIDAD DEL RECONOCIMIENTO ocupa mas ancho, con letra de 15 px, y queda a la misma altura que el recuadro de subir (el '5 sin fecha' queda dentro). Arreglado el boton que ponia 'WhatsApp WhatsApp'. Solo CSS (styles.css v82) y un cambio de texto. Sin SQL. VUELTA ATRAS: volver a la v919.
+
+---
+
 v919 (24/10/2026): EMPLEADOS · VACACIONES Y RECONOCIMIENTOS MEDICOS MAS FORMALES. Vacaciones: nombres, empresa, 'Generado a hoy', saldos y cabeceras en negro y mas grandes (14-15 px); botones VER PERIODOS / EDITAR en negrita; botones Mes/3 meses/Año y flechas del calendario mas grandes. Las barras de color de los saldos y el calendario no cambian. Reconocimientos: botones 'Nueva cita medica' y 'Actualizar' solo texto; linea de ayuda y recuadro de subir en negro y mas grandes; tabla de citas a 14 px con botones de texto (Descargar, WhatsApp, Compartir, Hecha, Editar); panel de caducidad en 14 px negro. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: volver a la v918.
 
 ---

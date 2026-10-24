@@ -29027,7 +29027,7 @@ function renderRecmed() {
         ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedDescargar(\'' + c.id + '\')" title="' + esc(c.archivo_nombre || 'documento') + '">⬇ Descargar</button>'
         : '<span style="color:var(--tx);font-size:12px">sin doc.</span>') + '</td>' +
       '<td style="padding:10px 10px;white-space:nowrap;text-align:right">' +
-        '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp">WhatsApp WhatsApp</button> ' +
+        '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedWhatsApp(\'' + c.id + '\')" title="Mandar recordatorio por WhatsApp">WhatsApp</button> ' +
         (c.archivo_path ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedCompartir(\'' + c.id + '\')" title="Compartir el documento y el texto de una vez (móvil)">Compartir</button> ' : '') +
         (c.estado === 'pendiente' ? '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="recmedMarcarHecha(\'' + c.id + '\')">Hecha</button> ' : '') +
         '<button class="btn bs" style="font-size:13px;padding:7px 12px;font-weight:700;color:#111" onclick="openRecmedEdit(\'' + c.id + '\')">Editar</button>' +
@@ -29089,7 +29089,7 @@ async function renderRecmedCaducidades() {
       ? 'venció hace ' + Math.abs(dias) + ' día' + (Math.abs(dias) === 1 ? '' : 's')
       : (dias === 0 ? 'caduca HOY' : 'faltan ' + dias + ' día' + (dias === 1 ? '' : 's'));
     filas += '<div style="border-left:3px solid ' + (c ? 'var(--bd)' : ROJO)
-      + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:14px;line-height:1.7">'
+      + ';padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:15px;line-height:1.7">'
       + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
       + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '—') + '</span>'
       + '<span style="font-weight:800;white-space:nowrap' + (c ? '' : ';color:' + ROJO) + '">' + cuenta + '</span>'
@@ -29101,7 +29101,7 @@ async function renderRecmedCaducidades() {
   });
 
   const cuerpo = avisan.length
-    ? '<div style="max-height:320px;overflow-y:auto">' + filas + '</div>'
+    ? '<div class="rmCadLista">' + filas + '</div>'
     : '<div style="font-family:var(--mn);font-size:14px;color:var(--tx);padding:10px 0">Nadie en los próximos 30 días.</div>';
 
   const pendientes = sinFecha.length
@@ -29111,7 +29111,7 @@ async function renderRecmedCaducidades() {
       + esc(sinFecha.map(t => t.nombre || '?').sort().join(' · ')) + '</div></details>'
     : '';
 
-  box.innerHTML = '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px 14px">'
+  box.innerHTML = '<div class="rmCadCaja">'
     + '<div style="font-family:var(--mn);font-size:15px;font-weight:800;letter-spacing:.3px;margin-bottom:10px">CADUCIDAD DEL RECONOCIMIENTO</div>'
     + cuerpo + pendientes
     + '</div>';
