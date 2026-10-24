@@ -1167,30 +1167,27 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:stretch">
 
             <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
-              <div style="font-weight:800;color:var(--ok);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ok);padding-bottom:4px">⬅ 1 · Albaranes · DESCUENTAN stock</div>
-              <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)" style="border-color:var(--ok);padding:18px 14px;min-height:132px;flex:1">
+              <div style="font-weight:800;color:var(--ac);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ac);padding-bottom:4px">1 · Albaranes · DESCUENTAN stock</div>
+              <div class="dz" id="dzNeumAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumAlb(event)" style="border-color:var(--ac);padding:12px 14px;min-height:0;flex:1">
                 <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumAlbFiles(this.files); this.value='';">
-                <div class="dz-ic" style="font-size:34px;margin-bottom:6px">🛞</div>
                 <div class="dz-t" style="font-size:15px">Arrastra fotos o PDFs de albaranes · o <span class="hl">haz clic</span></div>
                 <div class="dz-s" style="font-size:12.5px">Si pone "DE SU STOCK / S/PROP" descuenta solo · empresa por el CIF</div>
               </div>
             </div>
 
             <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
-              <div style="font-weight:800;color:var(--in);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--in);padding-bottom:4px">2 · Facturas de compra · SUMAN stock ➡</div>
-              <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="border-color:var(--in);padding:18px 14px;min-height:132px;flex:1">
+              <div style="font-weight:800;color:var(--ac);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ac);padding-bottom:4px">2 · Facturas de compra · SUMAN stock</div>
+              <div class="dz" id="dzNeumFactura" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumFactura(event)" style="border-color:var(--ac);padding:12px 14px;min-height:0;flex:1">
                 <input type="file" accept="image/*,.pdf" multiple onchange="handleNeumFacturaFiles(this.files); this.value='';">
-                <div class="dz-ic" style="font-size:34px;margin-bottom:6px">📄</div>
                 <div class="dz-t" style="font-size:15px">Arrastra la FACTURA de compra (PDF) · o <span class="hl">haz clic</span></div>
                 <div class="dz-s" style="font-size:12.5px">Suma al stock · ignora descuentos y tasas · Holding → TYP2014</div>
               </div>
             </div>
 
             <div style="flex:1;min-width:250px;display:flex;flex-direction:column">
-              <div style="font-weight:800;color:var(--wnd);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--wn);padding-bottom:4px">3 · Cuadre · Factura de servicio</div>
-              <div class="dz" id="dzNeumCuadre" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumCuadre(event)" style="border-color:var(--wn);padding:18px 14px;min-height:132px;flex:1">
+              <div style="font-weight:800;color:var(--ac);margin-bottom:6px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ac);padding-bottom:4px">3 · Cuadre · Factura de servicio</div>
+              <div class="dz" id="dzNeumCuadre" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="dropNeumCuadre(event)" style="border-color:var(--ac);padding:12px 14px;min-height:0;flex:1">
                 <input type="file" accept="image/*,.pdf" onchange="handleNeumCuadreFiles(this.files); this.value='';">
-                <div class="dz-ic" style="font-size:34px;margin-bottom:6px">&#128269;</div>
                 <div class="dz-t" style="font-size:15px">Arrastra la FACTURA de servicio (la de la quincena) &middot; o <span class="hl">haz clic</span></div>
                 <div class="dz-s" style="font-size:12.5px">SOLO ense&ntilde;a lo le&iacute;do (fecha, matr&iacute;cula, cubiertas) &middot; NO guarda ni toca el stock</div>
               </div>
@@ -2049,6 +2046,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=894"></script>
+<script src="app.js?v=895"></script>
 </body>
 </html>

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v895 (24/10/2026): NEUMATICOS · CAJAS DE SUBIDA MAS SOBRIAS. En 'Subir a Neumaticos - Soledad' las 3 cajas (1 Albaranes, 2 Facturas de compra, 3 Cuadre) iban cada una de un color (verde, azul, ambar) con un dibujo grande (rueda, documento, lupa) y flechas ⬅ ➡ en los titulos. Ahora las 3 en azul marino, mas bajas (menos relleno) y sin dibujos ni flechas; los titulos conservan las palabras DESCUENTAN stock / SUMAN stock y el texto de cada caja. Siguen funcionando igual (arrastrar o pinchar). El stock de arriba (tarjetas con ✓ y ⚠) NO se toca: ese color da informacion. Sin SQL. VUELTA ATRAS: resubir index.html y CHANGELOG.md de la v894 (app.js solo cambia el numero).
+
+---
+
 v894 (24/10/2026): AVISO DE CITAS DE ITV CON EL MISMO ESTILO QUE LOS DEMAS AVISOS. El aviso global 'CITA DE ITV EN 3 DIAS / 2 DIAS / MAÑANA / HOY' salia con fondo amarillo/naranja relleno y un emoji de color; ahora fondo blanco y marco fuerte del color del nivel, igual que los avisos de vencimientos y de Taller: HOY burdeos, MAÑANA rojo, 2 DIAS naranja, 3 DIAS ambar. Se quitan el emoji de color y el 🛡️ del boton (queda 'VER CITAS ITV'). Mismos dias, mismos textos y misma logica de ocultar hasta mañana. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v893.
 
 ---
