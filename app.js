@@ -13193,8 +13193,19 @@ function _histMesNombre(m) {
   if (p) return (_HIST_MESES_ABR[parseInt(p[2], 10) - 1] || p[2]) + ' ' + p[1];
   return String(m || '');
 }
+// v940: Ocultar / Mostrar de cada bloque del Panel SIN perder lo cargado (solo esconde; no vuelve a pedir nada a la BD).
+function panelMostrarBloque(contId, btnId) {
+  const c = document.getElementById(contId), b = document.getElementById(btnId);
+  if (c) c.style.display = ''; if (b) { b.style.display = ''; b.textContent = 'Ocultar'; }
+}
+function panelAlternar(contId, btnId) {
+  const c = document.getElementById(contId), b = document.getElementById(btnId); if (!c || !b) return;
+  const oculto = c.style.display === 'none';
+  c.style.display = oculto ? '' : 'none'; b.textContent = oculto ? 'Ocultar' : 'Mostrar';
+}
 async function abrirHistoricoPrecios() {
   const cont = document.getElementById('histPreciosCont'); if (!cont) return;
+  panelMostrarBloque('histPreciosCont', 'btnHistOcultar');
   cont.innerHTML = '<div style="color:var(--mu);font-size:13px;padding:10px">Cargando autofacturas…</div>';
   try {
     let todas = [], desde = 0; const LOTE = 1000;
@@ -13411,6 +13422,7 @@ function _phDias(p, mes, conDia) {
 function _phMesMenos(ym, n) { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 - n; const d = new Date(y, m, 1); return d.getFullYear() + '-' + _p2(d.getMonth() + 1); }
 async function abrirPreciosHolcim() {
   const cont = document.getElementById('precHolcimCont'); if (!cont) return;
+  panelMostrarBloque('precHolcimCont', 'btnHolcimOcultar');
   if (currentRole !== 'admin') { cont.innerHTML = ''; return; }
   cont.innerHTML = '<div style="color:var(--mu);font-size:13px;padding:10px">Cargando preliquidaciones de Holcim…</div>';
   try {

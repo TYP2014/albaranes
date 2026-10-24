@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=98">
+<link rel="stylesheet" href="styles.css?v=99">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1069,7 +1069,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="margin-top:24px;border-top:1px solid var(--bd);padding-top:16px">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
               <div style="font-weight:bold;font-size:15px;color:var(--tx)">Histórico de precios por ruta (autofacturas)</div>
-              <button class="btn bp" id="btnHistPrecios" onclick="abrirHistoricoPrecios()">Cargar histórico</button>
+              <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" id="btnHistOcultar" style="display:none" onclick="panelAlternar('histPreciosCont','btnHistOcultar')">Ocultar</button><button class="btn bp" id="btnHistPrecios" onclick="abrirHistoricoPrecios()">Cargar histórico</button></span>
             </div>
             <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN que te pagan Holcim/CEMEX por ruta, mes a mes (calculado importe ÷ toneladas de las autofacturas guardadas). Subida en verde, bajada en rojo.</div>
             <div id="histPreciosCont"></div>
@@ -1077,7 +1077,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="margin-top:24px;border-top:1px solid var(--bd);padding-top:16px">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
               <div style="font-weight:bold;font-size:15px;color:var(--tx)">Precios Holcim (rutas habituales)</div>
-              <button class="btn bp" id="btnPrecHolcim" onclick="abrirPreciosHolcim()">Ver precios Holcim</button>
+              <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" id="btnHolcimOcultar" style="display:none" onclick="panelAlternar('precHolcimCont','btnHolcimOcultar')">Ocultar</button><button class="btn bp" id="btnPrecHolcim" onclick="abrirPreciosHolcim()">Ver precios Holcim</button></span>
             </div>
             <div style="font-size:11px;color:var(--mu);margin-bottom:10px">€/TN de las preliquidaciones de Holcim: el último mes subido y los anteriores (eliges cuántos: 3, 6, 12 o todos). Si un mes tiene varios precios, salen todos con sus días. Pincha un precio para bajar sus viajes en Excel.</div>
             <div id="precHolcimCont"></div>
@@ -2052,6 +2052,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=939"></script>
+<script src="app.js?v=940"></script>
 </body>
 </html>

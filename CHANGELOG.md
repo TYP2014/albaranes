@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v940 (24/10/2026): PANEL · OCULTAR / MOSTRAR LOS BLOQUES. Con el Historico de precios y los Precios Holcim cargados, los dos quedaban abiertos uno debajo del otro y no habia forma de recoger uno para ver el otro. Ahora, al cargar cada bloque aparece a su lado un boton OCULTAR (gris): lo esconde sin perder lo cargado y el mismo boton pasa a MOSTRAR para volver a abrirlo al instante, sin recargar ni volver a pedir datos. Los botones de cargar siguen igual (vuelven a leer). Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v939.
+
+---
+
 v939 (24/10/2026): PANEL · HISTORICO DE PRECIOS, QUE QUEPAN LOS MESES. Con la pantalla estrecha el ultimo mes quedaba cortado a la derecha. Ahora el nombre de la ruta se parte en dos lineas (columna fija de 230 px) y debajo de cada precio los viajes y las TN van en dos renglones, asi cada mes ocupa menos y caben los 7 meses. Si aun asi hay muchos meses, se desliza dentro de su marco. Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v938.
 
 ---
