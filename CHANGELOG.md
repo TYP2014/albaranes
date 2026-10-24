@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v910 (24/10/2026): RECAMBIOS · CUADRE, TAMAÑOS DE LETRA CORREGIDOS. En la v904 se escribieron 26 tamaños de letra del Cuadre sin la unidad 'px' (por ejemplo 'font-size:14'), asi que el navegador los ignoraba y algunas cajas se veian mas pequeñas que otras (en especial FACTURAS QUE NO CUADRAN). Ahora todas llevan 'px' y el Cuadre se ve con el mismo tamaño en todas sus cajas y en el detalle de cada una. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v909.
+
+---
+
 v909 (24/10/2026): FACTURAS EMITIDAS · CAJAS DE SUBIDA CON TEXTO MAS GRANDE. Los titulos SUBIR FACTURA EMITIDA (azul marino) y SUBIR LIQUIDACION CONFIRMING BBVA (verde oscuro) pasan a 22 px en negrita, el 'Arrastra el PDF aqui o pincha' a 15 px y la explicacion a 14 px, dentro de cajas del mismo tamaño que antes (se reduce el relleno). Se quita la frase 'Control de las facturas que emites a tus clientes y si estan cobradas.' junto al titulo. Ninguna logica cambia. Sin SQL. VUELTA ATRAS: resubir app.js, index.html y CHANGELOG.md de la v908.
 
 ---

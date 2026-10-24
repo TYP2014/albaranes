@@ -29757,10 +29757,10 @@ function _recCuadreHTML(todos) {
 
   const caja = (color, fondo, titulo, quien, n, cuerpo) => `
     <details style="border:1px solid ${color};background:${fondo};border-radius:8px;padding:8px 12px;margin-bottom:8px"${n ? '' : ''}>
-      <summary style="cursor:pointer;font-family:var(--mn);font-size:14;font-weight:700;color:var(--tx)">${titulo} — <span style="color:${color}">${n}</span> <span style="font-weight:400;color:var(--tx)">· ${quien}</span></summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${n ? cuerpo : '<div style="font-size:14;color:var(--tx)">✅ Nada pendiente aquí.</div>'}</div>
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx)">${titulo} — <span style="color:${color}">${n}</span> <span style="font-weight:400;color:var(--tx)">· ${quien}</span></summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${n ? cuerpo : '<div style="font-size:14px;color:var(--tx)">✅ Nada pendiente aquí.</div>'}</div>
     </details>`;
-  const item = (cab, det) => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:14">${cab}</summary><div style="margin-top:6px">${det}</div></details>`;
+  const item = (cab, det) => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:14px">${cab}</summary><div style="margin-top:6px">${det}</div></details>`;
 
   // v695: AZUL agrupado por PROVEEDOR (con boton para copiar la lista y pedirselos)
   const gAz = {};
@@ -29771,31 +29771,31 @@ function _recCuadreHTML(todos) {
     const txt = `Hola,\n\nPor favor, enviadnos COPIA de los siguientes albaranes a nombre de ${_emp}. Aparecen en vuestras facturas pero no los tenemos:\n\n` +
       lst.map(x => `- Albarán ${x.n} (en ${x.fac.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} ${x.fac.num_documento || '?'} del ${fch(x.fac.fecha)})`).join('\n') +
       `\n\nGracias.`;
-    return `<details style="background:#fff;border:1px solid #2f6fd6;border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:14"><b>${esc(prov)}</b> · <b>${lst.length}</b> albarán(es) sin subir, en ${nFac} factura(s)${_btnCopiar('az' + i, txt, 'Copiar lista para pedírselos')}</summary><div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">` +
+    return `<details style="background:#fff;border:1px solid #2f6fd6;border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-size:14px"><b>${esc(prov)}</b> · <b>${lst.length}</b> albarán(es) sin subir, en ${nFac} factura(s)${_btnCopiar('az' + i, txt, 'Copiar lista para pedírselos')}</summary><div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">` +
       lst.map(x => item(
     `<b>${esc(x.prov)}</b> · albarán <b>${esc(x.n)}</b> · viene en ${x.fac.tipo_doc === 'abono' ? 'la factura de abono' : 'la factura'} <b>${esc(x.fac.num_documento || '?')}</b> (${fch(x.fac.fecha)})`,
-    `<div style="font-size:13;color:var(--tx);margin-bottom:4px">Lo que dice la factura de ese albarán:</div>` + piezas({ lineas: x.lineas }) +
-    `<div style="font-size:13;color:#2f6fd6;margin-top:4px">👉 Buscadlo en el correo o pedídselo al proveedor y subidlo.</div>`)).join('') + `</div></details>`;
+    `<div style="font-size:13px;color:var(--tx);margin-bottom:4px">Lo que dice la factura de ese albarán:</div>` + piezas({ lineas: x.lineas }) +
+    `<div style="font-size:13px;color:#2f6fd6;margin-top:4px">👉 Buscadlo en el correo o pedídselo al proveedor y subidlo.</div>`)).join('') + `</div></details>`;
   }).join('');
 
   const cuerpoNaranja = listaSin.map((g, i) => item(
     `<b>${esc(g.prov)}</b> · <b>${esc(g.mes)}</b> · ${g.docs.length} albarán(es) sin factura · ${eur(g.docs.reduce((s, d) => s + base(d), 0))} sin IVA` +
       _btnCopiar('na' + i, `Hola,\n\nNo hemos recibido la FACTURA de ${g.mes} a nombre de ${_emp}. Por favor, enviádnosla. Corresponde a estos albaranes:\n\n` +
         g.docs.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `- Albarán ${d.num_documento || '?'} del ${fch(d.fecha)}`).join('\n') + `\n\nGracias.`, 'Copiar para pedir la factura'),
-    g.docs.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `<div style="border-top:1px dashed var(--bd);padding-top:4px;margin-top:4px"><div style="font-size:14"><b>${esc(d.num_documento || '?')}</b> · ${fch(d.fecha)} · ${eur(base(d))}</div>${piezas(d)}</div>`).join('') +
-    `<div style="font-size:13;color:#c77700;margin-top:6px">👉 Si la factura la tenéis, subidla. Si no, pedídsela al proveedor (y comprobad a qué email la mandan).</div>`)).join('');
+    g.docs.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(d => `<div style="border-top:1px dashed var(--bd);padding-top:4px;margin-top:4px"><div style="font-size:14px"><b>${esc(d.num_documento || '?')}</b> · ${fch(d.fecha)} · ${eur(base(d))}</div>${piezas(d)}</div>`).join('') +
+    `<div style="font-size:13px;color:#c77700;margin-top:6px">👉 Si la factura la tenéis, subidla. Si no, pedídsela al proveedor (y comprobad a qué email la mandan).</div>`)).join('');
 
   const cuerpoRojo = abonosSin.sort((a, b) => a.d.fecha.localeCompare(b.d.fecha)).map(x => item(
     `<b>${esc(x.prov)}</b> · abono <b>${esc(x.d.num_documento || '?')}</b> · ${fch(x.d.fecha)} · <b style="color:#d63030">${eur(Math.abs(base(x.d)))}</b> sin IVA`,
-    piezas(x.d) + `<div style="font-size:13;color:#d63030;margin-top:4px">👉 Este dinero NO aparece descontado en ninguna factura ni factura de abono subida. Si tenéis su factura de abono, subidla; si no, RECLAMAD. Si ya sabéis que está descontado, pulsad ✓ A MANO en su fila.</div>`)).join('');
+    piezas(x.d) + `<div style="font-size:13px;color:#d63030;margin-top:4px">👉 Este dinero NO aparece descontado en ninguna factura ni factura de abono subida. Si tenéis su factura de abono, subidla; si no, RECLAMAD. Si ya sabéis que está descontado, pulsad ✓ A MANO en su fila.</div>`)).join('');
 
   return `
   <div style="border:2px solid #2f6fd6;border-radius:10px;padding:10px 12px;margin-bottom:12px;background:rgba(47,111,214,.04)">
-    <div style="font-family:var(--mn);font-size:15;font-weight:700;margin-bottom:4px">CUADRE — qué falta y de quién es${_recProvChip ? ' (solo el proveedor elegido)' : ''}</div>
-    <div style="font-size:13;color:var(--tx);margin-bottom:8px">Meses cerrados de los últimos 6 meses. Pincha cada caja para ver el detalle y las piezas. ${facPend ? `· ⚪ ${facPend} factura(s) sin conciliar.` : ''} ${enCurso ? `· ⏳ ${enCurso} doc(s) de este mes aún sin facturar (normal).` : ''}</div>
+    <div style="font-family:var(--mn);font-size:15px;font-weight:700;margin-bottom:4px">CUADRE — qué falta y de quién es${_recProvChip ? ' (solo el proveedor elegido)' : ''}</div>
+    <div style="font-size:13px;color:var(--tx);margin-bottom:8px">Meses cerrados de los últimos 6 meses. Pincha cada caja para ver el detalle y las piezas. ${facPend ? `· ⚪ ${facPend} factura(s) sin conciliar.` : ''} ${enCurso ? `· ⏳ ${enCurso} doc(s) de este mes aún sin facturar (normal).` : ''}</div>
     ${caja('#2f6fd6', 'rgba(47,111,214,.06)', '🟦 NOS FALTA SUBIR', `está en la factura del proveedor pero no lo tenemos subido (culpa nuestra)${Object.keys(gAz).length ? ` · ${Object.keys(gAz).length} proveedor(es)` : ''}`, faltaSubir.length, cuerpoAzul)}
     ${caja('#e08a00', 'rgba(224,138,0,.06)', '🟧 NO HA LLEGADO LA FACTURA', 'albaranes de meses cerrados sin factura (no la mandan o no se ha subido)', listaSin.length ? `${listaSin.length} grupo(s), ${sinFactura.length} albaranes` : 0, cuerpoNaranja)}
-    <div id="recCuadreFacDif"><div style="font-size:13;color:var(--tx);margin-bottom:8px">⏳ 🟨 Revisando facturas sin conciliar…</div></div>
+    <div id="recCuadreFacDif"><div style="font-size:13px;color:var(--tx);margin-bottom:8px">⏳ 🟨 Revisando facturas sin conciliar…</div></div>
     ${caja('#d63030', 'rgba(214,48,48,.06)', '🟥 ABONOS SIN DESCONTAR', `no aparecen en ninguna factura (reclamar) · total ${eur(totAb)}`, abonosSin.length, cuerpoRojo)}
     ${_recPiezasHTML(_piezas, mesTxt, fch, eur)}
   </div>`;
@@ -29814,30 +29814,30 @@ function _recPiezasHTML(piezas, mesTxt, fch, eur) {
   const keys = Object.keys(meses).sort().reverse();
   const cuenta = (arr, ini) => arr.filter(p => p.est.startsWith(ini)).length;
   // v705: estilo EXPLICITO en cada celda (la app tiene un estilo general que no deja partir texto)
-  const td = (extra) => `padding:4px 6px;font-size:13;white-space:normal;overflow-wrap:anywhere;vertical-align:top;${extra || ''}`;
+  const td = (extra) => `padding:4px 6px;font-size:13px;white-space:normal;overflow-wrap:anywhere;vertical-align:top;${extra || ''}`;
   const fila = p => `<tr style="border-top:1px solid var(--bd)">
       <td style="${td('white-space:nowrap')}">${fch(p.fecha)}</td>
       <td style="${td()}">${esc(p.prov)}</td>
-      <td style="${td(String(p.l.descripcion || '').length > 55 ? 'font-size:12;line-height:1.3' : '')}"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--tx);font-size:12">${esc(p.l.codigo)}</div>` : ''}</td>
+      <td style="${td(String(p.l.descripcion || '').length > 55 ? 'font-size:12px;line-height:1.3' : '')}"><b>${esc(p.l.descripcion || '?')}</b>${p.l.codigo ? `<div style="color:var(--tx);font-size:12px">${esc(p.l.codigo)}</div>` : ''}</td>
       <td style="${td('text-align:right')}">${p.l.cantidad != null ? esc(String(p.l.cantidad)) : ''}</td>
       <td style="${td('text-align:right;white-space:nowrap')}">${p.l.importe != null ? eur(Number(p.l.importe)) : ''}</td>
-      <td style="${td('color:var(--tx);font-size:12')}">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
+      <td style="${td('color:var(--tx);font-size:12px')}">${p.abono ? '↩️ ' : ''}${esc(p.doc)}</td>
       <td style="${td('color:' + p.col + ';font-weight:600')}">${esc(p.est)}</td></tr>`;
   const cuerpo = keys.map(k => {
     const arr = meses[k].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
-    _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:13;table-layout:fixed">
+    _recPiezasMes[k] = `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:13px;table-layout:fixed">
         <colgroup><col style="width:92px"><col style="width:175px"><col><col style="width:52px"><col style="width:92px"><col style="width:120px"><col style="width:250px"></colgroup>
-        <tr style="text-align:left;color:var(--tx);font-size:12"><th style="padding:3px 6px">FECHA</th><th style="padding:3px 6px">PROVEEDOR</th><th style="padding:3px 6px">PIEZA</th><th style="padding:3px 6px;text-align:right">CANT.</th><th style="padding:3px 6px;text-align:right">IMPORTE</th><th style="padding:3px 6px">ALBARÁN</th><th style="padding:3px 6px">ESTADO</th></tr>
+        <tr style="text-align:left;color:var(--tx);font-size:12px"><th style="padding:3px 6px">FECHA</th><th style="padding:3px 6px">PROVEEDOR</th><th style="padding:3px 6px">PIEZA</th><th style="padding:3px 6px;text-align:right">CANT.</th><th style="padding:3px 6px;text-align:right">IMPORTE</th><th style="padding:3px 6px">ALBARÁN</th><th style="padding:3px 6px">ESTADO</th></tr>
         ${arr.map(fila).join('')}</table></div>`;
     const res = [
       ['✅', cuenta(arr, '✅') + cuenta(arr, '↩️')], ['⚠️', cuenta(arr, '⚠️')], ['🟦', cuenta(arr, '🟦')],
       ['🟧', cuenta(arr, '🟧')], ['🟥', cuenta(arr, '🟥')], ['⏳', cuenta(arr, '⏳')]
     ].filter(x => x[1]).map(x => `${x[0]} ${x[1]}`).join(' · ');
     return `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px" ontoggle="if(this.open&&!this.dataset.ok){this.querySelector('.recPzC').innerHTML=_recPiezasMes['${k}']||'';this.dataset.ok='1'}">
-        <summary style="cursor:pointer;font-size:14"><b>${esc(mesTxt(k + '-01'))}</b> · ${arr.length} pieza(s) — ${res}</summary><div class="recPzC"></div></details>`;
+        <summary style="cursor:pointer;font-size:14px"><b>${esc(mesTxt(k + '-01'))}</b> · ${arr.length} pieza(s) — ${res}</summary><div class="recPzC"></div></details>`;
   }).join('');
   return `<details style="border:1px solid #6b5bd6;background:rgba(107,91,214,.06);border-radius:8px;padding:8px 12px;margin-bottom:8px">
-      <summary style="cursor:pointer;font-family:var(--mn);font-size:14;font-weight:700;color:var(--tx)">🔧 VISTA POR PIEZAS <span style="font-weight:400;color:var(--tx)">· cada pieza y en qué factura está (✅ facturada · ⚠️ no está en su factura · 🟦 albarán no subido · 🟧 sin factura · 🟥 abono sin descontar · ⏳ mes en curso)</span></summary>
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx)">🔧 VISTA POR PIEZAS <span style="font-weight:400;color:var(--tx)">· cada pieza y en qué factura está (✅ facturada · ⚠️ no está en su factura · 🟦 albarán no subido · 🟧 sin factura · 🟥 abono sin descontar · ⏳ mes en curso)</span></summary>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${cuerpo}</div></details>`;
 }
 
@@ -29884,9 +29884,9 @@ async function _recCuadreFacturasDif(todos) {
     if (!x.casados) m.push('ningún albarán subido casa con esta factura');
     return m.join(' · ') || 'revisar';
   };
-  const lista = (t, arr) => arr.length ? `<div style="font-size:13;font-weight:700;margin-top:4px">${t}</div>` + arr.map(a => `<div style="font-size:13;padding-left:8px">${esc(typeof a === 'string' ? a : (a.motivo || ''))}</div>`).join('') : '';
+  const lista = (t, arr) => arr.length ? `<div style="font-size:13px;font-weight:700;margin-top:4px">${t}</div>` + arr.map(a => `<div style="font-size:13px;padding-left:8px">${esc(typeof a === 'string' ? a : (a.motivo || ''))}</div>`).join('') : '';
   const cuerpo = filas.map(x => `<details style="background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 10px">
-      <summary style="cursor:pointer;font-size:14"><b>${esc(x.f.proveedor || '?')}</b> · ${x.f.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} <b>${esc(x.f.num_documento || '?')}</b> (${fch(x.f.fecha)}) — <span style="color:#a07800">${esc(motivos(x))}</span>${(_recambiosEsOficina() || (_recambiosEsTransmargaz() && x.f.empresa === 'TRANSMARGAZ')) ? `<button class="btn bp" style="font-size:12;padding:2px 8px;margin-left:8px" onclick="event.preventDefault();event.stopPropagation();recambiosConciliar('${x.f.id}')">🔍 Conciliar</button>` : ''}</summary>
+      <summary style="cursor:pointer;font-size:14px"><b>${esc(x.f.proveedor || '?')}</b> · ${x.f.tipo_doc === 'abono' ? 'factura de abono' : 'factura'} <b>${esc(x.f.num_documento || '?')}</b> (${fch(x.f.fecha)}) — <span style="color:#a07800">${esc(motivos(x))}</span>${(_recambiosEsOficina() || (_recambiosEsTransmargaz() && x.f.empresa === 'TRANSMARGAZ')) ? `<button class="btn bp" style="font-size:12px;padding:2px 8px;margin-left:8px" onclick="event.preventDefault();event.stopPropagation();recambiosConciliar('${x.f.id}')">🔍 Conciliar</button>` : ''}</summary>
       <div style="margin-top:4px">
         ${lista('🟦 Albaranes que vienen en la factura y no están subidos:', x.inf.albNoSubidos.map(n => 'Albarán ' + n))}
         ${lista('⚠️ Diferencias:', x.inf.avisos)}
@@ -29895,8 +29895,8 @@ async function _recCuadreFacturasDif(todos) {
       </div></details>`).join('');
   c.innerHTML = `
     <details style="border:1px solid #c9a000;background:rgba(201,160,0,.07);border-radius:8px;padding:8px 12px;margin-bottom:8px">
-      <summary style="cursor:pointer;font-family:var(--mn);font-size:14;font-weight:700;color:var(--tx)">🟨 FACTURAS QUE NO CUADRAN — <span style="color:#a07800">${filas.length}</span> <span style="font-weight:400;color:var(--tx)">· sin conciliar, con el motivo de cada una${limpias ? ` · ✅ ${limpias} ya cuadran (se conciliarán en el próximo repaso)` : ''}</span></summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${filas.length ? cuerpo : '<div style="font-size:14;color:var(--tx)">✅ Ninguna factura pendiente con diferencias.</div>'}</div>
+      <summary style="cursor:pointer;font-family:var(--mn);font-size:14px;font-weight:700;color:var(--tx)">🟨 FACTURAS QUE NO CUADRAN — <span style="color:#a07800">${filas.length}</span> <span style="font-weight:400;color:var(--tx)">· sin conciliar, con el motivo de cada una${limpias ? ` · ✅ ${limpias} ya cuadran (se conciliarán en el próximo repaso)` : ''}</span></summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${filas.length ? cuerpo : '<div style="font-size:14px;color:var(--tx)">✅ Ninguna factura pendiente con diferencias.</div>'}</div>
     </details>`;
 }
 
