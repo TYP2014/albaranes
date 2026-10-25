@@ -172,6 +172,7 @@ if (typeof pdfjsLib !== 'undefined') {
     <div id="recambDia10Banner" style="display:none"></div>
     <div id="tacoBuzonBanner" style="display:none"></div>
     <div id="tacoSinTarjBanner" style="display:none"></div>
+    <div id="tacoCarenciaBanner" style="display:none"></div>
     </div><!-- /avisosGrid -->
 
     <!-- TAB ALBARANES -->
@@ -705,9 +706,9 @@ if (typeof pdfjsLib !== 'undefined') {
               <button class="taco-rep-card" onclick="tacoRep('descansos')">
                 <span style="font-size:26px">🛌</span><b>Descansos semanales y bisemanales</b>
                 <span class="trc-nota">45h · reducidos · huecos no acreditados</span></button>
-              <button class="taco-rep-card trc-pronto" onclick="toast('En preparación','warn')">
+              <button class="taco-rep-card" onclick="tacoRep('carencia')">
                 <span style="font-size:26px">🕳️</span><b>Carencia de registros</b>
-                <span class="trc-nota">en preparación</span></button>
+                <span class="trc-nota">días sin datos en la descarga del camión</span></button>
             </div>
           </div>
         </div>
@@ -2053,6 +2054,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=945"></script>
+<script src="app.js?v=946"></script>
 </body>
 </html>

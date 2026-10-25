@@ -463,6 +463,10 @@ async function loadUserMap() {
       if (_permTaco) setTimeout(() => {
         try { tacoSinTarjAviso(); } catch (e) { console.warn('[v941 sin tarjeta]', e); }
       }, 10000);
+      // v946: aviso de carencia de registros (dias sin datos en la descarga)
+      if (_permTaco) setTimeout(() => {
+        try { tacoCarenciaAviso(); } catch (e) { console.warn('[v946 carencia]', e); }
+      }, 12000);
 
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
       const tabItv = document.getElementById('tabItv');
@@ -36566,6 +36570,7 @@ async function tacoGuardar() {
     await _tacoRellenarTarjeta(r);          // v383
     await _tacoApuntarDesconocidos(r, empresa);   // v620
     const nDias = await _tacoGuardarDias(r, empresa, dIns?.id);   // v385
+    await _tacoGuardarMem(dIns?.id, r);                           // v946
     info(`<span class="ks">✅ Guardado en ${_TACO_EMP_NOM[empresa]} · ${r.dias.length} días · huella ${sha.slice(0, 12)}…</span>` + (nDias ? `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:4px">${nDias} días apuntados en el histórico</div>` : ''));
     tacoCargarLista();                      // v374: que salga ya en el archivo de abajo
     _tacoInfPersonas = null; tacoInfPintarSelector(); tacoVehPintarSelector();   // v388 · v422: tambien los camiones
@@ -36855,6 +36860,7 @@ async function _tacoGuardarUno(it) {
     await _tacoRellenarTarjeta(r);          // v383
     await _tacoApuntarDesconocidos(r, it.empresa);   // v620
     it.nDias = await _tacoGuardarDias(r, it.empresa, dI?.id);   // v385
+    await _tacoGuardarMem(dI?.id, r);                           // v946
     return 'guardado';
   } catch (e) {
     console.error('[v376 tacografo] lote:', file.name, e);
@@ -37178,6 +37184,7 @@ async function tacoBuzonAuto() {
     _tacoBuzonFallos = fallos;
     renderTacoBuzonBanner();
     try { tacoSinTarjAviso(); } catch (e) {}   // v941: lo recien guardado puede traer episodios nuevos
+    try { tacoCarenciaAviso(); } catch (e) {}  // v946
 
     // si estamos mirando la pestaña, que se refresque lo que se ve
     if (ok) {
@@ -37421,6 +37428,167 @@ function irAInformeSinTarjeta() {
   try { switchTab('taco'); } catch (e) {}
   try { tacoSec('informes'); } catch (e) {}
   try { tacoRep('sintarjeta'); } catch (e) {}
+}
+
+// ============================================================
+// TACOGRAFO — v946 (25/10/2026) · CARENCIA DE REGISTROS
+//
+// El caso que mando ASG ("Ficheros de vehiculo sin actividades"): el tacografo
+// estaba BLOQUEADO con la tarjeta de empresa de OTRA empresa y la descarga
+// sale sin los dias anteriores a nuestro bloqueo. El fichero lo dice solo:
+// trae la MEMORIA del aparato (desde que dia hay datos en el camion) y los
+// dias que de verdad vienen dentro. Si entre una cosa y otra hay 3 dias o mas,
+// esos dias NO estan en la app (los tiene quien bloqueo antes: ASG, custodia).
+//  · Se guarda `mem_desde` en cada descarga NUEVA de camion (tacografo_ficheros).
+//    Es best-effort: si la columna aun no existe, no se rompe NADA (solo avisa
+//    por consola) — por eso el orden SQL/codigo no importa.
+//  · Por camion: memoria mas antigua conocida frente al primer dia con datos de
+//    TODAS sus descargas (una descarga vieja que si traiga esos dias lo tapa).
+//  · Las descargas anteriores a esta version no traen mem_desde: esos camiones
+//    salen como "sin comprobar" hasta su proxima descarga. No se inventa nada.
+//  · SOLO LECTURA salvo el apunte de mem_desde.
+// ============================================================
+const TACO_CAR_MIN = 3;          // dias seguidos sin datos a partir de los que se avisa
+const TACO_CAR_KEY = 'tacoCarenciaVisto';
+const TACO_CAR_SQL = 'alter table public.tacografo_ficheros add column if not exists mem_desde date;';
+
+async function _tacoGuardarMem(id, r) {
+  try {
+    if (!id || !r || r.tipo !== 'vehiculo' || !r.memDesde) return;
+    const md = _tacoISO(r.memDesde);
+    if (!md) return;
+    const { error } = await sb.from('tacografo_ficheros').update({ mem_desde: md }).eq('id', id);
+    if (error) console.warn('[v946] no se pudo apuntar mem_desde (¿falta la columna?):', error.message || error);
+    // aviso en el momento de subirla
+    const dd = _tacoISO(r.desde);
+    if (dd) {
+      const falta = Math.round((new Date(dd + 'T00:00:00Z') - new Date(md + 'T00:00:00Z')) / 86400000);
+      if (falta >= TACO_CAR_MIN) {
+        try { toast('🕳️ ' + (r.matricula || 'Camión') + ': esta descarga NO trae ' + falta + ' días (' + _tacoDMY2(md) + ' → ' + _tacoDMY2(_tacoDiaMas(dd, -1)) + '). Mira Informes › Carencia de registros', 'warn'); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('[v946] mem_desde:', e.message || e); }
+}
+
+// Devuelve { lista:[...], sinComprobar:n, total:n } o { error }
+async function _tacoCarenciaCalcular() {
+  const filas = []; let fila = 0;
+  for (let i = 0; i < 30; i++) {
+    const r = await sb.from('tacografo_ficheros').select('id, matricula, empresa, fecha_desde, fecha_hasta, mem_desde')
+      .eq('tipo', 'vehiculo').order('id').range(fila, fila + 999);
+    if (r.error) return { error: r.error };
+    (r.data || []).forEach(x => filas.push(x));
+    if (!r.data || r.data.length < 1000) break;
+    fila += 1000;
+  }
+  let baja = new Set();
+  try { baja = await _tacoVehDeBaja(); } catch (e) {}
+  const porMat = new Map();
+  filas.forEach(f => {
+    const m = (f.matricula || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!m || /^[A-Z]/.test(m)) return;                  // remolques: no llevan tacografo
+    if (baja.has(_tacoNormMat(m))) return;               // vendido o de baja
+    if (!porMat.has(m)) porMat.set(m, { mat: m, empresa: f.empresa, primero: null, memIni: null });
+    const o = porMat.get(m);
+    o.empresa = f.empresa || o.empresa;
+    if (f.fecha_desde && (!o.primero || f.fecha_desde < o.primero)) o.primero = f.fecha_desde;
+    if (f.mem_desde && (!o.memIni || f.mem_desde < o.memIni)) o.memIni = f.mem_desde;
+  });
+  const hoy = new Date().toISOString().slice(0, 10);
+  const tope = _tacoDiaMas(hoy, -365);                   // la inspeccion pide como mucho 1 año
+  const dif = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+  const lista = []; let sinComprobar = 0;
+  porMat.forEach(o => {
+    if (!o.memIni) { sinComprobar++; return; }
+    if (!o.primero) return;
+    const ini = o.memIni < tope ? tope : o.memIni;
+    const falta = dif(ini, o.primero);
+    if (falta >= TACO_CAR_MIN) lista.push({ mat: o.mat, empresa: o.empresa, memIni: o.memIni, ini, primero: o.primero, fin: _tacoDiaMas(o.primero, -1), falta });
+  });
+  lista.sort((a, b) => b.falta - a.falta);
+  return { lista, sinComprobar, total: porMat.size };
+}
+
+async function tacoRepCarenciaUI() {
+  const panel = document.getElementById('tacoRepPanel');
+  if (!panel) return;
+  panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">Comprobando…</div></div>';
+  try { if (!tacoFicheros || !tacoFicheros.length) await tacoCargarLista(); } catch (e) {}
+  const res = await _tacoCarenciaCalcular();
+  if (res.error) {
+    const m = String(res.error.message || res.error);
+    const sinCol = /mem_desde/i.test(m);
+    panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + `<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--erd)">
+      ${sinCol ? 'Falta crear la columna en la base de datos. Ejecuta esta sentencia en Supabase (SQL Editor) y vuelve a abrir el informe:<pre style="background:var(--s2);padding:10px;border-radius:7px;margin-top:8px;white-space:pre-wrap">' + TACO_CAR_SQL + '</pre>' : 'No pude preparar el informe: ' + m}</div></div>`;
+    return;
+  }
+  const lista = res.lista.filter(x => _tacoEmpPasa({ empresa: x.empresa }));
+  const dmy = _tacoDMY2;
+  const filasH = lista.map(x => `<tr>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:13px"><b>${x.mat}</b></td>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${_TACO_EMP_NOM[x.empresa] || x.empresa || ''}</td>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.memIni)}</td>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.primero)}</td>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:13px;font-weight:700;color:var(--erd)">${x.falta} días</td>
+      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.ini)} → ${dmy(x.fin)}</td></tr>`).join('');
+  panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + `
+    <div class="card"><div class="card-bd">
+      ${lista.length
+        ? `<div style="background:#fdeeee;border:1px solid #f0c4c2;border-radius:9px;padding:11px 14px;font-family:var(--mn);font-size:13.5px;color:var(--erd);font-weight:700">
+            🕳️ ${lista.length} camión${lista.length === 1 ? '' : 'es'} con días SIN registro en la app</div>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px">
+            <tr style="background:var(--s2)"><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">CAMIÓN</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">EMPRESA</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">MEMORIA DESDE</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">1er DÍA EN LA APP</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">FALTAN</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DÍAS QUE FALTAN</th></tr>
+            ${filasH}</table>`
+        : `<div style="background:#e8f7ee;border:1px solid #bfe3cd;border-radius:9px;padding:12px 14px;font-family:var(--mn);font-size:13px;color:#1f7a45;font-weight:600">
+            ✓ Ningún camión comprobado tiene días sin registro${_tacoEmpGlobal === 'TODAS' ? '' : ' en ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}.</div>`}
+      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:12px;line-height:1.7">
+        ${res.sinComprobar ? `⏳ <b>${res.sinComprobar}</b> de ${res.total} camiones aún SIN COMPROBAR: sus descargas son anteriores a esta función y no traen la memoria del aparato. Se comprueban solos con su próxima descarga.<br>` : ''}
+        Causa habitual: el tacógrafo estaba <b>bloqueado con la tarjeta de empresa de otra empresa</b> (ASG) y la descarga solo trae lo posterior a nuestro bloqueo. Esos días los tiene quien bloqueó antes: pídeselos a ASG (custodia) y súbelos a ARCHIVO; el aviso desaparece solo.<br>
+        Se compara la <b>memoria del aparato</b> (desde cuándo hay datos en el camión) con el <b>primer día con datos</b> de todas sus descargas. Solo se avisa con ${TACO_CAR_MIN} días seguidos o más; como mucho se mira el último año.</div>
+    </div></div>`;
+}
+
+async function tacoCarenciaAviso() {
+  const b = document.getElementById('tacoCarenciaBanner');
+  if (!b) return;
+  try {
+    if (!window._tieneTaco) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    const res = await _tacoCarenciaCalcular();
+    if (res.error || !res.lista.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    const firma = res.lista.map(x => x.mat + ':' + x.falta).join('|');
+    let visto = '';
+    try { visto = localStorage.getItem(TACO_CAR_KEY) || ''; } catch (e) {}
+    if (visto === firma) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    window._tacoCarenciaFirma = firma;
+    const l = res.lista;
+    const lineas = l.slice(0, 5).map(x => `<div><b>${x.mat}</b> · faltan ${x.falta} días (${_tacoDMY2(x.ini)} → ${_tacoDMY2(x.fin)})</div>`).join('')
+      + (l.length > 5 ? `<div>y ${l.length - 5} camión${l.length - 5 === 1 ? '' : 'es'} más</div>` : '');
+    b.style.display = 'block';
+    b.innerHTML = `<div style="background:rgba(230,160,40,.12);border:1px solid rgba(230,160,40,.55);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:#8a570f;line-height:1.5">
+        <b>🕳️ ${l.length} camión${l.length === 1 ? '' : 'es'} con días SIN REGISTRO en la app</b> (carencia de registros)
+        <div style="margin-top:3px">${lineas}</div>
+        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Suele ser el tacógrafo bloqueado por la tarjeta de otra empresa: esos días hay que pedirlos a ASG y subirlos.</div>
+      </div>
+      <button class="btn bs" onclick="irAInformeCarencia()">VER</button>
+      <button class="btn bs" onclick="tacoCarenciaVisto()">VISTO</button>
+    </div>`;
+  } catch (e) {
+    console.warn('[v946 carencia aviso]', e.message || e);
+    b.style.display = 'none';
+  }
+}
+
+function tacoCarenciaVisto() {
+  try { localStorage.setItem(TACO_CAR_KEY, window._tacoCarenciaFirma || ''); } catch (e) {}
+  const b = document.getElementById('tacoCarenciaBanner');
+  if (b) { b.style.display = 'none'; b.innerHTML = ''; }
+}
+
+function irAInformeCarencia() {
+  try { switchTab('taco'); } catch (e) {}
+  try { tacoSec('informes'); } catch (e) {}
+  try { tacoRep('carencia'); } catch (e) {}
 }
 
 // ============================================================
@@ -39103,6 +39271,7 @@ function tacoRep(cual) {
   if (cual === 'km') { tacoRepKmUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }                 // v461
   if (cual === 'descansos') { tacoRepDescUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }        // v468
   if (cual === 'inspeccion') { tacoRepInspUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   // v929
+  if (cual === 'carencia') { tacoRepCarenciaUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }          // v946
   if (cual === 'infracciones') { tacoRepInfUI(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }      // v469
 }
 
