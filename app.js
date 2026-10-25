@@ -37273,15 +37273,21 @@ function _tacoQuienEnTramo(m, mat, fecha, ini, fin) {
     if (c.s <= ini + 1 && (!ant || c.s > ant.s)) ant = c;
     if (c.e >= fin - 1 && (!pos || c.e < pos.e)) pos = c;
   });
+  const antHoy = !!ant, posHoy = !!pos;   // v943: ¿ambos del propio dia?
   if (!ant) (m.get(mat + '|' + _tacoDiaMas(fecha, -1)) || []).forEach(c => { if (!ant || c.s > ant.s) ant = c; });
   if (!pos) (m.get(mat + '|' + _tacoDiaMas(fecha, 1)) || []).forEach(c => { if (!pos || c.e < pos.e) pos = c; });
-  return { ant: ant ? ant.n : null, pos: pos ? pos.n : null };
+  const a = ant ? ant.n : null, p = pos ? pos.n : null;
+  // v943 (explicacion de JC): SOSPECHOSO = la MISMA tarjeta antes y despues, el mismo dia.
+  // Si antes y despues son distintos (o falta uno), es lo normal al mover el camion en
+  // la base o el taller: con el motor arrancado ya cuenta como 15 min y no es culpa de nadie.
+  return { ant: a, pos: p, sosp: !!(a && p && a === p && antHoy && posHoy) };
 }
 
 function _tacoQuienTxt(m, t) {
   const q = _tacoQuienEnTramo(m, t.matricula || '', t.fecha, t.minuto_ini, t.minuto_fin);
   if (!q.ant && !q.pos) return '';
-  return ' · 👤 antes: ' + (q.ant || '—') + ' · después: ' + (q.pos || '—');
+  return ' · 👤 antes: ' + (q.ant || '—') + ' · después: ' + (q.pos || '—')
+    + (q.sosp ? ' · 🔴 SOSPECHOSO: la misma tarjeta antes y después el mismo día' : ' · ⚪ probable base/taller (no cuenta contra nadie)');
 }
 
 async function tacoSinTarjAviso() {
@@ -37336,7 +37342,8 @@ async function tacoSinTarjAviso() {
     const diasC = await _tacoCondDias([...porMat.keys()].filter(k => k !== '—'), desde30, hasta);
     largos.forEach(ep => {
       const q = _tacoQuienEnTramo(diasC, ep.mat, ep.fecha, ep.ini, ep.fin);
-      ep.quien = q.ant || q.pos || null;
+      ep.sosp = !!q.sosp;                       // v943
+      ep.quien = q.sosp ? q.ant : null;         // v943: solo el sospechoso lleva nombre
     });
     const diasPers = new Map();   // persona -> dias distintos con episodio (30 dias)
     largos.forEach(ep => {
@@ -37363,11 +37370,15 @@ async function tacoSinTarjAviso() {
     const lineas = lista.slice(0, 5).map(([m, o]) => {
       const tot = o.rec.reduce((s, r) => s + r.min, 0);
       const ult = o.rec[o.rec.length - 1].fecha;
-      const rep = o.dias.size >= 2
-        ? ` · <b style="color:#b00020">🔁 ${o.dias.size} días en 30 — vigilar</b>` : '';
+      const nSosp = o.rec.filter(ep => ep.sosp).length;
+      const diasSosp = new Set(largos.filter(ep => ep.mat === m && ep.sosp).map(ep => ep.fecha)).size;
+      const rep = diasSosp >= 2
+        ? ` · <b style="color:#b00020">🔁 ${diasSosp} días sospechosos en 30 — vigilar</b>` : '';
+      const sospTxt = (nSosp ? ` · <b>🔴 ${nSosp} sospechoso${nSosp === 1 ? '' : 's'}</b>` : '')
+        + (o.rec.length - nSosp ? ` · ⚪ ${o.rec.length - nSosp} probable base/taller` : '');
       const quien = [...new Set(o.rec.map(ep => ep.quien).filter(Boolean))];
       const qTxt = quien.length ? ` · 👤 ${quien.slice(0, 2).join(' / ')}${quien.length > 2 ? ' y ' + (quien.length - 2) + ' más' : ''}` : '';
-      return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${qTxt}${rep}</div>`;
+      return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${sospTxt}${qTxt}${rep}</div>`;
     }).join('') + (lista.length > 5 ? `<div>y ${lista.length - 5} camión${lista.length - 5 === 1 ? '' : 'es'} más</div>` : '');
 
     // v942: por persona (el conductor que llevaba el camion justo antes), con reincidencia
@@ -37375,18 +37386,20 @@ async function tacoSinTarjAviso() {
       .map(([n, k]) => ({ n, k, dias: (diasPers.get(n) || new Set()).size }))
       .sort((x, y) => y.dias - x.dias || y.k - x.k);
     const persTxt = pers.length
-      ? `<div style="margin-top:5px;padding-top:4px;border-top:1px dashed rgba(230,70,70,.35)"><b>👤 Por conductor (el que llevaba el camión justo antes):</b>`
+      ? `<div style="margin-top:5px;padding-top:4px;border-top:1px dashed rgba(230,70,70,.35)"><b>🔴 Conductores sospechosos (misma tarjeta antes y después, el mismo día):</b>`
         + pers.slice(0, 5).map(p => `<div>${p.n} · ${p.k} tramo${p.k === 1 ? '' : 's'} esta semana · ${p.dias} día${p.dias === 1 ? '' : 's'} en 30${p.dias >= 2 ? ' <b style="color:#b00020">🔁 reincide — advertir</b>' : ''}</div>`).join('')
         + (pers.length > 5 ? `<div>y ${pers.length - 5} más</div>` : '') + '</div>'
       : '';
 
+    const totSosp = lista.reduce((s, [, o]) => s + o.rec.filter(ep => ep.sosp).length, 0);
+    const rojo = totSosp > 0;   // v943: rojo si hay sospechosos; ambar si todo parece base/taller
     b.style.display = 'block';
-    b.innerHTML = `<div style="background:rgba(230,70,70,.12);border:1px solid rgba(230,70,70,.5);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:var(--erd);line-height:1.5">
-        <b>🚫 ${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días
+    b.innerHTML = `<div style="background:${rojo ? 'rgba(230,70,70,.12)' : 'rgba(230,160,40,.12)'};border:1px solid ${rojo ? 'rgba(230,70,70,.5)' : 'rgba(230,160,40,.55)'};border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:${rojo ? 'var(--erd)' : '#8a570f'};line-height:1.5">
+        <b>🚫 ${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días · <b>${totSosp ? '🔴 ' + totSosp + ' sospechoso' + (totSosp === 1 ? '' : 's') : 'ninguno sospechoso (probable base/taller)'}</b>
         <div style="margin-top:3px">${lineas}</div>
         ${persTxt}
-        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. El nombre es el de la tarjeta que salió justo antes: una pista, hay que confirmar quién conducía y pedirle el ticket justificativo.</div>
+        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. 🔴 = la misma tarjeta salió y volvió a entrar el mismo día (puede haberla sacado para conducir). ⚪ = antes y después distintos o sin identificar: lo normal al mover el camión en la base o el taller, no cuenta contra nadie. Confirma siempre con el conductor y pide el ticket justificativo.</div>
       </div>
       <button class="btn bs" onclick="irAInformeSinTarjeta()">VER</button>
       <button class="btn bs" onclick="tacoSinTarjVisto()">VISTO</button>
