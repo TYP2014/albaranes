@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v941 (25/10/2026): TACOGRAFO · AVISO ARRIBA POR CONDUCCION SIN TARJETA. Pedido de JC al recibir el email de ASG del 25/10 (5360JZR y 9566NBR): que salga en la franja de avisos de la pantalla inicial, y que se vigile al que reincida. Nuevo cartel rojo arriba (junto a los de ITV y Taller) para quien tenga permiso de Tacografo: tramos de conduccion con la tarjeta fuera de 15 min o mas en los ultimos 7 dias, por camion, con numero de tramos, tiempo total y ultimo dia. Si el mismo camion tiene episodios largos en 2 o mas dias de los ultimos 30, sale marcado '🔁 N dias en 30 - vigilar' (reincidencia). Botones VER (abre Tacografo > Informes > Conduccion sin tarjeta) y VISTO (lo esconde hasta que salga algo nuevo). Mismos datos y reglas que el informe v437/v439: solo fichero del camion, el tramo sin cerrar del dia de la descarga no cuenta, los cortos (<15 min) no hacen ruido aqui y se siguen viendo en el informe. Se calcula a los 10 s de entrar y otra vez al terminar de guardar descargas del buzon. SOLO LECTURA: no toca la base de datos ni cambia el informe. LIMITE: el aviso es POR CAMION; el nombre del conductor (el 'anterior' del email de ASG) aun no se enlaza - es el siguiente paso si se quiere vigilar por persona. Archivos: app.js (funciones tacoSinTarjAviso, tacoSinTarjVisto, irAInformeSinTarjeta + 2 enganches), index.html (hueco tacoSinTarjBanner y ?v=941).
+
+---
+
 v940 (24/10/2026): PANEL · OCULTAR / MOSTRAR LOS BLOQUES. Con el Historico de precios y los Precios Holcim cargados, los dos quedaban abiertos uno debajo del otro y no habia forma de recoger uno para ver el otro. Ahora, al cargar cada bloque aparece a su lado un boton OCULTAR (gris): lo esconde sin perder lo cargado y el mismo boton pasa a MOSTRAR para volver a abrirlo al instante, sin recargar ni volver a pedir datos. Los botones de cargar siguen igual (vuelven a leer). Los datos no cambian. Sin SQL. VUELTA ATRAS: volver a la v939.
 
 ---

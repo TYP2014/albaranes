@@ -459,6 +459,10 @@ async function loadUserMap() {
       if (_permTaco) setTimeout(() => {
         try { tacoBuzonAuto(); } catch (e) { console.warn('[v830 buzon auto]', e); }
       }, 8000);
+      // v941: aviso de conduccion sin tarjeta, arriba
+      if (_permTaco) setTimeout(() => {
+        try { tacoSinTarjAviso(); } catch (e) { console.warn('[v941 sin tarjeta]', e); }
+      }, 10000);
 
       const tienePermisoITV = !!userMap[currentUser.id]?.puede_ver_itv;
       const tabItv = document.getElementById('tabItv');
@@ -37172,6 +37176,7 @@ async function tacoBuzonAuto() {
 
     _tacoBuzonFallos = fallos;
     renderTacoBuzonBanner();
+    try { tacoSinTarjAviso(); } catch (e) {}   // v941: lo recien guardado puede traer episodios nuevos
 
     // si estamos mirando la pestaña, que se refresque lo que se ve
     if (ok) {
@@ -37205,6 +37210,116 @@ function renderTacoBuzonBanner() {
     </div>
     <button class="btn bs" onclick="irABuzonTacografo()">VER</button>
   </div>`;
+}
+
+// ============================================================
+// TACOGRAFO — v941 (25/10/2026) · AVISO ARRIBA: CONDUCCION SIN TARJETA
+//
+// Hasta ahora esto solo se veia entrando en Tacografo > Informes, y el
+// aviso llegaba por el email diario de ASG (que se acaba en febrero).
+// Ahora sale en la franja de avisos de arriba, en cualquier pestana, para
+// quien tenga permiso de Tacografo. Mismos datos y mismas reglas que el
+// informe v437/v439:
+//  · solo tramos de CONDUCCION del fichero del camion con la tarjeta fuera
+//  · solo los de 15 min o mas (los cortos, maniobras de patio, se ven en el
+//    informe, no hacen ruido aqui; ASG hace igual)
+//  · el tramo sin cerrar del dia de la descarga NO se cuenta (regla v393)
+// Ventana del aviso: ultimos 7 dias. REINCIDENCIA: se cuentan los dias con
+// episodio largo del mismo camion en los ultimos 30 dias.
+// "VISTO" lo esconde hasta que salga algo nuevo (no es un "no volver a avisar").
+// ============================================================
+const TACO_STJ_MIN = 15;
+const TACO_STJ_KEY = 'tacoSinTarjVisto';
+
+async function tacoSinTarjAviso() {
+  const b = document.getElementById('tacoSinTarjBanner');
+  if (!b) return;
+  try {
+    if (!window._tieneTaco) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const hoy = new Date();
+    const d30 = new Date(hoy); d30.setDate(d30.getDate() - 30);
+    const d7 = new Date(hoy); d7.setDate(d7.getDate() - 7);
+    const desde30 = iso(d30), desde7 = iso(d7), hasta = iso(hoy);
+
+    // Paginado de 1000 en 1000 (limite de Supabase, leccion v422)
+    let tramos = [], fila = 0; const LOTE = 1000;
+    for (let i = 0; i < 10; i++) {
+      const r = await sb.from('tacografo_tramos').select('fecha, matricula, minuto_ini, minuto_fin')
+        .eq('origen', 'vehiculo').eq('actividad', 3).eq('sin_tarjeta', true).eq('hueco_ayudante', false)
+        .gte('fecha', desde30).lte('fecha', hasta)
+        .order('fecha').order('minuto_ini')
+        .range(fila, fila + LOTE - 1);
+      if (r.error) throw r.error;
+      tramos = tramos.concat(r.data || []);
+      if (!r.data || r.data.length < LOTE) break;
+      fila += LOTE;
+    }
+    if (!tramos.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
+
+    // dias de descarga incompletos: su tramo hasta medianoche esta SIN CERRAR
+    const rd = await sb.from('tacografo_dias').select('fecha, matricula')
+      .eq('origen', 'vehiculo').eq('incompleto', true).gte('fecha', desde30).lte('fecha', hasta);
+    const incomp = new Set((rd.data || []).map(x => (x.matricula || '') + '|' + x.fecha));
+
+    const porMat = new Map();   // matricula -> { rec:[], dias:Set }
+    tramos.forEach(t => {
+      const min = t.minuto_fin - t.minuto_ini;
+      if (min < TACO_STJ_MIN) return;
+      if (t.minuto_fin === 1440 && incomp.has((t.matricula || '') + '|' + t.fecha)) return;
+      const k = t.matricula || '—';
+      if (!porMat.has(k)) porMat.set(k, { rec: [], dias: new Set() });
+      const o = porMat.get(k);
+      o.dias.add(t.fecha);
+      if (t.fecha >= desde7) o.rec.push({ fecha: t.fecha, ini: t.minuto_ini, min });
+    });
+    const lista = [...porMat.entries()].filter(([, o]) => o.rec.length).sort((a, c) => a[0].localeCompare(c[0]));
+    if (!lista.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
+
+    // firma de lo que hay: si cambia (sale algo nuevo), el aviso vuelve aunque se pulsara VISTO
+    const firma = lista.map(([m, o]) => m + ':' + o.rec.map(r => r.fecha + '@' + r.ini).join(',')).join('|');
+    let visto = '';
+    try { visto = localStorage.getItem(TACO_STJ_KEY) || ''; } catch (e) {}
+    if (visto === firma) { b.style.display = 'none'; b.innerHTML = ''; return; }
+    window._tacoSinTarjFirma = firma;
+
+    const dur = v => (v >= 60 ? Math.floor(v / 60) + 'h' + String(v % 60).padStart(2, '0') : v + ' min');
+    const dmy = x => x.split('-').reverse().join('/');
+    const totTramos = lista.reduce((s, [, o]) => s + o.rec.length, 0);
+    const lineas = lista.slice(0, 5).map(([m, o]) => {
+      const tot = o.rec.reduce((s, r) => s + r.min, 0);
+      const ult = o.rec[o.rec.length - 1].fecha;
+      const rep = o.dias.size >= 2
+        ? ` · <b style="color:#b00020">🔁 ${o.dias.size} días en 30 — vigilar</b>` : '';
+      return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${rep}</div>`;
+    }).join('') + (lista.length > 5 ? `<div>y ${lista.length - 5} camión${lista.length - 5 === 1 ? '' : 'es'} más</div>` : '');
+
+    b.style.display = 'block';
+    b.innerHTML = `<div style="background:rgba(230,70,70,.12);border:1px solid rgba(230,70,70,.5);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:var(--erd);line-height:1.5">
+        <b>🚫 ${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días
+        <div style="margin-top:3px">${lineas}</div>
+        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. Hay que averiguar quién conducía y pedirle el ticket justificativo.</div>
+      </div>
+      <button class="btn bs" onclick="irAInformeSinTarjeta()">VER</button>
+      <button class="btn bs" onclick="tacoSinTarjVisto()">VISTO</button>
+    </div>`;
+  } catch (e) {
+    console.warn('[v941 sin tarjeta aviso]', e.message || e);
+    b.style.display = 'none';
+  }
+}
+
+function tacoSinTarjVisto() {
+  try { localStorage.setItem(TACO_STJ_KEY, window._tacoSinTarjFirma || ''); } catch (e) {}
+  const b = document.getElementById('tacoSinTarjBanner');
+  if (b) { b.style.display = 'none'; b.innerHTML = ''; }
+}
+
+function irAInformeSinTarjeta() {
+  try { switchTab('taco'); } catch (e) {}
+  try { tacoSec('informes'); } catch (e) {}
+  try { tacoRep('sintarjeta'); } catch (e) {}
 }
 
 // ============================================================
