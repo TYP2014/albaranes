@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v944 (25/10/2026): TACOGRAFO · EL INFORME DE CONDUCCION SIN TARJETA DICE 'SIN CONDUCTOR IDENTIFICADO'. Pedido de JC al ver el tramo largo de 6420JZT (01/10, 20 min) que salia sin nada junto a el. Cuando el fichero del camion no trae ninguna tarjeta antes ni despues (no se metio ninguna esos dias, o la descarga no guarda el dato), el tramo largo ya no queda en blanco: pone '⚪ sin conductor identificado (no cuenta contra nadie)'. Solo cambia el texto del informe; el cartel de arriba y las reglas 🔴/⚪ de la v943 no se tocan. SOLO LECTURA. Archivos: app.js (_tacoQuienTxt), index.html (?v=944).
+
+---
+
 v943 (25/10/2026): TACOGRAFO · SOSPECHOSO SOLO SI ES LA MISMA TARJETA ANTES Y DESPUES EL MISMO DIA. Correccion pedida por JC al ver la v942, que culpaba al conductor de 'antes' aunque 'despues' fuera otro. Regla de JC: al mover el camion en la base o el taller (lo dejan, lo meten en la nave, lo sacan, a veces solo arrancado = ya cuenta como 15 min) sale una tarjeta antes y otra distinta despues, o ninguna dada de alta: eso es normal y no cuenta contra nadie. Si en un dia normal de trabajo es la MISMA tarjeta la que sale y vuelve a entrar, hay sospecha de que la sacara y condujo sin ella. Ahora: 🔴 SOSPECHOSO = misma tarjeta antes y despues, ambas del propio dia; ⚪ probable base/taller = el resto. SOLO los 🔴 llevan nombre, entran en el bloque '🔴 Conductores sospechosos' y suman para '🔁 reincide - advertir' (2 o mas dias sospechosos en 30). El cartel es ROJO si hay algun sospechoso y AMBAR si todo parece base/taller; cada camion indica cuantos 🔴 y cuantos ⚪ tiene. En el informe cada tramo largo dice 🔴 o ⚪ junto a 'antes / despues'. Sigue siendo una PISTA: antes de advertir o sancionar, confirmar con el conductor. SOLO LECTURA, no toca la base de datos. Archivos: app.js (_tacoQuienEnTramo, _tacoQuienTxt y aviso), index.html (?v=943).
 
 ---

@@ -37285,7 +37285,7 @@ function _tacoQuienEnTramo(m, mat, fecha, ini, fin) {
 
 function _tacoQuienTxt(m, t) {
   const q = _tacoQuienEnTramo(m, t.matricula || '', t.fecha, t.minuto_ini, t.minuto_fin);
-  if (!q.ant && !q.pos) return '';
+  if (!q.ant && !q.pos) return ' · ⚪ sin conductor identificado (no cuenta contra nadie)';   // v944
   return ' · 👤 antes: ' + (q.ant || '—') + ' · después: ' + (q.pos || '—')
     + (q.sosp ? ' · 🔴 SOSPECHOSO: la misma tarjeta antes y después el mismo día' : ' · ⚪ probable base/taller (no cuenta contra nadie)');
 }
