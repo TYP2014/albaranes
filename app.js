@@ -37231,6 +37231,59 @@ function renderTacoBuzonBanner() {
 const TACO_STJ_MIN = 15;
 const TACO_STJ_KEY = 'tacoSinTarjVisto';
 
+// v942 — QUIEN LLEVABA EL CAMION. El fichero del camion guarda, por dia, que
+// tarjetas se metieron y de que minuto a que minuto (columna `conductores`,
+// v426). Para un tramo sin tarjeta, el "conductor anterior" es la tarjeta que
+// salio justo antes y el "posterior" la que entro justo despues (igual que el
+// email de ASG). Es una PISTA para averiguar quien fue, no una prueba.
+function _tacoDiaMas(iso, n) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+async function _tacoCondDias(mats, desde, hasta) {
+  const m = new Map();
+  const lista = [...new Set((mats || []).filter(Boolean))];
+  if (!lista.length) return m;
+  const d1 = _tacoDiaMas(desde, -1), d2 = _tacoDiaMas(hasta, 1);
+  try {
+    for (let i = 0; i < lista.length; i += 50) {
+      let fila = 0;
+      for (let p = 0; p < 10; p++) {
+        const r = await sb.from('tacografo_dias').select('fecha, matricula, conductores')
+          .eq('origen', 'vehiculo').in('matricula', lista.slice(i, i + 50))
+          .gte('fecha', d1).lte('fecha', d2)
+          .order('matricula').order('fecha').range(fila, fila + 999);
+        if (r.error) throw r.error;
+        (r.data || []).forEach(x => {
+          if (Array.isArray(x.conductores) && x.conductores.length) m.set(x.matricula + '|' + x.fecha, x.conductores);
+        });
+        if (!r.data || r.data.length < 1000) break;
+        fila += 1000;
+      }
+    }
+  } catch (e) { console.warn('[v942 conductores]', e.message || e); }
+  return m;
+}
+
+function _tacoQuienEnTramo(m, mat, fecha, ini, fin) {
+  let ant = null, pos = null;
+  (m.get(mat + '|' + fecha) || []).forEach(c => {
+    if (c.s <= ini + 1 && (!ant || c.s > ant.s)) ant = c;
+    if (c.e >= fin - 1 && (!pos || c.e < pos.e)) pos = c;
+  });
+  if (!ant) (m.get(mat + '|' + _tacoDiaMas(fecha, -1)) || []).forEach(c => { if (!ant || c.s > ant.s) ant = c; });
+  if (!pos) (m.get(mat + '|' + _tacoDiaMas(fecha, 1)) || []).forEach(c => { if (!pos || c.e < pos.e) pos = c; });
+  return { ant: ant ? ant.n : null, pos: pos ? pos.n : null };
+}
+
+function _tacoQuienTxt(m, t) {
+  const q = _tacoQuienEnTramo(m, t.matricula || '', t.fecha, t.minuto_ini, t.minuto_fin);
+  if (!q.ant && !q.pos) return '';
+  return ' · 👤 antes: ' + (q.ant || '—') + ' · después: ' + (q.pos || '—');
+}
+
 async function tacoSinTarjAviso() {
   const b = document.getElementById('tacoSinTarjBanner');
   if (!b) return;
@@ -37263,6 +37316,7 @@ async function tacoSinTarjAviso() {
     const incomp = new Set((rd.data || []).map(x => (x.matricula || '') + '|' + x.fecha));
 
     const porMat = new Map();   // matricula -> { rec:[], dias:Set }
+    const largos = [];          // v942: todos los episodios largos de 30 dias
     tramos.forEach(t => {
       const min = t.minuto_fin - t.minuto_ini;
       if (min < TACO_STJ_MIN) return;
@@ -37271,10 +37325,30 @@ async function tacoSinTarjAviso() {
       if (!porMat.has(k)) porMat.set(k, { rec: [], dias: new Set() });
       const o = porMat.get(k);
       o.dias.add(t.fecha);
-      if (t.fecha >= desde7) o.rec.push({ fecha: t.fecha, ini: t.minuto_ini, min });
+      const ep = { mat: k, fecha: t.fecha, ini: t.minuto_ini, fin: t.minuto_fin, min, quien: null };
+      largos.push(ep);
+      if (t.fecha >= desde7) o.rec.push(ep);
     });
     const lista = [...porMat.entries()].filter(([, o]) => o.rec.length).sort((a, c) => a[0].localeCompare(c[0]));
     if (!lista.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
+
+    // v942: quien llevaba el camion justo antes de cada episodio
+    const diasC = await _tacoCondDias([...porMat.keys()].filter(k => k !== '—'), desde30, hasta);
+    largos.forEach(ep => {
+      const q = _tacoQuienEnTramo(diasC, ep.mat, ep.fecha, ep.ini, ep.fin);
+      ep.quien = q.ant || q.pos || null;
+    });
+    const diasPers = new Map();   // persona -> dias distintos con episodio (30 dias)
+    largos.forEach(ep => {
+      if (!ep.quien) return;
+      if (!diasPers.has(ep.quien)) diasPers.set(ep.quien, new Set());
+      diasPers.get(ep.quien).add(ep.fecha);
+    });
+    const persRec = new Map();    // persona -> episodios de los ultimos 7 dias
+    lista.forEach(([, o]) => o.rec.forEach(ep => {
+      if (!ep.quien) return;
+      persRec.set(ep.quien, (persRec.get(ep.quien) || 0) + 1);
+    }));
 
     // firma de lo que hay: si cambia (sale algo nuevo), el aviso vuelve aunque se pulsara VISTO
     const firma = lista.map(([m, o]) => m + ':' + o.rec.map(r => r.fecha + '@' + r.ini).join(',')).join('|');
@@ -37291,15 +37365,28 @@ async function tacoSinTarjAviso() {
       const ult = o.rec[o.rec.length - 1].fecha;
       const rep = o.dias.size >= 2
         ? ` · <b style="color:#b00020">🔁 ${o.dias.size} días en 30 — vigilar</b>` : '';
-      return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${rep}</div>`;
+      const quien = [...new Set(o.rec.map(ep => ep.quien).filter(Boolean))];
+      const qTxt = quien.length ? ` · 👤 ${quien.slice(0, 2).join(' / ')}${quien.length > 2 ? ' y ' + (quien.length - 2) + ' más' : ''}` : '';
+      return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${qTxt}${rep}</div>`;
     }).join('') + (lista.length > 5 ? `<div>y ${lista.length - 5} camión${lista.length - 5 === 1 ? '' : 'es'} más</div>` : '');
+
+    // v942: por persona (el conductor que llevaba el camion justo antes), con reincidencia
+    const pers = [...persRec.entries()]
+      .map(([n, k]) => ({ n, k, dias: (diasPers.get(n) || new Set()).size }))
+      .sort((x, y) => y.dias - x.dias || y.k - x.k);
+    const persTxt = pers.length
+      ? `<div style="margin-top:5px;padding-top:4px;border-top:1px dashed rgba(230,70,70,.35)"><b>👤 Por conductor (el que llevaba el camión justo antes):</b>`
+        + pers.slice(0, 5).map(p => `<div>${p.n} · ${p.k} tramo${p.k === 1 ? '' : 's'} esta semana · ${p.dias} día${p.dias === 1 ? '' : 's'} en 30${p.dias >= 2 ? ' <b style="color:#b00020">🔁 reincide — advertir</b>' : ''}</div>`).join('')
+        + (pers.length > 5 ? `<div>y ${pers.length - 5} más</div>` : '') + '</div>'
+      : '';
 
     b.style.display = 'block';
     b.innerHTML = `<div style="background:rgba(230,70,70,.12);border:1px solid rgba(230,70,70,.5);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:var(--erd);line-height:1.5">
         <b>🚫 ${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días
         <div style="margin-top:3px">${lineas}</div>
-        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. Hay que averiguar quién conducía y pedirle el ticket justificativo.</div>
+        ${persTxt}
+        <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. El nombre es el de la tarjeta que salió justo antes: una pista, hay que confirmar quién conducía y pedirle el ticket justificativo.</div>
       </div>
       <button class="btn bs" onclick="irAInformeSinTarjeta()">VER</button>
       <button class="btn bs" onclick="tacoSinTarjVisto()">VISTO</button>
@@ -40659,6 +40746,7 @@ async function tacoRepSinTarjVer() {
     if (mat) qd = qd.eq('matricula', mat);
     const rd = await qd;
     const incomp = new Set((rd.data || []).map(x => (x.matricula || '') + '|' + x.fecha));
+    const diasC = await _tacoCondDias([...new Set(tramos.map(t => t.matricula).filter(Boolean))], desde, hasta);   // v942
 
     const hm = v => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
     const dur = v => (v >= 60 ? Math.floor(v / 60) + 'h' + String(v % 60).padStart(2, '0') : v + ' min');
@@ -40702,7 +40790,7 @@ async function tacoRepSinTarjVer() {
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${dmy(t.fecha)} <span style="color:var(--mu)">(${_tacoDiaSemana(t.fecha)})</span></td>
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px">${hm(t.minuto_ini)} – ${hm(t.minuto_fin)}</td>
           <td style="padding:5px 10px;font-family:var(--mn);font-size:13px;font-weight:700;${abierto ? '' : 'color:var(--erd)'}">${dur(minutos)}</td>
-          <td style="padding:5px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${abierto ? 'sin cerrar (día de la descarga) — no se suma' : '⚠ tramo largo — comprobar'}</td></tr>`;
+          <td style="padding:5px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${abierto ? 'sin cerrar (día de la descarga) — no se suma' : '⚠ tramo largo — comprobar' + _tacoQuienTxt(diasC, t)}</td></tr>`;
       });
       totMin += minM;
       let filasCortos = '';
