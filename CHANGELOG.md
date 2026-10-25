@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v945 (25/10/2026): TACOGRAFO · EL INFORME DE CONDUCCION SIN TARJETA SE REPINTA AL CAMBIAR DE EMPRESA. Cazado por JC: con 'T. HISPALIS 2016' elegida seguia saliendo 2254JVJ, que es de TYP2014. No era un dato mal asignado: el informe se abrio con 'Todas' y al pulsar otra empresa solo se repintaba el de Jornadas (v437 no lo habia enganchado). Ahora, si el informe esta abierto, se vuelve a cargar con la empresa nueva. OJO: otros informes abiertos (km, descansos, infracciones...) pueden tener el mismo defecto; no se han tocado, se arreglan de uno en uno si JC lo ve. SOLO LECTURA. Archivos: app.js (tacoEmpGlobal), index.html (?v=945).
+
+---
+
 v944 (25/10/2026): TACOGRAFO · EL INFORME DE CONDUCCION SIN TARJETA DICE 'SIN CONDUCTOR IDENTIFICADO'. Pedido de JC al ver el tramo largo de 6420JZT (01/10, 20 min) que salia sin nada junto a el. Cuando el fichero del camion no trae ninguna tarjeta antes ni despues (no se metio ninguna esos dias, o la descarga no guarda el dato), el tramo largo ya no queda en blanco: pone '⚪ sin conductor identificado (no cuenta contra nadie)'. Solo cambia el texto del informe; el cartel de arriba y las reglas 🔴/⚪ de la v943 no se tocan. SOLO LECTURA. Archivos: app.js (_tacoQuienTxt), index.html (?v=944).
 
 ---

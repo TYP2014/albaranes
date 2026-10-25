@@ -35841,6 +35841,7 @@ function tacoEmpGlobal(emp) {
   tacoInfPintarSelector();
   tacoVehPintarSelector();
   if (document.getElementById('tacoRJquien')) tacoRepJornadasUI();   // informe abierto
+  if (document.getElementById('tacoSTmat')) tacoRepSinTarjUI();      // v945: el informe de conduccion sin tarjeta tambien
   tacoSubTab(emp);                          // el ARCHIVO se pone en la misma empresa
   tacoPintarAvisos();                       // los avisos de descargas, tambien
   tacoPintarDesconocidos();                 // v620
