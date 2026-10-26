@@ -2402,7 +2402,11 @@ async function saveRecord(data) {
                        '_dup', '_dupOf', '_posDup', '_posDupOf', '_posDupMotivo', '_matDesconocida', '_manual',
                        '_fromPending', '_id',
                        // v350: campo auxiliar de lectura (hora del ticket para el nº SN).
-                       'hora_carga'];
+                       'hora_carga',
+                       // v973: la IA a veces devuelve "tipo" (tipo de documento) y la
+                       // tabla albaranes NO tiene esa columna: el INSERT entero fallaba
+                       // con PGRST204 (Marta, Escaner_20261026.jpg, 26/10/2026).
+                       'tipo'];
   for (const k of _AUX_CAMPOS) {
     if (k in rec) {
       console.log(`[v107EQ6] borrando campo auxiliar "${k}" antes del INSERT (no es columna BD)`);

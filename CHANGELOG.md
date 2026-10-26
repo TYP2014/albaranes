@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v973 (26/10/2026): ALBARAN QUE NO SE GUARDABA POR UN CAMPO 'TIPO'. Al subir un escaneo (Escaner_20261026.jpg, de Marta) la IA devolvio un campo 'tipo' que la tabla albaranes no tiene, y el guardado entero fallaba con 'Could not find the tipo column of albaranes'. Ahora ese campo se descarta antes de guardar, igual que los demas campos auxiliares. El resto de campos no cambia. VUELTA ATRAS: volver a la v972.
+
+---
+
 v972 (26/10/2026): CHIVATO DE ERRORES CON BOTON COPIAR TODO. En la ventana de errores (boton rojo de arriba) hay un boton nuevo COPIAR TODO que copia al portapapeles todos los errores de los ultimos 14 dias con su detalle tecnico completo (quien, pestana, version, URL, navegador, mensaje y detalle), listo para pegar en el chat en vez de mandar capturas. No cambia como se guardan ni se agrupan los errores. VUELTA ATRAS: volver a la v971.
 
 ---
