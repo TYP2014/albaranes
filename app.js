@@ -15514,52 +15514,52 @@ function _fiTotales() {
 function fiRender() {
   const out = document.getElementById('fiCardOut'); const D = _fiDatos; if (!out || !D) return;
   const td = 'padding:7px 9px;border-bottom:1px solid #ddd;color:#111;font-weight:700';
-  const th = 'padding:8px 9px;background:#4c1d95;color:#fff;font-weight:800;text-align:left';
+  const th = 'padding:8px 9px;background:#1f3a5f;color:#fff;font-weight:800;text-align:left';
   const inp = 'font-size:14px;font-weight:700;padding:5px 7px;border:1px solid #999;border-radius:6px;color:#111;box-sizing:border-box';
   const ea = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   let h = '<div style="font-size:17px;font-weight:800;color:#111;margin-bottom:8px">' + esc(_FI_NOM[D.emp]) + ' · ' + esc(_fiMesTxt(D.ym)) + '</div>';
-  if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio o con ✎ en su pestaña.</div>';
-  if (D.nFuera) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⛔ ' + D.nFuera + ' albarán(es) con marca 🟠 ya pagado o 🚫 no facturable: NO se abonan (0 €). Están en 👁 VER de su pestaña; si alguno sí se abona, pulsa "✓ Abonar" en su fila.</div>';
+  if (D.sinPrecio) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⚠ ' + D.sinPrecio + ' albarán(es) SIN PRECIO (salen a 0 €): ponlo en Tarifas por servicio o con Editar en su pestaña.</div>';
+  if (D.nFuera) h += '<div style="background:#fde8e8;border:1px solid #b91c1c;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b91c1c;font-weight:800">⛔ ' + D.nFuera + ' albarán(es) con marca 🟠 ya pagado o 🚫 no facturable: NO se abonan (0 €). Están en VER de su pestaña; si alguno sí se abona, pulsa "✓ Abonar" en su fila.</div>';
   if (D.pend.length) h += '<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#b45309;font-weight:800;cursor:pointer" onclick="fiVerPend()">⚠ ' + D.pend.length + ' albarán(es) de ' + esc(_FI_NOM[D.emp]) + ' de este mes sin meter en ninguna factura ni marcados "Fuera". <u>Ver cuáles</u></div><div id="fiPendBox"></div>';
-  h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>' +
+  h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:15px"><thead><tr>' +
     ['PESTAÑA', 'CONCEPTO', 'SERVICIOS', 'UD', 'CANTIDAD', 'PRECIO (€)', 'IMPORTE', ''].map((t, i) => '<th style="' + th + (i >= 2 && i <= 6 ? ';text-align:right' : '') + '">' + t + '</th>').join('') + '</tr></thead><tbody>';
-  if (!D.grupos.length) h += '<tr><td colspan="8" style="' + td + '">Aún no hay albaranes metidos. Se meten desde Albaranes › Selección › 🧾 A factura Híspalis / Transmargaz.</td></tr>';
+  if (!D.grupos.length) h += '<tr><td colspan="8" style="' + td + '">Aún no hay albaranes metidos. Se meten desde Albaranes › Selección › A factura Híspalis / Transmargaz.</td></tr>';
   D.grupos.forEach((g, i) => {
-    const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nImp ? (g.precios.length ? ' / ' : '') + '<span style="color:#c2410c" title="Importe puesto a mano en 👁 VER">' + g.nImp + ' a mano</span>' : '') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
+    const pr = g.precios.map(p => _fiN(p, 2)).join(' / ') + (g.nImp ? (g.precios.length ? ' / ' : '') + '<span style="color:#c2410c" title="Importe puesto a mano en VER">' + g.nImp + ' a mano</span>' : '') + (g.nSin ? (g.precios.length ? ' / ' : '') + '<span style="color:#b91c1c">sin precio</span>' : '');
     h += '<tr>' +
-      (g.esDup ? '<td style="' + td + ';white-space:nowrap;color:#b91c1c">➖ ' + esc(g.nombre) + '</td>' : '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">✎</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>') +
+      (g.esDup ? '<td style="' + td + ';white-space:nowrap;color:#b91c1c">' + esc(g.nombre) + '</td>' : '<td style="' + td + ';white-space:nowrap">' + esc(g.nombre) + ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el nombre de esta pestaña (máx. 31 letras en Excel)" onclick="fiRenombrar(' + i + ')">Editar</button>' + (g.nombre.length > 31 ? ' <span style="color:#b45309" title="En el Excel se corta a 31 letras">✂</span>' : '') + '</td>') +
       '<td style="' + td + '">' + esc(g.concepto) + (g.nRutas > 1 ? ' <span style="color:#b45309">(+' + (g.nRutas - 1) + ' ruta' + (g.nRutas > 2 ? 's' : '') + ' más)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.n + (g.nFuera ? ' <span style="color:#b91c1c" title="Con marca naranja / no facturable: no se abonan">(+' + g.nFuera + ' ⛔)</span>' : '') + '</td>' +
       '<td style="' + td + ';text-align:right">' + g.ud + '</td>' +
       '<td style="' + td + ';text-align:right">' + (g.porViaje ? g.cant : _fiN(g.cant, g.esHora ? 2 : 3)) + '</td>' +
-      '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + (g.esDup ? '' : ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">✎</button>') + '</td>' +
+      '<td style="' + td + ';text-align:right;white-space:nowrap' + (g.cambiado ? ';color:#c2410c' : '') + '"' + (g.cambiado ? ' title="Precio cambiado a mano (el de Tarifas era ' + g.origs.map(p => _fiN(p, 2)).join(' / ') + ')"' : '') + '>' + pr + (g.cambiado ? ' ✱' : '') + (g.esDup ? '' : ' <button class="btn bs" style="padding:2px 7px;font-weight:800" title="Cambiar el precio de esta pestaña solo en esta factura (no toca Tarifas)" onclick="fiCambiarPrecio(' + i + ')">Editar</button>') + '</td>' +
       '<td style="' + td + ';text-align:right' + (g.esDup ? ';color:#b91c1c' : '') + '">' + _fiN(g.eur, 2) + ' €</td>' +
-      '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">👁 VER</button></td>' +
+      '<td style="' + td + '"><button class="btn bs" style="font-weight:800;padding:4px 10px" onclick="fiVerGrupo(' + i + ')">VER</button></td>' +
       '</tr><tr id="fiDet' + i + '" style="display:none"><td colspan="8" style="padding:0 0 10px 0"></td></tr>';
   });
   // v820: líneas a mano (antes de IVA)
-  h += '<tr><td colspan="8" style="padding:10px 9px 4px;font-weight:800;color:#4c1d95;font-size:15px">➕ OTROS SERVICIOS Y AJUSTES <span style="font-weight:600;color:#444;font-size:13px">(van a la base, antes de IVA · importe negativo = resta)</span></td></tr>';
+  h += '<tr><td colspan="8" style="padding:10px 9px 4px;font-weight:800;color:#1f3a5f;font-size:15px">OTROS SERVICIOS Y AJUSTES <span style="font-weight:600;color:#2f3a48;font-size:14.5px">(van a la base, antes de IVA · importe negativo = resta)</span></td></tr>';
   D.lineas.forEach(l => {   // v821: concepto + importe
     h += '<tr>' +
       '<td style="' + td + '">OTROS</td>' +
       '<td colspan="5" style="' + td + '"><input style="' + inp + ';width:100%" value="' + ea(l.concepto) + '" placeholder="Ej. Paralizaciones Clinker junio" onchange="fiLineaSet(\'' + l.id + '\',\'concepto\',this.value)"></td>' +
       '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:110px;text-align:right" value="' + ((l.importe != null || l.precio != null) ? ea(String(_fiImpLinea(l)).replace('.', ',')) : '') + '" placeholder="0,00" onchange="fiLineaSet(\'' + l.id + '\',\'importe\',this.value)"></td>' +
-      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar esta línea" onclick="fiLineaBorrar(\'' + l.id + '\')">🗑</button></td></tr>';
+      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar esta línea" onclick="fiLineaBorrar(\'' + l.id + '\')">Quitar</button></td></tr>';
   });
-  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'linea\')" style="background:#4c1d95;color:#fff;font-weight:800">➕ Añadir línea</button> <span style="font-size:13px;color:#444;font-weight:600">Concepto y su importe: paralizaciones, esperas, desplazamientos, extra sábado, lo que sea.</span></td></tr>';
+  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'linea\')" style="background:#1f3a5f;color:#fff;font-weight:800">Añadir línea</button> <span style="font-size:14.5px;color:#2f3a48;font-weight:600">Concepto y su importe: paralizaciones, esperas, desplazamientos, extra sábado, lo que sea.</span></td></tr>';
   const tr = (t, v, big, col) => '<tr><td colspan="6" style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + t + '</td><td style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + _fiN(v, 2) + ' €</td><td style="' + td + '"></td></tr>';
   h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true);
   // v820: gastos / descuentos (se restan del total con IVA)
-  h += '<tr><td colspan="8" style="padding:12px 9px 4px;font-weight:800;color:#b91c1c;font-size:15px">➖ GASTOS Y DESCUENTOS <span style="font-weight:600;color:#444;font-size:13px">(se restan del TOTAL: repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…)</span></td></tr>';
+  h += '<tr><td colspan="8" style="padding:12px 9px 4px;font-weight:800;color:#b91c1c;font-size:15px">GASTOS Y DESCUENTOS <span style="font-weight:600;color:#2f3a48;font-size:14.5px">(se restan del TOTAL: repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…)</span></td></tr>';
   D.gastos.forEach(l => {
     h += '<tr>' +
       '<td style="' + td + '">GASTOS</td>' +
       '<td colspan="5" style="' + td + '"><input style="' + inp + ';width:100%" value="' + ea(l.concepto) + '" placeholder="Ej. 2 neumáticos 315/80 · filtros 8735MYM" onchange="fiLineaSet(\'' + l.id + '\',\'concepto\',this.value)"></td>' +
       '<td style="' + td + ';text-align:right"><input style="' + inp + ';width:110px;text-align:right;color:#b91c1c" value="' + (l.importe == null ? '' : ea(String(l.importe).replace('.', ','))) + '" placeholder="0,00" onchange="fiLineaSet(\'' + l.id + '\',\'importe\',this.value)"></td>' +
-      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar este gasto" onclick="fiLineaBorrar(\'' + l.id + '\')">🗑</button></td></tr>';
+      '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar este gasto" onclick="fiLineaBorrar(\'' + l.id + '\')">Quitar</button></td></tr>';
   });
-  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'gasto\')" style="background:#b91c1c;color:#fff;font-weight:800">➖ Añadir gasto / descuento</button></td></tr>';
-  if (D.gastos.length) h += tr('− GASTOS Y DESCUENTOS', -D.desc, false, '#b91c1c') + tr('A PAGAR', D.aPagar, true, '#4c1d95');
+  h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'gasto\')" style="background:#b91c1c;color:#fff;font-weight:800">Añadir gasto / descuento</button></td></tr>';
+  if (D.gastos.length) h += tr('− GASTOS Y DESCUENTOS', -D.desc, false, '#b91c1c') + tr('A PAGAR', D.aPagar, true, '#1f3a5f');
   h += '</tbody></table></div>';
   h += '<div style="margin-top:12px"><button class="btn" onclick="fiExcel()" style="background:#16a34a;color:#fff;font-weight:800;font-size:15px;padding:9px 16px">📊 Excel de la factura</button></div>';
   out.innerHTML = h;

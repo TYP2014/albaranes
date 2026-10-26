@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v958 (26/10/2026): FACTURACION > FACTURA HISPALIS / TRANSMARGAZ MAS FORMAL. El morado pasa al azul marino del resto de la app, los botones con lapiz/ojo/papelera pasan a texto (Editar / VER / Quitar), quitados los iconos decorativos de las cabeceras de bloque y de Anadir, letra de 14 a 15 px y grises mas oscuros. Se mantienen los avisos de color y el boton Excel. No cambia ningun calculo. VUELTA ATRAS: volver a la v957.
+
+---
+
 v957 (26/10/2026): FACTURACION > SUBCONTRATADOS Y LETRA PEQUENA QUE QUEDABA. Textos de 11,5-13 px suben a 14-14,5 px, grises #444/#555/#666 pasan a gris oscuro, filas y botones de la liquidacion con mas aire, quitados iconos (lupa, mas, disquete, hoja, grafico) de Guardar liquidacion, Factura PDF, Descargar Excel y Lineas a mano. Se mantienen los avisos con color (naranja/rojo). No cambia ningun calculo. VUELTA ATRAS: volver a la v956.
 
 ---

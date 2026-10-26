@@ -1030,3 +1030,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentFacturacion [style*="color:#444"],#tabContentFacturacion [style*="color:#555"],#tabContentFacturacion [style*="color:#666"]{color:#2f3a48!important}
 #tabContentFacturacion #liqAutCard table td,#tabContentFacturacion #liqAutCard table th{padding-top:7px!important;padding-bottom:7px!important}
 #tabContentFacturacion #liqAutOut .btn{padding:9px 16px!important}
+
+/* v958 Factura Hispalis/Transmargaz */
+#fiCard .btn{color:#111!important;font-weight:700;font-size:13.5px!important}
+#fiCard .btn.bp,#fiCard #fiCardOut .btn[style*="background:#1f3a5f"],#fiCard #fiCardOut .btn[style*="background:#b91c1c"],#fiCard #fiCardOut .btn[style*="background:#16a34a"]{color:#fff!important}
+#fiCard #fiCardOut button[onclick^="fiLineaBorrar"]{color:#b91c1c!important}
+#fiCard [style*="font-size:12px"],#fiCard [style*="font-size:11px"]{font-size:14px!important}
