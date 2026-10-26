@@ -1093,3 +1093,25 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tarifasCliCard .tcTbl td:nth-child(5) input{width:130px!important;text-align:right;font-size:16px!important;font-weight:700;border:1px solid #9aa5b4!important}
 #tarifasCliCard .tcTbl tbody tr:hover td{background:#f4f7fb}
 #tarifasCliCard .tcBtn{font-size:14px;font-weight:700;padding:8px 16px;border-radius:6px;border:1px solid #1b5e3f;background:#1b5e3f;color:#fff;cursor:pointer}
+
+/* v962 Primas > Parte diario */
+#empVistaPrimasBox .st{font-size:16px;font-weight:700;color:var(--tx)}
+#empVistaPrimasBox .st [style*="font-size:10px"]{font-size:13px!important;color:#2f3a48!important}
+#empVistaPrimasBox .btn{color:#111!important}
+#empVistaPrimasBox .btn.bp{color:#fff!important}
+#primasAyudaParte{font-size:14.5px!important;line-height:1.65!important;color:#111!important;max-width:1500px}
+#primasBox table{border:1px solid #9aa5b4}
+#primasBox thead tr{background:#eef2f7}
+#primasBox th{font-size:13px!important;letter-spacing:.6px;padding:12px 10px!important;border-bottom:2px solid #9aa5b4}
+#primasBox tbody td{padding:8px 8px!important;border-bottom:1px solid #c3ccd8;vertical-align:top}
+#primasBox td input,#primasBox td textarea{font-size:15px!important;border:1px solid #9aa5b4!important}
+#primasBox td:first-child{font-size:15px!important;white-space:nowrap}
+#primasBox [id^="pr_info_"]{font-size:14px!important}
+#primasBox [id^="pr_desf_"] div{font-size:14px!important}
+#primasBox button[onclick^="primasTraerAlbaranes("]{background:#1f3a5f!important;color:#fff!important;font-size:13.5px!important;padding:8px 14px!important}
+#primasBox button[onclick^="primasVerAlbDia("]{font-size:13.5px!important;padding:7px 14px!important;border-width:1px!important;border-color:#9aa5b4!important}
+#primasBox [id^="pr_cli_"] .btn{font-size:13.5px!important;padding:6px 10px!important}
+#primasBox [id^="pr_cliest_"]{font-size:13.5px!important;color:#2f3a48}
+#primasBox tr[style*="rgba(46,125,50"] td{font-size:14.5px!important;color:#111!important}
+#primasBox tr[style*="rgba(25,118,210"] td{font-size:15px!important;color:#111!important}
+#primasBox #primasTotales,#primasTotales{font-size:15.5px!important}

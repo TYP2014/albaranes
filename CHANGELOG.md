@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v962 (26/10/2026): EMPLEADOS > PRIMAS > PARTE DIARIO MAS FORMAL Y LEGIBLE. Letra de ayuda de 12,5 a 14,5 px, cabeceras de tabla en negrita con fondo, filas con mas aire y lineas mas marcadas, casillas de 15 px, botones TRAER (azul marino) y VER en texto sin iconos, filas de plus semanal y del mes mas claras, totales de abajo mas grandes. Se mantienen los colores con significado (prima automatica en azul, avisos naranja). No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v961.
+
+---
+
 v961 (26/10/2026): FACTURACION > PRECIO CLIENTE Y BENEFICIO MAS FORMAL Y LEGIBLE. Letra de 12 px a 15 px en negro, cabeceras en negrita, columnas con ancho propio (origen y destino anchos, cifras a la derecha), boton Guardar en texto en cada fila en lugar del disquete, beneficio en negrita (azul si es positivo, rojo si es negativo), filas con mas aire y resalte al pasar el raton, sin iconos decorativos. No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v960.
 
 ---
