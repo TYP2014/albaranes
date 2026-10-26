@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v963 (26/10/2026): EMPLEADOS > PRIMAS > CUADRANTE DEL MES MAS FORMAL Y LEGIBLE. Letra de la tabla y de la ayuda mas grande (14-15 px) y en negro, cabeceras en negrita con fondo y colores suaves por grupo, filas con mas aire y resalte al pasar el raton, botones Detalle / Ficha / Certificado y Certificados de todos en texto sin iconos (se mantienen los iconos de Excel), casillas mas grandes, totales de abajo mas grandes. No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v962.
+
+---
+
 v962 (26/10/2026): EMPLEADOS > PRIMAS > PARTE DIARIO MAS FORMAL Y LEGIBLE. Letra de ayuda de 12,5 a 14,5 px, cabeceras de tabla en negrita con fondo, filas con mas aire y lineas mas marcadas, casillas de 15 px, botones TRAER (azul marino) y VER en texto sin iconos, filas de plus semanal y del mes mas claras, totales de abajo mas grandes. Se mantienen los colores con significado (prima automatica en azul, avisos naranja). No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v961.
 
 ---

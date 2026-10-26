@@ -27584,7 +27584,7 @@ function _primasPintaExtras() {
   const iH = _pcR2(ex.horas * tf.hora), iS = _pcR2(ex.nSab * tf.sabado), iD = _pcR2(ex.nDom * tf.domingo);   // v793: dobles cuentan 2
   const lin = (txt, imp) => '<div style="display:flex;justify-content:space-between;gap:20px;padding:4px 0;border-bottom:1px dashed var(--bd)"><span>' + txt + '</span><strong style="white-space:nowrap">' + _primasEur(imp) + '</strong></div>';
   el.style.cssText = 'margin-top:12px;padding:12px 16px;border:2px solid #1f3a5f;border-radius:10px;font-family:var(--mn);font-size:14px;font-weight:600;color:#111;background:rgba(31,58,95,.05)';
-  el.innerHTML = '<div style="font-weight:800;color:#1f3a5f;margin-bottom:6px">⏱ HORAS EXTRA Y FINES DE SEMANA <span style="font-weight:600;color:#333;font-size:12.5px">· se pagan aparte (no son prima) y pasan solos al cuadrante · tarifas de su ⚙️ Ficha</span></div>' +
+  el.innerHTML = '<div style="font-weight:800;color:#1f3a5f;margin-bottom:6px">⏱ HORAS EXTRA Y FINES DE SEMANA <span style="font-weight:600;color:#333;font-size:12.5px">· se pagan aparte (no son prima) y pasan solos al cuadrante · tarifas de su Ficha</span></div>' +
     (ex.dias.length ? lin('Horas extra: <b>' + String(ex.horas).replace('.', ',') + ' h</b> × ' + _primasEur(tf.hora) + ' · ' + _primasExtrasTxt(ex.dias, true), iH) : '') +
     (ex.sab.length ? lin('Sábados: <b>' + ex.nSab + '</b> × ' + _primasEur(tf.sabado) + ' · ' + _primasExtrasTxt(ex.sab, true), iS) : '') +
     (ex.dom.length ? lin('Domingos: <b>' + ex.nDom + '</b> × ' + _primasEur(tf.domingo) + ' · ' + _primasExtrasTxt(ex.dom, true), iD) : '') +
@@ -28516,8 +28516,8 @@ function renderPrimasCuadrante() {
   let head = '<th style="padding:6px 8px;text-align:left;vertical-align:bottom;position:sticky;left:0;top:0;background:var(--sf,#fff);z-index:3;box-shadow:inset 0 -1px 0 var(--bd)">EMPLEADO</th>';   // v669: esquina fija (arriba e izquierda)
   COLS.forEach(c => { if (ver(c[0])) head += th(c[1], c[0] === '__prima' ? 'Viene sola del parte diario (primas de cada día + plus semanales). Se cambia en el Parte, no aquí.' : ''); });
   // v662: en compacto, PLUSES y OTROS salen como importe ya calculado; el detalle se edita con el ✎
-  head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el botón 📝 Detalle' : ''), 'background:rgba(25,118,210,.08)');
-  if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón 📝 Detalle', 'background:rgba(25,118,210,.08)');
+  head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el botón Detalle' : ''), 'background:rgba(25,118,210,.08)');
+  if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón Detalle', 'background:rgba(25,118,210,.08)');
   head += th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('A PAGAR', 'v766: Total − dietas − adelanto − desc. deuda = lo que queda por pagar en efectivo/tarjeta. En ROJO y negativo = ya se le ha pagado DE MÁS (por dietas o por adelanto), el mismo criterio para todos.', 'background:rgba(25,118,210,.08)') +
     th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto de NÓMINA entregado durante el mes (p. ej. 500 € el día 25). RESTA de lo que queda por pagar. NO toca el préstamo.', 'background:rgba(46,125,50,.10)') +
@@ -28546,9 +28546,9 @@ function renderPrimasCuadrante() {
     tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietas');   // v662
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + (hayDeuda ? (_primasNum(_pcPrestamo(t).inicial) > 0 ? numIn('descuento_deuda') : '<td></td>') : '') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) + (hayDeuda ? calc('deuda', true) : '') +
       '<td style="padding:3px 0 3px 12px;white-space:nowrap;text-align:right;width:1%">' +   // v667: pegados a la derecha
-      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">📝 Detalle</button>' +
-      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">⚙️ Ficha</button>' +
-      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">🖨️ Certificado</button></td></tr>';   // v666: botones con nombre
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">Detalle</button>' +
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Fijo mensual, tarifas especiales y préstamo de este trabajador (se guardan en su ficha)" onclick="primasCfgAbrir(\'' + id + '\')">Ficha</button>' +
+      '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Certificado de pago de este trabajador, listo para imprimir" onclick="primasCertImprimir(\'' + id + '\')">Certificado</button></td></tr>';   // v666: botones con nombre
     filas += tr;
   });
   if (!trabs.length) filas = '<tr><td colspan="30" style="padding:16px;color:#222;font-weight:600;text-align:center">No hay trabajadores activos en esta empresa.</td></tr>';
@@ -28689,7 +28689,7 @@ function primasCfgAbrir(id) {
   const campo = (k, txt, def) => '<label style="' + _lb + '">' + txt +
     '<input class="fi" type="number" step="any" id="primasCfg_' + k + '" placeholder="' + (def != null ? def : '') + '" value="' + (cfg[k] != null && cfg[k] !== '' ? _primasAttr(cfg[k]) : '') + '" style="width:130px;text-align:right;' + _in + '"></label>';
   ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:14px;padding:30px 34px;max-width:900px;width:100%;max-height:94vh;overflow:auto;font-family:var(--mn);font-size:14px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
-    '<div style="font-weight:800;font-size:17px;margin-bottom:6px">⚙️ Ficha de primas · ' + esc(t.nombre || '') + '</div>' +
+    '<div style="font-weight:800;font-size:17px;margin-bottom:6px">Ficha de primas · ' + esc(t.nombre || '') + '</div>' +
     '<div style="color:var(--mu);font-size:12px;margin-bottom:22px">Se guarda en su ficha y sale solo todos los meses. Deja vacío lo que vaya con la tarifa general (en gris). Los meses ya guardados NO cambian.</div>' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px 44px;align-items:start"><div>' +
     '<div style="font-weight:800;margin-bottom:12px">Fijo y tarifas</div>' +
@@ -28774,8 +28774,8 @@ function primasDetAbrir(id) {
   const par = (kt, kn, titulo, ph) => '<div style="margin-bottom:14px"><div style="margin-bottom:6px">' + titulo + '</div><div style="display:flex;gap:10px">' + txt(kt, ph) +
     '<input class="fi" type="number" step="any" id="primasDet_' + kn + '" placeholder="€" value="' + (fila[kn] ? _primasAttr(fila[kn]) : '') + '" style="width:130px;text-align:right;' + _in + '"></div></div>';
   ov.innerHTML = '<div style="background:var(--sf,#fff);color:var(--tx,#111);border-radius:14px;padding:30px 34px;max-width:900px;width:100%;max-height:94vh;overflow:auto;font-family:var(--mn);font-size:14px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
-    '<div style="font-weight:800;font-size:17px;margin-bottom:6px">📝 Detalle · ' + esc(t.nombre || '') + '</div>' +
-    '<div style="color:var(--mu);font-size:12px;margin-bottom:22px">Detalle de ' + primasMes.split('-').reverse().join('/') + '. Las tarifas (×) se cambian en ⚙️ Ficha.</div>' +
+    '<div style="font-weight:800;font-size:17px;margin-bottom:6px">Detalle · ' + esc(t.nombre || '') + '</div>' +
+    '<div style="color:var(--mu);font-size:12px;margin-bottom:22px">Detalle de ' + primasMes.split('-').reverse().join('/') + '. Las tarifas (×) se cambian en Ficha.</div>' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px 44px;align-items:start"><div>' +
     '<div style="font-weight:800;margin-bottom:12px">Pluses</div>' +
     num('noches', 'Noches fuera', tf.noche) + num('sabados', 'Sábados trabajados', tf.sabado) + num('domingos', 'Domingos trabajados', tf.domingo) +

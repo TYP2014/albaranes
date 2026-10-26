@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=112">
+<link rel="stylesheet" href="styles.css?v=113">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1460,12 +1460,12 @@ if (typeof pdfjsLib !== 'undefined') {
               <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-family:var(--mn);font-size:14px;font-weight:600;color:#111">
                 <span>Fecha del certificado:</span>
                 <input class="fi" id="primasCertFecha" onchange="primasCertFechaGuardar()" style="font-size:15px;font-weight:700;color:#111;padding:7px 10px;width:260px" title="Texto libre, se imprime tal cual. Si lo dejas vacío sale la fecha de hoy.">
-                <button class="btn bs" onclick="primasCertImprimir()" style="font-size:13.5px;font-weight:700;padding:9px 16px" title="Un certificado por página de TODOS los trabajadores con importe este mes. El botón 🖨️ Certificado de cada fila saca solo el suyo.">🖨 Certificados de todos</button>
+                <button class="btn bs" onclick="primasCertImprimir()" style="font-size:13.5px;font-weight:700;padding:9px 16px" title="Un certificado por página de TODOS los trabajadores con importe este mes. El botón Certificado de cada fila saca solo el suyo.">Certificados de todos</button>
               </div>
               <div style="font-family:var(--mn);font-size:12.5px;line-height:1.5;color:#222;margin-bottom:12px">
-                Se guarda solo al salir de cada casilla. <strong>PRIMA PARTE</strong> viene sola del parte diario. <strong>⚙️ Ficha</strong> = fijo mensual, tarifas especiales y préstamo del trabajador (se pone una vez).
+                Se guarda solo al salir de cada casilla. <strong>PRIMA PARTE</strong> viene sola del parte diario. <strong>Ficha</strong> = fijo mensual, tarifas especiales y préstamo del trabajador (se pone una vez).
                 <strong>Dietas</strong> van por transferencia; el <strong>resto</strong> lo propone la app en gris (redondeado a 10 hacia arriba) y, si escribes encima, mandas tú.
-                <strong>📝 Detalle</strong> = noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento de ese trabajador ese mes. <strong>🖨️ Certificado</strong> = su certificado de pago.
+                <strong>Detalle</strong> = noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento de ese trabajador ese mes. <strong>Certificado</strong> = su certificado de pago.
                 Los que cobran prima por el parte ya llevan sus sábados dentro de la prima: no los repitas en Sábados.
               </div>
               <div id="primasCuadBox"></div>
@@ -2054,6 +2054,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=962"></script>
+<script src="app.js?v=963"></script>
 </body>
 </html>
