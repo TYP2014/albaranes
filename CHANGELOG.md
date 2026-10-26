@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v965 (26/10/2026): TALLER · ARREGLO DEL BOTON ACTIVO. En la v964 el boton de la vista elegida (MANTENIMIENTOS / RECAMBIOS / CITAS) salia con letra blanca sobre fondo claro y no se leia. Ahora el activo es azul marino con letra blanca y los demas blancos con letra negra. Solo estilo. VUELTA ATRAS: volver a la v964.
+
+---
+
 v964 (26/10/2026): TALLER > MANTENIMIENTOS (LISTA DE VEHICULOS) MAS LEGIBLE. Letra de la tabla de 11 a 15 px en negrita/negro (matricula 17 px), cabeceras en negrita con fondo, filas con mas aire y resalte al pasar el raton, botones de arriba (Mantenimientos / Recambios / Citas, Importar km, Anadir vehiculo, Limpiar) mas grandes y sin iconos, buscador sin lupa. Se mantienen los semaforos de estado y el color ambar de los km antiguos. No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v963.
 
 ---

@@ -1155,3 +1155,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tallerTabla td img{width:72px!important;height:44px!important}
 #tallerBajasBox{font-size:14.5px}
 #tallerBajasBox [style*="font-size:11px"],#tallerBajasBox [style*="font-size:12px"]{font-size:14px!important;color:#111!important}
+
+/* v965 Taller: boton activo (Mantenimientos/Recambios/Citas) azul marino con letra blanca */
+#tallerVistaSel .btn.bp{background:#1f3a5f!important;color:#fff!important;border:2px solid #1f3a5f!important}
+#tallerVistaSel .btn.bs{background:#fff!important;color:#111!important;border:2px solid #9aa5b4!important}
