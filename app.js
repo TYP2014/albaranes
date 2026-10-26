@@ -25479,8 +25479,8 @@ function renderTallerTabla() {
   body.innerHTML = vs.map(v => {
     const e = _tallerEstadoVehiculo(v);
     // v296: iconos de tipo cambiados de dibujo SVG a FOTO real (tractora / bañera). Las imágenes viven en el repo (junto a app.js). object-fit:cover recorta el fondo a una miniatura limpia.
-    const _icoTractora = '<img src="tractora_app.webp?v=967" alt="Tractora" style="height:54px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
-    const _icoSemi = '<img src="semirremolque_app.webp?v=967" alt="Remolque" style="height:54px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
+    const _icoTractora = '<img src="tractora_app.webp?v=967" alt="Tractora" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
+    const _icoSemi = '<img src="semirremolque_app.webp?v=967" alt="Remolque" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? _icoSemi : _icoTractora;
     // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
     let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
