@@ -18233,11 +18233,11 @@ function renderFactVencBanner() {
   const resto = top.length > 3 ? ' · +' + (top.length - 3) + ' clientes más' : '';
   const color = '#c62828';
   const cab = lista.length === 1 ? '1 FACTURA VENCIDA SIN COBRAR' : lista.length + ' FACTURAS VENCIDAS SIN COBRAR';
-  banner.innerHTML = '<div style="order:-1;background:rgba(198,40,40,.13);border:1px solid ' + color + ';border-left:5px solid ' + color +
-    ';border-radius:6px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
-    '<div style="flex:1;color:#111;font-weight:700;line-height:1.5">💶 <span style="color:' + color + ';font-weight:900">' + cab + ' · ' + _feFmt(total) + ':</span> ' + detalle + resto + '</div>' +
+  banner.innerHTML = '<div style="order:-1;background:#ffffff;border:3px solid ' + color + ';border-left:12px solid ' + color +
+    ';border-radius:7px;padding:5px 12px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mn);font-size:13.5px">' +
+    '<div style="flex:1;color:#111;font-weight:700;line-height:1.5"><span style="color:' + color + ';font-weight:900">' + cab + ' · ' + _feFmt(total) + ':</span> ' + detalle + resto + '</div>' +
     '<div style="display:flex;gap:6px">' +
-      '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAFactVencidas()">💶 Ver vencidas</button>' +
+      '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="irAFactVencidas()">VER VENCIDAS</button>' +
       '<button class="btn" title="Ocultar hasta mañana" style="font-size:12px;padding:6px 11px;background:transparent;border:1.5px solid ' + color + ';color:' + color + ';font-weight:700;line-height:1" onclick="hideFactVencBannerToday()">✕</button>' +
     '</div></div>';
   banner.style.display = 'block';
