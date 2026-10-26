@@ -37268,7 +37268,7 @@ function renderTacoBuzonBanner() {
   b.style.display = 'block';
   b.innerHTML = `<div style="background:rgba(230,70,70,.12);border:1px solid rgba(230,70,70,.5);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:var(--erd);line-height:1.5">
-      <b>⏱️ ${n} descarga${n === 1 ? '' : 's'} de tacógrafo sin guardar</b>${lista ? ' · ' + lista : ''}
+      <b>${n} descarga${n === 1 ? '' : 's'} de tacógrafo sin guardar</b>${lista ? ' · ' + lista : ''}
       <div style="color:var(--mu);font-size:10.5px;margin-top:2px">Siguen en el buzón — se reintentan solas, pero conviene mirarlas</div>
     </div>
     <button class="btn bs" onclick="irABuzonTacografo()">VER</button>
@@ -37436,11 +37436,11 @@ async function tacoSinTarjAviso() {
       const nSosp = o.rec.filter(ep => ep.sosp).length;
       const diasSosp = new Set(largos.filter(ep => ep.mat === m && ep.sosp).map(ep => ep.fecha)).size;
       const rep = diasSosp >= 2
-        ? ` · <b style="color:#b00020">🔁 ${diasSosp} días sospechosos en 30 — vigilar</b>` : '';
+        ? ` · <b style="color:#b00020">${diasSosp} días sospechosos en 30 — vigilar</b>` : '';
       const sospTxt = (nSosp ? ` · <b>🔴 ${nSosp} sospechoso${nSosp === 1 ? '' : 's'}</b>` : '')
         + (o.rec.length - nSosp ? ` · ⚪ ${o.rec.length - nSosp} probable base/taller` : '');
       const quien = [...new Set(o.rec.map(ep => ep.quien).filter(Boolean))];
-      const qTxt = quien.length ? ` · 👤 ${quien.slice(0, 2).join(' / ')}${quien.length > 2 ? ' y ' + (quien.length - 2) + ' más' : ''}` : '';
+      const qTxt = quien.length ? ` · ${quien.slice(0, 2).join(' / ')}${quien.length > 2 ? ' y ' + (quien.length - 2) + ' más' : ''}` : '';
       return `<div><b>${m}</b> · ${o.rec.length} tramo${o.rec.length === 1 ? '' : 's'} · ${dur(tot)} · último ${dmy(ult)}${sospTxt}${qTxt}${rep}</div>`;
     }).join('') + (lista.length > 5 ? `<div>y ${lista.length - 5} camión${lista.length - 5 === 1 ? '' : 'es'} más</div>` : '');
 
@@ -37450,7 +37450,7 @@ async function tacoSinTarjAviso() {
       .sort((x, y) => y.dias - x.dias || y.k - x.k);
     const persTxt = pers.length
       ? `<div style="margin-top:5px;padding-top:4px;border-top:1px dashed rgba(230,70,70,.35)"><b>🔴 Conductores sospechosos (misma tarjeta antes y después, el mismo día):</b>`
-        + pers.slice(0, 5).map(p => `<div>${p.n} · ${p.k} tramo${p.k === 1 ? '' : 's'} esta semana · ${p.dias} día${p.dias === 1 ? '' : 's'} en 30${p.dias >= 2 ? ' <b style="color:#b00020">🔁 reincide — advertir</b>' : ''}</div>`).join('')
+        + pers.slice(0, 5).map(p => `<div>${p.n} · ${p.k} tramo${p.k === 1 ? '' : 's'} esta semana · ${p.dias} día${p.dias === 1 ? '' : 's'} en 30${p.dias >= 2 ? ' <b style="color:#b00020">reincide — advertir</b>' : ''}</div>`).join('')
         + (pers.length > 5 ? `<div>y ${pers.length - 5} más</div>` : '') + '</div>'
       : '';
 
@@ -37459,7 +37459,7 @@ async function tacoSinTarjAviso() {
     b.style.display = 'block';
     b.innerHTML = `<div style="background:${rojo ? 'rgba(230,70,70,.12)' : 'rgba(230,160,40,.12)'};border:1px solid ${rojo ? 'rgba(230,70,70,.5)' : 'rgba(230,160,40,.55)'};border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:${rojo ? 'var(--erd)' : '#8a570f'};line-height:1.5">
-        <b>🚫 ${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días · <b>${totSosp ? '🔴 ' + totSosp + ' sospechoso' + (totSosp === 1 ? '' : 's') : 'ninguno sospechoso (probable base/taller)'}</b>
+        <b>${totTramos} tramo${totTramos === 1 ? '' : 's'} de conducción SIN TARJETA de ${TACO_STJ_MIN} min o más</b> · últimos 7 días · <b>${totSosp ? '🔴 ' + totSosp + ' sospechoso' + (totSosp === 1 ? '' : 's') : 'ninguno sospechoso (probable base/taller)'}</b>
         <div style="margin-top:3px">${lineas}</div>
         ${persTxt}
         <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Multa de 2.001 € y pérdida de honorabilidad. 🔴 = la misma tarjeta salió y volvió a entrar el mismo día (puede haberla sacado para conducir). ⚪ = antes y después distintos o sin identificar: lo normal al mover el camión en la base o el taller, no cuenta contra nadie. Confirma siempre con el conductor y pide el ticket justificativo.</div>
@@ -37621,7 +37621,7 @@ async function tacoCarenciaAviso() {
     b.style.display = 'block';
     b.innerHTML = `<div style="background:rgba(230,160,40,.12);border:1px solid rgba(230,160,40,.55);border-radius:9px;padding:9px 13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:220px;font-family:var(--mn);font-size:11.5px;color:#8a570f;line-height:1.5">
-        <b>🕳️ ${l.length} camión${l.length === 1 ? '' : 'es'} con días SIN REGISTRO en la app</b> (carencia de registros)
+        <b>${l.length} camión${l.length === 1 ? '' : 'es'} con días SIN REGISTRO en la app</b> (carencia de registros)
         <div style="margin-top:3px">${lineas}</div>
         <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Suele ser el tacógrafo bloqueado por la tarjeta de otra empresa: esos días hay que pedirlos a ASG y subirlos.</div>
       </div>
