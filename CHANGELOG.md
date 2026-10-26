@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v978 (26/10/2026): TACOGRAFO > INFORMES > CARENCIA DE REGISTROS MAS LEGIBLE. El informe pasa de letra de 12 px en gris a 15 px en negro en la tabla (camion, empresa, memoria desde, 1er dia en la app, faltan, dias que faltan), cabeceras en azul marino y en negrita, el recuadro de 'N camiones con dias sin registro' en blanco con marco rojo grueso (o verde si no hay ninguno) y las notas de abajo a 14 px en negro; sin iconos decorativos. No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v977.
+
+---
+
 v977 (26/10/2026): RECAMBIOS, ULTIMOS RETOQUES DE LETRA. La columna ESTADO (PENDIENTE / CONCILIADO) pasa de 13 px a 15 px en negrita, las etiquetas ALBARAN / FACTURA / ABONO a 13,5 px y la linea de cada mes (albaranes, conciliados, pendientes) a 16 px en negro. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v976.
 
 ---

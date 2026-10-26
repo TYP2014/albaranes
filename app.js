@@ -37591,37 +37591,37 @@ async function _tacoCarenciaCalcular() {
 async function tacoRepCarenciaUI() {
   const panel = document.getElementById('tacoRepPanel');
   if (!panel) return;
-  panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">Comprobando…</div></div>';
+  panel.innerHTML = _tacoRepBarra('CARENCIA DE REGISTROS') + '<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--mu)">Comprobando…</div></div>';
   try { if (!tacoFicheros || !tacoFicheros.length) await tacoCargarLista(); } catch (e) {}
   const res = await _tacoCarenciaCalcular();
   if (res.error) {
     const m = String(res.error.message || res.error);
     const sinCol = /mem_desde/i.test(m);
-    panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + `<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--erd)">
+    panel.innerHTML = _tacoRepBarra('CARENCIA DE REGISTROS') + `<div class="card"><div class="card-bd" style="font-family:var(--mn);font-size:12px;color:var(--erd)">
       ${sinCol ? 'Falta crear la columna en la base de datos. Ejecuta esta sentencia en Supabase (SQL Editor) y vuelve a abrir el informe:<pre style="background:var(--s2);padding:10px;border-radius:7px;margin-top:8px;white-space:pre-wrap">' + TACO_CAR_SQL + '</pre>' : 'No pude preparar el informe: ' + m}</div></div>`;
     return;
   }
   const lista = res.lista.filter(x => _tacoEmpPasa({ empresa: x.empresa }));
   const dmy = _tacoDMY2;
   const filasH = lista.map(x => `<tr>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:13px"><b>${x.mat}</b></td>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px;color:var(--mu)">${_TACO_EMP_NOM[x.empresa] || x.empresa || ''}</td>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.memIni)}</td>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.primero)}</td>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:13px;font-weight:700;color:var(--erd)">${x.falta} días</td>
-      <td style="padding:6px 10px;font-family:var(--mn);font-size:12px">${dmy(x.ini)} → ${dmy(x.fin)}</td></tr>`).join('');
-  panel.innerHTML = _tacoRepBarra('🕳️ CARENCIA DE REGISTROS') + `
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15.5px;color:#111"><b>${x.mat}</b></td>
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15px;color:#2f3a48">${_TACO_EMP_NOM[x.empresa] || x.empresa || ''}</td>
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15px;color:#111">${dmy(x.memIni)}</td>
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15px;color:#111">${dmy(x.primero)}</td>
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15.5px;font-weight:800;color:#b83a36">${x.falta} días</td>
+      <td style="padding:9px 12px;font-family:var(--mn);font-size:15px;color:#111">${dmy(x.ini)} → ${dmy(x.fin)}</td></tr>`).join('');
+  panel.innerHTML = _tacoRepBarra('CARENCIA DE REGISTROS') + `
     <div class="card"><div class="card-bd">
       ${lista.length
-        ? `<div style="background:#fdeeee;border:1px solid #f0c4c2;border-radius:9px;padding:11px 14px;font-family:var(--mn);font-size:13.5px;color:var(--erd);font-weight:700">
-            🕳️ ${lista.length} camión${lista.length === 1 ? '' : 'es'} con días SIN registro en la app</div>
+        ? `<div style="background:#fff;border:3px solid #c62828;border-left:12px solid #c62828;border-radius:7px;padding:12px 16px;font-family:var(--mn);font-size:15px;color:#111;font-weight:800">
+            ${lista.length} camión${lista.length === 1 ? '' : 'es'} con días SIN registro en la app</div>
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
-            <tr style="background:var(--s2)"><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">CAMIÓN</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">EMPRESA</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">MEMORIA DESDE</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">1er DÍA EN LA APP</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">FALTAN</th><th style="text-align:left;padding:5px 10px;font-family:var(--mn);font-size:11.5px;color:var(--mu)">DÍAS QUE FALTAN</th></tr>
+            <tr style="background:var(--s2)"><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">CAMIÓN</th><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">EMPRESA</th><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">MEMORIA DESDE</th><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">1er DÍA EN LA APP</th><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">FALTAN</th><th style="text-align:left;padding:10px 12px;font-family:var(--mn);font-size:13px;color:#1f3a5f;font-weight:800">DÍAS QUE FALTAN</th></tr>
             ${filasH}</table>`
-        : `<div style="background:#e8f7ee;border:1px solid #bfe3cd;border-radius:9px;padding:12px 14px;font-family:var(--mn);font-size:13px;color:#1f7a45;font-weight:600">
-            ✓ Ningún camión comprobado tiene días sin registro${_tacoEmpGlobal === 'TODAS' ? '' : ' en ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}.</div>`}
-      <div style="font-family:var(--mn);font-size:11.5px;color:var(--mu);margin-top:12px;line-height:1.7">
-        ${res.sinComprobar ? `⏳ <b>${res.sinComprobar}</b> de ${res.total} camiones aún SIN COMPROBAR: sus descargas son anteriores a esta función y no traen la memoria del aparato. Se comprueban solos con su próxima descarga.<br>` : ''}
+        : `<div style="background:#fff;border:3px solid #1b5e3f;border-left:12px solid #1b5e3f;border-radius:7px;padding:12px 16px;font-family:var(--mn);font-size:15px;color:#111;font-weight:700">
+            Ningún camión comprobado tiene días sin registro${_tacoEmpGlobal === 'TODAS' ? '' : ' en ' + (_TACO_EMP_NOM[_tacoEmpGlobal] || _tacoEmpGlobal)}.</div>`}
+      <div style="font-family:var(--mn);font-size:14px;color:#111;margin-top:16px;line-height:1.8">
+        ${res.sinComprobar ? `<b>${res.sinComprobar}</b> de ${res.total} camiones aún SIN COMPROBAR: sus descargas son anteriores a esta función y no traen la memoria del aparato. Se comprueban solos con su próxima descarga.<br>` : ''}
         Causa habitual: el tacógrafo estaba <b>bloqueado con la tarjeta de empresa de otra empresa</b> (ASG) y la descarga solo trae lo posterior a nuestro bloqueo. Esos días los tiene quien bloqueó antes: pídeselos a ASG (custodia) y súbelos a ARCHIVO; el aviso desaparece solo.<br>
         Se compara la <b>memoria del aparato</b> (desde cuándo hay datos en el camión) con el <b>primer día con datos</b> de todas sus descargas. Solo se avisa con ${TACO_CAR_MIN} días seguidos o más; como mucho se mira el último año.</div>
     </div></div>`;
