@@ -20741,13 +20741,16 @@ async function loadUsers() {
   // v949: usuarios AGRUPADOS POR ROL (cada grupo con su rótulo y su número), ordenados por nombre; buscador arriba.
   const _rolGrupos = [
     { rol: 'admin', tit: 'ADMINISTRADOR', nota: 'Acceso total' },
-    { rol: 'gestor', tit: 'GESTORES', nota: 'Oficina: ven y gestionan según sus permisos' },
+    { rol: 'gestor', sub: false, tit: 'GESTORES · OFICINA', nota: 'Ven y gestionan según sus permisos' },
+    { rol: 'gestor', sub: true, tit: 'GESTORES · SUBCONTRATISTAS', nota: 'Cada uno ve solo sus albaranes y sus DeCA' },
     { rol: 'conductor', tit: 'CONDUCTORES Y PERSONAL', nota: 'Conductores (solo DeCA), personal de taller (solo Fichaje) y usuarios de consulta' }
   ];
   const _conocidos = _rolGrupos.map(g => g.rol);
   const _otros = data.filter(u => _conocidos.indexOf(u.role) < 0);
   if (_otros.length) _rolGrupos.push({ rol: '*otros', tit: 'OTROS ROLES', nota: 'Rol no reconocido: revisar' });
   const _nomU = u => String(u.name || u.id || '');
+  // v950: un gestor es SUBCONTRATISTA si su nombre es uno de los transportistas externos (lista oficial); el resto, oficina.
+  const _esSubU = u => /aridflot|cipri|jose miguel|miguel angel|op trans|satig|joaquin|antonio|francisco|alacio|refrigerados/.test(_nomU(u).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
   const _filaUsuario = u => {
     // Protección: el admin actual NO puede borrarse a sí mismo
     const isMe = u.id === currentUser?.id;
@@ -20783,9 +20786,9 @@ async function loadUsers() {
     </div>`;
   };
   let _h = '<div class="uBarra"><input type="text" id="usersBuscar" class="fi" placeholder="Buscar usuario por nombre…" oninput="usersFiltrar()">'
-    + '<div class="uResumen">' + data.length + ' usuarios · ' + data.filter(u => u.role === 'admin').length + ' admin · ' + data.filter(u => u.role === 'gestor').length + ' gestores · ' + data.filter(u => u.role === 'conductor').length + ' conductores/personal</div></div>';
+    + '<div class="uResumen">' + data.length + ' usuarios · ' + data.filter(u => u.role === 'admin').length + ' admin · ' + data.filter(u => u.role === 'gestor' && !_esSubU(u)).length + ' oficina · ' + data.filter(u => u.role === 'gestor' && _esSubU(u)).length + ' subcontratistas · ' + data.filter(u => u.role === 'conductor').length + ' conductores/personal</div></div>';
   _rolGrupos.forEach(g => {
-    const lista = data.filter(u => g.rol === '*otros' ? _conocidos.indexOf(u.role) < 0 : u.role === g.rol).sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es'));
+    const lista = data.filter(u => g.rol === '*otros' ? _conocidos.indexOf(u.role) < 0 : (u.role === g.rol && (g.sub === undefined || g.sub === _esSubU(u)))).sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es'));
     if (!lista.length) return;
     _h += '<div class="uGrupo" data-rol="' + g.rol + '"><div class="uGrupoH"><span class="uGrupoT">' + g.tit + '</span><span class="uGrupoN">' + lista.length + '</span><span class="uGrupoNota">' + g.nota + '</span></div>'
       + lista.map(_filaUsuario).join('') + '</div>';

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v950 (26/10/2026): USUARIOS · OFICINA Y SUBCONTRATISTAS POR SEPARADO. Los gestores mezclaban a la oficina con los subcontratistas y la nota decia 'Oficina' para todos. Ahora hay dos grupos: GESTORES · OFICINA ('ven y gestionan segun sus permisos') y GESTORES · SUBCONTRATISTAS ('cada uno ve solo sus albaranes y sus DeCA'). Se reconoce al subcontratista por su nombre (Aridflot, Ciprian, Jose Miguel, Miguel Angel, OP Trans, Satig, Joaquin, Antonio, Francisco, Carlos Alacio, Refrigerados); cualquier otro gestor va a Oficina. Es solo como se agrupan en pantalla: no cambia ningun rol ni permiso. El resumen de arriba tambien los cuenta por separado. Sin SQL. VUELTA ATRAS: volver a la v949.
+
+---
+
 v949 (26/10/2026): USUARIOS · AGRUPADOS POR ROL Y MUCHO MAS CLAROS. La lista era una tira de filas con letra de 10 px. Ahora los usuarios salen en tres grupos con su rotulo y su numero: ADMINISTRADOR, GESTORES y CONDUCTORES Y PERSONAL (y OTROS ROLES si alguna vez hay un rol raro), cada grupo ordenado por nombre. Arriba, un buscador por nombre y un resumen (N usuarios · admin · gestores · conductores). Cada fila: nombre a 17 px en negrita, el id debajo, el desplegable de Rol a 15 px con etiqueta 'Rol', casillas 'Acceso ITV' y 'Acceso Incidencias' con su texto completo y casilla grande, y boton ELIMINAR en rojo con letra (antes una papelera). Tu propia fila lleva '(tú)'. Quitados los iconos (camion, carpeta, corona, escudo, chincheta, papelera, flechas de Re-corregir TODO). No cambia ningun permiso ni dato: los cambios de rol, accesos y borrado funcionan igual (el borrado sigue pidiendo confirmar). Sin SQL. VUELTA ATRAS: volver a la v948.
 
 ---
