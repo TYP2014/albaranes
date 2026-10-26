@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v960 (26/10/2026): TARIFAS POR SERVICIO · CAMPOS DE DIA MAS ANCHOS. En la v959 el numero 31 del campo 'hasta dia' salia cortado; ahora los campos Dia miden 84 px y el de precio 130 px. Solo estilo. VUELTA ATRAS: volver a la v959.
+
+---
+
 v959 (26/10/2026): FACTURACION > TARIFAS POR SERVICIO REORGANIZADO. Cada ruta ocupa el ancho de la pantalla en tres columnas: a la izquierda la ruta (origen > destino) y cuantos albaranes tiene, en el centro los 3 meses anteriores en cajitas (mes y precio grandes) y a la derecha los tramos de dias con precio y los botones Guardar / Quitar / + Tramo. Letra mas grande y en negro, campos mas anchos, las rutas que ya tienen precio llevan una barra verde a la izquierda, sin iconos decorativos. No cambia ninguna logica de guardado. VUELTA ATRAS: volver a la v958.
 
 ---

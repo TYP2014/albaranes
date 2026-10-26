@@ -1069,3 +1069,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tarifasCont label{font-size:14.5px!important;color:#111!important;font-weight:600}
 #factTarifasCard #tarifaMes,#factTarifasCard #tarifaAnio{font-size:15px!important;padding:9px 12px!important}
 @media (max-width:1250px){#tarifasCont .tar-ruta{grid-template-columns:1fr}#tarifasCont .tarCab,#tarifasCont .tarMes,#tarifasCont .tar-tramos,#tarifasCont .tarAdd{grid-column:1;grid-row:auto}}
+
+/* v960 Tarifas: campos de dia mas anchos (el 31 se cortaba) y ayuda mas legible */
+#tarifasCont .tar-tramo input.t-desde,#tarifasCont .tar-tramo input.t-hasta{width:84px!important;padding:8px 6px 8px 10px!important}
+#tarifasCont .tar-tramo input.t-precio{width:130px!important}
+#tarifasCont .tarAyuda{font-family:var(--mn);font-size:14.5px!important}
+#tarifasCont .tarMesCh{min-width:84px}
