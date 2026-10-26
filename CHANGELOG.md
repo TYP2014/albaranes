@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v952 (26/10/2026): ESTADO ACTIVO / DE BAJA VISIBLE EN USUARIOS Y EN DeCA. Usuarios: cada fila lleva ahora una columna ESTADO (ACTIVO en verde / DE BAJA en rojo) y los dados de baja pasan a un grupo aparte 'DE BAJA' (fondo gris, borde discontinuo) con su rol en texto fijo; el resumen de arriba cuenta los activos y las bajas. El estado sale de la marca que ya existe (profiles.deca_baja), la misma del boton Baja de DeCA, asi que lo que se marca en un sitio se ve en el otro. DeCA > Conductores: cada conductor muestra ACTIVO o DE BAJA, y los botones pasan a 'Dar de baja', 'Reactivar' y 'Nuevo PIN' (sin dibujitos). No se anade ningun boton de baja ni de rol en Usuarios: la baja de DeCA se sigue dando solo desde DeCA. Sin SQL. VUELTA ATRAS: volver a la v951.
+
+---
+
 v951 (26/10/2026): FICHAJE Y USUARIOS · DOS RETOQUES DE TEXTO. En Fichaje, la cabecera de la tabla y la ventana de Corregir decian 'Trabajadora' aunque casi todo el personal son hombres: ahora 'Trabajador'. En Usuarios, el grupo 'GESTORES · OFICINA' pasa a 'GESTORES · OFICINA Y TALLER' (incluye al usuario TALLER). El Excel de fichajes NO cambia (conserva el formato del gestor). Sin SQL. VUELTA ATRAS: volver a la v950.
 
 ---

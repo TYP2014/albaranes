@@ -20738,6 +20738,9 @@ async function loadUsers() {
   const { data, error } = await sb.from('profiles').select('*');
   if (error) { box.innerHTML = `<p style="color:var(--er);font-family:var(--mn);font-size:11px">${error.message}</p>`; return; }
   if (!data?.length) { box.innerHTML = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay usuarios en la tabla profiles todavía.</div>'; return; }
+  // v952: usuarios DE BAJA = los marcados con deca_baja (se marcan en DeCA > Conductores > Baja). Sin SQL: la columna ya existe.
+  const _act = data.filter(u => !u.deca_baja);
+  const _baj = data.filter(u => !!u.deca_baja);
   // v949: usuarios AGRUPADOS POR ROL (cada grupo con su rótulo y su número), ordenados por nombre; buscador arriba.
   const _rolGrupos = [
     { rol: 'admin', tit: 'ADMINISTRADOR', nota: 'Acceso total' },
@@ -20746,7 +20749,7 @@ async function loadUsers() {
     { rol: 'conductor', tit: 'CONDUCTORES Y PERSONAL', nota: 'Conductores (solo DeCA), personal de taller (solo Fichaje) y usuarios de consulta' }
   ];
   const _conocidos = _rolGrupos.map(g => g.rol);
-  const _otros = data.filter(u => _conocidos.indexOf(u.role) < 0);
+  const _otros = _act.filter(u => _conocidos.indexOf(u.role) < 0);
   if (_otros.length) _rolGrupos.push({ rol: '*otros', tit: 'OTROS ROLES', nota: 'Rol no reconocido: revisar' });
   const _nomU = u => String(u.name || u.id || '');
   // v950: un gestor es SUBCONTRATISTA si su nombre es uno de los transportistas externos (lista oficial); el resto, oficina.
@@ -20754,6 +20757,7 @@ async function loadUsers() {
   const _filaUsuario = u => {
     // Protección: el admin actual NO puede borrarse a sí mismo
     const isMe = u.id === currentUser?.id;
+    const _deBaja = !!u.deca_baja;
     const delBtn = isMe
       ? `<button class="btn bs" disabled style="opacity:.4;cursor:not-allowed" title="No puedes borrarte a ti mismo">Eliminar</button>`
       : `<button class="btn br" id="delU_${u.id}" onclick="deleteUser('${u.id}','${(u.name || u.id).replace(/'/g, "\\'")}')" title="Eliminar usuario">Eliminar</button>`;
@@ -20766,6 +20770,14 @@ async function loadUsers() {
     const incCheck = `<label class="uChk" style="cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña Incidencias">
       <input type="checkbox" ${u.puede_ver_incidencias ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleIncidenciasAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}"> Acceso Incidencias
     </label>`;
+    if (_deBaja) return `
+    <div class="user-row uBaja" data-nom="${_fichajeEsc(_nomU(u).toLowerCase())}">
+      <div class="user-info">
+        <div class="user-email">${u.name || u.id}</div>
+        <div class="user-meta">${u.id}</div>
+      </div>
+      <div class="uCtl"><span class="uEstado uEstBaja">DE BAJA</span><span class="uRolLbl">Rol</span><span class="uRolTxt">${u.role === 'admin' ? 'Admin' : (u.role === 'gestor' ? 'Gestor' : 'Conductor')}</span>${delBtn}</div>
+    </div>`;
     return `
     <div class="user-row" data-nom="${_fichajeEsc(_nomU(u).toLowerCase())}">
       <div class="user-info">
@@ -20773,6 +20785,7 @@ async function loadUsers() {
         <div class="user-meta">${u.id}</div>
       </div>
       <div class="uCtl">
+        <span class="uEstado uEstOk">ACTIVO</span>
         <span class="uRolLbl">Rol</span>
         <select class="role-sel" onchange="updateRole('${u.id}',this.value)" ${isMe ? 'disabled title="No puedes cambiar tu propio rol"' : ''}>
           <option value="conductor" ${u.role==='conductor'?'selected':''}>Conductor</option>
@@ -20786,13 +20799,17 @@ async function loadUsers() {
     </div>`;
   };
   let _h = '<div class="uBarra"><input type="text" id="usersBuscar" class="fi" placeholder="Buscar usuario por nombre…" oninput="usersFiltrar()">'
-    + '<div class="uResumen">' + data.length + ' usuarios · ' + data.filter(u => u.role === 'admin').length + ' admin · ' + data.filter(u => u.role === 'gestor' && !_esSubU(u)).length + ' oficina · ' + data.filter(u => u.role === 'gestor' && _esSubU(u)).length + ' subcontratistas · ' + data.filter(u => u.role === 'conductor').length + ' conductores/personal</div></div>';
+    + '<div class="uResumen">' + _act.length + ' activos · ' + _act.filter(u => u.role === 'admin').length + ' admin · ' + _act.filter(u => u.role === 'gestor' && !_esSubU(u)).length + ' oficina · ' + _act.filter(u => u.role === 'gestor' && _esSubU(u)).length + ' subcontratistas · ' + _act.filter(u => u.role === 'conductor').length + ' conductores/personal' + (_baj.length ? ' · ' + _baj.length + ' de baja' : '') + '</div></div>';
   _rolGrupos.forEach(g => {
-    const lista = data.filter(u => g.rol === '*otros' ? _conocidos.indexOf(u.role) < 0 : (u.role === g.rol && (g.sub === undefined || g.sub === _esSubU(u)))).sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es'));
+    const lista = _act.filter(u => g.rol === '*otros' ? _conocidos.indexOf(u.role) < 0 : (u.role === g.rol && (g.sub === undefined || g.sub === _esSubU(u)))).sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es'));
     if (!lista.length) return;
     _h += '<div class="uGrupo" data-rol="' + g.rol + '"><div class="uGrupoH"><span class="uGrupoT">' + g.tit + '</span><span class="uGrupoN">' + lista.length + '</span><span class="uGrupoNota">' + g.nota + '</span></div>'
       + lista.map(_filaUsuario).join('') + '</div>';
   });
+  if (_baj.length) {
+    _h += '<div class="uGrupo" data-rol="baja"><div class="uGrupoH"><span class="uGrupoT">DE BAJA</span><span class="uGrupoN">' + _baj.length + '</span><span class="uGrupoNota">Ya no pueden hacer DeCA. Su historial se conserva. Se marca en DeCA › Conductores › Baja.</span></div>'
+      + _baj.sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es')).map(_filaUsuario).join('') + '</div>';
+  }
   box.innerHTML = _h;
 }
 // v949: buscador de la lista de usuarios (solo esconde filas; oculta el rótulo del grupo si se queda vacío)
@@ -43290,11 +43307,11 @@ async function _condPintar(resultado) {
     _condPintarEmpleados();
     document.getElementById('condLista').innerHTML = !l.length ? 'Ninguno todavía.' :
       l.map(c => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.deca_baja ? ';opacity:.5' : '') + '">' +
-        '<div><b>' + esc(c.name || '') + '</b>' + (c.deca_baja ? ' <span style="color:var(--er)">· BAJA</span>' : '') +
+        '<div><b>' + esc(c.name || '') + '</b>' + (c.deca_baja ? ' <span style="color:#b83a36;font-weight:800">· DE BAJA</span>' : ' <span style="color:#1b5e3f;font-weight:800">· ACTIVO</span>') +
         '<br><span style="font-size:11px;color:var(--mu)">' + esc(c.deca_dni || '') + ' · ' + esc(c.deca_transportista || '') + '</span></div>' +
         '<div style="display:flex;gap:6px;flex-shrink:0">' +
-          '<button class="btn bs" style="font-size:10px" onclick="_condNuevoPin(\'' + c.id + '\',\'' + esc(c.deca_dni || '') + '\')">🔑 Nuevo PIN</button>' +
-          '<button class="btn bs" style="font-size:10px" onclick="_condBaja(\'' + c.id + '\',' + (!c.deca_baja) + ')">' + (c.deca_baja ? '↩ Reactivar' : '⛔ Baja') + '</button>' +
+          '<button class="btn bs" style="font-size:10px" onclick="_condNuevoPin(\'' + c.id + '\',\'' + esc(c.deca_dni || '') + '\')">Nuevo PIN</button>' +
+          '<button class="btn bs" style="font-size:10px" onclick="_condBaja(\'' + c.id + '\',' + (!c.deca_baja) + ')">' + (c.deca_baja ? 'Reactivar' : 'Dar de baja') + '</button>' +
         '</div></div>').join('');
   } catch (e) {
     console.error('[v759 lista]', e);

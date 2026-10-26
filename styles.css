@@ -976,3 +976,13 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentAdmin .uChk{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#111;font-weight:600}
 #tabContentAdmin .uChk input{width:20px;height:20px}
 #tabContentAdmin .btn.br[data-confirming]{background:#b83a36!important;color:#fff!important}
+
+/* v952 Usuarios: columna ESTADO y grupo DE BAJA */
+#tabContentAdmin .uEstado{display:inline-block;font-size:13px;font-weight:800;letter-spacing:.8px;border-radius:4px;padding:3px 10px;min-width:74px;text-align:center}
+#tabContentAdmin .uEstOk{color:#1b5e3f;background:#dcefe5;border:1px solid #1b5e3f}
+#tabContentAdmin .uEstBaja{color:#fff;background:#b83a36;border:1px solid #b83a36}
+#tabContentAdmin .uRolTxt{font-size:15px;font-weight:700;color:#111;min-width:150px}
+#tabContentAdmin .user-row.uBaja{background:#f1f3f6!important;border-style:dashed!important}
+#tabContentAdmin .user-row.uBaja .user-email{color:#2f3a48!important}
+#tabContentAdmin .uGrupo[data-rol="baja"] .uGrupoH{border-left-color:#b83a36}
+#tabContentAdmin .uGrupo[data-rol="baja"] .uGrupoN{background:#b83a36}
