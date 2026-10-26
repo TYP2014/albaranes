@@ -1227,3 +1227,15 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentTaller #recambiosTabla td span[style*="font-size:13px"][style*="var(--tx)"]{color:#111!important}
 #tabContentTaller #recambiosTabla td span[style*="letter-spacing:.5px"]{font-size:13.5px!important}
 #tabContentTaller #recambiosTabla td[colspan="9"]>span{font-size:16px!important;color:#111!important}
+
+/* v979 Originales para inspeccion: un escalon mas de letra */
+#tacoInspCard .insp-ayuda{font-size:15.5px;color:#111}
+#tacoInspCard label.fl{font-size:14px!important;color:#111!important;font-weight:700}
+#tacoInspCard .insp-v{font-size:15.5px;color:#111}
+#tacoInspCard .insp-n,#tacoInspCard .insp-aviso{font-size:15px;color:#111}
+#tacoInspCard .insp-fila .btn{font-size:14px;padding:10px 18px}
+#tacoInspCard .insp-h{font-size:18px;color:#1f3a5f}
+#tacoInspCard .tbl th{font-size:14px!important;color:#1f3a5f!important;font-weight:800}
+#tacoInspCard .tbl td{font-size:16px!important;color:#111!important;padding:13px 14px!important}
+#tacoInspCard .tbl td .insp-rojo{color:#b83a36!important}
+#tacoInspCard .insp-ok,#tacoInspCard .insp-ko{font-size:17px}
