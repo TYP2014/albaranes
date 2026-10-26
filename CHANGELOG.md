@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v977 (26/10/2026): RECAMBIOS, ULTIMOS RETOQUES DE LETRA. La columna ESTADO (PENDIENTE / CONCILIADO) pasa de 13 px a 15 px en negrita, las etiquetas ALBARAN / FACTURA / ABONO a 13,5 px y la linea de cada mes (albaranes, conciliados, pendientes) a 16 px en negro. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v976.
+
+---
+
 v976 (26/10/2026): TALLER > RECAMBIOS, LETRA MAS GRANDE EN LA LISTA DE DOCUMENTOS. La lista de documentos (proveedor, n de documento, fecha, base, IVA, total, estado) pasa de 14 px a 16 px en negro, con mas aire entre filas y cabeceras en azul marino y negrita; los chips de proveedores a 15 px con borde mas marcado; el buscador, el filtro de tipo y el resumen a 14-15 px; los botones A MANO / DESCARGAR / VER a 13 px en negrita. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v975.
 
 ---

@@ -1221,3 +1221,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #recambiosChipsProv button{font-size:15px!important;padding:9px 18px!important;border-color:#9aa5b4!important;font-weight:600}
 #recambiosFiltroTipo,#recambiosFiltroBuscar{font-size:14.5px!important;padding:10px 12px!important}
 #recambiosResumen{font-size:14.5px!important;color:#111!important}
+
+/* v977 Recambios: estado, etiquetas de tipo y linea del mes */
+#tabContentTaller #recambiosTabla td span[style*="font-size:13px"]{font-size:15px!important;font-weight:800}
+#tabContentTaller #recambiosTabla td span[style*="font-size:13px"][style*="var(--tx)"]{color:#111!important}
+#tabContentTaller #recambiosTabla td span[style*="letter-spacing:.5px"]{font-size:13.5px!important}
+#tabContentTaller #recambiosTabla td[colspan="9"]>span{font-size:16px!important;color:#111!important}
