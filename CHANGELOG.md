@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v957 (26/10/2026): FACTURACION > SUBCONTRATADOS Y LETRA PEQUENA QUE QUEDABA. Textos de 11,5-13 px suben a 14-14,5 px, grises #444/#555/#666 pasan a gris oscuro, filas y botones de la liquidacion con mas aire, quitados iconos (lupa, mas, disquete, hoja, grafico) de Guardar liquidacion, Factura PDF, Descargar Excel y Lineas a mano. Se mantienen los avisos con color (naranja/rojo). No cambia ningun calculo. VUELTA ATRAS: volver a la v956.
+
+---
+
 v956 (26/10/2026): FACTURACION > LIQUIDACIONES (HOLCIM / CEMEX / SODIRA) MAS FORMAL Y LEGIBLE. Letras grises pequenas (11-12 px) pasan a negro/gris oscuro de 13,5-14,5 px, botones de los meses y de repasos mas grandes y con mas separacion, zonas de subir PDF con borde azul marino, cabeceras de tabla en negrita, quitados iconitos decorativos (libro, ojo, graficos, hoja). No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v955.
 
 ---
