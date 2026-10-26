@@ -1075,3 +1075,21 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tarifasCont .tar-tramo input.t-precio{width:130px!important}
 #tarifasCont .tarAyuda{font-family:var(--mn);font-size:14.5px!important}
 #tarifasCont .tarMesCh{min-width:84px}
+
+/* v961 Precio cliente y beneficio */
+#tarifasCliCard .st{font-size:16px;font-weight:700;color:var(--tx)}
+#tarifasCliCard .card-bd>div:first-child{font-size:14.5px!important;color:#111!important;line-height:1.65!important}
+#tarifasCliCard .card-bd>div:first-child [style*="color:var(--tx)"]{color:#111!important}
+#tarifasCliCard .btn{font-size:14px!important;padding:9px 16px!important;color:#111!important;font-weight:700}
+#tarifasCliCard .fil-sel{font-size:15px!important;color:#111!important;padding:9px 12px!important}
+#tarifasCliCard [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tarifasCliCard .tcTbl{border:1px solid #9aa5b4;border-radius:6px}
+#tarifasCliCard .tcTbl thead th{font-size:13px!important;font-weight:800!important;color:#111!important;letter-spacing:.6px;text-transform:uppercase;padding:13px 14px!important;background:#eef2f7;border-bottom:2px solid #9aa5b4!important}
+#tarifasCliCard .tcTbl thead th:nth-child(3),#tarifasCliCard .tcTbl thead th:nth-child(4),#tarifasCliCard .tcTbl thead th:nth-child(7){text-align:right!important}
+#tarifasCliCard .tcTbl td{font-size:15px!important;color:#111;padding:10px 14px!important;border-bottom:1px solid #c3ccd8!important}
+#tarifasCliCard .tcTbl td:nth-child(1),#tarifasCliCard .tcTbl td:nth-child(2){font-weight:700}
+#tarifasCliCard .tcTbl td:nth-child(3),#tarifasCliCard .tcTbl td:nth-child(4),#tarifasCliCard .tcTbl td:nth-child(7){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#tarifasCliCard .tcTbl td:nth-child(7){font-weight:800!important;font-size:16px!important}
+#tarifasCliCard .tcTbl td:nth-child(5) input{width:130px!important;text-align:right;font-size:16px!important;font-weight:700;border:1px solid #9aa5b4!important}
+#tarifasCliCard .tcTbl tbody tr:hover td{background:#f4f7fb}
+#tarifasCliCard .tcBtn{font-size:14px;font-weight:700;padding:8px 16px;border-radius:6px;border:1px solid #1b5e3f;background:#1b5e3f;color:#fff;cursor:pointer}

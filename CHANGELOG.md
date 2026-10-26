@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v961 (26/10/2026): FACTURACION > PRECIO CLIENTE Y BENEFICIO MAS FORMAL Y LEGIBLE. Letra de 12 px a 15 px en negro, cabeceras en negrita, columnas con ancho propio (origen y destino anchos, cifras a la derecha), boton Guardar en texto en cada fila en lugar del disquete, beneficio en negrita (azul si es positivo, rojo si es negativo), filas con mas aire y resalte al pasar el raton, sin iconos decorativos. No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v960.
+
+---
+
 v960 (26/10/2026): TARIFAS POR SERVICIO · CAMPOS DE DIA MAS ANCHOS. En la v959 el numero 31 del campo 'hasta dia' salia cortado; ahora los campos Dia miden 84 px y el de precio 130 px. Solo estilo. VUELTA ATRAS: volver a la v959.
 
 ---

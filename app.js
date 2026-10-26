@@ -1266,18 +1266,18 @@ function renderTarifasClienteEditor() {
   const th = t => '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:11px;color:var(--mu)">' + t + '</th>';
   // v107K81: buscador Origen/Destino + botón "✕ Recoger" (igual que en Tarifas por servicio).
   let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
-    + '<input id="tarifaCliBuscaOrigen" type="text" placeholder="🔎 Filtrar origen…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaCliBuscaDestino" type="text" placeholder="🔎 Filtrar destino…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
-    + '<button class="btn bs" onclick="_tarifaCliCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">✕ Recoger</button>'
+    + '<input id="tarifaCliBuscaOrigen" type="text" placeholder="Filtrar origen…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaCliBuscaDestino" type="text" placeholder="Filtrar destino…" oninput="_tarifaCliFiltrar()" class="fil-sel" style="flex:1;min-width:150px;font-family:var(--mn);font-size:12px">'
+    + '<button class="btn bs" onclick="_tarifaCliCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar la tabla y volver a la pantalla pequeña">Recoger</button>'
     + '</div>';
-  html += '<table style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
+  html += '<table class="tcTbl" style="width:100%;border-collapse:collapse;min-width:720px"><thead><tr>'
     + th('Origen') + th('Destino') + th('Alb.') + th('Coste subcontratado') + th('Precio cliente (€/TN)') + th('') + th('Beneficio €/TN')
     + '</tr></thead><tbody>';
   lista.forEach(s => {
     const coste = _tarifaDe(s.origen, s.destino, anio, mes);
     const cliente = _tarifaClienteDe(s.origen, s.destino, anio, mes);
     const benef = (coste != null && cliente != null) ? (cliente - coste) : null;
-    const benColor = benef == null ? 'var(--mu)' : (benef >= 0 ? 'var(--ac)' : 'var(--er)');
+    const benColor = benef == null ? '#2f3a48' : (benef >= 0 ? 'var(--ac)' : 'var(--er)');
     const td = (txt, extra) => '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-size:12px;' + (extra || 'color:var(--tx)') + '">' + _fichajeEsc(txt) + '</td>';
     html += '<tr data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '">'
       + td(s.origen || '—') + td(s.destino || '—')
@@ -1288,7 +1288,7 @@ function renderTarifasClienteEditor() {
       + ' data-orig="' + _fichajeEsc(s.origen) + '" data-dest="' + _fichajeEsc(s.destino) + '"'
       + ' value="' + (cliente != null ? cliente : '') + '" placeholder="0.00" style="width:110px;font-family:var(--mn);font-size:12px"></td>'
       + '<td style="padding:6px 6px;border-bottom:1px solid var(--bd);text-align:center">'
-      + '<button class="btn bs" onclick="_tarifaCliGuardarUna(this)" title="Guardar SOLO esta ruta (no toca las demás)" style="font-size:12px;padding:4px 8px">💾</button></td>'
+      + '<button class="btn bs" onclick="_tarifaCliGuardarUna(this)" title="Guardar SOLO esta ruta (no toca las demás)" class="tcBtn">Guardar</button></td>'
       + '<td style="padding:6px 10px;border-bottom:1px solid var(--bd);font-family:var(--mn);font-size:12px;font-weight:600;color:' + benColor + '">' + (benef != null ? fmt(benef) : '—') + '</td>'
       + '</tr>';
   });
