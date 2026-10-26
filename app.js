@@ -37186,7 +37186,14 @@ async function tacoBuzonAuto() {
         // OJO AL MATIZ: solo se aparca lo que no se puede LEER. Un fichero que
         // se lee bien pero cuyo conductor no esta de alta SIGUE reintentandose,
         // porque eso si se arregla manyana dandolo de alta.
-        if (it.estado === 'leido' && it.r && !it.r.completo) {
+        // v970: DESCARGA VACIA. Fichero de tarjeta que llega "entero" pero con el
+        // principio en blanco (ceros): no trae ni nombre, ni nº de tarjeta, ni un
+        // solo dia. No hay nada que guardar ni que cruzar con nadie, y reintentarlo
+        // da siempre lo mismo. Se APARCA igual que las cortadas; el original
+        // sigue intacto en el almacen. (Caso real: Arnau, 26/10/2026, MOV_29792052.)
+        const _vacia = it.estado === 'leido' && it.r && it.r.tipo === 'conductor'
+          && !it.r.conductor && !it.r.tarjeta_num && !(it.r.dias && it.r.dias.length);
+        if (it.estado === 'leido' && it.r && (!it.r.completo || _vacia)) {
           cortados++;
           console.warn('[v858] descarga CORTADA, se aparca: ' + r.file_nombre
             + ' \u2014 solo ' + (it.r.leidos || 0).toLocaleString('es-ES')

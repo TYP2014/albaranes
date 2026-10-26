@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v970 (26/10/2026): DESCARGAS DE TARJETA VACIAS, APARCADAS. Una descarga de tarjeta de conductor que llega con el principio en blanco (sin nombre, sin numero de tarjeta y sin ni un dia) ya no deja el aviso rojo de 'descarga sin guardar' encendido para siempre: se aparca igual que las cortadas y el fichero original sigue guardado e intacto en el almacen. Solo afecta a ficheros que no traen NADA aprovechable; los que traen conductor o dias siguen como antes (incluidos los de conductores dados de baja, que se guardan). VUELTA ATRAS: volver a la v969.
+
+---
+
 v969 (26/10/2026): AVISOS DE TACOGRAFO DE ARRIBA CON EL MISMO ESTILO QUE LOS DEMAS. Los tres avisos (descarga de tacografo sin guardar, tramos de conduccion sin tarjeta y camiones con dias sin registro) pasan de fondo de color y letra de 10-11 px a fondo blanco con marco grueso (rojo o ambar segun gravedad) y barra gruesa a la izquierda, letra de 13,5-14,5 px en negro, botones VER y VISTO mas grandes, sin iconos decorativos (se mantienen el punto rojo y el blanco que significan sospechoso / probable base). No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v968.
 
 ---
