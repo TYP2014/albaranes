@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v953 (26/10/2026): DeCA > CONDUCTORES · BUSCADOR EN LA LISTA. La unica barra de busqueda solo buscaba entre los empleados que AUN NO tienen acceso, asi que buscar a alguien que ya lo tenia (ej. Aziz) decia 'Nadie con ese nombre' y parecia que no funcionaba. Ahora: (1) la lista CONDUCTORES lleva su propio buscador (nombre o DNI) justo encima; (2) el otro buscador se rotula 'solo los que AUN NO tienen acceso' y, si no encuentra a nadie, avisa de que busques en CONDUCTORES; (3) boton 'Dar de alta' sin dibujito. Solo cambia la pantalla. Sin SQL. VUELTA ATRAS: volver a la v952.
+
+---
+
 v952 (26/10/2026): ESTADO ACTIVO / DE BAJA VISIBLE EN USUARIOS Y EN DeCA. Usuarios: cada fila lleva ahora una columna ESTADO (ACTIVO en verde / DE BAJA en rojo) y los dados de baja pasan a un grupo aparte 'DE BAJA' (fondo gris, borde discontinuo) con su rol en texto fijo; el resumen de arriba cuenta los activos y las bajas. El estado sale de la marca que ya existe (profiles.deca_baja), la misma del boton Baja de DeCA, asi que lo que se marca en un sitio se ve en el otro. DeCA > Conductores: cada conductor muestra ACTIVO o DE BAJA, y los botones pasan a 'Dar de baja', 'Reactivar' y 'Nuevo PIN' (sin dibujitos). No se anade ningun boton de baja ni de rol en Usuarios: la baja de DeCA se sigue dando solo desde DeCA. Sin SQL. VUELTA ATRAS: volver a la v951.
 
 ---

@@ -43294,10 +43294,11 @@ async function _condPintar(resultado) {
     '<button class="btn bp" id="condBtnAlta" onclick="_condAlta()">➕ Dar de alta</button>' +
     '<div id="condResultado">' + (resultado || '') + '</div>' +
     (_decaTrabajadores.length ?
-      '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">DESDE EMPLEADOS (sin acceso todavía)</div>' +
-      '<input ' + fi + ' id="condBuscar" placeholder="Escribe para buscar (ej. CR)…" oninput="_condPintarEmpleados()" style="margin-bottom:8px">' +
+      '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">DESDE EMPLEADOS (solo los que AÚN NO tienen acceso)</div>' +
+      '<input ' + fi + ' id="condBuscar" placeholder="Buscar empleado sin acceso (nombre o DNI)…" oninput="_condPintarEmpleados()" style="margin-bottom:8px">' +
       '<div id="condEmpleados" style="max-height:260px;overflow:auto"></div>' : '') +
     '<div style="font-weight:800;color:var(--ac);font-size:12px;border-bottom:2px solid var(--ac);padding-bottom:4px;margin:20px 0 10px">CONDUCTORES</div>' +
+    '<input ' + fi + ' id="condBuscarLista" placeholder="Buscar conductor (nombre o DNI)…" oninput="_condFiltrarLista()" style="margin-bottom:8px">' +
     '<div id="condLista" style="font-size:12px;color:var(--mu)">Cargando…</div>';
   try {
     const { data, error } = await sb.rpc('deca_conductores_lista');
@@ -43306,7 +43307,7 @@ async function _condPintar(resultado) {
     window._condListaActual = l;   // v764: para no ofrecer en "Desde Empleados" a quien ya tiene acceso
     _condPintarEmpleados();
     document.getElementById('condLista').innerHTML = !l.length ? 'Ninguno todavía.' :
-      l.map(c => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.deca_baja ? ';opacity:.5' : '') + '">' +
+      l.map(c => '<div class="condFila" data-q="' + esc(_decaNrm((c.name || '') + ' ' + (c.deca_dni || ''))) + '" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);color:var(--tx)' + (c.deca_baja ? ';opacity:.5' : '') + '">' +
         '<div><b>' + esc(c.name || '') + '</b>' + (c.deca_baja ? ' <span style="color:#b83a36;font-weight:800">· DE BAJA</span>' : ' <span style="color:#1b5e3f;font-weight:800">· ACTIVO</span>') +
         '<br><span style="font-size:11px;color:var(--mu)">' + esc(c.deca_dni || '') + ' · ' + esc(c.deca_transportista || '') + '</span></div>' +
         '<div style="display:flex;gap:6px;flex-shrink:0">' +
@@ -43358,6 +43359,11 @@ async function _condAltaCore(nombre, dni, empresa) {
 }
 
 // v764: lista de Empleados sin acceso, filtrada por lo escrito en el buscador
+// v953: buscador de la lista CONDUCTORES (solo esconde filas)
+function _condFiltrarLista() {
+  const q = _decaNrm((document.getElementById('condBuscarLista') || {}).value || '');
+  document.querySelectorAll('#condLista .condFila').forEach(r => { r.style.display = (!q || (r.dataset.q || '').includes(q)) ? 'flex' : 'none'; });
+}
 function _condPintarEmpleados() {
   const box = document.getElementById('condEmpleados'); if (!box) return;
   const q = _decaNrm((document.getElementById('condBuscar') || {}).value || '');
@@ -43369,16 +43375,16 @@ function _condPintarEmpleados() {
     .filter(t => !q || _decaNrm(t.name).includes(q) || t.deca_dni.includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
   window._condEmpVisibles = l;
-  box.innerHTML = !l.length ? '<div style="font-size:12px;color:var(--mu)">' + (q ? 'Nadie con ese nombre.' : 'Todos tienen ya acceso.') + '</div>' :
+  box.innerHTML = !l.length ? '<div style="font-size:12px;color:var(--mu)">' + (q ? 'Nadie con ese nombre entre los que aún no tienen acceso. Si ya tiene acceso, búscalo en CONDUCTORES, más abajo.' : 'Todos tienen ya acceso.') + '</div>' :
     l.map((t, i) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">' +
       '<div style="font-size:12px"><b>' + esc(t.name) + '</b><br><span style="font-size:11px;color:var(--mu)">' + esc(t.deca_dni) + ' · ' + esc(t.deca_transportista) + '</span></div>' +
-      '<button class="btn bp" style="font-size:10px;flex-shrink:0" onclick="_condAltaEmpleado(' + i + ', this)">➕ Alta</button></div>').join('');
+      '<button class="btn bp" style="font-size:10px;flex-shrink:0" onclick="_condAltaEmpleado(' + i + ', this)">Dar de alta</button></div>').join('');
 }
 async function _condAltaEmpleado(i, btn) {
   const t = (window._condEmpVisibles || [])[i]; if (!t) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
   await _condAltaCore(t.name, t.deca_dni, t.deca_transportista);
-  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = '➕ Alta'; }   // si falló
+  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Dar de alta'; }   // si falló
 }
 
 async function _condNuevoPin(id, dni) {
