@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v975 (26/10/2026): CITAS SERVICIO OFICIAL, LETRA DE LA TABLA MAS GRANDE. En la v974 las cabeceras y los botones cambiaron pero las celdas seguian en 14 px porque una regla general de las tablas de Taller les fijaba el tamano. Ahora las celdas (fecha, hora, matricula, marca, taller, motivo) pasan a 16 px en negro, con mas aire entre filas, y las cabeceras a 14 px en negrita. No cambia ningun dato. VUELTA ATRAS: volver a la v974.
+
+---
+
 v974 (26/10/2026): TALLER > CITAS SERVICIO OFICIAL MAS FORMAL Y LEGIBLE. La tabla de citas pasa a letra de 15 px en negro, cabeceras en azul marino y en negrita, botones HECHA / EDITAR / WHATSAPP mas grandes con letra azul marino y borde marcado, y los colores de la leyenda y de cada cita (amarillo, naranja, verde, gris) mas oscuros para que se lean sobre blanco. Se mantienen los colores del semaforo y el icono de WhatsApp. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v973.
 
 ---
