@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v951 (26/10/2026): FICHAJE Y USUARIOS · DOS RETOQUES DE TEXTO. En Fichaje, la cabecera de la tabla y la ventana de Corregir decian 'Trabajadora' aunque casi todo el personal son hombres: ahora 'Trabajador'. En Usuarios, el grupo 'GESTORES · OFICINA' pasa a 'GESTORES · OFICINA Y TALLER' (incluye al usuario TALLER). El Excel de fichajes NO cambia (conserva el formato del gestor). Sin SQL. VUELTA ATRAS: volver a la v950.
+
+---
+
 v950 (26/10/2026): USUARIOS · OFICINA Y SUBCONTRATISTAS POR SEPARADO. Los gestores mezclaban a la oficina con los subcontratistas y la nota decia 'Oficina' para todos. Ahora hay dos grupos: GESTORES · OFICINA ('ven y gestionan segun sus permisos') y GESTORES · SUBCONTRATISTAS ('cada uno ve solo sus albaranes y sus DeCA'). Se reconoce al subcontratista por su nombre (Aridflot, Ciprian, Jose Miguel, Miguel Angel, OP Trans, Satig, Joaquin, Antonio, Francisco, Carlos Alacio, Refrigerados); cualquier otro gestor va a Oficina. Es solo como se agrupan en pantalla: no cambia ningun rol ni permiso. El resumen de arriba tambien los cuenta por separado. Sin SQL. VUELTA ATRAS: volver a la v949.
 
 ---

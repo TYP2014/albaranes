@@ -19961,7 +19961,7 @@ function abrirFichajeCorreccion(id) {
   if (fields) {
     fields.innerHTML = `
       <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:10px">
-        Trabajadora: <b style="color:var(--tx)">${orig.trabajador || '—'}</b><br>
+        Trabajador: <b style="color:var(--tx)">${orig.trabajador || '—'}</b><br>
         Original: ${_FICHAJE_LABELS[tipoRef] || tipoRef} · ${_fichajeFechaBonita(fechaDef)} ${horaDef}
       </div>
       <div class="login-field">
@@ -20372,7 +20372,7 @@ function renderFichajes() {
   const td = (t) => `<td style="padding:8px 10px;font-family:var(--mn);font-size:12px;color:var(--tx);border-bottom:1px solid var(--s2)">${t}</td>`;
 
   let html = '<table style="width:100%;border-collapse:collapse;min-width:640px"><thead><tr>';
-  if (esAdmin) html += th('Trabajadora');
+  if (esAdmin) html += th('Trabajador');
   html += th('Fecha') + th('Hora') + th('Tipo') + th('Cómo') + th('Nota');
   if (esAdmin) html += th('Acción');
   html += '</tr></thead><tbody>';
@@ -20741,7 +20741,7 @@ async function loadUsers() {
   // v949: usuarios AGRUPADOS POR ROL (cada grupo con su rótulo y su número), ordenados por nombre; buscador arriba.
   const _rolGrupos = [
     { rol: 'admin', tit: 'ADMINISTRADOR', nota: 'Acceso total' },
-    { rol: 'gestor', sub: false, tit: 'GESTORES · OFICINA', nota: 'Ven y gestionan según sus permisos' },
+    { rol: 'gestor', sub: false, tit: 'GESTORES · OFICINA Y TALLER', nota: 'Ven y gestionan según sus permisos' },
     { rol: 'gestor', sub: true, tit: 'GESTORES · SUBCONTRATISTAS', nota: 'Cada uno ve solo sus albaranes y sus DeCA' },
     { rol: 'conductor', tit: 'CONDUCTORES Y PERSONAL', nota: 'Conductores (solo DeCA), personal de taller (solo Fichaje) y usuarios de consulta' }
   ];
