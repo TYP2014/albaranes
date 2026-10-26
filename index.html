@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=104">
+<link rel="stylesheet" href="styles.css?v=105">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1093,7 +1093,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#26c6da"></div>COSTE POR CAMIÓN</div>
           <div class="tbl-acts">
-            <button class="btn bs" onclick="loadCostes()" style="font-size:11px">🔄 Actualizar</button>
+            <button class="btn bs" onclick="loadCostes()" style="font-size:11px">Actualizar</button>
           </div>
         </div>
         <div class="card-bd">
@@ -1112,9 +1112,9 @@ if (typeof pdfjsLib !== 'undefined') {
             <table>
               <thead><tr>
                 <th>Matrícula</th>
-                <th>Gasoil €</th>
-                <th>Km</th>
-                <th>€/km (gasoil)</th>
+                <th class="cNum">Gasoil €</th>
+                <th class="cNum">Km</th>
+                <th class="cNum">€/km (gasoil)</th>
               </tr></thead>
               <tbody id="tbodyCostes"></tbody>
             </table>
@@ -2054,6 +2054,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=954"></script>
+<script src="app.js?v=955"></script>
 </body>
 </html>

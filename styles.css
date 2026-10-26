@@ -986,3 +986,23 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentAdmin .user-row.uBaja .user-email{color:#2f3a48!important}
 #tabContentAdmin .uGrupo[data-rol="baja"] .uGrupoH{border-left-color:#b83a36}
 #tabContentAdmin .uGrupo[data-rol="baja"] .uGrupoN{background:#b83a36}
+
+/* v955 Costes: formal, legible, numeros alineados a la derecha */
+#tabContentCostes .st{font-size:15px;font-weight:700;color:var(--tx)}
+#tabContentCostes .btn{font-size:13px!important;font-weight:700;padding:9px 16px!important;color:#111!important}
+#tabContentCostes [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tabContentCostes .card-bd>div:first-child{font-size:14.5px!important;color:#111!important;line-height:1.6!important;max-width:980px}
+#tabContentCostes .fil-label{font-size:13px!important;font-weight:700;color:#111!important}
+#tabContentCostes .fil-inp{font-size:14px!important;padding:9px 12px!important;color:#111!important}
+#tabContentCostes .tbl-wrap{max-width:980px;border:1px solid #9aa5b4;border-radius:6px;overflow:hidden}
+#tabContentCostes table{width:100%;border-collapse:collapse}
+#tabContentCostes thead th{font-size:13px!important;font-weight:700!important;color:#111!important;letter-spacing:.6px;padding:13px 16px!important;border-bottom:2px solid #9aa5b4!important;background:#eef2f7;text-align:left}
+#tabContentCostes thead th.cNum{text-align:right}
+#tabContentCostes td{font-size:16px;color:#111;padding:12px 16px!important;border-bottom:1px solid #c3ccd8}
+#tabContentCostes td.cNum{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#tabContentCostes td.cMat{font-weight:700;letter-spacing:.4px}
+#tabContentCostes td.cEurkm{font-weight:800}
+#tabContentCostes tbody tr:hover td{background:#f4f7fb}
+#tabContentCostes .cVacio{color:#2f3a48}
+#tabContentCostes .cSinKm{color:#8a4b00;font-weight:700}
+#tabContentCostes tr.cTotal td{background:#eef2f7;border-top:2px solid #1f3a5f;font-weight:800;font-size:16.5px}

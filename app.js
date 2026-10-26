@@ -9944,14 +9944,21 @@ async function loadCostes() {
 
   if (!filas.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
-  const fmtE = (n) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmt0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
+  // v955: miles SIEMPRE con punto (antes 3846,87 y 10.431,62 salian distinto)
+  const fmtE = (n) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' });
+  const fmt0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' });
   tbody.innerHTML = filas.map(f => {
-    const impTxt = f.imp > 0 ? fmtE(f.imp) + ' €' : '<span style="color:var(--mu)">—</span>';
-    const kmTxt = f.km > 0 ? fmt0(f.km) + ' km' : '<span style="color:var(--wnd)">⚠️ sin km</span>';
-    const eurkmTxt = f.eurkm != null ? fmtE(f.eurkm) + ' €/km' : '<span style="color:var(--wnd)">⚠️ sin km</span>';
-    return `<tr><td style="padding:8px;font-family:var(--mn)">${f.mat}</td><td style="padding:8px">${impTxt}</td><td style="padding:8px">${kmTxt}</td><td style="padding:8px;font-weight:700">${eurkmTxt}</td></tr>`;
+    const impTxt = f.imp > 0 ? fmtE(f.imp) + ' €' : '<span class="cVacio">—</span>';
+    const kmTxt = f.km > 0 ? fmt0(f.km) + ' km' : '<span class="cSinKm">sin km</span>';
+    const eurkmTxt = f.eurkm != null ? fmtE(f.eurkm) + ' €/km' : '<span class="cSinKm">sin km</span>';
+    return `<tr><td class="cMat">${f.mat}</td><td class="cNum">${impTxt}</td><td class="cNum">${kmTxt}</td><td class="cNum cEurkm">${eurkmTxt}</td></tr>`;
   }).join('');
+  // v955: fila TOTAL FLOTA (solo con los camiones que tienen gasoil Y km, para que el €/km sea honesto)
+  const _ok = filas.filter(f => f.imp > 0 && f.km > 0);
+  const _tImp = filas.reduce((a, f) => a + (f.imp > 0 ? f.imp : 0), 0);
+  const _tKm = filas.reduce((a, f) => a + (f.km > 0 ? f.km : 0), 0);
+  const _oImp = _ok.reduce((a, f) => a + f.imp, 0), _oKm = _ok.reduce((a, f) => a + f.km, 0);
+  tbody.innerHTML += `<tr class="cTotal"><td class="cMat">TOTAL FLOTA (${filas.length} camiones)</td><td class="cNum">${fmtE(_tImp)} €</td><td class="cNum">${fmt0(_tKm)} km</td><td class="cNum cEurkm">${_oKm > 0 ? fmtE(_oImp / _oKm) + ' €/km' : '—'}</td></tr>`;
 }
 
 function costesAtajo(tipo) {

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v955 (26/10/2026): COSTES MAS FORMAL Y CLARO. Letra de 16 px en negro, cabeceras en negrita, cifras alineadas a la derecha en columnas fijas (antes se repartian por toda la pantalla), tabla con marco y ancho limitado para que el ojo no se pierda, texto explicativo a 14,5 px, filtros y botones mas grandes, quitado el icono de Actualizar. Los miles salen siempre con punto (antes 3846,87 y 10.431,62 salian distinto). 'sin km' en ocre en vez del triangulo. NUEVO: fila TOTAL FLOTA al final (gasoil y km totales y €/km medio, calculado solo con los camiones que tienen gasoil Y km para que la media sea honesta). Los calculos de cada camion no cambian. Sin SQL. VUELTA ATRAS: volver a la v954.
+
+---
+
 v954 (26/10/2026): DeCA > CONDUCTORES · LOS DE BAJA YA NO SALEN PARA 'DAR DE ALTA'. Al dar de baja a un conductor (caso Aziz), seguia apareciendo en 'Desde empleados (solo los que AUN NO tienen acceso)' con el boton 'Dar de alta', y pulsarlo habria intentado crearle otra vez el acceso. Ahora esa lista excluye a todo el que ya figura en CONDUCTORES, este activo o de baja. Para devolverle el acceso a uno de baja se usa 'Reactivar' en la lista CONDUCTORES. Solo cambia esa lista. Sin SQL. VUELTA ATRAS: volver a la v953.
 
 ---
