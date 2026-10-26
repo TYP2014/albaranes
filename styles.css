@@ -1132,3 +1132,26 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #primasCuadBox [style*="font-size:12px"]{font-size:13.5px!important;color:#2f3a48!important}
 #primasCuadBox [style*="font-size:11px"],#primasCuadBox [style*="font-size:11.5px"]{font-size:13.5px!important}
 #primasCuadBox + div,#primasCuadBox ~ div{font-size:15px!important}
+
+/* v964 Taller > Mantenimientos (lista de vehiculos) */
+#tallerVistaSel .btn{font-size:14px!important;padding:12px 22px!important;font-weight:800;color:#111!important}
+#tallerVistaSel .btn.bp{color:#fff!important}
+#tallerVistaMantBox .st{font-size:16px;font-weight:700;color:var(--tx)}
+#tallerVistaMantBox #tallerKmBtn{border:2px dashed #1f3a5f!important;background:#f4f7fb!important}
+#tallerVistaMantBox #tallerKmBtn *{font-size:14px!important;color:#111!important}
+#tallerVistaMantBox #tallerKmBtn span:first-child,#tallerVistaMantBox #tallerKmBtn div:first-child{font-weight:800!important}
+#tallerVistaMantBox .tbl-acts .btn{font-size:14px!important;padding:14px 24px!important;background:#1f3a5f!important;border-color:#1f3a5f!important;color:#fff!important}
+#tallerVistaMantBox #tallerSearchMat{font-size:15px!important;font-weight:700;color:#111;padding:10px 12px;max-width:320px!important;border:1px solid #9aa5b4}
+#tallerVistaMantBox .card-bd .btn{font-size:13.5px!important;padding:10px 16px!important;color:#111!important;font-weight:700}
+#tallerTabla{border:1px solid #9aa5b4;border-collapse:collapse}
+#tallerTabla thead th{font-size:13px!important;font-weight:800!important;color:#111!important;letter-spacing:.6px;text-transform:uppercase;padding:13px 12px!important;background:#eef2f7;border-bottom:2px solid #9aa5b4!important}
+#tallerTabla td{font-size:15.5px!important;font-weight:700;color:#111;padding:12px 12px!important;border-bottom:1px solid #c3ccd8!important;vertical-align:middle}
+#tallerTabla td:nth-child(2){font-size:17px!important;font-weight:800;letter-spacing:.5px;color:#1f3a5f!important}
+#tallerTabla td [style*="font-size:9px"]{font-size:13px!important;color:#2f3a48!important;font-weight:600}
+#tallerTabla td[style*="color:var(--mu)"]{color:#2f3a48!important}
+#tallerTabla td[style*="color:var(--wnd)"]{color:#8a4b00!important}
+#tallerTabla tbody tr:hover td{background:#f4f7fb}
+#tallerTabla td .btn{font-size:13.5px!important;padding:8px 14px!important;font-weight:700;color:#111!important}
+#tallerTabla td img{width:72px!important;height:44px!important}
+#tallerBajasBox{font-size:14.5px}
+#tallerBajasBox [style*="font-size:11px"],#tallerBajasBox [style*="font-size:12px"]{font-size:14px!important;color:#111!important}

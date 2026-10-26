@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v964 (26/10/2026): TALLER > MANTENIMIENTOS (LISTA DE VEHICULOS) MAS LEGIBLE. Letra de la tabla de 11 a 15 px en negrita/negro (matricula 17 px), cabeceras en negrita con fondo, filas con mas aire y resalte al pasar el raton, botones de arriba (Mantenimientos / Recambios / Citas, Importar km, Anadir vehiculo, Limpiar) mas grandes y sin iconos, buscador sin lupa. Se mantienen los semaforos de estado y el color ambar de los km antiguos. No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v963.
+
+---
+
 v963 (26/10/2026): EMPLEADOS > PRIMAS > CUADRANTE DEL MES MAS FORMAL Y LEGIBLE. Letra de la tabla y de la ayuda mas grande (14-15 px) y en negro, cabeceras en negrita con fondo y colores suaves por grupo, filas con mas aire y resalte al pasar el raton, botones Detalle / Ficha / Certificado y Certificados de todos en texto sin iconos (se mantienen los iconos de Excel), casillas mas grandes, totales de abajo mas grandes. No cambia ningun calculo ni el guardado. VUELTA ATRAS: volver a la v962.
 
 ---
