@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v967 (26/10/2026): TALLER · FOTOS NUEVAS DE TRACTORA Y BANERA. La tractora lleva el escudo azul TYP 2014 en el capo (sin marca ni matricula) y la banera el logo TRANSPORTES Y PORTES en el lateral; las dos sin fondo, mas anchas y grandes en la tabla de Mantenimientos (alto 54 px, ancho automatico). El semirremolque ya no sale con la tractora. Archivos nuevos: tractora_app.webp y semirremolque_app.webp (subir junto con app.js, index.html, styles.css y CHANGELOG.md). Esta version incluye tambien la v966 (ficha del vehiculo de Taller). VUELTA ATRAS: volver a la v966 (las fotos .jpg antiguas siguen en el repo).
+
+---
+
 v966 (26/10/2026): TALLER > FICHA DEL VEHICULO (VENTANA DE MANTENIMIENTOS) MAS LEGIBLE. Letra de 10-11 px a 14-15 px en negro, titulos de bloque en negrita, casillas mas grandes y con borde marcado, tabla de lineas con cabecera con fondo y filas con mas aire, botones en texto (Ver, Descargar, Subir/Reemplazar, Historico, Guardar km, Dar de baja, Anadir, Abrir, Quitar, Guardar mantenimientos, Cerrar) sin iconos decorativos. No cambia ningun dato ni guardado. VUELTA ATRAS: volver a la v965.
 
 ---

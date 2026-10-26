@@ -1178,3 +1178,6 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #ovTallerMant #tallerModalTabla td .btn{color:#b83a36!important;padding:7px 12px!important}
 #ovTallerMant #tallerModalTabla input.tallerMK{width:110px!important}
 #ovTallerMant select.fi{font-size:15px!important}
+
+/* v967 Taller: fotos nuevas, sin recorte y mas anchas */
+#tallerTabla td img{width:auto!important;height:54px!important;max-width:170px;border-radius:0!important}
