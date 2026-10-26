@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v959 (26/10/2026): FACTURACION > TARIFAS POR SERVICIO REORGANIZADO. Cada ruta ocupa el ancho de la pantalla en tres columnas: a la izquierda la ruta (origen > destino) y cuantos albaranes tiene, en el centro los 3 meses anteriores en cajitas (mes y precio grandes) y a la derecha los tramos de dias con precio y los botones Guardar / Quitar / + Tramo. Letra mas grande y en negro, campos mas anchos, las rutas que ya tienen precio llevan una barra verde a la izquierda, sin iconos decorativos. No cambia ninguna logica de guardado. VUELTA ATRAS: volver a la v958.
+
+---
+
 v958 (26/10/2026): FACTURACION > FACTURA HISPALIS / TRANSMARGAZ MAS FORMAL. El morado pasa al azul marino del resto de la app, los botones con lapiz/ojo/papelera pasan a texto (Editar / VER / Quitar), quitados los iconos decorativos de las cabeceras de bloque y de Anadir, letra de 14 a 15 px y grises mas oscuros. Se mantienen los avisos de color y el boton Excel. No cambia ningun calculo. VUELTA ATRAS: volver a la v957.
 
 ---

@@ -1036,3 +1036,36 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #fiCard .btn.bp,#fiCard #fiCardOut .btn[style*="background:#1f3a5f"],#fiCard #fiCardOut .btn[style*="background:#b91c1c"],#fiCard #fiCardOut .btn[style*="background:#16a34a"]{color:#fff!important}
 #fiCard #fiCardOut button[onclick^="fiLineaBorrar"]{color:#b91c1c!important}
 #fiCard [style*="font-size:12px"],#fiCard [style*="font-size:11px"]{font-size:14px!important}
+
+/* v959 Tarifas por servicio: 3 columnas por ruta (ruta | meses anteriores | tramos) */
+#tarifasCont .tar-ruta{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,.9fr) minmax(460px,1.7fr);column-gap:36px;row-gap:8px;align-items:start;border:1px solid #9aa5b4;border-radius:8px;padding:16px 22px;margin-bottom:14px;background:#fff}
+#tarifasCont .tar-ruta[data-tienep="1"]{border-left:6px solid #1b5e3f}
+#tarifasCont .tarCab{grid-column:1;grid-row:1 / span 2}
+#tarifasCont .tarRuta{font-size:17px;font-weight:800;color:#111;line-height:1.35}
+#tarifasCont .tarFl{color:#1f3a5f;font-weight:800}
+#tarifasCont .tarAlb{font-size:14px;color:#2f3a48;margin-top:6px}
+#tarifasCont .tarMes{grid-column:2;grid-row:1 / span 2}
+#tarifasCont .tarMesT{font-size:12.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#2f3a48;margin-bottom:6px}
+#tarifasCont .tarMesG{display:flex;gap:10px;flex-wrap:wrap}
+#tarifasCont .tarMesCh{display:flex;flex-direction:column;align-items:center;min-width:76px;padding:8px 12px;border:1px solid #c3ccd8;border-radius:6px;background:#eef2f7}
+#tarifasCont .tarMesN{font-size:13px;font-weight:700;color:#2f3a48;text-transform:uppercase}
+#tarifasCont .tarMesP{font-size:16px;color:#111;font-weight:800;white-space:nowrap;margin-top:2px}
+#tarifasCont .tarMesVacio .tarMesCh{background:#fafbfc}
+#tarifasCont .tarMesVacio .tarMesP{color:#6b7787;font-weight:600}
+#tarifasCont .tar-tramos{grid-column:3;grid-row:1}
+#tarifasCont .tarAdd{grid-column:3;grid-row:2}
+#tarifasCont .tar-tramo{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+#tarifasCont .tarL{font-size:14px;font-weight:700;color:#2f3a48}
+#tarifasCont .tar-tramo input{font-size:16px!important;font-weight:700;color:#111!important;padding:8px 10px!important;border:1px solid #9aa5b4!important;text-align:center}
+#tarifasCont .tar-tramo input.t-precio{text-align:right}
+#tarifasCont .tarBtnG,#tarifasCont .tarBtnQ{font-size:14px;font-weight:700;padding:9px 18px;border-radius:6px;cursor:pointer;border:1px solid}
+#tarifasCont .tarBtnG{background:#1b5e3f;color:#fff;border-color:#1b5e3f}
+#tarifasCont .tarBtnQ{background:#fff;color:#b83a36;border-color:#b83a36}
+#tarifasCont .tarAdd .btn{font-size:14px!important;padding:8px 16px!important;color:#111!important}
+#tarifasCont .tarAyuda{font-size:14.5px;color:#111;line-height:1.6;margin:4px 0 16px;max-width:1100px}
+#tarifasCont .fil-sel{font-size:15px!important;color:#111!important;padding:9px 12px!important}
+#tarifasCont .btn{font-size:14px!important;padding:9px 16px!important;color:#111!important;font-weight:700}
+#tarifasCont .btn.bp{color:#fff!important}
+#tarifasCont label{font-size:14.5px!important;color:#111!important;font-weight:600}
+#factTarifasCard #tarifaMes,#factTarifasCard #tarifaAnio{font-size:15px!important;padding:9px 12px!important}
+@media (max-width:1250px){#tarifasCont .tar-ruta{grid-template-columns:1fr}#tarifasCont .tarCab,#tarifasCont .tarMes,#tarifasCont .tar-tramos,#tarifasCont .tarAdd{grid-column:1;grid-row:auto}}

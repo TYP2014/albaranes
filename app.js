@@ -879,17 +879,17 @@ function renderTarifasEditor() {
   lista.forEach(s => { if (s.origen) _setO.add(s.origen); if (s.destino) _setD.add(s.destino); (s.materiales || new Set()).forEach(m => _setM.add(m)); });
   const _dl = (id, items) => '<datalist id="' + id + '">' + [...items].sort((a, b) => a.localeCompare(b)).map(v => '<option value="' + _fichajeEsc(v) + '"></option>').join('') + '</datalist>';
   let html = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
-    + '<input id="tarifaBuscaOrigen" type="text" list="tarOrigenList" placeholder="🔎 Origen…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="🔎 Destino…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
-    + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="🔎 Material…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaOrigen" type="text" list="tarOrigenList" placeholder="Buscar origen…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaDestino" type="text" list="tarDestinoList" placeholder="Buscar destino…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
+    + '<input id="tarifaBuscaMaterial" type="text" list="tarMaterialList" placeholder="Buscar material…" oninput="_tarFiltroInput()" class="fil-sel" style="flex:1;min-width:130px;font-family:var(--mn);font-size:12px">'
     + _dl('tarOrigenList', _setO) + _dl('tarDestinoList', _setD) + _dl('tarMaterialList', _setM)
     + '<label style="font-size:12px;color:var(--tx);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer" title="Ver solo las rutas que aún NO tienen precio"><input type="checkbox" id="tarifaSoloFaltan" onchange="_tarifaFiltrar()" style="cursor:pointer"> Solo sin precio</label>'
-    + '<button class="btn bp" onclick="_tarCopiarMesAnterior()" style="font-size:12px;white-space:nowrap" title="Traer los precios del mes anterior (no pisa lo que ya tengas puesto)">📋 Copiar del mes anterior</button>'
-    + '<button class="btn bs" onclick="_tarifaFiltrarLimpiar()" style="font-size:12px;white-space:nowrap" title="Quitar los filtros">✕ Limpiar</button>'
-    + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">✕ Recoger</button>'
+    + '<button class="btn bp" onclick="_tarCopiarMesAnterior()" style="font-size:12px;white-space:nowrap" title="Traer los precios del mes anterior (no pisa lo que ya tengas puesto)">Copiar del mes anterior</button>'
+    + '<button class="btn bs" onclick="_tarifaFiltrarLimpiar()" style="font-size:12px;white-space:nowrap" title="Quitar los filtros">Limpiar</button>'
+    + '<button class="btn bs" onclick="_tarifaCerrar()" style="font-size:12px;white-space:nowrap" title="Cerrar y volver a la pantalla pequeña">Recoger</button>'
     + '</div>';
   // v226: cada ruta puede tener VARIOS tramos de días con su precio.
-  html += '<div style="font-size:11px;color:var(--mu);margin-bottom:10px">Cada ruta puede tener varios <b>tramos de días</b> con precios distintos (ej. día 1 a 10 → 1€, día 11 a 18 → 2€). Los días que no estén en ningún tramo se quedan sin tarifa. Deja el precio vacío para quitar un tramo. <b>Las rutas que ya tienen precio salen arriba</b> (se reordena al abrir y al guardar).</div>';
+  html += '<div class="tarAyuda">Cada ruta puede tener varios <b>tramos de días</b> con precios distintos (ej. día 1 a 10 → 1€, día 11 a 18 → 2€). Los días que no estén en ningún tramo se quedan sin tarifa. Deja el precio vacío para quitar un tramo. <b>Las rutas que ya tienen precio salen arriba</b> (se reordena al abrir y al guardar).</div>';
   lista.forEach(s => {
     const oe = _fichajeEsc(s.origen), de = _fichajeEsc(s.destino);
     const tramos = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === _tarifaNorm(s.origen)
@@ -902,14 +902,13 @@ function renderTarifasEditor() {
     html += '<div class="tar-ruta" data-tienep="' + (_tienePrecio(s) ? '1' : '0') + '" data-fo="' + _fichajeEsc(_tarifaNorm(s.origen)) + '" data-fd="' + _fichajeEsc(_tarifaNorm(s.destino)) + '"'
       + ' data-mats="' + _fichajeEsc([...(s.materiales || new Set())].map(m => _tarifaNorm(m)).join('|')) + '"'
       + ' data-orig="' + oe + '" data-dest="' + de + '"'
-      + ' style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">'
-      + '<div style="font-size:13px;font-weight:bold;color:var(--tx)">' + (oe || '—') + ' <span style="color:var(--mu)">→</span> ' + (de || '—') + '</div>'
-      + '<div style="font-size:11px;color:var(--mu);font-family:var(--mn);white-space:nowrap">' + s.count + ' alb.</div>'
+      + '>'
+      + '<div class="tarCab"><div class="tarRuta">' + (oe || '—') + ' <span class="tarFl">→</span> ' + (de || '—') + '</div>'
+      + '<div class="tarAlb">' + s.count + (s.count === 1 ? ' albarán' : ' albaranes') + ' este mes</div>'
       + '</div>'
       + _tarHistorico3(s.origen, s.destino, anio, mes)
       + '<div class="tar-tramos">' + filasT + '</div>'
-      + '<button class="btn bs" onclick="_tarAddTramo(this)" style="font-size:11px;padding:4px 10px;margin-top:4px">+ tramo</button>'
+      + '<div class="tarAdd"><button class="btn bs" onclick="_tarAddTramo(this)">+ Tramo</button></div>'
       + '</div>';
   });
   cont.innerHTML = html;
@@ -932,10 +931,9 @@ function _tarHistorico3(origen, destino, anio, mes) {
     if (ts.length === 1 && Number(ts[0].dia_desde || 1) === 1 && Number(ts[0].dia_hasta || 31) === 31) txt = '<b>' + fmt(ts[0].precio_tn) + '</b>';
     else if (ts.length) txt = ts.map(t => Number(t.dia_desde || 1) + '\u2013' + Number(t.dia_hasta || 31) + ' <b>' + fmt(t.precio_tn) + '</b>').join(' / ');
     if (ts.length) algo = true;
-    partes.push('<span style="white-space:nowrap">' + MES[m - 1] + (a !== anio ? ' ' + String(a).slice(2) : '') + ': ' + txt + '</span>');
+    partes.push('<span class="tarMesCh"><span class="tarMesN">' + MES[m - 1] + (a !== anio ? ' ' + String(a).slice(2) : '') + '</span><span class="tarMesP">' + txt + '</span></span>');
   }
-  return '<div style="font-size:11px;color:' + (algo ? 'var(--tx)' : 'var(--mu)') + ';font-family:var(--mn);margin:-2px 0 8px;display:flex;gap:14px;flex-wrap:wrap">'
-    + '<span style="color:var(--mu)">📅 Meses antes:</span>' + partes.join('') + '</div>';
+  return '<div class="tarMes' + (algo ? '' : ' tarMesVacio') + '"><div class="tarMesT">Meses anteriores</div><div class="tarMesG">' + partes.join('') + '</div></div>';
 }
 
 // v226: una fila de tramo = [desde día] a [hasta día] → [precio €/TN] + borrar.
@@ -944,17 +942,18 @@ function _tarTramoRow(origen, destino, desde, hasta, precio) {
   const inp = (cls, val, ph, w) => '<input type="number" min="1" max="31" oninput="_tarClampDia(this)" class="fil-sel ' + cls + '"'
     + ' data-orig="' + oe + '" data-dest="' + de + '"'
     + ' value="' + (val === '' || val == null ? '' : val) + '" placeholder="' + ph + '"'
-    + ' style="width:' + w + ';font-family:var(--mn);font-size:12px">';
-  return '<div class="tar-tramo" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
-    + '<span style="font-size:11px;color:var(--mu)">día</span>'
+    + ' style="width:' + w + '">';
+  return '<div class="tar-tramo">'
+    + '<span class="tarL">Día</span>'
     + inp('t-desde', desde == null ? 1 : desde, '1', '52px')
-    + '<span style="font-size:11px;color:var(--mu)">a</span>'
+    + '<span class="tarL">a</span>'
     + inp('t-hasta', hasta == null ? 31 : hasta, '31', '52px')
-    + '<span style="font-size:12px;color:var(--mu)">→</span>'
+    + '<span class="tarL">precio</span>'
     + '<input type="number" step="0.01" min="0" class="fil-sel t-precio" data-orig="' + oe + '" data-dest="' + de + '"'
-    + ' value="' + (precio === '' || precio == null ? '' : precio) + '" placeholder="0.00 €/TN" style="width:110px;font-family:var(--mn);font-size:12px">'
-    + '<button onclick="_tarGuardarRuta(this)" style="font-size:11px;padding:4px 10px;border:none;border-radius:6px;background:var(--ok);color:#fff;font-weight:700;cursor:pointer" title="Guardar el precio de esta ruta ahora (no borra nada)">💾 Guardar</button>'
-    + '<button onclick="_tarDelTramo(this)" style="font-size:11px;padding:4px 10px;border:none;border-radius:6px;background:var(--er);color:#fff;font-weight:700;cursor:pointer" title="Quitar este tramo">🗑 Quitar</button>'
+    + ' value="' + (precio === '' || precio == null ? '' : precio) + '" placeholder="0,00" style="width:120px">'
+    + '<span class="tarL">€/TN</span>'
+    + '<button class="tarBtnG" onclick="_tarGuardarRuta(this)" title="Guardar el precio de esta ruta ahora (no borra nada)">Guardar</button>'
+    + '<button class="tarBtnQ" onclick="_tarDelTramo(this)" title="Quitar este tramo">Quitar</button>'
     + '</div>';
 }
 
@@ -999,7 +998,7 @@ async function _tarDelTramo(btn) {
         .eq('anio', anio).eq('mes', mes).eq('origen', origen).eq('destino', destino).eq('dia_desde', desde);
       if (error) { console.error('[tarifas] borrar tramo', error); toast('Error al borrar: ' + error.message, 'err'); return; }
       await loadTarifas();
-      toast('🗑 Tramo quitado');
+      toast('Tramo quitado');
     } catch (e) { console.error(e); toast('Error: ' + (e.message || e), 'err'); return; }
   }
   row.remove();
