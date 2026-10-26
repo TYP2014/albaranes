@@ -930,3 +930,20 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .hpRuta{white-space:normal!important;word-break:break-word;line-height:1.35}
 .hpTd{padding:12px 10px!important;min-width:92px!important}
 .hpTh{padding:12px 10px!important}
+
+/* v948 Fichaje: mas formal, letra negra y mas grande, sin dibujitos */
+#tabContentFichaje [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tabContentFichaje .st{font-size:15px;font-weight:700;color:var(--tx)}
+#tabContentFichaje .btn{font-size:13px!important;font-weight:700;padding:9px 16px!important}
+#tabContentFichaje .btn.bp{color:#fff!important}
+#tabContentFichaje .btn.bs,#tabContentFichaje .btn.bw{color:#111!important}
+#tabContentFichaje select.fi,#tabContentFichaje input.fi{font-size:14px!important;padding:9px 12px!important;color:#111!important}
+#tabContentFichaje table th{font-size:13px!important;font-weight:700!important;color:#111!important;letter-spacing:.6px!important;padding:12px 14px!important;border-bottom:2px solid #9aa5b4!important}
+#tabContentFichaje table td{font-size:14.5px!important;color:#111;padding:11px 14px!important;line-height:1.4}
+#tabContentFichaje table td .btn{padding:6px 14px!important;font-size:12.5px!important}
+#tabContentFichaje #fichajeAdminResumen td:first-child{font-size:14.5px!important}
+#tabContentFichaje #fichajeAdminResumen td span{font-size:12.5px!important}
+#tabContentFichaje #fichajeAdminResumen .card-bd>div:last-child{font-size:13px!important;line-height:1.6}
+#tabContentFichaje #fichajeEstadoTxt{font-size:15px!important;color:#111!important}
+#tabContentFichaje #fichajeHorasHoy{font-size:15px!important;color:#111!important}
+#tabContentFichaje #fichajeRelojLabel{font-size:13px!important;color:#2f3a48!important}

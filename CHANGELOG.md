@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v948 (26/10/2026): FICHAJE MAS FORMAL. Las dos tablas (HORAS POR TRABAJADOR y TODOS LOS FICHAJES) tenian letra de 10-12 px en gris. Ahora: cabeceras a 13 px en negrita y negro, filas a 14,5 px con mas aire, nombres y horas en negro, notas y rotulos pequenos en gris oscuro. Botones y filtros mas grandes y en negro. Quitados los dibujitos: lapiz de Corregir, mano y escritura de 'Boton' y 'A mano', cubiertos y flecha de comer, playa, maletin medico, fiesta y prohibido de los tipos de ausencia, y los iconos de los botones Refrescar, Marcar ausencia, Apuntar olvido y Apuntar hora a mano. Se mantienen los circulos verde (Entrada) y rojo (Salida), que informan, y el icono de Excel. Los fichajes y su registro legal NO cambian (solo cambia como se ven). Sin SQL. VUELTA ATRAS: volver a la v947.
+
+---
+
 v947 (26/10/2026): AVISO DE FACTURAS VENCIDAS IGUAL QUE LOS DEMAS. Era el unico aviso de la cabecera con fondo rosa y marco fino. Ahora lleva fondo blanco, marco rojo de 3 px y barra roja gruesa a la izquierda (como los avisos de ITV, vencimientos y recambios), con el rotulo en rojo y el resto del texto en negro. Quitado el dibujito del euro del rotulo y del boton. Los datos no cambian. Solo app.js e index.html. Sin SQL. VUELTA ATRAS: volver a la v946.
 
 ---

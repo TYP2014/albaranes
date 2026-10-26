@@ -19126,14 +19126,14 @@ let _fichajeEvsHoy = [];   // v107J83: eventos de jornada de HOY (con hora) para
 // Etiquetas legibles de cada tipo
 const _FICHAJE_LABELS = {
   entrada:        '🟢 Entrada',
-  salida_comida:  '🍽️ Salida a comer',
-  vuelta_comida:  '↩️ Vuelta de comer',
+  salida_comida:  'Salida a comer',
+  vuelta_comida:  'Vuelta de comer',
   salida:         '🔴 Salida',
-  correccion:     '✏️ Corrección',
-  vacaciones:     '🏖️ Vacaciones',
-  baja:           '🩺 Baja médica',
-  festivo:        '🎉 Festivo',
-  falta:          '⛔ Falta'
+  correccion:     'Corrección',
+  vacaciones:     'Vacaciones',
+  baja:           'Baja médica',
+  festivo:        'Festivo',
+  falta:          'Falta'
 };
 
 // Tipos que son AUSENCIA (día sin trabajo), no horas
@@ -20385,10 +20385,10 @@ function renderFichajes() {
     let etiqueta = _FICHAJE_LABELS[tipoMostrar] || tipoMostrar;
     if (esCorr) {
       etiqueta = f.anulado
-        ? '🚫 Anula ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar)
-        : '✏️ Corrige a ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar);
+        ? 'Anula ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar)
+        : 'Corrige a ' + (_FICHAJE_LABELS[tipoMostrar] || tipoMostrar);
     }
-    const comoTxt = f.metodo === 'manual' ? '✍️ A mano' : '👆 Botón';
+    const comoTxt = f.metodo === 'manual' ? 'A mano' : 'Botón';
     // Fondo: corrección ámbar suave, ausencia azulado suave, normal sin fondo
     let rowStyle = '';
     if (esCorr) rowStyle = ' style="background:rgba(245,166,35,.06)"';
@@ -20405,7 +20405,7 @@ function renderFichajes() {
     if (esAdmin) {
       // El admin solo puede corregir eventos directos (no corregir una corrección)
       if (!esCorr) {
-        html += td(`<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="abrirFichajeCorreccion('${f.id}')">✏️ Corregir</button>`);
+        html += td(`<button class="btn bs" style="font-size:10px;padding:4px 8px" onclick="abrirFichajeCorreccion('${f.id}')">Corregir</button>`);
       } else {
         html += td('—');
       }

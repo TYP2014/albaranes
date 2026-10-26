@@ -30,7 +30,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=99">
+<link rel="stylesheet" href="styles.css?v=100">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -1706,8 +1706,8 @@ if (typeof pdfjsLib !== 'undefined') {
           <div id="fichajeSemana" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bd)"></div>
           <!-- Opción ficha a mano (por si se olvidó al llegar) -->
           <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-            <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">✍️ Apuntar una hora a mano</button>
-            <button class="btn bw" style="font-size:11px" onclick="abrirFichajeAusencia()">📅 Marcar día sin trabajo</button>
+            <button class="btn bs" style="font-size:11px" onclick="abrirFichajeManual()">Apuntar una hora a mano</button>
+            <button class="btn bw" style="font-size:11px" onclick="abrirFichajeAusencia()">Marcar día sin trabajo</button>
           </div>
         </div>
       </div>
@@ -1722,9 +1722,9 @@ if (typeof pdfjsLib !== 'undefined') {
             <select class="fi" id="fichajeFiltroEmpleado" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto;display:none" title="Empleado"><option value="">Todos los empleados</option></select>
             <input type="date" class="fi" id="fichajeFiltroDesde" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Desde">
             <input type="date" class="fi" id="fichajeFiltroHasta" onchange="renderFichajes()" style="font-size:11px;padding:5px 8px;width:auto" title="Hasta">
-            <button class="btn bs" onclick="loadFichajes()" style="font-size:11px">🔄 Refrescar</button>
-            <button class="btn bw" id="fichajeBtnAusenciaAdmin" onclick="abrirFichajeAusencia()" style="font-size:11px;display:none">📅 Marcar ausencia</button>
-            <button class="btn bw" id="fichajeBtnOlvidoAdmin" onclick="abrirFichajeOlvido()" style="font-size:11px;display:none">➕ Apuntar olvido</button>
+            <button class="btn bs" onclick="loadFichajes()" style="font-size:11px">Refrescar</button>
+            <button class="btn bw" id="fichajeBtnAusenciaAdmin" onclick="abrirFichajeAusencia()" style="font-size:11px;display:none">Marcar ausencia</button>
+            <button class="btn bw" id="fichajeBtnOlvidoAdmin" onclick="abrirFichajeOlvido()" style="font-size:11px;display:none">Apuntar olvido</button>
             <button class="btn bw" id="fichajeBtnExcel" onclick="exportFichajesExcel()" style="font-size:11px;display:none">📊 Excel</button>
           </div>
         </div>
@@ -2054,6 +2054,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=947"></script>
+<script src="app.js?v=948"></script>
 </body>
 </html>
