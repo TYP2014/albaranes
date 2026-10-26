@@ -947,3 +947,32 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentFichaje #fichajeEstadoTxt{font-size:15px!important;color:#111!important}
 #tabContentFichaje #fichajeHorasHoy{font-size:15px!important;color:#111!important}
 #tabContentFichaje #fichajeRelojLabel{font-size:13px!important;color:#2f3a48!important}
+
+/* v949 Usuarios: agrupados por rol, mucho mas grande y claro */
+#tabContentAdmin .st{font-size:15px;font-weight:700;color:var(--tx)}
+#tabContentAdmin .btn{font-size:13px!important;font-weight:700;padding:9px 16px!important}
+#tabContentAdmin .btn.bp{color:#fff!important}
+#tabContentAdmin .btn.bs,#tabContentAdmin .btn.bw{color:#111!important}
+#tabContentAdmin .btn.br{color:#b83a36!important;background:#fff!important;border:1.5px solid #b83a36!important}
+#tabContentAdmin [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tabContentAdmin #usersListBox .uBarra{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+#tabContentAdmin #usersBuscar{font-size:15px!important;padding:10px 14px!important;max-width:360px;color:#111!important}
+#tabContentAdmin .uResumen{font-size:15px;color:#111;font-weight:600}
+#tabContentAdmin .uGrupo{margin-bottom:26px}
+#tabContentAdmin .uGrupoH{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:10px 4px 10px 14px;margin-bottom:10px;border-left:8px solid #1f3a5f;border-bottom:2px solid #9aa5b4;background:#eef2f7}
+#tabContentAdmin .uGrupo[data-rol="gestor"] .uGrupoH{border-left-color:#4a6385}
+#tabContentAdmin .uGrupo[data-rol="conductor"] .uGrupoH{border-left-color:#8a96a6}
+#tabContentAdmin .uGrupoT{font-size:17px;font-weight:800;color:#111;letter-spacing:1px}
+#tabContentAdmin .uGrupoN{font-size:14px;font-weight:700;color:#fff;background:#1f3a5f;border-radius:12px;padding:1px 10px}
+#tabContentAdmin .uGrupoNota{font-size:13.5px;color:#2f3a48}
+#tabContentAdmin .user-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px!important;margin-bottom:8px;border:1px solid #9aa5b4!important;border-radius:8px;background:#fff!important}
+#tabContentAdmin .user-row:hover{background:#f4f7fb!important}
+#tabContentAdmin .user-email{font-size:17px!important;font-weight:700;color:#111!important;letter-spacing:.3px}
+#tabContentAdmin .uYo{font-size:13px;font-weight:600;color:#1f3a5f}
+#tabContentAdmin .user-meta{font-size:12px!important;color:#2f3a48!important;margin-top:3px;word-break:break-all}
+#tabContentAdmin .uCtl{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+#tabContentAdmin .uRolLbl{font-size:13px;font-weight:700;color:#111;margin-right:-12px}
+#tabContentAdmin .role-sel{font-size:15px!important;font-weight:700;color:#111!important;padding:9px 12px!important;min-width:150px}
+#tabContentAdmin .uChk{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#111;font-weight:600}
+#tabContentAdmin .uChk input{width:20px;height:20px}
+#tabContentAdmin .btn.br[data-confirming]{background:#b83a36!important;color:#fff!important}

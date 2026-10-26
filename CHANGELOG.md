@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v949 (26/10/2026): USUARIOS · AGRUPADOS POR ROL Y MUCHO MAS CLAROS. La lista era una tira de filas con letra de 10 px. Ahora los usuarios salen en tres grupos con su rotulo y su numero: ADMINISTRADOR, GESTORES y CONDUCTORES Y PERSONAL (y OTROS ROLES si alguna vez hay un rol raro), cada grupo ordenado por nombre. Arriba, un buscador por nombre y un resumen (N usuarios · admin · gestores · conductores). Cada fila: nombre a 17 px en negrita, el id debajo, el desplegable de Rol a 15 px con etiqueta 'Rol', casillas 'Acceso ITV' y 'Acceso Incidencias' con su texto completo y casilla grande, y boton ELIMINAR en rojo con letra (antes una papelera). Tu propia fila lleva '(tú)'. Quitados los iconos (camion, carpeta, corona, escudo, chincheta, papelera, flechas de Re-corregir TODO). No cambia ningun permiso ni dato: los cambios de rol, accesos y borrado funcionan igual (el borrado sigue pidiendo confirmar). Sin SQL. VUELTA ATRAS: volver a la v948.
+
+---
+
 v948 (26/10/2026): FICHAJE MAS FORMAL. Las dos tablas (HORAS POR TRABAJADOR y TODOS LOS FICHAJES) tenian letra de 10-12 px en gris. Ahora: cabeceras a 13 px en negrita y negro, filas a 14,5 px con mas aire, nombres y horas en negro, notas y rotulos pequenos en gris oscuro. Botones y filtros mas grandes y en negro. Quitados los dibujitos: lapiz de Corregir, mano y escritura de 'Boton' y 'A mano', cubiertos y flecha de comer, playa, maletin medico, fiesta y prohibido de los tipos de ausencia, y los iconos de los botones Refrescar, Marcar ausencia, Apuntar olvido y Apuntar hora a mano. Se mantienen los circulos verde (Entrada) y rojo (Salida), que informan, y el icono de Excel. Los fichajes y su registro legal NO cambian (solo cambia como se ven). Sin SQL. VUELTA ATRAS: volver a la v947.
 
 ---

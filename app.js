@@ -20738,39 +20738,68 @@ async function loadUsers() {
   const { data, error } = await sb.from('profiles').select('*');
   if (error) { box.innerHTML = `<p style="color:var(--er);font-family:var(--mn);font-size:11px">${error.message}</p>`; return; }
   if (!data?.length) { box.innerHTML = '<div style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay usuarios en la tabla profiles todavía.</div>'; return; }
-  box.innerHTML = data.map(u => {
+  // v949: usuarios AGRUPADOS POR ROL (cada grupo con su rótulo y su número), ordenados por nombre; buscador arriba.
+  const _rolGrupos = [
+    { rol: 'admin', tit: 'ADMINISTRADOR', nota: 'Acceso total' },
+    { rol: 'gestor', tit: 'GESTORES', nota: 'Oficina: ven y gestionan según sus permisos' },
+    { rol: 'conductor', tit: 'CONDUCTORES Y PERSONAL', nota: 'Conductores (solo DeCA), personal de taller (solo Fichaje) y usuarios de consulta' }
+  ];
+  const _conocidos = _rolGrupos.map(g => g.rol);
+  const _otros = data.filter(u => _conocidos.indexOf(u.role) < 0);
+  if (_otros.length) _rolGrupos.push({ rol: '*otros', tit: 'OTROS ROLES', nota: 'Rol no reconocido: revisar' });
+  const _nomU = u => String(u.name || u.id || '');
+  const _filaUsuario = u => {
     // Protección: el admin actual NO puede borrarse a sí mismo
     const isMe = u.id === currentUser?.id;
     const delBtn = isMe
-      ? `<button class="btn bs" disabled style="font-size:10px;padding:6px 10px;opacity:.4;cursor:not-allowed" title="No puedes borrarte a ti mismo">🗑</button>`
-      : `<button class="btn br" id="delU_${u.id}" onclick="deleteUser('${u.id}','${(u.name || u.id).replace(/'/g, "\\'")}')" style="font-size:10px;padding:6px 10px" title="Eliminar usuario">🗑</button>`;
+      ? `<button class="btn bs" disabled style="opacity:.4;cursor:not-allowed" title="No puedes borrarte a ti mismo">Eliminar</button>`
+      : `<button class="btn br" id="delU_${u.id}" onclick="deleteUser('${u.id}','${(u.name || u.id).replace(/'/g, "\\'")}')" title="Eliminar usuario">Eliminar</button>`;
     // v101: checkbox para gestionar acceso a ITV. Los conductores normalmente no lo necesitan.
     // El propio admin actual no puede quitarse el permiso a sí mismo (para evitar bloqueos).
-    const itvCheck = `<label style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mn);font-size:10px;color:var(--mu);cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña ITV">
-      <input type="checkbox" ${u.puede_ver_itv ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleItvAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}">🛡️ ITV
+    const itvCheck = `<label class="uChk" style="cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña ITV">
+      <input type="checkbox" ${u.puede_ver_itv ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleItvAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}"> Acceso ITV
     </label>`;
     // v108: checkbox para gestionar acceso a Incidencias (mismo patrón que ITV).
-    const incCheck = `<label style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mn);font-size:10px;color:var(--mu);cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña Incidencias">
-      <input type="checkbox" ${u.puede_ver_incidencias ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleIncidenciasAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}">📌 Incid.
+    const incCheck = `<label class="uChk" style="cursor:${isMe?'not-allowed':'pointer'};opacity:${isMe?'.6':'1'}" title="Permite ver/editar la pestaña Incidencias">
+      <input type="checkbox" ${u.puede_ver_incidencias ? 'checked' : ''} ${isMe ? 'disabled' : ''} onchange="toggleIncidenciasAccess('${u.id}', this.checked)" style="cursor:${isMe?'not-allowed':'pointer'}"> Acceso Incidencias
     </label>`;
     return `
-    <div class="user-row">
+    <div class="user-row" data-nom="${_fichajeEsc(_nomU(u).toLowerCase())}">
       <div class="user-info">
-        <div class="user-email">${u.name || u.id}</div>
+        <div class="user-email">${u.name || u.id}${isMe ? ' <span class="uYo">(tú)</span>' : ''}</div>
         <div class="user-meta">${u.id}</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="uCtl">
+        <span class="uRolLbl">Rol</span>
         <select class="role-sel" onchange="updateRole('${u.id}',this.value)" ${isMe ? 'disabled title="No puedes cambiar tu propio rol"' : ''}>
-          <option value="conductor" ${u.role==='conductor'?'selected':''}>🚛 Conductor</option>
-          <option value="gestor" ${u.role==='gestor'?'selected':''}>📋 Gestor</option>
-          <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
+          <option value="conductor" ${u.role==='conductor'?'selected':''}>Conductor</option>
+          <option value="gestor" ${u.role==='gestor'?'selected':''}>Gestor</option>
+          <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
         </select>
         ${itvCheck}
         ${incCheck}
         ${delBtn}
       </div>
     </div>`;
-  }).join('');
+  };
+  let _h = '<div class="uBarra"><input type="text" id="usersBuscar" class="fi" placeholder="Buscar usuario por nombre…" oninput="usersFiltrar()">'
+    + '<div class="uResumen">' + data.length + ' usuarios · ' + data.filter(u => u.role === 'admin').length + ' admin · ' + data.filter(u => u.role === 'gestor').length + ' gestores · ' + data.filter(u => u.role === 'conductor').length + ' conductores/personal</div></div>';
+  _rolGrupos.forEach(g => {
+    const lista = data.filter(u => g.rol === '*otros' ? _conocidos.indexOf(u.role) < 0 : u.role === g.rol).sort((a, b) => _nomU(a).localeCompare(_nomU(b), 'es'));
+    if (!lista.length) return;
+    _h += '<div class="uGrupo" data-rol="' + g.rol + '"><div class="uGrupoH"><span class="uGrupoT">' + g.tit + '</span><span class="uGrupoN">' + lista.length + '</span><span class="uGrupoNota">' + g.nota + '</span></div>'
+      + lista.map(_filaUsuario).join('') + '</div>';
+  });
+  box.innerHTML = _h;
+}
+// v949: buscador de la lista de usuarios (solo esconde filas; oculta el rótulo del grupo si se queda vacío)
+function usersFiltrar() {
+  const q = (document.getElementById('usersBuscar')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#usersListBox .uGrupo').forEach(g => {
+    let vis = 0;
+    g.querySelectorAll('.user-row').forEach(r => { const ok = !q || (r.dataset.nom || '').indexOf(q) >= 0; r.style.display = ok ? '' : 'none'; if (ok) vis++; });
+    g.style.display = vis ? '' : 'none';
+  });
 }
 
 // v101: actualizar el flag puede_ver_itv en BD desde el checkbox de la pestaña Usuarios
