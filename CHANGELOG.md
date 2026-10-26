@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v974 (26/10/2026): TALLER > CITAS SERVICIO OFICIAL MAS FORMAL Y LEGIBLE. La tabla de citas pasa a letra de 15 px en negro, cabeceras en azul marino y en negrita, botones HECHA / EDITAR / WHATSAPP mas grandes con letra azul marino y borde marcado, y los colores de la leyenda y de cada cita (amarillo, naranja, verde, gris) mas oscuros para que se lean sobre blanco. Se mantienen los colores del semaforo y el icono de WhatsApp. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v973.
+
+---
+
 v973 (26/10/2026): ALBARAN QUE NO SE GUARDABA POR UN CAMPO 'TIPO'. Al subir un escaneo (Escaner_20261026.jpg, de Marta) la IA devolvio un campo 'tipo' que la tabla albaranes no tiene, y el guardado entero fallaba con 'Could not find the tipo column of albaranes'. Ahora ese campo se descarta antes de guardar, igual que los demas campos auxiliares. El resto de campos no cambia. VUELTA ATRAS: volver a la v972.
 
 ---

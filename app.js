@@ -26709,16 +26709,16 @@ function _tcitaYaPaso(c) {
 // Color y etiqueta segun lo que falte. UN SOLO SITIO donde se decide
 // el color, para que la tabla y el aviso global no puedan discrepar.
 function _tcitaSemaforo(c) {
-  if (c.estado === 'hecha')   return { clave:'hecha',   color:'#2e7d32', fondo:'rgba(46,125,50,.12)',  txt:'✓ HECHA',    orden: 9 };
-  if (c.estado === 'anulada') return { clave:'anulada', color:'#78909c', fondo:'rgba(120,144,156,.10)', txt:'✕ ANULADA',  orden: 9 };
+  if (c.estado === 'hecha')   return { clave:'hecha',   color:'#1b5e3f', fondo:'rgba(46,125,50,.08)',  txt:'✓ HECHA',    orden: 9 };
+  if (c.estado === 'anulada') return { clave:'anulada', color:'#4a5566', fondo:'rgba(120,144,156,.10)', txt:'✕ ANULADA',  orden: 9 };
   const d = _tcitaDias(c.fecha_cita);
   if (d === null)             return { clave:'sinfecha',color:'#78909c', fondo:'transparent',           txt:'—',          orden: 8 };
   if (d < 0)                  return { clave:'pasada',  color:'#6a1b9a', fondo:'rgba(106,27,154,.16)',  txt:'⚠ SIN CERRAR (' + Math.abs(d) + ' d)', orden: 0 };
   if (d === 0)                return { clave:'hoy',     color:'#b71c1c', fondo:'rgba(255,59,48,.22)',   txt:'HOY',     orden: 1 };
   if (d === 1)                return { clave:'d1',      color:'#c62828', fondo:'rgba(198,40,40,.16)',   txt:'MAÑANA',     orden: 2 };
-  if (d <= 3)                 return { clave:'d3',      color:'#e8841a', fondo:'rgba(232,132,26,.16)',  txt:'En ' + d + ' días', orden: 3 };
-  if (d <= 5)                 return { clave:'d5',      color:'#b58900', fondo:'rgba(245,197,24,.20)',  txt:'En ' + d + ' días', orden: 4 };
-  return { clave:'lejos', color:'var(--mu)', fondo:'transparent', txt:'En ' + d + ' días', orden: 5 };
+  if (d <= 3)                 return { clave:'d3',      color:'#b85c00', fondo:'rgba(232,132,26,.16)',  txt:'En ' + d + ' días', orden: 3 };
+  if (d <= 5)                 return { clave:'d5',      color:'#7a5c00', fondo:'rgba(245,197,24,.20)',  txt:'En ' + d + ' días', orden: 4 };
+  return { clave:'lejos', color:'#2f3a48', fondo:'transparent', txt:'En ' + d + ' días', orden: 5 };
 }
 
 // Citas de la empresa activa, ordenadas: lo urgente arriba
