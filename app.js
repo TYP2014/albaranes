@@ -32485,8 +32485,8 @@ function _factRepasosPintar() {
       + (r.n.dup ? '<span><strong style="color:var(--er)">' + r.n.dup + '</strong> duplicados</span>' : '')
       + '</span>'
       + '<span style="margin-left:auto;white-space:nowrap">'
-      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">👁 VER</button> '
-      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')" title="Todas las familias, una pestaña cada una">📊 EXCEL COMPLETO</button> '
+      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoAbrir(\'' + esc(r.id) + '\')">VER</button> '
+      + '<button class="btn bs" style="font-size:11px;padding:3px 10px" onclick="_factRepasoExcel(\'' + esc(r.id) + '\')" title="Todas las familias, una pestaña cada una">EXCEL COMPLETO</button> '
       + '<button class="btn bs" style="font-size:11px;padding:3px 8px;opacity:.6" onclick="_factRepasoBorrar(\'' + esc(r.id) + '\')" title="Quitar de la lista">✕</button>'
       + '</span></div>';
     // v525: fila propia para el Excel de UN transportista (todas sus familias de una tacada).
@@ -32501,7 +32501,7 @@ function _factRepasosPintar() {
           + _trs.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('')
           + '</select>'
           + ' <button class="btn bs" style="font-size:11px;padding:3px 10px" title="Excel mensual completo de ese transportista: una pestaña por familia, con los precios de las tarifas" '
-          + 'onclick="_factRepasoExcelTrans(\'' + esc(r.id) + '\')">📊 EXCEL DEL TRANSPORTISTA</button>'
+          + 'onclick="_factRepasoExcelTrans(\'' + esc(r.id) + '\')">EXCEL DEL TRANSPORTISTA</button>'
           + '</div>';
       }
     }
@@ -32525,7 +32525,7 @@ function _factRepasosPintar() {
         + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(150px,calc(100% / 6 - 6px)),1fr));gap:6px;margin-top:6px">';
       fams.forEach(f => {
         h += '<button class="btn bs" style="font-size:11px;padding:5px 10px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(f) + '" '
-          + 'onclick="_factRepasoExcel(\'' + esc(r.id) + '\',\'' + esc(f).replace(/'/g, "\\'") + '\')">📄 ' + esc(f) + '</button>';
+          + 'onclick="_factRepasoExcel(\'' + esc(r.id) + '\',\'' + esc(f).replace(/'/g, "\\'") + '\')">' + esc(f) + '</button>';
       });
       h += '</div>';
     }

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v956 (26/10/2026): FACTURACION > LIQUIDACIONES (HOLCIM / CEMEX / SODIRA) MAS FORMAL Y LEGIBLE. Letras grises pequenas (11-12 px) pasan a negro/gris oscuro de 13,5-14,5 px, botones de los meses y de repasos mas grandes y con mas separacion, zonas de subir PDF con borde azul marino, cabeceras de tabla en negrita, quitados iconitos decorativos (libro, ojo, graficos, hoja). No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v955.
+
+---
+
 v955 (26/10/2026): COSTES MAS FORMAL Y CLARO. Letra de 16 px en negro, cabeceras en negrita, cifras alineadas a la derecha en columnas fijas (antes se repartian por toda la pantalla), tabla con marco y ancho limitado para que el ojo no se pierda, texto explicativo a 14,5 px, filtros y botones mas grandes, quitado el icono de Actualizar. Los miles salen siempre con punto (antes 3846,87 y 10.431,62 salian distinto). 'sin km' en ocre en vez del triangulo. NUEVO: fila TOTAL FLOTA al final (gasoil y km totales y €/km medio, calculado solo con los camiones que tienen gasoil Y km para que la media sea honesta). Los calculos de cada camion no cambian. Sin SQL. VUELTA ATRAS: volver a la v954.
 
 ---

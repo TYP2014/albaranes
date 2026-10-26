@@ -1006,3 +1006,19 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tabContentCostes .cVacio{color:#2f3a48}
 #tabContentCostes .cSinKm{color:#8a4b00;font-weight:700}
 #tabContentCostes tr.cTotal td{background:#eef2f7;border-top:2px solid #1f3a5f;font-weight:800;font-size:16.5px}
+
+/* v956 Facturacion (liquidaciones Holcim/Cemex/Sodira): formal, legible */
+#tabContentFacturacion [style*="color:var(--mu)"]{color:#2f3a48!important}
+#tabContentFacturacion [style*="font-size:11px"]{font-size:13.5px!important}
+#tabContentFacturacion [style*="font-size:12px"]{font-size:14px!important}
+#tabContentFacturacion [style*="font-size:10px"]{font-size:13px!important}
+#tabContentFacturacion .st{font-size:16px;font-weight:700;color:var(--tx);letter-spacing:.4px}
+#tabContentFacturacion .card-bd>div:first-child{font-size:14.5px!important;color:#111!important;line-height:1.65!important}
+#tabContentFacturacion .btn{color:#111!important;font-weight:700;font-size:13.5px!important;padding:8px 14px!important}
+#tabContentFacturacion .btn.bp{color:#fff!important}
+#tabContentFacturacion #factPanelBar .btn{font-size:14px!important;padding:11px 20px!important}
+#tabContentFacturacion #factMesesBar,#tabContentFacturacion #factMesesBarSodira,#tabContentFacturacion #factMesesBarHolcim{gap:10px!important;margin-top:16px!important}
+#tabContentFacturacion #factHolcimDropZone,#tabContentFacturacion #factExcel908Zone,#tabContentFacturacion #factAutoDropZone,#tabContentFacturacion #factSodiraDropZone{border-width:2px!important;border-color:#1f3a5f!important;background:#f4f7fb!important}
+#tabContentFacturacion select,#tabContentFacturacion input[type=month],#tabContentFacturacion input[type=search]{font-size:14.5px!important;color:#111!important}
+#tabContentFacturacion table th{font-size:13px!important;color:#111!important;font-weight:700!important}
+#tabContentFacturacion table td{font-size:14.5px!important;color:#111!important}
