@@ -43367,7 +43367,8 @@ function _condFiltrarLista() {
 function _condPintarEmpleados() {
   const box = document.getElementById('condEmpleados'); if (!box) return;
   const q = _decaNrm((document.getElementById('condBuscar') || {}).value || '');
-  const yaTienen = new Set((window._condListaActual || []).filter(c => !c.deca_baja).map(c => _condDni(c.deca_dni)));
+  // v954: tambien se excluyen los DE BAJA (antes reaparecian aqui como 'Dar de alta'): a un conductor de baja se le devuelve el acceso con 'Reactivar' en CONDUCTORES.
+  const yaTienen = new Set((window._condListaActual || []).map(c => _condDni(c.deca_dni)));
   const permit = _condEmpresasPermitidas();
   const l = _decaTrabajadores
     .filter(t => _condDniValido(t.deca_dni) && !yaTienen.has(t.deca_dni))

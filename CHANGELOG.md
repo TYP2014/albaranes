@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v954 (26/10/2026): DeCA > CONDUCTORES · LOS DE BAJA YA NO SALEN PARA 'DAR DE ALTA'. Al dar de baja a un conductor (caso Aziz), seguia apareciendo en 'Desde empleados (solo los que AUN NO tienen acceso)' con el boton 'Dar de alta', y pulsarlo habria intentado crearle otra vez el acceso. Ahora esa lista excluye a todo el que ya figura en CONDUCTORES, este activo o de baja. Para devolverle el acceso a uno de baja se usa 'Reactivar' en la lista CONDUCTORES. Solo cambia esa lista. Sin SQL. VUELTA ATRAS: volver a la v953.
+
+---
+
 v953 (26/10/2026): DeCA > CONDUCTORES · BUSCADOR EN LA LISTA. La unica barra de busqueda solo buscaba entre los empleados que AUN NO tienen acceso, asi que buscar a alguien que ya lo tenia (ej. Aziz) decia 'Nadie con ese nombre' y parecia que no funcionaba. Ahora: (1) la lista CONDUCTORES lleva su propio buscador (nombre o DNI) justo encima; (2) el otro buscador se rotula 'solo los que AUN NO tienen acceso' y, si no encuentra a nadie, avisa de que busques en CONDUCTORES; (3) boton 'Dar de alta' sin dibujito. Solo cambia la pantalla. Sin SQL. VUELTA ATRAS: volver a la v952.
 
 ---
