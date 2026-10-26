@@ -25543,10 +25543,10 @@ function tallerAbrirModal(vehId) {
       <td><input type="text" class="fi tallerMT" value="${m ? esc(m.tipo || '') : ''}" placeholder="Ej: Cambio aceite + filtro" style="font-size:11px;padding:4px"></td>
       <td><input type="text" class="fi tallerMN" value="${m ? esc(m.notas || '') : ''}" placeholder="notas" style="font-size:11px;padding:4px"></td>
       <td><input type="text" class="fi tallerMR" value="${m ? esc(m.realizado_por || '') : ''}" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
-      <td style="text-align:center">${m?.id ? `<button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarLinea('${m.id}','${vehId}')">🗑</button>` : ''}</td>
+      <td style="text-align:center">${m?.id ? `<button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarLinea('${m.id}','${vehId}')">Quitar</button>` : ''}</td>
     </tr>`).join('');
 
-  document.getElementById('tallerMantTitulo').innerHTML = `🔧 <span style="font-size:22px;color:var(--ac);letter-spacing:1px">${esc(v.matricula)}</span> <span style="font-size:11px;color:var(--mu);letter-spacing:1px">· MANTENIMIENTOS</span>`;
+  document.getElementById('tallerMantTitulo').innerHTML = `<span style="font-size:22px;color:var(--ac);letter-spacing:1px">${esc(v.matricula)}</span> <span style="font-size:11px;color:var(--mu);letter-spacing:1px">· MANTENIMIENTOS</span>`;
   document.getElementById('tallerMantBody').innerHTML = `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
       <span>Matrícula: <b style="color:var(--ac);font-size:14px">${esc(v.matricula)}</b></span>
@@ -25556,26 +25556,26 @@ function tallerAbrirModal(vehId) {
       ${v.notas ? `<span>Nota: <b style="color:var(--fg)">${esc(v.notas)}</b></span>` : ''}
     </div>
     ${v.activo === false ? `<div style="background:rgba(199,54,49,.10);border:1px solid rgba(199,54,49,.45);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-family:var(--mn);font-size:12px;color:var(--er)">
-      🚫 <b>VEHÍCULO DE BAJA</b> · ${esc(_TALLER_BAJA_NOM[v.baja_motivo] || v.baja_motivo || 'sin motivo')}${v.baja_fecha ? ' · ' + String(v.baja_fecha).split('-').reverse().join('/') : ''}${v.baja_nota ? ' · ' + esc(v.baja_nota) : ''}
+      <b>VEHÍCULO DE BAJA</b> · ${esc(_TALLER_BAJA_NOM[v.baja_motivo] || v.baja_motivo || 'sin motivo')}${v.baja_fecha ? ' · ' + String(v.baja_fecha).split('-').reverse().join('/') : ''}${v.baja_nota ? ' · ' + esc(v.baja_nota) : ''}
       <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Ya no da avisos de mantenimiento, ni de descarga de tacógrafo, ni de revisión. Todo lo que se le hizo sigue aquí abajo.</div></div>` : ''}
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
-      <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">📄 FICHA TÉCNICA</span>
+      <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">FICHA TÉCNICA</span>
       ${v.ficha_tecnica_url
-        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">👁 Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a>`
+        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a>`
         : `<span style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin ficha técnica subida</span>`}
-      <label class="btn bs" style="font-size:11px;cursor:pointer">⬆ ${v.ficha_tecnica_url ? 'Reemplazar' : 'Subir'}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="tallerSubirFicha('${vehId}', this)"></label>
-      <button class="btn bs" style="font-size:11px;margin-left:auto" onclick="tallerVerHistorico('${vehId}')">📋 Histórico</button>
+      <label class="btn bs" style="font-size:11px;cursor:pointer">${v.ficha_tecnica_url ? 'Reemplazar' : 'Subir'}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="tallerSubirFicha('${vehId}', this)"></label>
+      <button class="btn bs" style="font-size:11px;margin-left:auto" onclick="tallerVerHistorico('${vehId}')">Histórico</button>
     </div>
     <div id="tallerHistBox" style="display:none;margin-bottom:14px;background:rgba(255,255,255,.03);padding:10px;border-radius:6px;border:1px solid var(--bd)"></div>
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual del vehículo</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:120px;font-size:11px;padding:4px"></div>
-      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">💾 Guardar km</button>
+      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">Guardar km</button>
       ${v.activo === false
-        ? `<button class="btn bs" style="font-size:11px;margin-left:auto;color:#1e8a55;border-color:#1e8a55" onclick="tallerVolverDeAlta('${vehId}')">↩ Volver a dar de alta</button>`
-        : `<button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerDarDeBaja('${vehId}')">🚫 Dar de baja</button>`}
+        ? `<button class="btn bs" style="font-size:11px;margin-left:auto;color:#1e8a55;border-color:#1e8a55" onclick="tallerVolverDeAlta('${vehId}')">Volver a dar de alta</button>`
+        : `<button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerDarDeBaja('${vehId}')">Dar de baja</button>`}
     </div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
-      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">🔔 VENCIMIENTOS PROGRAMADOS</div>
+      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">VENCIMIENTOS PROGRAMADOS</div>
       <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (te avisa por lo que llegue antes). Si le pones <b>cada cuánto se repite</b>, al marcarlo ✓ Hecho la app <b>programa sola el siguiente</b>.</div>
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
@@ -25585,7 +25585,7 @@ function tallerAbrirModal(vehId) {
           <input type="date" class="fi" id="tallerVencFecha" style="font-size:11px;padding:4px"></div>
         <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Km</label><br>
           <input type="number" class="fi" id="tallerVencKm" placeholder="km" style="width:90px;font-size:11px;padding:4px"></div>
-        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">🔁 Se repite cada</label><br>
+        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">Se repite cada</label><br>
           <select class="fi" id="tallerVencRepMeses" style="font-size:11px;padding:4px">
             <option value="">no se repite</option>
             <option value="1">1 mes</option>
@@ -25598,7 +25598,7 @@ function tallerAbrirModal(vehId) {
           </select></div>
         <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">… y/o cada (km)</label><br>
           <input type="number" class="fi" id="tallerVencRepKm" placeholder="ej: 40000" style="width:100px;font-size:11px;padding:4px"></div>
-        <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">➕ Añadir</button>
+        <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">Añadir</button>
       </div>
       <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:var(--mn)">Rellenar fecha rápido:
         <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(1)">+1 mes</button>
@@ -25609,12 +25609,12 @@ function tallerAbrirModal(vehId) {
     </div>
     <div style="margin-bottom:14px;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">🔧 REGISTRAR EL MANTENIMIENTO DE UN DÍA (en bloque)</span>
-        <button class="btn bs" id="tallerBloqueToggle" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="tallerToggleBloque('${vehId}')">➕ Abrir</button>
+        <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">REGISTRAR EL MANTENIMIENTO DE UN DÍA (en bloque)</span>
+        <button class="btn bs" id="tallerBloqueToggle" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="tallerToggleBloque('${vehId}')">Abrir</button>
       </div>
       <div id="tallerBloqueBox" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">${_tallerBloqueHtml(v)}</div>
     </div>
-    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:6px">📋 TODAS LAS LÍNEAS (detalle / edición fina)</div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:6px">TODAS LAS LÍNEAS (detalle / edición fina)</div>
     <div style="overflow-x:auto">
       <table class="tbl" id="tallerModalTabla">
         <thead><tr>
@@ -25625,7 +25625,7 @@ function tallerAbrirModal(vehId) {
         <tbody id="tallerModalBody">${rowsHtml}</tbody>
       </table>
     </div>
-    <button class="btn bs" style="font-size:11px;margin-top:10px" onclick="tallerAddLinea()">➕ Añadir línea</button>`;
+    <button class="btn bs" style="font-size:11px;margin-top:10px" onclick="tallerAddLinea()">Añadir línea</button>`;
   const saveBtn = document.getElementById('tallerMantSaveBtn');
   if (saveBtn) saveBtn.onclick = () => tallerGuardarMantenimientos(vehId);
   document.getElementById('ovTallerMant').classList.add('open');

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v966 (26/10/2026): TALLER > FICHA DEL VEHICULO (VENTANA DE MANTENIMIENTOS) MAS LEGIBLE. Letra de 10-11 px a 14-15 px en negro, titulos de bloque en negrita, casillas mas grandes y con borde marcado, tabla de lineas con cabecera con fondo y filas con mas aire, botones en texto (Ver, Descargar, Subir/Reemplazar, Historico, Guardar km, Dar de baja, Anadir, Abrir, Quitar, Guardar mantenimientos, Cerrar) sin iconos decorativos. No cambia ningun dato ni guardado. VUELTA ATRAS: volver a la v965.
+
+---
+
 v965 (26/10/2026): TALLER · ARREGLO DEL BOTON ACTIVO. En la v964 el boton de la vista elegida (MANTENIMIENTOS / RECAMBIOS / CITAS) salia con letra blanca sobre fondo claro y no se leia. Ahora el activo es azul marino con letra blanca y los demas blancos con letra negra. Solo estilo. VUELTA ATRAS: volver a la v964.
 
 ---
