@@ -167,7 +167,8 @@ async function verErroresApp() {
   caja.innerHTML = '<div style="background:#fff;color:#111;border-radius:10px;max-width:1100px;width:100%;padding:16px 18px;font-size:13px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
     '<b style="font-size:16px">⚠ Errores de la app (últimos 14 días)</b>' +
-    '<span><button class="btn bs" id="errAppProbar">🧪 Probar chivato</button> ' +
+    '<span><button class="btn bs" id="errAppCopiar">COPIAR TODO</button> ' +
+    '<button class="btn bs" id="errAppProbar">🧪 Probar chivato</button> ' +
     '<button class="btn bs" id="errAppVisto">✓ Marcar todo como visto</button> ' +
     '<button class="btn bs" id="errAppCerrar">Cerrar</button></span></div>' +
     '<div style="color:#555;margin:6px 0 10px">Agrupados por mensaje. En <b>negrita</b> los nuevos desde la última vez que marcaste. Pincha una fila para ver el detalle técnico (cópialo y pásaselo a Claude).</div>' +
@@ -196,8 +197,10 @@ async function verErroresApp() {
     let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:#eee;text-align:left">' +
       '<th style="padding:6px">Última vez</th><th style="padding:6px">Veces</th><th style="padding:6px">Quién</th><th style="padding:6px">Pestaña</th><th style="padding:6px">Versión</th><th style="padding:6px">Error</th></tr></thead><tbody>';
     let i = 0;
+    const _copia = [];   // v972: texto completo para el boton COPIAR TODO
     grupos.forEach(g => {
       const r = g.ultimo; const fw = g.nuevo ? '700' : '400';
+      _copia.push('=== ' + (g.nuevo ? '[NUEVO] ' : '') + g.veces + ' vez/veces · quién: ' + [...g.usuarios].join(', ') + ' · pestaña: ' + [...g.pantallas].join(', ') + ' · versión: ' + [...g.versiones].join(', ') + '\nTipo: ' + r.tipo + '\nFecha: ' + r.created_at + '\nURL: ' + r.url + '\nNavegador: ' + r.navegador + '\nMensaje: ' + r.mensaje + '\nDetalle:\n' + (r.detalle || '(sin detalle)'));
       html += '<tr data-i="' + i + '" style="border-top:1px solid #ddd;cursor:pointer;font-weight:' + fw + ';white-space:normal">' +
         '<td style="padding:6px;white-space:nowrap">' + fmt(r.created_at) + '</td>' +
         '<td style="padding:6px;text-align:center">' + g.veces + '</td>' +
@@ -212,6 +215,16 @@ async function verErroresApp() {
     });
     html += '</tbody></table></div>';
     cuerpo.innerHTML = html;
+    const _bCop = caja.querySelector('#errAppCopiar');
+    if (_bCop) _bCop.onclick = async () => {
+      const txt = 'ERRORES DE LA APP (últimos 14 días) · ' + _errVersion() + ' · ' + new Date().toLocaleString('es-ES') + '\n\n' + _copia.join('\n\n');
+      try { await navigator.clipboard.writeText(txt); toast('Copiado: ' + _copia.length + ' errores. Pégalo en el chat.', 'ok'); }
+      catch (e) {
+        const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); toast('Copiado: ' + _copia.length + ' errores. Pégalo en el chat.', 'ok'); } catch (e2) { toast('No se ha podido copiar', 'err'); }
+        ta.remove();
+      }
+    };
     cuerpo.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { const d = document.getElementById('errAppDet' + tr.dataset.i); if (d) d.style.display = d.style.display === 'none' ? '' : 'none'; });
   } catch (e) {
     cuerpo.innerHTML = '<div style="color:#c62828">No se pudieron leer los errores: ' + _errEsc(_errTexto(e)) + '<br>¿Está creada la tabla errores_app (SQL de la v706)?</div>';
