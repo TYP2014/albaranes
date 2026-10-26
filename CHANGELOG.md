@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v971 (26/10/2026): NOTAS DEL BUZON DE TACOGRAFO MAS LEGIBLES. La nota gris de 'descarga llego cortada' y la nota lila de 'descargas traidas del buzon' (Tacografo > Subir) pasan de fondo tenue y letra de 11 px en gris a fondo blanco con marco grueso, letra de 14 px en negro y sin iconos decorativos. La nota gris dice ahora 'cortada o vacia'. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v970.
+
+---
+
 v970 (26/10/2026): DESCARGAS DE TARJETA VACIAS, APARCADAS. Una descarga de tarjeta de conductor que llega con el principio en blanco (sin nombre, sin numero de tarjeta y sin ni un dia) ya no deja el aviso rojo de 'descarga sin guardar' encendido para siempre: se aparca igual que las cortadas y el fichero original sigue guardado e intacto en el almacen. Solo afecta a ficheros que no traen NADA aprovechable; los que traen conductor o dias siguen como antes (incluidos los de conductores dados de baja, que se guardan). VUELTA ATRAS: volver a la v969.
 
 ---

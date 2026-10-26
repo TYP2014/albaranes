@@ -37089,7 +37089,7 @@ async function tacoBuzonTraer() {
 
   const box = document.getElementById('tacoBuzon');
   if (box) box.innerHTML = `<div style="background:rgba(123,143,240,.12);border:1px solid rgba(123,143,240,.45);border-radius:9px;padding:12px 14px;margin-bottom:14px;font-family:var(--mn);font-size:11.5px;color:var(--wnd);line-height:1.6">
-    📥 <b>${files.length} descarga${files.length === 1 ? '' : 's'}</b> traída${files.length === 1 ? '' : 's'} del buzón${fallos ? ` · <span style="color:var(--erd)">${fallos} no se han podido traer</span>` : ''}.
+    <b>${files.length} descarga${files.length === 1 ? '' : 's'}</b> traída${files.length === 1 ? '' : 's'} del buzón${fallos ? ` · <span style="color:var(--erd)">${fallos} no se han podido traer</span>` : ''}.
     Repásalas abajo y pulsa el botón de guardar.</div>`;
 
   await tacoSoltarVarios(files);
@@ -37145,7 +37145,7 @@ function _tacoBuzonNotaCortadas() {
   const n = _tacoBuzonCortados;
   if (!n) return '';
   return `<div style="background:rgba(130,130,130,.10);border:1px solid rgba(130,130,130,.35);border-radius:9px;padding:10px 13px;margin-bottom:14px;font-family:var(--mn);font-size:11px;color:var(--mu);line-height:1.6">
-    ⏸ <b>${n === 1 ? '1 descarga llegó cortada' : n + ' descargas llegaron cortadas'}</b> y se ${n === 1 ? 'ha' : 'han'} apartado.
+    <b>${n === 1 ? '1 descarga llegó cortada o vacía' : n + ' descargas llegaron cortadas o vacías'}</b> y se ${n === 1 ? 'ha' : 'han'} apartado.
     La bajada se interrumpió a medias y el fichero no se puede leer. El original sigue guardado en el almacén, intacto.</div>`;
 }
 
