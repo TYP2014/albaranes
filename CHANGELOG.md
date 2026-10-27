@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v980 (27/10/2026): ALTA TRACTORA 7984NTM (T. HISPALIS 2016). DAF XF 530 FT, matriculada el 23/10/2026. Se anade a la lista de matriculas validas y al diccionario matricula->transportista (TTES HISPALIS 2016). No cambia nada mas. VUELTA ATRAS: volver a la v979.
+
+---
+
 v979 (26/10/2026): ORIGINALES PARA INSPECCION, LETRA UN ESCALON MAS GRANDE. Este informe ya estaba rehecho en versiones anteriores; ahora las celdas de las tablas (camiones, conductores y ficheros) pasan de 14,5 a 16 px en negro, las cabeceras a 14 px en azul marino y negrita, las etiquetas (Empresa, Del dia, Al dia, Camiones de...) a 14 px en negro, la lista de camiones a 15,5 px, y el texto de ayuda y los avisos a 15-16 px en negro. No cambia ningun dato ni calculo. VUELTA ATRAS: volver a la v978.
 
 ---
