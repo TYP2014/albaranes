@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v981 (27/10/2026): TALLER > MANTENIMIENTOS, COLUMNA NUEVA 'FICHA TECNICA'. En la lista de vehiculos aparece ahora, antes de Accion, una columna que dice ✓ SI (con botones Ver y descargar ⬇) si el vehiculo tiene la ficha tecnica subida, o ✗ FALTA si no la tiene. Asi se saca la ficha sin entrar en el vehiculo. Subirla o reemplazarla sigue haciendose dentro de la ficha del vehiculo. No cambia ningun dato ni regla. VUELTA ATRAS: volver a la v980.
+
+---
+
 v980 (27/10/2026): ALTA TRACTORA 7984NTM (T. HISPALIS 2016). DAF XF 530 FT, matriculada el 23/10/2026. Se anade a la lista de matriculas validas y al diccionario matricula->transportista (TTES HISPALIS 2016). No cambia nada mas. VUELTA ATRAS: volver a la v979.
 
 ---

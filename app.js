@@ -25332,7 +25332,7 @@ async function loadTallerData() {
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
-    if (body) body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error cargando taller: ${esc(e.message || e)}</td></tr>`;
+    if (body) body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--er);font-family:var(--mn);font-size:11px;padding:20px">Error cargando taller: ${esc(e.message || e)}</td></tr>`;
   }
 }
 
@@ -25491,7 +25491,7 @@ function renderTallerTabla() {
       return (a.matricula || '').localeCompare(b.matricula || '');
     });
   if (!vs.length) {
-    body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">No hay vehículos en ${tallerEmpresaActiva}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--mu);font-family:var(--mn);font-size:11px;padding:20px">No hay vehículos en ${tallerEmpresaActiva}</td></tr>`;
     return;
   }
   body.innerHTML = vs.map(v => {
@@ -25517,6 +25517,9 @@ function renderTallerTabla() {
       <td style="font-size:11px">${e.ultimaFecha}</td>
       <td style="font-size:11px">${e.proxFecha}</td>
       <td style="font-size:11px">${e.proxKm}</td>
+      ${v.ficha_tecnica_url
+        ? `<td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="color:#1a7f37;font-weight:700;font-size:12px">✓ SÍ</span> <a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇</a></td>`
+        : `<td style="white-space:nowrap;color:#b42318;font-weight:700;font-size:12px">✗ FALTA</td>`}
       <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();tallerAbrirModal('${v.id}')">Ver / ${e.numMants}</button></td>
     </tr>`;
   }).join('');
