@@ -1284,3 +1284,12 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
    vistaPC solo la pone el boton "VER COMO EN EL PC" (solo admin, solo movil): fuera de esa
    vista esta regla NO existe. */
 html.vistaPC #avisosGrid{grid-template-columns:1fr 1fr!important}
+
+/* v989 (30/10/2026): VISTA PC EN EL MOVIL — AVISOS MAS COMPACTOS.
+   Hay hasta 8 avisos arriba y ocupaban media pantalla antes de ver la tabla de albaranes.
+   Letra 15 -> 12 px, menos relleno y botones mas pequenos. SOLO con la clase vistaPC
+   (boton "VER COMO EN EL PC", solo admin y solo movil): en el PC y en la vista de movil normal no cambia nada. */
+html.vistaPC #avisosGrid > div > div{font-size:12px!important;padding:3px 10px!important;gap:6px!important;border-width:2px 2px 2px 8px!important;border-radius:6px!important}
+html.vistaPC #avisosGrid > div > div > div:first-child{line-height:1.35!important}
+html.vistaPC #avisosGrid > div > div > div:first-child span[style*="font-size:19px"]{font-size:13px!important}
+html.vistaPC #avisosGrid .btn{font-size:10px!important;padding:4px 9px!important}

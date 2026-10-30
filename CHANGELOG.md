@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v989 (30/10/2026): VISTA PC EN EL MOVIL, AVISOS MAS COMPACTOS. Con el boton "VER COMO EN EL PC" activado, los avisos de arriba (hasta 8) bajan de letra de 15 a 12 px, con menos relleno y botones mas pequenos, para que quede mas sitio para la tabla de albaranes. Solo CSS (styles.css, nuevo ?v=130) y solo con la clase vistaPC, que solo pone el boton (solo admin, solo movil): ordenador, vista de movil normal, conductores y DeCA no cambian. No toca app.js ni datos. Medido por JC tras la v988: 7 s para abrir en el movil (antes 10 s). VUELTA ATRAS: volver a la v988.
+
+---
+
 v988 (30/10/2026): ARRANQUE UN POCO MAS RAPIDO EN EL MOVIL. Se anaden tres lineas "preconnect" en la cabecera del index.html para que el navegador abra por adelantado la conexion con los servidores de las librerias (jsdelivr, cdnjs) y con Supabase, en vez de abrirlas de una en una cuando hacen falta; en el movil cada conexion nueva cuesta entre 0,3 y 1 segundo. No cambia que se descarga, ni el orden, ni app.js, ni styles.css, ni datos. Medido por JC en el movil: unos 10 s para abrir (vista PC). El grueso restante es la descarga: 6 librerias externas + app.js (2,8 MB, unos 830 KB comprimido). VUELTA ATRAS: volver a la v987.
 
 ---
