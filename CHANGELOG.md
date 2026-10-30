@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v987 (30/10/2026): VISTA PC EN EL MOVIL, LOS AVISOS EN DOS COLUMNAS COMO EN EL ORDENADOR. Con el boton "VER COMO EN EL PC" activado, la pagina se pinta a 1100 px y la regla de tablet (<=1100 px) apilaba todos los avisos en una sola columna, haciendo la pantalla muy larga. Ahora, solo en esa vista (el boton pone la clase vistaPC en el html), los avisos salen en dos columnas, como en el PC. Fuera de la vista PC no cambia nada; conductores, DeCA y demas usuarios no se ven afectados (no tienen el boton). No cambia app.js ni datos. VUELTA ATRAS: volver a la v986.
+
+---
+
 v986 (30/10/2026): LOS CAMBIOS DE MOVIL DE HOY YA NO TOCAN A LOS USUARIOS DE DeCA NI A LOS CONDUCTORES. Por cuidado con el DeCA (JC: "lo del DeCA funciona, que no se afecte"): (1) la etiqueta viewport vuelve a ser la de siempre (se quita el minimum-scale de la v983); (2) la regla de ancho de la v984 deja de tocar el html y el body y se limita a la vista de oficina (#adminView), asi que la pantalla DeCA exprés (#decaXp), la vista de conductor, el boton flotante DeCA de los transportistas y el login quedan exactamente como antes de hoy; (3) el boton "VER COMO EN EL PC" pasa a la esquina de abajo a la DERECHA (en la izquierda esta el boton DeCA de los transportistas) y solo se ve con el ADMIN dentro (en la pantalla de entrada solo si la vista PC ya estaba activada, para poder volver), nunca con conductores, DeCA, subcontratados ni gestoras. Los avisos de la v982 ya eran solo de la vista de oficina. No cambia app.js, ni datos. VUELTA ATRAS: volver a la v985.
 
 ---

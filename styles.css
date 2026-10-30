@@ -1278,3 +1278,9 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
   #adminView .card{overflow-x:auto;max-width:100%}
   #adminView .card-bd{padding:14px 12px}
 }
+
+/* v987 (30/10/2026): VISTA PC EN EL MOVIL — LOS AVISOS EN DOS COLUMNAS, COMO EN EL ORDENADOR.
+   A 1100 px la regla de tablet (<=1100px) apilaba los avisos en una sola columna. La clase
+   vistaPC solo la pone el boton "VER COMO EN EL PC" (solo admin, solo movil): fuera de esa
+   vista esta regla NO existe. */
+html.vistaPC #avisosGrid{grid-template-columns:1fr 1fr!important}
