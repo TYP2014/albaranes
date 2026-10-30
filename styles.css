@@ -1239,3 +1239,21 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tacoInspCard .tbl td{font-size:16px!important;color:#111!important;padding:13px 14px!important}
 #tacoInspCard .tbl td .insp-rojo{color:#b83a36!important}
 #tacoInspCard .insp-ok,#tacoInspCard .insp-ko{font-size:17px}
+
+/* ============================================================
+   v982 (30/10/2026): MOVIL — LOS AVISOS DE ARRIBA YA NO SE ESTIRAN HACIA ABAJO
+   Problema (captura JC 30/10): en el movil cada aviso (facturas vencidas, cita
+   de ITV, vencimientos...) ponia el texto en una columna estrecha y los botones
+   (VER ... / X) a su derecha comiendose medio ancho; el texto se partia palabra
+   a palabra y un solo aviso ocupaba media pantalla.
+   Arreglo SOLO VISUAL y SOLO en movil (<=700px): el texto ocupa TODO el ancho,
+   los botones pasan a una fila debajo, y la letra y el relleno bajan un poco.
+   NO toca app.js, ni el HTML, ni la BD. Tablet y ordenador: todo igual.
+   ============================================================ */
+@media (max-width:700px){
+  #avisosGrid > div > div{font-size:12.5px!important;padding:7px 10px!important;gap:6px!important;border-left-width:8px!important;border-width:2px 2px 2px 8px!important}
+  #avisosGrid > div > div > div:first-child{flex:1 1 100%!important;min-width:0;line-height:1.45!important}
+  #avisosGrid > div > div > div:first-child span[style*="font-size:19px"]{font-size:15px!important}
+  #avisosGrid > div > div > div:last-child:not(:first-child){flex:1 1 100%;flex-wrap:wrap}
+  #avisosGrid > div > div > div:last-child:not(:first-child) .btn{flex:1 1 auto;text-align:center}
+}
