@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v984 (30/10/2026): MOVIL, LA PAGINA YA NO PUEDE SER MAS ANCHA QUE LA PANTALLA. En el iPhone algun elemento del contenido real era mas ancho que el movil y ensanchaba toda la pagina: la cabecera, los avisos y la tabla se salian por la derecha. Ahora, en pantallas de 700 px o menos, la pagina se queda al ancho de la pantalla; lo que sobre (como la tabla de albaranes) se desliza dentro de su propia tarjeta; la parrilla de avisos ya no se ensancha por un aviso largo; y los margenes laterales bajan para aprovechar el ancho. Solo CSS (styles.css, nuevo ?v=127). Probado en un movil simulado de 393 px metiendo elementos de 700 px a proposito: la pagina sigue midiendo 393 px. No cambia app.js, ni datos, ni reglas. Tablet y ordenador igual que antes. VUELTA ATRAS: volver a la v983.
+
+---
+
 v983 (30/10/2026): MOVIL, EL NAVEGADOR YA NO ALEJA LA PANTALLA. En el iPhone la app se veia alejada (un rectangulo estrecho a la izquierda y banda en blanco a la derecha) porque algun elemento de la pagina es mas ancho que el movil y el navegador alejaba el zoom para que cupiera; con la pantalla alejada, las reglas de movil (como la de los avisos de la v982) no se activaban. Ahora la etiqueta viewport lleva minimum-scale=1: la pantalla se queda al ancho real del movil y lo que sobre se desliza de izquierda a derecha. Solo cambia la etiqueta viewport del index.html: no toca app.js, ni styles.css, ni datos. En ordenador esa etiqueta se ignora: todo igual. VUELTA ATRAS: volver a la v982.
 
 ---
