@@ -13640,15 +13640,15 @@ function phExcelTabla() {
   const nomRuta = x => x.n + (x.viaje ? ' (\u20ac/viaje)' : ' (\u20ac/TN)');
   const preciosDe = (x, m) => Object.values(((hab[x.n] || {}).m || {})[m] || {}).sort((a, b) => (a.d1 - b.d1) || (a.pu - b.pu));
   // v999/v1000: separa precios HABITUALES de ATIPICOS. Precio principal del mes = el de mas TN (o mas viajes en Tecnocatalana).
-  // v1000: un precio con 3 o mas viajes es REAL aunque cambie mucho (cambios de tarifa a mitad de mes: salen todos, 2 o 3).
-  // Atipico = distinto del principal y (1-2 viajes sueltos con >5% de diferencia, o diferencia de mas del 200%). Asi un cobro raro,
+  // v1001: SOLO es atipico lo desorbitado: mas del TRIPLE o menos de la TERCERA PARTE del precio principal del mes (p. ej. 541 EUR/TN
+  // frente a 6). Los precios pagados de menos (6,37 en vez de 7,05, etc.) salen SIEMPRE como habituales: hay que reclamarlos. Asi un cobro raro,
   // una regularizacion o un manual que suma varios viajes no descuadra la comparativa. Los atipicos NO se esconden: van a su hoja.
   const clasif = (x, m) => {
     const ps = preciosDe(x, m); if (!ps.length) return { hab: [], atip: [], main: 0 };
     const peso = p => x.viaje ? p.v : p.tn;
     const main = ps.slice().sort((p, q) => peso(q) - peso(p))[0].pu;
     const hab = [], atip = [];
-    ps.forEach(p => { const dev = main ? Math.abs(p.pu - main) / main : 0; ((p.pu !== main && ((p.v <= 2 && dev > 0.05) || dev > 2)) ? atip : hab).push(p); });
+    ps.forEach(p => { const dev = main ? p.pu / main : 1; ((p.pu !== main && (dev > 3 || dev < 1 / 3)) ? atip : hab).push(p); });
     return { hab, atip, main };
   };
   const unid = x => x.viaje ? '/viaje' : '';
