@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v990 (30/10/2026): VISTA PC EN EL MOVIL, EL BOTON "VOLVER A VISTA MOVIL" MAS PEQUENO. En la vista PC el boton de abajo a la derecha medía el doble de lo necesario y tapaba las ultimas filas de la tabla de albaranes. Ahora la letra baja de 34 a 22 px, con menos relleno y algo transparente. Solo cambia el estilo del boton en el script del index.html: no toca app.js, styles.css ni datos. Solo lo ve el admin en el movil. VUELTA ATRAS: volver a la v989.
+
+---
+
 v989 (30/10/2026): VISTA PC EN EL MOVIL, AVISOS MAS COMPACTOS. Con el boton "VER COMO EN EL PC" activado, los avisos de arriba (hasta 8) bajan de letra de 15 a 12 px, con menos relleno y botones mas pequenos, para que quede mas sitio para la tabla de albaranes. Solo CSS (styles.css, nuevo ?v=130) y solo con la clase vistaPC, que solo pone el boton (solo admin, solo movil): ordenador, vista de movil normal, conductores y DeCA no cambian. No toca app.js ni datos. Medido por JC tras la v988: 7 s para abrir en el movil (antes 10 s). VUELTA ATRAS: volver a la v988.
 
 ---
