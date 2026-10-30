@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v988 (30/10/2026): ARRANQUE UN POCO MAS RAPIDO EN EL MOVIL. Se anaden tres lineas "preconnect" en la cabecera del index.html para que el navegador abra por adelantado la conexion con los servidores de las librerias (jsdelivr, cdnjs) y con Supabase, en vez de abrirlas de una en una cuando hacen falta; en el movil cada conexion nueva cuesta entre 0,3 y 1 segundo. No cambia que se descarga, ni el orden, ni app.js, ni styles.css, ni datos. Medido por JC en el movil: unos 10 s para abrir (vista PC). El grueso restante es la descarga: 6 librerias externas + app.js (2,8 MB, unos 830 KB comprimido). VUELTA ATRAS: volver a la v987.
+
+---
+
 v987 (30/10/2026): VISTA PC EN EL MOVIL, LOS AVISOS EN DOS COLUMNAS COMO EN EL ORDENADOR. Con el boton "VER COMO EN EL PC" activado, la pagina se pinta a 1100 px y la regla de tablet (<=1100 px) apilaba todos los avisos en una sola columna, haciendo la pantalla muy larga. Ahora, solo en esa vista (el boton pone la clase vistaPC en el html), los avisos salen en dos columnas, como en el PC. Fuera de la vista PC no cambia nada; conductores, DeCA y demas usuarios no se ven afectados (no tienen el boton). No cambia app.js ni datos. VUELTA ATRAS: volver a la v986.
 
 ---

@@ -35,6 +35,11 @@
 </script>
 
 <title>TYP2014 — Gestión Albaranes</title>
+<!-- v988: ABRIR POR ADELANTADO LAS CONEXIONES a los servidores de los que se descargan las librerias y los datos
+     (en el movil cada conexion nueva cuesta 0,3-1 s y hasta ahora se abrian de una en una). No cambia que se carga ni el orden. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://ukirnpsmbeeyrgfxaxgq.supabase.co" crossorigin>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -2082,6 +2087,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=987"></script>
+<script src="app.js?v=988"></script>
 </body>
 </html>
