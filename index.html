@@ -4,7 +4,35 @@
 <!-- NOTAS DE VERSION: desde la v707 ya NO van aqui. Estan en CHANGELOG.md (mismo repo). La version cargada es la del app.js?v=N del final. -->
 <meta charset="UTF-8">
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* v985/v986: VISTA COMPLETA EN EL MOVIL (solo el ADMIN la activa con el boton "VER COMO EN EL PC").
+   Activada, el movil pinta la pagina a 1100 px de ancho, como en el PC, y la reduce para que quepa;
+   se agranda con los dedos. Desactivada (por defecto) todo queda como antes. En PC no hace nada.
+   El boton SOLO se ve con el admin dentro (o en la pantalla de entrada si la vista PC ya estaba activada, para poder volver): conductores, DeCA, subcontratados
+   y demas usuarios NO lo ven y no les cambia nada. */
+(function(){try{
+  var tel = Math.min(screen.width, screen.height) <= 600;
+  var on = tel && localStorage.getItem('vistaPC') === '1';
+  if (on) document.querySelector('meta[name=viewport]').setAttribute('content','width=1100, maximum-scale=5');
+  if (!tel) return;
+  document.addEventListener('DOMContentLoaded', function(){
+    var b = document.createElement('button');
+    b.id = 'btnVistaPC';
+    b.textContent = on ? '\u{1F4F1} VOLVER A VISTA MOVIL' : '\u{1F5A5} VER COMO EN EL PC';
+    b.style.cssText = 'display:none;position:fixed;right:8px;bottom:8px;z-index:900;background:#1f3a5f;color:#fff;border:2px solid #fff;border-radius:10px;font-family:monospace;font-weight:800;opacity:.92;' + (on ? 'font-size:34px;padding:14px 22px;border-width:4px;border-radius:24px' : 'font-size:11px;padding:8px 12px');
+    b.onclick = function(){ try{ localStorage.setItem('vistaPC', on ? '0' : '1'); }catch(e){} location.reload(); };
+    document.body.appendChild(b);
+    function visible(el){ return !!el && getComputedStyle(el).display !== 'none'; }
+    function revisar(){
+      var login = visible(document.getElementById('loginPage'));
+      var adminDentro = (typeof currentRole !== 'undefined' && currentRole === 'admin') && visible(document.getElementById('adminView')) && !document.getElementById('decaXp');
+      b.style.display = ((login && on) || adminDentro) ? 'block' : 'none';
+    }
+    revisar(); setInterval(revisar, 800);
+  });
+}catch(e){}})();
+</script>
 
 <title>TYP2014 — Gestión Albaranes</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -30,7 +58,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=127">
+<link rel="stylesheet" href="styles.css?v=128">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 </head>
 <body>
@@ -2054,6 +2082,6 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<script src="app.js?v=984"></script>
+<script src="app.js?v=986"></script>
 </body>
 </html>

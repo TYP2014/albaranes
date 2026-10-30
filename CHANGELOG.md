@@ -4,6 +4,14 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v986 (30/10/2026): LOS CAMBIOS DE MOVIL DE HOY YA NO TOCAN A LOS USUARIOS DE DeCA NI A LOS CONDUCTORES. Por cuidado con el DeCA (JC: "lo del DeCA funciona, que no se afecte"): (1) la etiqueta viewport vuelve a ser la de siempre (se quita el minimum-scale de la v983); (2) la regla de ancho de la v984 deja de tocar el html y el body y se limita a la vista de oficina (#adminView), asi que la pantalla DeCA exprés (#decaXp), la vista de conductor, el boton flotante DeCA de los transportistas y el login quedan exactamente como antes de hoy; (3) el boton "VER COMO EN EL PC" pasa a la esquina de abajo a la DERECHA (en la izquierda esta el boton DeCA de los transportistas) y solo se ve con el ADMIN dentro (en la pantalla de entrada solo si la vista PC ya estaba activada, para poder volver), nunca con conductores, DeCA, subcontratados ni gestoras. Los avisos de la v982 ya eran solo de la vista de oficina. No cambia app.js, ni datos. VUELTA ATRAS: volver a la v985.
+
+---
+
+v985 (30/10/2026): MOVIL, BOTON "VER COMO EN EL PC". En el movil aparece abajo a la izquierda un boton "VER COMO EN EL PC". Al pulsarlo, la app se pinta a 1100 px de ancho, igual que en el ordenador, reducida para que quepa entera en la pantalla (filtros en 5 columnas, tabla de albaranes completa); se agranda con los dedos. Pulsando "VOLVER A VISTA MOVIL" (mismo sitio) se vuelve a la vista de antes. La eleccion se recuerda en ese movil, asi que los conductores (que solo usan el DeCA) siguen con la vista normal de movil. Solo toca la etiqueta viewport y un boton en el index.html (script nuevo en la cabecera): no cambia app.js, ni styles.css, ni datos. En ordenador no sale el boton ni cambia nada. VUELTA ATRAS: volver a la v984.
+
+---
+
 v984 (30/10/2026): MOVIL, LA PAGINA YA NO PUEDE SER MAS ANCHA QUE LA PANTALLA. En el iPhone algun elemento del contenido real era mas ancho que el movil y ensanchaba toda la pagina: la cabecera, los avisos y la tabla se salian por la derecha. Ahora, en pantallas de 700 px o menos, la pagina se queda al ancho de la pantalla; lo que sobre (como la tabla de albaranes) se desliza dentro de su propia tarjeta; la parrilla de avisos ya no se ensancha por un aviso largo; y los margenes laterales bajan para aprovechar el ancho. Solo CSS (styles.css, nuevo ?v=127). Probado en un movil simulado de 393 px metiendo elementos de 700 px a proposito: la pagina sigue midiendo 393 px. No cambia app.js, ni datos, ni reglas. Tablet y ordenador igual que antes. VUELTA ATRAS: volver a la v983.
 
 ---
