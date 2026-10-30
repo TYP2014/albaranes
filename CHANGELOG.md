@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v993 (30/10/2026): el cronometro de arranque (solo admin, movil) anade cuantas peticiones de albaranes se hacen, entre que segundos y cuantos KB. Solo para medir. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v992.
+
 v992 (30/10/2026): CRONOMETRO DE ARRANQUE EN EL MOVIL (solo admin). Rotulo gris pequeno abajo a la izquierda con los segundos de cada fase (app.js, pantalla de entrada, dentro, albaranes listos). Solo para medir donde se va el tiempo; no cambia nada mas. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v991.
 
 v991 (30/10/2026): MOVIL MAS RAPIDO AL ABRIR. En el movil, las librerias pesadas (Excel, PDF, PDF-lib y ZIP) se descargan DESPUES de abrir la app, para no competir con ella. PC y tablet: igual que siempre. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v990.
