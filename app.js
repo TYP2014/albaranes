@@ -13624,7 +13624,7 @@ function _phRender() {
   cont.innerHTML = sel + '<div class="phScroll"><table class="phTbl" style="min-width:' + (190 + meses.length * 150) + 'px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
     + '<div class="phNota">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
 }
-// v998: EXCEL DE TODA LA TABLA "Precios Holcim" (ruta x mes) para comparar precios mes a mes y calcular la repercusion del gasoil
+// v999: ahora separa precios habituales de atipicos (ver clasif). v998: EXCEL DE TODA LA TABLA "Precios Holcim" (ruta x mes) para comparar precios mes a mes y calcular la repercusion del gasoil
 // (JC 30/10/2026). Meses de IZQUIERDA A DERECHA, del mas antiguo al ultimo. Tres hojas: "Comparativa" (como en pantalla: precio, dias, viajes, TN;
 // en naranja los meses con mas de un precio), "Precio medio" (numeros: importe / TN, o / viaje, de cada ruta y mes, listo para calcular) y "Detalle".
 function phExcelTabla() {
@@ -13639,37 +13639,59 @@ function phExcelTabla() {
   const tn = { alignment: { wrapText: true, vertical: 'top' }, font: { color: { rgb: 'C2410C' } } };
   const nomRuta = x => x.n + (x.viaje ? ' (\u20ac/viaje)' : ' (\u20ac/TN)');
   const preciosDe = (x, m) => Object.values(((hab[x.n] || {}).m || {})[m] || {}).sort((a, b) => (a.d1 - b.d1) || (a.pu - b.pu));
-  // Hoja 1: Comparativa (como en pantalla)
+  // v999: separa precios HABITUALES de ATIPICOS. Precio principal del mes = el de mas TN (o mas viajes en Tecnocatalana).
+  // Atipico = distinto del principal y (1-2 viajes sueltos con >5% de diferencia, o >40% de diferencia). Asi un cobro raro,
+  // una regularizacion o un manual que suma varios viajes no descuadra la comparativa. Los atipicos NO se esconden: van a su hoja.
+  const clasif = (x, m) => {
+    const ps = preciosDe(x, m); if (!ps.length) return { hab: [], atip: [], main: 0 };
+    const peso = p => x.viaje ? p.v : p.tn;
+    const main = ps.slice().sort((p, q) => peso(q) - peso(p))[0].pu;
+    const hab = [], atip = [];
+    ps.forEach(p => { const dev = main ? Math.abs(p.pu - main) / main : 0; ((p.pu !== main && ((p.v <= 2 && dev > 0.05) || dev > 0.40)) ? atip : hab).push(p); });
+    return { hab, atip, main };
+  };
+  const unid = x => x.viaje ? '/viaje' : '';
+  const lin = (x, p) => eur(p.pu) + unid(x) + (_phDias(p, m0, false) ? '\nDías ' + _phDias(p, m0, false) : '') + '\n' + p.v + (p.v === 1 ? ' viaje' : ' viajes') + (x.viaje ? '' : ' · ' + Math.round(p.tn).toLocaleString('es-ES') + ' TN');
+  let m0 = '';
+  const celda = (x, m, ps, marca) => { m0 = m; return ps.map(p => (marca ? '⚠ ' : '') + lin(x, p)).join('\n—\n'); };
+  // Hoja 1: Precios habituales (sin atipicos)
   const A = [[{ v: 'RUTA', s: hd }].concat(cro.map(m => ({ v: _histMesNombre(m), s: hd })))];
+  // Hoja 2: Comparativa (todo, los atipicos con ⚠ y en gris)
+  const A2 = [[{ v: 'RUTA', s: hd }].concat(cro.map(m => ({ v: _histMesNombre(m), s: hd })))];
+  const gr = { alignment: { wrapText: true, vertical: 'top' }, font: { color: { rgb: '7F1D1D' } } };
   rutas.forEach(x => {
     A.push([{ v: nomRuta(x), s: rt }].concat(cro.map(m => {
-      const ps = preciosDe(x, m);
-      if (!ps.length) return { v: '', s: tx };
-      const txt = ps.map(p => eur(p.pu) + (x.viaje ? '/viaje' : '') + (_phDias(p, m, false) ? '\nD\u00edas ' + _phDias(p, m, false) : '') + '\n' + p.v + (p.v === 1 ? ' viaje' : ' viajes') + (x.viaje ? '' : ' \u00b7 ' + Math.round(p.tn).toLocaleString('es-ES') + ' TN')).join('\n\u2014\n');
-      return { v: txt, s: ps.length > 1 ? tn : tx };
+      const c = clasif(x, m); if (!c.hab.length) return { v: '', s: tx };
+      return { v: celda(x, m, c.hab, false), s: c.hab.length > 1 ? tn : tx };
+    })));
+    A2.push([{ v: nomRuta(x), s: rt }].concat(cro.map(m => {
+      const c = clasif(x, m); const ps = c.hab.concat(c.atip).sort((p, q) => (p.d1 - q.d1) || (p.pu - q.pu)); if (!ps.length) return { v: '', s: tx };
+      m0 = m;
+      const txt = ps.map(p => (c.atip.includes(p) ? '⚠ ' : '') + lin(x, p)).join('\n—\n');
+      return { v: txt, s: c.atip.length ? gr : (ps.length > 1 ? tn : tx) };
     })));
   });
-  // Hoja 2: Precio medio (numeros)
-  const B = [[{ v: 'RUTA', s: hd }].concat(cro.map(m => ({ v: _histMesNombre(m), s: hd })))];
-  rutas.forEach(x => {
-    B.push([{ v: nomRuta(x), s: rt }].concat(cro.map(m => {
-      const ps = preciosDe(x, m); if (!ps.length) return { v: '' };
-      const imp = ps.reduce((a, p) => a + p.imp, 0), den = x.viaje ? ps.reduce((a, p) => a + p.v, 0) : ps.reduce((a, p) => a + p.tn, 0);
-      return den > 0 ? { v: Math.round(imp / den * 100) / 100, t: 'n', z: '0.00' } : { v: '' };
-    })));
-  });
-  // Hoja 3: Detalle (una fila por ruta, mes y precio)
-  const C = [['RUTA', 'MES', 'PRECIO', 'UNIDAD', 'D\u00cdAS', 'VIAJES', 'TN', 'IMPORTE (\u20ac)'].map(v => ({ v, s: hd }))];
-  rutas.forEach(x => cro.forEach(m => preciosDe(x, m).forEach(p => C.push([
-    { v: x.n }, { v: _histMesNombre(m) }, { v: p.pu, t: 'n', z: '0.00' }, { v: x.viaje ? '\u20ac/viaje' : '\u20ac/TN' }, { v: _phDias(p, m, false) },
-    { v: p.v, t: 'n' }, { v: x.viaje ? '' : Math.round(p.tn * 1000) / 1000, t: x.viaje ? 's' : 'n' }, { v: Math.round(p.imp * 100) / 100, t: 'n', z: '#,##0.00' }]))));
+  // Hoja 3: Atipicos (para revisar / corregir en la app)
+  const B = [['RUTA', 'MES', 'PRECIO AT\u00cdPICO', 'UNIDAD', 'DÍAS', 'VIAJES', 'TN', 'IMPORTE (€)', 'PRECIO PRINCIPAL DEL MES', 'DIFERENCIA %'].map(v => ({ v, s: hd }))];
+  rutas.forEach(x => cro.forEach(m => { const c = clasif(x, m); c.atip.forEach(p => B.push([
+    { v: x.n }, { v: _histMesNombre(m) }, { v: p.pu, t: 'n', z: '0.00' }, { v: x.viaje ? '€/viaje' : '€/TN' }, { v: _phDias(p, m, false) },
+    { v: p.v, t: 'n' }, { v: x.viaje ? '' : Math.round(p.tn * 1000) / 1000, t: x.viaje ? 's' : 'n' }, { v: Math.round(p.imp * 100) / 100, t: 'n', z: '#,##0.00' },
+    { v: c.main, t: 'n', z: '0.00' }, { v: Math.round((p.pu / c.main - 1) * 1000) / 10, t: 'n', z: '0.0' }])); }));
+  // Hoja 4: Detalle (una fila por ruta, mes y precio, con su tipo)
+  const C = [['RUTA', 'MES', 'PRECIO', 'UNIDAD', 'DÍAS', 'VIAJES', 'TN', 'IMPORTE (€)', 'TIPO'].map(v => ({ v, s: hd }))];
+  rutas.forEach(x => cro.forEach(m => { const c = clasif(x, m); preciosDe(x, m).forEach(p => C.push([
+    { v: x.n }, { v: _histMesNombre(m) }, { v: p.pu, t: 'n', z: '0.00' }, { v: x.viaje ? '€/viaje' : '€/TN' }, { v: _phDias(p, m, false) },
+    { v: p.v, t: 'n' }, { v: x.viaje ? '' : Math.round(p.tn * 1000) / 1000, t: x.viaje ? 's' : 'n' }, { v: Math.round(p.imp * 100) / 100, t: 'n', z: '#,##0.00' },
+    { v: c.atip.includes(p) ? 'ATÍPICO' : 'habitual' }])); }));
   const mk = (rows, cols) => { const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => c.v))); rows.forEach((r, i) => r.forEach((c, j) => { const ref = XLSX.utils.encode_cell({ r: i, c: j }); if (ws[ref]) { if (c.s) ws[ref].s = c.s; if (c.z) ws[ref].z = c.z; } })); ws['!cols'] = cols.map(w => ({ wch: w })); return ws; };
-  const w1 = mk(A, [34].concat(cro.map(() => 24)));
-  w1['!rows'] = A.map((r, i) => i === 0 ? { hpt: 22 } : { hpt: 15 * Math.max(1, ...r.slice(1).map(c => String(c.v || '').split('\n').length)) + 6 });
+  const rowsH = R => R.map((r, i) => i === 0 ? { hpt: 22 } : { hpt: 15 * Math.max(1, ...r.slice(1).map(c => String(c.v || '').split('\n').length)) + 6 });
+  const w1 = mk(A, [34].concat(cro.map(() => 26))); w1['!rows'] = rowsH(A);
+  const w2 = mk(A2, [34].concat(cro.map(() => 26))); w2['!rows'] = rowsH(A2);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, w1, 'Comparativa');
-  XLSX.utils.book_append_sheet(wb, mk(B, [34].concat(cro.map(() => 13))), 'Precio medio');
-  XLSX.utils.book_append_sheet(wb, mk(C, [34, 12, 10, 9, 14, 8, 10, 14]), 'Detalle');
+  XLSX.utils.book_append_sheet(wb, w1, 'Precios habituales');
+  XLSX.utils.book_append_sheet(wb, w2, 'Comparativa (todo)');
+  XLSX.utils.book_append_sheet(wb, mk(B, [34, 12, 12, 9, 14, 8, 10, 14, 14, 12]), 'At\u00edpicos');
+  XLSX.utils.book_append_sheet(wb, mk(C, [34, 12, 10, 9, 14, 8, 10, 14, 10]), 'Detalle');
   XLSX.writeFile(wb, 'Holcim_comparativa_precios_' + cro[0] + '_a_' + cro[cro.length - 1] + '.xlsx');
   toast('\u2713 Excel de la tabla descargado');
 }
