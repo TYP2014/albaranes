@@ -1293,3 +1293,7 @@ html.vistaPC #avisosGrid > div > div{font-size:12px!important;padding:3px 10px!i
 html.vistaPC #avisosGrid > div > div > div:first-child{line-height:1.35!important}
 html.vistaPC #avisosGrid > div > div > div:first-child span[style*="font-size:19px"]{font-size:13px!important}
 html.vistaPC #avisosGrid .btn{font-size:10px!important;padding:4px 9px!important}
+
+/* v998: precios Holcim - el nombre de la ruta se parte en varias lineas dentro de su columna (antes se salia y pisaba los precios) */
+#precHolcimCont .phRuta{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;overflow:hidden}
+#precHolcimCont .phRuta small{white-space:normal!important}
