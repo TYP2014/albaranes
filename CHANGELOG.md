@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v997 (30/10/2026): FACTURAS EMITIDAS: SUGERENCIAS EN EL FILTRO "Nº FACTURA". Al escribir en la casilla sale un desplegable con los numeros de factura que ya hay (en cascada: solo los de la empresa, fechas y cliente elegidos); al elegir uno se filtra al momento. Mientras se teclea no se repinta la lista (para que el desplegable no se cierre) y se filtra 0,7 s despues de la ultima tecla. Incluye la v996 (el propio filtro por numero). Cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v995.
+
+v996 (30/10/2026): FACTURAS EMITIDAS: NUEVO FILTRO POR NUMERO DE FACTURA. Casilla "Nº FACTURA" junto al filtro de cliente: se escribe un trozo del numero (da igual mayúsculas, guiones o barras) y la lista se filtra al momento; se pueden poner varios separados por coma. Se suma a empresa, fechas y cliente; LIMPIAR lo quita tambien. Cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v995.
+
 v995 (30/10/2026): SE DEVUELVE LA CARGA DE LIBRERIAS (Excel, PDF, ZIP) A COMO ESTABA ANTES DE LA v991. La v991 no daba ninguna mejora de velocidad y Chrome avisaba de que con mala conexion podia bloquear esas librerias (document.write); asi no hay ese riesgo. Se mantiene todo lo de la v992-v994 (cronometro y llegada rapida de los albaranes recientes). Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v994.
 
 v994 (30/10/2026): ARRANQUE: LOS ALBARANES MAS RECIENTES SE VEN ANTES. Se pide primero la pagina 1 (los 1.000 albaranes mas recientes) y se pinta enseguida, con una barra "Cargando el resto de albaranes" y la tarjeta bloqueada (no se edita ni se exporta con datos a medias); el resto baja detras y al terminar todo queda igual que siempre. Solo en el arranque (tabla vacia); recargas posteriores y "ver todo" como antes. Si la carga falla, vuelve a lo de siempre (tabla vacia + aviso). Medido en simulador: primera fila 0,8 s en vez de 5,4 s; carga completa igual. Cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v993.

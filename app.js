@@ -18265,6 +18265,22 @@ let _feFiltro = 'todas'; // todas / pendiente / cobrada
 let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
 // v555: filtros de FECHA DE FACTURA y CLIENTE (se suman al de empresa, en cascada)
 let _feDesde = '', _feHasta = '', _feCliente = 'TODOS';
+// v996: filtro por NUMERO DE FACTURA (varios separados por coma). Se compara sin mayusculas ni signos (F-26/123 = f26123) y vale con un trozo.
+let _feNum = '';
+// v997: mientras se teclea NO se repinta (si no, el desplegable de sugerencias se cerraria a cada letra); se repinta 0,7 s despues de la ultima tecla,
+// o al momento si se elige una sugerencia de la lista.
+let _feNumT = null;
+function _feNumIn(v, ev) {
+  _feNum = v; window._feFoco = true;
+  clearTimeout(_feNumT);
+  const eligio = !!ev && (!ev.inputType || ev.inputType === 'insertReplacementText');
+  if (eligio) renderFactEmit(); else _feNumT = setTimeout(() => { try { renderFactEmit(); } catch (e) {} }, 700);
+}
+function _feRefoco() {
+  if (!window._feFoco) return;
+  window._feFoco = false;
+  try { const i = document.getElementById('feNumInp'); if (i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } } catch (e) {}
+}
 function _feKeyCli(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _feFmt(n) { return (n == null || isNaN(n)) ? '\u2014' : Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'; }
 
@@ -18329,7 +18345,7 @@ function renderFactVencBanner() {
 }
 function hideFactVencBannerToday() { localStorage.setItem(FACTVENC_HIDE_KEY, _feHoyISO()); renderFactVencBanner(); }
 function irAFactVencidas() {
-  _feFiltro = 'vencida'; _feEmpresa = 'TODAS'; _feDesde = ''; _feHasta = ''; _feCliente = 'TODOS';
+  _feFiltro = 'vencida'; _feEmpresa = 'TODAS'; _feDesde = ''; _feHasta = ''; _feCliente = 'TODOS'; _feNum = '';
   try { switchTab('factemit'); } catch (e) {}
   setTimeout(() => { try { renderFactEmit(); } catch (e) {} }, 300);
 }
@@ -18367,8 +18383,13 @@ function renderFactEmit() {
     o.label = mejor || o.k;
   });
   const cli555 = Array.from(mapCli555.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'));
-  const baseFin555 = baseFe555.filter(f => _feCliente === 'TODOS' ? true : _feKeyCli(f.cliente) === _feCliente);
-  const hayFiltro555 = !!(_feDesde || _feHasta || _feCliente !== 'TODOS');
+  const _numKeys996 = String(_feNum || '').split(/[,;]/).map(_feKeyCli).filter(Boolean);
+  const _baseCli997 = baseFe555.filter(f => _feCliente === 'TODOS' ? true : _feKeyCli(f.cliente) === _feCliente);
+  // v997: sugerencias del desplegable = numeros que hay tras empresa + fechas + cliente (cascada); no dependen de lo ya escrito para que no desaparezcan al teclear
+  const _numsSug997 = Array.from(new Set(_baseCli997.map(f => String(f.numero || '').trim()).filter(Boolean))).sort((a, b) => b.localeCompare(a, 'es', { numeric: true }));
+  const baseFin555 = _baseCli997
+    .filter(f => !_numKeys996.length || _numKeys996.some(k => _feKeyCli(f.numero).includes(k))); // v996: por nº de factura
+  const hayFiltro555 = !!(_feDesde || _feHasta || _feCliente !== 'TODOS' || _numKeys996.length);
   const arr = baseFin555.filter(f => _feFiltro === 'todas' ? true : _feFiltro === 'vencida' ? _feEsVencida(f) : (f.estado || 'pendiente') === _feFiltro); // v708: + vencidas
   const pend = baseFin555.filter(f => (f.estado || 'pendiente') === 'pendiente');
   const totPend = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
@@ -18390,7 +18411,10 @@ function renderFactEmit() {
   h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos (' + baseFe555.length + ')</option>';
   cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>'; });
   h += '</select>';
-  if (hayFiltro555) h += '<button class="btn bs" style="font-size:12px;padding:10px 16px" title="Quitar el filtro de fechas y de cliente" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';renderFactEmit()">LIMPIAR</button>';
+  h += '<span style="font-size:13px;color:var(--tx);font-weight:bold;margin-left:16px">N\u00ba FACTURA:</span>';
+  h += '<input id="feNumInp" type="text" value="' + esc2(_feNum) + '" placeholder="Ej: 2026-123  (varias: separadas por coma)" oninput="_feNumIn(this.value,event)" autocomplete="off" list="feNumList" style="' + inpSty555 + ';width:260px;max-width:100%">';
+  h += '<datalist id="feNumList">' + _numsSug997.map(n => '<option value="' + esc2(n) + '">').join('') + '</datalist>';
+  if (hayFiltro555) h += '<button class="btn bs" style="font-size:12px;padding:10px 16px" title="Quitar los filtros de fechas, cliente y n\u00ba de factura" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';_feNum=\'\';renderFactEmit()">LIMPIAR</button>';
   h += '</div>';
   h += '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:18px">';
   h += '<span style="padding:10px 16px;background:#fff;border:2px solid var(--ac);border-radius:8px;font-family:var(--mn);font-size:14px;color:var(--tx)">Pendiente de cobro' + (_feEmpresa === 'TODAS' ? '' : ' \u00b7 ' + _feEmpresa) + (hayFiltro555 ? ' \u00b7 <span style="color:var(--ac)">filtrado</span>' : '') + ': <strong style="color:var(--er);font-size:16px">' + _feFmt(totPend) + '</strong> (' + pend.length + ' fra.)</span>';
@@ -18401,7 +18425,7 @@ function renderFactEmit() {
   h += '</div>';
   if (!arr.length) {
     h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
-    cont.innerHTML = h; return;
+    cont.innerHTML = h; _feRefoco(); return;
   }
   h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:15px;font-family:var(--mn);color:var(--tx)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac);font-size:13px;letter-spacing:1px">'
      + '<th style="padding:13px 10px">N\u00ba</th><th style="padding:13px 10px">FECHA</th><th style="padding:13px 10px">EMPRESA</th><th style="padding:13px 10px">CLIENTE</th>'
@@ -18435,6 +18459,7 @@ function renderFactEmit() {
   });
   h += '</tbody></table></div>';
   cont.innerHTML = h;
+  _feRefoco();
 }
 
 async function factEmitMarcarCobrada(id) {
