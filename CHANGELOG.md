@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v983 (30/10/2026): MOVIL, EL NAVEGADOR YA NO ALEJA LA PANTALLA. En el iPhone la app se veia alejada (un rectangulo estrecho a la izquierda y banda en blanco a la derecha) porque algun elemento de la pagina es mas ancho que el movil y el navegador alejaba el zoom para que cupiera; con la pantalla alejada, las reglas de movil (como la de los avisos de la v982) no se activaban. Ahora la etiqueta viewport lleva minimum-scale=1: la pantalla se queda al ancho real del movil y lo que sobre se desliza de izquierda a derecha. Solo cambia la etiqueta viewport del index.html: no toca app.js, ni styles.css, ni datos. En ordenador esa etiqueta se ignora: todo igual. VUELTA ATRAS: volver a la v982.
+
+---
+
 v982 (30/10/2026): MOVIL, LOS AVISOS DE ARRIBA YA NO SE ESTIRAN HACIA ABAJO. En el movil (pantalla de 700 px o menos) cada aviso (facturas vencidas, cita de ITV, vencimientos, recambios, tacografo...) pone ahora el texto a TODO el ancho y los botones (VER... / X) en una fila debajo, con la letra y el relleno un poco mas pequenos. Antes el texto quedaba en una columna estrecha, partido palabra a palabra, y un solo aviso ocupaba media pantalla. Solo CSS (styles.css, nuevo ?v=126): no cambia app.js, ni datos, ni reglas. Tablet y ordenador igual que antes. VUELTA ATRAS: volver a la v981.
 
 ---
