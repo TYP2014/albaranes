@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v991 (30/10/2026): MOVIL MAS RAPIDO AL ABRIR. En el movil, las librerias pesadas (Excel, PDF, PDF-lib y ZIP) se descargan DESPUES de abrir la app, para no competir con ella. PC y tablet: igual que siempre. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v990.
+
 v990 (30/10/2026): VISTA PC EN EL MOVIL, EL BOTON "VOLVER A VISTA MOVIL" MAS PEQUENO. En la vista PC el boton de abajo a la derecha medía el doble de lo necesario y tapaba las ultimas filas de la tabla de albaranes. Ahora la letra baja de 34 a 22 px, con menos relleno y algo transparente. Solo cambia el estilo del boton en el script del index.html: no toca app.js, styles.css ni datos. Solo lo ve el admin en el movil. VUELTA ATRAS: volver a la v989.
 
 ---
