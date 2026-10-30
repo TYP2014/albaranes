@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v995 (30/10/2026): SE DEVUELVE LA CARGA DE LIBRERIAS (Excel, PDF, ZIP) A COMO ESTABA ANTES DE LA v991. La v991 no daba ninguna mejora de velocidad y Chrome avisaba de que con mala conexion podia bloquear esas librerias (document.write); asi no hay ese riesgo. Se mantiene todo lo de la v992-v994 (cronometro y llegada rapida de los albaranes recientes). Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v994.
+
 v994 (30/10/2026): ARRANQUE: LOS ALBARANES MAS RECIENTES SE VEN ANTES. Se pide primero la pagina 1 (los 1.000 albaranes mas recientes) y se pinta enseguida, con una barra "Cargando el resto de albaranes" y la tarjeta bloqueada (no se edita ni se exporta con datos a medias); el resto baja detras y al terminar todo queda igual que siempre. Solo en el arranque (tabla vacia); recargas posteriores y "ver todo" como antes. Si la carga falla, vuelve a lo de siempre (tabla vacia + aviso). Medido en simulador: primera fila 0,8 s en vez de 5,4 s; carga completa igual. Cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v993.
 
 v993 (30/10/2026): el cronometro de arranque (solo admin, movil) anade cuantas peticiones de albaranes se hacen, entre que segundos y cuantos KB. Solo para medir. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v992.

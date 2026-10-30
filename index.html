@@ -40,13 +40,12 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://ukirnpsmbeeyrgfxaxgq.supabase.co" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<!-- v991: EN EL MOVIL las 4 librerias pesadas (Excel, PDF, PDF-lib y ZIP) se descargan DESPUES de abrir la app, para que no le quiten
-     velocidad a la app. En el PC y en la tablet se cargan igual que siempre (mismo orden, mismo momento). Las 4 se necesitan solo al pulsar Excel/PDF/ZIP. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-(function(){
-  var LIBS=['https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'];
-  window.__pdfWorkerInit=function(){
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   // v107BM: PRECARGAR el worker de pdf.js EN SEGUNDO PLANO nada mas abrir
@@ -61,21 +60,6 @@ if (typeof pdfjsLib !== 'undefined') {
     setTimeout(function () { try { _wrk.terminate(); } catch (e) {} }, 8000);
   } catch (e) { /* sin worker precargado: el timeout de addFiles lo cubre */ }
 }
-
-  };
-  var tel=false; try{ tel=Math.min(screen.width,screen.height)<=600; }catch(e){}
-  if(!tel){
-    for(var i=0;i<LIBS.length;i++) document.write('<script src="'+LIBS[i]+'"><\/script>');
-    document.write('<script>try{window.__pdfWorkerInit();}catch(e){}<\/script>');
-  } else {
-    window.addEventListener('load',function(){
-      var n=0;
-      LIBS.forEach(function(u){ var sc=document.createElement('script'); sc.src=u; sc.async=false;
-        sc.onload=sc.onerror=function(){ if(++n===LIBS.length){ try{ window.__pdfWorkerInit(); }catch(e){} } };
-        document.head.appendChild(sc); });
-    });
-  }
-})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
@@ -2129,6 +2113,6 @@ if (typeof pdfjsLib !== 'undefined') {
   },150);
 }catch(e){}})();
 </script>
-<script src="app.js?v=994"></script>
+<script src="app.js?v=995"></script>
 </body>
 </html>
