@@ -1748,6 +1748,48 @@ function showLogin() {
 // ============================================================
 // SUPABASE DB
 // ============================================================
+// v994: PREVISUALIZACION DEL ARRANQUE. Cuando llega la pagina 1 (los 1.000 albaranes mas recientes) se pintan ya,
+// con una barra "cargando el resto" y la tarjeta bloqueada (no se puede editar/exportar con datos a medias).
+// Al terminar la carga normal (_v994Fin) se quita la barra y se desbloquea; lo que se ve entonces es lo de siempre.
+// Si algo falla aqui, la carga normal sigue igual (todo va en try/catch y hay un seguro de 45 s).
+function _v994Tarjeta() { try { return document.getElementById('filtersAlb')?.closest('.card') || null; } catch (e) { return null; } }
+function _v994Previsualizar(r) {
+  if (!r || r.error || !r.data || !r.data.length) return;
+  if (window._v994Hecho || (records && records.length)) return;
+  records = r.data.map(x => ({
+    ...x,
+    db_id: x.id,
+    _id: x.id || (Date.now() + Math.random()),
+    _manual: x.manual_edit === true,
+    _tandaSubida: (typeof x.tanda_subida === 'number') ? x.tanda_subida : undefined,
+    _pagArchivo: (typeof x.pag_archivo === 'number') ? x.pag_archivo : undefined
+  }));
+  window._v994PreOn = true;
+  applyFilters();
+  const t = _v994Tarjeta();
+  if (t) t.style.pointerEvents = 'none';
+  if (!document.getElementById('albPreviewBar')) {
+    const b = document.createElement('div');
+    b.id = 'albPreviewBar';
+    b.textContent = '\u23F3 Cargando el resto de albaranes\u2026';
+    b.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:950;background:#1f3a5f;color:#fff;font:600 13px/1.3 sans-serif;padding:7px 14px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.3);pointer-events:none';
+    document.body.appendChild(b);
+  }
+  setTimeout(_v994Fin, 45000);
+}
+// Si la carga completa falla, se vuelve a lo de siempre (tabla vacia + aviso de error), sin dejar datos a medias en pantalla.
+function _v994Err() {
+  try { if (window._v994PreOn) { records = []; applyFilters(); } } catch (e) {}
+  _v994Fin();
+}
+function _v994Fin() {
+  window._v994Hecho = true;
+  if (!window._v994PreOn) return;
+  window._v994PreOn = false;
+  try { const t = _v994Tarjeta(); if (t) t.style.pointerEvents = ''; } catch (e) {}
+  try { document.getElementById('albPreviewBar')?.remove(); } catch (e) {}
+}
+
 async function loadData() {
   // v82: Supabase tiene un límite por defecto de 1000 filas por consulta. Para cargar
   // TODOS los albaranes sin importar la cantidad (10.000+), paginamos por bloques de 1000.
@@ -1874,7 +1916,25 @@ async function loadData() {
     const _v812Pags = [];
     // v813: el '.then' es lo que DISPARA la petición. Sin él, Supabase no la manda hasta el
     // Promise.all de abajo (o sea, después del conteo) y la v812 no adelantaba nada.
-    for (let p = 0; p < _v812Prev; p++) _v812Pags.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1).then(r => r));
+    // v994: PRIMERO LA PAGINA 1 SOLA, luego el resto. Medido el 30/10/2026: lo que tarda en abrir es BAJAR ~5 MB
+    // (la base de datos responde en 90 ms). Con las 8 paginas a la vez comparten la linea y TODAS terminan
+    // al final (~6-8 s en movil con poca cobertura) y no se ve nada hasta entonces. Pidiendo la pagina 1 sola
+    // llega en una fraccion, se pinta YA (los 1.000 albaranes mas recientes) y el resto baja detras y se pinta
+    // igual que siempre. Misma consulta, mismas filas, mismo resultado final. Solo en el arranque (tabla vacia).
+    const _v994Pre = (!records || records.length === 0) && !window._cargarTodo;
+    window._v994PreOn = false;
+    let _v994P0 = null;
+    if (_v994Pre) {
+      _v994P0 = _mkQuery(0, PAGE - 1).then(r => r);
+      _v994P0.then(r => { try { _v994Previsualizar(r); } catch (e) { console.warn('[v994] previsualizacion:', e); } }).catch(() => {});
+    }
+    for (let p = 0; p < _v812Prev; p++) {
+      if (_v994P0) {
+        if (p === 0) _v812Pags.push(_v994P0);
+        else _v812Pags.push(_v994P0.then(() => _mkQuery(p * PAGE, p * PAGE + PAGE - 1)).then(r => r));
+      } else _v812Pags.push(_mkQuery(p * PAGE, p * PAGE + PAGE - 1).then(r => r));
+    }
+    if (_v994P0 && _v812Prev === 0) _v812Pags.push(_v994P0);
     let countQuery = _mkCount();
     const { count, error: cErr } = await countQuery;
 
@@ -1884,7 +1944,7 @@ async function loadData() {
       let from = 0;
       while (true) {
         const { data, error } = await _mkQuery(from, from + PAGE - 1);
-        if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
+        if (error) { _v994Err(); toast('Error cargando albaranes: ' + error.message, 'err'); return; }
         if (!data || data.length === 0) break;
         allRows = allRows.concat(data);
         if (data.length < PAGE) break;
@@ -1903,11 +1963,12 @@ async function loadData() {
       if (_v812Prev) console.log('[v812] ' + Math.min(_v812Prev, totalPaginas) + ' de ' + totalPaginas + ' páginas pedidas a la vez que el conteo');
       const resultados = await Promise.all(promesas);
       for (const { data, error } of resultados) {
-        if (error) { toast('Error cargando albaranes: ' + error.message, 'err'); return; }
+        if (error) { _v994Err(); toast('Error cargando albaranes: ' + error.message, 'err'); return; }
         if (data && data.length) allRows = allRows.concat(data);
       }
     }
   } catch (e) {
+    _v994Err();
     toast('Error cargando albaranes: ' + (e.message || e), 'err');
     return;
   }
@@ -2056,6 +2117,7 @@ async function loadData() {
   _lastLoadDataTs = Date.now();
   // v107J51 (FASE 3): refrescar el aviso de "mostrando últimos 3 meses" tras cargar.
   try { _actualizarAvisoHistorico(); } catch (e) { console.warn('[J51] aviso histórico:', e); }
+  _v994Fin(); // v994: quitar la barra de "cargando el resto" y desbloquear la tarjeta
 }
 
 // v107J51 (FASE 3) — BOTÓN "VER TODO EL HISTÓRICO". Cuando JC necesita un albarán antiguo
