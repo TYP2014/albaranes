@@ -2087,32 +2087,7 @@ if (typeof pdfjsLib !== 'undefined') {
   <div id="resFactModalBody" style="background:#ffffff;border:1px solid var(--bd);border-radius:10px;max-width:1000px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)"></div>
 </div>
 
-<!-- v992: CRONOMETRO DE ARRANQUE (solo admin, solo movil): rotulo gris pequeno abajo a la izquierda que dice en que segundo paso cada cosa.
-     Sirve para saber DONDE se van los segundos al abrir. No cambia nada de la app. -->
-<script>
-(function(){try{
-  if(Math.min(screen.width,screen.height)>600) return;
-  var T={}; function vis(id){var e=document.getElementById(id);return !!e&&getComputedStyle(e).display!=='none';}
-  function seg(x){return (x/1000).toFixed(1)+'s';}
-  var box=null;
-  var iv=setInterval(function(){
-    var n=performance.now();
-    if(!T.login&&vis('loginPage')) T.login=n;
-    if(!T.app&&vis('appPage')) T.app=n;
-    if(!T.lista&&window._appLista) T.lista=n;
-    if(!T.js){ try{ var r=performance.getEntriesByType('resource').filter(function(x){return x.name.indexOf('app.js')>-1;})[0]; if(r&&r.responseEnd) T.js=r.responseEnd; }catch(e){} }
-    var admin=(typeof currentRole!=='undefined'&&currentRole==='admin');
-    if(admin&&T.lista&&!box){
-      var ini=0,fin=0,nr=0,kb=0; try{ performance.getEntriesByType('resource').forEach(function(x){ if(x.name.indexOf('/rest/v1/albaranes')>-1){ nr++; if(!ini||x.startTime<ini) ini=x.startTime; if(x.responseEnd>fin) fin=x.responseEnd; kb+=(x.encodedBodySize||0)/1024; } }); }catch(e){}
-      box=document.createElement('div');
-      box.style.cssText='position:fixed;left:6px;bottom:6px;z-index:890;background:rgba(0,0,0,.55);color:#fff;font:11px/1.3 monospace;padding:3px 6px;border-radius:6px;pointer-events:none';
-      box.textContent='\u23F1 app.js '+(T.js?seg(T.js):'?')+' \u00B7 pantalla entrada '+(T.login?seg(T.login):'-')+' \u00B7 dentro '+(T.app?seg(T.app):'?')+' \u00B7 albaranes '+seg(T.lista)+' \u00B7 datos: '+nr+' peticiones '+seg(ini)+' a '+seg(fin)+' ('+Math.round(kb)+' KB)';
-      document.body.appendChild(box); clearInterval(iv);
-    }
-    if(n>120000) clearInterval(iv);
-  },150);
-}catch(e){}})();
-</script>
-<script src="app.js?v=1001"></script>
+<!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
+<script src="app.js?v=1002"></script>
 </body>
 </html>

@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1002 (31/10/2026): QUITADO EL ROTULO GRIS DE TIEMPOS DE ARRANQUE (el de abajo a la izquierda en el movil, v992/v993). Ya no hace falta: el arranque rapido (v994) esta medido y funciona. No cambia nada mas. Solo cambia index.html (el app.js es el mismo de la v1001, solo cambia su numero ?v). VUELTA ATRAS: subir los archivos de la v1001.
+
 v1001 (30/10/2026): EXCEL DE PRECIOS HOLCIM: SOLO LO DESORBITADO ES ATIPICO. Los precios pagados de menos (p. ej. 6,37 en vez de 7,05 en Caliza Promsa) ya NO se apartan: salen siempre en "Precios habituales" porque hay que reclamarlos. Atipico es solo lo muy muy raro: un precio de mas del TRIPLE o de menos de la TERCERA PARTE del precio principal del mes (ej. 541,14 EUR/TN de varios albaranes juntados en un apunte). Solo cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v1000.
 
 v1000 (30/10/2026): EXCEL DE PRECIOS HOLCIM: LOS CAMBIOS DE PRECIO A MITAD DE MES SALEN TODOS. Se afloja la regla de la v999: un precio con 3 o mas viajes cuenta SIEMPRE como habitual (aunque sea muy distinto del principal; asi salen los dos o tres precios de un mes, con sus dias, viajes y TN para calcular). Solo son atipicos: los de 1-2 viajes sueltos que difieren mas de un 5 % del principal, y los que difieren mas de un 200 % (p. ej. 541 EUR/TN frente a 6 EUR/TN). Solo cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v999.
