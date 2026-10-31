@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1018 (31/10/2026): PAGINA ENTERA AL ABRIR EN EL MOVIL (ADMIN) + VERSION VISIBLE. Sobre la v1017 (= v1003 de la vista): (1) el admin en el movil abre por defecto en vista PC (pagina entera encogida) si nunca ha elegido vista en ese navegador/icono; si luego pulsa el boton se respeta su eleccion. (2) El boton ya no RECARGA la pagina (Safari conservaba el zoom y la vista PC salia ampliada): navega a la misma direccion como pagina nueva (&r=...). (3) El boton es VERDE y lleva escrito el numero de version (" - v1018") para saber a simple vista que version esta abierta. Conductores, DeCA y demas usuarios no se tocan. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1017.
+
 v1017 (31/10/2026): VUELTA EXACTA A LA v1003 (index.html) CON SOLO EL FILTRO DE FACTURA (app.js de la v1004). index.html = el de la v1003 tal cual (solo cambia el numero ?v): vista PC/movil, boton y recarga como entonces. app.js = el de la v1004 (unica diferencia: "N FACTURA" en la misma linea en Facturas Emitidas). Se descartan las v1005 a v1016. VUELTA ATRAS: subir los archivos de la v1003.
 
 v1016 (31/10/2026): AL PULSAR EL BOTON DE VISTA PC / MOVIL, LA PAGINA SE ABRE COMO NUEVA (no se recarga). Al recargar, Safari conserva el zoom que tenia la pagina y la vista PC salia ampliada (un tercio de pagina). Ahora el boton navega a la misma direccion con un parametro nuevo (&r=...), asi Safari la trata como una pagina recien abierta y aplica el zoom de entrada. Solo cambia esa linea de index.html. VUELTA ATRAS: subir los archivos de la v1015.
