@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1006 (31/10/2026): BOTON DE VISTA PC / MOVIL MAS PEQUENO Y MAS ABAJO. Letra 14 px en la vista PC (antes 22) y relleno menor, pegado mas abajo (a unos 24 px del borde inferior de lo visible). El texto del boton lleva ahora el numero de version (" - v1006") para poder comprobar de un vistazo que version esta cargada. Solo cambia index.html (el app.js es el de la v1004). VUELTA ATRAS: subir los archivos de la v1005.
+
 v1005 (31/10/2026): BOTON DE VISTA PC / MOVIL: TAMANO DE SIEMPRE Y MAS ABAJO. En la v1004 el boton salio demasiado grande y en medio de la pantalla (al escalarlo por el zoom del iPhone). Ahora vuelve al tamano de la v1003 (el que estaba bien) y se coloca abajo a la derecha, dentro de lo que se ve (visualViewport) para que no quede escondido en el borde. Solo cambia index.html (el app.js es el de la v1004). VUELTA ATRAS: subir los archivos de la v1004.
 
 v1004 (31/10/2026): BOTON "VER COMO EN EL PC / VOLVER A VISTA MOVIL" SIEMPRE A LA VISTA + FILTRO "N FACTURA" EN LA MISMA LINEA. (1) El boton ya no va pegado al borde de la pagina (quedaba medio escondido al estar encogida): se coloca siempre dentro de lo que se ve en pantalla, abajo a la derecha y algo elevado, con tamano constante aunque se amplie o encoja la pagina con los dedos. (2) Facturas Emitidas: la etiqueta "N FACTURA:" y su casilla van juntas en la misma linea que fecha y cliente (el desplegable de cliente es algo mas estrecho, la casilla mas corta y el texto de ayuda va en el cursor: varias facturas separadas por coma). Cambia app.js e index.html. VUELTA ATRAS: subir los archivos de la v1003.
