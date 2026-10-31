@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1011 (31/10/2026): VISTA MOVIL: ABRE ENCOGIDA PARA QUE QUEPA ENTERA (corrige la v1010). La v1010 forzaba el zoom a 1 y dejaba la pagina cortada por la derecha (cabecera, avisos, boton SALIR) porque el contenido es mas ancho que la pantalla. Ahora, al terminar de cargar, en vista movil se calcula la escala = ancho de pantalla / ancho del contenido y se fija (sin ampliar ni cortar). Si el contenido cabe o el zoom ya es el correcto no se toca nada. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1009 (la v1010 queda anulada).
+
 v1010 (31/10/2026): VISTA MOVIL: SI SAFARI LA ABRE AMPLIADA O DESPLAZADA A UN LADO, SE REINICIA EL ZOOM. Safari recuerda el zoom de la pestana (p. ej. tras usar la vista PC) y abria la vista movil ya ampliada y cortada por la izquierda. Ahora, al terminar de cargar, si el zoom no es 1 se bloquea un instante y se libera (queda en 1, sin desplazamiento). Solo actua en el movil, en vista movil y solo si el zoom es distinto de 1. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1009.
 
 v1009 (31/10/2026): LA APP SIEMPRE ABRE EN VISTA MOVIL (letra grande). La eleccion del boton "VER COMO EN EL PC" ya no se recuerda para siempre: dura solo mientras la pestana/app siga abierta (sessionStorage; sobrevive al recargar, se olvida al cerrar). Antes Safari y el icono del escritorio guardaban cada uno su propia eleccion y abrian distinto. Se borra la eleccion antigua guardada. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1008.
