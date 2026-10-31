@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1015 (31/10/2026): SOLO EL BOTON DE VISTA PC / MOVIL, UN POCO A LA IZQUIERDA Y UN POCO ARRIBA. Sobre la v1014 (= v1003 de la vista): el boton pasa de 60/70 px (PC) y 50/60 px (movil) del borde derecho/inferior a 100/110 px y 90/100 px. No se toca nada de zoom, escala ni apertura. VUELTA ATRAS: subir los archivos de la v1014.
+
+v1014 (31/10/2026): VUELTA A LA VERSION v1003 DE LA VISTA MOVIL/PC (la que abria la pagina entera). index.html = EXACTAMENTE el de la v1003 (solo cambia el numero ?v). Se descartan todos los intentos de las v1004 a v1013 sobre el boton y el zoom. app.js = el de la v1004 (solo cambia el filtro "N FACTURA" de Facturas Emitidas, en la misma linea). VUELTA ATRAS: subir los archivos de la v1003.
+
 v1013 (31/10/2026): EL ADMIN EN EL MOVIL ABRE POR DEFECTO EN VISTA PC (PAGINA ENTERA). Si el admin entra desde el movil y nunca ha elegido vista en ese navegador/icono, se activa la vista PC (la pagina entera encogida, que se amplia con los dedos) y se recarga una vez. Si luego pulsa "VOLVER A VISTA MOVIL" se respeta su eleccion. Conductores, DeCA, subcontratados y demas usuarios no se tocan. Resto igual que la v1012. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1012.
 
 v1012 (31/10/2026): VUELTA A LA BASE QUE FUNCIONABA (v1003 + filtro de factura de la v1004), SOLO CON EL BOTON MAS ARRIBA Y A LA IZQUIERDA. Se descartan los intentos de las v1005 a v1011 (escala del boton, ancho fijo 1300, sessionStorage, reinicio de zoom) porque empeoraban la apertura en el iPhone. index.html = el de la v1003 (vista PC abre encogida; la eleccion del boton se recuerda como antes) con el boton "VER COMO EN EL PC / VOLVER A VISTA MOVIL" colocado a 70-80 px del borde derecho y 110-120 px del inferior para que no quede escondido. app.js = el de la v1004 (filtro "N FACTURA" en la misma linea). VUELTA ATRAS: subir los archivos de la v1004.
