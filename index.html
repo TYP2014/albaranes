@@ -13,7 +13,9 @@
    y demas usuarios NO lo ven y no les cambia nada. */
 (function(){try{
   var tel = Math.min(screen.width, screen.height) <= 600;
-  var on = tel && localStorage.getItem('vistaPC') === '1';
+  // v1009: la app SIEMPRE abre en vista movil (letra grande). La vista PC solo dura mientras no se cierre la pestana/app (sessionStorage); antes se recordaba para siempre.
+  try{ localStorage.removeItem('vistaPC'); }catch(e){}
+  var on = false; try{ on = tel && sessionStorage.getItem('vistaPC') === '1'; }catch(e){}
   if (on) {
     // v1008: vista PC con ancho FIJO de 1300 px (la tabla de albaranes mide ~1250) y escala inicial calculada para que quepa ENTERA.
     // Se quita el reajuste dinamico de la v1003 (en el iPhone a veces dejaba la pagina ampliada al abrir en una pestana nueva).
@@ -37,7 +39,7 @@
     if (window.visualViewport) { window.visualViewport.addEventListener('resize', colocar); window.visualViewport.addEventListener('scroll', colocar); }
     window.addEventListener('scroll', colocar, {passive:true});
     setInterval(colocar, 400);
-    b.onclick = function(){ try{ localStorage.setItem('vistaPC', on ? '0' : '1'); }catch(e){} location.reload(); };
+    b.onclick = function(){ try{ sessionStorage.setItem('vistaPC', on ? '0' : '1'); }catch(e){} location.reload(); };
     document.body.appendChild(b);
     function visible(el){ return !!el && getComputedStyle(el).display !== 'none'; }
     function revisar(){
@@ -2104,6 +2106,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1008"></script>
+<script src="app.js?v=1009"></script>
 </body>
 </html>

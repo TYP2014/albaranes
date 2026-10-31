@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1009 (31/10/2026): LA APP SIEMPRE ABRE EN VISTA MOVIL (letra grande). La eleccion del boton "VER COMO EN EL PC" ya no se recuerda para siempre: dura solo mientras la pestana/app siga abierta (sessionStorage; sobrevive al recargar, se olvida al cerrar). Antes Safari y el icono del escritorio guardaban cada uno su propia eleccion y abrian distinto. Se borra la eleccion antigua guardada. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1008.
+
 v1008 (31/10/2026): VISTA PC EN EL MOVIL: ANCHO FIJO DE 1300 PX Y ESCALA INICIAL FIJA. A veces al abrir en una pestana nueva la pagina salia AMPLIADA y, desde el icono, algo ancha (cortada por la derecha). Se quita el reajuste dinamico de la v1003 y se fija un ancho de 1300 px (la tabla de albaranes mide unos 1250) con la escala inicial calculada para que quepa ENTERA; se puede ampliar con los dedos. Solo cambia index.html (el app.js es el de la v1004; incluye el boton pequeno de la v1007). VUELTA ATRAS: subir los archivos de la v1007.
 
 v1007 (31/10/2026): BOTON DE VISTA PC / MOVIL: EN VISTA MOVIL, MAS PEQUENO Y PEGADO ABAJO. Letra 11 px y relleno pequeno (como el original), a 14 px del borde inferior de lo visible (justo encima de la barra de Safari), y se quita el numero de version del texto del boton. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1006.
