@@ -24,6 +24,17 @@
     document.documentElement.classList.add('vistaPC');
   }
   if (!tel) return;
+  // v1010: si Safari abre la vista movil ya AMPLIADA o desplazada a un lado (recuerda el zoom de la vista PC de la pestana), se reinicia el zoom
+  // a 1 (truco: se bloquea un instante el zoom y se libera). Solo actua si el zoom es distinto de 1, asi no toca a quien abre normal.
+  if (!on) { var reiniciarZoom = function(){ try{
+      var v = window.visualViewport, vp = document.querySelector('meta[name=viewport]');
+      if (!v || !vp || v.scale <= 1.03) return;
+      vp.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0');
+      window.scrollTo(0, 0);
+      setTimeout(function(){ vp.setAttribute('content', 'width=device-width, initial-scale=1.0'); }, 350);
+    }catch(e){} };
+    window.addEventListener('load', function(){ setTimeout(reiniciarZoom, 400); setTimeout(reiniciarZoom, 1500); });
+  }
   document.addEventListener('DOMContentLoaded', function(){
     var b = document.createElement('button');
     b.id = 'btnVistaPC';
@@ -2106,6 +2117,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1009"></script>
+<script src="app.js?v=1010"></script>
 </body>
 </html>
