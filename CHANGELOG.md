@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1008 (31/10/2026): VISTA PC EN EL MOVIL: ANCHO FIJO DE 1300 PX Y ESCALA INICIAL FIJA. A veces al abrir en una pestana nueva la pagina salia AMPLIADA y, desde el icono, algo ancha (cortada por la derecha). Se quita el reajuste dinamico de la v1003 y se fija un ancho de 1300 px (la tabla de albaranes mide unos 1250) con la escala inicial calculada para que quepa ENTERA; se puede ampliar con los dedos. Solo cambia index.html (el app.js es el de la v1004; incluye el boton pequeno de la v1007). VUELTA ATRAS: subir los archivos de la v1007.
+
+v1007 (31/10/2026): BOTON DE VISTA PC / MOVIL: EN VISTA MOVIL, MAS PEQUENO Y PEGADO ABAJO. Letra 11 px y relleno pequeno (como el original), a 14 px del borde inferior de lo visible (justo encima de la barra de Safari), y se quita el numero de version del texto del boton. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1006.
+
 v1006 (31/10/2026): BOTON DE VISTA PC / MOVIL MAS PEQUENO Y MAS ABAJO. Letra 14 px en la vista PC (antes 22) y relleno menor, pegado mas abajo (a unos 24 px del borde inferior de lo visible). El texto del boton lleva ahora el numero de version (" - v1006") para poder comprobar de un vistazo que version esta cargada. Solo cambia index.html (el app.js es el de la v1004). VUELTA ATRAS: subir los archivos de la v1005.
 
 v1005 (31/10/2026): BOTON DE VISTA PC / MOVIL: TAMANO DE SIEMPRE Y MAS ABAJO. En la v1004 el boton salio demasiado grande y en medio de la pantalla (al escalarlo por el zoom del iPhone). Ahora vuelve al tamano de la v1003 (el que estaba bien) y se coloca abajo a la derecha, dentro de lo que se ve (visualViewport) para que no quede escondido en el borde. Solo cambia index.html (el app.js es el de la v1004). VUELTA ATRAS: subir los archivos de la v1004.
