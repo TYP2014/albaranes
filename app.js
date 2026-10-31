@@ -18480,12 +18480,12 @@ function renderFactEmit() {
   h += '<span style="font-size:13px;color:var(--tx)">a</span>';
   h += '<input type="date" value="' + esc2(_feHasta) + '" title="Hasta esta fecha" onchange="_feHasta=this.value;renderFactEmit()" style="' + inpSty555 + '">';
   h += '<span style="font-size:13px;color:var(--tx);font-weight:bold;margin-left:16px">CLIENTE:</span>';
-  h += '<select onchange="_feCliente=this.value;renderFactEmit()" style="' + inpSty555 + ';max-width:320px">';
+  h += '<select onchange="_feCliente=this.value;renderFactEmit()" style="' + inpSty555 + ';max-width:150px">';
   h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos (' + baseFe555.length + ')</option>';
   cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>'; });
   h += '</select>';
-  h += '<span style="font-size:13px;color:var(--tx);font-weight:bold;margin-left:16px">N\u00ba FACTURA:</span>';
-  h += '<input id="feNumInp" type="text" value="' + esc2(_feNum) + '" placeholder="Ej: 2026-123  (varias: separadas por coma)" oninput="_feNumIn(this.value,event)" autocomplete="off" list="feNumList" style="' + inpSty555 + ';width:260px;max-width:100%">';
+  h += '<span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-left:4px"><span style="font-size:13px;color:var(--tx);font-weight:bold;white-space:nowrap">N\u00ba FACTURA:</span>';
+  h += '<input id="feNumInp" type="text" value="' + esc2(_feNum) + '" placeholder="2026-123" title="Varias facturas: sep\u00e1ralas con coma" oninput="_feNumIn(this.value,event)" autocomplete="off" list="feNumList" style="' + inpSty555 + ';width:120px;max-width:100%"></span>';
   h += '<datalist id="feNumList">' + _numsSug997.map(n => '<option value="' + esc2(n) + '">').join('') + '</datalist>';
   if (hayFiltro555) h += '<button class="btn bs" style="font-size:12px;padding:10px 16px" title="Quitar los filtros de fechas, cliente y n\u00ba de factura" onclick="_feDesde=\'\';_feHasta=\'\';_feCliente=\'TODOS\';_feNum=\'\';renderFactEmit()">LIMPIAR</button>';
   h += '</div>';
