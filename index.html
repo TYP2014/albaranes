@@ -37,14 +37,13 @@
     var b = document.createElement('button');
     b.id = 'btnVistaPC';
     b.textContent = on ? '\u{1F4F1} VOLVER A VISTA MOVIL' : '\u{1F5A5} VER COMO EN EL PC';
-    // v1004: el boton se coloca SIEMPRE dentro de lo que se ve en pantalla (visualViewport), con tamano constante aunque la pagina este encogida
-    // o ampliada; antes iba pegado al borde de la pagina y quedaba medio escondido.
-    b.style.cssText = 'display:none;position:fixed;left:0;top:0;right:auto;bottom:auto;transform-origin:0 0;z-index:900;background:#1f3a5f;color:#fff;border:2px solid #fff;border-radius:12px;font-family:monospace;font-weight:800;opacity:.95;font-size:13px;padding:11px 15px;white-space:nowrap';
+    // v1004: el boton se coloca SIEMPRE dentro de lo que se ve en pantalla (visualViewport), con el tamano de siempre (sin escalar); antes iba pegado al borde de la pagina y quedaba medio escondido.
+    b.style.cssText = 'display:none;position:fixed;left:0;top:0;right:auto;bottom:auto;transform-origin:0 0;z-index:900;background:#1f3a5f;color:#fff;border:2px solid #fff;border-radius:12px;font-family:monospace;font-weight:800;opacity:.95;white-space:nowrap;' + (on ? 'font-size:22px;padding:8px 14px;border-width:3px;border-radius:16px;opacity:.8' : 'font-size:14px;padding:12px 16px');
     var colocar = function(){ try{
       var v = window.visualViewport; if(!v || b.style.display === 'none') return;
-      var k = 1 / v.scale, w = b.offsetWidth, hh = b.offsetHeight;
-      var x = v.offsetLeft + v.width - (w + 22) * k, y = v.offsetTop + v.height - (hh + 90) * k;
-      b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(' + k.toFixed(4) + ')';
+      var w = b.offsetWidth, hh = b.offsetHeight;
+      var x = v.offsetLeft + v.width - w - (on ? 30 : 16), y = v.offsetTop + v.height - hh - (on ? 60 : 60);
+      b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
     }catch(e){} };
     if (window.visualViewport) { window.visualViewport.addEventListener('resize', colocar); window.visualViewport.addEventListener('scroll', colocar); }
     window.addEventListener('scroll', colocar, {passive:true});
@@ -2116,6 +2115,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1004"></script>
+<script src="app.js?v=1005"></script>
 </body>
 </html>
