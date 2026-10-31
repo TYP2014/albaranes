@@ -38,7 +38,7 @@
     b.id = 'btnVistaPC';
     b.textContent = on ? '\u{1F4F1} VOLVER A VISTA MOVIL' : '\u{1F5A5} VER COMO EN EL PC';
     b.style.cssText = 'display:none;position:fixed;right:' + (on ? '100px' : '90px') + ';bottom:' + (on ? '110px' : '100px') + ';z-index:900;background:#1f3a5f;color:#fff;border:2px solid #fff;border-radius:10px;font-family:monospace;font-weight:800;opacity:.92;' + (on ? 'font-size:22px;padding:8px 14px;border-width:3px;border-radius:16px;opacity:.75' : 'font-size:14px;padding:12px 16px');
-    b.onclick = function(){ try{ localStorage.setItem('vistaPC', on ? '0' : '1'); }catch(e){} location.reload(); };
+    b.onclick = function(){ try{ localStorage.setItem('vistaPC', on ? '0' : '1'); }catch(e){} location.href = location.pathname + (location.search.match(/[?&]v\d+/) ? '?' + location.search.match(/v\d+/)[0] : '?v0') + '&r=' + Date.now(); };
     document.body.appendChild(b);
     function visible(el){ return !!el && getComputedStyle(el).display !== 'none'; }
     function revisar(){
@@ -2105,6 +2105,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1015"></script>
+<script src="app.js?v=1016"></script>
 </body>
 </html>

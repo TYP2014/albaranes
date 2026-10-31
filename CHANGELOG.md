@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1016 (31/10/2026): AL PULSAR EL BOTON DE VISTA PC / MOVIL, LA PAGINA SE ABRE COMO NUEVA (no se recarga). Al recargar, Safari conserva el zoom que tenia la pagina y la vista PC salia ampliada (un tercio de pagina). Ahora el boton navega a la misma direccion con un parametro nuevo (&r=...), asi Safari la trata como una pagina recien abierta y aplica el zoom de entrada. Solo cambia esa linea de index.html. VUELTA ATRAS: subir los archivos de la v1015.
+
 v1015 (31/10/2026): SOLO EL BOTON DE VISTA PC / MOVIL, UN POCO A LA IZQUIERDA Y UN POCO ARRIBA. Sobre la v1014 (= v1003 de la vista): el boton pasa de 60/70 px (PC) y 50/60 px (movil) del borde derecho/inferior a 100/110 px y 90/100 px. No se toca nada de zoom, escala ni apertura. VUELTA ATRAS: subir los archivos de la v1014.
 
 v1014 (31/10/2026): VUELTA A LA VERSION v1003 DE LA VISTA MOVIL/PC (la que abria la pagina entera). index.html = EXACTAMENTE el de la v1003 (solo cambia el numero ?v). Se descartan todos los intentos de las v1004 a v1013 sobre el boton y el zoom. app.js = el de la v1004 (solo cambia el filtro "N FACTURA" de Facturas Emitidas, en la misma linea). VUELTA ATRAS: subir los archivos de la v1003.
