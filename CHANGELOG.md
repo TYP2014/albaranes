@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1026 (02/11/2026): PRIMAS - CUADRANTE: (1) columna nueva DIETA/DIA (importe de dieta por dia del trabajador, el de su Ficha) justo antes de DIETAS. (2) En OTROS / DESC., cuando hay suma y descuento a la vez (p. ej. parking 50 ya pagado en efectivo y descuento 50) se ve "+50,00 EUR -50,00 EUR" en vez del neto 0; si solo hay una de las dos cosas, sigue el neto de siempre. Sin SQL, no cambia ningun calculo ni el Excel ni el certificado. VUELTA ATRAS: subir los archivos de la v1025.
+
 v1025 (02/11/2026): PRIMAS - CUADRANTE - DETALLE: debajo de cada plus (noches fuera, sabados, domingos, tardes, horas) sale una caja de texto "fechas / observacion" para apuntar que dias fueron (p. ej. "4 y 11 oct - relevo Pontils"). SOLO sale cuando el plus NO viene del parte diario (los de cisterna, que no llevan parte); si viene del parte, las fechas ya salen solas como antes. Lo escrito sale al pasar el raton por PLUSES en el cuadrante y entre parentesis en el CERTIFICADO del trabajador. El resto del cuadrante, el Excel y los calculos siguen igual. NECESITA SQL ANTES: primas_v1025.sql (columna primas_cuadrante.pluses_notas). VUELTA ATRAS: subir los archivos de la v1024 (la columna nueva no molesta).
 
 v1024 (02/11/2026): ITV - PROXIMAS CITAS: FECHA CITA con el mismo formato que SUBIDA (negro, negrita, letra fija). Solo aspecto, una linea de app.js. VUELTA ATRAS: subir los archivos de la v1023.
