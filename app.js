@@ -28920,10 +28920,11 @@ async function primasCfgGuardar(id) {
     t.primas_config = cfg;
     if (aplicar) {
       const previa = primasCuadRows[id];
-      if (previa) {                         // fila ya guardada: se le refresca la foto de tarifas (y el fijo si estaba a 0)
+      if (previa) {                         // fila ya guardada: se le refresca la foto de tarifas y el fijo del mes abierto
         previa.tarifas = null;
         const fila = _pcFilaDesdePantalla(t);
-        if (!_primasNum(fila.extras) && cfg.fijo) fila.extras = cfg.fijo;
+        // v1021: con la casilla marcada, el fijo nuevo PISA el del mes abierto (antes solo si estaba a 0 → "guardar no cambia nada")
+        if (cfg.fijo !== undefined) fila.extras = cfg.fijo;
         await _pcUpsert([fila]);
       }
     }
