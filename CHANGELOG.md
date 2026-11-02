@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1024 (02/11/2026): ITV - PROXIMAS CITAS: FECHA CITA con el mismo formato que SUBIDA (negro, negrita, letra fija). Solo aspecto, una linea de app.js. VUELTA ATRAS: subir los archivos de la v1023.
+
 v1023 (02/11/2026): ITV - PROXIMAS CITAS: la columna SUBIDA se ve en negro y negrita, mismo tamano que FECHA CITA (antes gris pequeno, Juan Carlos no lo veia bien). Solo aspecto, una linea de app.js. VUELTA ATRAS: subir los archivos de la v1022.
 
 v1022 (02/11/2026): ITV - PROXIMAS CITAS: columna nueva SUBIDA (entre DIAS y CENTRO) con el dia en que se subio la captura / se dio de alta la cita, para localizar el email del centro ITV si hay que cambiarla o anularla. Usa created_at de itv_citas y, si no existe, updated_at. Sin SQL. Solo cambia renderCitasTable en app.js y la cabecera de la tabla en index.html. VUELTA ATRAS: subir los archivos de la v1021.

@@ -17348,7 +17348,7 @@ function renderCitasTable() {
     return `<tr onclick="openCitaModal(${r.db_id})" style="cursor:pointer">
       <td style="font-size:14px">${est.icon}</td>
       <td style="font-family:var(--mn);font-weight:600;color:var(--ac)">${esc(r.matricula || '—')}</td>
-      <td>${fmtDate(r.fecha_cita)}</td>
+      <td style="font-family:var(--mn);font-weight:600;color:#111;white-space:nowrap">${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
       <td style="font-family:var(--mn);font-weight:600;color:#111;white-space:nowrap">${fmtSubida(r)}</td>
