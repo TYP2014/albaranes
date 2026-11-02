@@ -28751,6 +28751,8 @@ function _pcPintaFila(t) {
   const eur = (x) => c.activo || x ? _primasEur(x) : '';
   set('prima', c.prima ? _primasEur(c.prima) : '');
   set('dietas', eur(c.dietas)); set('pluses', c.pluses ? _primasEur(c.pluses) : '');
+  const _elP = document.getElementById('pcc_pluses_' + id), _pn = (primasCuadRows[id] && primasCuadRows[id].pluses_notas) || {};   // v1025
+  if (_elP) _elP.title = Object.keys(_pn).map(k => ({ noches: 'Noches', sabados: 'Sábados', domingos: 'Domingos', tardes: 'Tardes', horas: 'Horas' }[k] || k) + ': ' + _pn[k]).join(' · ');
   const _otros = _pcR2(c.v.festivos + c.v.parking + c.v.otro - c.v.descuento);   // v662
   const _hayOtros = c.v.festivos || c.v.parking || c.v.otro || c.v.descuento;
   set('otros', _hayOtros ? _primasEur(_otros) : '', _otros < 0 ? 'var(--er,#c62828)' : '');
@@ -28808,6 +28810,7 @@ function _pcFilaDesdePantalla(t) {
   _PC_TXT.forEach(k => { const x = g(k); fila[k] = x === null ? (base[k] || null) : (x || null); });
   _PC_MAN.forEach(k => { const x = g(k); fila[k] = x === null ? base[k] : (x === '' ? null : _primasNum(x)); });
   fila.tarifas = _pcTarifas(t, previa);
+  fila.pluses_notas = (previa && previa.pluses_notas) ? previa.pluses_notas : null;   // v1025: fechas/observaciones de cada plus (se editan en Detalle)
   fila.prima_parte = _primasNum(primasCuadPrima[id]);
   fila.editado_por = _primasQuien(); fila.updated_at = new Date().toISOString();
   return fila;
@@ -28951,11 +28954,14 @@ function primasDetAbrir(id) {
   ov = document.createElement('div'); ov.id = 'primasDetOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   const _in = 'font-size:15px;padding:8px 10px;box-sizing:border-box';   // v667: ventana grande
+  const _notas = (primasCuadRows[id] && primasCuadRows[id].pluses_notas) || {};   // v1025
+  const nota = (k) => '<input class="fi" id="primasDetN_' + k + '" placeholder="fechas / observación (ej. 4 y 11 oct · relevo Pontils)" value="' + _primasAttr(_notas[k] || '') + '" style="width:100%;margin:-6px 0 12px;font-size:13px;padding:6px 10px;box-sizing:border-box">';
   const num = (k, txt, tarifa) => { const dp = _pcDeParte(id, k);   // v792
     return '<label style="display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:12px"><span>' + txt +
     (tarifa != null ? ' <span style="color:var(--mu);font-size:12px">× ' + _primasEur(tarifa) + '</span>' : '') +
     (dp ? '<br><span style="color:#1f3a5f;font-size:12px;font-weight:700">del parte: ' + esc(dp) + '</span>' : '') + '</span>' +
-    '<input class="fi" type="number" step="any" id="primasDet_' + k + '"' + (dp ? ' readonly title="Viene del parte diario. Se cambia en el Parte." ' : ' ') + 'value="' + (fila[k] ? _primasAttr(fila[k]) : '') + '" style="width:130px;text-align:right;' + _in + (dp ? ';color:#1f3a5f;background:rgba(31,58,95,.07)' : '') + '"></label>'; };
+    '<input class="fi" type="number" step="any" id="primasDet_' + k + '"' + (dp ? ' readonly title="Viene del parte diario. Se cambia en el Parte." ' : ' ') + 'value="' + (fila[k] ? _primasAttr(fila[k]) : '') + '" style="width:130px;text-align:right;' + _in + (dp ? ';color:#1f3a5f;background:rgba(31,58,95,.07)' : '') + '"></label>' +
+    ((!dp && ['noches', 'sabados', 'domingos', 'tardes', 'horas'].includes(k)) ? nota(k) : ''); };   // v1025: caja de fechas solo cuando NO viene del parte (cisternas)
   const txt = (k, ph) => '<input class="fi" id="primasDet_' + k + '" placeholder="' + ph + '" value="' + _primasAttr(fila[k]) + '" style="flex:1;min-width:0;' + _in + '">';
   const par = (kt, kn, titulo, ph) => '<div style="margin-bottom:14px"><div style="margin-bottom:6px">' + titulo + '</div><div style="display:flex;gap:10px">' + txt(kt, ph) +
     '<input class="fi" type="number" step="any" id="primasDet_' + kn + '" placeholder="€" value="' + (fila[kn] ? _primasAttr(fila[kn]) : '') + '" style="width:130px;text-align:right;' + _in + '"></div></div>';
@@ -28987,6 +28993,12 @@ async function primasDetGuardar(id) {
   ['otro_concepto', 'descuento_concepto'].forEach(k => {
     const el = document.getElementById('primasDet_' + k); if (el) fila[k] = String(el.value || '').trim() || null;
   });
+  // v1025: fechas / observaciones de cada plus (solo las casillas que estan en pantalla)
+  const _nn = Object.assign({}, fila.pluses_notas || {});
+  ['noches', 'sabados', 'domingos', 'tardes', 'horas'].forEach(k => {
+    const el = document.getElementById('primasDetN_' + k); if (el) { const v = String(el.value || '').trim(); if (v) _nn[k] = v; else delete _nn[k]; }
+  });
+  fila.pluses_notas = Object.keys(_nn).length ? _nn : null;
   try {
     _primasEstado('Guardando...');
     await _pcUpsert([fila]);
@@ -29092,11 +29104,12 @@ function _pcCertHtml(t, c, deudaAntes) {
   const dev = [];   // [concepto, cantidad, tarifa, importe]
   if (v.extras) dev.push(['Extras', '—', '—', v.extras]);
   if (c.prima) dev.push(['Prima de productividad', 'según viajes del mes', '—', c.prima]);
-  if (v.noches) dev.push(['Noches fuera de casa', n(v.noches), e2(tf.noche), v.noches * tf.noche]);
-  const _fp = k => { const x = _pcDeParte(t.id, k); return x ? ' (' + x + ')' : ''; };   // v792: con las fechas del parte
+  const _pnC = (primasCuadRows[t.id] && primasCuadRows[t.id].pluses_notas) || {};   // v1025
+  const _fp = k => { const x = _pcDeParte(t.id, k) || _pnC[k]; return x ? ' (' + x + ')' : ''; };   // v792: con las fechas del parte · v1025: o las escritas en Detalle
+  if (v.noches) dev.push(['Noches fuera de casa' + _fp('noches'), n(v.noches), e2(tf.noche), v.noches * tf.noche]);
   if (v.sabados) dev.push(['Sábados trabajados' + _fp('sabados'), n(v.sabados), e2(tf.sabado), v.sabados * tf.sabado]);
   if (v.domingos) dev.push(['Domingos trabajados' + _fp('domingos'), n(v.domingos), e2(tf.domingo), v.domingos * tf.domingo]);
-  if (v.tardes) dev.push(['Tardes / noches', n(v.tardes), e2(tf.tarde), v.tardes * tf.tarde]);
+  if (v.tardes) dev.push(['Tardes / noches' + _fp('tardes'), n(v.tardes), e2(tf.tarde), v.tardes * tf.tarde]);
   if (v.horas) dev.push(['Horas extra' + _fp('horas'), n(v.horas), e2(tf.hora), v.horas * tf.hora]);
   if (v.festivos) dev.push(['Festivos', '—', '—', v.festivos]);
   if (v.parking) dev.push(['Parking', '—', '—', v.parking]);
