@@ -28591,7 +28591,7 @@ function _pcCalc(t, row) {
   const aEfectivo = (t.empresa === 'HISPALIS') || (_pcCfg(t).resto === 'efectivo');
   let efectivo, tarjeta;
   if (aEfectivo) { tarjeta = v.tarjeta_manual != null ? v.tarjeta_manual : 0; efectivo = v.efectivo_manual != null ? v.efectivo_manual : _pcCeil10(resto - tarjeta); }
-  else { efectivo = v.efectivo_manual != null ? v.efectivo_manual : 0; tarjeta = v.tarjeta_manual != null ? v.tarjeta_manual : _pcCeil10(resto - efectivo); }
+  else { efectivo = v.efectivo_manual != null ? v.efectivo_manual : _pcR2(v.parking); tarjeta = v.tarjeta_manual != null ? v.tarjeta_manual : _pcCeil10(resto - efectivo); }   // v1028: el PARKING (gasto de empresa que se paga en mano) va solo al EFECTIVO propuesto
   const totalFinal = _pcR2(dietas + efectivo + v.adelanto + v.descuento_deuda + tarjeta);
   const demas = _pcR2(totalFinal - total);
   const margen = PRIMAS_MARGEN[t.empresa] || 10;
@@ -28706,7 +28706,7 @@ function renderPrimasCuadrante() {
   if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón Detalle', 'background:rgba(25,118,210,.08)');
 
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('A PAGAR', 'v766: Total − dietas − adelanto − desc. deuda = lo que queda por pagar en efectivo/tarjeta. En ROJO y negativo = ya se le ha pagado DE MÁS (por dietas o por adelanto), el mismo criterio para todos.', 'background:rgba(25,118,210,.08)') +
-    th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto de NÓMINA entregado durante el mes (p. ej. 500 € el día 25). RESTA de lo que queda por pagar. NO toca el préstamo.', 'background:rgba(46,125,50,.10)') +
+    th('EFECTIVO', 'En gris = lo que propone la app (si cobra por tarjeta, propone el PARKING, que se paga en mano). Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto de NÓMINA entregado durante el mes (p. ej. 500 € el día 25). RESTA de lo que queda por pagar. NO toca el préstamo.', 'background:rgba(46,125,50,.10)') +
     (hayDeuda ? th('DESC. DEUDA', 'Lo que se le descuenta ESTE MES de su préstamo. RESTA de lo que queda por pagar y baja la deuda pendiente.', 'background:rgba(230,81,0,.10)') : '') +
     th('TARJETA', 'Recarga de tarjeta. En gris = lo que propone la app (resto redondeado a 10 hacia arriba).', 'background:rgba(46,125,50,.10)') +
     th('DE MÁS', 'Lo abonado de más por el redondeo', 'background:rgba(46,125,50,.10)') + th('TOTAL FINAL', '', 'background:rgba(46,125,50,.10)') + th('CUADRE') +
@@ -29115,7 +29115,7 @@ function _pcCertHtml(t, c, deudaAntes) {
   if (v.tardes) dev.push(['Tardes / noches' + _fp('tardes'), n(v.tardes), e2(tf.tarde), v.tardes * tf.tarde]);
   if (v.horas) dev.push(['Horas extra' + _fp('horas'), n(v.horas), e2(tf.hora), v.horas * tf.hora]);
   if (v.festivos) dev.push(['Festivos', '—', '—', v.festivos]);
-  if (v.parking) dev.push(['Parking', '—', '—', v.parking]);
+  if (v.parking) dev.push(['Parking (gasto de empresa, entregado en efectivo)', '—', '—', v.parking]);   // v1028
   if (v.otro) dev.push([v.otro_concepto || 'Otro concepto', '—', '—', v.otro]);
   if (v.descuento) dev.push(['Descuento: ' + (v.descuento_concepto || 'material / otros'), '—', '—', -v.descuento]);
   const pago = [];  // [concepto, detalle, importe]

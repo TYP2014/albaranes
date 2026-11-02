@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1028 (02/11/2026): PRIMAS - CUADRANTE: el PARKING es un gasto de la empresa que se paga en mano (el del parking quiere efectivo), no sueldo. Para los que cobran el resto por TARJETA, la app propone ahora en EFECTIVO (en gris) el importe del parking, y la tarjeta se queda con el resto; antes proponia 0 y habia que escribirlo a mano. Si ya hay un efectivo escrito, no se toca. En el certificado la linea se llama "Parking (gasto de empresa, entregado en efectivo)". Los que cobran todo en efectivo siguen igual (ya lo llevaba dentro). Sin SQL. VUELTA ATRAS: subir los archivos de la v1027.
+
 v1027 (02/11/2026): PRIMAS - CUADRANTE: las columnas DIETA/DIA y DIETAS pasan a estar PEGADAS a DIAS LAB. (dias x importe = total, de un vistazo), antes de FIJO / EXTRAS. OTROS / DESC. vuelve al neto de siempre (el "+50 -50" de la v1026 liaba). Sin SQL, no cambia ningun calculo. VUELTA ATRAS: subir los archivos de la v1026.
 
 v1026 (02/11/2026): PRIMAS - CUADRANTE: (1) columna nueva DIETA/DIA (importe de dieta por dia del trabajador, el de su Ficha) justo antes de DIETAS. (2) En OTROS / DESC., cuando hay suma y descuento a la vez (p. ej. parking 50 ya pagado en efectivo y descuento 50) se ve "+50,00 EUR -50,00 EUR" en vez del neto 0; si solo hay una de las dos cosas, sigue el neto de siempre. Sin SQL, no cambia ningun calculo ni el Excel ni el certificado. VUELTA ATRAS: subir los archivos de la v1025.
