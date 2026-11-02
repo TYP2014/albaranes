@@ -28699,12 +28699,12 @@ function renderPrimasCuadrante() {
     ['extras', 'FIJO / EXTRAS'], ['__prima', 'PRIMA PARTE'], ['festivos', 'FESTIVOS €'], ['parking', 'PARKING €'], ['otro_concepto', 'OTRO CONCEPTO'], ['otro', 'OTRO €'],
     ['descuento_concepto', 'DESCUENTO CONCEPTO'], ['descuento', 'DESC. €']];
   let head = '<th style="padding:6px 8px;text-align:left;vertical-align:bottom;position:sticky;left:0;top:0;background:var(--sf,#fff);z-index:3;box-shadow:inset 0 -1px 0 var(--bd)">EMPLEADO</th>';   // v669: esquina fija (arriba e izquierda)
-  COLS.forEach(c => { if (ver(c[0])) head += th(c[1], c[0] === '__prima' ? 'Viene sola del parte diario (primas de cada día + plus semanales). Se cambia en el Parte, no aquí.' : ''); });
+  const _thDietas = th('DIETA/DÍA', 'Importe de dieta por día de este trabajador (se cambia en Ficha)', 'background:rgba(25,118,210,.08)') + th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');   // v1027: pegadas a DÍAS LAB.
+  COLS.forEach(c => { if (ver(c[0])) head += th(c[1], c[0] === '__prima' ? 'Viene sola del parte diario (primas de cada día + plus semanales). Se cambia en el Parte, no aquí.' : '') + (c[0] === 'dias_lab' ? _thDietas : ''); });
   // v662: en compacto, PLUSES y OTROS salen como importe ya calculado; el detalle se edita con el ✎
   head += th('PLUSES', 'Noches + sábados + domingos + tardes + horas' + (compacto ? ' · se rellenan con el botón Detalle' : ''), 'background:rgba(25,118,210,.08)');
   if (compacto) head += th('OTROS / DESC.', 'Festivos + parking + otro − descuento · se rellenan con el botón Detalle', 'background:rgba(25,118,210,.08)');
-  head += th('DIETA/DÍA', 'Importe de dieta por día de este trabajador (se cambia en Ficha). v1026', 'background:rgba(25,118,210,.08)');   // v1026
-  head += th('DIETAS', 'Días lab. × dieta/día · va por TRANSFERENCIA', 'background:rgba(25,118,210,.08)');
+
   head += th('TOTAL DEV.', 'Total devengado del mes', 'background:rgba(25,118,210,.08)') + th('A PAGAR', 'v766: Total − dietas − adelanto − desc. deuda = lo que queda por pagar en efectivo/tarjeta. En ROJO y negativo = ya se le ha pagado DE MÁS (por dietas o por adelanto), el mismo criterio para todos.', 'background:rgba(25,118,210,.08)') +
     th('EFECTIVO', 'En gris = lo que propone la app. Escribe para mandar tú.', 'background:rgba(46,125,50,.10)') + th('ADELANTO', 'Adelanto de NÓMINA entregado durante el mes (p. ej. 500 € el día 25). RESTA de lo que queda por pagar. NO toca el préstamo.', 'background:rgba(46,125,50,.10)') +
     (hayDeuda ? th('DESC. DEUDA', 'Lo que se le descuenta ESTE MES de su préstamo. RESTA de lo que queda por pagar y baja la deuda pendiente.', 'background:rgba(230,81,0,.10)') : '') +
@@ -28728,8 +28728,9 @@ function renderPrimasCuadrante() {
       if (c[0] === '__prima') tr += calc('prima');
       else if (_PC_TXT.includes(c[0])) tr += txtIn(c[0]);
       else tr += numIn(c[0]);
+      if (c[0] === 'dias_lab') tr += calc('dietadia') + calc('dietas');   // v1027
     });
-    tr += calc('pluses'); if (compacto) tr += calc('otros'); tr += calc('dietadia') + calc('dietas');   // v662 · v1026 DIETA/DÍA
+    tr += calc('pluses'); if (compacto) tr += calc('otros'); // v662 · v1027: DIETA/DÍA y DIETAS van junto a DÍAS LAB.
     tr += calc('total', true) + calc('complemento') + manIn('efectivo_manual') + numIn('adelanto') + (hayDeuda ? (_primasNum(_pcPrestamo(t).inicial) > 0 ? numIn('descuento_deuda') : '<td></td>') : '') + manIn('tarjeta_manual') + calc('demas') + calc('totalFinal', true) + calc('cuadre', true) + (hayDeuda ? calc('deuda', true) : '') +
       '<td style="padding:3px 0 3px 12px;white-space:nowrap;text-align:right;width:1%">' +   // v667: pegados a la derecha
       '<button class="btn bs" style="font-size:12.5px;font-weight:700;padding:7px 9px;margin-left:4px;white-space:nowrap" title="Detalle del mes: noches, sábados, domingos, tardes, horas, festivos, parking, otro concepto y descuento" onclick="primasDetAbrir(\'' + id + '\')">Detalle</button>' +
@@ -28756,9 +28757,7 @@ function _pcPintaFila(t) {
   if (_elP) _elP.title = Object.keys(_pn).map(k => ({ noches: 'Noches', sabados: 'Sábados', domingos: 'Domingos', tardes: 'Tardes', horas: 'Horas' }[k] || k) + ': ' + _pn[k]).join(' · ');
   const _otros = _pcR2(c.v.festivos + c.v.parking + c.v.otro - c.v.descuento);   // v662
   const _hayOtros = c.v.festivos || c.v.parking || c.v.otro || c.v.descuento;
-  // v1026: si hay suma y descuento a la vez, se ven los dos ("+50 −50") en vez del neto; si no, el neto como antes
-  const _sumaO = _pcR2(c.v.festivos + c.v.parking + c.v.otro);
-  set('otros', !_hayOtros ? '' : ((_sumaO && c.v.descuento) ? ('+' + _primasEur(_sumaO) + ' −' + _primasEur(c.v.descuento)) : _primasEur(_otros)), _otros < 0 ? 'var(--er,#c62828)' : '');
+  set('otros', _hayOtros ? _primasEur(_otros) : '', _otros < 0 ? 'var(--er,#c62828)' : '');   // v1027: neto otra vez (el "+50 −50" de la v1026 liaba)
   set('dietadia', c.v.dias_lab > 0 || c.tf.dieta ? _primasEur(c.tf.dieta) : '');
   const _elO = document.getElementById('pcc_otros_' + id);
   if (_elO) _elO.title = [c.v.otro_concepto ? 'Otro: ' + c.v.otro_concepto : '', c.v.descuento_concepto ? 'Descuento: ' + c.v.descuento_concepto : ''].filter(Boolean).join(' · ');
