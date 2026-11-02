@@ -1297,3 +1297,5 @@ html.vistaPC #avisosGrid .btn{font-size:10px!important;padding:4px 9px!important
 /* v998: precios Holcim - el nombre de la ruta se parte en varias lineas dentro de su columna (antes se salia y pisaba los precios) */
 #precHolcimCont .phRuta{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;overflow:hidden}
 #precHolcimCont .phRuta small{white-space:normal!important}
+/* v1029: botón CONCILIAR (btn bp) en la tabla de Recambios — la regla de arriba lo pintaba azul sobre azul y no se leía */
+#tabContentTaller #recambiosTabla td .btn.bp{color:#fff!important;border-color:var(--ac)}
