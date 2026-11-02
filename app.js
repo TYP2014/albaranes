@@ -17331,10 +17331,13 @@ function renderCitasTable() {
   const tb = document.getElementById('citasTableBody');
   if (!tb) return;
   if (!filteredCitas.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--mu)">No hay citas registradas</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--mu)">No hay citas registradas</td></tr>';
     return;
   }
   const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-ES') : '—';
+  // v1022 (Juan Carlos 02/11/2026): columna SUBIDA = dia en que se subio la captura / se dio de alta la cita,
+  // para localizar el email del centro ITV si hay que cambiarla o anularla. created_at si existe; si no, updated_at.
+  const fmtSubida = r => { const d = r.created_at || r.updated_at; return d ? new Date(d).toLocaleDateString('es-ES') : '—'; };
   tb.innerHTML = filteredCitas.map(r => {
     const est = _citaEstado(r);
     const diasTxt = est.dias === null ? '—' :
@@ -17348,6 +17351,7 @@ function renderCitasTable() {
       <td>${fmtDate(r.fecha_cita)}</td>
       <td style="font-family:var(--mn);font-weight:600">${esc(r.hora_cita || '—')}</td>
       <td>${diasTxt}</td>
+      <td style="font-size:11px;color:var(--mu);white-space:nowrap">${fmtSubida(r)}</td>
       <td style="font-size:11px">${esc(r.centro || '—')}${hasValidUrl(r.file_url) ? ` <span onclick="event.stopPropagation();_descargarCita(event,${r.db_id})" title="Descargar foto de la cita" style="cursor:pointer;margin-left:6px">${_svgIco('<path d="M12 3v11"/><path d="M7 10l5 4 5-4"/><path d="M5 20h14"/>', 'var(--in)', 'Descargar')}</span>` : ''} <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:6px" onclick="event.stopPropagation();itvCitaWhatsApp(${r.db_id})" title="Mandar recordatorio por WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-4px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg> WhatsApp</button>${hasValidUrl(r.file_url) ? ` <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:4px" onclick="event.stopPropagation();_compartirCita(event,${r.db_id})" title="Compartir la foto y el texto de una vez (móvil)">📤 Compartir</button>` : ''}</td>
     </tr>`;
   }).join('');

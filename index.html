@@ -957,7 +957,7 @@ if (typeof pdfjsLib !== 'undefined') {
               <div class="filter-actions"><button class="btn bs" onclick="resetCitasFilters()">✕ Limpiar</button></div>
             </div>
             <div id="citasTableBox" style="overflow-x:auto;margin-top:14px">
-              <table class="t" id="citasTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA CITA</th><th>HORA</th><th>DÍAS</th><th>CENTRO</th></tr></thead><tbody id="citasTableBody"></tbody></table>
+              <table class="t" id="citasTable"><thead><tr><th>EST</th><th>MATRÍCULA</th><th>FECHA CITA</th><th>HORA</th><th>DÍAS</th><th title="Día en que se subió la captura / se dio de alta la cita (para buscar el email del centro)">SUBIDA</th><th>CENTRO</th></tr></thead><tbody id="citasTableBody"></tbody></table>
             </div>
           </div>
         </div>
@@ -2107,6 +2107,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1021"></script>
+<script src="app.js?v=1022"></script>
 </body>
 </html>

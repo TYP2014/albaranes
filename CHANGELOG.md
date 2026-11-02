@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1022 (02/11/2026): ITV - PROXIMAS CITAS: columna nueva SUBIDA (entre DIAS y CENTRO) con el dia en que se subio la captura / se dio de alta la cita, para localizar el email del centro ITV si hay que cambiarla o anularla. Usa created_at de itv_citas y, si no existe, updated_at. Sin SQL. Solo cambia renderCitasTable en app.js y la cabecera de la tabla en index.html. VUELTA ATRAS: subir los archivos de la v1021.
+
 v1021 (02/11/2026): LA FICHA DE PRIMAS YA CAMBIA EL FIJO DEL MES ABIERTO. Antes, con la casilla "Aplicar tambien a MM/AAAA (el mes abierto)" marcada, el fijo nuevo solo se aplicaba si el mes estaba a 0; si ya tenia un fijo guardado (p. ej. 300) se quedaba igual y parecia que Guardar no hacia nada. Ahora, con la casilla marcada, el fijo de la Ficha PISA el del mes abierto; sin la casilla, el mes abierto no se toca (solo los meses siguientes). Los demas meses ya guardados siguen sin cambiar. Solo cambia app.js (una linea en primasCfgGuardar). VUELTA ATRAS: subir los archivos de la v1020.
 
 v1020 (31/10/2026): SE QUITA EL NUMERO DE VERSION DEL BOTON DE VISTA PC / MOVIL (ya cumplio su funcion de comprobar que cargaba la version nueva). El boton sigue verde y todo lo demas igual que la v1019. Solo cambia index.html. VUELTA ATRAS: subir los archivos de la v1019.
