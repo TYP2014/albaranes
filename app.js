@@ -31820,8 +31820,7 @@ async function factCargarMeses() {
     cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay autofacturas guardadas. Sube una y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
     return;
   }
-  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMes(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'CEMEX\')">Ver subidas</button>').join(' ');
+  cont.innerHTML = _factMesesHtml(meses, 'factConciliarMes', 'CEMEX');   // v1034
 }
 
 // Revisar un mes: carga de la tabla TODO lo guardado de ese mes y lo cruza con tus
@@ -31873,8 +31872,7 @@ async function factCargarMesesHolcim() {
     cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay liquidaciones de Holcim guardadas. Sube una y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
     return;
   }
-  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesHolcim(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'HOLCIM\')">Ver subidas</button>').join(' ');
+  cont.innerHTML = _factMesesHtml(meses, 'factConciliarMesHolcim', 'HOLCIM');   // v1034
 }
 
 // v107J59 — APARTADO PROMOTORA (lista para facturar; NO cruza nada). Recoge tus albaranes de áridos
@@ -42708,8 +42706,7 @@ async function factCargarMesesSodira() {
     cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">Aún no hay depósitos de Sodira guardados. Sube uno y aparecerá su mes aquí para revisarlo cuando quieras.</span>';
     return;
   }
-  cont.innerHTML = '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:4px">Revisar mes:</span>'
-    + meses.map(m => '<button class="btn bs" style="font-size:11px" onclick="factConciliarMesSodira(\'' + m + '\')">' + _factMesBonito(m) + '</button> <button class="btn bs" style="font-size:11px;opacity:.85" onclick="factVerSubidas(\'' + m + '\',\'SODIRA\')">Ver subidas</button>').join(' ');
+  cont.innerHTML = _factMesesHtml(meses, 'factConciliarMesSodira', 'SODIRA');   // v1034
 }
 
 // Revisar un mes: carga TODO lo guardado de Sodira ese mes y lo cruza con los albaranes.
@@ -43893,4 +43890,20 @@ async function gasEntradaDescartar(id) {
     gasEntradaPintar();
     toast('Descartada');
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+
+// v1034 — LOS MESES DE LAS LIQUIDACIONES, ORDENADOS. Antes era una ristra
+// "OCTUBRE · VER SUBIDAS · SEPTIEMBRE · VER SUBIDAS ..." que al saltar de
+// linea no se sabia de que mes era cada "ver subidas". Ahora cada mes es una
+// cajita: el mes arriba (pulsar = revisar) y "ver subidas" debajo, pegado a
+// su mes. Lo usan CEMEX, HOLCIM y SODIRA.
+function _factMesesHtml(meses, fnMes, origen) {
+  return '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start">'
+    + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);align-self:center;margin-right:2px">Revisar mes:</span>'
+    + meses.map(m => '<div style="display:flex;flex-direction:column;align-items:stretch;gap:3px;border:1px solid var(--bd);border-radius:8px;padding:5px">'
+        + '<button class="btn bs" style="font-size:11px;white-space:nowrap" onclick="' + fnMes + '(\'' + m + '\')">' + _factMesBonito(m) + '</button>'
+        + '<button class="btn bs" style="font-size:10px;padding:4px 8px;opacity:.8;white-space:nowrap" onclick="factVerSubidas(\'' + m + '\',\'' + origen + '\')" title="PDFs cargados de este mes, sin cruzar nada">ver subidas</button>'
+        + '</div>').join('')
+    + '</div>';
 }
