@@ -29230,6 +29230,7 @@ async function loadRecmed() {
     renderRecmed();
     renderRecmedCaducidades();   // v852
     renderRecmedGlobalBanner();
+    try { if (typeof renderVencBanner === 'function') renderVencBanner(); } catch (e) {}   // v1031
   } catch (e) {
     console.error('[loadRecmed]', e);
     toast('Error cargando reconocimientos: ' + (e.message || e), 'err');
@@ -29368,6 +29369,16 @@ async function renderRecmedCaducidades() {
     const iso = t.recmed_caduca;
     const dias = _vencDias(iso);
     const c = citaDe(t);
+    const h = _recmedHechaReciente(t.nombre, iso);   // v1031
+    if (h) {
+      filas += '<div style="border-left:3px solid var(--bd);padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:15px;line-height:1.7;color:var(--mu)">'
+        + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
+        + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '\u2014') + '</span>'
+        + '<span style="font-weight:800;white-space:nowrap">hecho el ' + h.fecha_cita.split('-').reverse().join('/') + '</span>'
+        + '</div>'
+        + '<div>pendiente del acta de la mutua \u00b7 cuando llegue, pon la fecha nueva en su ficha</div></div>';
+      return;
+    }
     // v855: antes ponia solo "4 d." y JC pregunto que era eso. Un numero
     // suelto no dice de que. Se escribe entero.
     const cuenta = dias < 0
@@ -29514,40 +29525,33 @@ async function deleteRecmed() {
 }
 
 async function recmedMarcarHecha(id) {
-  // v1030: HECHA tambien APAGA EL AVISO. Hasta ahora solo tachaba la cita en
-  // la agenda (taller_reconocimientos) y el aviso de arriba seguia saliendo,
-  // porque ese aviso mira la FICHA del trabajador (recmed_caduca), que nadie
-  // tocaba. Caso Amadou (cita 02/11, HECHA, y el 03/11 "caduca HOY").
-  // Ahora se pregunta la nueva caducidad (la cita + 1 anyo, ya rellena) y se
-  // guarda en la ficha. Si se deja en blanco, se guarda solo la cita como antes.
-  const c = (tallerRecmed || []).find(x => x.id === id);
-  const trab = c ? _recmedTrabDe(c) : null;
-  let nuevaCad = null;
-  if (trab) {
-    const base = (c.fecha_cita && /^\d{4}-\d{2}-\d{2}$/.test(c.fecha_cita)) ? c.fecha_cita : new Date().toISOString().slice(0, 10);
-    const prop = (parseInt(base.slice(0, 4), 10) + 1) + base.slice(4);
-    const r = prompt('Reconocimiento HECHO de ' + (trab.nombre || c.trabajador || '') + '.\n\n\u00bfHasta cu\u00e1ndo vale el nuevo? (AAAA-MM-DD)\nSe guarda en su ficha y el aviso se apaga.\nD\u00e9jalo en blanco para no tocar la ficha.', prop);
-    if (r === null) return;   // cancelar: no se marca nada
-    const v = (r || '').trim();
-    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Fecha no v\u00e1lida (formato AAAA-MM-DD)', 'err'); return; }
-    nuevaCad = v || null;
-  }
+  // v1031: SIN ventana de fecha (la v1030 la pedia y JC prefiere esperar el
+  // acta de la mutua). Marcar HECHA basta: el aviso de arriba y el panel ya
+  // saben que esta hecha y se callan (ver _recmedHechaReciente).
   try {
     const { error } = await sb.from('taller_reconocimientos')
       .update({ estado: 'hecha', updated_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
-    if (trab && nuevaCad) {
-      const { error: e2 } = await sb.from('trabajadores')
-        .update({ recmed_caduca: nuevaCad, updated_at: new Date().toISOString() }).eq('id', trab.id);
-      if (e2) throw e2;
-      _tacoTrabajadores = null;   // la cache de fichas, para que el aviso lea la fecha nueva
-      toast('\u2713 Reconocimiento hecho \u00b7 ficha de ' + (trab.nombre || '') + ' hasta ' + nuevaCad.split('-').reverse().join('/'));
-    } else {
-      toast('\u2713 Reconocimiento marcado como hecho');
-    }
+    toast('\u2713 Reconocimiento marcado como hecho \u00b7 el aviso se calla hasta que llegue el acta');
     await loadRecmed();
-    if (trab && nuevaCad) { try { await tacoVencVer(); } catch (e) {} }   // repinta el aviso de arriba
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
+}
+
+// v1031: ¿tiene este trabajador una cita HECHA reciente? "Reciente" = de los
+// 90 dias anteriores a su caducidad (o posteriores: fue tarde pero fue).
+// Mientras la haya, el reconocimiento se da por pasado y se espera el acta de
+// la mutua para poner la fecha nueva en la ficha. Pasados 90 dias sin ponerla,
+// vuelve a avisar, para que no se quede en el olvido.
+function _recmedHechaReciente(nombre, isoCad) {
+  if (!nombre || !isoCad || !/^\d{4}-\d{2}-\d{2}$/.test(isoCad)) return null;
+  const lim = new Date(isoCad + 'T00:00:00'); lim.setDate(lim.getDate() - 90);
+  const limISO = lim.toISOString().slice(0, 10);
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const l = (tallerRecmed || [])
+    .filter(c => c.estado === 'hecha' && c.fecha_cita && c.fecha_cita >= limISO && c.fecha_cita <= hoyISO
+      && _tacoMismoNombre(c.trabajador || '', nombre))
+    .sort((a, b) => (b.fecha_cita || '').localeCompare(a.fecha_cita || ''));
+  return l[0] || null;
 }
 
 // Descarga con enlace firmado (bucket privado)
@@ -39166,6 +39170,7 @@ function renderVencBanner() {
     if (!r.iso) return;
     const d = _vencDias(r.iso);
     const esMed = r.doc.aviso === 'empresa';
+    if (esMed && _recmedHechaReciente(r.trab.nombre, r.iso)) return;   // v1031: ya fue, esperando el acta
     const e = esMed ? _vencEscalonMed(d) : _vencEscalon(d);   // v852
     if (!e) return;   // v852: el medico, con su escalera corta, se calla por encima de 30 dias
     todo.push({

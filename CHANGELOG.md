@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1031 (03/11/2026): RECONOCIMIENTOS MEDICOS: se QUITA la ventana de fecha de la v1030 (JC prefiere esperar el acta de la mutua). Ahora basta con pulsar HECHA: mientras el trabajador tenga una cita HECHA reciente (90 dias alrededor de su caducidad), el aviso rojo de arriba NO sale y en el panel de caducidades pone "hecho el dd/mm - pendiente del acta de la mutua" en vez de "caduca HOY - sin cita". Cuando llegue el acta se pone la fecha nueva en la ficha y queda limpio; si pasan 90 dias sin ponerla, vuelve a avisar. Arregla el caso Amadou (cita 02/11 hecha y el 03/11 seguia avisando). Sin SQL. VUELTA ATRAS: subir los archivos de la v1030.
+
 v1030 (03/11/2026): RECONOCIMIENTOS MEDICOS: el boton HECHA de la cita ahora tambien APAGA EL AVISO. Antes solo tachaba la cita y el aviso rojo de arriba ("VENCE EN 1 DIA: RECONOCIMIENTO MEDICO") seguia saliendo, porque ese aviso mira la fecha "Reconocimiento caduca" de la FICHA del trabajador, que nadie actualizaba (caso Amadou, cita del 02/11 hecha y el 03/11 "caduca HOY"). Ahora al pulsar HECHA pregunta la nueva caducidad con la fecha de la cita + 1 anyo ya rellena (se puede cambiar), la guarda en la ficha y repinta el aviso. En blanco = solo tacha la cita, como antes. Cancelar = no hace nada. Sin SQL. VUELTA ATRAS: subir los archivos de la v1029.
 
 v1029 (02/11/2026): RECAMBIOS: el boton azul CONCILIAR de la lista de facturas no se leia (una regla de estilos pintaba el texto azul sobre fondo azul). Ahora sale en blanco. Solo styles.css + index.html (cache-buster). Sin SQL. VUELTA ATRAS: subir los archivos de la v1028.
