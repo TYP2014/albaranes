@@ -19314,6 +19314,7 @@ function switchTab(tab) {
     // cuando llegan los datos. loadData() ya se encarga de re-renderizar todo.
     loadData().catch(e => console.error('[switchTab→alb] refresh falló:', e));
   }
+  if (tab === 'gas') { try { gasEntradaCargar(); } catch (e) { console.warn('[v1033] entrada gasoil:', e); } }   // v1033
 }
 
 // ============================================================
@@ -43757,4 +43758,139 @@ function _cliExcel() {
   const ws = XLSX.utils.json_to_sheet(filas), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'DeCA');
   XLSX.writeFile(wb, 'DeCA_' + document.getElementById('cliDesde').value + '_' + document.getElementById('cliHasta').value + '.xlsx');
+}
+
+
+// ============================================================
+// v1033 — BANDEJA DE ENTRADA DE GASOIL (facturas que llegan por correo)
+//
+// El robot del Gmail (robot_gasoil_email.gs) guarda el PDF de la factura
+// (Solred, Petromiralles, Moeve, Soledad) en Storage y apunta una fila en
+// la tabla gasoil_entrada. Aqui se ensenan las pendientes con un boton LEER
+// que la mete en la MISMA cola de siempre (addFiles 'gasfac'): la lee la
+// IA igual que si la hubieras arrastrado. Nada se lee solo: siempre con
+// alguien delante, que la lectura hay que repasarla.
+//
+// DUPLICADOS, dos candados:
+//   1) ANTES de leer: aviso "YA SUBIDA" si en Gasoil ya hay un PDF con el
+//      mismo nombre de archivo, o repostajes del mismo proveedor, empresa y
+//      mes. Se puede leer igual (confirmando).
+//   2) AL LEER: el candado de siempre (nº factura + matricula + tipo) no
+//      guarda nada repetido y avisa "ESTA FACTURA YA ESTABA SUBIDA".
+// ============================================================
+let _gasEntrada = [];
+
+function _gasEntradaLimpiarNombre(n) {
+  return String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80).toLowerCase();
+}
+
+// Candado 1: ¿parece que esta factura ya esta en Gasoil? Devuelve texto del motivo o ''.
+function _gasEntradaYaSubida(r) {
+  const regs = gasoilRecords || [];
+  const nombre = _gasEntradaLimpiarNombre(r.archivo_nombre);
+  const base = nombre.replace(/\.pdf$/, '');
+  if (base.length >= 8) {
+    const hit = regs.find(x => { try { return decodeURIComponent(String(x.file_url || '')).toLowerCase().includes(base); } catch (e) { return String(x.file_url || '').toLowerCase().includes(base); } });
+    if (hit) return 'ya hay un PDF con este mismo nombre en Gasoil' + (hit.fecha ? ' (repostajes de ' + hit.fecha + ')' : '');
+  }
+  const prov = String(r.proveedor || '').toLowerCase();
+  const mes = String(r.mes || '');   // 'AAAA-MM'
+  const emp = String(r.empresa || '');
+  if (prov && mes && emp) {
+    const pal = prov.includes('solred') || prov.includes('repsol') ? /solred|repsol/ : (prov.includes('petromir') ? /petromir/ : (prov.includes('moeve') || prov.includes('cepsa') ? /moeve|cepsa/ : (prov.includes('soledad') ? /soledad/ : null)));
+    if (pal) {
+      const n = regs.filter(x => pal.test(String(x.proveedor || '').toLowerCase())
+        && String(x.empresa_subida || x.empresa || '') === emp
+        && String(x.fecha || '').match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/) && (RegExp.$3 + '-' + RegExp.$2) === mes).length;
+      if (n > 0) return 'ya hay ' + n + ' repostajes de ' + r.proveedor + ' de ' + mes.split('-').reverse().join('/') + ' en ' + emp;
+    }
+  }
+  return '';
+}
+
+async function gasEntradaCargar() {
+  const box = document.getElementById('gasEntradaBox');
+  if (!box) return;
+  try {
+    const { data, error } = await sb.from('gasoil_entrada').select('*')
+      .eq('estado', 'pendiente').order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    const permitidas = window._empresaVac ? window._empresaVac.split(',').map(x => x.trim()) : ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+    _gasEntrada = (data || []).filter(r => !r.empresa || permitidas.includes(r.empresa));
+  } catch (e) {
+    console.warn('[v1033 gasoil_entrada]', e.message || e);
+    _gasEntrada = [];
+  }
+  gasEntradaPintar();
+}
+
+function gasEntradaPintar() {
+  const box = document.getElementById('gasEntradaBox');
+  if (!box) return;
+  if (!_gasEntrada.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const EMP = { 'TYP2014': 'TYP2014', 'HISPALIS': 'T. HISPALIS 2016', 'TRANSMARGAZ': 'TRANSMARGAZ 2018', 'PORTES': 'PORTES 2014 IMPORT' };
+  const fmtFecha = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
+  let filas = '';
+  _gasEntrada.forEach(r => {
+    const ya = _gasEntradaYaSubida(r);
+    const mes = r.mes ? r.mes.split('-').reverse().join('/') : '';
+    filas += '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center;padding:9px 0;border-top:1px solid var(--bd)">'
+      + '<div style="line-height:1.6">'
+      + '<div><strong style="font-weight:800">' + esc2(r.proveedor || 'Factura') + '</strong>'
+      + (r.empresa ? ' · ' + esc2(EMP[r.empresa] || r.empresa) : ' · <span style="color:#b71c1c;font-weight:700">empresa sin reconocer</span>')
+      + (mes ? ' · ' + esc2(mes) : '')
+      + ' <span style="color:var(--mu)">· llegó ' + esc2(fmtFecha(r.fecha_correo || r.created_at)) + '</span></div>'
+      + '<div style="color:var(--mu);font-size:12px">' + esc2(r.archivo_nombre || '') + (r.asunto ? ' · ' + esc2(r.asunto) : '') + '</div>'
+      + (ya ? '<div style="color:#b71c1c;font-weight:700">⚠ YA SUBIDA: ' + esc2(ya) + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0">'
+      + '<button class="btn bp" style="font-size:12px;padding:8px 14px;letter-spacing:.6px" onclick="gasEntradaLeer(\'' + r.id + '\')">' + (ya ? 'LEER IGUAL' : 'LEER') + '</button>'
+      + '<button class="btn bs" style="font-size:12px;padding:8px 14px;letter-spacing:.6px" onclick="gasEntradaDescartar(\'' + r.id + '\')">DESCARTAR</button>'
+      + '</div></div>';
+  });
+  box.innerHTML = '<div style="font-family:var(--mn);font-size:13px;font-weight:800;letter-spacing:.4px;margin-bottom:4px">📥 FACTURAS LLEGADAS POR CORREO (' + _gasEntrada.length + ') — pulsa LEER y la IA la mete como si la hubieras arrastrado</div>'
+    + '<div style="font-family:var(--mn);font-size:13px">' + filas + '</div>';
+  box.style.display = '';
+}
+
+async function gasEntradaLeer(id) {
+  const r = _gasEntrada.find(x => x.id === id);
+  if (!r) return;
+  const ya = _gasEntradaYaSubida(r);
+  if (ya && !confirm('Parece que esta factura YA está subida (' + ya + ').\n\n¿Leerla igual? El candado anti-duplicado no guardará repostajes repetidos.')) return;
+  try {
+    toast('Bajando la factura…');
+    const { data, error } = await sb.storage.from('documentos').createSignedUrl(r.archivo_path, 600);
+    if (error) throw error;
+    const resp = await fetch(data.signedUrl);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' al bajar el PDF');
+    const blob = await resp.blob();
+    const nombre = r.archivo_nombre || ('factura_' + (r.proveedor || 'gasoil') + '.pdf');
+    const esPdf = /\.pdf$/i.test(nombre) || blob.type === 'application/pdf';
+    const file = new File([blob], nombre, { type: esPdf ? 'application/pdf' : (blob.type || 'image/jpeg') });
+    const { error: e2 } = await sb.from('gasoil_entrada')
+      .update({ estado: 'leida', leida_por: (currentUser && currentUser.email) || null, leida_en: new Date().toISOString() }).eq('id', id);
+    if (e2) throw e2;
+    _gasEntrada = _gasEntrada.filter(x => x.id !== id);
+    gasEntradaPintar();
+    await addFiles([file], 'gasfac');   // la misma cola de siempre
+  } catch (e) {
+    console.error('[v1033 gasEntradaLeer]', e);
+    toast('No pude leer la factura: ' + (e.message || e), 'err');
+  }
+}
+
+async function gasEntradaDescartar(id) {
+  const r = _gasEntrada.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm('¿Descartar esta factura de la bandeja (' + (r.proveedor || '') + ' ' + (r.mes || '') + ')?\n\nNo se borra el PDF ni nada de Gasoil; solo deja de salir aquí.')) return;
+  try {
+    const { error } = await sb.from('gasoil_entrada')
+      .update({ estado: 'descartada', leida_por: (currentUser && currentUser.email) || null, leida_en: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    _gasEntrada = _gasEntrada.filter(x => x.id !== id);
+    gasEntradaPintar();
+    toast('Descartada');
+  } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
