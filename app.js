@@ -43802,6 +43802,11 @@ function _gasEntradaYaSubida(r) {
   const prov = String(r.proveedor || '').toLowerCase();
   const mes = String(r.mes || '');   // 'AAAA-MM'
   const emp = String(r.empresa || '');
+  // v1039 (JC 03/11/2026): Soledad cierra QUINCENAL (2 facturas de gasoil al mes por
+  // empresa), asi que "ya hay repostajes de Soledad de este mes" no significa que ESTA
+  // factura este subida (caso Portes 10/2026: avisaba y faltaban los del 16 y 26/10).
+  // Para Soledad solo vale el candado del nombre del PDF (arriba); el de mes, no.
+  if (prov.includes('soledad')) return '';
   if (prov && mes && emp) {
     const pal = prov.includes('solred') || prov.includes('repsol') ? /solred|repsol/ : (prov.includes('petromir') ? /petromir/ : (prov.includes('moeve') || prov.includes('cepsa') ? /moeve|cepsa/ : (prov.includes('soledad') ? /soledad/ : null)));
     if (pal) {
