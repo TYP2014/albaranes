@@ -27667,12 +27667,17 @@ async function _primasCliEstados(soloIso) {
       if (_v862Cache[veh]) continue;
       const lista = [], vistos = new Set();
       for (let desde = 0; desde < 5000; desde += 1000) {
-        const q = await sb.from('albaranes').select('albaran,tractora,fecha,cliente,estado_facturacion').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
+        const q = await sb.from('albaranes').select('albaran,tractora,fecha,cliente,proveedor,estado_facturacion').ilike('tractora', '%' + veh + '%').or(patrones).range(desde, desde + 999);
         if (q.error) throw q.error;
         (q.data || []).forEach(a => {
           const iso = _primasFechaAlb(a.fecha); if (!iso) return;
           const cl = String(a.albaran || '') + '|' + iso; if (a.albaran && vistos.has(cl)) return; vistos.add(cl);
-          lista.push({ iso, cli: _primasCliNorm(a.cliente), raw: String(a.cliente || '').trim(), est: a.estado_facturacion || 'pendiente' });
+          // v1037 (JC 03/11/2026): si el albaran NO tiene cliente (los de Sodira: Sodira
+          // va como PROVEEDOR y el cliente queda vacio), se mira el proveedor. Asi la
+          // pastilla SODIRA ya no dice "no hay de SODIRA" con los albaranes delante.
+          // Solo cuando el cliente esta vacio: si hay cliente, manda el cliente.
+          const _quien = String(a.cliente || '').trim() || String(a.proveedor || '').trim();
+          lista.push({ iso, cli: _primasCliNorm(_quien), raw: _quien, est: a.estado_facturacion || 'pendiente' });
         });
         if ((q.data || []).length < 1000) break;
       }

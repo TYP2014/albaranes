@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1037 (03/11/2026): PRIMAS - PARTE DIARIO - pastillas de CLIENTE: si el albaran no tiene cliente (los de Sodira llevan a Sodira como PROVEEDOR y el cliente vacio), ahora se mira el proveedor. Antes la pastilla SODIRA decia "no hay de SODIRA" aunque los albaranes de Sodira estuvieran ahi (9487MPL, 28 y 29/10). Si el albaran tiene cliente, manda el cliente como siempre. Sin SQL. VUELTA ATRAS: subir los archivos de la v1036.
+
 v1036 (03/11/2026): PRIMAS - PARTE DIARIO: la casilla NOTAS es estrecha y no se leia lo escrito; ahora, al pasar el raton por encima, sale el texto completo (tambien mientras se escribe). Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1035.
 
 v1035 (03/11/2026): FACTURACION - LIQUIDACIONES (CEMEX, HOLCIM y SODIRA): los meses van POR ANYO. Arriba botones de anyo (2026 en adelante; lo anterior a 2026 no se ensenya) y debajo solo los meses del anyo elegido, cada uno con su "ver subidas". Abre en el anyo mas reciente. Preparado para el cambio de anyo. Sin SQL. VUELTA ATRAS: subir los archivos de la v1034.
