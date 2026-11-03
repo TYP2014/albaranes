@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1038 (03/11/2026): PRIMAS - pastillas de CLIENTE: se mira CLIENTE y PROVEEDOR del albaran, los dos (la v1037 solo miraba el proveedor con el cliente vacio y los de Sodira seguian saliendo como "no hay de SODIRA"). Sin SQL. VUELTA ATRAS: subir los archivos de la v1037.
+
 v1037 (03/11/2026): PRIMAS - PARTE DIARIO - pastillas de CLIENTE: si el albaran no tiene cliente (los de Sodira llevan a Sodira como PROVEEDOR y el cliente vacio), ahora se mira el proveedor. Antes la pastilla SODIRA decia "no hay de SODIRA" aunque los albaranes de Sodira estuvieran ahi (9487MPL, 28 y 29/10). Si el albaran tiene cliente, manda el cliente como siempre. Sin SQL. VUELTA ATRAS: subir los archivos de la v1036.
 
 v1036 (03/11/2026): PRIMAS - PARTE DIARIO: la casilla NOTAS es estrecha y no se leia lo escrito; ahora, al pasar el raton por encima, sale el texto completo (tambien mientras se escribe). Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1035.

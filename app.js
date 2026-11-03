@@ -27676,8 +27676,11 @@ async function _primasCliEstados(soloIso) {
           // va como PROVEEDOR y el cliente queda vacio), se mira el proveedor. Asi la
           // pastilla SODIRA ya no dice "no hay de SODIRA" con los albaranes delante.
           // Solo cuando el cliente esta vacio: si hay cliente, manda el cliente.
+          // v1038: la v1037 solo miraba el proveedor con el cliente VACIO y los de Sodira
+          // seguian sin casar (traen algo en cliente). Ahora se miran LOS DOS: cliente y
+          // proveedor; con que uno diga SODIRA (o el que sea), casa.
           const _quien = String(a.cliente || '').trim() || String(a.proveedor || '').trim();
-          lista.push({ iso, cli: _primasCliNorm(_quien), raw: _quien, est: a.estado_facturacion || 'pendiente' });
+          lista.push({ iso, cli: _primasCliNorm(a.cliente) + '|' + _primasCliNorm(a.proveedor), raw: _quien, est: a.estado_facturacion || 'pendiente' });
         });
         if ((q.data || []).length < 1000) break;
       }
