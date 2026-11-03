@@ -2507,7 +2507,7 @@ async function saveRecord(data) {
     // había guardado, pero NO había cambiado nada → al recargar "volvía a lo que leyó".
     // Ahora, si no vuelve ninguna fila, lanzamos error claro para que NO se dé por bueno
     // un guardado fantasma y el usuario sepa que tiene que reintentar.
-    const { data: actualizado, error } = await sb.from('albaranes').update(rec).eq('id', _idValido).select();
+    const { data: actualizado, error } = await _albGuardarQuitandoDesconocidas(rec, r => sb.from('albaranes').update(r).eq('id', _idValido).select());   // v1032
     if (error) throw error;
     if (!actualizado || actualizado.length === 0) {
       throw new Error('El guardado no modificó ninguna fila (id=' + _idValido + '). Puede ser un tropiezo de conexión o de permisos — reinténtalo.');
@@ -2518,10 +2518,34 @@ async function saveRecord(data) {
     console.error('[v107GN] db_id inválido al guardar (no es uuid):', JSON.stringify(data.db_id), '— albarán', data.albaran);
     throw new Error('El albarán no tiene un identificador válido (id="' + String(data.db_id) + '"). Refresca la página y vuelve a editarlo.');
   } else {
-    const { data: inserted, error } = await sb.from('albaranes').insert(rec).select().single();
+    const { data: inserted, error } = await _albGuardarQuitandoDesconocidas(rec, r => sb.from('albaranes').insert(r).select().single());   // v1032
     if (error) throw error;
     return inserted.id;
   }
+}
+
+// v1032: RED DE SEGURIDAD contra PGRST204 en ALBARANES, igual que la que ya
+// tenia Gasoil desde la v107AR. La IA a veces se inventa campos que NO son
+// columnas de la tabla (ayer "proveedor_extra" y "tm_neto_kg"; el 26/10 "tipo").
+// La lista _AUX_CAMPOS de arriba solo quita los conocidos; cualquier otro
+// tumbaba el INSERT entero y, en el reintento, ya no habia imagen ("b64
+// invalido"). Ahora, si Supabase contesta "Could not find the X column", se
+// quita X y se vuelve a intentar (hasta 12 veces). Lo demas no cambia.
+async function _albGuardarQuitandoDesconocidas(rec, fn) {
+  let resp;
+  for (let intento = 0; intento < 12; intento++) {
+    resp = await fn(rec);
+    if (!resp.error) return resp;
+    const msg = String(resp.error.message || '');
+    const m = msg.match(/Could not find the '([^']+)' column/i);
+    if (resp.error.code === 'PGRST204' && m && m[1] && (m[1] in rec)) {
+      console.warn('[v1032 albaranes] columna inexistente "' + m[1] + '": la quito y reintento');
+      delete rec[m[1]];
+      continue;
+    }
+    return resp;
+  }
+  return resp;
 }
 
 async function saveGasRecord(data) {
