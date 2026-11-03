@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1036 (03/11/2026): PRIMAS - PARTE DIARIO: la casilla NOTAS es estrecha y no se leia lo escrito; ahora, al pasar el raton por encima, sale el texto completo (tambien mientras se escribe). Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1035.
+
 v1035 (03/11/2026): FACTURACION - LIQUIDACIONES (CEMEX, HOLCIM y SODIRA): los meses van POR ANYO. Arriba botones de anyo (2026 en adelante; lo anterior a 2026 no se ensenya) y debajo solo los meses del anyo elegido, cada uno con su "ver subidas". Abre en el anyo mas reciente. Preparado para el cambio de anyo. Sin SQL. VUELTA ATRAS: subir los archivos de la v1034.
 
 v1034 (03/11/2026): FACTURACION - LIQUIDACIONES (CEMEX, HOLCIM y SODIRA): la fila "Revisar mes" se ordena. Antes era una ristra de botones MES - VER SUBIDAS - MES - VER SUBIDAS que al saltar de linea no se sabia de que mes era cada uno. Ahora cada mes va en su cajita: el mes arriba y "ver subidas" debajo, pegado a su mes. Solo presentacion, nada cambia por dentro. Sin SQL. VUELTA ATRAS: subir los archivos de la v1033.
