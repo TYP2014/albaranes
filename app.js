@@ -43893,17 +43893,41 @@ async function gasEntradaDescartar(id) {
 }
 
 
-// v1034 — LOS MESES DE LAS LIQUIDACIONES, ORDENADOS. Antes era una ristra
-// "OCTUBRE · VER SUBIDAS · SEPTIEMBRE · VER SUBIDAS ..." que al saltar de
-// linea no se sabia de que mes era cada "ver subidas". Ahora cada mes es una
-// cajita: el mes arriba (pulsar = revisar) y "ver subidas" debajo, pegado a
-// su mes. Lo usan CEMEX, HOLCIM y SODIRA.
+// v1034 — LOS MESES DE LAS LIQUIDACIONES, ORDENADOS: cada mes en su cajita
+// con "ver subidas" debajo. Lo usan CEMEX, HOLCIM y SODIRA.
+// v1035 — POR AÑOS: arriba los anyos (2026 en adelante; lo anterior no se
+// ensenya) y debajo solo los meses del anyo elegido. Abre en el mas reciente.
+const _FACT_ANIO_MIN = 2026;
+const _factMesesCache = {};     // origen -> { meses, fnMes }
+const _factAnioSel = {};        // origen -> anyo elegido
+const _FACT_MESES_CONT = { CEMEX: 'factMesesBar', HOLCIM: 'factMesesBarHolcim', SODIRA: 'factMesesBarSodira' };
+
 function _factMesesHtml(meses, fnMes, origen) {
-  return '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start">'
+  const lista = (meses || []).filter(m => parseInt(String(m).slice(0, 4), 10) >= _FACT_ANIO_MIN);
+  _factMesesCache[origen] = { meses: lista, fnMes };
+  if (!lista.length) return '<span style="font-family:var(--mn);font-size:11px;color:var(--mu)">No hay meses de ' + _FACT_ANIO_MIN + ' en adelante.</span>';
+  const anios = [...new Set(lista.map(m => String(m).slice(0, 4)))].sort().reverse();
+  if (!_factAnioSel[origen] || !anios.includes(_factAnioSel[origen])) _factAnioSel[origen] = anios[0];
+  const sel = _factAnioSel[origen];
+  const delAnio = lista.filter(m => String(m).slice(0, 4) === sel);
+  return '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+    + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-right:2px">Año:</span>'
+    + anios.map(a => '<button class="btn ' + (a === sel ? 'bp' : 'bs') + '" style="font-size:12px;padding:7px 16px;letter-spacing:.5px" onclick="_factMesesAnio(\'' + origen + '\',\'' + a + '\')">' + a + '</button>').join('')
+    + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start">'
     + '<span style="font-family:var(--mn);font-size:11px;color:var(--mu);align-self:center;margin-right:2px">Revisar mes:</span>'
-    + meses.map(m => '<div style="display:flex;flex-direction:column;align-items:stretch;gap:3px;border:1px solid var(--bd);border-radius:8px;padding:5px">'
+    + delAnio.map(m => '<div style="display:flex;flex-direction:column;align-items:stretch;gap:3px;border:1px solid var(--bd);border-radius:8px;padding:5px">'
         + '<button class="btn bs" style="font-size:11px;white-space:nowrap" onclick="' + fnMes + '(\'' + m + '\')">' + _factMesBonito(m) + '</button>'
         + '<button class="btn bs" style="font-size:10px;padding:4px 8px;opacity:.8;white-space:nowrap" onclick="factVerSubidas(\'' + m + '\',\'' + origen + '\')" title="PDFs cargados de este mes, sin cruzar nada">ver subidas</button>'
         + '</div>').join('')
-    + '</div>';
+    + '</div></div>';
+}
+
+function _factMesesAnio(origen, anio) {
+  _factAnioSel[origen] = anio;
+  const c = _factMesesCache[origen];
+  const cont = document.getElementById(_FACT_MESES_CONT[origen]);
+  if (!c || !cont) return;
+  cont.innerHTML = _factMesesHtml(c.meses, c.fnMes, origen);
 }

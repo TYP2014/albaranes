@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1035 (03/11/2026): FACTURACION - LIQUIDACIONES (CEMEX, HOLCIM y SODIRA): los meses van POR ANYO. Arriba botones de anyo (2026 en adelante; lo anterior a 2026 no se ensenya) y debajo solo los meses del anyo elegido, cada uno con su "ver subidas". Abre en el anyo mas reciente. Preparado para el cambio de anyo. Sin SQL. VUELTA ATRAS: subir los archivos de la v1034.
+
 v1034 (03/11/2026): FACTURACION - LIQUIDACIONES (CEMEX, HOLCIM y SODIRA): la fila "Revisar mes" se ordena. Antes era una ristra de botones MES - VER SUBIDAS - MES - VER SUBIDAS que al saltar de linea no se sabia de que mes era cada uno. Ahora cada mes va en su cajita: el mes arriba y "ver subidas" debajo, pegado a su mes. Solo presentacion, nada cambia por dentro. Sin SQL. VUELTA ATRAS: subir los archivos de la v1033.
 
 v1033 (03/11/2026): GASOIL - BANDEJA DE ENTRADA POR CORREO (parte 1 de 2, la app). Tarjeta nueva arriba de la pestana Gasoil: "FACTURAS LLEGADAS POR CORREO", con las facturas que el robot del Gmail (parte 2, robot_gasoil_email.gs) deja en la tabla gasoil_entrada. Boton LEER: baja el PDF de Storage y lo mete en la misma cola de siempre (como si lo arrastraras); DESCARTAR lo quita de la bandeja. Aviso "YA SUBIDA" antes de leer si en Gasoil ya hay un PDF con el mismo nombre o repostajes del mismo proveedor, empresa y mes (se puede leer igual confirmando; el candado de siempre por n. factura + matricula + tipo sigue evitando repetidos). Mientras no exista la tabla, la tarjeta no sale. LLEVA SQL (v1033_gasoil_entrada.sql, ANTES de subir). VUELTA ATRAS: subir los archivos de la v1032.
