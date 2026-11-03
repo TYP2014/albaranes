@@ -29514,12 +29514,39 @@ async function deleteRecmed() {
 }
 
 async function recmedMarcarHecha(id) {
+  // v1030: HECHA tambien APAGA EL AVISO. Hasta ahora solo tachaba la cita en
+  // la agenda (taller_reconocimientos) y el aviso de arriba seguia saliendo,
+  // porque ese aviso mira la FICHA del trabajador (recmed_caduca), que nadie
+  // tocaba. Caso Amadou (cita 02/11, HECHA, y el 03/11 "caduca HOY").
+  // Ahora se pregunta la nueva caducidad (la cita + 1 anyo, ya rellena) y se
+  // guarda en la ficha. Si se deja en blanco, se guarda solo la cita como antes.
+  const c = (tallerRecmed || []).find(x => x.id === id);
+  const trab = c ? _recmedTrabDe(c) : null;
+  let nuevaCad = null;
+  if (trab) {
+    const base = (c.fecha_cita && /^\d{4}-\d{2}-\d{2}$/.test(c.fecha_cita)) ? c.fecha_cita : new Date().toISOString().slice(0, 10);
+    const prop = (parseInt(base.slice(0, 4), 10) + 1) + base.slice(4);
+    const r = prompt('Reconocimiento HECHO de ' + (trab.nombre || c.trabajador || '') + '.\n\n\u00bfHasta cu\u00e1ndo vale el nuevo? (AAAA-MM-DD)\nSe guarda en su ficha y el aviso se apaga.\nD\u00e9jalo en blanco para no tocar la ficha.', prop);
+    if (r === null) return;   // cancelar: no se marca nada
+    const v = (r || '').trim();
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Fecha no v\u00e1lida (formato AAAA-MM-DD)', 'err'); return; }
+    nuevaCad = v || null;
+  }
   try {
     const { error } = await sb.from('taller_reconocimientos')
       .update({ estado: 'hecha', updated_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
-    toast('✓ Reconocimiento marcado como hecho');
+    if (trab && nuevaCad) {
+      const { error: e2 } = await sb.from('trabajadores')
+        .update({ recmed_caduca: nuevaCad, updated_at: new Date().toISOString() }).eq('id', trab.id);
+      if (e2) throw e2;
+      _tacoTrabajadores = null;   // la cache de fichas, para que el aviso lea la fecha nueva
+      toast('\u2713 Reconocimiento hecho \u00b7 ficha de ' + (trab.nombre || '') + ' hasta ' + nuevaCad.split('-').reverse().join('/'));
+    } else {
+      toast('\u2713 Reconocimiento marcado como hecho');
+    }
     await loadRecmed();
+    if (trab && nuevaCad) { try { await tacoVencVer(); } catch (e) {} }   // repinta el aviso de arriba
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 

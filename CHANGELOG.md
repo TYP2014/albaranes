@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1030 (03/11/2026): RECONOCIMIENTOS MEDICOS: el boton HECHA de la cita ahora tambien APAGA EL AVISO. Antes solo tachaba la cita y el aviso rojo de arriba ("VENCE EN 1 DIA: RECONOCIMIENTO MEDICO") seguia saliendo, porque ese aviso mira la fecha "Reconocimiento caduca" de la FICHA del trabajador, que nadie actualizaba (caso Amadou, cita del 02/11 hecha y el 03/11 "caduca HOY"). Ahora al pulsar HECHA pregunta la nueva caducidad con la fecha de la cita + 1 anyo ya rellena (se puede cambiar), la guarda en la ficha y repinta el aviso. En blanco = solo tacha la cita, como antes. Cancelar = no hace nada. Sin SQL. VUELTA ATRAS: subir los archivos de la v1029.
+
 v1029 (02/11/2026): RECAMBIOS: el boton azul CONCILIAR de la lista de facturas no se leia (una regla de estilos pintaba el texto azul sobre fondo azul). Ahora sale en blanco. Solo styles.css + index.html (cache-buster). Sin SQL. VUELTA ATRAS: subir los archivos de la v1028.
 
 v1028 (02/11/2026): PRIMAS - CUADRANTE: el PARKING es un gasto de la empresa que se paga en mano (el del parking quiere efectivo), no sueldo. Para los que cobran el resto por TARJETA, la app propone ahora en EFECTIVO (en gris) el importe del parking, y la tarjeta se queda con el resto; antes proponia 0 y habia que escribirlo a mano. Si ya hay un efectivo escrito, no se toca. En el certificado la linea se llama "Parking (gasto de empresa, entregado en efectivo)". Los que cobran todo en efectivo siguen igual (ya lo llevaba dentro). Sin SQL. VUELTA ATRAS: subir los archivos de la v1027.
