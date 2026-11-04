@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1044 (04/11/2026): PRIMAS · LA CABECERA DEL PARTE DIARIO, MAS GRANDE Y DIFERENTE DE LO QUE SE ESCRIBE. Los titulos de las columnas (DIA, VEHICULO, LO QUE DICE EL CONDUCTOR... PRIMA) se confundian con el texto que se escribe en las casillas. AHORA van en letra mas grande (16 px en vez de 13), sin la tipografia de maquina de las casillas, en negrita, color azul oscuro y sobre fondo azul grisaceo algo mas marcado, con la raya de debajo mas oscura. SOLO la cabecera del parte diario: ni las casillas, ni el cuadrante, ni nada mas. Sigue fija al bajar (v1043). Cambio solo en app.js (una regla de estilo en el bloque <style> de la tabla) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1043 (app.js e index.html).
+
+---
+
 v1043 (04/11/2026): PRIMAS · LA CABECERA DEL PARTE DIARIO SE QUEDA SIEMPRE A LA VISTA. Al bajar por el mes (30 filas) los títulos de las columnas (DÍA, VEHÍCULO, LO QUE DICE EL CONDUCTOR, CLIENTE, TRABAJO REALIZADO, NOTAS, EXTRA, PRIMA) se perdían arriba y había que subir para saber qué casilla era cada una. AHORA la fila de títulos se queda pegada justo debajo de la barra de arriba mientras bajas. Probado en la app en vivo con el parte de un trabajador de 37 filas: antes la cabecera quedaba a -600 px (fuera de pantalla), ahora se queda a 48 px, bajo la barra. Solo en pantalla ancha (PC); en pantalla estrecha todo sigue como antes. Cambio solo en app.js (clases prWrap/prSticky en la tabla y 3 reglas de estilo en su bloque <style>) + el número de versión en index.html; no toca datos ni cálculos ni styles.css. El cuadrante del mes NO se ha tocado. Sin SQL. VUELTA ATRÁS: resubir v1042 (app.js e index.html).
 
 ---
