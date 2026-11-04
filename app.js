@@ -29091,7 +29091,7 @@ function primasCuadExcel(tipo) {
     nombre = 'DIETAS_GESTOR_' + _primasNomFich(primasEmpresa) + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   } else {
     const cab = ['EMPLEADO', 'DNI', 'VEHÍCULO', 'DÍAS LAB.', 'NOCHES', 'SÁBADOS', 'DOMINGOS', 'TARDES', 'HORAS', 'FIJO / EXTRAS (€)', 'PRIMA PARTE (€)', 'FESTIVOS (€)', 'PARKING (€)',
-      'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO NÓMINA (€)', 'DESC. DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE', 'DEUDA PENDIENTE (€)'];   // v669
+      'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO NÓMINA (€)', 'DESC. DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE', 'DEUDA PENDIENTE (€)', '€ / DÍA'];   // v669 · v1045: + € / DÍA (col 29)
     aoa = [['DIETAS Y PLUSES — ' + empTxt + ' — USO INTERNO'], [mesTxt], [], cab];
     const S = { dietas: 0, pluses: 0, total: 0, ef: 0, ad: 0, dd: 0, ta: 0, dm: 0, fin: 0 };
     filas.forEach(({ t, c }) => {
@@ -29099,7 +29099,7 @@ function primasCuadExcel(tipo) {
       aoa.push([t.nombre || '', t.dni || '', t.vehiculo_habitual || '', v.dias_lab || '', v.noches || '', v.sabados || '', v.domingos || '', v.tardes || '', v.horas || '',
         v.extras || '', c.prima || '', v.festivos || '', v.parking || '', v.otro_concepto || '', v.otro || '', v.descuento_concepto || '', v.descuento || '',
         c.dietas, c.pluses, c.total, c.complemento, c.efectivo, v.adelanto || '', v.descuento_deuda || '', c.tarjeta, c.demas, c.totalFinal, c.cuadre,
-        (() => { const d = _pcDeuda(t, v.descuento_deuda, primasCuadDeudaAntes[t.id]); return d ? Math.max(d.queda, 0) : ''; })()]);   // v668
+        (() => { const d = _pcDeuda(t, v.descuento_deuda, primasCuadDeudaAntes[t.id]); return d ? Math.max(d.queda, 0) : ''; })(), (v.dias_lab > 0 || c.tf.dieta) ? c.tf.dieta : '']);   // v668 · v1045
       S.dietas += c.dietas; S.pluses += c.pluses; S.total += c.total; S.ef += c.efectivo; S.ad += v.adelanto; S.dd += v.descuento_deuda; S.ta += c.tarjeta; S.dm += c.demas; S.fin += c.totalFinal;
     });
     aoa.push([]);
@@ -29107,7 +29107,13 @@ function primasCuadExcel(tipo) {
     tot[17] = _pcR2(S.dietas); tot[18] = _pcR2(S.pluses); tot[19] = _pcR2(S.total); tot[21] = _pcR2(S.ef); tot[22] = _pcR2(S.ad); tot[23] = _pcR2(S.dd); tot[24] = _pcR2(S.ta); tot[25] = _pcR2(S.dm); tot[26] = _pcR2(S.fin);
     aoa.push(tot);
     cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 19, 15, 13, 16, 14, 10, 20];
-    eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28];
+    eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 29];
+    cols.push(10);
+    // v1045: como en la pantalla del cuadrante → EMPLEADO, DÍAS LAB., € / DÍA, DIETAS (€) delante; el resto detrás
+    const ORD = [0, 3, 29, 17, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
+    for (let r = 3; r < aoa.length; r++) { const fil = aoa[r]; if (fil && fil.length) aoa[r] = ORD.map(i => fil[i] === undefined ? '' : fil[i]); }
+    cols = ORD.map(i => cols[i]);
+    eurCols = ORD.map((i, n) => eurCols.includes(i) ? n : -1).filter(n => n >= 0);
     nombre = 'CUADRANTE_' + _primasNomFich(primasEmpresa) + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa);

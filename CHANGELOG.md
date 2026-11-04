@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1045 (04/11/2026): PRIMAS · EXCEL COMPLETO DEL CUADRANTE ORDENADO COMO LA PANTALLA. Para hacer las transferencias de dietas, la columna DIETAS quedaba muy a la derecha (columna 18) y no se veia a la vez que el nombre. AHORA las cuatro primeras columnas son: EMPLEADO, DIAS LAB., € / DIA (columna nueva, la dieta por dia de cada uno) y DIETAS (€). Detras van DNI, VEHICULO y todo lo demas en el mismo orden de antes. Los totales siguen debajo de su columna. El Excel "para el gestor" NO se toca. Cambio solo en app.js (funcion primasCuadExcel) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1044 (app.js e index.html).
+
+---
+
 v1044 (04/11/2026): PRIMAS · LA CABECERA DEL PARTE DIARIO, MAS GRANDE Y DIFERENTE DE LO QUE SE ESCRIBE. Los titulos de las columnas (DIA, VEHICULO, LO QUE DICE EL CONDUCTOR... PRIMA) se confundian con el texto que se escribe en las casillas. AHORA van en letra mas grande (16 px en vez de 13), sin la tipografia de maquina de las casillas, en negrita, color azul oscuro y sobre fondo azul grisaceo algo mas marcado, con la raya de debajo mas oscura. SOLO la cabecera del parte diario: ni las casillas, ni el cuadrante, ni nada mas. Sigue fija al bajar (v1043). Cambio solo en app.js (una regla de estilo en el bloque <style> de la tabla) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1043 (app.js e index.html).
 
 ---
