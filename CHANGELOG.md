@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1041 (04/11/2026): FACTURACION - FACTURAS EMITIDAS: la casilla del Nº un poco mas ancha, para que el boton PDF de los numeros largos (2026-10-25) quede exactamente en la misma columna que los demas. Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1040.
+
 v1040 (04/11/2026): FACTURACION - FACTURAS EMITIDAS: la columna Nº se ordena. El numero ya no salta de linea y todos los botones PDF quedan alineados en columna, uno debajo de otro, sea el numero corto (40902) o largo (2026-10-25, 10000331). Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1039.
 
 v1039 (03/11/2026): GASOIL - bandeja por correo: con Neumaticos Soledad (cierra quincenal, 2 facturas de gasoil al mes por empresa) el aviso "YA SUBIDA: ya hay N repostajes de Soledad de este mes" era falso (Portes 10/2026: avisaba y faltaban los repostajes del 16 y 26/10). Para Soledad solo avisa si ya hay un PDF con el mismo nombre. Los demas proveedores (Solred, Petromiralles, Moeve: una factura al mes) siguen igual. Sin SQL. VUELTA ATRAS: subir los archivos de la v1038.
