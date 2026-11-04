@@ -4,6 +4,8 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1042 (04/11/2026): ITV - EDITAR FICHA: si al corregir una ficha mal leida se pone la matricula de OTRA ficha que ya existe, antes daba error "duplicate key itv_matricula_key" y habia que borrar la otra a mano (Admin 03/11/2026). Ahora la app avisa, ensenya las fechas de la ficha que ya hay (ITV y caducidad) y pregunta si se sustituye: si dices SI, borra SOLO esa ficha (por su id) y guarda la que estas editando; si dices NO, no toca nada. Sin SQL. VUELTA ATRAS: subir los archivos de la v1041.
+
 v1041 (04/11/2026): FACTURACION - FACTURAS EMITIDAS: la casilla del Nº un poco mas ancha, para que el boton PDF de los numeros largos (2026-10-25) quede exactamente en la misma columna que los demas. Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1040.
 
 v1040 (04/11/2026): FACTURACION - FACTURAS EMITIDAS: la columna Nº se ordena. El numero ya no salta de linea y todos los botones PDF quedan alineados en columna, uno debajo de otro, sea el numero corto (40902) o largo (2026-10-25, 10000331). Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1039.

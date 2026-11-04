@@ -17901,6 +17901,21 @@ async function saveItvModal() {
   const _rAnt = itvRecords.find(x => String(x.db_id) === String(editItvId));
   if (observaciones && observaciones.startsWith(_ITV_MARCA_REVISAR) && _rAnt && String(_rAnt.matricula || '').toUpperCase() !== matricula) observaciones = null;
   try {
+    // v1042: solo hay UNA ficha por matr\u00edcula (itv_matricula_key). Si al corregir una mal le\u00edda
+    // se pone la matr\u00edcula de otra ficha que ya existe, antes daba "duplicate key" (Admin 03/11/2026)
+    // y hab\u00eda que borrar la otra a mano. Ahora se busca esa ficha, se ense\u00f1an sus fechas y,
+    // si se confirma, se borra SOLO esa (por su id) y se guarda esta.
+    const { data: _otras, error: _eOtras } = await sb.from('itv')
+      .select('id, fecha_itv, fecha_caducidad').eq('matricula', matricula).neq('id', editItvId);
+    if (_eOtras) throw _eOtras;
+    if (_otras && _otras.length) {
+      const _f = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.slice(0, 10).split('-').reverse().join('/') : '\u2014';
+      const _o = _otras[0];
+      if (!confirm('Ya hay otra ficha de ITV con la matr\u00edcula ' + matricula + ':\n\n   ITV: ' + _f(_o.fecha_itv) + '   \u00b7   Caduca: ' + _f(_o.fecha_caducidad)
+        + '\n\nSolo puede haber una ficha por matr\u00edcula.\n\n\u00bfSustituyo esa ficha por la que est\u00e1s guardando ahora?\n(La otra se borra.)')) return;
+      const { error: _eDel } = await sb.from('itv').delete().eq('id', _o.id);
+      if (_eDel) throw _eDel;
+    }
     const { error } = await sb.from('itv')
       .update({ matricula, fecha_itv, fecha_caducidad, tipo_documento, observaciones, updated_at: new Date().toISOString() })
       .eq('id', editItvId);
