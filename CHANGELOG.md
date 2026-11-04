@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1043 (04/11/2026): PRIMAS · LA CABECERA DEL PARTE DIARIO SE QUEDA SIEMPRE A LA VISTA. Al bajar por el mes (30 filas) los títulos de las columnas (DÍA, VEHÍCULO, LO QUE DICE EL CONDUCTOR, CLIENTE, TRABAJO REALIZADO, NOTAS, EXTRA, PRIMA) se perdían arriba y había que subir para saber qué casilla era cada una. AHORA la fila de títulos se queda pegada justo debajo de la barra de arriba mientras bajas. Probado en la app en vivo con el parte de un trabajador de 37 filas: antes la cabecera quedaba a -600 px (fuera de pantalla), ahora se queda a 48 px, bajo la barra. Solo en pantalla ancha (PC); en pantalla estrecha todo sigue como antes. Cambio solo en app.js (clases prWrap/prSticky en la tabla y 3 reglas de estilo en su bloque <style>) + el número de versión en index.html; no toca datos ni cálculos ni styles.css. El cuadrante del mes NO se ha tocado. Sin SQL. VUELTA ATRÁS: resubir v1042 (app.js e index.html).
+
+---
+
 v1042 (04/11/2026): ITV - EDITAR FICHA: si al corregir una ficha mal leida se pone la matricula de OTRA ficha que ya existe, antes daba error "duplicate key itv_matricula_key" y habia que borrar la otra a mano (Admin 03/11/2026). Ahora la app avisa, ensenya las fechas de la ficha que ya hay (ITV y caducidad) y pregunta si se sustituye: si dices SI, borra SOLO esa ficha (por su id) y guarda la que estas editando; si dices NO, no toca nada. Sin SQL. VUELTA ATRAS: subir los archivos de la v1041.
 
 v1041 (04/11/2026): FACTURACION - FACTURAS EMITIDAS: la casilla del Nº un poco mas ancha, para que el boton PDF de los numeros largos (2026-10-25) quede exactamente en la misma columna que los demas. Solo presentacion. Sin SQL. VUELTA ATRAS: subir los archivos de la v1040.
