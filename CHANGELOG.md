@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1047 (05/11/2026): CABECERA PRINCIPAL SIEMPRE A LA VISTA. La barra de pestanas (ALBARANES, SUBIR, EMPLEADOS, TALLER... USUARIOS) desaparecia al bajar y habia que subir del todo para cambiar de pestana. AHORA se queda pegada debajo de la barra del logo (que ya era fija), en cualquier pestana. Solo en pantalla ancha (PC, 1000 px o mas); en el movil todo sigue como antes para no quitar sitio. Ajuste: la cabecera fija del PARTE DIARIO de Primas (v1043) baja de 48 a 87 px para quedar justo debajo de las pestanas y no esconderse detras. TAMBIEN, PRECIOS HOLCIM (arreglo de la v1046): la caja con su propia barra de desplazamiento se metia bajo la barra de arriba y tapaba "OCT 2026". AHORA la tabla baja con la pagina (sin caja) y su fila de meses se queda fija justo debajo de las pestanas. Los meses estan mas resaltados (letra mas grande, azul oscuro, fondo azul y raya oscura debajo) y el ULTIMO SUBIDO va mas arriba, mas grande y en verde mas fuerte para que destaque. En PC la tabla ocupa el ancho de la pantalla (columnas mas estrechas si hay muchos meses, sin barra lateral); en el movil sigue como antes. Cambio: 1 regla de estilo en index.html + app.js (numero de la cabecera de Primas y el bloque <style> de _phRender). Sin SQL. VUELTA ATRAS: resubir v1046 (app.js e index.html).
+
+---
+
 v1046 (05/11/2026): FACTURACION · PRECIOS HOLCIM (RUTAS HABITUALES): LA CABECERA SE QUEDA FIJA AL BAJAR. Con muchos meses y varios precios por mes la tabla es muy larga y al bajar se perdian los titulos (RUTA, OCT 2026, SEP 2026...). AHORA la tabla baja dentro de su caja (del alto de la pantalla) y la fila de titulos se queda siempre arriba; el desplazamiento a los lados sigue igual. Solo aspecto: no cambia precios, Excel ni nada mas. Cambio solo en app.js (un bloque <style> en _phRender) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1045 (app.js e index.html).
 
 ---
