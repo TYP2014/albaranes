@@ -27308,6 +27308,17 @@ function _primasMats(s) {
 }
 function _primasMatsTxt(s) { return _primasMats(s).join(' + '); }
 function _primasAttr(s) { return esc(s == null ? '' : s).replace(/"/g, '&quot;'); }
+// v1050 (JC 05/11/2026): FUERA DE ALTA. Antes de su FECHA DE ALTA (y despues de su FECHA DE BAJA) el trabajador
+// no estaba en la empresa: el parte no le pone camion, ni le trae albaranes, ni le cuenta como que llevaba el camion.
+// Caso real: Arnau Giribet, alta a final de mes con camion en la ficha → salian dias anteriores con viajes que no eran suyos.
+function _primasFueraAltaDe(t, iso) {
+  if (!t || !iso) return '';
+  const a = String(t.fecha_alta || '').slice(0, 10), b = String(t.fecha_baja || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(a) && iso < a) return 'antes';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(b) && iso > b) return 'despues';
+  return '';
+}
+function _primasFueraAlta(iso) { return _primasFueraAltaDe((vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId)), iso); }
 
 // Rango del mes y de las semanas que lo tocan (para el plus hacen falta dias del mes vecino)
 function _primasRango() {
@@ -27494,7 +27505,17 @@ function renderPrimas() {
     const d = _primasDate(iso); const w = d.getDay();
     const f = primasRows[iso] || {};
     const finde = (w === 0 || w === 6);
-    filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
+    const _fa1050 = _primasFueraAlta(iso);   // v1050: dia en el que no estaba de alta
+    if (_fa1050) {
+      const _t1050 = (vacTrabajadores || []).find(x => String(x.id) === String(primasTrabId)) || {};
+      const _fx = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
+      const _hay = (f.prima != null && _primasNum(f.prima) !== 0) || String(f.trabajo || '').trim() || String(f.parte_conductor || '').trim();
+      filas += '<tr style="border-bottom:1px solid var(--bd);background:rgba(128,128,128,.16);color:#555">' +
+        '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#666">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
+        '<td colspan="8" style="padding:6px 8px;font-weight:700;font-size:13px;color:#666">' + (_fa1050 === 'antes' ? 'NO ESTABA DE ALTA (alta el ' + _fx(_t1050.fecha_alta) + ')' : 'YA DE BAJA (baja el ' + _fx(_t1050.fecha_baja) + ')') +
+        (_hay ? ' <span style="color:#c62828;font-weight:800">· ⚠ este día tiene datos guardados' + (_primasNum(f.prima) ? ' (prima ' + _primasEur(_primasNum(f.prima)) + ')' : '') + ': revisar</span>' : '') + '</td></tr>';
+    } else {
+      filas += '<tr style="border-bottom:1px solid var(--bd);' + (finde ? 'background:rgba(128,128,128,.10);' : '') + (iso === hoy ? 'outline:2px solid var(--ac,#1976d2);outline-offset:-2px;' : '') + '">' +
       '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:14px;color:#111">' + _PRIMAS_DIAS[w] + ' ' + iso.slice(8) + '</td>' +
       '<td style="padding:3px 4px;width:200px;min-width:200px"><input class="fi" list="primasMatList" autocomplete="off" id="pr_vehiculo_' + iso + '" title="Si ese día llevó MÁS DE UN camión, escríbelos separados por + (ejemplo: 9499LHT + 4839NBF). La app suma los albaranes de todos.&#10;&#10;DÉJALA EN BLANCO si ese día no llevó ninguno (taller, curso, no trabajó): entonces no se le trae ningún albarán ni se le pone prima." style="' + inS + ';text-transform:uppercase" placeholder="' + ((f.vehiculo_manual && !f.vehiculo) ? '' : _primasAttr(primasHabitual)) + '" value="' + _primasAttr(f.vehiculo) + '" onchange="primasSaveRow(\'' + iso + '\', true)"></td>' +
       '<td style="padding:3px 4px;width:33%;min-width:300px"><textarea class="fi" id="pr_parte_conductor_' + iso + '" rows="1" style="' + inS + ';resize:vertical;overflow:hidden;line-height:1.35" oninput="_primasAutoAlto(this)" onchange="primasSaveRow(\'' + iso + '\')">' + esc(f.parte_conductor || '') + '</textarea></td>' +
@@ -27504,6 +27525,7 @@ function renderPrimas() {
       '<td style="padding:3px 4px;width:86px"><input class="fi" id="pr_horas_extra_' + iso + '" type="number" step="0.5" min="0" title="' + (w === 6 ? 'SÁBADO trabajado: pon las horas que hizo (se paga el precio fijo del sábado; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : (w === 0 ? 'DOMINGO trabajado: pon las horas que hizo (se paga el precio fijo del domingo; con ' + PRIMAS_FINDE_DOBLE_H + ' h o más cuenta DOBLE)' : 'Horas extra de este día (se pagan por hora)')) + '" style="' + inS + ';text-align:right;color:#1f3a5f' + (finde ? ';background:rgba(106,27,154,.06)' : '') + '" value="' + (f.horas_extra != null && _primasNum(f.horas_extra) !== 0 ? _primasAttr(f.horas_extra) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +   // v792
       '<td style="padding:3px 4px;width:96px"><input class="fi" id="pr_prima_' + iso + '" type="number" step="5"' + (f.prima_auto ? ' title="Puesta por la app según los albaranes. Escribe encima para cambiarla."' : '') + ' style="' + inS + ';text-align:right;font-weight:800' + (f.prima_auto ? ';color:#1565c0' : '') + '" value="' + (f.prima != null && _primasNum(f.prima) !== 0 ? _primasAttr(f.prima) : '') + '" onchange="primasSaveRow(\'' + iso + '\')"></td>' +
       '<td style="padding:3px 4px;white-space:nowrap"><button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer" title="Contar los albaranes de este vehículo este día y escribirlos en TRABAJO REALIZADO" onclick="primasTraerAlbaranes(\'' + iso + '\')">TRAER</button> <button class="btn" style="font-size:13px;padding:6px 10px;font-weight:800;background:#fff;color:#111;border:2px solid #111;border-radius:6px;cursor:pointer" title="Ver qué albaranes cuenta la app este día (nº, ruta, tipo)" onclick="primasVerAlbDia(\'' + iso + '\')">VER</button></td></tr>';
+    }
     // Linea del plus: al llegar al domingo, o al ultimo dia del mes si la semana sigue en el mes siguiente
     const lun = _primasLunes(iso);
     if (w === 0 || iso === r.fin) {
@@ -28129,7 +28151,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
   const r = _primasRango();
   const hoy = _primasISO(new Date());
   const dias = [];
-  for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if (!soloIso || soloIso === iso) dias.push(iso);
+  for (let iso = r.ini; iso <= r.fin && iso <= hoy; iso = _primasMas(iso, 1)) if ((!soloIso || soloIso === iso) && !_primasFueraAlta(iso)) dias.push(iso);   // v1050: sin dias fuera de alta
   // v671: cada dia puede llevar VARIOS vehiculos → se suman los albaranes de todos
   // v860: manda la casilla de VEHICULO, aunque este VACIA. Si se vacio a mano,
   // ese dia no llevo camion: no se le trae NADA (antes se colaba el habitual y
@@ -28380,6 +28402,7 @@ async function primasHuerfanos() {
     });
     Object.values(trabs).forEach(x => { x.hab = _primasMat(x.t.vehiculo_habitual) || Object.keys(x.cuenta).sort((a, b) => x.cuenta[b] - x.cuenta[a])[0] || ''; });
     const quienLleva = (veh, iso) => Object.values(trabs).filter(x => {
+      if (_primasFueraAltaDe(x.t, iso)) return false;   // v1050: antes del alta / despues de la baja no lleva camion
       const f = x.dias[iso];
       if (f && _primasAusente(f.parte_conductor, f.notas)) return false;
       const l = _primasMats(f && f.vehiculo);

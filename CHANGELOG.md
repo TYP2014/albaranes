@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1050 (05/11/2026): PRIMAS · PARTE DIARIO: LOS DIAS ANTES DEL ALTA YA NO CUENTAN. Caso real: Arnau Giribet, alta a final de mes con camion puesto en su ficha; el parte le enseñaba los dias anteriores con el camion de fondo y los viajes de ese camion como si fueran suyos. AHORA, en el parte de cada trabajador, los dias ANTES de su FECHA DE ALTA (y DESPUES de su FECHA DE BAJA, si la tiene) salen en gris como "NO ESTABA DE ALTA (alta el dd/mm/aaaa)" / "YA DE BAJA", sin casillas: (1) TRAER / Traer viajes a TODOS no le traen albaranes esos dias; (2) no salen marcas de "viajes sin traer"; (3) en ALBARANES HUERFANOS no cuenta que llevara el camion esos dias. Si un dia fuera de alta YA tenia datos guardados (de antes de esta version), sale en rojo "⚠ este dia tiene datos guardados: revisar". Sin fecha de alta en la ficha → todo igual que antes. El cuadrante, vacaciones y lo demas NO se tocan. Cambio solo en app.js (_primasFueraAlta, renderPrimas, primasTraerAlbaranes, primasHuerfanos) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1049 (app.js e index.html).
+
+---
+
 v1049 (05/11/2026): FACTURACION · EXCEL DE AYUDA HOLCIM (908): YA NO DEPENDE DE TENER EL HISTORICO CARGADO. Con el Recogidas_export de nov-2026, 38 viajes de septiembre que SI estaban en la app salieron "NO ENCONTRADO": al cruzar, el historico aun no estaba en memoria (se pulso con la app recien abierta). AHORA, antes de cruzar, el boton busca DIRECTAMENTE en la base de datos los albaranes del Excel (por numero de cantera y por numero 908) y los anade a memoria; el cruce sigue igual (numero + matricula, fecha solo para desempatar). Si esa busqueda fallara, sigue como antes con lo que haya en memoria. Solo lectura: no cambia nada mas. Cambio solo en app.js (factExcelAyuda908) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1048 (app.js e index.html).
 
 ---
