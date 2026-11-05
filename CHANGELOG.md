@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1049 (05/11/2026): FACTURACION · EXCEL DE AYUDA HOLCIM (908): YA NO DEPENDE DE TENER EL HISTORICO CARGADO. Con el Recogidas_export de nov-2026, 38 viajes de septiembre que SI estaban en la app salieron "NO ENCONTRADO": al cruzar, el historico aun no estaba en memoria (se pulso con la app recien abierta). AHORA, antes de cruzar, el boton busca DIRECTAMENTE en la base de datos los albaranes del Excel (por numero de cantera y por numero 908) y los anade a memoria; el cruce sigue igual (numero + matricula, fecha solo para desempatar). Si esa busqueda fallara, sigue como antes con lo que haya en memoria. Solo lectura: no cambia nada mas. Cambio solo en app.js (factExcelAyuda908) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1048 (app.js e index.html).
+
+---
+
 v1048 (05/11/2026): FACTURACION · EXCEL DE AYUDA HOLCIM (908): YA NO SE USAN LOS 908 CANCELADOS. Holcim manda el Excel en formato nuevo (Albaran | Ship-To | Ref. Chofer | Peso | Estado, sin "Operador"); se leia bien, pero el boton no miraba la columna ESTADO y cambiaba tambien los 908 CANCELADOS. Caso real (Recogidas_export de nov-2026): el ALB 73136717 (0732NLY) viene dos veces, 908000049575 FACTURADA y 908000049571 CANCELADA, y podia quedarse guardado el cancelado. AHORA: (1) las filas con Estado CANCELADA no se tocan y salen en el Excel de repaso como "NO CAMBIADO — CANCELADA"; (2) si dos filas del Excel casan con el MISMO albaran, no se toca ninguna y salen como "DOS 908 PARA EL MISMO ALBARAN" para revisar a mano; (3) el Excel de repaso lleva una columna nueva "Estado Holcim". El formato antiguo sigue funcionando igual. Cambio solo en app.js (factExcelAyuda908) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1047 (app.js e index.html).
 
 ---

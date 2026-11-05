@@ -33121,6 +33121,39 @@ async function factExcelAyuda908(files) {
     }
   }
 
+  // v1049 (JC 05/11/2026) — RED DE SEGURIDAD: además de lo que haya en memoria, se buscan en la BD los
+  // albaranes del Excel (por nº de cantera y por nº 908) y se añaden a memoria. Caso real (05/11/2026):
+  // 38 viajes de septiembre que SÍ estaban en la app salieron 'NO ENCONTRADO' porque al cruzar el
+  // histórico aún no estaba en memoria (se pulsó con la app recién abierta). Así ya no depende de eso.
+  if (!window._aplicaFiltroAlb) {
+    setEstado('📗 Buscando en la base de datos los albaranes del Excel…');
+    try {
+      const limpio = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const nums = [...new Set(items.filter(it => it.albX).map(it => strip0(limpio(String(it.albX).split(/[\/\-\.]/)[0]))).filter(n => n.length >= 5))];
+      const sapsL = [...new Set(items.map(it => it.sap))];
+      const traidas = [];
+      for (let i = 0; i < nums.length; i += 25) {
+        const { data, error } = await sb.from('albaranes').select('*').or(nums.slice(i, i + 25).map(n => 'albaran.ilike.%' + n + '%').join(',')).limit(1000);
+        if (error) throw error; if (data) traidas.push(...data);
+      }
+      for (let i = 0; i < sapsL.length; i += 100) {
+        const { data, error } = await sb.from('albaranes').select('*').in('albaran', sapsL.slice(i, i + 100)).limit(1000);
+        if (error) throw error; if (data) traidas.push(...data);
+      }
+      const ya = new Set(records.map(r => r.db_id || r.id)), vistos = new Set();
+      const nuevas = traidas.filter(r => !ya.has(r.id) && !vistos.has(r.id) && vistos.add(r.id)).map(r => ({
+        ...r, db_id: r.id, _id: r.id || (Date.now() + Math.random()), _manual: r.manual_edit === true,
+        _tandaSubida: (typeof r.tanda_subida === 'number') ? r.tanda_subida : undefined,
+        _pagArchivo: (typeof r.pag_archivo === 'number') ? r.pag_archivo : undefined
+      }));
+      if (nuevas.length) {
+        try { await Promise.all([firmarCampo(nuevas, 'file_url'), firmarAdjuntos(nuevas, 'anexos')]); } catch (e) { console.warn('[v1049] firmado:', e); }
+        records = records.concat(nuevas);
+      }
+      console.log('[v1049] ayuda 908: ' + traidas.length + ' filas de BD, ' + nuevas.length + ' añadidas a memoria');
+    } catch (e) { console.warn('[v1049] búsqueda en BD de la ayuda 908 (sigo con lo que hay en memoria):', e); }
+  }
+
   // Índices de los albaranes de la app.
   const sapExistentes = new Set(records.map(r => normNum(r.albaran)).filter(Boolean));
   const porMat = new Map(); // matrícula → [records]
