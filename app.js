@@ -33075,6 +33075,10 @@ async function factExcelAyuda908(files) {
     const iR = f.findIndex(c => c.includes('chofer') || c.includes('chófer') || c.includes('ref'));
     if (iS >= 0 && iR >= 0) { hIdx = i; colSap = iS; colRef = iR; break; }
   }
+  // v1048 (JC 05/11/2026): columna "Estado" (ENTREGADA / FACTURADA / CANCELADA). El formato nuevo de Holcim
+  // (Albarán | Ship-To | Ref. Chófer | Peso | Estado) ya no trae "Operador"; Estado se busca por su título.
+  let colEst = -1;
+  { const f = (filas[hIdx] || []).map(c => String(c || '').toLowerCase()); colEst = f.findIndex(c => c.includes('estado')); }
 
   const normNum = s => String(s || '').toUpperCase().replace(/\s+/g, '');
   const strip0 = s => /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s;
@@ -33096,7 +33100,8 @@ async function factExcelAyuda908(files) {
     const mF = ref.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
     const mA = ref.match(/ALB[\.:]?\s*([A-Z0-9\/\-\.]+)/);
     const mats = ref.match(/\b\d{4}[A-Z]{3}\b/g) || [];
-    items.push({ sap, albX: mA ? mA[1] : '', mat: mats[0] || '', fechaX: mF ? normFecha(mF[1]) : '', res: '', det: '', antes: '', fechaApp: '', transpApp: '' });
+    const est = colEst >= 0 ? String(f[colEst] || '').trim().toUpperCase() : '';
+    items.push({ sap, albX: mA ? mA[1] : '', mat: mats[0] || '', fechaX: mF ? normFecha(mF[1]) : '', est, res: '', det: '', antes: '', fechaApp: '', transpApp: '' });
   }
   if (!items.length) { toast('No encontré filas con nº SAP en el Excel.', 'err'); setEstado(''); _z908fin(); return; }
 
@@ -33130,6 +33135,8 @@ async function factExcelAyuda908(files) {
   const cambios = [];
   for (const it of items) {
     if (sapExistentes.has(normNum(it.sap))) { it.res = 'YA ESTABA'; it.det = 'Un albarán de la app ya tiene este nº 908'; continue; }
+    // v1048: un 908 CANCELADO por Holcim nunca se pone en un albarán (caso real: 908000049571 cancelado y 908000049575 bueno, mismo ALB 73136717).
+    if (/CANCEL/.test(it.est)) { it.res = 'NO CAMBIADO — CANCELADA'; it.det = 'Holcim tiene este nº 908 como CANCELADA'; continue; }
     if (!it.albX || !it.mat) { it.res = 'SIN DATOS'; it.det = 'La Ref. Chófer no trae nº ALB o matrícula legibles'; continue; }
     const esNo908 = r => !/^908\d+$/.test(normNum(r.albaran));
     const cands = (porMat.get(it.mat) || []).filter(r => esNo908(r) && coincideNum(r.albaran, it.albX));
@@ -33156,6 +33163,12 @@ async function factExcelAyuda908(files) {
     it.res = 'CAMBIAR'; it.antes = r.albaran; it.fechaApp = r.fecha || ''; it.transpApp = r.transportista || r.tractora || '';
     cambios.push({ it, r });
   }
+  // v1048: si DOS filas del Excel (dos 908 distintos) casan con el MISMO albarán, no se toca ninguna: a repasar a mano.
+  { const cuenta = new Map(); cambios.forEach(c => cuenta.set(c.r.db_id, (cuenta.get(c.r.db_id) || 0) + 1));
+    for (let k = cambios.length - 1; k >= 0; k--) {
+      const c = cambios[k];
+      if (cuenta.get(c.r.db_id) > 1) { c.it.res = 'NO CAMBIADO — DOS 908 PARA EL MISMO ALBARÁN'; c.it.det = 'Varias filas del Excel casan con el albarán ' + (c.r.albaran || '') + ': revisar a mano'; cambios.splice(k, 1); }
+    } }
 
   const nOK = cambios.length;
   const nYa = items.filter(i => i.res === 'YA ESTABA').length;
@@ -33190,7 +33203,7 @@ async function factExcelAyuda908(files) {
     const orden = v => (v === 'CAMBIADO ✔' ? 2 : v === 'YA ESTABA' ? 1 : 0);
     const filasRep = items.slice().sort((a, b) => orden(a.res) - orden(b.res)).map(i => ({
       'RESULTADO': i.res, 'Nº SAP (908)': i.sap, 'Nº cantera (Excel)': i.albX, 'Matrícula': i.mat,
-      'Fecha Excel': i.fechaX, 'Nº en app (antes)': i.antes, 'Fecha app': i.fechaApp, 'Detalle': i.det
+      'Fecha Excel': i.fechaX, 'Estado Holcim': i.est || '', 'Nº en app (antes)': i.antes, 'Fecha app': i.fechaApp, 'Detalle': i.det
     }));
     _repasoGuardar = filasRep; // v282
     const wb2 = XLSX.utils.book_new();
