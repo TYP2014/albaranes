@@ -1370,6 +1370,8 @@ if (typeof pdfjsLib !== 'undefined') {
           <span>Reconocimientos médicos</span></button>
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')" data-emptab>
           <span>Primas</span></button>
+        <button class="btn bs" id="empVistaDatos" onclick="switchEmpleadosVista('datos')" data-emptab>
+          <span>🪪 Datos de empleados</span></button>
       </div>
       <div id="empVistaVacBox">
 
@@ -1430,6 +1432,20 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="color:var(--mu);font-family:var(--mn);font-size:11px">Cargando calendario...</div>
         </div>
       </div>
+      </div>
+
+      <!-- ===== v1051: VISTA DATOS DE EMPLEADOS (ficha: DNI, alta/baja, tarjeta tacografo, caducidades). Usa el MISMO modal de siempre ===== -->
+      <div id="empVistaDatosBox" style="display:none">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center" id="empDatosSubtabs"></div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
+          <button class="btn bp" onclick="openTrabajadorModal()" style="font-size:13px;padding:8px 18px;min-width:150px">Añadir trabajador</button>
+          <button class="btn bs" onclick="empDatosToggleArch()" id="empDatosBtnArch" style="font-size:13px;padding:8px 18px;min-width:150px">Ver archivados</button>
+          <button class="btn bs" onclick="loadVacData()" style="font-size:13px;padding:8px 18px;min-width:150px">Refrescar</button>
+        </div>
+        <div class="card">
+          <div class="card-hd"><div class="st"><div class="dot" style="--c:var(--ac)"></div>DATOS DE EMPLEADOS <span id="empDatosTitulo" style="color:var(--tx);font-size:13px;font-weight:400"></span></div></div>
+          <div class="card-bd" id="empDatosBox" style="overflow-x:auto"></div>
+        </div>
       </div>
 
       <!-- ===== v441: VISTA RECONOCIMIENTOS MEDICOS (antes iba en Taller, JC la quiso aqui) ===== -->
@@ -2109,6 +2125,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1050"></script>
+<script src="app.js?v=1051"></script>
 </body>
 </html>

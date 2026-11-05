@@ -24778,6 +24778,63 @@ function renderVac() {
   }
   // Calendario
   _vacRenderCalendario();
+  try { renderEmpDatos(); } catch (e) { console.warn('[v1051 datos empleados]', e); }   // v1051: que la ficha nueva se vea al guardar
+}
+
+// ============================================================
+// v1051 (JC 05/11/2026): EMPLEADOS > 🪪 DATOS DE EMPLEADOS. Sub-pestaña aparte para la FICHA de cada
+// trabajador (DNI, puesto, telefono, alta, baja, tarjeta del tacografo y caducidades). Solo ENSEÑA la lista:
+// para cambiar algo abre el MISMO modal de siempre (openTrabajadorModal). Vacaciones NO se toca.
+// Mismas empresas visibles que Vacaciones (window._empresaVac).
+// ============================================================
+let empDatosEmpresa = '';
+let empDatosArch = false;
+function _empDatosPermitidas() {
+  return window._empresaVac ? window._empresaVac.split(',').map(x => x.trim()) : ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+}
+function empDatosSwitch(emp) { empDatosEmpresa = emp; renderEmpDatos(); }
+function empDatosToggleArch() {
+  empDatosArch = !empDatosArch;
+  const b = document.getElementById('empDatosBtnArch'); if (b) b.textContent = empDatosArch ? 'Ver activos' : 'Ver archivados';
+  renderEmpDatos();
+}
+function renderEmpDatos() {
+  const box = document.getElementById('empDatosBox');
+  if (!box) return;
+  const perm = _empDatosPermitidas();
+  if (!perm.includes(empDatosEmpresa)) empDatosEmpresa = perm.includes(vacEmpresaActiva) ? vacEmpresaActiva : (perm[0] || 'TYP2014');
+  const nom = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
+  const sub = document.getElementById('empDatosSubtabs');
+  if (sub) sub.innerHTML = perm.map(e => '<button class="btn ' + (e === empDatosEmpresa ? 'bp' : 'bs') + '" onclick="empDatosSwitch(\'' + e + '\')" style="font-size:13px;padding:8px 18px;min-width:150px">' + (nom[e] || e) + '</button>').join('');
+  const tit = document.getElementById('empDatosTitulo'); if (tit) tit.textContent = '· ' + (nom[empDatosEmpresa] || empDatosEmpresa) + (empDatosArch ? ' · archivados' : '');
+  const trabs = (vacTrabajadores || []).filter(t => (t.empresa === empDatosEmpresa || (!t.empresa && empDatosEmpresa === 'TYP2014')) && (empDatosArch ? t.archivado : !t.archivado));
+  if (!trabs.length) {
+    box.innerHTML = '<div style="color:var(--tx);font-family:var(--mn);font-size:13px;padding:20px;text-align:center">' + (empDatosArch ? 'No hay trabajadores archivados.' : 'No hay trabajadores activos. Pulsa <strong>Añadir trabajador</strong>.') + '</div>';
+    return;
+  }
+  const hoy = new Date().toISOString().slice(0, 10);
+  const en30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const f = (d) => { d = String(d || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.split('-').reverse().join('/') : ''; };
+  const cad = (d) => {
+    const s = String(d || '').slice(0, 10); if (!f(s)) return '<span style="color:#999">—</span>';
+    const col = s < hoy ? '#c62828' : (s <= en30 ? '#e65100' : '#111');
+    return '<span style="color:' + col + ';font-weight:800" title="' + (s < hoy ? 'CADUCADO' : (s <= en30 ? 'Caduca en menos de 30 días' : '')) + '">' + f(s) + (s < hoy ? ' ⚠' : '') + '</span>';
+  };
+  const th = (t) => '<th style="padding:10px 8px;font-size:13px;font-weight:800;letter-spacing:.3px;white-space:nowrap">' + t + '</th>';
+  const td = (v, x) => '<td style="padding:9px 8px;' + (x || '') + '">' + v + '</td>';
+  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +
+    '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd)">' + th('NOMBRE') + th('DNI/NIE') + th('PUESTO') + th('TELÉFONO') + th('ALTA') + th('BAJA') + th('TARJETA TACÓGRAFO') + th('CAD. TARJETA') + th('CAD. CARNET') + th('CAD. CAP') + th('') + '</tr></thead><tbody>' +
+    trabs.map(t => '<tr style="border-bottom:1px solid var(--bd)">' +
+      td(esc(t.nombre || ''), 'font-weight:800;font-size:15px') +
+      td(esc(t.dni || '—'), 'white-space:nowrap') +
+      td(esc(t.rol || '—')) +
+      td(esc(t.telefono || '—'), 'white-space:nowrap') +
+      td(f(t.fecha_alta) || '<span style="color:#c62828;font-weight:800" title="Sin fecha de alta: el parte de Primas no sabe desde cuándo cuenta">FALTA ⚠</span>', 'white-space:nowrap') +
+      td(f(t.fecha_baja) ? '<span style="color:#c62828;font-weight:800">' + f(t.fecha_baja) + '</span>' : '—', 'white-space:nowrap') +
+      td(esc(t.tarjeta_num || '—'), 'white-space:nowrap') +
+      td(cad(t.tarjeta_caduca), 'white-space:nowrap') + td(cad(t.carnet_caduca), 'white-space:nowrap') + td(cad(t.cap_caduca), 'white-space:nowrap') +
+      td('<button class="btn bs" style="font-size:13px;padding:7px 14px;font-weight:700;color:#111" onclick="openTrabajadorModal(\'' + t.id + '\')">EDITAR</button>', 'text-align:right') +
+      '</tr>').join('') + '</tbody></table>';
 }
 
 // v484 — LEYENDA UNICA para las tres vistas (mes / 3 meses / ano).
@@ -27237,7 +27294,9 @@ function switchEmpleadosVista(v) {
   const br = document.getElementById('empVistaRecmed');
   const pb = document.getElementById('empVistaPrimasBox');   // v659
   const bpr = document.getElementById('empVistaPrimas');     // v659
-  [[vb,bv],[rb,br],[pb,bpr]].forEach(([caja,boton]) => {
+  const db = document.getElementById('empVistaDatosBox');    // v1051
+  const bd = document.getElementById('empVistaDatos');       // v1051
+  [[vb,bv],[rb,br],[pb,bpr],[db,bd]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -27249,6 +27308,10 @@ function switchEmpleadosVista(v) {
     if (pb) pb.style.display = '';
     if (bpr) { bpr.classList.remove('bs'); bpr.classList.add('bp'); }
     primasInit();
+  } else if (v === 'datos') {   // v1051
+    if (db) db.style.display = '';
+    if (bd) { bd.classList.remove('bs'); bd.classList.add('bp'); }
+    if (!(vacTrabajadores || []).length) loadVacData(); else renderEmpDatos();
   } else {
     if (vb) vb.style.display = '';
     if (bv) { bv.classList.remove('bs'); bv.classList.add('bp'); }

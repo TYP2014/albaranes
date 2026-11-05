@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1051 (05/11/2026): EMPLEADOS · SUB-PESTAÑA NUEVA "🪪 DATOS DE EMPLEADOS". Hasta ahora la ficha del trabajador (DNI, alta, baja, tarjeta del tacografo...) solo se abria desde Vacaciones. AHORA hay una sub-pestaña propia (la cuarta, al lado de Primas) con, por empresa: NOMBRE, DNI/NIE, PUESTO, TELEFONO, ALTA, BAJA, TARJETA TACOGRAFO y caducidades de TARJETA, CARNET y CAP (rojo = caducado, naranja = menos de 30 dias). Si falta la FECHA DE ALTA sale "FALTA ⚠" (la necesita el parte de Primas desde la v1050). Botones: Añadir trabajador, Ver archivados, Refrescar y EDITAR en cada fila: abren el MISMO modal de siempre. Mismas empresas visibles que en Vacaciones. Vacaciones NO se toca (sigue saliendo por defecto y con sus botones). Cambio: index.html (boton + caja) y app.js (switchEmpleadosVista, renderEmpDatos; renderVac la repinta al guardar). Sin SQL. VUELTA ATRAS: resubir v1050 (app.js e index.html).
+
+---
+
 v1050 (05/11/2026): PRIMAS · PARTE DIARIO: LOS DIAS ANTES DEL ALTA YA NO CUENTAN. Caso real: Arnau Giribet, alta a final de mes con camion puesto en su ficha; el parte le enseñaba los dias anteriores con el camion de fondo y los viajes de ese camion como si fueran suyos. AHORA, en el parte de cada trabajador, los dias ANTES de su FECHA DE ALTA (y DESPUES de su FECHA DE BAJA, si la tiene) salen en gris como "NO ESTABA DE ALTA (alta el dd/mm/aaaa)" / "YA DE BAJA", sin casillas: (1) TRAER / Traer viajes a TODOS no le traen albaranes esos dias; (2) no salen marcas de "viajes sin traer"; (3) en ALBARANES HUERFANOS no cuenta que llevara el camion esos dias. Si un dia fuera de alta YA tenia datos guardados (de antes de esta version), sale en rojo "⚠ este dia tiene datos guardados: revisar". Sin fecha de alta en la ficha → todo igual que antes. El cuadrante, vacaciones y lo demas NO se tocan. Cambio solo en app.js (_primasFueraAlta, renderPrimas, primasTraerAlbaranes, primasHuerfanos) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1049 (app.js e index.html).
 
 ---
