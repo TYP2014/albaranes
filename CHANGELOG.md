@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1046 (05/11/2026): FACTURACION · PRECIOS HOLCIM (RUTAS HABITUALES): LA CABECERA SE QUEDA FIJA AL BAJAR. Con muchos meses y varios precios por mes la tabla es muy larga y al bajar se perdian los titulos (RUTA, OCT 2026, SEP 2026...). AHORA la tabla baja dentro de su caja (del alto de la pantalla) y la fila de titulos se queda siempre arriba; el desplazamiento a los lados sigue igual. Solo aspecto: no cambia precios, Excel ni nada mas. Cambio solo en app.js (un bloque <style> en _phRender) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1045 (app.js e index.html).
+
+---
+
 v1045 (04/11/2026): PRIMAS · EXCEL COMPLETO DEL CUADRANTE ORDENADO COMO LA PANTALLA. Para hacer las transferencias de dietas, la columna DIETAS quedaba muy a la derecha (columna 18) y no se veia a la vez que el nombre. AHORA las cuatro primeras columnas son: EMPLEADO, DIAS LAB., € / DIA (columna nueva, la dieta por dia de cada uno) y DIETAS (€). Detras van DNI, VEHICULO y todo lo demas en el mismo orden de antes. Los totales siguen debajo de su columna. El Excel "para el gestor" NO se toca. Cambio solo en app.js (funcion primasCuadExcel) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1044 (app.js e index.html).
 
 ---

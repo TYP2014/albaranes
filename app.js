@@ -13645,7 +13645,9 @@ function _phRender() {
     + [[3, '3'], [6, '6'], [12, '12'], [0, 'Todos los subidos']].map(o => '<option value="' + o[0] + '"' + (o[0] === _phNMeses ? ' selected' : '') + '>' + o[1] + '</option>').join('')
     + '</select><span>(' + meses.length + ' meses: ' + _histMesNombre(meses[meses.length - 1]) + ' → ' + _histMesNombre(meses[0]) + ')</span>'
     + '<button class="btn bs" style="margin-left:14px;font-size:11px;padding:6px 12px" title="Baja a Excel esta misma tabla (ruta x mes) para comparar precios y calcular la repercusión del gasoil" onclick="phExcelTabla()">\u2B07 EXCEL DE ESTA TABLA</button></div>';
-  cont.innerHTML = sel + '<div class="phScroll"><table class="phTbl" style="min-width:' + (190 + meses.length * 150) + 'px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
+  // v1046: cabecera (RUTA y meses) fija al bajar: la tabla baja dentro de su caja (alto = pantalla) y los títulos se quedan arriba
+  const stkCss = '<style>#precHolcimCont .phScroll{overflow:auto;max-height:calc(100vh - 110px)}#precHolcimCont .phRutaTh,#precHolcimCont .phMesTh{position:sticky;top:0;z-index:3;box-shadow:0 2px 0 #9aa5b4}#precHolcimCont .phMesTh.phNuevo{background:#eaf5ee}</style>';
+  cont.innerHTML = stkCss + sel + '<div class="phScroll"><table class="phTbl" style="min-width:' + (190 + meses.length * 150) + 'px">' + cab + '<tbody>' + filas + '</tbody></table></div>'
     + '<div class="phNota">€/TN = importe ÷ TN de cada línea de la preliquidación (Tecnocatalana: € por viaje). En naranja: ese mes hubo más de un precio. <b>Pincha un precio</b> para bajar sus viajes en Excel.</div>';
 }
 // v999: ahora separa precios habituales de atipicos (ver clasif). v998: EXCEL DE TODA LA TABLA "Precios Holcim" (ruta x mes) para comparar precios mes a mes y calcular la repercusion del gasoil
