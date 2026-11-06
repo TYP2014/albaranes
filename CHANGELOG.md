@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1056 (06/11/2026): PRIMAS · "EXCEL COMPLETO (INTERNO)" DEL CUADRANTE: NUEVO ORDEN DE COLUMNAS. Pedido de Juan Carlos con su CUADRANTE_IMPORT_OCTUBRE2026 retocado a mano. AHORA delante, con la cabecera en AMARILLO y los datos en negrita sobre fondo crema: EMPLEADO · DÍAS LAB. · € / DÍA · DIETAS (€) · TARJETA (€) · EFECTIVO (€) · TOTAL DEVENGADO. Detrás, por importancia: TOTAL FINAL · CUADRE · ABONADO DE MÁS · ADELANTO NÓMINA · DESC. DEUDA · DEUDA PENDIENTE · COMPLEMENTO · PRIMA PARTE · FIJO/EXTRAS · PLUSES · NOCHES · SÁBADOS · DOMINGOS · TARDES · HORAS · FESTIVOS · PARKING · OTRO CONCEPTO · OTRO · DESCUENTO CONCEPTO · DESCUENTO · DNI · VEHÍCULO. Mismos datos y mismos totales; solo cambia el orden y el resaltado. El Excel del gestor y el de Cheque Motiva NO cambian. Cambio solo en app.js (primasCuadExcel) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1055 (app.js e index.html).
+
+---
+
 v1055 (06/11/2026): PRIMAS · EXCEL DEL GESTOR (DIETAS): TYP2014 + PORTES 2014 IMPORT EN UNO SOLO. Antes salía un Excel por empresa y había que mandar dos al gestor. AHORA, estando en el cuadrante de TYP2014 o de PORTES 2014 IMPORT, "📤 Excel para el gestor (solo dietas)" saca UN solo Excel con los dos: columnas EMPLEADO | EMPRESA (TYP2014 / IMPORT) | DNI | DÍAS DE DIETA | € / DÍA | DIETAS (€), SUBTOTAL de cada empresa y TOTAL en negrita. Nombre: DIETAS_GESTOR_TYP2014_IMPORT_<MES><AÑO>.xlsx. Mismos datos que antes. Híspalis y el "Excel completo (interno)" NO cambian (siguen por empresa). Para leer las dos empresas carga un momento el cuadrante de la otra y vuelve a la abierta; solo lectura. Cambio solo en app.js (primasCuadExcel + primasDietasGestorJunto nueva) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1054 (app.js e index.html).
 
 ---

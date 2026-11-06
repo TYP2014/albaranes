@@ -29249,7 +29249,9 @@ function primasCuadExcel(tipo) {
     eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 29];
     cols.push(10);
     // v1045: como en la pantalla del cuadrante → EMPLEADO, DÍAS LAB., € / DÍA, DIETAS (€) delante; el resto detrás
-    const ORD = [0, 3, 29, 17, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28];
+    // v1056 (Juan Carlos 06/11/2026): delante, y bien resaltadas, EMPLEADO · DÍAS LAB. · € / DÍA · DIETAS · TARJETA · EFECTIVO · TOTAL DEVENGADO;
+    // luego el cierre (TOTAL FINAL, CUADRE, DE MÁS), adelanto/deuda, de dónde sale el dinero (prima, fijo, pluses), el detalle y al final DNI y vehículo.
+    const ORD = [0, 3, 29, 17, 24, 21, 19, 26, 27, 25, 22, 23, 28, 20, 10, 9, 18, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 1, 2];
     for (let r = 3; r < aoa.length; r++) { const fil = aoa[r]; if (fil && fil.length) aoa[r] = ORD.map(i => fil[i] === undefined ? '' : fil[i]); }
     cols = ORD.map(i => cols[i]);
     eurCols = ORD.map((i, n) => eurCols.includes(i) ? n : -1).filter(n => n >= 0);
@@ -29258,6 +29260,15 @@ function primasCuadExcel(tipo) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = cols.map(w => ({ wch: w }));
   for (let r = 4; r < aoa.length; r++) eurCols.forEach(cI => { const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (cel && typeof cel.v === 'number') cel.z = '#,##0.00'; });
+  // v1056: en el Excel completo, las 6 columnas principales (DÍAS LAB. … TOTAL DEVENGADO) con la cabecera en amarillo y en negrita
+  if (tipo !== 'gestor') {
+    for (let r = 3; r < aoa.length; r++) for (let cI = 0; cI <= 6; cI++) {
+      const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (!cel) continue;
+      const esCab = r === 3, esTot = String((aoa[r] || [])[0] || '') === 'TOTAL';
+      if (esCab) cel.s = { font: { bold: true }, fill: cI >= 1 ? { patternType: 'solid', fgColor: { rgb: 'FFE699' } } : undefined, alignment: { wrapText: true, vertical: 'bottom' } };
+      else if (cI >= 1 || esTot) cel.s = { font: { bold: true }, fill: cI >= 1 ? { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } } : undefined };
+    }
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (tipo === 'gestor' ? 'DIETAS ' : 'CUADRANTE ') + _PRIMAS_MESES[+p[1] - 1].slice(0, 3) + p[0]);
   XLSX.writeFile(wb, nombre);
