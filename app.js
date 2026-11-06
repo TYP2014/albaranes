@@ -24850,8 +24850,9 @@ function renderEmpDatos() {
   };
   const th = (t) => '<th style="padding:10px 8px;font-size:13px;font-weight:800;letter-spacing:.3px;white-space:nowrap">' + t + '</th>';
   const td = (v, x) => '<td style="padding:9px 8px;' + (x || '') + '">' + v + '</td>';
+  const _chm1054 = ['TYP2014', 'PORTES'].includes(empDatosEmpresa);   // v1054: tarjeta CHEQUE MOTIVA
   box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +
-    '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd)">' + th('NOMBRE') + th('DNI/NIE') + th('PUESTO') + th('TELÉFONO') + th('ALTA') + th('BAJA') + th('TARJETA TACÓGRAFO') + th('CAD. TARJETA') + th('CAD. CARNET') + th('CAD. CAP') + th('') + '</tr></thead><tbody>' +
+    '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd)">' + th('NOMBRE') + th('DNI/NIE') + th('PUESTO') + th('TELÉFONO') + th('ALTA') + th('BAJA') + th('TARJETA TACÓGRAFO') + th('CAD. TARJETA') + th('CAD. CARNET') + th('CAD. CAP') + (_chm1054 ? th('TARJETA CHEQUE MOTIVA') : '') + th('') + '</tr></thead><tbody>' +
     trabs.map(t => '<tr style="border-bottom:1px solid var(--bd)">' +
       td(esc(t.nombre || ''), 'font-weight:800;font-size:15px') +
       td(esc(t.dni || '—'), 'white-space:nowrap') +
@@ -24861,6 +24862,7 @@ function renderEmpDatos() {
       td(f(t.fecha_baja) ? '<span style="color:#c62828;font-weight:800">' + f(t.fecha_baja) + '</span>' : '—', 'white-space:nowrap') +
       td(esc(t.tarjeta_num || '—'), 'white-space:nowrap') +
       td(cad(t.tarjeta_caduca), 'white-space:nowrap') + td(cad(t.carnet_caduca), 'white-space:nowrap') + td(cad(t.cap_caduca), 'white-space:nowrap') +
+      (_chm1054 ? td(t.chm_tarjeta ? esc(t.chm_tarjeta) : '<span style="color:#999">—</span>', 'white-space:nowrap;font-weight:700') : '') +
       td('<button class="btn bs" style="font-size:13px;padding:7px 14px;font-weight:700;color:#111" onclick="openTrabajadorModal(\'' + t.id + '\')">EDITAR</button>', 'text-align:right') +
       '</tr>').join('') + '</tbody></table>';
 }
@@ -25190,7 +25192,7 @@ function openTrabajadorModal(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">DNI/NIE</label><input class="fi" id="trabF_dni" value="${v('dni')}" placeholder="12345678X"></div>
       <div class="fg"><label class="fl">Empresa</label>
-        <select class="fi" id="trabF_empresa">
+        <select class="fi" id="trabF_empresa" onchange="var b=document.getElementById('trabF_chmBox'); if (b) b.style.display=(this.value==='TYP2014'||this.value==='PORTES')?'block':'none'">
           <option value="">—</option>
           <option value="TYP2014"${(t?.empresa==='TYP2014') || (!t && vacEmpresaActiva==='TYP2014')?' selected':''}>TYP2014</option>
           <option value="HISPALIS"${(t?.empresa==='HISPALIS') || (!t && vacEmpresaActiva==='HISPALIS')?' selected':''}>HISPALIS</option>
@@ -25233,6 +25235,16 @@ function openTrabajadorModal(id) {
       <div class="fg"><label class="fl">🩺 Caduca el reconocimiento médico</label>
         <input class="fi" type="date" id="trabF_recmedcad" value="${t?.recmed_caduca || ''}"></div>
     </div>
+    <!-- v1054: TARJETA CHEQUE MOTIVA (recarga mensual). Solo TYP2014 y Portes 2014 Import; opcional.
+         Sale en "Datos de empleados" y en el Excel CHEQUEMOTIVA del cuadrante de Primas. -->
+    <div id="trabF_chmBox" style="display:${(['TYP2014','PORTES'].includes(t ? t.empresa : vacEmpresaActiva)) ? 'block' : 'none'};border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-family:var(--mn);font-size:11px;font-weight:800;margin-bottom:8px">💳 TARJETA CHEQUE MOTIVA <span style="font-weight:400;color:var(--mu)">(opcional · déjalo en blanco si no lleva)</span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.5fr);gap:10px">
+        <div class="fg"><label class="fl">Nº registro</label><input class="fi" id="trabF_chmReg" value="${v('chm_registro')}" placeholder="solo las antiguas" style="font-family:var(--mn)"></div>
+        <div class="fg"><label class="fl">Clave</label><input class="fi" id="trabF_chmClave" value="${v('chm_clave')}" style="font-family:var(--mn)"></div>
+        <div class="fg"><label class="fl">Nº tarjeta</label><input class="fi" id="trabF_chmTarj" value="${v('chm_tarjeta')}" style="font-family:var(--mn)"></div>
+      </div>
+    </div>
     <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
       <input class="fi" id="trabF_notas" value="${v('notas')}" placeholder="opcional">
     </div>
@@ -25274,6 +25286,15 @@ async function saveTrabModal() {
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
     updated_at: new Date().toISOString()
   };
+  // v1054: tarjeta CHEQUE MOTIVA. Solo se manda si se escribe algo o si ya tenía (para poder borrarla):
+  // así, si faltara el SQL de la v1054, guardar un trabajador normal sigue funcionando igual.
+  {
+    const _tOrig = editTrabId ? (vacTrabajadores || []).find(x => x.id === editTrabId) : null;
+    [['chm_registro', 'trabF_chmReg'], ['chm_clave', 'trabF_chmClave'], ['chm_tarjeta', 'trabF_chmTarj']].forEach(([col, idc]) => {
+      const val = String(document.getElementById(idc)?.value || '').trim().replace(/\s+/g, '');
+      if (val || (_tOrig && _tOrig[col])) payload[col] = val || null;
+    });
+  }
   try {
     if (editTrabId) {
       const { error } = await sb.from('trabajadores').update(payload).eq('id', editTrabId);
@@ -29240,6 +29261,87 @@ function primasCuadExcel(tipo) {
   XLSX.writeFile(wb, nombre);
   console.log('[v663 primas] Excel', tipo, nombre, 'filas:', filas.length);
   toast('Excel descargado: ' + nombre, 'ok');
+}
+
+// ---------- v1054: EXCEL CHEQUE MOTIVA (recarga de tarjetas) ----------
+// Mismo formato que el CHEQUEMOTIVA_<MES><AA>.xlsx que se manda a Cheque Motiva (hoja EXPORTAR_ALTAS):
+// fila 2 cabecera amarilla NUM_REGISTRO | CLAVE | TARJETA | NOMBRE_ESTAMPAR | REF_IMAGEN | IMPORTE,
+// desde la fila 4 un trabajador por fila y abajo la SUMA. TYP2014 y PORTES 2014 IMPORT van JUNTOS.
+// IMPORTE = la columna TARJETA del cuadrante de cada uno. Salen los que tienen tarjeta en su ficha
+// (aunque este mes sea 0, como en el Excel de siempre). Las antiguas (con Nº registro) llevan * y 70.
+// Para leer las dos empresas carga un momento el cuadrante de la otra y luego vuelve a la abierta.
+// Solo lectura: no guarda nada.
+async function primasChequeMotivaExcel() {
+  if (typeof XLSX === 'undefined') { toast('No está cargada la librería de Excel', 'err'); return; }
+  if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
+  const emps = ['TYP2014', 'PORTES'].filter(e => _recmedEmpresas().includes(e));
+  if (!emps.length) { toast('Este Excel es solo para TYP2014 y Portes 2014 Import', 'warn'); return; }
+  const p = primasMes.split('-'); const mesNom = _PRIMAS_MESES[+p[1] - 1];
+  const original = primasEmpresa;
+  const importe = {}, trabs = {}, revisar = [];
+  toast('Preparando Excel Cheque Motiva...', 'ok');
+  try {
+    for (const e of emps) {
+      primasEmpresa = e;
+      await loadPrimasCuadrante();
+      _pcTrabajadores().forEach(t => {
+        if (trabs[t.id]) return;
+        trabs[t.id] = t;
+        const c = _pcCalc(t, primasCuadRows[t.id]);
+        importe[t.id] = _pcR2(c.tarjeta || 0);
+        if (c.activo && c.cuadre !== 'OK') revisar.push(t.nombre || '');
+      });
+    }
+  } catch (err) {
+    console.error('[v1054 chequemotiva]', err);
+    toast('No se pudo preparar el Excel: ' + (err.message || err), 'err');
+    return;
+  } finally {
+    primasEmpresa = original;
+    try { await loadPrimasCuadrante(); } catch (e2) {}
+  }
+  const lista = Object.values(trabs).filter(t => t.chm_tarjeta || t.chm_clave || t.chm_registro);
+  const sinTarjeta = Object.values(trabs).filter(t => importe[t.id] > 0 && !(t.chm_tarjeta || t.chm_clave || t.chm_registro));
+  if (!lista.length) { toast('Nadie de TYP2014 / Portes 2014 Import tiene la tarjeta Cheque Motiva en su ficha (EDITAR trabajador)', 'warn'); return; }
+  let aviso = '';
+  if (sinTarjeta.length) aviso += 'Tienen importe en TARJETA pero NO tienen la tarjeta Cheque Motiva en su ficha (NO saldrán en el Excel):\n' + sinTarjeta.map(t => '  · ' + (t.nombre || '') + ' — ' + importe[t.id] + ' €').join('\n') + '\n\n';
+  if (revisar.length) aviso += 'Con el cuadre en REVISAR: ' + revisar.join(', ') + '\n\n';
+  if (aviso && !confirm(aviso + '¿Sacar el Excel de todas formas?')) return;
+  // Orden: primero las antiguas (por Nº registro), luego las demás por nombre
+  lista.sort((a, b) => {
+    const ra = parseInt(a.chm_registro, 10), rb = parseInt(b.chm_registro, 10);
+    if (!isNaN(ra) && !isNaN(rb)) return ra - rb;
+    if (!isNaN(ra)) return -1; if (!isNaN(rb)) return 1;
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  });
+  const AMA = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } };
+  const VERDE = { fill: { patternType: 'solid', fgColor: { rgb: 'D7E4BD' } } };
+  const NEG = { font: { bold: true } };
+  const ws = {};
+  const put = (ref, cel) => { ws[ref] = cel; };
+  ['NUM_REGISTRO', 'CLAVE', 'TARJETA', 'NOMBRE_ESTAMPAR', 'REF_IMAGEN', 'IMPORTE'].forEach((h, i) => put(XLSX.utils.encode_cell({ r: 1, c: i + 1 }), { t: 's', v: h, s: AMA }));
+  let r = 3, total = 0;
+  lista.forEach(t => {
+    const reg = String(t.chm_registro || '').trim();
+    const imp = importe[t.id] || 0; total += imp;
+    const fmt = Number.isInteger(imp) ? '#,##0\\ "€"' : '#,##0.00\\ "€"';
+    put('A' + (r + 1), { t: 's', v: String(t.nombre || '').toUpperCase(), s: NEG });
+    if (reg) put('B' + (r + 1), /^\d+$/.test(reg) ? { t: 'n', v: +reg } : { t: 's', v: reg });
+    if (t.chm_clave) put('C' + (r + 1), { t: 's', v: String(t.chm_clave) });
+    if (t.chm_tarjeta) put('D' + (r + 1), { t: 's', v: String(t.chm_tarjeta) });
+    if (reg) { put('E' + (r + 1), { t: 's', v: '*' }); put('F' + (r + 1), { t: 'n', v: 70 }); }
+    put('G' + (r + 1), { t: 'n', v: imp, z: fmt, s: imp > 0 ? Object.assign({}, NEG, VERDE) : NEG });
+    r++;
+  });
+  put('G' + (r + 2), { t: 'n', v: _pcR2(total), f: 'SUM(G4:G' + (r + 1) + ')', z: '#,##0\\ "€"' });
+  ws['!ref'] = 'A1:H' + (r + 2);
+  ws['!cols'] = [32, 15.3, 18.1, 19.7, 7, 6.1, 15.9, 15.6].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'EXPORTAR_ALTAS');
+  const nombre = 'CHEQUEMOTIVA_' + mesNom + p[0].slice(2) + '.xlsx';
+  XLSX.writeFile(wb, nombre);
+  console.log('[v1054 chequemotiva]', nombre, 'filas:', lista.length, 'total:', _pcR2(total));
+  toast('Excel descargado: ' + nombre + ' · ' + lista.length + ' tarjetas · ' + _pcR2(total) + ' €', 'ok');
 }
 
 // ---------- v664: CERTIFICADOS DE PAGO (lo que hacian las pestañas CERT de los libros) ----------

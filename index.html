@@ -1530,6 +1530,7 @@ if (typeof pdfjsLib !== 'undefined') {
                 <span style="flex:1"></span>
                 <button class="btn bp" onclick="primasCuadExcel('gestor')" style="font-size:13.5px;font-weight:700;padding:9px 16px" title="Para enviar a la gestoría: SOLO empleado, DNI, días de dieta y dietas por transferencia. NO lleva efectivo ni tarjeta.">📤 Excel para el gestor (solo dietas)</button>
                 <button class="btn bs" onclick="primasCuadExcel('completo')" style="font-size:13.5px;font-weight:700;padding:9px 16px" title="El cuadrante entero, con efectivo y tarjeta. Uso interno: NO enviar fuera.">📥 Excel completo (interno)</button>
+                <button class="btn bs" onclick="primasChequeMotivaExcel()" style="font-size:13.5px;font-weight:700;padding:9px 16px" title="v1054: Excel para CHEQUE MOTIVA (recarga de tarjetas), mismo formato de siempre. TYP2014 y Portes 2014 Import juntos. Importe = columna TARJETA del cuadrante.">💳 Excel Cheque Motiva</button>
               </div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-family:var(--mn);font-size:14px;font-weight:600;color:#111">
                 <span>Fecha del certificado:</span>
@@ -2129,6 +2130,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1053"></script>
+<script src="app.js?v=1054"></script>
 </body>
 </html>
