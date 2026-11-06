@@ -29210,6 +29210,8 @@ function _primasNomFich(e) { return e === 'PORTES' ? 'IMPORT' : e; }
 function primasCuadExcel(tipo) {
   if (typeof XLSX === 'undefined') { toast('No está cargada la librería de Excel', 'err'); return; }
   if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
+  // v1055: el Excel del GESTOR sale UNO SOLO con TYP2014 + PORTES 2014 IMPORT juntos (columna EMPRESA)
+  if (tipo === 'gestor' && ['TYP2014', 'PORTES'].includes(primasEmpresa)) { primasDietasGestorJunto(); return; }
   const p = primasMes.split('-'); const mesTxt = _PRIMAS_MESES[+p[1] - 1] + ' ' + p[0];
   const empTxt = _PRIMAS_EMP_LEGAL[primasEmpresa] || primasEmpresa;
   const filas = [];
@@ -29342,6 +29344,64 @@ async function primasChequeMotivaExcel() {
   XLSX.writeFile(wb, nombre);
   console.log('[v1054 chequemotiva]', nombre, 'filas:', lista.length, 'total:', _pcR2(total));
   toast('Excel descargado: ' + nombre + ' · ' + lista.length + ' tarjetas · ' + _pcR2(total) + ' €', 'ok');
+}
+
+// ---------- v1055: EXCEL DEL GESTOR (DIETAS) CON TYP2014 + PORTES 2014 IMPORT JUNTOS ----------
+// Antes salían dos Excel (uno por empresa) y había que mandar los dos. Ahora, estando en TYP2014 o en
+// PORTES, "Excel para el gestor" saca UNO con los dos: columna EMPRESA (TYP2014 / IMPORT), subtotal de
+// cada empresa y TOTAL. Mismos datos que antes (días de dieta, € / día, dietas). Híspalis sigue igual.
+// Carga un momento el cuadrante de la otra empresa y vuelve a la abierta. Solo lectura.
+async function primasDietasGestorJunto() {
+  const emps = ['TYP2014', 'PORTES'].filter(e => _recmedEmpresas().includes(e));
+  const p = primasMes.split('-'); const mesTxt = _PRIMAS_MESES[+p[1] - 1] + ' ' + p[0];
+  const original = primasEmpresa;
+  const porEmp = {}, vistos = {}, revisar = [];
+  toast('Preparando Excel del gestor...', 'ok');
+  try {
+    for (const e of emps) {
+      primasEmpresa = e;
+      await loadPrimasCuadrante();
+      porEmp[e] = [];
+      _pcTrabajadores().forEach(t => {
+        if (vistos[t.id]) return; vistos[t.id] = 1;
+        const c = _pcCalc(t, primasCuadRows[t.id]);
+        if (c.activo && c.cuadre !== 'OK') revisar.push(t.nombre || '');
+        if (c.v.dias_lab > 0) porEmp[e].push({ t, c });
+      });
+    }
+  } catch (err) {
+    console.error('[v1055 dietas gestor]', err);
+    toast('No se pudo preparar el Excel: ' + (err.message || err), 'err');
+    return;
+  } finally {
+    primasEmpresa = original;
+    try { await loadPrimasCuadrante(); } catch (e2) {}
+  }
+  if (!emps.some(e => (porEmp[e] || []).length)) { toast('Nadie tiene días de dieta puestos en ' + mesTxt, 'warn'); return; }
+  if (revisar.length && !confirm('Hay ' + revisar.length + ' trabajador' + (revisar.length === 1 ? '' : 'es') + ' con el cuadre en REVISAR:\n' + revisar.join(', ') + '\n\n¿Sacar el Excel de todas formas?')) return;
+  const corto = { TYP2014: 'TYP2014', PORTES: 'IMPORT' };
+  const aoa = [['DIETAS — ' + emps.map(e => _PRIMAS_EMP_LEGAL[e] || e).join(' + ')], [mesTxt], [], ['EMPLEADO', 'EMPRESA', 'DNI', 'DÍAS DE DIETA', '€ / DÍA', 'DIETAS (€)']];
+  const negritas = [];
+  let sdT = 0, stT = 0;
+  emps.forEach(e => {
+    const filas = porEmp[e] || []; if (!filas.length) return;
+    let sd = 0, st = 0;
+    filas.forEach(({ t, c }) => { aoa.push([t.nombre || '', corto[e], t.dni || '', c.v.dias_lab, c.tf.dieta, c.dietas]); sd += c.v.dias_lab; st += c.dietas; });
+    negritas.push(aoa.length); aoa.push(['SUBTOTAL ' + corto[e], '', '', sd, '', _pcR2(st)]);
+    aoa.push([]);
+    sdT += sd; stT += st;
+  });
+  negritas.push(aoa.length); aoa.push(['TOTAL', '', '', sdT, '', _pcR2(stT)]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [38, 10, 13, 15, 10, 14].map(w => ({ wch: w }));
+  for (let r = 4; r < aoa.length; r++) [4, 5].forEach(cI => { const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (cel && typeof cel.v === 'number') cel.z = '#,##0.00'; });
+  negritas.forEach(r => { for (let cI = 0; cI < 6; cI++) { const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (cel) cel.s = { font: { bold: true } }; } });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DIETAS ' + _PRIMAS_MESES[+p[1] - 1].slice(0, 3) + p[0]);
+  const nombre = 'DIETAS_GESTOR_' + emps.map(e => _primasNomFich(e)).join('_') + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+  XLSX.writeFile(wb, nombre);
+  console.log('[v1055 dietas gestor]', nombre, emps.map(e => e + ':' + (porEmp[e] || []).length).join(' '), 'total:', _pcR2(stT));
+  toast('Excel descargado: ' + nombre, 'ok');
 }
 
 // ---------- v664: CERTIFICADOS DE PAGO (lo que hacian las pestañas CERT de los libros) ----------
