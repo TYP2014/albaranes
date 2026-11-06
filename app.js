@@ -29207,15 +29207,21 @@ const _PRIMAS_EMP_LEGAL = { TYP2014: 'Transportes y Portes 2014, S.L.', HISPALIS
 const _PRIMAS_MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
 // v800: en el NOMBRE del Excel, Portes 2014 Import sale como IMPORT (con TYP2014 se confundía)
 function _primasNomFich(e) { return e === 'PORTES' ? 'IMPORT' : e; }
-function primasCuadExcel(tipo) {
+function primasCuadExcel(tipo, grupos) {
   if (typeof XLSX === 'undefined') { toast('No está cargada la librería de Excel', 'err'); return; }
   if (primasVista !== 'cuad') { toast('Abre primero el Cuadrante del mes', 'warn'); return; }
   // v1055: el Excel del GESTOR sale UNO SOLO con TYP2014 + PORTES 2014 IMPORT juntos (columna EMPRESA)
   if (tipo === 'gestor' && ['TYP2014', 'PORTES'].includes(primasEmpresa)) { primasDietasGestorJunto(); return; }
+  // v1056b: el COMPLETO también sale UNO SOLO con TYP2014 + PORTES (subtotal de cada una y TOTAL de todo)
+  if (tipo !== 'gestor' && !grupos && ['TYP2014', 'PORTES'].includes(primasEmpresa)) { primasCompletoJunto(); return; }
   const p = primasMes.split('-'); const mesTxt = _PRIMAS_MESES[+p[1] - 1] + ' ' + p[0];
-  const empTxt = _PRIMAS_EMP_LEGAL[primasEmpresa] || primasEmpresa;
-  const filas = [];
-  _pcTrabajadores().forEach(t => { const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) filas.push({ t, c }); });
+  const empTxt = grupos ? grupos.map(g => _PRIMAS_EMP_LEGAL[g.emp] || g.emp).join(' + ') : (_PRIMAS_EMP_LEGAL[primasEmpresa] || primasEmpresa);
+  if (!grupos) {
+    const g0 = { emp: primasEmpresa, filas: [] };
+    _pcTrabajadores().forEach(t => { const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) g0.filas.push({ t, c, dq: _pcQuedaDeuda(t, c) }); });
+    grupos = [g0];
+  }
+  const filas = [].concat(...grupos.map(g => g.filas));
   if (!filas.length) { toast('No hay ningún trabajador con importe en ' + mesTxt, 'warn'); return; }
   const revisar = filas.filter(f => f.c.cuadre !== 'OK').length;
   if (revisar && !confirm('Hay ' + revisar + ' trabajador' + (revisar === 1 ? '' : 'es') + ' con el cuadre en REVISAR.\n\n¿Sacar el Excel de todas formas?')) return;
@@ -29231,31 +29237,39 @@ function primasCuadExcel(tipo) {
   } else {
     const cab = ['EMPLEADO', 'DNI', 'VEHÍCULO', 'DÍAS LAB.', 'NOCHES', 'SÁBADOS', 'DOMINGOS', 'TARDES', 'HORAS', 'FIJO / EXTRAS (€)', 'PRIMA PARTE (€)', 'FESTIVOS (€)', 'PARKING (€)',
       'OTRO CONCEPTO', 'OTRO (€)', 'DESCUENTO CONCEPTO', 'DESCUENTO (€)', 'DIETAS (€)', 'PLUSES (€)', 'TOTAL DEVENGADO', 'COMPLEMENTO', 'EFECTIVO (€)', 'ADELANTO NÓMINA (€)', 'DESC. DEUDA (€)', 'TARJETA (€)', 'ABONADO DE MÁS', 'TOTAL FINAL', 'CUADRE', 'DEUDA PENDIENTE (€)', '€ / DÍA'];   // v669 · v1045: + € / DÍA (col 29)
+    cab.push('EMPRESA');   // v1056b (col 30)
     aoa = [['DIETAS Y PLUSES — ' + empTxt + ' — USO INTERNO'], [mesTxt], [], cab];
+    const _corto = { TYP2014: 'TYP2014', PORTES: 'IMPORT', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ' };
+    const _totFila = (txt, S) => { const tot = new Array(cab.length).fill(''); tot[0] = txt;
+      tot[17] = _pcR2(S.dietas); tot[18] = _pcR2(S.pluses); tot[19] = _pcR2(S.total); tot[21] = _pcR2(S.ef); tot[22] = _pcR2(S.ad); tot[23] = _pcR2(S.dd); tot[24] = _pcR2(S.ta); tot[25] = _pcR2(S.dm); tot[26] = _pcR2(S.fin); return tot; };
     const S = { dietas: 0, pluses: 0, total: 0, ef: 0, ad: 0, dd: 0, ta: 0, dm: 0, fin: 0 };
-    filas.forEach(({ t, c }) => {
+    const varios = grupos.filter(g => g.filas.length).length > 1;
+    grupos.forEach(g => { if (!g.filas.length) return;
+    const SG = { dietas: 0, pluses: 0, total: 0, ef: 0, ad: 0, dd: 0, ta: 0, dm: 0, fin: 0 };
+    g.filas.forEach(({ t, c, dq }) => {
       const v = c.v;
       aoa.push([t.nombre || '', t.dni || '', t.vehiculo_habitual || '', v.dias_lab || '', v.noches || '', v.sabados || '', v.domingos || '', v.tardes || '', v.horas || '',
         v.extras || '', c.prima || '', v.festivos || '', v.parking || '', v.otro_concepto || '', v.otro || '', v.descuento_concepto || '', v.descuento || '',
         c.dietas, c.pluses, c.total, c.complemento, c.efectivo, v.adelanto || '', v.descuento_deuda || '', c.tarjeta, c.demas, c.totalFinal, c.cuadre,
-        (() => { const d = _pcDeuda(t, v.descuento_deuda, primasCuadDeudaAntes[t.id]); return d ? Math.max(d.queda, 0) : ''; })(), (v.dias_lab > 0 || c.tf.dieta) ? c.tf.dieta : '']);   // v668 · v1045
-      S.dietas += c.dietas; S.pluses += c.pluses; S.total += c.total; S.ef += c.efectivo; S.ad += v.adelanto; S.dd += v.descuento_deuda; S.ta += c.tarjeta; S.dm += c.demas; S.fin += c.totalFinal;
+        (dq != null ? dq : ''), (v.dias_lab > 0 || c.tf.dieta) ? c.tf.dieta : '', _corto[g.emp] || g.emp]);   // v668 · v1045 · v1056b
+      [S, SG].forEach(X => { X.dietas += c.dietas; X.pluses += c.pluses; X.total += c.total; X.ef += c.efectivo; X.ad += v.adelanto; X.dd += v.descuento_deuda; X.ta += c.tarjeta; X.dm += c.demas; X.fin += c.totalFinal; });
     });
-    aoa.push([]);
-    const tot = new Array(cab.length).fill(''); tot[0] = 'TOTAL';
-    tot[17] = _pcR2(S.dietas); tot[18] = _pcR2(S.pluses); tot[19] = _pcR2(S.total); tot[21] = _pcR2(S.ef); tot[22] = _pcR2(S.ad); tot[23] = _pcR2(S.dd); tot[24] = _pcR2(S.ta); tot[25] = _pcR2(S.dm); tot[26] = _pcR2(S.fin);
-    aoa.push(tot);
+    if (varios) { aoa.push(_totFila('SUBTOTAL ' + (_corto[g.emp] || g.emp), SG)); aoa.push([]); }
+    });
+    if (!varios) aoa.push([]);
+    aoa.push(_totFila('TOTAL', S));
     cols = [38, 13, 12, 10, 9, 10, 10, 9, 9, 16, 15, 13, 13, 24, 11, 24, 14, 13, 13, 17, 15, 13, 19, 15, 13, 16, 14, 10, 20];
     eurCols = [9, 10, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 29];
     cols.push(10);
     // v1045: como en la pantalla del cuadrante → EMPLEADO, DÍAS LAB., € / DÍA, DIETAS (€) delante; el resto detrás
     // v1056 (Juan Carlos 06/11/2026): delante, y bien resaltadas, EMPLEADO · DÍAS LAB. · € / DÍA · DIETAS · TARJETA · EFECTIVO · TOTAL DEVENGADO;
     // luego el cierre (TOTAL FINAL, CUADRE, DE MÁS), adelanto/deuda, de dónde sale el dinero (prima, fijo, pluses), el detalle y al final DNI y vehículo.
-    const ORD = [0, 3, 29, 17, 24, 21, 19, 26, 27, 25, 22, 23, 28, 20, 10, 9, 18, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 1, 2];
+    const ORD = [0, 3, 29, 17, 24, 21, 19, 26, 27, 25, 22, 23, 28, 20, 10, 9, 18, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 1, 2, 30];
+    cols.push(10);   // v1056b: EMPRESA
     for (let r = 3; r < aoa.length; r++) { const fil = aoa[r]; if (fil && fil.length) aoa[r] = ORD.map(i => fil[i] === undefined ? '' : fil[i]); }
     cols = ORD.map(i => cols[i]);
     eurCols = ORD.map((i, n) => eurCols.includes(i) ? n : -1).filter(n => n >= 0);
-    nombre = 'CUADRANTE_' + _primasNomFich(primasEmpresa) + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
+    nombre = 'CUADRANTE_' + grupos.map(g => _primasNomFich(g.emp)).join('_') + '_' + _PRIMAS_MESES[+p[1] - 1] + p[0] + '.xlsx';
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = cols.map(w => ({ wch: w }));
@@ -29264,7 +29278,7 @@ function primasCuadExcel(tipo) {
   if (tipo !== 'gestor') {
     for (let r = 3; r < aoa.length; r++) for (let cI = 0; cI <= 6; cI++) {
       const cel = ws[XLSX.utils.encode_cell({ r, c: cI })]; if (!cel) continue;
-      const esCab = r === 3, esTot = String((aoa[r] || [])[0] || '') === 'TOTAL';
+      const esCab = r === 3, esTot = /^(SUB)?TOTAL/.test(String((aoa[r] || [])[0] || ''));
       if (esCab) cel.s = { font: { bold: true }, fill: cI >= 1 ? { patternType: 'solid', fgColor: { rgb: 'FFE699' } } : undefined, alignment: { wrapText: true, vertical: 'bottom' } };
       else if (cI >= 1 || esTot) cel.s = { font: { bold: true }, fill: cI >= 1 ? { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } } : undefined };
     }
@@ -29274,6 +29288,35 @@ function primasCuadExcel(tipo) {
   XLSX.writeFile(wb, nombre);
   console.log('[v663 primas] Excel', tipo, nombre, 'filas:', filas.length);
   toast('Excel descargado: ' + nombre, 'ok');
+}
+
+// v1056b: lo que le queda de deuda (para la columna DEUDA PENDIENTE del Excel completo). Se calcula
+// con el cuadrante de SU empresa cargado (primasCuadDeudaAntes es de la empresa que está cargada).
+function _pcQuedaDeuda(t, c) { const d = _pcDeuda(t, c.v.descuento_deuda, primasCuadDeudaAntes[t.id]); return d ? Math.max(d.queda, 0) : null; }
+// v1056b: EXCEL COMPLETO CON TYP2014 + PORTES 2014 IMPORT JUNTOS. Carga un momento el cuadrante de la
+// otra empresa y vuelve a la abierta; luego llama a primasCuadExcel('completo', grupos). Solo lectura.
+async function primasCompletoJunto() {
+  const emps = ['TYP2014', 'PORTES'].filter(e => _recmedEmpresas().includes(e));
+  const original = primasEmpresa, grupos = [], vistos = {};
+  toast('Preparando Excel completo...', 'ok');
+  try {
+    for (const e of emps) {
+      primasEmpresa = e;
+      await loadPrimasCuadrante();
+      const g = { emp: e, filas: [] };
+      _pcTrabajadores().forEach(t => { if (vistos[t.id]) return; vistos[t.id] = 1;
+        const c = _pcCalc(t, primasCuadRows[t.id]); if (c.activo) g.filas.push({ t, c, dq: _pcQuedaDeuda(t, c) }); });
+      grupos.push(g);
+    }
+  } catch (err) {
+    console.error('[v1056b completo junto]', err);
+    toast('No se pudo preparar el Excel: ' + (err.message || err), 'err');
+    return;
+  } finally {
+    primasEmpresa = original;
+    try { await loadPrimasCuadrante(); } catch (e2) {}
+  }
+  primasCuadExcel('completo', grupos);
 }
 
 // ---------- v1054: EXCEL CHEQUE MOTIVA (recarga de tarjetas) ----------

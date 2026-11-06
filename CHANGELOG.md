@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1057 (06/11/2026): PRIMAS · "EXCEL COMPLETO (INTERNO)": TYP2014 + PORTES 2014 IMPORT EN UNO SOLO. Juan Carlos revisa un solo Excel y quiere a Francisco Javier (Import) dentro del total. AHORA, estando en el cuadrante de TYP2014 o de PORTES, "📥 Excel completo (interno)" saca UNO con las dos empresas: primero los de TYP2014 y su fila SUBTOTAL TYP2014, luego los de IMPORT y SUBTOTAL IMPORT, y abajo el TOTAL de todo (en negrita). Columna nueva EMPRESA al final (TYP2014 / IMPORT). Mismo orden de columnas que la v1056 (las 6 principales delante en amarillo). Nombre: CUADRANTE_TYP2014_IMPORT_<MES><AÑO>.xlsx. Híspalis sigue saliendo sola. Carga un momento el cuadrante de la otra empresa y vuelve a la abierta; solo lectura. Cambio solo en app.js (primasCuadExcel, primasCompletoJunto y _pcQuedaDeuda nuevas) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1056 (app.js e index.html).
+
+---
+
 v1056 (06/11/2026): PRIMAS · "EXCEL COMPLETO (INTERNO)" DEL CUADRANTE: NUEVO ORDEN DE COLUMNAS. Pedido de Juan Carlos con su CUADRANTE_IMPORT_OCTUBRE2026 retocado a mano. AHORA delante, con la cabecera en AMARILLO y los datos en negrita sobre fondo crema: EMPLEADO · DÍAS LAB. · € / DÍA · DIETAS (€) · TARJETA (€) · EFECTIVO (€) · TOTAL DEVENGADO. Detrás, por importancia: TOTAL FINAL · CUADRE · ABONADO DE MÁS · ADELANTO NÓMINA · DESC. DEUDA · DEUDA PENDIENTE · COMPLEMENTO · PRIMA PARTE · FIJO/EXTRAS · PLUSES · NOCHES · SÁBADOS · DOMINGOS · TARDES · HORAS · FESTIVOS · PARKING · OTRO CONCEPTO · OTRO · DESCUENTO CONCEPTO · DESCUENTO · DNI · VEHÍCULO. Mismos datos y mismos totales; solo cambia el orden y el resaltado. El Excel del gestor y el de Cheque Motiva NO cambian. Cambio solo en app.js (primasCuadExcel) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1055 (app.js e index.html).
 
 ---
