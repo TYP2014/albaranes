@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1053 (06/11/2026): EMPLEADOS · ORDEN DE LAS SUB-PESTAÑAS. "🪪 Datos de empleados" (nueva en la v1051) pasa a la IZQUIERDA, la primera, separada con una raya; las otras tres (Vacaciones, Reconocimientos medicos, Primas) quedan centradas y separadas como estaban antes. Vacaciones sigue saliendo por defecto. Solo aspecto: cambio solo en index.html (la fila de botones) + numero de version; app.js NO cambia. Sin SQL. VUELTA ATRAS: resubir v1052 (index.html).
+
+---
+
 v1052 (06/11/2026): SUBIR · CEMEX QUE SALIA CON "SN-…" TENIENDO NUMERO. Caso real (escaneos de Marta): el albaran CEMEX 77469/252470 del 27/10 (TODO UNO, cliente HOLCIM, obra FABRICA MONTCADA, 6892JXH) se guardo como SN-271026-27900, y otro del 01/10 (ACCIONA, 0732NLY) como SN-011026-2940. La IA SI leia los dos numeros, pero los metia AMBOS en observaciones ("Ref. CemexGo: M469... · Nº interno CEMEX: 77469/...") y dejaba el numero en blanco, y entonces la app generaba el SN. AHORA, SOLO si el numero llega VACIO y en observaciones hay un numero de CEMEX, se recupera con la misma regla de siempre: TODO UNO/Caliza Cemex + cliente HOLCIM + obra FABRICA MONTCADA → el 77469/...; cualquier otro CEMEX → la M (M + 13 cifras). Se anota en observaciones "Nº ... recuperado de observaciones". El numero recuperado pasa igual por el control de numeros repetidos (v218). Si la IA pone el numero bien, no cambia nada. Los SN ya guardados NO cambian solos. Cambio solo en app.js (_processOne) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1051 (app.js e index.html).
 
 ---
