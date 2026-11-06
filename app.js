@@ -4922,6 +4922,34 @@ async function _processOne(it, type, key, timeoutMs) {
           // 'transportista_papel' column"). Por eso el K92 no guardaba los Promsa.
           delete data.transportista_papel;
         }
+        // v1052 (06/11/2026, Juan Carlos): CEMEX SIN Nº PERO CON LOS NÚMEROS EN OBSERVACIONES.
+        // Caso real: albaranes CEMEX (Escáner de Marta, 27/10 y 01/10) en los que la IA leyó
+        // BIEN los dos números pero los metió AMBOS en observaciones ("Ref. CemexGo: M469...
+        // · Nº interno CEMEX: 77469/...") y dejó el nº en blanco → la app ponía "SN-…".
+        // AHORA, solo si el nº viene VACÍO, se recupera de las observaciones con la misma regla
+        // del prompt: TODO UNO/Caliza Cemex + cliente HOLCIM + obra FABRICA MONTCADA → 77469/…;
+        // cualquier otro CEMEX → la M (M + 13 cifras). Si no hay número válido, todo sigue igual.
+        // Va ANTES de la red v218, así el nº recuperado pasa igual por el control de repetidos.
+        {
+          const _numV1052 = String(data.albaran || '').trim();
+          const _obsV1052 = String(data.observaciones || '');
+          if (!_numV1052 && /CEMEX/i.test(_obsV1052 + ' ' + (data.proveedor || ''))) {
+            const _stV1052 = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+            const _mV1052 = (_obsV1052.match(/\bM\d{13}\b/) || [])[0] || '';
+            const _iV1052 = (_obsV1052.match(/\b77469\s*\/\s*\d{6}\b/) || [])[0] || '';
+            const _todoUnoHolcimV1052 = (/TODO\s*UNO/.test(_stV1052(data.producto)) || /CALIZA\s*CEMEX/.test(_stV1052(data.producto)))
+              && /HOLCIM/.test(_stV1052(data.cliente))
+              && /FABRICA\s+MONTCADA/.test(_stV1052(data.obra));
+            let _recV1052 = '';
+            if (_todoUnoHolcimV1052 && _iV1052) _recV1052 = _iV1052.replace(/\s+/g, '');
+            else if (!_todoUnoHolcimV1052 && _mV1052) _recV1052 = _mV1052;
+            if (_recV1052) {
+              data.albaran = _recV1052;
+              data.observaciones = (_obsV1052 + ' 🔢 Nº ' + _recV1052 + ' recuperado de observaciones (la IA lo dejó en blanco)').trim();
+              console.warn('[v1052] CEMEX sin nº → recuperado de observaciones:', _recV1052);
+            }
+          }
+        }
         // v218 (03/07/2026): RED ANTI-DUPLICADO FALSO del Nº DE ALBARÁN. Caso real: tres
         // albaranes Promsa DISTINTOS guardados con el mismo nº "repetido" por la IA pese a la
         // regla v107K14 del prompt. Las reglas de prompt no bastan → filtro determinista:

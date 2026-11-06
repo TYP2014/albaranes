@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1052 (06/11/2026): SUBIR · CEMEX QUE SALIA CON "SN-…" TENIENDO NUMERO. Caso real (escaneos de Marta): el albaran CEMEX 77469/252470 del 27/10 (TODO UNO, cliente HOLCIM, obra FABRICA MONTCADA, 6892JXH) se guardo como SN-271026-27900, y otro del 01/10 (ACCIONA, 0732NLY) como SN-011026-2940. La IA SI leia los dos numeros, pero los metia AMBOS en observaciones ("Ref. CemexGo: M469... · Nº interno CEMEX: 77469/...") y dejaba el numero en blanco, y entonces la app generaba el SN. AHORA, SOLO si el numero llega VACIO y en observaciones hay un numero de CEMEX, se recupera con la misma regla de siempre: TODO UNO/Caliza Cemex + cliente HOLCIM + obra FABRICA MONTCADA → el 77469/...; cualquier otro CEMEX → la M (M + 13 cifras). Se anota en observaciones "Nº ... recuperado de observaciones". El numero recuperado pasa igual por el control de numeros repetidos (v218). Si la IA pone el numero bien, no cambia nada. Los SN ya guardados NO cambian solos. Cambio solo en app.js (_processOne) + numero de version en index.html. Sin SQL. VUELTA ATRAS: resubir v1051 (app.js e index.html).
+
+---
+
 v1051 (05/11/2026): EMPLEADOS · SUB-PESTAÑA NUEVA "🪪 DATOS DE EMPLEADOS". Hasta ahora la ficha del trabajador (DNI, alta, baja, tarjeta del tacografo...) solo se abria desde Vacaciones. AHORA hay una sub-pestaña propia (la cuarta, al lado de Primas) con, por empresa: NOMBRE, DNI/NIE, PUESTO, TELEFONO, ALTA, BAJA, TARJETA TACOGRAFO y caducidades de TARJETA, CARNET y CAP (rojo = caducado, naranja = menos de 30 dias). Si falta la FECHA DE ALTA sale "FALTA ⚠" (la necesita el parte de Primas desde la v1050). Botones: Añadir trabajador, Ver archivados, Refrescar y EDITAR en cada fila: abren el MISMO modal de siempre. Mismas empresas visibles que en Vacaciones. Vacaciones NO se toca (sigue saliendo por defecto y con sus botones). Cambio: index.html (boton + caja) y app.js (switchEmpleadosVista, renderEmpDatos; renderVac la repinta al guardar). Sin SQL. VUELTA ATRAS: resubir v1050 (app.js e index.html).
 
 ---
