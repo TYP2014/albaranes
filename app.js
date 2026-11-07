@@ -18660,26 +18660,28 @@ function factEmitEditar(id) {
     document.body.appendChild(ov);
   }
   const EMPS = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES 2014 IMPORT'];
-  const _inp = (lab, idc, val, tipo) => '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mu);margin-bottom:3px">' + lab + '</div>'
-    + '<input id="' + idc + '" type="' + (tipo || 'text') + '" value="' + esc(val == null ? '' : String(val)) + '" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:12px"></div>';
-  ov.innerHTML = '<div class="modal" style="max-width:560px">'
+  // v1062: modal GRANDE (media pantalla), letra mayor y OBSERVACIONES en caja de varias lineas.
+  const _inp = (lab, idc, val, tipo) => '<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:#333;margin-bottom:5px">' + lab + '</div>'
+    + '<input id="' + idc + '" type="' + (tipo || 'text') + '" value="' + esc(val == null ? '' : String(val)) + '" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:14px"></div>';
+  ov.innerHTML = '<div class="modal" style="max-width:none;width:min(96vw,max(560px,50vw))">'
     + '<div class="modal-hd"><div class="modal-title">\u270f EDITAR FACTURA ' + esc(f.numero || '') + '</div>'
     + '<button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="document.getElementById(\'ovFactEmitEdit\').classList.remove(\'open\')">\u2715</button></div>'
     + '<div class="modal-bd">'
     + _inp('N\u00ba FACTURA', 'feEdNumero', f.numero)
     + _inp('FECHA EMISI\u00d3N', 'feEdFecha', f.fecha, 'date')
-    + '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mu);margin-bottom:3px">EMPRESA EMISORA</div>'
-    + '<select id="feEdEmpresa" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:12px">'
+    + '<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:#333;margin-bottom:5px">EMPRESA EMISORA</div>'
+    + '<select id="feEdEmpresa" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:14px">'
     + EMPS.map(e => '<option value="' + e + '"' + (f.empresa === e ? ' selected' : '') + '>' + e + '</option>').join('')
     + '</select></div>'
     + _inp('CLIENTE', 'feEdCliente', f.cliente)
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
     + _inp('BASE (\u20ac)', 'feEdBase', f.base, 'number')
     + _inp('IVA (\u20ac)', 'feEdIva', f.iva, 'number')
     + _inp('TOTAL (\u20ac)', 'feEdTotal', f.total, 'number')
     + '</div>'
     + _inp('VENCIMIENTO REAL', 'feEdVenc', f.vencimiento, 'date')
-    + _inp('OBSERVACIONES', 'feEdObs', f.observaciones)
+    + '<div style="margin-bottom:6px"><div style="font-size:12px;font-weight:700;color:#333;margin-bottom:5px">OBSERVACIONES <span style="font-weight:400;color:var(--mu)">(cómo y cuándo se ha cobrado, con qué otras facturas…)</span></div>'
+    + '<textarea id="feEdObs" rows="7" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:14px;line-height:1.45;resize:vertical">' + esc(f.observaciones == null ? '' : String(f.observaciones)) + '</textarea></div>'
     + '</div>'
     + '<div class="modal-ft">'
     + '<button class="btn bs" onclick="document.getElementById(\'ovFactEmitEdit\').classList.remove(\'open\')">Cancelar</button>'

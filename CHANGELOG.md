@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1062 (07/11/2026): F. EMITIDAS · MODAL "EDITAR FACTURA" MÁS GRANDE. Pedido de Juan Carlos: la ventana de editar una factura salía pequeña y en OBSERVACIONES (cómo y cuándo se ha cobrado, qué facturas se pagaron juntas) no cabía nada. AHORA la ventana ocupa media pantalla (mínimo como antes, máximo casi toda en pantallas pequeñas), letra más grande en todas las casillas y OBSERVACIONES es una caja de varias líneas (7, se puede estirar). Mismos datos y mismo guardado. Cambio solo en app.js (factEmitEditar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1061 (app.js e index.html).
+
+---
+
 v1061 (07/11/2026): ALBARANES · EDITAR: AVISO SI SE ESCRIBEN LETRAS EN UNA CASILLA DE NÚMERO. Caso real del chivato (Aridflot, 06/11, v1057): al guardar un albarán puso "1 ANTON 4 ARMENGOL" en una casilla de número; la base de datos lo rechazó por detrás (invalid input syntax for type numeric) y el cambio se perdió sin que quedara claro por qué. AHORA, al pulsar Guardar, si en TN Netas, Tara (kg) o Bruto (kg) hay algo que no es un número, sale el aviso "En «…» solo van NÚMEROS… Si es una nota, ponla en Observaciones. NO se ha guardado", la casilla se marca en rojo y el modal sigue abierto para corregirlo. Los números con coma (27,96) siguen valiendo como antes (v869). Casillas vacías, sin cambios. Cambio solo en app.js (saveModal) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1060 (app.js e index.html).
 
 ---
