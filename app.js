@@ -14365,6 +14365,24 @@ async function saveModal() {
   const original = { ...r };
   const cambios = [];
 
+  // v1061: casillas de NUMERO (TN / tara / bruto) con letras → la BD lo rechazaba por detras
+  // ("invalid input syntax for type numeric", caso Aridflot "1 ANTON 4 ARMENGOL") y el cambio
+  // se perdia. AHORA se avisa ANTES, diciendo que casilla es, y el modal sigue abierto.
+  for (const _k of ['tm', 'tara_kg', 'bruto_kg']) {
+    const _el = document.getElementById('mf_' + _k);
+    if (!_el || _el.disabled) continue;
+    let _t = String(_el.value || '').trim();
+    if (!_t) continue;
+    if (_t.includes(',')) _t = _t.replace(/\./g, '').replace(',', '.');   // misma regla que v869
+    if (!/^-?\d+(\.\d+)?$/.test(_t)) {
+      const _lab = (FIELDS.find(f => f.k === _k) || {}).l || _k;
+      toast('⚠ En "' + _lab + '" solo van NÚMEROS (has puesto "' + _el.value.trim() + '"). Si es una nota, ponla en Observaciones. NO se ha guardado.', 'err');
+      _el.style.outline = '2px solid var(--er)';
+      try { _el.focus(); _el.select(); } catch (_) {}
+      return;
+    }
+  }
+
   FIELDS.forEach(f => {
     if (f.k === 'precio') return; // v107K4: precio es solo lectura (tarifa de la ruta), no se edita aquí
     const v = document.getElementById('mf_' + f.k)?.value?.trim();
