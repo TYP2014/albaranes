@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1058 (07/11/2026): TALLER · MANTENIMIENTOS: CABECERA DE LA TABLA DE VEHÍCULOS FIJA. Pedido de Juan Carlos: al bajar por la lista de vehículos se perdía la fila de títulos (ESTADO · MATRÍCULA · TIPO · KM ACTUAL · FECHA KM · ÚLTIMO MANT. · PRÓXIMO (TIEMPO) · PRÓXIMO (KM) · FICHA TÉCNICA · ACCIÓN). AHORA se queda pegada arriba, justo debajo de las pestañas principales, mientras bajas. Mismo truco que Primas y Precios Holcim (v1047). Solo en PC (pantalla de 1000 px o más); en el móvil no cambia nada. Solo aspecto: cambio solo en index.html (una línea de estilo + número de versión); app.js NO cambia. Sin SQL. VUELTA ATRAS: resubir v1057 (index.html).
+
+---
+
 v1057 (06/11/2026): PRIMAS · "EXCEL COMPLETO (INTERNO)": TYP2014 + PORTES 2014 IMPORT EN UNO SOLO. Juan Carlos revisa un solo Excel y quiere a Francisco Javier (Import) dentro del total. AHORA, estando en el cuadrante de TYP2014 o de PORTES, "📥 Excel completo (interno)" saca UNO con las dos empresas: primero los de TYP2014 y su fila SUBTOTAL TYP2014, luego los de IMPORT y SUBTOTAL IMPORT, y abajo el TOTAL de todo (en negrita). Columna nueva EMPRESA al final (TYP2014 / IMPORT). Mismo orden de columnas que la v1056 (las 6 principales delante en amarillo). Nombre: CUADRANTE_TYP2014_IMPORT_<MES><AÑO>.xlsx. Híspalis sigue saliendo sola. Carga un momento el cuadrante de la otra empresa y vuelve a la abierta; solo lectura. Cambio solo en app.js (primasCuadExcel, primasCompletoJunto y _pcQuedaDeuda nuevas) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1056 (app.js e index.html).
 
 ---

@@ -84,6 +84,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=1029">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
+<style>/* v1058: Taller > Mantenimientos — cabecera de la tabla de vehiculos fija al bajar (solo PC) */@media (min-width:1000px){.card:has(#tallerTabla),.card:has(#tallerTabla)>.card-bd{overflow:visible!important}#tallerTabla thead th{position:sticky;top:87px;z-index:5;background:var(--sf,#fff);box-shadow:0 2px 0 var(--bd)}}</style>
 <style>/* v1047: pestañas principales siempre a la vista (solo PC) */@media (min-width:1000px){#adminView>.tabs{position:sticky;top:48px;z-index:199;box-shadow:0 2px 6px rgba(0,0,0,.08)}}</style>
 </head>
 <body>
@@ -2130,6 +2131,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1057"></script>
+<script src="app.js?v=1058"></script>
 </body>
 </html>
