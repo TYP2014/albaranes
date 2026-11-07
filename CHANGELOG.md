@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1059 (07/11/2026): TALLER · MANTENIMIENTOS: PRÓXIMO (TIEMPO) Y PRÓXIMO (KM) SIEMPRE A LA VISTA. Caso real: 7984NTM (Híspalis, recogido el 06/11) con su 1ª REVISIÓN programada (08/11/2027 o 80.000 km) salía en verde pero con "—" en las dos columnas, porque solo se rellenaban al entrar en aviso (≤1 mes o ≤10.000 km). AHORA, si tiene vencimientos programados, se ve siempre la fecha más cercana y los km más cercanos, aunque esté en verde. Si alguno ya está en aviso, sale ese como antes. Los colores y avisos NO cambian; los que no tienen nada siguen con "Sin programar". Cambio solo en app.js (_tallerEstadoVehiculo: cálculo del próximo) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1058 (app.js e index.html).
+
+---
+
 v1058 (07/11/2026): TALLER · MANTENIMIENTOS: CABECERA DE LA TABLA DE VEHÍCULOS FIJA. Pedido de Juan Carlos: al bajar por la lista de vehículos se perdía la fila de títulos (ESTADO · MATRÍCULA · TIPO · KM ACTUAL · FECHA KM · ÚLTIMO MANT. · PRÓXIMO (TIEMPO) · PRÓXIMO (KM) · FICHA TÉCNICA · ACCIÓN). AHORA se queda pegada arriba, justo debajo de las pestañas principales, mientras bajas. Mismo truco que Primas y Precios Holcim (v1047). Solo en PC (pantalla de 1000 px o más); en el móvil no cambia nada. Solo aspecto: cambio solo en index.html (una línea de estilo + número de versión); app.js NO cambia. Sin SQL. VUELTA ATRAS: resubir v1057 (index.html).
 
 ---

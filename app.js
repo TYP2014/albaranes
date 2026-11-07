@@ -25731,6 +25731,16 @@ function _tallerEstadoVehiculo(v) {
     const eV = orden[eF] >= orden[eK] ? eF : eK;
     nivelPorVenc.push({ desc: x.descripcion || 'Mantenimiento', nivel: eV });
   }
+  // v1059 (pedido de JC): aunque todo este en verde, ensenar la PROXIMA fecha y los PROXIMOS km
+  // programados (antes salia '—' hasta entrar en aviso). Si ya hay uno en aviso, manda ese.
+  if (proxFecha === '—') {
+    const fs = vencs.map(x => String(x.fecha_limite || '').slice(0, 10)).filter(f => /^\d{4}-\d{2}-\d{2}$/.test(f)).sort();
+    if (fs.length) proxFecha = fs[0].split('-').reverse().join('/');
+  }
+  if (proxKm === '—') {
+    const ks = vencs.map(x => Number(x.km_limite)).filter(k => isFinite(k) && k > 0).sort((a, b) => a - b);
+    if (ks.length) proxKm = ks[0].toLocaleString('es-ES') + ' km';
+  }
 
   // v560: sin vencimientos programados → bola BLANCA "sin programar", AUNQUE tenga
   // mantenimientos apuntados. La app ya no se inventa ninguna fecha: si quieres que avise,
