@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1063 (07/11/2026): F. EMITIDAS · MARCAR VARIAS FACTURAS, VER LA SUMA Y COBRARLAS JUNTAS. Pedido de Juan Carlos: a veces un cliente paga varias facturas en una sola transferencia y había que buscarlas una a una, sumarlas con calculadora y marcarlas cobradas de una en una. AHORA: (1) cada factura lleva una CASILLA a la izquierda (y una arriba para marcar/desmarcar todas las que se ven); (2) las marcadas se MANTIENEN aunque cambies los filtros, así puedes buscar una (por Nº FACTURA, que ya admite varias separadas por coma), marcarla, buscar otra, marcarla…; (3) en cuanto hay alguna marcada sale una barra azul con cuántas son, la SUMA TOTAL (y la base), la lista de números con su importe y aviso si alguna no se ve con el filtro actual; (4) botón "✓ MARCAR COBRADAS (N)": pide la fecha de cobro, enseña la lista y el total para confirmar, las marca cobradas y en OBSERVACIONES de cada una AÑADE (sin borrar lo que hubiera) "Cobro conjunto DD/MM/AAAA: nº + nº = total"; las que ya estaban cobradas no se tocan; (5) "QUITAR MARCAS" las desmarca. Las filas marcadas salen en azul claro. Cambio solo en app.js (renderFactEmit + _feSel, _feToggleSel, _feSelTodas, _feSelLimpiar y factEmitCobrarMarcadas nuevas) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1062 (app.js e index.html).
+
+---
+
 v1062 (07/11/2026): F. EMITIDAS · MODAL "EDITAR FACTURA" MÁS GRANDE. Pedido de Juan Carlos: la ventana de editar una factura salía pequeña y en OBSERVACIONES (cómo y cuándo se ha cobrado, qué facturas se pagaron juntas) no cabía nada. AHORA la ventana ocupa media pantalla (mínimo como antes, máximo casi toda en pantallas pequeñas), letra más grande en todas las casillas y OBSERVACIONES es una caja de varias líneas (7, se puede estirar). Mismos datos y mismo guardado. Cambio solo en app.js (factEmitEditar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1061 (app.js e index.html).
 
 ---

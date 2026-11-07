@@ -18431,6 +18431,37 @@ let _feEmpresa = 'TODAS'; // v220: apartado por empresa emisora (como Gasoil)
 let _feDesde = '', _feHasta = '', _feCliente = 'TODOS';
 // v996: filtro por NUMERO DE FACTURA (varios separados por coma). Se compara sin mayusculas ni signos (F-26/123 = f26123) y vale con un trozo.
 let _feNum = '';
+// v1063: facturas MARCADAS con la casilla (para cobros de varias juntas). Se mantienen aunque cambies
+// los filtros, asi puedes buscar una, marcarla, buscar otra, marcarla... La suma sale en la barra.
+const _feSel = new Set();
+function _feToggleSel(id, on) { if (on) _feSel.add(id); else _feSel.delete(id); renderFactEmit(); }
+function _feSelTodas(ids, on) { ids.forEach(id => { if (on) _feSel.add(id); else _feSel.delete(id); }); renderFactEmit(); }
+function _feSelLimpiar() { _feSel.clear(); renderFactEmit(); }
+async function factEmitCobrarMarcadas() {
+  const sel = (_factEmit || []).filter(f => _feSel.has(f.id));
+  const pend = sel.filter(f => (f.estado || 'pendiente') !== 'cobrada');
+  if (!pend.length) { alert('Las facturas marcadas ya están todas cobradas.'); return; }
+  const hoy = new Date().toISOString().slice(0, 10);
+  let fc = prompt('Fecha de cobro para las ' + pend.length + ' facturas (AAAA-MM-DD):', hoy);
+  if (fc === null) return;
+  fc = fc.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fc)) { alert('Formato de fecha no v\u00e1lido. Usa AAAA-MM-DD, ej: ' + hoy); return; }
+  const tot = pend.reduce((a, f) => a + (Number(f.total) || 0), 0);
+  const nums = pend.map(f => f.numero || '?');
+  const yaCob = sel.length - pend.length;
+  if (!confirm('Se marcan como COBRADAS el ' + fc.split('-').reverse().join('/') + ':\n\n' + pend.map(f => (f.numero || '?') + ' \u00b7 ' + (f.cliente || '') + ' \u00b7 ' + _feFmt(f.total)).join('\n')
+      + '\n\nTOTAL: ' + _feFmt(tot) + (yaCob ? '\n(' + yaCob + ' marcada(s) ya estaban cobradas: no se tocan)' : '')
+      + '\n\nEn OBSERVACIONES de cada una se a\u00f1ade la nota del cobro conjunto (lo que ya hab\u00eda escrito se mantiene).\n\n\u00bfSeguir?')) return;
+  const nota = 'Cobro conjunto ' + fc.split('-').reverse().join('/') + ': ' + nums.join(' + ') + ' = ' + _feFmt(tot);
+  let ok = 0, ko = 0;
+  for (const f of pend) {
+    const obs = f.observaciones ? String(f.observaciones).trim() + ' \u00b7 ' + nota : nota;
+    const { error } = await sb.from('facturas_emitidas').update({ estado: 'cobrada', fecha_cobro: fc, observaciones: obs }).eq('id', f.id);
+    if (error) { ko++; console.error('[v1063 cobrar marcadas] ' + (f.numero || f.id) + ': ' + (error.message || error)); } else { ok++; _feSel.delete(f.id); }
+  }
+  toast('\u2713 ' + ok + ' factura(s) cobrada(s) \u00b7 ' + _feFmt(tot) + (ko ? ' \u00b7 ' + ko + ' con error' : ''), ko ? 'err' : 'ok');
+  await loadFactEmit();
+}
 // v997: mientras se teclea NO se repinta (si no, el desplegable de sugerencias se cerraria a cada letra); se repinta 0,7 s despues de la ultima tecla,
 // o al momento si se elige una sugerencia de la lista.
 let _feNumT = null;
@@ -18591,7 +18622,24 @@ function renderFactEmit() {
     h += '<div style="color:var(--mu);padding:24px;text-align:center;font-size:13px">' + (_factEmit && _factEmit.length ? 'Nada con este filtro.' : 'A\u00fan no hay facturas. Sube el PDF arriba y la IA lo lee.') + '</div>';
     cont.innerHTML = h; _feRefoco(); return;
   }
+  // v1063: barra de las MARCADAS (suma + cobrar todas juntas). Cuenta todas las marcadas, se vean o no con el filtro actual.
+  { const _sel = (_factEmit || []).filter(f => _feSel.has(f.id));
+    if (_sel.length) {
+      const _t = _sel.reduce((a, f) => a + (Number(f.total) || 0), 0), _b = _sel.reduce((a, f) => a + (Number(f.base) || 0), 0);
+      const _oc = _sel.filter(f => !arr.includes(f)).length;
+      h += '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 16px;background:#eaf2ff;border:2px solid #1f3a5f;border-radius:10px;font-family:var(--mn);font-size:14px;color:#0b2545">'
+         + '<span style="font-weight:800">\u2611 ' + _sel.length + ' MARCADA' + (_sel.length === 1 ? '' : 'S') + '</span>'
+         + '<span>SUMA TOTAL: <strong style="font-size:18px">' + _feFmt(_t) + '</strong></span>'
+         + '<span style="color:#444">(base ' + _feFmt(_b) + ')</span>'
+         + '<span style="color:#444;font-size:12px;flex-basis:100%">' + _sel.map(f => esc(f.numero || '?') + ' (' + _feFmt(f.total) + ')').join(' + ') + (_oc ? ' \u00b7 <b>' + _oc + ' no se ven con el filtro actual</b>' : '') + '</span>'
+         + '<button class="btn bp" style="font-size:12px;padding:10px 18px;letter-spacing:.5px" onclick="factEmitCobrarMarcadas()">\u2713 MARCAR COBRADAS (' + _sel.filter(f => (f.estado || 'pendiente') !== 'cobrada').length + ')</button>'
+         + '<button class="btn bs" style="font-size:12px;padding:10px 16px" onclick="_feSelLimpiar()">QUITAR MARCAS</button>'
+         + '</div>';
+    }
+  }
+  const _idsVis1063 = arr.map(f => f.id), _todasVis1063 = _idsVis1063.length && _idsVis1063.every(id => _feSel.has(id));
   h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:15px;font-family:var(--mn);color:var(--tx)"><thead><tr style="border-bottom:2px solid var(--bd);text-align:left;color:var(--ac);font-size:13px;letter-spacing:1px">'
+     + '<th style="padding:13px 6px 13px 10px;width:28px"><input type="checkbox" title="Marcar / desmarcar todas las que se ven" style="width:18px;height:18px;cursor:pointer"' + (_todasVis1063 ? ' checked' : '') + ' onclick="_feSelTodas(' + esc2(JSON.stringify(_idsVis1063)) + ',this.checked)"></th>'
      + '<th style="padding:13px 10px">N\u00ba</th><th style="padding:13px 10px">FECHA</th><th style="padding:13px 10px">EMPRESA</th><th style="padding:13px 10px">CLIENTE</th>'
      + '<th style="padding:13px 10px;text-align:right">BASE</th><th style="padding:13px 10px;text-align:right">IVA</th><th style="padding:13px 10px;text-align:right">TOTAL</th>'
      + '<th style="padding:13px 10px">VENCE</th><th style="padding:13px 10px">ESTADO</th><th style="padding:13px 10px"></th></tr></thead><tbody>';
@@ -18603,7 +18651,9 @@ function renderFactEmit() {
       ? '<span style="display:inline-block;background:var(--ok);color:#fff;font-size:13px;font-weight:bold;padding:7px 16px;border-radius:8px;white-space:nowrap;letter-spacing:.5px">COBRADA</span>' + (f.fecha_cobro ? '<div style="font-size:15px;font-weight:bold;color:#178a54;margin-top:6px;letter-spacing:.02em">' + f.fecha_cobro.split('-').reverse().join('/') + '</div>' : '')
       : '<span style="display:inline-block;background:' + (vencida ? 'var(--er)' : '#fbecc4') + ';color:' + (vencida ? '#fff' : '#4a3200') + ';border:1px solid ' + (vencida ? 'var(--er)' : '#c58a1b') + ';font-size:13px;font-weight:bold;padding:7px 16px;border-radius:8px;white-space:nowrap;letter-spacing:.5px">' + (vencida ? 'VENCIDA' : 'PENDIENTE') + '</span>';
     const fmtF = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v)) ? v.split('-').reverse().join('/') : (v || '\u2014');
-    h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.85' : '') + '">'
+    const _marc1063 = _feSel.has(f.id);
+    h += '<tr style="border-bottom:1px solid var(--bd)' + (cobrada ? ';opacity:.85' : '') + (_marc1063 ? ';background:#eaf2ff' : '') + '">'
+       + '<td style="padding:13px 6px 13px 10px"><input type="checkbox" title="Marcar para sumar / cobrar junto con otras" style="width:18px;height:18px;cursor:pointer"' + (_marc1063 ? ' checked' : '') + ' onclick="_feToggleSel(\'' + f.id + '\',this.checked)"></td>'
        + '<td style="padding:13px 10px;font-weight:bold;white-space:nowrap">' /* v1040: n\u00ba en columna fija, PDF alineado */ + '<span style="display:inline-block;min-width:13ch;vertical-align:middle">' + esc(f.numero || '\u2014') + '</span>' + (f.file_url ? ' <a href="' + f.file_url + '" target="_blank" title="Ver el PDF de la factura" style="text-decoration:none;display:inline-block;padding:4px 10px;border-radius:6px;border:1.5px solid var(--ac);color:var(--ac);font-size:11px;font-weight:700;letter-spacing:.5px;margin-left:6px;vertical-align:middle">PDF</a>' : '') + '</td>'
        + '<td style="padding:13px 10px">' + fmtF(f.fecha) + '</td>'
        + '<td style="padding:13px 10px">' + esc(f.empresa || '\u2014') + '</td>'
