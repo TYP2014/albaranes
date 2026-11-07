@@ -84,7 +84,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=1029">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
-<style>/* v1058: Taller > Mantenimientos — cabecera de la tabla de vehiculos fija al bajar (solo PC) */@media (min-width:1000px){.card:has(#tallerTabla),.card:has(#tallerTabla)>.card-bd{overflow:visible!important}#tallerTabla thead th{position:sticky;top:87px;z-index:5;background:var(--sf,#fff);box-shadow:0 2px 0 var(--bd)}}</style>
+<style>/* v1060: PESTAÑAS PRINCIPALES más grandes y la ACTIVA en azul oscuro + títulos de la tabla de Taller más grandes (solo PC). La barra de pestañas mide ahora 46px fijos → todo lo que se pega debajo usa top:94px (48 cabecera + 46). */@media (min-width:1000px){#adminView>.tabs{height:46px;align-items:stretch;padding:0 12px}#adminView>.tabs>.tab{font-size:14px;font-weight:800;letter-spacing:.4px;padding:0 10px;white-space:nowrap;border-bottom-width:3px;color:#1a2433}#adminView>.tabs>.tab.active{background:#1f3a5f;color:#fff;border-bottom-color:#f29900;border-radius:6px 6px 0 0}#adminView>.tabs>.tab.active svg{stroke:#fff!important}#adminView>.tabs>.tab.active .tab-badge{background:#fff;color:#1f3a5f}.card:has(#tallerTabla),.card:has(#tallerTabla)>.card-bd{overflow:visible!important}#tallerTabla thead th{position:sticky;top:94px;z-index:5;font-size:14px;font-weight:800;color:#0b2545;background:#dbe5f1;letter-spacing:.6px;padding:13px 12px;box-shadow:0 2px 0 #1e3a5f}}</style>
 <style>/* v1047: pestañas principales siempre a la vista (solo PC) */@media (min-width:1000px){#adminView>.tabs{position:sticky;top:48px;z-index:199;box-shadow:0 2px 6px rgba(0,0,0,.08)}}</style>
 </head>
 <body>
@@ -2131,6 +2131,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1059"></script>
+<script src="app.js?v=1060"></script>
 </body>
 </html>

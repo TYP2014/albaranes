@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1060 (07/11/2026): PESTAÑAS PRINCIPALES Y TÍTULOS DE LA TABLA DE TALLER MÁS VISIBLES. Pedido de Juan Carlos: no se distinguía bien en qué pestaña estás ni los títulos de las columnas. AHORA (solo PC): (1) la barra de pestañas de arriba (ALBARANES, SUBIR, EMPLEADOS, TALLER…) tiene letra más grande y más gruesa (14px, negrita fuerte) y la pestaña en la que estás sale en AZUL OSCURO con letra blanca y raya naranja abajo; para que sigan cabiendo todas se ha quitado algo de espacio entre letras y entre pestañas; (2) en Taller › Mantenimientos los títulos de la tabla (ESTADO, MATRÍCULA, TIPO, KM ACTUAL…) van más grandes, en negrita y sobre fondo azul claro, como en Primas, y siguen fijos al bajar. La barra de pestañas mide ahora 46px fijos, así que lo que se queda pegado debajo (cuadrante de Primas, Precios Holcim y la tabla de Taller) baja de top:87px a top:94px. Móvil sin cambios. Cambio: index.html (estilo + versión) y app.js (solo el 87→94 de Primas y Precios Holcim). Sin SQL. VUELTA ATRAS: resubir v1059 (app.js e index.html).
+
+---
+
 v1059 (07/11/2026): TALLER · MANTENIMIENTOS: PRÓXIMO (TIEMPO) Y PRÓXIMO (KM) SIEMPRE A LA VISTA. Caso real: 7984NTM (Híspalis, recogido el 06/11) con su 1ª REVISIÓN programada (08/11/2027 o 80.000 km) salía en verde pero con "—" en las dos columnas, porque solo se rellenaban al entrar en aviso (≤1 mes o ≤10.000 km). AHORA, si tiene vencimientos programados, se ve siempre la fecha más cercana y los km más cercanos, aunque esté en verde. Si alguno ya está en aviso, sale ese como antes. Los colores y avisos NO cambian; los que no tienen nada siguen con "Sin programar". Cambio solo en app.js (_tallerEstadoVehiculo: cálculo del próximo) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1058 (app.js e index.html).
 
 ---
