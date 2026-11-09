@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1071 (09/11/2026): MATRÍCULAS · NUEVA TRACTORA DE HÍSPALIS 9860NTY. Alta de la DAF XF 530 FT matriculada el 09/11/2026 (bastidor XLRTEF5390G606335, titular Transportes Híspalis 2016). AHORA la app la reconoce como de TTES HISPALIS 2016 al leer albaranes (lista de matrículas válidas + tabla de transportistas), igual que la 7984NTM (que ya estaba desde v980). Para que salgan en el desplegable del DeCA (normal y exprés) va además un SQL aparte en la tabla deca_tractoras (9860NTY y 7984NTM). Cambio solo en app.js (MATRICULAS_VALIDAS y TRANSPORTISTAS) + número de versión en index.html. VUELTA ATRAS: resubir v1070 (app.js e index.html).
+
+---
+
 v1070 (09/11/2026): ALBARANES · BOTONES "MARCAR FACTURADOS" Y "NOS HAN FACTURADO" QUE SE VEAN. Pedido de Juan Carlos: con albaranes seleccionados, el botón "✓ MARCAR FACTURADOS (N)" salía con letra oscura sobre fondo azul oscuro y casi no se leía; "📥 NOS HAN FACTURADO (N)" igual, letra oscura sobre gris. AHORA "Marcar facturados" va en VERDE (el mismo verde de "Facturado") con letra blanca, y "Nos han facturado" mantiene su color con letra blanca. Mismo funcionamiento. Cambio solo en index.html (estilo de los dos botones + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1069 (app.js e index.html).
 
 ---
