@@ -10446,6 +10446,11 @@ async function liqCalcular() {
     if (G && G.datos) {
       const D = G.datos;
       _liqLineas = Array.isArray(D.lineas) ? D.lineas.map(l => Object.assign({}, l)) : [];
+      // v1067: si la guardada se hizo SIN el alquiler fijo (Ciprian: bañera 750 €) y nunca se revisó con él, se añade
+      // solo; sale el aviso rojo 'has cambiado algo… vuelve a guardar' y al GUARDAR sale el PDF nuevo. Tras guardar
+      // queda marcada (alqFijoOk) y ya no se vuelve a meter aunque se quite a mano.
+      if (cfg.alquilerFijo && !D.alqFijoOk && !_liqLineas.some(l => l.tipo === 'alquiler'))
+        _liqLineas.push({ concepto: 'Alquiler bañera', importe: cfg.alquilerFijo, tipo: 'alquiler' });
       if (D.numero != null) _liqDatos.numero = D.numero;
       if (D.cliente && _LIQ_CLIENTES[D.cliente]) _liqDatos.cliente = D.cliente;
       const pm = D.preciosMan || {}, qu = new Set(D.quitados || []), fo = new Set(D.forzados || []);
@@ -10488,7 +10493,7 @@ async function liqGuardar() {
   const activas = _liqActivas();
   const fila = { subcontratado: d.key, anio: d.anio, mes: d.mes, numero: d.cfg.facturaPropia ? null : String(d.numero || ''),
     total: Math.round(T.total * 100) / 100, albaranes: activas.map(x => _liqNormAlb(x.albaran)).filter(Boolean),
-    datos: { lineas: _liqLineas, preciosMan: pm, quitados: qu, forzados: fo, numero: d.numero, cliente: d.cliente,
+    datos: { lineas: _liqLineas, preciosMan: pm, quitados: qu, forzados: fo, numero: d.numero, cliente: d.cliente, alqFijoOk: !!d.cfg.alquilerFijo,   // v1067
       resumen: { albaranes: activas.length, tn: Math.round(activas.reduce((a, x) => a + x.tm, 0) * 1000) / 1000, subtotal: Math.round(T.subtotal * 100) / 100, base: Math.round(T.base * 100) / 100 } },
     updated_at: new Date().toISOString() };
   try {

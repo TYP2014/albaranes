@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1067 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · EL ALQUILER DE LA BAÑERA DE CIPRIAN TAMBIÉN EN LAS YA GUARDADAS. Caso real: la liquidación de octubre 2026 de Ciprian (fra. 26.045) se guardó el 09/11 sin descontar los 750 € de la bañera, y la v1066 solo lo ponía en las liquidaciones nuevas. AHORA, al abrir una liquidación de Ciprian ya guardada que NO tenga ninguna línea de alquiler, se añade sola "Alquiler bañera · 750"; como el total cambia, sale el aviso rojo "has cambiado algo desde que se guardó: vuelve a guardar" y al pulsar GUARDAR LIQUIDACIÓN se guarda y sale el PDF nuevo (como siempre). Al guardar queda marcada como revisada: si algún mes se quita el alquiler a mano y se guarda, no vuelve a aparecer. Las que ya tienen una línea de alquiler no se tocan. Cambio solo en app.js (liqCalcular y liqGuardar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1066 (app.js e index.html).
+
+---
+
 v1066 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · EL ALQUILER DE LA BAÑERA DE CIPRIAN YA SALE PUESTO. Pedido de Juan Carlos: a Ciprian le tenemos alquilada la bañera en 750 € al mes y cada mes se olvidaba meter la línea. AHORA, al calcular una liquidación NUEVA de Ciprian, en "Líneas a mano" ya aparece "Alquiler bañera · 750 · Alquiler semirremolque (resta antes del 2%)", igual que si se hubiera añadido a mano: se puede cambiar el importe o quitarla con la papelera 🗑. Si el mes ya estaba guardado se carga lo guardado tal cual (no se duplica). Los demás subcontratados, sin cambios. Cambio solo en app.js (LIQ_AUTONOMOS: alquilerFijo en Ciprian + liqCalcular) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1065 (app.js e index.html).
 
 ---
