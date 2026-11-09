@@ -25711,6 +25711,37 @@ const _TALLER_BAJA_NOM = {
   desguace:  'Desguace / achatarrado',
   otro:      'Otro'
 };
+// v1072 (JC 09/11/2026): ENVIAR LA FICHA TÉCNICA por WhatsApp o correo (a proveedores de recambios), igual que el
+// botón de los albaranes (v1069) y las citas de ITV: menú de compartir con el archivo dentro; si el navegador no deja,
+// se descarga y se abre WhatsApp con el texto.
+async function tallerCompartirFicha(ev, vehId) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const v = _tallerVehPorId(vehId);
+  if (!v || !v.ficha_tecnica_url) { toast('Este vehículo no tiene ficha técnica subida', 'err'); return; }
+  const url = String(v.ficha_tecnica_url);
+  const limpia = url.split('?')[0].split('#')[0];
+  const esPdf = /\.pdf$/i.test(limpia);
+  const ext = esPdf ? 'pdf' : ((limpia.match(/\.(jpe?g|png|gif|webp|heic)$/i) || [, 'jpg'])[1].toLowerCase());
+  const nombre = 'Ficha tecnica ' + String(v.matricula || '').replace(/[^\w-]+/g, '') + '.' + ext;
+  const texto = 'Ficha técnica ' + (v.matricula || '') + (v.notas ? ' · ' + v.notas : '');
+  toast('Preparando la ficha técnica…', 'ok');
+  let archivo;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    archivo = new File([blob], nombre, { type: esPdf ? 'application/pdf' : (blob.type || 'image/jpeg') });
+  } catch (e) { console.error('[v1072] ficha técnica para compartir', e); toast('No se pudo preparar el archivo', 'err'); return; }
+  const alternativa = () => {
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(archivo); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); } catch (e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+    toast('Descargado "' + nombre + '": arrástralo al chat de WhatsApp', 'ok');
+  };
+  if (!(navigator.share && navigator.canShare && navigator.canShare({ files: [archivo] }))) { alternativa(); return; }
+  try { await navigator.share({ text: texto, files: [archivo] }); }
+  catch (e) { if (e && e.name === 'AbortError') return; alternativa(); }
+}
+
 function _tallerVehPorId(id) {
   return (tallerVehiculos || []).find(x => x.id === id)
       || (tallerVehiculosBaja || []).find(x => x.id === id)
@@ -25980,7 +26011,7 @@ function renderTallerTabla() {
       <td style="font-size:11px">${e.proxFecha}</td>
       <td style="font-size:11px">${e.proxKm}</td>
       ${v.ficha_tecnica_url
-        ? `<td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="color:#1a7f37;font-weight:700;font-size:12px">✓ SÍ</span> <a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇</a></td>`
+        ? `<td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="color:#1a7f37;font-weight:700;font-size:12px">✓ SÍ</span> <a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇</a> <button class="btn" style="font-size:11px;padding:3px 8px;background:#25D366;color:#fff;border:none;font-weight:700" title="Enviar la ficha técnica por WhatsApp o correo" onclick="tallerCompartirFicha(event,'${v.id}')">📲</button></td>`
         : `<td style="white-space:nowrap;color:#b42318;font-weight:700;font-size:12px">✗ FALTA</td>`}
       <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();tallerAbrirModal('${v.id}')">Ver / ${e.numMants}</button></td>
     </tr>`;
@@ -26044,7 +26075,7 @@ function tallerAbrirModal(vehId) {
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">FICHA TÉCNICA</span>
       ${v.ficha_tecnica_url
-        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a>`
+        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a> <button class="btn" style="font-size:11px;background:#25D366;color:#fff;border:none;font-weight:800" title="Enviar la ficha técnica por WhatsApp o correo (a un proveedor de recambios, etc.)" onclick="tallerCompartirFicha(event,'${vehId}')">📲 Enviar (WhatsApp / correo)</button>`
         : `<span style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin ficha técnica subida</span>`}
       <label class="btn bs" style="font-size:11px;cursor:pointer">${v.ficha_tecnica_url ? 'Reemplazar' : 'Subir'}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="tallerSubirFicha('${vehId}', this)"></label>
       <button class="btn bs" style="font-size:11px;margin-left:auto" onclick="tallerVerHistorico('${vehId}')">Histórico</button>
@@ -26052,7 +26083,8 @@ function tallerAbrirModal(vehId) {
     <div id="tallerHistBox" style="display:none;margin-bottom:14px;background:rgba(255,255,255,.03);padding:10px;border-radius:6px;border:1px solid var(--bd)"></div>
     <div style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:6px">
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM actual del vehículo</label><br><input type="number" class="fi" id="tallerVkmActual" value="${v.km_actual || ''}" style="width:120px;font-size:11px;padding:4px"></div>
-      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">Guardar km</button>
+      <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Marca / nota (ej. DAF XF 530, IVECO…)</label><br><input type="text" class="fi" id="tallerVnotas" value="${esc(v.notas || '')}" placeholder="DAF, IVECO, VOLVO…" style="width:240px;font-size:11px;padding:4px"></div>
+      <button class="btn bs" style="font-size:11px" onclick="tallerGuardarVehiculo('${vehId}')">Guardar km y marca</button>
       ${v.activo === false
         ? `<button class="btn bs" style="font-size:11px;margin-left:auto;color:#1e8a55;border-color:#1e8a55" onclick="tallerVolverDeAlta('${vehId}')">Volver a dar de alta</button>`
         : `<button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerDarDeBaja('${vehId}')">Dar de baja</button>`}
@@ -26301,6 +26333,9 @@ async function tallerGuardarVehiculo(vehId) {
     updated_at: new Date().toISOString()
   };
   if (kmActualRaw) { upd.km_actual = parseInt(kmActualRaw, 10); upd.km_actual_fecha = new Date().toISOString().slice(0, 10); }
+  // v1072: la marca/nota (DAF, IVECO…) se puede cambiar después de crear el vehículo. Solo si la casilla está en pantalla.
+  const _notasEl = document.getElementById('tallerVnotas');
+  if (_notasEl) upd.notas = (_notasEl.value || '').trim() || null;
   try {
     const { error } = await sb.from('taller_vehiculos').update(upd).eq('id', vehId);
     if (error) throw error;
