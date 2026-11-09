@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1065 (09/11/2026): EMPLEADOS · MODAL "EDITAR / NUEVO TRABAJADOR" EL DOBLE DE GRANDE. Pedido de Juan Carlos: la ficha del trabajador salía pequeña y costaba leerla. AHORA la ventana es el doble de ancha (520px → 1080px; en pantallas pequeñas sigue ocupando casi todo), título más grande, etiquetas en negrita oscura (13px), casillas con letra de 17px y más altas, más espacio entre filas, recuadro de Cheque Motiva y texto de ayuda más grandes, y botones de abajo más grandes. Mismos datos y mismo guardado. Cambio solo en index.html (ancho del modal + un bloque de estilo limitado a #ovTrab + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1064 (app.js e index.html).
+
+---
+
 v1064 (09/11/2026): TACÓGRAFO · VENCIMIENTOS: UNA TARJETA RENOVADA YA NO SALE COMO VENCIDA. Caso real: José Reyes y José Antonio Sánchez renovaron la tarjeta de conductor y se subieron sus descargas nuevas (C_E33966563W000004…, C_E33887591N000004…), pero seguían saliendo en rojo VENCIDO. Motivo: la tarjeta renovada lleva el mismo número salvo los 2 últimos dígitos (…000003 → …000004) y la app las trataba como dos tarjetas distintas, así que la vieja caducada seguía avisando. AHORA: (1) en Vencimientos (tabla y cartel de arriba) las tarjetas se agrupan por los 14 primeros caracteres y manda la de índice más alto (la más nueva) con su caducidad; (2) al subir una descarga de una tarjeta renovada, la ficha del trabajador cambia sola al número nuevo y su caducidad (antes solo se rellenaba si estaba vacía). Cambio solo en app.js (tacoVencVer y _tacoRellenarTarjeta) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1063 (app.js e index.html).
 
 ---
