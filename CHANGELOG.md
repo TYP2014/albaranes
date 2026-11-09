@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1069 (09/11/2026): ALBARANES · BOTÓN "ENVIAR ALBARÁN" POR WHATSAPP O CORREO. Pedido de Juan Carlos: para mandar un albarán suelto había que descargarlo al escritorio, abrir WhatsApp, buscar a la persona y adjuntarlo (hoy 3 veces). AHORA, en el DETALLE ALBARÁN, encima del documento hay un botón verde "📲 ENVIAR ALBARÁN (WhatsApp / correo)": abre el menú de compartir (igual que el de las citas de ITV y reconocimientos) con el albarán ya dentro y un texto (nº, fecha, matrícula, origen → destino, TN); eliges WhatsApp (o Outlook/Correo si sale en el menú) y la persona. Si el PDF trae varios albaranes juntos, se manda SOLO la página de ese albarán. El archivo se llama "Albaran <nº> <fecha>". Si el navegador no deja compartir archivos, se descarga el archivo y se abre WhatsApp con el texto. Cambio solo en app.js (openModal: botón; albCompartir nueva) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1068 (app.js e index.html).
+
+---
+
 v1068 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · AL PONER UN PRECIO LA TABLA YA NO VUELVE ARRIBA. Pedido de Juan Carlos: al escribir un precio a mano en la columna €/TN (los SIN PRECIO), la tabla de albaranes saltaba al principio y había que bajar con la rueda a buscar el siguiente cada vez. AHORA, al poner un precio (o al quitar/meter un albarán con la casilla), la tabla y la página se quedan donde estaban; y si después de escribir el precio pinchas o pasas con TAB a otra casilla de precio, el cursor sigue en esa casilla (con su contenido seleccionado para escribir encima). Al calcular otro subcontratado u otro mes, la tabla empieza arriba como siempre. Cálculos y guardado, sin cambios. Cambio solo en app.js (liqRender y liqSetPrecio) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1067 (app.js e index.html).
 
 ---

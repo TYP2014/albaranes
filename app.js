@@ -12615,6 +12615,53 @@ async function _descargarAnexosSeleccionados() {
 
 
 // "{timestamp}_{NombreOriginal}"; las antiguas como "{timestamp}_{aleatorio}.ext" (sin nombre útil).
+// v1069 (JC 09/11/2026): ENVIAR UN ALBARÁN SUELTO por WhatsApp o correo, como las citas de ITV y reconocimientos.
+// Prepara el archivo de ESE albarán (si el PDF trae varios albaranes, solo su página) y abre el menú de
+// compartir de Windows/móvil con el archivo y el texto ya dentro: eliges WhatsApp (u Outlook/Correo) y la persona.
+// Si el navegador no deja compartir archivos: se descarga el archivo y se abre WhatsApp con el texto.
+async function albCompartir(ev) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  const r = records.find(x => String(x.db_id) === String(editId) || String(x._id) === String(editId));
+  if (!r || !hasValidUrl(r.file_url)) { toast('Este albarán no tiene documento', 'err'); return; }
+  const url = String(r.file_url).split('#')[0];
+  const pm = String(r.file_url).match(/#page=(\d+)/);
+  const esPdf = /\.pdf(\?|$)/i.test(url);
+  const ext = esPdf ? 'pdf' : ((url.split('?')[0].match(/\.(jpe?g|png|gif|webp)$/i) || [, 'jpg'])[1].toLowerCase());
+  const limpio = v => String(v || '').replace(/[\\/:*?"<>|#]+/g, '-').replace(/\s+/g, ' ').trim();
+  const nombre = 'Albaran ' + (limpio(r.albaran) || 'sin numero') + (r.fecha ? ' ' + limpio(r.fecha) : '') + '.' + ext;
+  const tn = Number(r.tm) ? ' · ' + Number(r.tm).toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' TN' : '';
+  const texto = 'Albarán nº ' + (r.albaran || '—') + ' · ' + (r.fecha || '') + (r.tractora ? ' · ' + r.tractora : '') +
+    ((r.origen || r.planta || r.destino || r.obra) ? '\n' + (r.origen || r.planta || '?') + ' → ' + (r.destino || r.obra || '?') : '') + tn;
+  toast('Preparando el albarán…', 'ok');
+  let archivo = null;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    let blob = await resp.blob();
+    // PDF con varias páginas (varios albaranes juntos): mandar SOLO la página de este.
+    if (esPdf && window.PDFLib) {
+      try {
+        const src = await PDFLib.PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+        const n = src.getPageCount(), pg = pm ? Math.min(Math.max(parseInt(pm[1], 10), 1), n) : 1;
+        if (n > 1) {
+          const out = await PDFLib.PDFDocument.create();
+          const [p] = await out.copyPages(src, [pg - 1]); out.addPage(p);
+          blob = new Blob([await out.save()], { type: 'application/pdf' });
+        }
+      } catch (e) { console.warn('[v1069] no se pudo separar la página, se manda el PDF entero', e); }
+    }
+    archivo = new File([blob], nombre, { type: esPdf ? 'application/pdf' : (blob.type || 'image/jpeg') });
+  } catch (e) { console.error('[v1069] descargar albarán para compartir', e); toast('No se pudo preparar el archivo', 'err'); return; }
+  const alternativa = () => {
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(archivo); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); } catch (e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+    toast('Descargado "' + nombre + '": arrástralo al chat de WhatsApp', 'ok');
+  };
+  if (!(navigator.share && navigator.canShare && navigator.canShare({ files: [archivo] }))) { alternativa(); return; }
+  try { await navigator.share({ text: texto, files: [archivo] }); }
+  catch (e) { if (e && e.name === 'AbortError') return; alternativa(); }
+}
+
 function _nombreArchivoDeUrl(url) {
   try {
     let seg = decodeURIComponent(String(url).split('?')[0].split('/').pop() || '');
@@ -13978,6 +14025,8 @@ function openModal(id) {
       previewHtml = `<a href="${r.file_url}" target="_blank" class="preview-btn">📄 Ver documento original</a>`;
     }
   }
+  // v1069: botón para mandar ESTE albarán por WhatsApp (o correo) sin descargarlo y buscarlo a mano.
+  if (hasValidUrl(r.file_url)) previewHtml = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn" style="background:#25D366;color:#fff;border:none;font-weight:800;font-size:13px;padding:9px 16px" onclick="albCompartir(event)" title="Abre el menú de compartir con el albarán ya dentro: eliges WhatsApp (o el correo) y la persona">📲 ENVIAR ALBARÁN (WhatsApp / correo)</button></div>' + previewHtml;
   document.getElementById('mPreview').innerHTML = previewHtml;
   // v72: si hemos pintado un canvas para PDF, lanzamos el render después de inyectar el HTML
   if (hasValidUrl(r.file_url) && /\.pdf(\?|#|$)/i.test(r.file_url)) {
