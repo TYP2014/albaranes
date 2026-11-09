@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1070 (09/11/2026): ALBARANES · BOTONES "MARCAR FACTURADOS" Y "NOS HAN FACTURADO" QUE SE VEAN. Pedido de Juan Carlos: con albaranes seleccionados, el botón "✓ MARCAR FACTURADOS (N)" salía con letra oscura sobre fondo azul oscuro y casi no se leía; "📥 NOS HAN FACTURADO (N)" igual, letra oscura sobre gris. AHORA "Marcar facturados" va en VERDE (el mismo verde de "Facturado") con letra blanca, y "Nos han facturado" mantiene su color con letra blanca. Mismo funcionamiento. Cambio solo en index.html (estilo de los dos botones + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1069 (app.js e index.html).
+
+---
+
 v1069 (09/11/2026): ALBARANES · BOTÓN "ENVIAR ALBARÁN" POR WHATSAPP O CORREO. Pedido de Juan Carlos: para mandar un albarán suelto había que descargarlo al escritorio, abrir WhatsApp, buscar a la persona y adjuntarlo (hoy 3 veces). AHORA, en el DETALLE ALBARÁN, encima del documento hay un botón verde "📲 ENVIAR ALBARÁN (WhatsApp / correo)": abre el menú de compartir (igual que el de las citas de ITV y reconocimientos) con el albarán ya dentro y un texto (nº, fecha, matrícula, origen → destino, TN); eliges WhatsApp (o Outlook/Correo si sale en el menú) y la persona. Si el PDF trae varios albaranes juntos, se manda SOLO la página de ese albarán. El archivo se llama "Albaran <nº> <fecha>". Si el navegador no deja compartir archivos, se descarga el archivo y se abre WhatsApp con el texto. Cambio solo en app.js (openModal: botón; albCompartir nueva) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1068 (app.js e index.html).
 
 ---
