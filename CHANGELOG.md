@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1075 (09/11/2026): TALLER · RECUENTO DE VEHÍCULOS MÁS SENCILLO. Pedido de Juan Carlos tras ver la v1074: (1) en los botones de empresa de arriba (TYP2014, T. HISPALIS 2016, TRANSMARGAZ 2018) ya NO sale cuántos vehículos tiene cada una, vuelven a ser como antes; (2) en el título de la tabla queda solo "N TRACTORAS · N REMOLQUES", sin el camioncito y sin el total. Siguen contando solo los activos. Cambio solo en app.js (_tallerActualizarSubtabs) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1074 (app.js e index.html).
+
+---
+
 v1074 (09/11/2026): TALLER · CUÁNTAS TRACTORAS Y REMOLQUES TIENE CADA EMPRESA. Pedido de Juan Carlos: muchas veces se les escapa cuántos vehículos tiene cada empresa. AHORA, en Taller: (1) cada botón de empresa (TYP2014, T. HISPALIS 2016, TRANSMARGAZ 2018) lleva debajo una línea "N tractoras · N remolques"; (2) en el título de la tabla (VEHÍCULOS · empresa) sale en grande "🚛 N TRACTORAS · N REMOLQUES · N EN TOTAL" de la empresa que estás viendo. Solo cuentan los vehículos ACTIVOS (los dados de baja no). Se actualiza solo al dar de alta o de baja. Cambio solo en app.js (_tallerActualizarSubtabs) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1073 (app.js e index.html).
 
 ---
