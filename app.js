@@ -25829,9 +25829,21 @@ function _tallerActualizarSubtabs() {
     btn.classList.add(e === tallerEmpresaActiva ? 'bp' : 'bs');
   });
   const tit = document.getElementById('tallerEmpresaTitulo');
+  // v1074 (JC 09/11/2026): CUÁNTOS VEHÍCULOS tiene cada empresa (solo los activos; los de baja no cuentan).
+  // En cada botón de empresa, una línea "N tractoras · N remolques", y en el título de la tabla, en grande.
+  const _cnt = emp => { const vs = (tallerVehiculos || []).filter(v => v.empresa === emp);
+    const r = vs.filter(v => v.tipo_vehiculo === 'semirremolque').length; return { t: vs.length - r, r }; };
+  const _lbl = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
+  ['TYP2014','HISPALIS','TRANSMARGAZ'].forEach(e => {
+    const btn = document.getElementById('tallerSub' + e); if (!btn) return;
+    const c = _cnt(e);
+    btn.innerHTML = esc(_lbl[e]) + '<div style="font-size:11px;font-weight:600;letter-spacing:0;margin-top:4px;opacity:.9">' + c.t + ' tractora' + (c.t === 1 ? '' : 's') + ' · ' + c.r + ' remolque' + (c.r === 1 ? '' : 's') + '</div>';
+  });
   if (tit) {
-    const labels = {'TYP2014':'TYP2014','HISPALIS':'T. HISPALIS 2016','TRANSMARGAZ':'TRANSMARGAZ 2018'};
-    tit.textContent = labels[tallerEmpresaActiva] || tallerEmpresaActiva;
+    const labels = _lbl;
+    const c = _cnt(tallerEmpresaActiva);
+    tit.innerHTML = esc(labels[tallerEmpresaActiva] || tallerEmpresaActiva) +
+      ' <span style="margin-left:14px;font-size:14px;font-weight:800;color:#0b2545;background:#dbe5f1;border-radius:6px;padding:4px 10px">🚛 ' + c.t + ' TRACTORA' + (c.t === 1 ? '' : 'S') + ' · ' + c.r + ' REMOLQUE' + (c.r === 1 ? '' : 'S') + ' · ' + (c.t + c.r) + ' EN TOTAL</span>';
   }
 }
 

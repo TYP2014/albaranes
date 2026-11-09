@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1074 (09/11/2026): TALLER · CUÁNTAS TRACTORAS Y REMOLQUES TIENE CADA EMPRESA. Pedido de Juan Carlos: muchas veces se les escapa cuántos vehículos tiene cada empresa. AHORA, en Taller: (1) cada botón de empresa (TYP2014, T. HISPALIS 2016, TRANSMARGAZ 2018) lleva debajo una línea "N tractoras · N remolques"; (2) en el título de la tabla (VEHÍCULOS · empresa) sale en grande "🚛 N TRACTORAS · N REMOLQUES · N EN TOTAL" de la empresa que estás viendo. Solo cuentan los vehículos ACTIVOS (los dados de baja no). Se actualiza solo al dar de alta o de baja. Cambio solo en app.js (_tallerActualizarSubtabs) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1073 (app.js e index.html).
+
+---
+
 v1073 (09/11/2026): BOTONES DE ENVIAR CON EL LOGO DE WHATSAPP. Pedido de Juan Carlos: el botón verde de enviar la ficha técnica de Taller (v1072) salía con el emoji 📲 que en el PC se veía como un cuadro ("un poco feo"). AHORA los botones de enviar llevan el logo de WhatsApp (el mismo de las citas de ITV) y el nombre: en la tabla de Taller "WhatsApp", dentro de la ficha del vehículo "Enviar (WhatsApp / correo)" y en el detalle de albarán "ENVIAR ALBARÁN (WhatsApp / correo)". Mismo funcionamiento. Cambio solo en app.js (constante _WA_SVG y los 3 botones) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1072 (app.js e index.html).
 
 ---
