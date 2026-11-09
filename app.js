@@ -14027,7 +14027,7 @@ function openModal(id) {
     }
   }
   // v1069: botón para mandar ESTE albarán por WhatsApp (o correo) sin descargarlo y buscarlo a mano.
-  if (hasValidUrl(r.file_url)) previewHtml = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn" style="background:#25D366;color:#fff;border:none;font-weight:800;font-size:13px;padding:9px 16px" onclick="albCompartir(event)" title="Abre el menú de compartir con el albarán ya dentro: eliges WhatsApp (o el correo) y la persona">📲 ENVIAR ALBARÁN (WhatsApp / correo)</button></div>' + previewHtml;
+  if (hasValidUrl(r.file_url)) previewHtml = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn bs" style="font-weight:800;font-size:13px;padding:9px 16px;border-color:#25D366" onclick="albCompartir(event)" title="Abre el menú de compartir con el albarán ya dentro: eliges WhatsApp (o el correo) y la persona">' + _WA_SVG + ' ENVIAR ALBARÁN (WhatsApp / correo)</button></div>' + previewHtml;
   document.getElementById('mPreview').innerHTML = previewHtml;
   // v72: si hemos pintado un canvas para PDF, lanzamos el render después de inyectar el HTML
   if (hasValidUrl(r.file_url) && /\.pdf(\?|#|$)/i.test(r.file_url)) {
@@ -25711,6 +25711,8 @@ const _TALLER_BAJA_NOM = {
   desguace:  'Desguace / achatarrado',
   otro:      'Otro'
 };
+// v1073: logo de WhatsApp (el mismo de las citas de ITV) para los botones de enviar; el emoji 📲 salía como un cuadro.
+const _WA_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-3px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.15-1.65-.8-1.9-.9-.26-.1-.45-.15-.63.15-.19.3-.72.9-.88 1.08-.16.19-.33.21-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.5-.07-.14-.63-1.5-.86-2.06-.23-.55-.46-.47-.63-.48h-.53c-.19 0-.5.07-.76.35-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.06 4.85 4.29.68.29 1.2.47 1.61.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.11-.26-.18-.54-.32z"/></svg>';
 // v1072 (JC 09/11/2026): ENVIAR LA FICHA TÉCNICA por WhatsApp o correo (a proveedores de recambios), igual que el
 // botón de los albaranes (v1069) y las citas de ITV: menú de compartir con el archivo dentro; si el navegador no deja,
 // se descarga y se abre WhatsApp con el texto.
@@ -26011,7 +26013,7 @@ function renderTallerTabla() {
       <td style="font-size:11px">${e.proxFecha}</td>
       <td style="font-size:11px">${e.proxKm}</td>
       ${v.ficha_tecnica_url
-        ? `<td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="color:#1a7f37;font-weight:700;font-size:12px">✓ SÍ</span> <a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇</a> <button class="btn" style="font-size:11px;padding:3px 8px;background:#25D366;color:#fff;border:none;font-weight:700" title="Enviar la ficha técnica por WhatsApp o correo" onclick="tallerCompartirFicha(event,'${v.id}')">📲</button></td>`
+        ? `<td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="color:#1a7f37;font-weight:700;font-size:12px">✓ SÍ</span> <a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;padding:3px 8px;text-decoration:none">⬇</a> <button class="btn bs" style="font-size:11px;padding:3px 8px;font-weight:700" title="Enviar la ficha técnica por WhatsApp o correo" onclick="tallerCompartirFicha(event,'${v.id}')">${_WA_SVG} WhatsApp</button></td>`
         : `<td style="white-space:nowrap;color:#b42318;font-weight:700;font-size:12px">✗ FALTA</td>`}
       <td><button class="btn bs" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();tallerAbrirModal('${v.id}')">Ver / ${e.numMants}</button></td>
     </tr>`;
@@ -26075,7 +26077,7 @@ function tallerAbrirModal(vehId) {
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">FICHA TÉCNICA</span>
       ${v.ficha_tecnica_url
-        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a> <button class="btn" style="font-size:11px;background:#25D366;color:#fff;border:none;font-weight:800" title="Enviar la ficha técnica por WhatsApp o correo (a un proveedor de recambios, etc.)" onclick="tallerCompartirFicha(event,'${vehId}')">📲 Enviar (WhatsApp / correo)</button>`
+        ? `<a href="${v.ficha_tecnica_url}" target="_blank" rel="noopener" class="btn bs" style="font-size:11px;text-decoration:none">Ver</a> <a href="${v.ficha_tecnica_url}" download class="btn bs" style="font-size:11px;text-decoration:none">⬇ Descargar</a> <button class="btn bs" style="font-size:11px;font-weight:800" title="Enviar la ficha técnica por WhatsApp o correo (a un proveedor de recambios, etc.)" onclick="tallerCompartirFicha(event,'${vehId}')">${_WA_SVG} Enviar (WhatsApp / correo)</button>`
         : `<span style="font-size:11px;color:var(--mu);font-family:var(--mn)">Sin ficha técnica subida</span>`}
       <label class="btn bs" style="font-size:11px;cursor:pointer">${v.ficha_tecnica_url ? 'Reemplazar' : 'Subir'}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="tallerSubirFicha('${vehId}', this)"></label>
       <button class="btn bs" style="font-size:11px;margin-left:auto" onclick="tallerVerHistorico('${vehId}')">Histórico</button>

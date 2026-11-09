@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1073 (09/11/2026): BOTONES DE ENVIAR CON EL LOGO DE WHATSAPP. Pedido de Juan Carlos: el botón verde de enviar la ficha técnica de Taller (v1072) salía con el emoji 📲 que en el PC se veía como un cuadro ("un poco feo"). AHORA los botones de enviar llevan el logo de WhatsApp (el mismo de las citas de ITV) y el nombre: en la tabla de Taller "WhatsApp", dentro de la ficha del vehículo "Enviar (WhatsApp / correo)" y en el detalle de albarán "ENVIAR ALBARÁN (WhatsApp / correo)". Mismo funcionamiento. Cambio solo en app.js (constante _WA_SVG y los 3 botones) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1072 (app.js e index.html).
+
+---
+
 v1072 (09/11/2026): TALLER · ENVIAR LA FICHA TÉCNICA POR WHATSAPP / CORREO Y PODER CAMBIAR LA MARCA DEL VEHÍCULO. Pedido de Juan Carlos: (1) a los proveedores de recambios se les manda mucho la ficha técnica y había que descargarla y buscarla; AHORA hay un botón verde "📲" en la columna de ficha técnica de la tabla de Taller y "📲 Enviar (WhatsApp / correo)" dentro de la ficha del vehículo, que abre el menú de compartir con la ficha ya dentro (como albaranes v1069 y citas de ITV); el archivo se llama "Ficha tecnica <matrícula>". (2) La marca/nota (DAF, IVECO…) solo se podía poner al crear el vehículo; AHORA dentro de la ficha del vehículo, junto a KM actual, hay una casilla "Marca / nota" y el botón "Guardar km y marca" la guarda (dejarla vacía la borra). Cambio solo en app.js (tabla y modal de Taller, tallerGuardarVehiculo y tallerCompartirFicha nueva) + número de versión en index.html. Sin SQL (la columna notas ya existía). VUELTA ATRAS: resubir v1071 (app.js e index.html).
 
 ---
