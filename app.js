@@ -36303,7 +36303,22 @@ async function _tacoRellenarTarjeta(r) {
     const raiz = x => (x || '').toUpperCase().replace(/\s/g, '').slice(0, 14);
     const R = raiz(r.tarjeta_num);
     if (R.length !== 14) return;
-    if (trab.some(t => raiz(t.tarjeta_num) === R)) return;      // ya lo tiene alguien
+    // v1064: si la ficha tiene la MISMA tarjeta pero de una emision anterior
+    // (renovada: cambian los 2 ultimos digitos), se pone la nueva y su caducidad.
+    const NUEVA = r.tarjeta_num.toUpperCase().replace(/\s/g, '');
+    const vieja = trab.find(t => raiz(t.tarjeta_num) === R);
+    if (vieja) {
+      const numVieja = String(vieja.tarjeta_num).toUpperCase().replace(/\s/g, '');
+      if (NUEVA.length === numVieja.length && NUEVA > numVieja) {
+        const { error: eR } = await sb.from('trabajadores')
+          .update({ tarjeta_num: NUEVA, tarjeta_caduca: _tacoISO(r.caduca) })
+          .eq('id', vieja.id).eq('tarjeta_num', vieja.tarjeta_num);
+        if (eR) throw eR;
+        vieja.tarjeta_num = NUEVA;
+        console.log('[v1064] tarjeta renovada en la ficha de', vieja.nombre, numVieja, '->', NUEVA);
+      }
+      return;                                                  // ya lo tiene alguien
+    }
     const hit = trab.find(t => _tacoMismoNombre(t.nombre, r.conductor) && !t.tarjeta_num);
     if (!hit) return;
     const { error } = await sb.from('trabajadores')
@@ -38925,7 +38940,20 @@ async function tacoVencVer() {
     const veh = new Map(), con = new Map();
     filas.forEach(f => {
       if (f.tipo === 'vehiculo' && f.matricula) { if (!veh.has(f.matricula)) veh.set(f.matricula, f); }
-      else if (f.tipo === 'conductor' && f.tarjeta_num) { if (!con.has(f.tarjeta_num)) con.set(f.tarjeta_num, f); }
+      else if (f.tipo === 'conductor' && f.tarjeta_num) {
+        // v1064: una tarjeta RENOVADA lleva el mismo numero salvo los 2 ultimos
+        // digitos (E33966563W000003 -> ...000004). Se agrupa por la raiz de 14
+        // y manda la tarjeta MAS NUEVA (indice mas alto); asi la vieja caducada
+        // deja de avisar en cuanto se sube una descarga de la nueva.
+        const num = String(f.tarjeta_num).toUpperCase().replace(/\s/g, '');
+        const raiz = num.slice(0, 14);
+        const ya = con.get(raiz);
+        if (!ya) con.set(raiz, f);
+        else {
+          const numYa = String(ya.tarjeta_num).toUpperCase().replace(/\s/g, '');
+          if (num > numYa) con.set(raiz, f);   // mismo largo: compara el indice
+        }
+      }
     });
     // v485: la ficha del trabajador (para sacar el DNI del aviso).
     // _tacoCargarTrabajadores ya cachea: si la lista esta leida, no vuelve a la BD.
