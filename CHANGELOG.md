@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1068 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · AL PONER UN PRECIO LA TABLA YA NO VUELVE ARRIBA. Pedido de Juan Carlos: al escribir un precio a mano en la columna €/TN (los SIN PRECIO), la tabla de albaranes saltaba al principio y había que bajar con la rueda a buscar el siguiente cada vez. AHORA, al poner un precio (o al quitar/meter un albarán con la casilla), la tabla y la página se quedan donde estaban; y si después de escribir el precio pinchas o pasas con TAB a otra casilla de precio, el cursor sigue en esa casilla (con su contenido seleccionado para escribir encima). Al calcular otro subcontratado u otro mes, la tabla empieza arriba como siempre. Cálculos y guardado, sin cambios. Cambio solo en app.js (liqRender y liqSetPrecio) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1067 (app.js e index.html).
+
+---
+
 v1067 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · EL ALQUILER DE LA BAÑERA DE CIPRIAN TAMBIÉN EN LAS YA GUARDADAS. Caso real: la liquidación de octubre 2026 de Ciprian (fra. 26.045) se guardó el 09/11 sin descontar los 750 € de la bañera, y la v1066 solo lo ponía en las liquidaciones nuevas. AHORA, al abrir una liquidación de Ciprian ya guardada que NO tenga ninguna línea de alquiler, se añade sola "Alquiler bañera · 750"; como el total cambia, sale el aviso rojo "has cambiado algo desde que se guardó: vuelve a guardar" y al pulsar GUARDAR LIQUIDACIÓN se guarda y sale el PDF nuevo (como siempre). Al guardar queda marcada como revisada: si algún mes se quita el alquiler a mano y se guarda, no vuelve a aparecer. Las que ya tienen una línea de alquiler no se tocan. Cambio solo en app.js (liqCalcular y liqGuardar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1066 (app.js e index.html).
 
 ---
