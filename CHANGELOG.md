@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1066 (09/11/2026): LIQUIDACIÓN SUBCONTRATADOS · EL ALQUILER DE LA BAÑERA DE CIPRIAN YA SALE PUESTO. Pedido de Juan Carlos: a Ciprian le tenemos alquilada la bañera en 750 € al mes y cada mes se olvidaba meter la línea. AHORA, al calcular una liquidación NUEVA de Ciprian, en "Líneas a mano" ya aparece "Alquiler bañera · 750 · Alquiler semirremolque (resta antes del 2%)", igual que si se hubiera añadido a mano: se puede cambiar el importe o quitarla con la papelera 🗑. Si el mes ya estaba guardado se carga lo guardado tal cual (no se duplica). Los demás subcontratados, sin cambios. Cambio solo en app.js (LIQ_AUTONOMOS: alquilerFijo en Ciprian + liqCalcular) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1065 (app.js e index.html).
+
+---
+
 v1065 (09/11/2026): EMPLEADOS · MODAL "EDITAR / NUEVO TRABAJADOR" EL DOBLE DE GRANDE. Pedido de Juan Carlos: la ficha del trabajador salía pequeña y costaba leerla. AHORA la ventana es el doble de ancha (520px → 1080px; en pantallas pequeñas sigue ocupando casi todo), título más grande, etiquetas en negrita oscura (13px), casillas con letra de 17px y más altas, más espacio entre filas, recuadro de Cheque Motiva y texto de ayuda más grandes, y botones de abajo más grandes. Mismos datos y mismo guardado. Cambio solo en index.html (ancho del modal + un bloque de estilo limitado a #ovTrab + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1064 (app.js e index.html).
 
 ---

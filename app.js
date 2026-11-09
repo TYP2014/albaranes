@@ -10281,7 +10281,8 @@ const LIQ_AUTONOMOS = {
   'JOSE MIGUEL VALLDEPEREZ': { corto: 'José Miguel', fichero: 'JOSE_MIGUEL', cliente: 'PORTES', pp: 2, irpf: 1, iva: 21,
     emisor: [['Nombre:', 'JOSÉ MIGUEL VALLDEPEREZ SEGURA'], ['D.N.I.:', '45810652B'], ['Dirección:', 'C/ Virgen de Luján, 50, Bloque 2, Bajo B'], ['CP / Ciudad:', '41011 - Sevilla'], ['Teléfono:', '610 942 554'], ['Email:', 'josemiguelpipa@gmail.com']],
     numero: (a, m) => String(a) + _p2(m) },                                                   // 202608
-  'CIPRIAN IOAN BUSILA': { corto: 'Ciprian', fichero: 'CIPRIAN', cliente: 'TYP', pp: 2, irpf: 1, iva: 21,
+  // v1066: alquilerFijo = la bañera que le alquilamos (750 €/mes); sale SOLA como línea de alquiler en cada liquidación nueva.
+  'CIPRIAN IOAN BUSILA': { corto: 'Ciprian', fichero: 'CIPRIAN', cliente: 'TYP', pp: 2, irpf: 1, iva: 21, alquilerFijo: 750,
     emisor: [['Nombre:', 'CIPRIAN IOAN BUSILA'], ['N.I.E.:', 'X8757251R'], ['Dirección:', 'Crta. De Sentmenat, 39'], ['CP / Ciudad:', '08211 Castellar del Vallès'], ['Provincia:', 'BARCELONA']],
     numero: (a, m) => String(a).slice(2) + '.' + String(41 + (a - 2026) * 12 + (m - 6)).padStart(3, '0') }, // 26.043 = agosto 2026
   'JOAQUIN CAÑAS': { corto: 'Joaquín Cañas', fichero: 'JOAQUIN_CAÑAS', cliente: 'PORTES', pp: 2, irpf: 1, iva: 21, cisterna: true, margen: 7,
@@ -10425,6 +10426,9 @@ async function liqCalcular() {
   }
   _liqDatos = { key, cfg, anio, mes, filas, repetidos, sinPreliq, fueraVentana, emisor, cliente: cfg.cliente, numero: cfg.numero(anio, mes), guardada: null, numUsado: '' };
   _liqLineas = [];
+  // v1066: alquiler fijo (Ciprian: bañera 750 €) ya puesto en cada liquidación NUEVA. Se puede cambiar o quitar en pantalla.
+  // Si el mes ya está guardado, abajo se cargan sus líneas tal cual (no se duplica).
+  if (cfg.alquilerFijo) _liqLineas.push({ concepto: 'Alquiler bañera', importe: cfg.alquilerFijo, tipo: 'alquiler' });
   // v722: LIQUIDACIONES GUARDADAS. (a) albaranes ya pagados en OTRA liquidacion de este subcontratado → fuera
   // solos (naranja, 'ya liquidado en…'); (b) si este mes ya esta guardado, se recupera tal cual.
   try {
