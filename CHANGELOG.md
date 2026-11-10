@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1079 (10/11/2026): ALBARANES · DETALLE ALBARÁN: NOMBRES DE LOS APARTADOS MÁS GRANDES. Pedido de Juan Carlos tras ver la v1078 ("mucho mejor"): los nombres de los apartados (FECHA, MATRÍCULA, TN NETAS, Nº ALBARÁN, PROVEEDOR, ORIGEN…) pasan de 12px a 15px, en negrita y en negro. Solo aspecto. Cambio solo en index.html (bloque de estilo de #mFields + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1078 (app.js e index.html).
+
+---
+
 v1078 (10/11/2026): ALBARANES · DETALLE ALBARÁN MÁS LEGIBLE. Pedido de Juan Carlos: en el modal "Detalle albarán" el texto de las casillas (fecha, matrícula, TN, nº albarán, proveedor, origen, destino, material, cliente, remolque, transportista, tara, bruto…) se veía pequeño y gris. AHORA va a 16px, en negrita y en NEGRO; y las etiquetas de encima (Nº ALBARÁN, PROVEEDOR…) más grandes, en negrita y oscuras. Solo cambia el aspecto, nada del funcionamiento. Cambio solo en index.html (un bloque de estilo limitado a #mFields + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1077 (app.js e index.html).
 
 ---
