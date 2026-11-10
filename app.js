@@ -7338,8 +7338,29 @@ SOLO JSON válido, sin markdown.`;
   // se marca "a revisar" más abajo (analyzeRecords). MUY dirigido: solo toca números que
   // empiezan por M; NO toca el "No Albarán: 77469/XXXXXX" (no empieza por M) ni nada de Holcim.
   // NO modifica la lógica de lectura ni de cruce de CEMEX — solo añade esta red de seguridad.
+  // v1076 (JC 10/11/2026): CEMEX leído con el "No Albarán 77469/…" en vez de la Ref. CemexGo (caso real 77469/253359
+  // del 09/11/2026, 1532NHN, AF-T-0/4-C a HORMIGON MONTCADA — pantallazo del "Ticket de entrega" de la app CemexGo)
+  // → no cruza con la preliquidación. El 77469 solo vale en la excepción v538 (TODO UNO/Caliza Cemex + cliente HOLCIM +
+  // obra FABRICA MONTCADA). En cualquier otro CEMEX con 77469: si la M+13 ya está en observaciones se cambia sin
+  // gastar IA; si no, entra en la relectura Sonnet de la Ref CemexGo de aquí abajo.
+  const _stCx1076 = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const _excepHolcim1076 = r => (/TODO\s*UNO|CALIZA\s*CEMEX/.test(_stCx1076(r.producto)))
+    && /HOLCIM/.test(_stCx1076(r.cliente)) && /FABRICA\s+MONTCADA/.test(_stCx1076(r.obra));
+  const _es77469Malo1076 = r => /CEMEX/i.test(String(r.proveedor || '')) && /^77469\s*\/?\s*\d+$/.test(String(r.albaran || '').trim()) && !_excepHolcim1076(r);
+  for (const r of results) {
+    if (!r || !_es77469Malo1076(r)) continue;
+    const m = (String(r.observaciones || '').match(/\bM\d{13}\b/) || [])[0];
+    if (m) {
+      const antes = String(r.albaran).replace(/\s+/g, '');
+      r.albaran = m;
+      r.observaciones = String(r.observaciones || '').replace(/Ref\.?\s*CemexGo:?\s*M\d{13}\s*[·;,]?\s*/i, '').trim();
+      if (!/77469\//.test(r.observaciones)) r.observaciones = ('Nº interno CEMEX: ' + antes + ' ' + r.observaciones).trim();
+      console.warn('[v1076] CEMEX con 77469 en vez de la Ref CemexGo → cambiado por la de observaciones:', antes, '→', m);
+    }
+  }
   const _esNumCemexSospechoso = (r) => {
     if (!/CEMEX/i.test(String(r.proveedor || ''))) return false;
+    if (_es77469Malo1076(r)) return true;     // v1076: 77469 donde tocaba la M → releer la Ref CemexGo
     const n = String(r.albaran || '').trim().toUpperCase();
     if (!/^M/.test(n)) return false;          // solo la Ref CemexGo (empieza por M)
     return !/^M\d{13}$/.test(n);              // sospechosa si no es M + 13 cifras exactas
@@ -7364,6 +7385,9 @@ SOLO JSON válido, sin markdown.`;
         : '';
       if (/^M\d{13}$/.test(ns) && !_esPlaceholderCemex(ns)) {
         const antes = results[i].albaran;
+        // v1076: si lo que había era el 77469/…, se guarda en observaciones como "Nº interno CEMEX"
+        if (/^77469/.test(String(antes || '').trim()) && !/77469\//.test(String(results[i].observaciones || '')))
+          results[i].observaciones = ('Nº interno CEMEX: ' + String(antes).replace(/\s+/g, '') + ' ' + String(results[i].observaciones || '')).trim();
         results[i].albaran = ns;
         if (String(antes) !== ns) console.log(`[v107K85] Ref CemexGo corregida albarán ${i + 1}: "${antes}" → "${ns}"`);
         recuperadosCx++;
