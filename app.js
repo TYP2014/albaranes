@@ -26119,6 +26119,8 @@ function tallerAbrirModal(vehId) {
     ${v.activo === false ? `<div style="background:rgba(199,54,49,.10);border:1px solid rgba(199,54,49,.45);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-family:var(--mn);font-size:12px;color:var(--er)">
       <b>VEHÍCULO DE BAJA</b> · ${esc(_TALLER_BAJA_NOM[v.baja_motivo] || v.baja_motivo || 'sin motivo')}${v.baja_fecha ? ' · ' + String(v.baja_fecha).split('-').reverse().join('/') : ''}${v.baja_nota ? ' · ' + esc(v.baja_nota) : ''}
       <div style="color:var(--mu);font-size:10.5px;margin-top:3px">Ya no da avisos de mantenimiento, ni de descarga de tacógrafo, ni de revisión. Todo lo que se le hizo sigue aquí abajo.</div></div>` : ''}
+    ${"" /* v1080: modal reordenado en secciones numeradas (JC 10/11/2026) */}
+    <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">DATOS DEL VEHÍCULO <span style="color:#cfe0f5;font-weight:600;font-size:13px;letter-spacing:0">· ficha técnica, km y marca</span></div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">FICHA TÉCNICA</span>
       ${v.ficha_tecnica_url
@@ -26136,11 +26138,21 @@ function tallerAbrirModal(vehId) {
         ? `<button class="btn bs" style="font-size:11px;margin-left:auto;color:#1e8a55;border-color:#1e8a55" onclick="tallerVolverDeAlta('${vehId}')">Volver a dar de alta</button>`
         : `<button class="btn bs" style="font-size:11px;margin-left:auto;color:var(--er);border-color:var(--er)" onclick="tallerDarDeBaja('${vehId}')">Dar de baja</button>`}
     </div>
+    <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">1 · APUNTAR LO QUE SE LE HA HECHO <span style="color:#cfe0f5;font-weight:600;font-size:13px;letter-spacing:0">· mantenimiento de hoy</span></div>
+    <div style="margin-bottom:14px;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--mn);font-size:11px;font-weight:700">Hoy se le ha hecho algo al vehículo: fecha, km y las tareas, todo de una vez.</span>
+        <button class="btn bp" id="tallerBloqueToggle" style="font-size:11px;margin-left:auto" onclick="tallerToggleBloque('${vehId}')">➕ Apuntar mantenimiento</button>
+      </div>
+      <div id="tallerBloqueBox" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">${_tallerBloqueHtml(v)}</div>
+    </div>
+    <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">2 · AVISOS · LO QUE LE TOCA HACER <span style="color:#cfe0f5;font-weight:600;font-size:13px;letter-spacing:0">· revisiones, aceite, filtros…</span></div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
-      <div style="font-family:var(--mn);font-size:11px;color:var(--in);font-weight:700;margin-bottom:4px">VENCIMIENTOS PROGRAMADOS</div>
-      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (te avisa por lo que llegue antes). Si le pones <b>cada cuánto se repite</b>, al marcarlo ✓ Hecho la app <b>programa sola el siguiente</b>.</div>
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
-      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
+      <div style="margin-top:10px"><button class="btn bs" id="tallerVencFormBtn" style="font-size:11px" onclick="const f=document.getElementById('tallerVencForm');const ab=f.style.display==='none';f.style.display=ab?'block':'none';this.textContent=ab?'▲ Cerrar':'➕ Programar un aviso nuevo'">➕ Programar un aviso nuevo</button></div>
+      <div id="tallerVencForm" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
+      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (avisa por lo que llegue antes). Si pones <b>cada cuánto se repite</b>, al marcarlo ✓ Hecho se programa solo el siguiente.</div>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
         <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Qué vence</label><br>
           <input type="text" class="fi" id="tallerVencDesc" placeholder="Ej: Filtro y aceite motor" style="width:100%;font-size:11px;padding:4px"></div>
         <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Fecha</label><br>
@@ -26168,15 +26180,10 @@ function tallerAbrirModal(vehId) {
         <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(6)">+6 meses</button>
         <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(12)">+1 año</button>
       </div>
-    </div>
-    <div style="margin-bottom:14px;background:rgba(0,232,122,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:var(--mn);font-size:11px;color:var(--ac);font-weight:700">REGISTRAR EL MANTENIMIENTO DE UN DÍA (en bloque)</span>
-        <button class="btn bs" id="tallerBloqueToggle" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="tallerToggleBloque('${vehId}')">Abrir</button>
       </div>
-      <div id="tallerBloqueBox" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">${_tallerBloqueHtml(v)}</div>
     </div>
-    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:6px">TODAS LAS LÍNEAS (detalle / edición fina)</div>
+    <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">3 · HISTORIAL · TODO LO QUE SE LE HA HECHO</div>
+    <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:6px">Aquí se puede corregir o quitar cualquier línea. Si cambias algo, pulsa abajo <b>GUARDAR MANTENIMIENTOS</b>.</div>
     <div style="overflow-x:auto">
       <table class="tbl" id="tallerModalTabla">
         <thead><tr>
@@ -26248,7 +26255,7 @@ function tallerToggleBloque(vehId) {
   const btn = document.getElementById('tallerBloqueToggle');
   if (!box) return;
   if (box.style.display === 'none') { box.style.display = 'block'; if (btn) btn.textContent = '▲ Cerrar'; }
-  else { box.style.display = 'none'; if (btn) btn.textContent = '➕ Abrir'; }
+  else { box.style.display = 'none'; if (btn) btn.textContent = '➕ Apuntar mantenimiento'; }
 }
 
 // v107K74: añade una fila de tarea más al bloque del día.
