@@ -4950,6 +4950,19 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
+        // v1077 (JC 10/11/2026): ORIGEN DE LOS CEMEX. Caso real: pantallazo "Ticket de entrega" de CemexGo del
+        // 1532NHN (09/11/2026) leído con origen "Begues" a secas. "Begues" a secas NO se canoniza en general (hay
+        // albaranes viejos que no son de Cemex), así que solo aquí: proveedor CEMEX + origen "Begues" (o vacío) →
+        // áridos = "CANTERA BEGUES/CEMEX"; caliza que paga Holcim (TODO UNO / Caliza Cemex) = "Cemex/Begues".
+        {
+          const _plV1077 = String(data.planta || '').trim();
+          if (/CEMEX/i.test(String(data.proveedor || '')) && (!_plV1077 || /^begues$/i.test(_plV1077))) {
+            const _stV1077 = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+            const _calizaV1077 = /TODO\s*UNO|CALIZA/.test(_stV1077(data.producto));
+            data.planta = _calizaV1077 ? 'Cemex/Begues' : 'CANTERA BEGUES/CEMEX';
+            console.warn('[v1077] CEMEX con origen "' + _plV1077 + '" → ' + data.planta);
+          }
+        }
         // v218 (03/07/2026): RED ANTI-DUPLICADO FALSO del Nº DE ALBARÁN. Caso real: tres
         // albaranes Promsa DISTINTOS guardados con el mismo nº "repetido" por la IA pese a la
         // regla v107K14 del prompt. Las reglas de prompt no bastan → filtro determinista:

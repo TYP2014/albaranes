@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1077 (10/11/2026): CEMEX · ORIGEN "BEGUES" A SECAS → "CANTERA BEGUES/CEMEX". Caso real: al volver a subir el pantallazo del "Ticket de entrega" de CemexGo del 1532NHN (09/11/2026) para probar la v1076, el nº salió bien (M4690000253359) pero el origen salió "Begues" a secas. "Begues" a secas NO se cambia en general (hay albaranes viejos que no son de Cemex), así que el arreglo es SOLO para CEMEX: si el proveedor es CEMEX y el origen sale "Begues" o vacío → áridos = "CANTERA BEGUES/CEMEX"; si el material es TODO UNO / Caliza (la que paga Holcim) → "Cemex/Begues". Los demás orígenes no se tocan. Solo lo que se suba a partir de ahora. Cambio solo en app.js (bloque antes de la red v218) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1076 (app.js e index.html).
+
+---
+
 v1076 (10/11/2026): CEMEX · EL Nº DE ALBARÁN TIENE QUE SER LA REF. CEMEXGO (M…), NO EL 77469/…. Caso real: albarán 1532NHN del 09/11/2026 (Aridflot, CANTERA BEGUES/CEMEX → HORMIGON MONTCADA, AF-T-0/4-C, pantallazo del "Ticket de entrega" de la app CemexGo) guardado como "77469/253359" en vez de "M4690000253359" → no cruza con la preliquidación. La regla del prompt ya lo decía; ahora hay FILTRO EN CÓDIGO: en un CEMEX leído con 77469/… que NO sea la única excepción (TODO UNO / Caliza Cemex + cliente HOLCIM + obra FABRICA MONTCADA, v538): (1) si la Ref. CemexGo M+13 está en observaciones, se cambia sola; (2) si no, se relee SOLO la Ref. CemexGo con Sonnet (la misma relectura de v107K85) y se cambia; el 77469 queda en observaciones como "Nº interno CEMEX". Si Sonnet tampoco la saca, se queda como estaba y marcada a revisar. Solo afecta a lo que se suba a partir de ahora; los ya guardados se corrigen con SQL aparte. Cambio solo en app.js (bloque v107K85 de la Ref CemexGo) + número de versión en index.html. VUELTA ATRAS: resubir v1075 (app.js e index.html).
 
 ---
