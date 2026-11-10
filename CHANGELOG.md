@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1078 (10/11/2026): ALBARANES · DETALLE ALBARÁN MÁS LEGIBLE. Pedido de Juan Carlos: en el modal "Detalle albarán" el texto de las casillas (fecha, matrícula, TN, nº albarán, proveedor, origen, destino, material, cliente, remolque, transportista, tara, bruto…) se veía pequeño y gris. AHORA va a 16px, en negrita y en NEGRO; y las etiquetas de encima (Nº ALBARÁN, PROVEEDOR…) más grandes, en negrita y oscuras. Solo cambia el aspecto, nada del funcionamiento. Cambio solo en index.html (un bloque de estilo limitado a #mFields + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1077 (app.js e index.html).
+
+---
+
 v1077 (10/11/2026): CEMEX · ORIGEN "BEGUES" A SECAS → "CANTERA BEGUES/CEMEX". Caso real: al volver a subir el pantallazo del "Ticket de entrega" de CemexGo del 1532NHN (09/11/2026) para probar la v1076, el nº salió bien (M4690000253359) pero el origen salió "Begues" a secas. "Begues" a secas NO se cambia en general (hay albaranes viejos que no son de Cemex), así que el arreglo es SOLO para CEMEX: si el proveedor es CEMEX y el origen sale "Begues" o vacío → áridos = "CANTERA BEGUES/CEMEX"; si el material es TODO UNO / Caliza (la que paga Holcim) → "Cemex/Begues". Los demás orígenes no se tocan. Solo lo que se suba a partir de ahora. Cambio solo en app.js (bloque antes de la red v218) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1076 (app.js e index.html).
 
 ---
