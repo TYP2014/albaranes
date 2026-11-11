@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1081 (11/11/2026): ALBARANES · LOS FILTROS EN CASCADA RESPETAN "FACTURACIÓN". Caso real (Juan Carlos): con Facturación = "No facturado" y octubre, al filtrar por proveedor Holcim y origen Cantera de Garraf, el desplegable de Destino ofrecía La Roca, Martorell, Montcada (Hormig)… que solo tenían albaranes ya facturados; al marcarlos la tabla salía vacía y había que ir probando. Los desplegables solo tenían en cuenta las fechas y los otros desplegables. AHORA las opciones de Proveedor, Origen, Destino, Matrícula, Transportista, Material, Cliente y Subido por salen SOLO de los albaranes que cumplen también: Facturación (facturado / no facturado / no facturable), Nos han facturado, Marcas, Subido el y "Solo a mano". Lo que ves en un desplegable es lo que hay en la tabla. La tabla y los Excel no cambian (applyFilters intacto). Cambio solo en app.js (buildDropdowns) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1080 (app.js e index.html).
+
+---
+
 v1080 (10/11/2026): TALLER · MODAL DE MANTENIMIENTOS ORDENADO POR SECCIONES. Pedido de Juan Carlos: el modal del vehículo tenía muchos textos y recuadros y no quedaba claro dónde apuntar un mantenimiento y dónde poner los avisos. AHORA va en 4 bloques con título azul: "DATOS DEL VEHÍCULO" (ficha técnica, km y marca) · "1 · APUNTAR LO QUE SE LE HA HECHO" (botón azul "➕ Apuntar mantenimiento": fecha, km y tareas de una vez) · "2 · AVISOS · LO QUE LE TOCA HACER" (la lista de avisos; el formulario para añadir uno queda recogido tras el botón "➕ Programar un aviso nuevo") · "3 · HISTORIAL · TODO LO QUE SE LE HA HECHO" (la tabla de siempre). Mismas casillas, mismos botones y mismo guardado: solo cambia el orden y los títulos. Cambio solo en app.js (tallerAbrirModal y texto del botón en tallerToggleBloque) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1079 (app.js e index.html).
 
 ---

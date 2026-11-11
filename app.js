@@ -11111,8 +11111,24 @@ function buildDropdowns() {
   const _nrm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
   const _mm = (v, set) => { if (!set || set.size === 0) return true; const c = _nrm(v); return [...set].some(s => _nrm(s) === c); };
   const _fd = document.getElementById('fDesde')?.value, _fh = document.getElementById('fHasta')?.value;
+  // v1081 (JC 11/11/2026): los desplegables también respetan Facturación, Nos han facturado, Marcas, "Subido el" y
+  // "Solo a mano". Antes solo miraban fechas y los otros desplegables: con "No facturado" puesto ofrecían orígenes y
+  // destinos que solo tenían albaranes ya facturados, y al elegirlos la tabla salía vacía. Misma lógica que applyFilters.
+  const _cFact = document.getElementById('fFactura')?.value || '', _cRec = document.getElementById('fRecibida')?.value || '';
+  const _cMarca = document.getElementById('fMarca')?.value || '', _cSubEl = document.getElementById('fSubidoEl')?.value || '';
+  let _cManual = false; try { _cManual = !!filtroManual; } catch (e) {}
   const _subset = (excluir) => records.filter(r => {
     if (r._dup || r.procesado === false) return false;
+    if (_cFact && (r.estado_facturacion || 'pendiente') !== _cFact) return false;
+    if (_cRec && (r.estado_factura_recibida || 'pendiente') !== _cRec) return false;
+    if (_cManual && !r.creado_manual) return false;
+    if (_cMarca === 'manual' && !r.creado_manual) return false;
+    if (_cMarca === 'editado' && !r._manual) return false;
+    if (_cMarca === 'amarillo' && !r.marca_revisar) return false;
+    if (_cMarca === 'naranja' && !r.revisar_pago) return false;
+    if (_cMarca === 'ofertado' && !r.ofertado) return false;
+    if (_cMarca === 'marcas' && !r.marca_revisar && !r.revisar_pago && !r.ofertado) return false;
+    if (_cSubEl && r.created_at && String(r.created_at).slice(0, 10) !== _cSubEl) return false;
     const ts = parseDate(r.fecha || '');
     if (_fd && ts < new Date(_fd + 'T00:00:00').getTime()) return false;
     if (_fh && ts > new Date(_fh + 'T00:00:00').getTime() + 86399999) return false;
