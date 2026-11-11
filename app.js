@@ -18724,9 +18724,11 @@ function renderFactEmit() {
   h += '<span style="font-size:13px;color:var(--tx)">a</span>';
   h += '<input type="date" value="' + esc2(_feHasta) + '" title="Hasta esta fecha" onchange="_feHasta=this.value;renderFactEmit()" style="' + inpSty555 + '">';
   h += '<span style="font-size:13px;color:var(--tx);font-weight:bold;margin-left:16px">CLIENTE:</span>';
-  h += '<select onchange="_feCliente=this.value;renderFactEmit()" style="' + inpSty555 + ';max-width:150px">';
-  h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos (' + baseFe555.length + ')</option>';
-  cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>'; });
+  // v1082 (JC 11/11/2026): el desplegable de CLIENTE salía cortado (150px: "HOLCIM ESPAÑ…") y "Todos (152)" parecía
+  // 152 clientes. Ahora es ancho (el nombre entero), dice cuántos CLIENTES hay y cada uno lleva sus facturas ("12 fra.").
+  h += '<select onchange="_feCliente=this.value;renderFactEmit()" title="Clientes de la empresa y fechas elegidas. El n\u00famero es cu\u00e1ntas facturas tiene cada uno." style="' + inpSty555 + ';min-width:340px;max-width:560px;font-weight:700">';
+  h += '<option value="TODOS"' + (_feCliente === 'TODOS' ? ' selected' : '') + '>Todos los clientes (' + cli555.filter(c => c.n > 0).length + ' clientes \u00b7 ' + baseFe555.length + ' fra.)</option>';
+  cli555.forEach(c => { h += '<option value="' + esc2(c.k) + '"' + (_feCliente === c.k ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ' fra.)</option>'; });
   h += '</select>';
   h += '<span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-left:4px"><span style="font-size:13px;color:var(--tx);font-weight:bold;white-space:nowrap">N\u00ba FACTURA:</span>';
   h += '<input id="feNumInp" type="text" value="' + esc2(_feNum) + '" placeholder="2026-123" title="Varias facturas: sep\u00e1ralas con coma" oninput="_feNumIn(this.value,event)" autocomplete="off" list="feNumList" style="' + inpSty555 + ';width:120px;max-width:100%"></span>';

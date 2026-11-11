@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1082 (11/11/2026): FACTURAS EMITIDAS · DESPLEGABLE DE CLIENTE ANCHO Y CLARO. Pedido de Juan Carlos: el desplegable de CLIENTE era muy estrecho (150px) y los nombres salían cortados ("HOLCIM ESPAÑ…", no se distinguía Cemex España Operaciones, TIP Trailer…), y "Todos (152)" parecía 152 clientes cuando eran 152 facturas. AHORA el desplegable es ancho (cabe el nombre entero), la primera opción dice "Todos los clientes (N clientes · N fra.)" y cada cliente lleva sus facturas: "HOLCIM ESPAÑA, S.A.U. (12 fra.)". Sigue en cascada: solo salen los clientes de la empresa y fechas elegidas (para verlos todos, pestaña TODAS). Mismo filtrado. Cambio solo en app.js (renderFactEmit) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1081 (app.js e index.html).
+
+---
+
 v1081 (11/11/2026): ALBARANES · LOS FILTROS EN CASCADA RESPETAN "FACTURACIÓN". Caso real (Juan Carlos): con Facturación = "No facturado" y octubre, al filtrar por proveedor Holcim y origen Cantera de Garraf, el desplegable de Destino ofrecía La Roca, Martorell, Montcada (Hormig)… que solo tenían albaranes ya facturados; al marcarlos la tabla salía vacía y había que ir probando. Los desplegables solo tenían en cuenta las fechas y los otros desplegables. AHORA las opciones de Proveedor, Origen, Destino, Matrícula, Transportista, Material, Cliente y Subido por salen SOLO de los albaranes que cumplen también: Facturación (facturado / no facturado / no facturable), Nos han facturado, Marcas, Subido el y "Solo a mano". Lo que ves en un desplegable es lo que hay en la tabla. La tabla y los Excel no cambian (applyFilters intacto). Cambio solo en app.js (buildDropdowns) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1080 (app.js e index.html).
 
 ---
