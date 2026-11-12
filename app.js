@@ -32853,19 +32853,37 @@ function _factProcesarYMostrar(setEstado) {
     const cand = porMatFecha.get(mat + '|' + fec);
     if (!cand) return null;
     const tnL = _factNum(L.tn);
+    // v1083: de los candidatos libres se coge el de TN MÁS PARECIDA (antes, el primero que entrara en ±0,05).
+    let mejor = null, mejorDif = Infinity;
     for (const r of cand) {
       if (r.db_id && idsAbonados.has(String(r.db_id))) continue; // ya usado por otra línea
       const tnR = _factNum(r.tm);
-      if (!isNaN(tnL) && !isNaN(tnR) && Math.abs(tnL - tnR) <= 0.05) return r;
+      if (isNaN(tnL) || isNaN(tnR)) continue;
+      const dif = Math.abs(tnL - tnR);
+      if (dif <= 0.05 && dif < mejorDif) { mejor = r; mejorDif = dif; }
     }
-    return null;
+    return mejor;
   };
 
+  // v1083 (JC 12/11/2026): EL CRUCE VA EN DOS VUELTAS. Caso real: 3768LZJ, 22/10/2026, dos viajes de 30,360 T
+  // (CEMEX M8480000009592 y M8480000009593); el nuestro del segundo estaba guardado como M8480000009563 (un dígito
+  // mal). Las líneas llegan de la tabla sin orden fijo: si la 9593 se miraba ANTES que la 9592, el rescate por
+  // matrícula+fecha+TN le daba NUESTRO 9592 (aún libre), luego la 9592 cruzaba por número con ese mismo, y el 9563
+  // se quedaba como NO ABONADO → se reclamó a CEMEX algo que estaba pagado. Ahora: 1ª vuelta, TODOS los que cruzan
+  // por número (o por la cola del nº viejo); 2ª vuelta, el rescate solo entre los albaranes que han quedado libres.
+  const _porNumPaso1 = new Map();
   lineasTodas.forEach(L => {
     const numA = _factNormAlb(L.numero_albaran);
-    let match = null;
+    let m = null;
+    if (numA && porNum.has(numA)) m = porNum.get(numA)[0];
+    if (!m) m = _matchColaVieja(numA);
+    if (m) { _porNumPaso1.set(L, m); if (m.db_id) idsAbonados.add(String(m.db_id)); }
+  });
+  lineasTodas.forEach(L => {
+    const numA = _factNormAlb(L.numero_albaran);
+    let match = _porNumPaso1.get(L) || null;
     let porFallback = false;
-    if (numA && porNum.has(numA)) {
+    if (!match && numA && porNum.has(numA)) {
       const cand = porNum.get(numA);
       // Si hay varios con el mismo número, preferimos el que más datos cuadre.
       match = cand[0];

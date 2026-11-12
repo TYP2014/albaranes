@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1083 (12/11/2026): LIQUIDACIÓN CEMEX · EL CRUCE YA NO DEJA COMO "NO ABONADO" UN ALBARÁN PAGADO CUANDO HAY DOS VIAJES IGUALES. Caso real (Juan Carlos): 3768LZJ, 22/10/2026, dos viajes de 30,360 T; CEMEX los paga como M8480000009592 y M8480000009593, y el nuestro del segundo estaba guardado como M8480000009563 (un dígito mal, editado a mano). El cruce lo dejó sin cruzar, se reclamó a CEMEX y estaba pagado. Causa: el rescate por matrícula + fecha + TN se hacía línea a línea, y las líneas llegan de la tabla sin orden fijo; si la 9593 se miraba antes que la 9592, el rescate le daba NUESTRO 9592 (todavía libre), después la 9592 cruzaba por número con ese mismo albarán, y el 9563 se quedaba suelto. AHORA el cruce va en dos vueltas: primero TODOS los que cruzan por número; después el rescate, solo entre los albaranes que han quedado libres y cogiendo el de TN más parecida. El rescatado sale como abonado con la nota "Nº de albarán NO coincide — tú: … / CEMEX: …" para corregir el número. Para verlo en octubre: pulsar el mes OCTUBRE 2026 en Liquidación CEMEX (vuelve a cruzar). Cambio solo en app.js (_factProcesarYMostrar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1082 (app.js e index.html).
+
+---
+
 v1082 (11/11/2026): FACTURAS EMITIDAS · DESPLEGABLE DE CLIENTE ANCHO Y CLARO. Pedido de Juan Carlos: el desplegable de CLIENTE era muy estrecho (150px) y los nombres salían cortados ("HOLCIM ESPAÑ…", no se distinguía Cemex España Operaciones, TIP Trailer…), y "Todos (152)" parecía 152 clientes cuando eran 152 facturas. AHORA el desplegable es ancho (cabe el nombre entero), la primera opción dice "Todos los clientes (N clientes · N fra.)" y cada cliente lleva sus facturas: "HOLCIM ESPAÑA, S.A.U. (12 fra.)". Sigue en cascada: solo salen los clientes de la empresa y fechas elegidas (para verlos todos, pestaña TODAS). Mismo filtrado. Cambio solo en app.js (renderFactEmit) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1081 (app.js e index.html).
 
 ---
