@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1084 (12/11/2026): LIQUIDACIÓN CEMEX · EN EL EXCEL, LOS ABONADOS "CON ALGO DISTINTO" SALEN EN GRIS. Pedido de Juan Carlos: los albaranes que cruzan pero con un dato que no coincide (nº de albarán mal leído, matrícula con un número distinto, TN, fecha o destino — observación "Coincide todo menos …") pasaban desapercibidos entre cientos de filas "OK". AHORA en el Excel del cruce (hoja Cruce) esas filas salen enteras en GRIS CLARO, con la observación en negrita, para verlas de un vistazo e ir a corregir el albarán. La columna Observación es más ancha y el aviso al descargar dice cuántas hay en gris. Mismos datos. Cambio solo en app.js (factAutoExcel) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1083 (app.js e index.html).
+
+---
+
 v1083 (12/11/2026): LIQUIDACIÓN CEMEX · EL CRUCE YA NO DEJA COMO "NO ABONADO" UN ALBARÁN PAGADO CUANDO HAY DOS VIAJES IGUALES. Caso real (Juan Carlos): 3768LZJ, 22/10/2026, dos viajes de 30,360 T; CEMEX los paga como M8480000009592 y M8480000009593, y el nuestro del segundo estaba guardado como M8480000009563 (un dígito mal, editado a mano). El cruce lo dejó sin cruzar, se reclamó a CEMEX y estaba pagado. Causa: el rescate por matrícula + fecha + TN se hacía línea a línea, y las líneas llegan de la tabla sin orden fijo; si la 9593 se miraba antes que la 9592, el rescate le daba NUESTRO 9592 (todavía libre), después la 9592 cruzaba por número con ese mismo albarán, y el 9563 se quedaba suelto. AHORA el cruce va en dos vueltas: primero TODOS los que cruzan por número; después el rescate, solo entre los albaranes que han quedado libres y cogiendo el de TN más parecida. El rescatado sale como abonado con la nota "Nº de albarán NO coincide — tú: … / CEMEX: …" para corregir el número. Para verlo en octubre: pulsar el mes OCTUBRE 2026 en Liquidación CEMEX (vuelve a cruzar). Cambio solo en app.js (_factProcesarYMostrar) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1082 (app.js e index.html).
 
 ---

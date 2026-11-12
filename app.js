@@ -33532,7 +33532,9 @@ function factAutoExcel() {
   };
 
   const aoa = [['ESTADO', 'EMPRESA', 'Nº Albarán', 'Matrícula', 'Fecha', 'TN', 'Importe €', 'Origen', 'Destino', 'Observación']];
+  const _filasGris = [];   // v1084: abonados que cruzan "con algo distinto" (nº, matrícula, TN, fecha, destino) → fila en gris para revisarlos
   u.abonados.forEach(a => {
+    if (a.difs.length) _filasGris.push(aoa.length);
     aoa.push(['🟢 Abonado', _empresaDe(a.linea.matricula, a.rec),
       a.linea.numero_albaran || '', a.linea.matricula || '', a.linea.fecha || '',
       a.linea.tn || '', a.linea.importe || '', a.linea.origen || '', a.linea.destino || '',
@@ -33550,7 +33552,18 @@ function factAutoExcel() {
       L.origen || '', L.destino || '', 'Pagado sin albarán nuestro — revisar']);
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [14, 22, 15, 11, 11, 8, 10, 18, 20, 34].map(w => ({ wch: w }));
+  ws['!cols'] = [14, 22, 15, 11, 11, 8, 10, 18, 20, 60].map(w => ({ wch: w }));
+  // v1084 (JC 12/11/2026): los abonados que han cruzado con ALGO DISTINTO (nº de albarán, matrícula, TN, fecha o destino)
+  // salen con la fila entera en GRIS CLARO y la observación en negrita, para verlos de un vistazo e ir a corregirlos.
+  try {
+    _filasGris.forEach(r => {
+      for (let c = 0; c < 10; c++) {
+        const ad = XLSX.utils.encode_cell({ r: r, c: c });
+        if (!ws[ad]) ws[ad] = { t: 's', v: '' };
+        ws[ad].s = { fill: { patternType: 'solid', fgColor: { rgb: 'D9D9D9' } }, font: { name: 'Arial', sz: 10, bold: c === 9 } };
+      }
+    });
+  } catch (e) { console.warn('[v1084] no se pudo pintar el gris del Excel CEMEX:', e); }
   XLSX.utils.book_append_sheet(wb, ws, 'Cruce');
 
   // Hoja 2 (J23): AJUSTES (extracostes; columnas distintas, mejor aparte)
@@ -33565,7 +33578,7 @@ function factAutoExcel() {
 
   const nombre = 'Autofactura_CEMEX_' + new Date().toISOString().slice(0, 10) + '.xlsx';
   XLSX.writeFile(wb, nombre);
-  toast('Excel descargado (todo en una hoja, filtra por ESTADO o EMPRESA)', 'ok');
+  toast('Excel descargado (todo en una hoja, filtra por ESTADO o EMPRESA)' + (_filasGris.length ? ' · ' + _filasGris.length + ' en GRIS para revisar' : ''), 'ok');
 }
 // ============================================================
 // v107GA — AUTOFACTURA HOLCIM (solo admin). Mismo patrón que CEMEX.
