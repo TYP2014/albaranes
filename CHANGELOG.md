@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1086 (12/11/2026): DEPÓSITOS SODIRA · INFORME MÁS GRANDE Y BOTONES MORADOS LEGIBLES. Pedido de Juan Carlos: en el informe del mes de Depósitos Sodira casi no se leía nada: los botones morados "🧾 Meter en factura T. Híspalis 2016 / Transmargaz 2018 · mes" salían con letra negra sobre morado (una regla general de Facturación forzaba el negro), la lista de PDF cargados salía sobre fondo negro y todo iba en letra de 11-12px. AHORA: botones morados con letra BLANCA y más grandes; lista de PDF sobre fondo claro con los enlaces en azul; todo el informe a 15px (notas a 13,5px, títulos de sección a 16,5px) y los títulos en colores que se leen sobre blanco. Mismo contenido y mismo funcionamiento: esos botones morados son los que meten en la factura de Híspalis / Transmargaz los albaranes de Sodira cobrados por TYP2014 y transportados por ellas. Cambio solo en index.html (un bloque de estilo limitado a #factSodiraInforme + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1085 (app.js e index.html).
+
+---
+
 v1085 (12/11/2026): FACTURA HÍSPALIS / TRANSMARGAZ · LA CABECERA DE LA TABLA NO SE LEÍA. Pedido de Juan Carlos: la fila azul de títulos (PESTAÑA, CONCEPTO, SERVICIOS, UD, CANTIDAD, PRECIO, IMPORTE) salía con letra negra sobre azul oscuro: una regla general de Facturación forzaba el negro en todas las cabeceras. AHORA sale en BLANCO y más grande (15px). Solo esa cabecera; el resto de tablas de Facturación, igual. Cambio solo en index.html (un bloque de estilo + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1084 (app.js e index.html).
 
 ---
