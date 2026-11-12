@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1085 (12/11/2026): FACTURA HÍSPALIS / TRANSMARGAZ · LA CABECERA DE LA TABLA NO SE LEÍA. Pedido de Juan Carlos: la fila azul de títulos (PESTAÑA, CONCEPTO, SERVICIOS, UD, CANTIDAD, PRECIO, IMPORTE) salía con letra negra sobre azul oscuro: una regla general de Facturación forzaba el negro en todas las cabeceras. AHORA sale en BLANCO y más grande (15px). Solo esa cabecera; el resto de tablas de Facturación, igual. Cambio solo en index.html (un bloque de estilo + versión); app.js solo cambia de número. Sin SQL. VUELTA ATRAS: resubir v1084 (app.js e index.html).
+
+---
+
 v1084 (12/11/2026): LIQUIDACIÓN CEMEX · EN EL EXCEL, LOS ABONADOS "CON ALGO DISTINTO" SALEN EN GRIS. Pedido de Juan Carlos: los albaranes que cruzan pero con un dato que no coincide (nº de albarán mal leído, matrícula con un número distinto, TN, fecha o destino — observación "Coincide todo menos …") pasaban desapercibidos entre cientos de filas "OK". AHORA en el Excel del cruce (hoja Cruce) esas filas salen enteras en GRIS CLARO, con la observación en negrita, para verlas de un vistazo e ir a corregir el albarán. La columna Observación es más ancha y el aviso al descargar dice cuántas hay en gris. Mismos datos. Cambio solo en app.js (factAutoExcel) + número de versión en index.html. Sin SQL. VUELTA ATRAS: resubir v1083 (app.js e index.html).
 
 ---
