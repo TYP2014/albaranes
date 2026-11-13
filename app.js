@@ -11760,7 +11760,10 @@ function factProvIcon(r) {
   const est = r.estado_factura_recibida || 'pendiente';
   // Nos han facturado los SUBCONTRATADOS: morado=nos facturó, rojo=sin recibir.
   if (r.fi_ref === 'FUERA') return _pill('Fact. directa', '#475569', 'Lo factura directamente al cliente: no va en la factura interna');   // v816
-  if (est === 'recibida') return _pill('✓ Nos facturó', '#4a6385', r.fi_ref ? (_fiTxtRef(r.fi_ref) + (r.fi_grupo ? ' · pestaña ' + r.fi_grupo : '')) : 'El transportista ya nos ha facturado');   // v816: dice en qué factura/pestaña está
+  // v1087: si está METIDO en una factura Híspalis/Transmargaz se ve distinto (morado "🧾 En factura") de un simple
+  // "✓ Nos facturó" (botón gris «Nos han facturado», que NO lo mete en ninguna factura). Antes los dos se veían igual.
+  if (est === 'recibida' && r.fi_ref) return _pill('🧾 En factura', '#4c1d95', _fiTxtRef(r.fi_ref) + (r.fi_grupo ? ' · pestaña ' + r.fi_grupo : ''));
+  if (est === 'recibida') return _pill('✓ Nos facturó', '#4a6385', 'Marcado «nos han facturado», pero NO está metido en ninguna factura Híspalis / Transmargaz');
   return _pillOut('Sin factura', '#4a6385', 'Pendiente de que el transportista nos facture');
 }
 
@@ -15687,7 +15690,12 @@ async function _fiUpdate(recs, upd) {
   const ids = recs.map(r => r.db_id);
   let errN = 0;
   for (let i = 0; i < ids.length; i += 100) {
-    try { const { error } = await sb.from('albaranes').update(upd).in('id', ids.slice(i, i + 100)); if (error) throw error; }
+    try {
+      const _lote = ids.slice(i, i + 100);
+      const { data, error } = await sb.from('albaranes').update(upd).in('id', _lote).select('id'); if (error) throw error;
+      // v1087: comprobar que se han guardado TODOS (antes, si la base de datos no cambiaba alguna fila, no avisaba)
+      if ((data || []).length !== _lote.length) throw new Error('guardados ' + (data || []).length + ' de ' + _lote.length);
+    }
     catch (e) { console.error('[v816 fi] lote', e); errN++; if (/fi_ref|fi_grupo/.test(String(e.message || e))) { toast('Falta ejecutar el SQL de la v816 en Supabase', 'err'); return -1; } }
   }
   if (errN) return errN;
@@ -15700,6 +15708,18 @@ async function _fiUpdate(recs, upd) {
   const all = document.getElementById('chkSelAll'); if (all) all.checked = false;
   _selUno();
   return 0;
+}
+
+// v1087 (JC 13/11/2026): tras meter / sacar albaranes, la tarjeta "Factura Híspalis / Transmargaz" se recalcula SOLA
+// con esa empresa y ese mes, para que al ir a Facturación ya esté al día sin pulsar VER.
+function _fiAutoRefrescar(emp, mes) {
+  try {
+    if (!_fiEsAdmin() || !document.getElementById('fiCardOut')) return;
+    const e = document.getElementById('fiCardEmp'), m = document.getElementById('fiCardMes');
+    if (emp && e) e.value = emp;
+    if (mes && /^\d{4}-\d{2}$/.test(mes) && m) m.value = mes;
+    if (m && /^\d{4}-\d{2}$/.test(m.value || '')) fiCalcular();
+  } catch (e) { console.warn('[v1087 fi] auto-refresco', e); }
 }
 
 async function _fiGuardar(emp, fuera) {
@@ -15718,6 +15738,7 @@ async function _fiGuardar(emp, fuera) {
   if (err) { toast('⚠ ' + err + ' lote(s) no se guardaron. Reintenta.', 'err'); return; }
   toast(fuera ? ('🚫 ' + recs.length + ' albarán(es) fuera: factura directa al cliente') : ('🧾 ' + recs.length + ' albarán(es) → ' + _FI_NOM[emp] + ' ' + _fiMesTxt(mes) + ' · ' + grupo + ' (📥 nos han facturado)'), 'ok');
   console.log('[v816 fi] guardado', { emp, mes, grupo, fuera, n: recs.length });
+  _fiAutoRefrescar(emp, fuera ? '' : mes);
 }
 
 async function _fiQuitar() {
@@ -15728,6 +15749,7 @@ async function _fiQuitar() {
   if (err === -1) return;
   _fiCerrar();
   toast(err ? '⚠ Algún lote no se guardó. Reintenta.' : ('↩ ' + recs.length + ' albarán(es) sacados de la factura'), err ? 'err' : 'ok');
+  if (!err) _fiAutoRefrescar('', '');
 }
 
 // ============================================================================
@@ -16180,6 +16202,7 @@ async function fiDesdeSodira(trans) {
   toast('🧾 ' + faltan.length + ' albarán(es) de Sodira → ' + _FI_NOM[emp] + ' ' + _fiMesTxt(u.mes) + ' · ' + g, 'ok');
   console.log('[v822 fi] desde Sodira', { trans, ref, grupo: g, n: faltan.length });
   try { _factSodiraMostrarInforme(); } catch (e) {}
+  _fiAutoRefrescar(emp, u.mes);
 }
 
 // v107K26 — Marcar en bloque "NOS HAN FACTURADO" (el transportista nos ha pasado su factura por esos
