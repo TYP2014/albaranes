@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1094 (13/11/2026): GASOIL · "FACTURAS SUBIDAS" QUE SE LEA BIEN + AVISO DE FACTURA SUBIDA 2 VECES. Pedido de Juan Carlos: la lista de facturas de gasoil subidas salía con letra gris sobre fondo negro y no se leía. AHORA: fondo blanco, letra negra de 15px, en forma de tabla (Subida · Proveedor · Nº factura · Mes · Importe · Camiones · Abrir PDF) con cabecera fija. Además sale el Nº DE FACTURA y, si el mismo número de factura del mismo proveedor está en dos PDF distintos, la fila sale en rojo con "⚠ SUBIDA 2 VECES" y un contador arriba (motivo: se encontraron 7 facturas de mayo-junio subidas dos veces por dos usuarios, ≈49.400 L de más). Cambio solo en verFacturasGasoilSubidas (app.js). Sin SQL. VUELTA ATRAS: resubir v1093 (app.js e index.html).
+
+---
+
 v1093 (13/11/2026): GASOIL · CONSUMO: COLUMNA "MEDIA 3 MESES". Pedido de Juan Carlos (opción A): las facturas de gasoil van a fin de mes y un camión sale un mes muy alto y el siguiente muy bajo (9499LHT: septiembre 16,7 · octubre 61,9 · los dos juntos ≈ 39). AHORA: nueva columna "Media 3 meses" al lado de L/100 km (los 3 meses naturales que acaban en el final del periodo elegido; ej. octubre → agosto+septiembre+octubre), y el color rojo/naranja/verde de la barra lo decide esa media, no la del mes. También sale en el Excel de consumo. Cambio en gasRenderConsumo y exportConsumoExcel (app.js) y una columna en la tabla (index.html). Sin SQL. VUELTA ATRAS: resubir v1092 (app.js e index.html).
 
 ---

@@ -12744,7 +12744,8 @@ function verFacturasGasoilSubidas() {
   (gasoilRecords || []).forEach(r => {
     if (!hasValidUrl(r.file_url)) return;
     let g = grupos.get(r.file_url);
-    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', meses: new Set(), n: 0, imp: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
+    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', num: r.num_factura || '', meses: new Set(), n: 0, imp: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
+    if (!g.num && r.num_factura) g.num = r.num_factura;   // v1094
     g.n++;
     g.imp += Number(r.importe) || 0;
     if (!g.prov && r.proveedor) g.prov = r.proveedor;
@@ -12752,26 +12753,42 @@ function verFacturasGasoilSubidas() {
     const t = r.created_at || r._ts || ''; if (String(t) > String(g.ts)) g.ts = t;
   });
   const arr = [...grupos.values()].sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-    + '<span style="font-weight:700;color:var(--mu)">📎 Facturas de gasoil subidas (' + arr.length + ')</span>'
-    + '<button class="btn bs" style="font-size:10px;padding:2px 8px" onclick="verFacturasGasoilSubidas()">✕ Cerrar</button></div>';
+  // v1094 (JC 13/11/2026): lista CLARA (antes letra gris sobre fondo negro, no se leía) en forma
+  // de tabla, con el Nº DE FACTURA y aviso "⚠ SUBIDA 2 VECES" si el mismo número aparece en dos PDF.
+  const porNum = {};
+  arr.forEach(g => { if (g.num) (porNum[g.prov + '|' + g.num] = porNum[g.prov + '|' + g.num] || []).push(g); });
+  const nDup = Object.values(porNum).filter(l => l.length > 1).length;
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">'
+    + '<span style="font-weight:800;font-size:16px;color:#111">📎 Facturas de gasoil subidas (' + arr.length + ')</span>'
+    + (nDup ? '<span style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-weight:800;font-size:14px">⚠ ' + nDup + ' factura' + (nDup > 1 ? 's' : '') + ' subida' + (nDup > 1 ? 's' : '') + ' 2 veces</span>' : '')
+    + '<button class="btn bs" style="font-size:13px;padding:5px 12px;color:#111;background:#fff;border:1px solid #94a3b8" onclick="verFacturasGasoilSubidas()">✕ Cerrar</button></div>';
   if (!arr.length) {
-    h += '<div style="color:var(--mu)">No hay facturas con PDF. (Los repostajes metidos a mano no tienen archivo adjunto.)</div>';
+    h += '<div style="color:#334155;font-size:15px">No hay facturas con PDF. (Los repostajes metidos a mano no tienen archivo adjunto.)</div>';
   } else {
-    arr.forEach(g => {
+    const th = 'style="text-align:left;padding:8px 10px;background:#1f3a5f;color:#fff;font-size:13px;font-weight:800;white-space:nowrap;position:sticky;top:0"';
+    h += '<div style="max-height:520px;overflow:auto;border:1px solid #cbd5e1;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#111">'
+      + '<thead><tr><th ' + th + '>Subida</th><th ' + th + '>Proveedor</th><th ' + th + '>Nº factura</th><th ' + th + '>Mes</th><th ' + th + ' >Importe</th><th ' + th + '>Camiones</th><th ' + th + '>PDF</th></tr></thead><tbody>';
+    arr.forEach((g, i) => {
       const meses = [...g.meses].sort((a, b) => (a.split('/')[1] + a.split('/')[0]).localeCompare(b.split('/')[1] + b.split('/')[0]));
       const mesTxt = meses.length ? meses.join(', ') : '—';
       const cuando = g.ts ? fmtTS(g.ts) : '';
       const nom = _nombreArchivoDeUrl(g.url);
       const impTxt = g.imp > 0 ? g.imp.toFixed(2).replace('.', ',') + ' €' : '—';
-      h += '<div style="padding:5px 0;border-bottom:1px solid var(--bd)">'
-        + '<a href="' + g.url + '" target="_blank" rel="noopener" style="color:#7cc4ff;text-decoration:underline">👁 Abrir PDF</a> · '
-        + (nom ? '<strong>' + esc(nom) + '</strong> · ' : '')
-        + esc(g.prov || 'Proveedor ?') + ' · mes: ' + esc(mesTxt)
-        + ' · <strong style="color:var(--ok)">' + impTxt + '</strong>'
-        + ' <span style="color:var(--mu)">(' + g.n + ' camiones' + (cuando ? ' · subida ' + esc(cuando) : '') + ')</span></div>';
+      const dup = g.num && (porNum[g.prov + '|' + g.num] || []).length > 1;
+      const td = 'style="padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top' + (dup ? ';background:#fee2e2' : (i % 2 ? ';background:#f8fafc' : ';background:#fff')) + '"';
+      h += '<tr>'
+        + '<td ' + td + '><span style="white-space:nowrap;font-weight:700">' + esc(cuando) + '</span></td>'
+        + '<td ' + td + '><strong>' + esc(g.prov || 'Proveedor ?') + '</strong>' + (nom ? '<div style="font-size:12px;color:#475569">' + esc(nom) + '</div>' : '') + '</td>'
+        + '<td ' + td + '><strong>' + esc(g.num || '—') + '</strong>' + (dup ? '<div style="color:#991b1b;font-weight:800;font-size:13px">⚠ SUBIDA 2 VECES</div>' : '') + '</td>'
+        + '<td ' + td + '>' + esc(mesTxt) + '</td>'
+        + '<td ' + td + '><strong style="color:#15803d;white-space:nowrap">' + impTxt + '</strong></td>'
+        + '<td ' + td + '>' + g.n + '</td>'
+        + '<td ' + td + '><a href="' + g.url + '" target="_blank" rel="noopener" style="color:#1d4ed8;font-weight:800;text-decoration:underline;white-space:nowrap">👁 Abrir PDF</a></td>'
+        + '</tr>';
     });
+    h += '</tbody></table></div>';
   }
+  panel.style.background = '#fff'; panel.style.color = '#111'; panel.style.fontFamily = 'inherit'; panel.style.border = '1px solid #cbd5e1';
   panel.innerHTML = h;
   panel.style.display = 'block';
   panel.dataset.open = '1';
