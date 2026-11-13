@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1095 (13/11/2026): GASOIL · "FACTURAS SUBIDAS" POR EMPRESA Y CON FILTROS. Pedido de Juan Carlos: (1) al cambiar de empresa la lista no cambiaba y salían todas las facturas mezcladas; (2) poder localizar rápido una factura (ej. "Híspalis, julio, Petromiralles"). AHORA: la lista enseña SOLO las facturas de la empresa de la pestaña (TYP2014 / Híspalis / Portes) y se refresca sola al cambiar de pestaña; encima, filtros EN CASCADA como en Albaranes: Proveedor, Mes (desplegables que solo muestran lo que queda con los demás filtros), Nº factura (escribiendo parte del número) y casilla "Solo las subidas 2 veces", con botón "Quitar filtros". Cambio solo en verFacturasGasoilSubidas (+ _gfsGrupos, _gfsPintar, _gfsSet) y una línea en el cambio de empresa (app.js). Sin SQL. VUELTA ATRAS: resubir v1094 (app.js e index.html).
+
+---
+
 v1094 (13/11/2026): GASOIL · "FACTURAS SUBIDAS" QUE SE LEA BIEN + AVISO DE FACTURA SUBIDA 2 VECES. Pedido de Juan Carlos: la lista de facturas de gasoil subidas salía con letra gris sobre fondo negro y no se leía. AHORA: fondo blanco, letra negra de 15px, en forma de tabla (Subida · Proveedor · Nº factura · Mes · Importe · Camiones · Abrir PDF) con cabecera fija. Además sale el Nº DE FACTURA y, si el mismo número de factura del mismo proveedor está en dos PDF distintos, la fila sale en rojo con "⚠ SUBIDA 2 VECES" y un contador arriba (motivo: se encontraron 7 facturas de mayo-junio subidas dos veces por dos usuarios, ≈49.400 L de más). Cambio solo en verFacturasGasoilSubidas (app.js). Sin SQL. VUELTA ATRAS: resubir v1093 (app.js e index.html).
 
 ---

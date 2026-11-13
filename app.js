@@ -11657,6 +11657,7 @@ function switchGasEmpresa(emp) {
     tit.textContent = labels[emp] || emp;
   }
   applyGasFilters();
+  try { const _fs = document.getElementById('gasFacturasSubidas'); if (_fs && _fs.dataset.open === '1') { window._gfsF = { prov: '', mes: '', num: '', dup: false }; _gfsPintar(); } } catch (e) {}   // v1095
   // v107BK: si estamos en la vista de CONSUMO, recalcular para la nueva empresa
   const vCon = document.getElementById('gasVistaConsumo');
   if (vCon && vCon.style.display !== 'none') {
@@ -12738,49 +12739,88 @@ function verFacturasGasoilSubidas() {
   const panel = document.getElementById('gasFacturasSubidas');
   if (!panel) return;
   if (panel.dataset.open === '1') { panel.style.display = 'none'; panel.dataset.open = '0'; return; }
-  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // v1095 (JC 13/11/2026): filtros en CASCADA (proveedor · mes · nº factura · solo subidas 2 veces)
+  // y SOLO las facturas de la EMPRESA de la pestaña (antes salían las de todas mezcladas).
+  window._gfsF = { prov: '', mes: '', num: '', dup: false };
+  panel.style.background = '#fff'; panel.style.color = '#111'; panel.style.fontFamily = 'inherit'; panel.style.border = '1px solid #cbd5e1';
+  panel.style.display = 'block';
+  panel.dataset.open = '1';
+  _gfsPintar();
+}
+
+// v1095: agrupa los registros de la empresa activa en facturas (una por PDF)
+function _gfsGrupos() {
   const _mes = (f) => { const m = String(f || '').match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/); return m ? (m[2] + '/' + m[3]) : ''; };
+  const emp = gasEmpresaActiva || 'TYP2014';
   const grupos = new Map();
   (gasoilRecords || []).forEach(r => {
     if (!hasValidUrl(r.file_url)) return;
+    let esDeEmp = false; try { esDeEmp = _gasEmpresaDeRegistro(r) === emp; } catch (e) { esDeEmp = (r.empresa_subida || 'TYP2014') === emp; }
     let g = grupos.get(r.file_url);
-    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', num: r.num_factura || '', meses: new Set(), n: 0, imp: 0, ts: r.created_at || r._ts || '' }; grupos.set(r.file_url, g); }
-    if (!g.num && r.num_factura) g.num = r.num_factura;   // v1094
+    if (!g) { g = { url: r.file_url, prov: r.proveedor || '', num: r.num_factura || '', meses: new Set(), n: 0, imp: 0, ts: r.created_at || r._ts || '', emp: false }; grupos.set(r.file_url, g); }
+    if (esDeEmp) g.emp = true;
     g.n++;
     g.imp += Number(r.importe) || 0;
     if (!g.prov && r.proveedor) g.prov = r.proveedor;
+    if (!g.num && r.num_factura) g.num = r.num_factura;
     const mm = _mes(r.fecha); if (mm) g.meses.add(mm);
     const t = r.created_at || r._ts || ''; if (String(t) > String(g.ts)) g.ts = t;
   });
-  const arr = [...grupos.values()].sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-  // v1094 (JC 13/11/2026): lista CLARA (antes letra gris sobre fondo negro, no se leía) en forma
-  // de tabla, con el Nº DE FACTURA y aviso "⚠ SUBIDA 2 VECES" si el mismo número aparece en dos PDF.
+  const arr = [...grupos.values()].filter(g => g.emp).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
   const porNum = {};
   arr.forEach(g => { if (g.num) (porNum[g.prov + '|' + g.num] = porNum[g.prov + '|' + g.num] || []).push(g); });
-  const nDup = Object.values(porNum).filter(l => l.length > 1).length;
+  arr.forEach(g => { g.dup = !!(g.num && porNum[g.prov + '|' + g.num].length > 1); g.mesTxt = [...g.meses].sort((a, b) => (a.split('/')[1] + a.split('/')[0]).localeCompare(b.split('/')[1] + b.split('/')[0])).join(', ') || '—'; });
+  return arr;
+}
+
+function _gfsPintar() {
+  const panel = document.getElementById('gasFacturasSubidas');
+  if (!panel || panel.dataset.open !== '1') return;
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const F = window._gfsF || (window._gfsF = { prov: '', mes: '', num: '', dup: false });
+  const labels = { 'TYP2014': 'TYP2014', 'HISPALIS': 'T. HISPALIS 2016', 'TRANSMARGAZ': 'TRANSMARGAZ 2018', 'PORTES': 'PORTES 2014 IMPORT' };
+  const todas = _gfsGrupos();
+  const pasa = (g, salvo) =>
+    (salvo === 'prov' || !F.prov || g.prov === F.prov) &&
+    (salvo === 'mes' || !F.mes || g.meses.has(F.mes)) &&
+    (!F.num || String(g.num || '').toUpperCase().includes(F.num.toUpperCase())) &&
+    (!F.dup || g.dup);
+  const arr = todas.filter(g => pasa(g));
+  // opciones de los desplegables EN CASCADA (cada uno con lo que dejan los demás filtros)
+  const provs = [...new Set(todas.filter(g => pasa(g, 'prov')).map(g => g.prov).filter(Boolean))].sort();
+  const mesesSet = new Set(); todas.filter(g => pasa(g, 'mes')).forEach(g => g.meses.forEach(m => mesesSet.add(m)));
+  const meses = [...mesesSet].sort((a, b) => (b.split('/')[1] + b.split('/')[0]).localeCompare(a.split('/')[1] + a.split('/')[0]));
+  const nDup = new Set(todas.filter(g => g.dup).map(g => g.prov + '|' + g.num)).size;
+  const sel = 'style="font-size:14px;padding:6px 8px;border:1px solid #94a3b8;border-radius:6px;color:#111;background:#fff;min-width:170px"';
+  const lab = (t) => '<div style="font-size:11px;font-weight:800;color:#334155;text-transform:uppercase;margin-bottom:3px">' + t + '</div>';
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">'
-    + '<span style="font-weight:800;font-size:16px;color:#111">📎 Facturas de gasoil subidas (' + arr.length + ')</span>'
+    + '<span style="font-weight:800;font-size:16px;color:#111">📎 Facturas de gasoil subidas · ' + esc(labels[gasEmpresaActiva] || gasEmpresaActiva) + ' (' + arr.length + (arr.length !== todas.length ? ' de ' + todas.length : '') + ')</span>'
     + (nDup ? '<span style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-weight:800;font-size:14px">⚠ ' + nDup + ' factura' + (nDup > 1 ? 's' : '') + ' subida' + (nDup > 1 ? 's' : '') + ' 2 veces</span>' : '')
     + '<button class="btn bs" style="font-size:13px;padding:5px 12px;color:#111;background:#fff;border:1px solid #94a3b8" onclick="verFacturasGasoilSubidas()">✕ Cerrar</button></div>';
+  // filtros
+  h += '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px">'
+    + '<div>' + lab('Proveedor') + '<select ' + sel + ' onchange="_gfsSet(\'prov\',this.value)"><option value="">Todos (' + provs.length + ')</option>' + provs.map(p => '<option value="' + esc(p) + '"' + (p === F.prov ? ' selected' : '') + '>' + esc(p) + '</option>').join('') + '</select></div>'
+    + '<div>' + lab('Mes') + '<select ' + sel + ' onchange="_gfsSet(\'mes\',this.value)"><option value="">Todos los meses</option>' + meses.map(m => '<option value="' + m + '"' + (m === F.mes ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></div>'
+    + '<div>' + lab('Nº factura') + '<input id="gfsNum" type="text" placeholder="Escribe parte del número" value="' + esc(F.num) + '" ' + sel + ' oninput="_gfsSet(\'num\',this.value)"></div>'
+    + '<label style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:800;color:#991b1b;cursor:pointer;padding-bottom:6px"><input type="checkbox"' + (F.dup ? ' checked' : '') + ' onchange="_gfsSet(\'dup\',this.checked)"> Solo las subidas 2 veces</label>'
+    + ((F.prov || F.mes || F.num || F.dup) ? '<button class="btn bs" style="font-size:13px;padding:6px 12px;color:#111;background:#fff;border:1px solid #94a3b8" onclick="_gfsSet(\'reset\')">Quitar filtros</button>' : '')
+    + '</div>';
   if (!arr.length) {
-    h += '<div style="color:#334155;font-size:15px">No hay facturas con PDF. (Los repostajes metidos a mano no tienen archivo adjunto.)</div>';
+    h += '<div style="color:#334155;font-size:15px;padding:10px">' + (todas.length ? 'Ninguna factura con estos filtros.' : 'No hay facturas con PDF en esta empresa. (Los repostajes metidos a mano no tienen archivo adjunto.)') + '</div>';
   } else {
     const th = 'style="text-align:left;padding:8px 10px;background:#1f3a5f;color:#fff;font-size:13px;font-weight:800;white-space:nowrap;position:sticky;top:0"';
     h += '<div style="max-height:520px;overflow:auto;border:1px solid #cbd5e1;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#111">'
-      + '<thead><tr><th ' + th + '>Subida</th><th ' + th + '>Proveedor</th><th ' + th + '>Nº factura</th><th ' + th + '>Mes</th><th ' + th + ' >Importe</th><th ' + th + '>Camiones</th><th ' + th + '>PDF</th></tr></thead><tbody>';
+      + '<thead><tr><th ' + th + '>Subida</th><th ' + th + '>Proveedor</th><th ' + th + '>Nº factura</th><th ' + th + '>Mes</th><th ' + th + '>Importe</th><th ' + th + '>Camiones</th><th ' + th + '>PDF</th></tr></thead><tbody>';
     arr.forEach((g, i) => {
-      const meses = [...g.meses].sort((a, b) => (a.split('/')[1] + a.split('/')[0]).localeCompare(b.split('/')[1] + b.split('/')[0]));
-      const mesTxt = meses.length ? meses.join(', ') : '—';
       const cuando = g.ts ? fmtTS(g.ts) : '';
       const nom = _nombreArchivoDeUrl(g.url);
       const impTxt = g.imp > 0 ? g.imp.toFixed(2).replace('.', ',') + ' €' : '—';
-      const dup = g.num && (porNum[g.prov + '|' + g.num] || []).length > 1;
-      const td = 'style="padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top' + (dup ? ';background:#fee2e2' : (i % 2 ? ';background:#f8fafc' : ';background:#fff')) + '"';
+      const td = 'style="padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top' + (g.dup ? ';background:#fee2e2' : (i % 2 ? ';background:#f8fafc' : ';background:#fff')) + '"';
       h += '<tr>'
         + '<td ' + td + '><span style="white-space:nowrap;font-weight:700">' + esc(cuando) + '</span></td>'
         + '<td ' + td + '><strong>' + esc(g.prov || 'Proveedor ?') + '</strong>' + (nom ? '<div style="font-size:12px;color:#475569">' + esc(nom) + '</div>' : '') + '</td>'
-        + '<td ' + td + '><strong>' + esc(g.num || '—') + '</strong>' + (dup ? '<div style="color:#991b1b;font-weight:800;font-size:13px">⚠ SUBIDA 2 VECES</div>' : '') + '</td>'
-        + '<td ' + td + '>' + esc(mesTxt) + '</td>'
+        + '<td ' + td + '><strong>' + esc(g.num || '—') + '</strong>' + (g.dup ? '<div style="color:#991b1b;font-weight:800;font-size:13px">⚠ SUBIDA 2 VECES</div>' : '') + '</td>'
+        + '<td ' + td + '>' + esc(g.mesTxt) + '</td>'
         + '<td ' + td + '><strong style="color:#15803d;white-space:nowrap">' + impTxt + '</strong></td>'
         + '<td ' + td + '>' + g.n + '</td>'
         + '<td ' + td + '><a href="' + g.url + '" target="_blank" rel="noopener" style="color:#1d4ed8;font-weight:800;text-decoration:underline;white-space:nowrap">👁 Abrir PDF</a></td>'
@@ -12788,10 +12828,17 @@ function verFacturasGasoilSubidas() {
     });
     h += '</tbody></table></div>';
   }
-  panel.style.background = '#fff'; panel.style.color = '#111'; panel.style.fontFamily = 'inherit'; panel.style.border = '1px solid #cbd5e1';
   panel.innerHTML = h;
-  panel.style.display = 'block';
-  panel.dataset.open = '1';
+}
+
+function _gfsSet(k, v) {
+  const F = window._gfsF || (window._gfsF = { prov: '', mes: '', num: '', dup: false });
+  if (k === 'reset') { F.prov = ''; F.mes = ''; F.num = ''; F.dup = false; } else F[k] = v;
+  _gfsPintar();
+  if (k === 'num') {   // que se pueda seguir escribiendo sin perder el cursor
+    const el = document.getElementById('gfsNum');
+    if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (e) {} }
+  }
 }
 
 // ============================================================
