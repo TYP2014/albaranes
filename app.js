@@ -13042,8 +13042,14 @@ async function gasRenderConsumo() {
     const fL = (k.km > 0 && k.hasta && k.hasta < f) ? k.hasta : f;
     const litros = sumaL(litrosPorMat[m], i, fL), litrosTot = sumaL(litrosPorMat[m], i, f);
     const adblue = sumaL(adbluePorMat[m], i, f);
-    const cons = (litros != null && k.km > 0) ? litros / k.km * 100 : null;
-    return { km: k.km > 0 ? k.km : null, litros: litrosTot, litrosCons: litros, adblue, cons, kmHasta: k.hasta, aprox: k.aprox, cortado: k.km > 0 && k.hasta && k.hasta < f };
+    let cons = (litros != null && k.km > 0) ? litros / k.km * 100 : null;
+    // v1091: si el tacógrafo cubre MENOS DE LA MITAD del periodo, no se da cifra de consumo
+    // (sale "⏳ faltan km"): con 4 días de km el L/100 sale disparatado y en rojo sin motivo.
+    const diasPer = Math.max(1, _gasDiasEntre(i, f));
+    const diasCub = (k.km > 0 && k.hasta) ? _gasDiasEntre(Math.max(k.desde || i, i), k.hasta) : 0;
+    const poca = k.km > 0 && diasCub / diasPer < 0.5;
+    if (poca) cons = null;
+    return { km: k.km > 0 ? k.km : null, litros: litrosTot, litrosCons: litros, adblue, cons, kmHasta: k.hasta, kmDesde: k.desde, diasCub, diasPer, poca, aprox: k.aprox, cortado: k.km > 0 && k.hasta && k.hasta < f };
   };
 
   const mats = new Set();
@@ -13059,13 +13065,14 @@ async function gasRenderConsumo() {
     const c = calc(m, rIni, rFin), a = calc(m, aIni, aFin);
     if (c.km == null && c.litros == null) return;           // sin nada en el periodo
     let aviso = '';
-    if (c.cortado) aviso = 'Km del tacógrafo solo hasta el ' + nTxt(c.kmHasta) + ': el consumo se calcula con el gasoil hasta ese día (' + fmtN(c.litrosCons || 0, 0) + ' L).';
+    if (c.poca) aviso = 'Faltan km: el tacógrafo solo cubre ' + c.diasCub + ' de ' + c.diasPer + ' días (' + nTxt(c.kmDesde || rIni) + ' – ' + nTxt(c.kmHasta) + '). Sin cifra de consumo hasta que se suba el Excel de km que falta.';
+    else if (c.cortado) aviso = 'Km del tacógrafo solo hasta el ' + nTxt(c.kmHasta) + ': el consumo se calcula con el gasoil hasta ese día (' + fmtN(c.litrosCons || 0, 0) + ' L).';
     else if (c.aprox) aviso = 'Los km del tacógrafo vienen en bloques que no encajan con las fechas: km aproximados.';
     filas.push({
       mat: m, nota: notaDe[m] || '',
       periodo: (desdeStr ? nTxt(rIni) : '…') + ' – ' + nTxt(rFin) + (c.aprox || c.cortado ? ' *' : ''),
       orden: m, litros: c.litros, adblue: c.adblue, km: c.km, consumo: c.cons,
-      consAnt: a.cons, aviso, cortado: c.cortado, kmHasta: c.kmHasta
+      consAnt: a.cons, aviso, cortado: c.cortado, kmHasta: c.kmHasta, poca: c.poca, diasCub: c.diasCub, diasPer: c.diasPer
     });
   });
 
@@ -13120,6 +13127,8 @@ async function gasRenderConsumo() {
       const w = Math.min(100, c / maxC * 100);
       consTxt = '<div style="display:flex;align-items:center;gap:10px"><strong style="color:' + col + ';font-size:17px;min-width:48px;text-align:right">' + fmtN(c, 1) + '</strong>'
         + '<div style="flex:1;min-width:120px;background:#e2e8f0;border-radius:4px;height:12px;overflow:hidden"><div style="width:' + w.toFixed(1) + '%;height:100%;background:' + col + '"></div></div></div>';
+    } else if (f.poca) {
+      consTxt = '<span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">⏳ faltan km <span style="font-weight:700;color:#475569">(tacógrafo ' + f.diasCub + ' de ' + f.diasPer + ' días)</span></span>';
     } else if (f.cortado) {
       consTxt = '<span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">⏳ tacógrafo solo hasta el ' + nTxt(f.kmHasta) + '</span>';
     } else if (f.km != null && f.litros == null) {
@@ -13136,7 +13145,7 @@ async function gasRenderConsumo() {
       + '<td style="min-width:240px">' + consTxt + '</td>'
       + '<td style="white-space:nowrap">' + antTxt + '</td>'
       + '<td class="tag-tm" style="white-space:nowrap">' + (f.litros != null ? fmtN(f.litros, 0) + ' L' : '<span style="color:#b45309">—</span>') + '</td>'
-      + '<td style="white-space:nowrap">' + (f.km != null ? fmtN(f.km, 0) + ' km' + (f.cortado ? ' <span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">*</span>' : '') : '<span style="color:#b45309">—</span>') + '</td>'
+      + '<td style="white-space:nowrap">' + (f.km != null ? fmtN(f.km, 0) + ' km' + (f.cortado || f.poca ? ' <span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">*</span>' : '') : '<span style="color:#b45309">—</span>') + '</td>'
       + '<td style="white-space:nowrap;color:#475569">' + (f.adblue != null ? fmtN(f.adblue, 0) + ' L' : '—') + '</td>'
       + '</tr>';
   }).join('');
