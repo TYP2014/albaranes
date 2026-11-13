@@ -26129,6 +26129,7 @@ function renderTallerAvisos() {
 // Modal de un vehículo: historial de mantenimientos editable (mín. 15 líneas)
 let _tallerVehIdActual = null;
 function tallerAbrirModal(vehId) {
+  _tallerVencModoAct = 'rep';   // v1088: el formulario de avisos empieza siempre en 'se repite'
   const v = _tallerVehPorId(vehId);
   if (!v) return;
   _tallerVehIdActual = vehId;
@@ -26192,35 +26193,46 @@ function tallerAbrirModal(vehId) {
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
       <div style="margin-top:10px"><button class="btn bs" id="tallerVencFormBtn" style="font-size:11px" onclick="const f=document.getElementById('tallerVencForm');const ab=f.style.display==='none';f.style.display=ab?'block':'none';this.textContent=ab?'▲ Cerrar':'➕ Programar un aviso nuevo'">➕ Programar un aviso nuevo</button></div>
       <div id="tallerVencForm" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
-      <div style="font-family:var(--mn);font-size:10px;color:var(--mu);margin-bottom:8px">Pon <b>fecha</b>, <b>km</b>, o las dos (avisa por lo que llegue antes). Si pones <b>cada cuánto se repite</b>, al marcarlo ✓ Hecho se programa solo el siguiente.</div>
-      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-        <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Qué vence</label><br>
-          <input type="text" class="fi" id="tallerVencDesc" placeholder="Ej: Filtro y aceite motor" style="width:100%;font-size:11px;padding:4px"></div>
-        <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Fecha</label><br>
-          <input type="date" class="fi" id="tallerVencFecha" style="font-size:11px;padding:4px"></div>
-        <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Km</label><br>
-          <input type="number" class="fi" id="tallerVencKm" placeholder="km" style="width:90px;font-size:11px;padding:4px"></div>
-        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">Se repite cada</label><br>
-          <select class="fi" id="tallerVencRepMeses" style="font-size:11px;padding:4px">
-            <option value="">no se repite</option>
-            <option value="1">1 mes</option>
-            <option value="2">2 meses</option>
-            <option value="3">3 meses</option>
-            <option value="4">4 meses</option>
-            <option value="6">6 meses</option>
-            <option value="12">12 meses</option>
-            <option value="24">24 meses</option>
-          </select></div>
-        <div><label style="font-size:10px;color:var(--in);font-family:var(--mn)">… y/o cada (km)</label><br>
-          <input type="number" class="fi" id="tallerVencRepKm" placeholder="ej: 40000" style="width:100px;font-size:11px;padding:4px"></div>
-        <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">Añadir</button>
+      ${"" /* v1088: formulario de aviso en dos modos (se repite / una sola vez). El que se repite se rellena con la ÚLTIMA vez que se hizo + cada cuánto, y la app calcula la fecha y los km del aviso. */}
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn bp" id="tallerVencModoRep" style="font-size:11px" onclick="_tallerVencModo('rep')">🔁 Se repite (aceite, filtros, revisión…)</button>
+        <button class="btn bs" id="tallerVencModoUna" style="font-size:11px" onclick="_tallerVencModo('una')">📌 Una sola vez (ocasional)</button>
       </div>
-      <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:var(--mn)">Rellenar fecha rápido:
-        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(1)">+1 mes</button>
-        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(3)">+3 meses</button>
-        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(6)">+6 meses</button>
-        <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(12)">+1 año</button>
+      <div style="margin-bottom:12px"><label style="font-size:11px;font-family:var(--mn);font-weight:700">¿Qué es?</label><br>
+        <input type="text" class="fi" id="tallerVencDesc" placeholder="Ej: Aceite y filtros" style="width:100%;max-width:520px;font-size:11px;padding:4px"></div>
+      <div id="tallerVencBoxRep">
+        <div style="font-size:11px;font-weight:800;margin-bottom:4px">① ¿Cuándo se hizo la última vez?</div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">Fecha en que se hizo</label><br><input type="date" class="fi" id="tallerVencUltFecha" style="font-size:11px;padding:4px" oninput="_tallerVencPrev()"></div>
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">Km que tenía ese día</label><br><input type="number" class="fi" id="tallerVencUltKm" placeholder="ej: 559005" style="width:130px;font-size:11px;padding:4px" oninput="_tallerVencPrev()"></div>
+          <button class="btn bs" style="font-size:11px" title="Se ha hecho hoy: pone la fecha de hoy y los km actuales del vehículo" onclick="_tallerVencHoy()">Se ha hecho hoy${v.km_actual ? ' (' + Number(v.km_actual).toLocaleString('es-ES') + ' km)' : ''}</button>
+        </div>
+        <div style="font-size:11px;font-weight:800;margin-bottom:4px">② ¿Cada cuánto toca?</div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">Cada (tiempo)</label><br>
+            <select class="fi" id="tallerVencRepMeses" style="font-size:11px;padding:4px" onchange="_tallerVencPrev()">
+              <option value="">— sin fecha —</option>
+              <option value="1">1 mes</option><option value="2">2 meses</option><option value="3">3 meses</option><option value="4">4 meses</option>
+              <option value="6">6 meses</option><option value="12">1 año</option><option value="24">2 años</option>
+            </select></div>
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">y/o cada (km)</label><br><input type="number" class="fi" id="tallerVencRepKm" placeholder="ej: 60000" style="width:130px;font-size:11px;padding:4px" oninput="_tallerVencPrev()"></div>
+        </div>
       </div>
+      <div id="tallerVencBoxUna" style="display:none">
+        <div style="font-size:11px;font-weight:800;margin-bottom:4px">¿Cuándo toca? (fecha, km o las dos)</div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:6px">
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">Fecha</label><br><input type="date" class="fi" id="tallerVencFecha" style="font-size:11px;padding:4px" oninput="_tallerVencPrev()"></div>
+          <div><label style="font-size:11px;font-family:var(--mn);font-weight:700">Al llegar a (km del cuentakilómetros)</label><br><input type="number" class="fi" id="tallerVencKm" placeholder="ej: 619005" style="width:150px;font-size:11px;padding:4px" oninput="_tallerVencPrev()"></div>
+        </div>
+        <div style="margin-bottom:12px;font-size:10px;color:var(--mu);font-family:var(--mn)">Fecha rápida:
+          <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(1);_tallerVencPrev()">+1 mes</button>
+          <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(3);_tallerVencPrev()">+3 meses</button>
+          <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(6);_tallerVencPrev()">+6 meses</button>
+          <button class="btn bs" style="font-size:10px;padding:2px 6px" onclick="_tallerFechaRapida(12);_tallerVencPrev()">+1 año</button>
+        </div>
+      </div>
+      <div id="tallerVencPrev" style="font-size:14px;font-weight:700;line-height:1.5;padding:10px 14px;border-radius:7px;background:#eef4fb;border:1px solid #b9cde4;margin-bottom:12px">Rellena los datos y aquí verás cuándo avisará.</div>
+      <button class="btn bp" style="font-size:11px" onclick="tallerAddVencimiento('${vehId}')">Añadir aviso</button>
       </div>
     </div>
     <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">3 · HISTORIAL · TODO LO QUE SE LE HA HECHO</div>
@@ -26603,25 +26615,78 @@ async function _tallerRecargarVencimientos() {
   if (!r.error) tallerVencimientos = r.data || [];
 }
 
-// v107L1: añade un vencimiento al vehículo. Exige descripción + (fecha o km).
+// v1088 (JC 13/11/2026): AVISOS MÁS FÁCILES. Antes había una fila con Fecha, Km, "Se repite cada" e "y/o cada (km)" y se
+// confundía el km del cuentakilómetros con el intervalo (caso real 6285LMG: 60.000 en "Km" con el camión a 594.569 →
+// salía VENCIDO). Ahora dos modos: 🔁 SE REPITE (pones la última vez que se hizo + cada cuánto → la app calcula fecha y
+// km del aviso) y 📌 UNA SOLA VEZ (fecha y/o km del cuentakilómetros, con freno si pones menos km de los que ya tiene).
+let _tallerVencModoAct = 'rep';
+function _tallerVencModo(m) {
+  _tallerVencModoAct = m === 'una' ? 'una' : 'rep';
+  const g = id => document.getElementById(id);
+  if (g('tallerVencBoxRep')) g('tallerVencBoxRep').style.display = _tallerVencModoAct === 'rep' ? '' : 'none';
+  if (g('tallerVencBoxUna')) g('tallerVencBoxUna').style.display = _tallerVencModoAct === 'una' ? '' : 'none';
+  [['tallerVencModoRep', 'rep'], ['tallerVencModoUna', 'una']].forEach(([id, k]) => { const b = g(id); if (b) { b.classList.remove('bp', 'bs'); b.classList.add(k === _tallerVencModoAct ? 'bp' : 'bs'); } });
+  _tallerVencPrev();
+}
+function _tallerVencHoy() {
+  const v = _tallerVehPorId(_tallerVehIdActual), d = new Date();
+  const f = document.getElementById('tallerVencUltFecha'), k = document.getElementById('tallerVencUltKm');
+  if (f) f.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  if (k && v && v.km_actual) k.value = v.km_actual;
+  _tallerVencPrev();
+}
+// Calcula lo que se va a guardar según el modo. Devuelve { fecha, km, repMeses, repKm, error }.
+function _tallerVencCalc() {
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const num = t => { const n = parseInt(String(t).replace(/[.\s]/g, ''), 10); return isNaN(n) ? null : n; };
+  if (_tallerVencModoAct === 'una') {
+    return { fecha: val('tallerVencFecha') || null, km: num(val('tallerVencKm')), repMeses: null, repKm: null,
+      error: (!val('tallerVencFecha') && num(val('tallerVencKm')) == null) ? 'Pon una fecha o unos km' : '' };
+  }
+  const uf = val('tallerVencUltFecha'), uk = num(val('tallerVencUltKm')), rm = num(val('tallerVencRepMeses')), rk = num(val('tallerVencRepKm'));
+  if (!rm && !rk) return { error: 'Pon cada cuánto toca: tiempo, km o las dos' };
+  if (rm && !uf) return { error: 'Pon la fecha en que se hizo la última vez' };
+  if (rk && uk == null) return { error: 'Pon los km que tenía cuando se hizo la última vez' };
+  let fecha = null;
+  if (rm && uf) { const d = new Date(uf + 'T00:00:00'); d.setMonth(d.getMonth() + rm); fecha = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  return { fecha, km: (rk && uk != null) ? uk + rk : null, repMeses: rm || null, repKm: rk || null, error: '' };
+}
+function _tallerVencPrev() {
+  const box = document.getElementById('tallerVencPrev'); if (!box) return;
+  const c = _tallerVencCalc(), v = _tallerVehPorId(_tallerVehIdActual), kmAct = (v && v.km_actual) || 0;
+  const pinta = (txt, bg, bd) => { box.textContent = txt; box.style.background = bg; box.style.borderColor = bd; };
+  if (c.error) { pinta(c.error + '.', '#eef4fb', '#b9cde4'); return; }
+  const fTxt = c.fecha ? c.fecha.split('-').reverse().join('/') : '', kTxt = c.km != null ? c.km.toLocaleString('es-ES') + ' km' : '';
+  let t = '👉 Avisará ' + (fTxt ? 'el ' + fTxt : '') + (fTxt && kTxt ? ' o ' : '') + (kTxt ? 'al llegar a ' + kTxt : '') + (fTxt && kTxt ? ' (lo que llegue antes)' : '') + '.';
+  if (c.km != null && kmAct) t += c.km > kmAct ? ' Ahora tiene ' + kmAct.toLocaleString('es-ES') + ' km: le quedan ' + (c.km - kmAct).toLocaleString('es-ES') + ' km.' : '';
+  if (c.repMeses || c.repKm) t += ' Al marcarlo ✓ Hecho se programa solo el siguiente.';
+  const hoy = new Date().toISOString().slice(0, 10);
+  const vencido = (c.fecha && c.fecha < hoy) || (c.km != null && kmAct && c.km <= kmAct);
+  if (vencido) pinta('⚠ OJO: con estos datos sale YA VENCIDO' + (c.km != null && kmAct && c.km <= kmAct ? ' (tocaba a ' + kTxt + ' y el vehículo tiene ' + kmAct.toLocaleString('es-ES') + ' km)' : ' (la fecha ' + fTxt + ' ya ha pasado)') + '. Revisa los datos.', '#fde8e8', '#b91c1c');
+  else pinta(t, '#e7f6ec', '#16a34a');
+}
+
+// v107L1: añade un vencimiento al vehículo. v1088: los datos salen de _tallerVencCalc (dos modos).
 async function tallerAddVencimiento(vehId) {
   const v = _tallerVehPorId(vehId);
   if (!v) return;
   const desc = (document.getElementById('tallerVencDesc')?.value || '').trim();
-  const fecha = document.getElementById('tallerVencFecha')?.value || '';
-  const kmRaw = document.getElementById('tallerVencKm')?.value || '';
-  // v560: periodicidad opcional (vacío = de una sola vez)
-  const repMesesRaw = document.getElementById('tallerVencRepMeses')?.value || '';
-  const repKmRaw = document.getElementById('tallerVencRepKm')?.value || '';
-  if (!desc) { toast('Pon qué vence (ej: Filtro y aceite motor)', 'err'); return; }
-  if (!fecha && !kmRaw) { toast('Pon al menos una fecha o unos km', 'err'); return; }
+  if (!desc) { toast('Pon qué es (ej: Aceite y filtros)', 'err'); return; }
+  const c = _tallerVencCalc();
+  if (c.error) { toast(c.error, 'err'); return; }
+  const kmAct = v.km_actual || 0;
+  // Freno del caso 6285LMG: en "una sola vez", km por debajo de los que ya tiene = casi seguro que es "dentro de N km".
+  if (_tallerVencModoAct === 'una' && c.km != null && kmAct && c.km <= kmAct) {
+    if (confirm('Has puesto ' + c.km.toLocaleString('es-ES') + ' km, pero el vehículo ya tiene ' + kmAct.toLocaleString('es-ES') + ' km.\n\n¿Quieres decir DENTRO de ' + c.km.toLocaleString('es-ES') + ' km?\n\nACEPTAR = avisar al llegar a ' + (kmAct + c.km).toLocaleString('es-ES') + ' km\nCANCELAR = volver y corregirlo')) c.km = kmAct + c.km;
+    else return;
+  }
   const row = {
     vehiculo_id: vehId, matricula: v.matricula, empresa: v.empresa,
     descripcion: desc,
-    fecha_limite: fecha || null,
-    km_limite: kmRaw ? parseInt(kmRaw, 10) : null,
-    repetir_meses: repMesesRaw ? parseInt(repMesesRaw, 10) : null,
-    repetir_km: repKmRaw ? parseInt(repKmRaw, 10) : null,
+    fecha_limite: c.fecha || null,
+    km_limite: c.km != null ? c.km : null,
+    repetir_meses: c.repMeses || null,
+    repetir_km: c.repKm || null,
     activo: true,
     user_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null,
     updated_at: new Date().toISOString()
@@ -26629,11 +26694,13 @@ async function tallerAddVencimiento(vehId) {
   try {
     const { error } = await sb.from('taller_vencimientos').insert(row);
     if (error) throw error;
-    toast('Vencimiento añadido', 'ok');
+    toast('Aviso añadido', 'ok');
     await _tallerRecargarVencimientos();
     const cont = document.getElementById('tallerVencLista');
     if (cont) cont.innerHTML = _tallerVencimientosHtml(vehId);
-    ['tallerVencDesc', 'tallerVencFecha', 'tallerVencKm', 'tallerVencRepMeses', 'tallerVencRepKm'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    ['tallerVencDesc', 'tallerVencFecha', 'tallerVencKm', 'tallerVencRepMeses', 'tallerVencRepKm', 'tallerVencUltFecha', 'tallerVencUltKm'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    _tallerVencPrev();
+    try { renderTallerTabla(); renderTallerAvisos(); } catch (e) {}
   } catch (e) { toast('Error: ' + (e.message || e), 'err'); }
 }
 
