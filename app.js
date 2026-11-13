@@ -12900,7 +12900,7 @@ async function gasRenderConsumo() {
 
   // 1) Cargar km_periodos (una sola vez por sesion, se cachea)
   if (_kmPeriodos === null) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando km del tacógrafo…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--mu);font-family:var(--mn);font-size:11px">Cargando km del tacógrafo…</td></tr>';
     try {
       const { data, error } = await sb.from('km_periodos')
         .select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
@@ -12909,7 +12909,7 @@ async function gasRenderConsumo() {
     } catch (e) {
       console.error('[gasRenderConsumo] error cargando km_periodos:', e);
       _kmPeriodos = [];
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando km del tacógrafo: ' + (e.message || e) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--er);font-family:var(--mn);font-size:11px">Error cargando km del tacógrafo: ' + (e.message || e) + '</td></tr>';
       return;
     }
   }
@@ -12988,6 +12988,9 @@ async function gasRenderConsumo() {
   const esMesEntero = String(rIni).slice(6) === '01' && (() => { const d = _gasNumToDate(rFin); const d2 = new Date(d); d2.setDate(d2.getDate() + 1); return d2.getDate() === 1 && String(rIni).slice(0, 6) === String(rFin).slice(0, 6); })();
   let aIni = isoN(dAntIni), aFin = isoN(dAntFin);
   if (esMesEntero) { const d = _gasNumToDate(rIni); const i = new Date(d.getFullYear(), d.getMonth() - 1, 1), f = new Date(d.getFullYear(), d.getMonth(), 0); aIni = isoN(i); aFin = isoN(f); }
+  // v1093: ventana de 3 MESES que acaba en el fin del periodo (para la columna "Media 3 meses":
+  // las facturas de gasoil van a fin de mes y un mes sale muy alto y el siguiente muy bajo).
+  const m3Ini = (() => { const d = _gasNumToDate(rFin); return isoN(new Date(d.getFullYear(), d.getMonth() - 2, 1)); })();
 
   const fmtN = (n, dec) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const normM = (m) => String(m || '').toUpperCase().replace(/[\s-]/g, '');
@@ -13062,7 +13065,7 @@ async function gasRenderConsumo() {
   let filas = [];
   mats.forEach(m => {
     if (!m) return;
-    const c = calc(m, rIni, rFin), a = calc(m, aIni, aFin);
+    const c = calc(m, rIni, rFin), a = calc(m, aIni, aFin), t3 = calc(m, m3Ini, rFin);   // v1093
     if (c.km == null && c.litros == null) return;           // sin nada en el periodo
     let aviso = '';
     if (c.poca) aviso = 'Faltan km: el tacógrafo solo cubre ' + c.diasCub + ' de ' + c.diasPer + ' días (' + nTxt(c.kmDesde || rIni) + ' – ' + nTxt(c.kmHasta) + '). Sin cifra de consumo hasta que se suba el Excel de km que falta.';
@@ -13072,7 +13075,7 @@ async function gasRenderConsumo() {
       mat: m, nota: notaDe[m] || '',
       periodo: (desdeStr ? nTxt(rIni) : '…') + ' – ' + nTxt(rFin) + (c.aprox || c.cortado ? ' *' : ''),
       orden: m, litros: c.litros, adblue: c.adblue, km: c.km, consumo: c.cons,
-      consAnt: a.cons, aviso, cortado: c.cortado, kmHasta: c.kmHasta, poca: c.poca, diasCub: c.diasCub, diasPer: c.diasPer
+      consAnt: a.cons, cons3: t3.cons, aviso, cortado: c.cortado, kmHasta: c.kmHasta, poca: c.poca, diasCub: c.diasCub, diasPer: c.diasPer
     });
   });
 
@@ -13133,7 +13136,7 @@ async function gasRenderConsumo() {
   if (empty) empty.style.display = 'none';
   const maxC = Math.max(45, ...filas.map(f => f.consumo || 0));
   tbody.innerHTML = filas.map(f => {
-    const c = f.consumo, col = colC(c);
+    const c = f.consumo, col = colC(f.cons3 != null ? f.cons3 : c);   // v1093: el color lo decide la media de 3 meses
     let consTxt;
     if (c != null) {
       const w = Math.min(100, c / maxC * 100);
@@ -13155,6 +13158,7 @@ async function gasRenderConsumo() {
     return '<tr' + (f.aviso ? ' title="' + f.aviso.replace(/"/g, '') + '"' : '') + '>'
       + '<td class="tag-mat" style="white-space:nowrap">' + f.mat + (f.nota ? '<div style="font-size:11px;color:#475569;font-weight:700">' + esc(f.nota) + '</div>' : '') + '</td>'
       + '<td style="min-width:240px">' + consTxt + '</td>'
+      + '<td style="white-space:nowrap">' + (f.cons3 != null ? '<strong style="color:' + colC(f.cons3) + ';font-size:16px">' + fmtN(f.cons3, 1) + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>'
       + '<td style="white-space:nowrap">' + antTxt + '</td>'
       + '<td class="tag-tm" style="white-space:nowrap">' + (f.litros != null ? fmtN(f.litros, 0) + ' L' : '<span style="color:#b45309">—</span>') + '</td>'
       + '<td style="white-space:nowrap">' + (f.km != null ? fmtN(f.km, 0) + ' km' + (f.cortado || f.poca ? ' <span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">*</span>' : '') : '<span style="color:#b45309">—</span>') + '</td>'
@@ -13215,11 +13219,12 @@ function exportConsumoExcel() {
     toast('Abre CONSUMO (y pon un periodo si quieres) antes de descargar', 'err');
     return;
   }
-  const rows = [['Matrícula', 'Marca / nota', 'Periodo', 'L/100km', 'L/100km periodo anterior', 'Litros gasoil', 'Km recorridos', 'AdBlue (L)', 'Aviso']];   // v1090
+  const rows = [['Matrícula', 'Marca / nota', 'Periodo', 'L/100km', 'Media 3 meses L/100km', 'L/100km periodo anterior', 'Litros gasoil', 'Km recorridos', 'AdBlue (L)', 'Aviso']];   // v1090
   u.filas.forEach(f => {
     rows.push([
       f.mat || '', f.nota || '', f.periodo || '',
       f.consumo != null ? Number(f.consumo.toFixed(1)) : '',
+      f.cons3 != null ? Number(f.cons3.toFixed(1)) : '',
       f.consAnt != null ? Number(f.consAnt.toFixed(1)) : '',
       f.litros != null ? Math.round(f.litros) : '',
       f.km != null ? f.km : '',
@@ -13228,7 +13233,7 @@ function exportConsumoExcel() {
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [12, 22, 26, 10, 14, 14, 14, 11, 60].map(w => ({ wch: w }));
+  ws['!cols'] = [12, 22, 26, 10, 14, 14, 14, 14, 11, 60].map(w => ({ wch: w }));
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; R++) {
     for (let C = range.s.c; C <= range.e.c; C++) {

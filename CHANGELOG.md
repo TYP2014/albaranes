@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1093 (13/11/2026): GASOIL · CONSUMO: COLUMNA "MEDIA 3 MESES". Pedido de Juan Carlos (opción A): las facturas de gasoil van a fin de mes y un camión sale un mes muy alto y el siguiente muy bajo (9499LHT: septiembre 16,7 · octubre 61,9 · los dos juntos ≈ 39). AHORA: nueva columna "Media 3 meses" al lado de L/100 km (los 3 meses naturales que acaban en el final del periodo elegido; ej. octubre → agosto+septiembre+octubre), y el color rojo/naranja/verde de la barra lo decide esa media, no la del mes. También sale en el Excel de consumo. Cambio en gasRenderConsumo y exportConsumoExcel (app.js) y una columna en la tabla (index.html). Sin SQL. VUELTA ATRAS: resubir v1092 (app.js e index.html).
+
+---
+
 v1092 (13/11/2026): GASOIL · KM DE LAS DESCARGAS NUEVAS AUNQUE EL EXCEL DE ASG TENGA PARTE DEL MES. Pedido de Juan Carlos: el 2254JVJ (de los que ya descargan solos por TachoSync) salía en CONSUMO con "faltan km (tacógrafo 4 de 31 días)". Causa: desde la v832 los km de las descargas pasan solos a Gasoil, pero con una regla: si el Excel de km ya tenía algo de ese mes, el tacógrafo no metía nada. El Excel de ASG llega hasta el 04/10 (cuando se cambió el aparato) y bloqueaba todo octubre. AHORA: el Excel manda solo en los días que cubre y el tacógrafo rellena desde el último día del Excel hasta su última lectura, sin contar km dos veces. Además, al abrir CONSUMO, los camiones que salen cortados o con "faltan km" se recalculan solos una vez por sesión desde sus descargas. Cambio solo en _tacoKmAGasoilAuto y gasRenderConsumo (app.js). Sin SQL (escribe en km_periodos como ya hacía la v832, solo bloques de origen 'tacografo'). VUELTA ATRAS: resubir v1091 (app.js e index.html).
 
 ---
