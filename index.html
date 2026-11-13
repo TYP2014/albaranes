@@ -85,6 +85,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <link rel="stylesheet" href="styles.css?v=1029">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 <style>/* v1060: PESTAÑAS PRINCIPALES más grandes y la ACTIVA en azul oscuro + títulos de la tabla de Taller más grandes (solo PC). La barra de pestañas mide ahora 46px fijos → todo lo que se pega debajo usa top:94px (48 cabecera + 46). */@media (min-width:1000px){#adminView>.tabs{height:46px;align-items:stretch;padding:0 12px}#adminView>.tabs>.tab{font-size:14px;font-weight:800;letter-spacing:.4px;padding:0 10px;white-space:nowrap;border-bottom-width:3px;color:#1a2433}#adminView>.tabs>.tab.active{background:#1f3a5f;color:#fff;border-bottom-color:#f29900;border-radius:6px 6px 0 0}#adminView>.tabs>.tab.active svg{stroke:#fff!important}#adminView>.tabs>.tab.active .tab-badge{background:#fff;color:#1f3a5f}.card:has(#tallerTabla),.card:has(#tallerTabla)>.card-bd{overflow:visible!important}#tallerTabla thead th{position:sticky;top:94px;z-index:5;font-size:14px;font-weight:800;color:#0b2545;background:#dbe5f1;letter-spacing:.6px;padding:13px 12px;box-shadow:0 2px 0 #1e3a5f}}</style>
+<style>/* v1090: consumo de gasoil legible */#gasConTabla td{font-size:15px!important;color:#111!important;font-weight:700;padding:9px 12px!important}#gasConTabla th{font-size:12.5px!important}#gasVistaConsumo .fil-label{font-size:12px!important;color:#1e293b!important;font-weight:800}</style>
 <style>/* v1089: Vacaciones — detalle de periodos de un trabajador: modal más ancho, letra más grande, en negrita y en negro */#ovVacDetalle .modal-title{font-size:22px!important;color:#111!important}#ovVacDetalle .modal-bd{padding:22px 28px!important}#ovVacDetalle #vacDetalleBody>div:first-child{font-size:17px!important;font-weight:700!important;color:#111!important;gap:22px!important;margin-bottom:16px!important}#ovVacDetalle #vacDetalleBody>div:first-child strong{font-size:19px;font-weight:800}#ovVacDetalle #vacDetalleBody [style*="color:var(--mu)"]{font-size:15px!important;font-weight:700!important;color:#2f3a48!important}#ovVacDetalle #vacDetalleBody>div[onclick]{font-size:16.5px!important;font-weight:700!important;color:#111!important;padding:14px 18px!important;margin-bottom:10px!important;border-color:#9aa7b8!important;line-height:1.5}#ovVacDetalle #vacDetalleBody>div[onclick]:hover{background:#e8eef7!important}#ovVacDetalle #vacDetalleBody>div[onclick] strong{font-weight:800;color:#0b2545}#ovVacDetalle .modal-ft .btn{font-size:14.5px!important;padding:11px 20px!important}</style>
 <style>/* v1086: informe de DEPÓSITOS SODIRA más grande y legible: botones morados con letra blanca (una regla general los dejaba en negro), la lista de PDF sobre fondo claro (salía negro), letra más grande y títulos de sección en colores que se leen sobre blanco. */#factSodiraInforme>div{font-size:15px!important;padding:16px 18px!important;line-height:1.75!important}#factSodiraInforme [style*="font-size:11px"]{font-size:13.5px!important}#factSodiraInforme>div>div[style*="font-weight:700"]{font-size:16.5px!important;margin-top:16px!important}#factSodiraInforme strong{font-size:17px}#tabContentFacturacion #factSodiraInforme .btn[style*="background:#4c1d95"]{color:#fff!important;font-size:14.5px!important;padding:9px 16px!important;letter-spacing:.4px}#factSodiraInforme [style*="--bg2"]{background:#f4f7fb!important}#factSodiraInforme a{color:#1d4ed8!important;font-weight:700}#factSodiraInforme [style*="color:#7cc4ff"]{color:#1d4ed8!important}#factSodiraInforme [style*="color:#b48be8"]{color:#6d28d9!important}#factSodiraInforme [style*="color:#e0a000"]{color:#b45309!important}</style>
 <style>/* v1085: Factura Híspalis/Transmargaz — la cabecera azul de la tabla (PESTAÑA, CONCEPTO…) salía con letra negra sobre azul (una regla general de Facturación forzaba el negro) y no se leía. Blanca y más grande. */#tabContentFacturacion #fiCardOut th[style*="background:#1f3a5f"]{color:#fff!important;font-size:15px!important;font-weight:800!important;letter-spacing:1px}</style>
@@ -403,33 +404,34 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
           <!-- Vista CONSUMO (resumen L/100km por camion/periodo) -->
           <div id="gasVistaConsumo" style="display:none">
-            <div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.5">
-              Litros de gasoil (de las facturas) ÷ km recorridos (del tacógrafo) × 100 = consumo cada 100 km.
-              Elige el periodo con las casillas Fecha desde / Fecha hasta (un mes, un trimestre, un año… lo que quieras).
-              ⚠️ = falta el dato (no hay factura o km en ese periodo). El asterisco * avisa si los km del tacógrafo
-              no encajan exactamente con las fechas que pediste.
+            <!-- v1090: vista de consumo reorganizada: una fila por vehículo, periodo por defecto = mes anterior -->
+            <div style="font-size:14px;color:#1e293b;font-weight:700;margin-bottom:12px;line-height:1.5">
+              Consumo de cada vehículo en el periodo elegido: <b>litros de gasoil (facturas) ÷ km (tacógrafo) × 100</b>. Al lado, el del periodo anterior para comparar.
+              Verde = bien · naranja = vigilar (35-40) · rojo = alto (más de 40). Pasa el ratón por una fila con <b>*</b> para ver el aviso.
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+              <button class="btn bp" onclick="gasConsumoPeriodo('mesAnt')" style="font-size:12px">Mes anterior</button>
+              <button class="btn bs" onclick="gasConsumoPeriodo('mes')" style="font-size:12px">Este mes</button>
+              <button class="btn bs" onclick="gasConsumoPeriodo('3m')" style="font-size:12px">Últimos 3 meses</button>
+              <button class="btn bs" onclick="gasConsumoPeriodo('anio')" style="font-size:12px">Este año</button>
+              <div class="fil-group"><label class="fil-label">Un mes concreto</label><input class="fil-inp" type="month" id="gasConMes" onchange="if(this.value)gasConsumoPeriodo(this.value)"></div>
+              <div class="fil-group"><label class="fil-label">Desde</label><input class="fil-inp" type="date" id="gasConDesde" onchange="gasRenderConsumo()"></div>
+              <div class="fil-group"><label class="fil-label">Hasta</label><input class="fil-inp" type="date" id="gasConHasta" onchange="gasRenderConsumo()"></div>
               <div class="fil-group"><label class="fil-label">Vehículo</label><select class="fil-inp" id="gasConVehiculo" onchange="gasRenderConsumo()"><option value="">Todos los vehículos</option></select></div>
-              <div class="fil-group"><label class="fil-label">Fecha desde</label><input class="fil-inp" type="date" id="gasConDesde" oninput="gasRenderConsumo()"></div>
-              <div class="fil-group"><label class="fil-label">Fecha hasta</label><input class="fil-inp" type="date" id="gasConHasta" oninput="gasRenderConsumo()"></div>
-              <button class="btn bs" onclick="gasConsumoAtajo('mes')" style="font-size:11px">Este mes</button>
-              <button class="btn bs" onclick="gasConsumoAtajo('6m')" style="font-size:11px">6 meses</button>
-              <button class="btn bs" onclick="gasConsumoAtajo('12m')" style="font-size:11px">12 meses</button>
-              <button class="btn bs" onclick="gasConsumoLimpiar()" style="font-size:11px">✕ Limpiar fechas</button>
-              <button class="btn bp" onclick="exportConsumoExcel()" style="font-size:11px">📥 Excel consumo</button>
+              <div class="fil-group"><label class="fil-label">Ordenar por</label><select class="fil-inp" id="gasConOrden" onchange="gasRenderConsumo()"><option value="consumo">Consumo (más alto arriba)</option><option value="matricula">Matrícula</option><option value="km">Km</option><option value="litros">Litros</option></select></div>
+              <button class="btn bs" onclick="exportConsumoExcel()" style="font-size:12px">📥 Excel consumo</button>
             </div>
-            <div id="gasConResumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
-            <div id="gasConGrafico" style="margin-bottom:16px"></div>
-            <div class="tbl-wrap">
-              <table>
+            <div id="gasConResumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px"></div>
+            <div id="gasConGrafico"></div>
+            <div class="tbl-wrap" style="max-height:none">
+              <table id="gasConTabla">
                 <thead><tr>
                   <th>Matrícula</th>
-                  <th>Periodo (km del tacógrafo)</th>
-                  <th>Litros gasoil</th>
-                  <th>AdBlue (L)</th>
-                  <th>Km recorridos</th>
                   <th>L / 100 km</th>
+                  <th>Periodo anterior</th>
+                  <th>Litros gasoil</th>
+                  <th>Km recorridos</th>
+                  <th>AdBlue</th>
                 </tr></thead>
                 <tbody id="tbodyGasConsumo"></tbody>
               </table>
@@ -2136,6 +2138,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1089"></script>
+<script src="app.js?v=1090"></script>
 </body>
 </html>

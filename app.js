@@ -12956,257 +12956,206 @@ async function gasRenderConsumo() {
     (adbluePorMat[mat] = adbluePorMat[mat] || []).push({ f: _gasFechaNum(r.fecha), litros: litros });
   });
 
-  // 4) Leer el filtro de fechas que ha puesto el usuario.
-  //    Sin fechas → una fila por bloque de km (modo original).
-  //    Con fechas → una fila por camion: suma de los bloques de km
-  //    que caen dentro del periodo + litros de gasoil de ese periodo.
+  // ===================================================================================
+  // v1090 (JC 13/11/2026): CONSUMO REORGANIZADO. Antes: sin fechas salía una fila por cada
+  // bloque de km del tacógrafo (bloques que se SOLAPAN: 01/01→07/06, 01/01→20/06…), una lista
+  // larguísima, unas tarjetas que sumaban esos solapes (1.058.267 L) y unas barras sin
+  // matrícula legible. AHORA: siempre UNA FILA POR VEHÍCULO para el periodo elegido (por
+  // defecto el MES ANTERIOR), con la comparación con el periodo anterior, y los km sin contar
+  // dos veces: los bloques que empiezan el mismo día se convierten en tramos consecutivos
+  // (01/01→07/06 y 01/01→20/06 ⇒ 07/06→20/06) y nunca se suman dos tramos que se pisan.
+  // Si el tacógrafo aún no llega al final del periodo, los litros se cuentan SOLO hasta donde
+  // hay km (para no inflar el consumo) y se avisa.
+  // ===================================================================================
+  const isoN = (d) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const nIso = (n) => String(n).slice(0, 4) + '-' + String(n).slice(4, 6) + '-' + String(n).slice(6, 8);
+  const nTxt = (n) => String(n).slice(6, 8) + '/' + String(n).slice(4, 6) + '/' + String(n).slice(0, 4);
   const elD = document.getElementById('gasConDesde');
   const elH = document.getElementById('gasConHasta');
-  const desdeStr = elD ? elD.value : '';   // formato YYYY-MM-DD del input date
-  const hastaStr = elH ? elH.value : '';
-  const desdeN = desdeStr ? _gasFechaNum(desdeStr) : 0;
-  const hastaN = hastaStr ? _gasFechaNum(hastaStr) : 0;
-  const hayFiltro = desdeN > 0 || hastaN > 0;
+  if (elD && elH && !elD.value && !elH.value) {          // por defecto: el MES ANTERIOR
+    const h = new Date(); const ini = new Date(h.getFullYear(), h.getMonth() - 1, 1); const fin = new Date(h.getFullYear(), h.getMonth(), 0);
+    elD.value = nIso(isoN(ini)); elH.value = nIso(isoN(fin));
+  }
+  const desdeStr = elD ? elD.value : '', hastaStr = elH ? elH.value : '';
+  const hoyN = isoN(new Date());
+  const rIni = desdeStr ? _gasFechaNum(desdeStr) : 20000101;
+  const rFin = hastaStr ? _gasFechaNum(hastaStr) : hoyN;
+  const hayFiltro = true;
+  // periodo anterior de la misma duración (para comparar)
+  const diasR = Math.max(1, _gasDiasEntre(rIni, rFin));
+  const dAntFin = _gasNumToDate(rIni); dAntFin.setDate(dAntFin.getDate() - 1);
+  const dAntIni = new Date(dAntFin); dAntIni.setDate(dAntIni.getDate() - diasR + 1);
+  const esMesEntero = String(rIni).slice(6) === '01' && (() => { const d = _gasNumToDate(rFin); const d2 = new Date(d); d2.setDate(d2.getDate() + 1); return d2.getDate() === 1 && String(rIni).slice(0, 6) === String(rFin).slice(0, 6); })();
+  let aIni = isoN(dAntIni), aFin = isoN(dAntFin);
+  if (esMesEntero) { const d = _gasNumToDate(rIni); const i = new Date(d.getFullYear(), d.getMonth() - 1, 1), f = new Date(d.getFullYear(), d.getMonth(), 0); aIni = isoN(i); aFin = isoN(f); }
 
   const fmtN = (n, dec) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-  let filas = [];
+  const normM = (m) => String(m || '').toUpperCase().replace(/[\s-]/g, '');
 
-  if (!hayFiltro) {
-    // ---- MODO SIN FILTRO: una fila por bloque de km (como antes) ----
-    filas = periodosEmp.map(p => {
-      const mat = String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '');
-      const iniN = _gasFechaNum(p.fecha_inicio);
-      const finN = _gasFechaNum(p.fecha_fin);
-      let litros = 0, huboLitros = false;
-      (litrosPorMat[mat] || []).forEach(x => {
-        if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) { litros += x.litros; huboLitros = true; }
-      });
-      const km = parseInt(p.km_diferencia, 10) || 0;
-      let consumo = null;
-      if (huboLitros && km > 0) consumo = (litros / km) * 100;
-      let adblue = 0;
-      (adbluePorMat[mat] || []).forEach(x => {
-        if (x.f && iniN && finN && x.f >= iniN && x.f <= finN) adblue += x.litros;
-      });
-      return {
-        mat: p.matricula || '—',
-        periodo: _gasPeriodoTexto(p.fecha_inicio, p.fecha_fin),
-        orden: mat + '|' + String(iniN).padStart(8, '0'),
-        litros: huboLitros ? litros : null,
-        adblue: adblue > 0 ? adblue : null,
-        km: km > 0 ? km : null,
-        consumo: consumo,
-        aviso: ''
-      };
-    });
-  } else {
-    // ---- MODO CON FILTRO: agrupar por camion en el periodo pedido ----
-    // Rango efectivo: si falta una de las dos fechas, se abre por ese lado.
-    const rIni = desdeN > 0 ? desdeN : 1;            // desde el principio
-    const rFin = hastaN > 0 ? hastaN : 99999999;     // hasta el final
-
-    // Conjunto de matriculas implicadas (las que tienen km o litros)
-    const mats = new Set();
-    periodosEmp.forEach(p => mats.add(String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '')));
-    Object.keys(litrosPorMat).forEach(m => mats.add(m));
-
-    mats.forEach(mat => {
-      if (!mat) return;
-      // Bloques de km de esta matricula que SOLAPAN con el rango pedido
-      const bloques = periodosEmp.filter(p => {
-        if (String(p.matricula || '').toUpperCase().replace(/[\s-]/g, '') !== mat) return false;
-        const bi = _gasFechaNum(p.fecha_inicio);
-        const bf = _gasFechaNum(p.fecha_fin);
-        if (!bi || !bf) return false;
-        return bf >= rIni && bi <= rFin;   // solapan
-      });
-      let km = 0, encajeExacto = true;
-      bloques.forEach(p => {
-        const bi = _gasFechaNum(p.fecha_inicio);
-        const bf = _gasFechaNum(p.fecha_fin);
-        const kmBloque = parseInt(p.km_diferencia, 10) || 0;
-        // v245 FIX: PRORRATEAR. Antes se sumaba el km_diferencia COMPLETO del bloque aunque
-        // abarcara varios meses → al filtrar un mes salían km irreales (ej. 91.489 km "en junio")
-        // y el L/100km absurdo. Ahora se suman solo los km de la parte del bloque que cae DENTRO
-        // del rango filtrado, repartidos por días (aproximación uniforme).
-        const diasBloque = _gasDiasEntre(bi, bf);
-        const diasSol = _gasDiasEntre(Math.max(bi, rIni), Math.min(bf, rFin));
-        if (diasBloque > 0 && diasSol > 0) km += Math.round(kmBloque * (diasSol / diasBloque));
-        // Si el bloque se sale del rango pedido, los km son un prorrateo aproximado (marca *)
-        if (bi < rIni || bf > rFin) encajeExacto = false;
-      });
-      // Litros de gasoil de esa matricula DENTRO del rango pedido (exacto)
-      let litros = 0, huboLitros = false;
-      (litrosPorMat[mat] || []).forEach(x => {
-        if (x.f && x.f >= rIni && x.f <= rFin) { litros += x.litros; huboLitros = true; }
-      });
-      // Si no hay NI km NI litros en el periodo para esta matricula, no la mostramos
-      if (!bloques.length && !huboLitros) return;
-      let consumo = null;
-      if (huboLitros && km > 0) consumo = (litros / km) * 100;
-      // J17: adblue de esa matrícula dentro del rango pedido
-      let adblue = 0;
-      (adbluePorMat[mat] || []).forEach(x => {
-        if (x.f && x.f >= rIni && x.f <= rFin) adblue += x.litros;
-      });
-      // Texto del periodo: lo que pidio el usuario
-      const fmtFecha = (s) => { const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : s; };
-      let periodoTxt;
-      if (desdeStr && hastaStr) periodoTxt = fmtFecha(desdeStr) + ' – ' + fmtFecha(hastaStr);
-      else if (desdeStr) periodoTxt = 'Desde ' + fmtFecha(desdeStr);
-      else periodoTxt = 'Hasta ' + fmtFecha(hastaStr);
-      if (!encajeExacto && bloques.length) periodoTxt += ' *';
-      filas.push({
-        mat: mat,
-        periodo: periodoTxt,
-        orden: mat,
-        litros: huboLitros ? litros : null,
-        adblue: adblue > 0 ? adblue : null,
-        km: km > 0 ? km : null,
-        consumo: consumo,
-        aviso: (!encajeExacto && bloques.length)
-          ? 'Los km del tacógrafo de este camión vienen en bloques que no encajan exactamente con las fechas pedidas; el consumo es aproximado.'
-          : ''
-      });
-    });
-  }
-
-  // 5) Ordenar por matricula (y dentro, por fecha de inicio)
-  filas.sort((a, b) => (a.orden < b.orden ? -1 : a.orden > b.orden ? 1 : 0));
-
-  // v107K64: filtro por vehículo. Rellenar el desplegable con las matrículas presentes
-  // (preservando la selección) y filtrar las filas por la matrícula elegida.
-  const selVeh = document.getElementById('gasConVehiculo');
-  if (selVeh) {
-    const matsUnicas = [...new Set(filas.map(f => f.mat).filter(Boolean))].sort();
-    const sel = selVeh.value;
-    selVeh.innerHTML = '<option value="">Todos los vehículos</option>' +
-      matsUnicas.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${m}</option>`).join('');
-    if (selVeh.value) filas = filas.filter(f => f.mat === selVeh.value);
-  }
-
-  // v107K65: tarjetas resumen del consumo (litros, km, media L/100km, AdBlue, camiones)
-  const resEl = document.getElementById('gasConResumen');
-  if (resEl) {
-    let totL = 0, totKm = 0, totAd = 0;
-    const matsSet = new Set();
-    filas.forEach(f => {
-      if (f.litros != null) totL += f.litros;
-      if (f.km != null) totKm += f.km;
-      if (f.adblue != null) totAd += f.adblue;
-      if (f.mat) matsSet.add(f.mat);
-    });
-    const media = totKm > 0 ? (totL / totKm * 100) : null;
-    const colMedia = media == null ? '#ffffff' : (media > 40 ? '#ff5050' : (media >= 35 ? '#ffa726' : '#00e87a'));
-    const f0 = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 0 });
-    const card = (titulo, valor, color) => `
-      <div style="background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.10);border-left:3px solid ${color};border-radius:12px;padding:13px 15px">
-        <div style="font-size:10px;color:#fff;text-transform:uppercase;letter-spacing:.5px;font-weight:600;opacity:.9;margin-bottom:7px">${titulo}</div>
-        <div style="font-size:23px;font-weight:800;color:${color};line-height:1">${valor}</div>
-      </div>`;
-    resEl.innerHTML =
-      card('Litros gasoil', f0(totL) + ' L', '#ffa726') +
-      card('Km recorridos', f0(totKm) + ' km', '#42a5f5') +
-      card('Media L/100km', media != null ? media.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—', colMedia) +
-      card('AdBlue', f0(totAd) + ' L', '#78909c') +
-      card('Camiones', matsSet.size + '', '#ab47bc');
-  }
-
-  // v107K66: gráfico de barras de consumo (L/100km) por camión, agrupando por matrícula.
-  const grafEl = document.getElementById('gasConGrafico');
-  if (grafEl) {
+  // Tramos de km SIN solapes por matrícula
+  const tramosPorMat = {};
+  (() => {
     const porMat = {};
-    filas.forEach(f => {
-      if (f.litros == null || f.km == null || !f.mat) return; // solo con litros Y km
-      porMat[f.mat] = porMat[f.mat] || { litros: 0, km: 0 };
-      porMat[f.mat].litros += f.litros;
-      porMat[f.mat].km += f.km;
+    periodosEmp.forEach(p => {
+      const m = normM(p.matricula), bi = _gasFechaNum(p.fecha_inicio), bf = _gasFechaNum(p.fecha_fin), km = parseInt(p.km_diferencia, 10) || 0;
+      if (!m || !bi || !bf || bf < bi || km <= 0) return;
+      (porMat[m] = porMat[m] || []).push({ bi, bf, km });
     });
-    const datos = Object.entries(porMat)
-      .map(([m, v]) => ({ mat: m, cons: v.km > 0 ? (v.litros / v.km * 100) : null }))
-      .filter(d => d.cons != null)
-      .sort((a, b) => b.cons - a.cons);
-    if (!datos.length) {
-      grafEl.innerHTML = '';
-    } else {
-      const maxC = Math.max(...datos.map(d => d.cons));
-      const colC = (c) => c > 40 ? '#ff5050' : (c >= 35 ? '#ffa726' : '#00e87a');
-      const barras = datos.map(d => {
-        const w = maxC > 0 ? (d.cons / maxC * 100) : 0;
-        const c = colC(d.cons);
-        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
-          <div style="width:78px;font-family:var(--mn);font-size:11px;color:#fff;flex-shrink:0">${d.mat}</div>
-          <div style="flex:1;background:#e2e8f0;border-radius:5px;height:20px;overflow:hidden">
-            <div style="width:${w.toFixed(1)}%;background:${c};height:100%;border-radius:5px;min-width:3px"></div>
-          </div>
-          <div style="width:54px;text-align:right;font-family:var(--mn);font-size:12px;font-weight:700;color:${c};flex-shrink:0">${d.cons.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</div>
-        </div>`;
-      }).join('');
-      grafEl.innerHTML = `
-        <div style="background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:16px 18px">
-          <div style="font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:.5px;font-weight:600;opacity:.9;margin-bottom:14px">Consumo por camión (L/100 km)</div>
-          ${barras}
-        </div>`;
-    }
-  }
-  // J18: guardar la tabla calculada (con su empresa y periodo) para el Excel de consumo.
-  window._consumoUltimo = {
-    filas: filas, empresa: emp,
-    desde: (document.getElementById('gasConDesde') || {}).value || '',
-    hasta: (document.getElementById('gasConHasta') || {}).value || ''
+    Object.keys(porMat).forEach(m => {
+      const grupos = {};
+      porMat[m].forEach(b => { (grupos[b.bi] = grupos[b.bi] || []).push(b); });
+      const cand = [];
+      Object.keys(grupos).forEach(k => {
+        const g = grupos[k].sort((x, y) => x.bf - y.bf || x.km - y.km);
+        let prevFin = 0, prevKm = 0;
+        g.forEach(b => {
+          if (b.bf === prevFin) return;                           // mismo bloque repetido
+          const ini = prevFin ? isoN(new Date(_gasNumToDate(prevFin).getTime() + 86400000)) : b.bi, km = b.km - prevKm;   // el tramo siguiente empieza al día siguiente
+          if (km >= 0) cand.push({ ini, fin: b.bf, km, cobertura: g[g.length - 1].bf - g[0].bi });
+          if (km >= 0) { prevFin = b.bf; prevKm = b.km; }
+        });
+      });
+      // primero los tramos del grupo que más tiempo cubre; los demás solo si no pisan
+      cand.sort((x, y) => y.cobertura - x.cobertura || x.ini - y.ini);
+      const ok = [];
+      cand.forEach(c => { if (!ok.some(o => c.ini < o.fin && o.ini < c.fin)) ok.push(c); });
+      tramosPorMat[m] = ok.sort((x, y) => x.ini - y.ini);
+    });
+  })();
+
+  // km de una matrícula en [i,f] + hasta qué día llega el tacógrafo
+  const kmEn = (m, i, f) => {
+    let km = 0, hasta = 0, desde = 99999999, aprox = false;
+    (tramosPorMat[m] || []).forEach(t => {
+      if (t.fin < i || t.ini > f) return;
+      const dT = _gasDiasEntre(t.ini, t.fin), dS = _gasDiasEntre(Math.max(t.ini, i), Math.min(t.fin, f));
+      if (dT > 0 && dS > 0) km += t.km * (dS / dT);
+      if (t.ini < i || t.fin > f) aprox = true;
+      hasta = Math.max(hasta, Math.min(t.fin, f)); desde = Math.min(desde, Math.max(t.ini, i));
+    });
+    return { km: Math.round(km), hasta, desde: desde === 99999999 ? 0 : desde, aprox };
+  };
+  const sumaL = (lista, i, f) => { let l = 0, hay = false; (lista || []).forEach(x => { if (x.f && x.f >= i && x.f <= f) { l += x.litros; hay = true; } }); return hay ? l : null; };
+  const calc = (m, i, f) => {
+    const k = kmEn(m, i, f);
+    // si el tacógrafo no llega al final, los litros se cuentan solo hasta donde hay km
+    const fL = (k.km > 0 && k.hasta && k.hasta < f) ? k.hasta : f;
+    const litros = sumaL(litrosPorMat[m], i, fL), litrosTot = sumaL(litrosPorMat[m], i, f);
+    const adblue = sumaL(adbluePorMat[m], i, f);
+    const cons = (litros != null && k.km > 0) ? litros / k.km * 100 : null;
+    return { km: k.km > 0 ? k.km : null, litros: litrosTot, litrosCons: litros, adblue, cons, kmHasta: k.hasta, aprox: k.aprox, cortado: k.km > 0 && k.hasta && k.hasta < f };
   };
 
-  // 6) Pintar
+  const mats = new Set();
+  periodosEmp.forEach(p => mats.add(normM(p.matricula)));
+  Object.keys(litrosPorMat).forEach(m => mats.add(m));
+  // marca/modelo desde Taller, si está cargado
+  const notaDe = {};
+  try { (typeof tallerVehiculos !== 'undefined' ? tallerVehiculos : []).forEach(v => { if (v && v.matricula) notaDe[normM(v.matricula)] = v.notas || ''; }); } catch (e) {}
+
+  let filas = [];
+  mats.forEach(m => {
+    if (!m) return;
+    const c = calc(m, rIni, rFin), a = calc(m, aIni, aFin);
+    if (c.km == null && c.litros == null) return;           // sin nada en el periodo
+    let aviso = '';
+    if (c.cortado) aviso = 'Km del tacógrafo solo hasta el ' + nTxt(c.kmHasta) + ': el consumo se calcula con el gasoil hasta ese día (' + fmtN(c.litrosCons || 0, 0) + ' L).';
+    else if (c.aprox) aviso = 'Los km del tacógrafo vienen en bloques que no encajan con las fechas: km aproximados.';
+    filas.push({
+      mat: m, nota: notaDe[m] || '',
+      periodo: (desdeStr ? nTxt(rIni) : '…') + ' – ' + nTxt(rFin) + (c.aprox || c.cortado ? ' *' : ''),
+      orden: m, litros: c.litros, adblue: c.adblue, km: c.km, consumo: c.cons,
+      consAnt: a.cons, aviso, cortado: c.cortado, kmHasta: c.kmHasta
+    });
+  });
+
+  // filtro por vehículo
+  const selVeh = document.getElementById('gasConVehiculo');
+  if (selVeh) {
+    const sel = selVeh.value;
+    const todas = [...new Set(filas.map(f => f.mat))].sort();
+    selVeh.innerHTML = '<option value="">Todos los vehículos (' + todas.length + ')</option>' + todas.map(m => '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + m + '</option>').join('');
+    if (selVeh.value) filas = filas.filter(f => f.mat === selVeh.value);
+  }
+  // orden
+  const ordenSel = (document.getElementById('gasConOrden') || {}).value || 'consumo';
+  filas.sort((x, y) => {
+    if (ordenSel === 'matricula') return x.mat.localeCompare(y.mat);
+    if (ordenSel === 'km') return (y.km || 0) - (x.km || 0);
+    if (ordenSel === 'litros') return (y.litros || 0) - (x.litros || 0);
+    return (y.consumo == null ? -1 : y.consumo) - (x.consumo == null ? -1 : x.consumo);
+  });
+
+  // tarjetas resumen (letra oscura: antes los títulos salían en blanco sobre blanco)
+  const resEl = document.getElementById('gasConResumen');
+  const conAmbos = filas.filter(f => f.consumo != null);
+  const totLc = conAmbos.reduce((s, f) => s + (f.km * f.consumo / 100), 0), totKmC = conAmbos.reduce((s, f) => s + f.km, 0);
+  const media = totKmC > 0 ? totLc / totKmC * 100 : null;
+  const colC = (c) => c == null ? '#475569' : (c > 40 ? '#b91c1c' : (c >= 35 ? '#b45309' : '#15803d'));
+  if (resEl) {
+    const totL = filas.reduce((s, f) => s + (f.litros || 0), 0), totKm = filas.reduce((s, f) => s + (f.km || 0), 0), totAd = filas.reduce((s, f) => s + (f.adblue || 0), 0);
+    const card = (t, v, c, sub) => '<div style="background:#fff;border:1px solid #cbd5e1;border-left:5px solid ' + c + ';border-radius:10px;padding:12px 15px"><div style="font-size:12px;color:#1e293b;text-transform:uppercase;letter-spacing:.6px;font-weight:800;margin-bottom:6px">' + t + '</div><div style="font-size:24px;font-weight:800;color:' + c + ';line-height:1.1">' + v + '</div>' + (sub ? '<div style="font-size:12px;color:#475569;font-weight:700;margin-top:4px">' + sub + '</div>' : '') + '</div>';
+    resEl.innerHTML =
+      card('Periodo', (desdeStr ? nTxt(rIni) : '…') + ' – ' + nTxt(rFin), '#1f3a5f', 'comparado con ' + nTxt(aIni) + ' – ' + nTxt(aFin)) +
+      card('Media del grupo', media != null ? fmtN(media, 1) + ' L/100' : '—', colC(media), conAmbos.length + ' vehículos con litros y km') +
+      card('Litros gasoil', fmtN(totL, 0) + ' L', '#c2410c', '') +
+      card('Km recorridos', fmtN(totKm, 0) + ' km', '#1d4ed8', '') +
+      card('AdBlue', fmtN(totAd, 0) + ' L', '#475569', '');
+  }
+  const grafEl = document.getElementById('gasConGrafico'); if (grafEl) grafEl.innerHTML = '';
+
+  window._consumoUltimo = { filas, empresa: emp, desde: desdeStr, hasta: hastaStr };
+
   if (!filas.length) {
     tbody.innerHTML = '';
-    if (empty) {
-      empty.style.display = 'block';
-      empty.textContent = hayFiltro
-        ? 'No hay datos de consumo para el periodo seleccionado en esta empresa.'
-        : 'No hay datos de consumo todavía. Sube facturas de gasoil y el Excel de km del tacógrafo.';
-    }
+    if (empty) { empty.style.display = 'block'; empty.textContent = 'No hay datos de consumo en este periodo para esta empresa.'; }
     return;
   }
   if (empty) empty.style.display = 'none';
+  const maxC = Math.max(45, ...filas.map(f => f.consumo || 0));
   tbody.innerHTML = filas.map(f => {
-    const litrosTxt = f.litros != null
-      ? fmtN(f.litros, 0) + ' L'
-      : '<span style="color:var(--wnd)">⚠️ sin factura</span>';
-    const kmTxt = f.km != null
-      ? fmtN(f.km, 0) + ' km'
-      : '<span style="color:var(--wnd)">⚠️ sin km</span>';
-    const adblueTxt = f.adblue != null
-      ? fmtN(f.adblue, 0) + ' L'
-      : '<span style="color:var(--mu)">—</span>';
-    let consumoTxt;
-    if (f.consumo != null) {
-      // J15: semáforo con iconos. Rojo/llama >40 (excesivo), ámbar 35-40 (vigilar),
-      // verde/hoja <35 (buen consumo).
-      let col, icono;
-      if (f.consumo > 40) { col = 'var(--er)'; icono = '🔥 '; }
-      else if (f.consumo >= 35) { col = 'var(--wn)'; icono = '⚠️ '; }
-      else { col = 'var(--ok)'; icono = '🌿 '; }
-      consumoTxt = '<strong style="color:' + col + '">' + icono + fmtN(f.consumo, 1) + '</strong>';
+    const c = f.consumo, col = colC(c);
+    let consTxt;
+    if (c != null) {
+      const w = Math.min(100, c / maxC * 100);
+      consTxt = '<div style="display:flex;align-items:center;gap:10px"><strong style="color:' + col + ';font-size:17px;min-width:48px;text-align:right">' + fmtN(c, 1) + '</strong>'
+        + '<div style="flex:1;min-width:120px;background:#e2e8f0;border-radius:4px;height:12px;overflow:hidden"><div style="width:' + w.toFixed(1) + '%;height:100%;background:' + col + '"></div></div></div>';
+    } else if (f.cortado) {
+      consTxt = '<span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">⏳ tacógrafo solo hasta el ' + nTxt(f.kmHasta) + '</span>';
     } else if (f.km != null && f.litros == null) {
-      // J15: tiene km (el tacógrafo registró movimiento) pero NO hay gasoil
-      // registrado en el periodo → aviso rojo tipo "prohibido" para revisar si
-      // el vehículo no circula o si falta subir su factura de gasoil.
-      consumoTxt = '<span title="Tiene km del tacógrafo pero NO hay gasoil registrado en este periodo. Revisa si el vehículo no está circulando/trabajando o si falta subir su factura de gasoil." style="color:var(--er);font-weight:800;font-family:var(--mn)">⛔ REVISAR</span>';
-    } else {
-      consumoTxt = '<span style="color:var(--wnd)">⚠️</span>';
+      consTxt = '<span style="color:#b91c1c;font-weight:800" title="Tiene km del tacógrafo pero no hay gasoil en este periodo: ¿no ha trabajado o falta subir su factura?">⛔ sin gasoil</span>';
+    } else consTxt = '<span style="color:#b45309;font-weight:800" title="Hay gasoil pero no km del tacógrafo en este periodo: falta subir su Excel de km">⚠ sin km</span>';
+    let antTxt = '<span style="color:#94a3b8">—</span>';
+    if (f.consAnt != null) {
+      const dif = c != null ? c - f.consAnt : null;
+      const fl = dif == null ? '' : (Math.abs(dif) < 0.5 ? ' <span style="color:#475569">=</span>' : (dif > 0 ? ' <span style="color:#b91c1c" title="Gasta más que el periodo anterior">▲ ' + fmtN(dif, 1) + '</span>' : ' <span style="color:#15803d" title="Gasta menos que el periodo anterior">▼ ' + fmtN(-dif, 1) + '</span>'));
+      antTxt = '<span style="color:#1e293b">' + fmtN(f.consAnt, 1) + '</span>' + fl;
     }
-    const periodoCell = f.aviso
-      ? '<td title="' + f.aviso.replace(/"/g, '') + '">' + f.periodo + '</td>'
-      : '<td>' + f.periodo + '</td>';
-    return '<tr>'
-      + '<td class="tag-mat">' + f.mat + '</td>'
-      + periodoCell
-      + '<td class="tag-tm">' + litrosTxt + '</td>'
-      + '<td style="color:var(--in)">' + adblueTxt + '</td>'
-      + '<td>' + kmTxt + '</td>'
-      + '<td>' + consumoTxt + '</td>'
+    return '<tr' + (f.aviso ? ' title="' + f.aviso.replace(/"/g, '') + '"' : '') + '>'
+      + '<td class="tag-mat" style="white-space:nowrap">' + f.mat + (f.nota ? '<div style="font-size:11px;color:#475569;font-weight:700">' + esc(f.nota) + '</div>' : '') + '</td>'
+      + '<td style="min-width:240px">' + consTxt + '</td>'
+      + '<td style="white-space:nowrap">' + antTxt + '</td>'
+      + '<td class="tag-tm" style="white-space:nowrap">' + (f.litros != null ? fmtN(f.litros, 0) + ' L' : '<span style="color:#b45309">—</span>') + '</td>'
+      + '<td style="white-space:nowrap">' + (f.km != null ? fmtN(f.km, 0) + ' km' + (f.cortado ? ' <span style="color:#b45309;font-weight:800" title="' + f.aviso.replace(/"/g, '') + '">*</span>' : '') : '<span style="color:#b45309">—</span>') + '</td>'
+      + '<td style="white-space:nowrap;color:#475569">' + (f.adblue != null ? fmtN(f.adblue, 0) + ' L' : '—') + '</td>'
       + '</tr>';
   }).join('');
+}
+
+// v1090: atajos de periodo (mes anterior, este mes, 3 meses, este año) + elegir un mes concreto
+function gasConsumoPeriodo(tipo) {
+  const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const h = new Date(); let ini, fin;
+  if (tipo === 'mesAnt') { ini = new Date(h.getFullYear(), h.getMonth() - 1, 1); fin = new Date(h.getFullYear(), h.getMonth(), 0); }
+  else if (tipo === 'mes') { ini = new Date(h.getFullYear(), h.getMonth(), 1); fin = h; }
+  else if (tipo === '3m') { ini = new Date(h.getFullYear(), h.getMonth() - 3, 1); fin = new Date(h.getFullYear(), h.getMonth(), 0); }
+  else if (tipo === 'anio') { ini = new Date(h.getFullYear(), 0, 1); fin = h; }
+  else if (/^\d{4}-\d{2}$/.test(tipo)) { const [y, m] = tipo.split('-').map(Number); ini = new Date(y, m - 1, 1); fin = new Date(y, m, 0); }
+  else return;
+  const d = document.getElementById('gasConDesde'), hh = document.getElementById('gasConHasta');
+  if (d) d.value = iso(ini); if (hh) hh.value = iso(fin);
+  const ms = document.getElementById('gasConMes'); if (ms && !/^\d{4}-\d{2}$/.test(tipo)) ms.value = '';
+  gasRenderConsumo();
 }
 
 // v107BL: limpiar las casillas de fecha del consumo y recalcular
@@ -13245,19 +13194,20 @@ function exportConsumoExcel() {
     toast('Abre CONSUMO (y pon un periodo si quieres) antes de descargar', 'err');
     return;
   }
-  const rows = [['Matrícula', 'Periodo', 'Litros gasoil', 'AdBlue (L)', 'Km recorridos', 'L/100km']];
+  const rows = [['Matrícula', 'Marca / nota', 'Periodo', 'L/100km', 'L/100km periodo anterior', 'Litros gasoil', 'Km recorridos', 'AdBlue (L)', 'Aviso']];   // v1090
   u.filas.forEach(f => {
     rows.push([
-      f.mat || '',
-      f.periodo || '',
+      f.mat || '', f.nota || '', f.periodo || '',
+      f.consumo != null ? Number(f.consumo.toFixed(1)) : '',
+      f.consAnt != null ? Number(f.consAnt.toFixed(1)) : '',
       f.litros != null ? Math.round(f.litros) : '',
-      f.adblue != null ? Math.round(f.adblue) : '',
       f.km != null ? f.km : '',
-      f.consumo != null ? Number(f.consumo.toFixed(1)) : ''
+      f.adblue != null ? Math.round(f.adblue) : '',
+      f.aviso || ''
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  ws['!cols'] = [12, 22, 26, 10, 14, 14, 14, 11, 60].map(w => ({ wch: w }));
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; R++) {
     for (let C = range.s.c; C <= range.e.c; C++) {
