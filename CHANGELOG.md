@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1092 (13/11/2026): GASOIL · KM DE LAS DESCARGAS NUEVAS AUNQUE EL EXCEL DE ASG TENGA PARTE DEL MES. Pedido de Juan Carlos: el 2254JVJ (de los que ya descargan solos por TachoSync) salía en CONSUMO con "faltan km (tacógrafo 4 de 31 días)". Causa: desde la v832 los km de las descargas pasan solos a Gasoil, pero con una regla: si el Excel de km ya tenía algo de ese mes, el tacógrafo no metía nada. El Excel de ASG llega hasta el 04/10 (cuando se cambió el aparato) y bloqueaba todo octubre. AHORA: el Excel manda solo en los días que cubre y el tacógrafo rellena desde el último día del Excel hasta su última lectura, sin contar km dos veces. Además, al abrir CONSUMO, los camiones que salen cortados o con "faltan km" se recalculan solos una vez por sesión desde sus descargas. Cambio solo en _tacoKmAGasoilAuto y gasRenderConsumo (app.js). Sin SQL (escribe en km_periodos como ya hacía la v832, solo bloques de origen 'tacografo'). VUELTA ATRAS: resubir v1091 (app.js e index.html).
+
+---
+
 v1091 (13/11/2026): GASOIL · CONSUMO: "⏳ faltan km" CUANDO EL TACÓGRAFO CUBRE POCO. Pedido de Juan Carlos: un camión con km del tacógrafo solo hasta el día 4 salía con un L/100 disparatado en rojo (ej. 9487MPL 89,5). AHORA: si los km del tacógrafo cubren MENOS DE LA MITAD de los días del periodo, en la columna L/100 km sale "⏳ faltan km (tacógrafo N de M días)" en ámbar, sin cifra; ese camión NO cuenta en la media del grupo ni en la comparación con el periodo anterior, y en el Excel la celda de consumo va vacía con el aviso explicado. Los litros y km siguen saliendo igual. Cambio solo en gasRenderConsumo (app.js). Sin SQL. VUELTA ATRAS: resubir v1090 (app.js e index.html).
 
 ---

@@ -13076,6 +13076,18 @@ async function gasRenderConsumo() {
     });
   });
 
+  // v1092: los camiones que ya descargan solos (TachoSync/Movertis) y salen cortados o con
+  // "faltan km": se recalculan UNA vez por sesión sus km desde las descargas y se repinta.
+  const _corta1092 = filas.filter(f => f.cortado || f.poca).map(f => f.mat);
+  if (_corta1092.length && !window._gasKmAuto1092 && typeof _tacoKmAGasoilAuto === 'function') {
+    window._gasKmAuto1092 = true;
+    try {
+      const n = await _tacoKmAGasoilAuto(_corta1092);
+      console.log('[v1092] km desde descargas recalculados: ' + n + ' bloques');
+      if (n) { _kmPeriodos = null; return gasRenderConsumo(); }
+    } catch (e) { console.warn('[v1092] recalculo km:', e.message || e); }
+  }
+
   // filtro por vehículo
   const selVeh = document.getElementById('gasConVehiculo');
   if (selVeh) {
@@ -38798,17 +38810,33 @@ async function _tacoKmAGasoilAuto(matriculas) {
         const mIni = mes + '-01';
         const mFin = mes + '-31';
 
-        // ¿el Excel ya cubre ese mes? entonces manda el Excel
-        const pisaExcel = (yaBd || []).some(p =>
+        // ¿el Excel ya cubre ese mes? entonces manda el Excel...
+        // v1092 (JC 13/11/2026): ...pero SOLO en los días que cubre. Antes, con que el Excel de
+        // ASG tuviera 1 día del mes (ej. 2254JVJ: Excel hasta el 04/10, cuando se le quitó el
+        // aparato de ASG y entró el de TachoSync), el tacógrafo no metía NADA de ese mes y el
+        // consumo salía "faltan km". Ahora el tacógrafo rellena desde el último día del Excel
+        // hasta su última lectura (sin contar ningún km dos veces).
+        const _n = (x) => _gasFechaNum(x) || 0;
+        const exMes = (yaBd || []).filter(p =>
           (p.origen || 'excel') === 'excel' &&
-          String(p.fecha_fin || '') >= mIni && String(p.fecha_inicio || '') <= mFin);
-        if (pisaExcel) continue;
+          _n(p.fecha_fin) >= _n(mIni) && _n(p.fecha_inicio) <= _n(mFin));
+        let pri2 = pri, ult2 = ult;
+        if (exMes.length) {
+          const finEx = Math.max(...exMes.map(p => _n(p.fecha_fin)));
+          const despues = lista.filter(d => _n(d.fecha) > finEx);
+          if (!despues.length) continue;                 // el Excel cubre hasta el final: manda el Excel
+          const ancla = lista.filter(d => _n(d.fecha) <= finEx).pop();
+          pri2 = ancla || despues[0]; ult2 = despues[despues.length - 1];
+          if (pri2 === ult2) continue;
+        }
+        const dif2 = ult2.odometro - pri2.odometro;
+        if (!(dif2 > 0)) continue;
 
         const fila = {
           matricula: mat,
           empresa: empresaFila,
-          fecha_inicio: pri.fecha, fecha_fin: ult.fecha,
-          km_inicio: pri.odometro, km_fin: ult.odometro, km_diferencia: dif,
+          fecha_inicio: pri2.fecha, fecha_fin: ult2.fecha,
+          km_inicio: pri2.odometro, km_fin: ult2.odometro, km_diferencia: dif2,
           origen: 'tacografo',
           user_id: currentUser ? currentUser.id : null
         };
@@ -38826,7 +38854,7 @@ async function _tacoKmAGasoilAuto(matriculas) {
           if (error) throw error;
         }
         tocados++;
-        console.log('[v832 km->gasoil] ' + mat + ' ' + mes + ': ' + dif.toLocaleString('es-ES') + ' km');
+        console.log('[v832 km->gasoil] ' + mat + ' ' + mes + ': ' + dif2.toLocaleString('es-ES') + ' km');
       }
     } catch (e) {
       console.warn('[v832 km->gasoil] ' + mat + ':', e.message || e);
