@@ -85,6 +85,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <link rel="stylesheet" href="styles.css?v=1029">
 <style>.fil-label{color:#000;font-weight:800;font-size:12.5px;letter-spacing:.8px}</style>
 <style>/* v1060: PESTAÑAS PRINCIPALES más grandes y la ACTIVA en azul oscuro + títulos de la tabla de Taller más grandes (solo PC). La barra de pestañas mide ahora 46px fijos → todo lo que se pega debajo usa top:94px (48 cabecera + 46). */@media (min-width:1000px){#adminView>.tabs{height:46px;align-items:stretch;padding:0 12px}#adminView>.tabs>.tab{font-size:14px;font-weight:800;letter-spacing:.4px;padding:0 10px;white-space:nowrap;border-bottom-width:3px;color:#1a2433}#adminView>.tabs>.tab.active{background:#1f3a5f;color:#fff;border-bottom-color:#f29900;border-radius:6px 6px 0 0}#adminView>.tabs>.tab.active svg{stroke:#fff!important}#adminView>.tabs>.tab.active .tab-badge{background:#fff;color:#1f3a5f}.card:has(#tallerTabla),.card:has(#tallerTabla)>.card-bd{overflow:visible!important}#tallerTabla thead th{position:sticky;top:94px;z-index:5;font-size:14px;font-weight:800;color:#0b2545;background:#dbe5f1;letter-spacing:.6px;padding:13px 12px;box-shadow:0 2px 0 #1e3a5f}}</style>
+<style>/* v1089: Vacaciones — detalle de periodos de un trabajador: modal más ancho, letra más grande, en negrita y en negro */#ovVacDetalle .modal-title{font-size:22px!important;color:#111!important}#ovVacDetalle .modal-bd{padding:22px 28px!important}#ovVacDetalle #vacDetalleBody>div:first-child{font-size:17px!important;font-weight:700!important;color:#111!important;gap:22px!important;margin-bottom:16px!important}#ovVacDetalle #vacDetalleBody>div:first-child strong{font-size:19px;font-weight:800}#ovVacDetalle #vacDetalleBody [style*="color:var(--mu)"]{font-size:15px!important;font-weight:700!important;color:#2f3a48!important}#ovVacDetalle #vacDetalleBody>div[onclick]{font-size:16.5px!important;font-weight:700!important;color:#111!important;padding:14px 18px!important;margin-bottom:10px!important;border-color:#9aa7b8!important;line-height:1.5}#ovVacDetalle #vacDetalleBody>div[onclick]:hover{background:#e8eef7!important}#ovVacDetalle #vacDetalleBody>div[onclick] strong{font-weight:800;color:#0b2545}#ovVacDetalle .modal-ft .btn{font-size:14.5px!important;padding:11px 20px!important}</style>
 <style>/* v1086: informe de DEPÓSITOS SODIRA más grande y legible: botones morados con letra blanca (una regla general los dejaba en negro), la lista de PDF sobre fondo claro (salía negro), letra más grande y títulos de sección en colores que se leen sobre blanco. */#factSodiraInforme>div{font-size:15px!important;padding:16px 18px!important;line-height:1.75!important}#factSodiraInforme [style*="font-size:11px"]{font-size:13.5px!important}#factSodiraInforme>div>div[style*="font-weight:700"]{font-size:16.5px!important;margin-top:16px!important}#factSodiraInforme strong{font-size:17px}#tabContentFacturacion #factSodiraInforme .btn[style*="background:#4c1d95"]{color:#fff!important;font-size:14.5px!important;padding:9px 16px!important;letter-spacing:.4px}#factSodiraInforme [style*="--bg2"]{background:#f4f7fb!important}#factSodiraInforme a{color:#1d4ed8!important;font-weight:700}#factSodiraInforme [style*="color:#7cc4ff"]{color:#1d4ed8!important}#factSodiraInforme [style*="color:#b48be8"]{color:#6d28d9!important}#factSodiraInforme [style*="color:#e0a000"]{color:#b45309!important}</style>
 <style>/* v1085: Factura Híspalis/Transmargaz — la cabecera azul de la tabla (PESTAÑA, CONCEPTO…) salía con letra negra sobre azul (una regla general de Facturación forzaba el negro) y no se leía. Blanca y más grande. */#tabContentFacturacion #fiCardOut th[style*="background:#1f3a5f"]{color:#fff!important;font-size:15px!important;font-weight:800!important;letter-spacing:1px}</style>
 <style>/* v1078: DETALLE ALBARÁN — letra de las casillas más grande, más gruesa y en negro; etiquetas más visibles */#mFields .fi,#mFields input,#mFields select,#mFields textarea{font-size:16px!important;font-weight:700!important;color:#111!important;padding:10px 12px!important}#mFields .fl,#mFields label{font-size:15px!important;font-weight:800!important;color:#111!important;letter-spacing:.8px!important}/* v1079: etiquetas a 15px */</style>
@@ -1956,7 +1957,7 @@ if (typeof pdfjsLib !== 'undefined') {
 
 <!-- MODAL DETALLE PERIODOS de un trabajador (editable) -->
 <div class="ov" id="ovVacDetalle">
-  <div class="modal" style="max-width:640px">
+  <div class="modal" style="max-width:1050px">
     <div class="modal-hd">
       <div class="modal-title" id="vacDetalleTitulo">PERIODOS</div>
       <button class="btn bs" style="padding:5px 10px;font-size:10px" onclick="closeVacDetalle()">✕</button>
@@ -2135,6 +2136,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1088"></script>
+<script src="app.js?v=1089"></script>
 </body>
 </html>
