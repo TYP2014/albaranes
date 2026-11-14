@@ -81,6 +81,9 @@ function _errRuido(msg, fichero) {
   if (/ResizeObserver loop/i.test(m)) return true;
   if (/^Script error\.?$/i.test(m.trim())) return true;               // error de otra web/extension sin datos
   if (/chrome-extension:|moz-extension:|safari-extension:/i.test(String(fichero || '') + m)) return true;
+  // v1098 (JC 14/11/2026): una descarga de tacógrafo que YA ESTABA guardada (misma huella) no es un fallo:
+  // la app la rechaza a propósito para no repetirla. Antes llenaba el chivato (10 de 22 avisos).
+  if (/uq_tacografo_sha/i.test(m)) return true;
   return false;
 }
 function _errRegistrar(tipo, mensaje, detalle) {

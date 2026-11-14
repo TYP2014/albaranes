@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1098 (14/11/2026): CHIVATO DE ERRORES MÁS LIMPIO. Pedido de Juan Carlos (mejora 3 de la revisión): el chivato salía en rojo por cosas que no son fallos; de 22 avisos, 10 eran descargas de tacógrafo que ya estaban guardadas ("duplicate key … uq_tacografo_sha"), que la app rechaza a propósito para no repetirlas. AHORA esos ya no se apuntan como error; el resto (escaneos vacíos, fichajes sin conexión, guardados que fallan…) se sigue apuntando igual. Cambio solo en _errRuido (app.js). Sin SQL. VUELTA ATRAS: resubir v1097 (app.js e index.html).
+
+---
+
 v1097 (14/11/2026): EMPLEADOS · CABECERA: EMPRESAS ARRIBA Y PESTAÑAS DEBAJO. Pedido de Juan Carlos: no le gustaba el icono de "Datos de empleados" y quería las empresas arriba y después las sub-pestañas. AHORA: (1) arriba UNA fila de empresas (TYP2014 / HISPALIS / PORTES 2014 IMPORT, las que cada usuario puede ver) que vale para las 4 vistas: al pulsar una empresa cambia a la vez en Vacaciones, Datos de empleados y Primas; en Reconocimientos médicos pone "Todas las empresas juntas" (esa vista las enseña todas). (2) debajo, separadas por una línea, las 4 pestañas Datos de empleados · Vacaciones · Reconocimientos médicos · Primas, todas del mismo tamaño y solo con texto (fuera el icono 🪪). Las filas de empresas que tenía cada vista por separado se ocultan. Cambio en index.html (cabecera) y app.js (empPintarEmpresas, empSetEmpresa y dos líneas en switchEmpleadosVista/loadVacData). Sin SQL. VUELTA ATRAS: resubir v1096 (app.js e index.html).
 
 ---
