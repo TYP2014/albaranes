@@ -9824,6 +9824,114 @@ function renderAlerts() {
 // v104: bloque "🎯 Pendientes de hoy" — cuadro de mando rápido del admin/gestor con chips
 // clicables que llevan al filtro o pestaña correspondiente. Si todo está al día, muestra un
 // mensaje verde. Si hay cualquier pendiente, lista solo las categorías con al menos 1.
+// ============================================================
+// v1103 (JC 14/11/2026): MATRÍCULA "CASI IGUAL" A UNA DE LA FLOTA. Los clientes (Tecnocatalana,
+// CEMEX, Canro, Control Demeter…) escriben casi siempre mal la matrícula: dos letras cambiadas de
+// sitio (4576JKL por 4576JLK, 6497MNW por 6497NMW) o una letra/cifra distinta (8180JJW por 8180JJM).
+// Si la matrícula no es de la flota (oficiales + aprendidas) y hay UNA SOLA que se diferencia en
+// 1 carácter o en 2 caracteres SEGUIDOS cambiados de sitio, se PROPONE. NUNCA se corrige sola
+// (igual que en ITV, v655): puede ser un camión nuevo con matrícula vecina. La escrita se guarda
+// en observaciones.
+// ============================================================
+function _matParecida(mat) {
+  const m = matriculaPrincipal(mat || '');
+  if (!m || !/^R?\d{4}[A-Z]{3,4}$/.test(m)) return null;
+  const _ok = (x) => /^R?\d{4}[A-Z]{3}$/.test(x);
+  const ofic = Object.keys(TRANSPORTISTAS).map(x => String(x).toUpperCase()).filter(_ok);
+  const apr = Object.keys(MATRICULAS_APRENDIDAS || {}).map(x => String(x).toUpperCase()).filter(_ok);
+  if (ofic.includes(m) || apr.includes(m)) return null;
+  // primero la flota OFICIAL; solo si ahí no hay ninguna parecida, las aprendidas (tienen variantes mal leídas)
+  const c1 = _matParecidasEn(m, ofic);
+  if (c1.length) return c1.length === 1 ? c1[0] : null;
+  const c2 = _matParecidasEn(m, apr);
+  return c2.length === 1 ? c2[0] : null;
+}
+function _matParecidasEn(m, flota) {
+  const cand = [];
+  flota.forEach(x => {
+    if (x.length === m.length) {
+      let dif = [];
+      for (let i = 0; i < m.length && dif.length < 3; i++) if (x[i] !== m[i]) dif.push(i);
+      if (dif.length === 1) { cand.push(x); return; }
+      if (dif.length === 2 && dif[1] === dif[0] + 1 && x[dif[0]] === m[dif[1]] && x[dif[1]] === m[dif[0]]) { cand.push(x); return; }
+    } else if (m.length === x.length + 1) {          // una letra de más (0795NNNB → 0795NNB)
+      for (let i = 0; i < m.length; i++) if (m.slice(0, i) + m.slice(i + 1) === x) { cand.push(x); return; }
+    }
+  });
+  return [...new Set(cand)];
+}
+// nueva matrícula conservando la parte "/xxx" (marcador admin) si la había
+function _matConSufijo(original, nueva) {
+  const o = String(original || '').trim();
+  return o.includes('/') ? nueva + o.slice(o.indexOf('/')) : nueva;
+}
+// botón del modal: pone la propuesta en el formulario (se guarda al pulsar Guardar)
+function _matUsarParecida(cand, orig) {
+  const t = document.getElementById('mf_tractora');
+  if (t) t.value = _matConSufijo(t.value || orig, cand);
+  const tr = getTransportista(cand) || '';
+  const ft = document.getElementById('mf_transportista'); if (ft && tr) ft.value = tr;
+  const sel = document.getElementById('mAsignarTransportista'); if (sel && tr) sel.value = tr;
+  const ap = document.getElementById('mAprenderMat'); if (ap) ap.checked = false;
+  const ob = document.getElementById('mf_observaciones');
+  if (ob && !String(ob.value || '').includes('Matrícula en el albarán: ' + orig)) ob.value = (ob.value ? ob.value.trim() + ' · ' : '') + 'Matrícula en el albarán: ' + orig;
+  const box = document.getElementById('mMatParecidaBox');
+  if (box) box.innerHTML = '✅ Puesta <strong>' + esc(cand) + '</strong>' + (tr ? ' (' + esc(tr) + ')' : '') + '. Pulsa <strong>Guardar</strong> para que quede.';
+}
+// lista de albaranes en memoria con matrícula desconocida que tienen propuesta
+function _matParecidasLista() {
+  return records.filter(r => !r._dup && r._matDesconocida && r.db_id && r.tractora)
+    .map(r => ({ r, cand: _matParecida(r.tractora) })).filter(x => x.cand);
+}
+function abrirMatParecidas() {
+  const lista = _matParecidasLista();
+  if (!lista.length) { toast('No hay matrículas parecidas que corregir', 'ok'); return; }
+  let ov = document.getElementById('ovMatParecidas');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'ovMatParecidas'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
+  const filas = lista.map((x, i) => {
+    const tr = getTransportista(x.cand) || '';
+    return '<tr style="border-bottom:1px solid #e2e8f0">'
+      + '<td style="padding:8px"><input type="checkbox" class="mpChk" data-i="' + i + '" checked style="width:18px;height:18px"></td>'
+      + '<td style="padding:8px;white-space:nowrap">' + esc(x.r.fecha || '') + '</td>'
+      + '<td style="padding:8px;font-weight:700">' + esc(x.r.albaran || '') + '</td>'
+      + '<td style="padding:8px">' + esc((x.r.proveedor || '').slice(0, 28)) + '</td>'
+      + '<td style="padding:8px;font-weight:800;color:#b91c1c;font-family:var(--mn)">' + esc(x.r.tractora) + '</td>'
+      + '<td style="padding:8px;font-size:18px">→</td>'
+      + '<td style="padding:8px;font-weight:800;color:#15803d;font-family:var(--mn)">' + esc(_matConSufijo(x.r.tractora, x.cand)) + '</td>'
+      + '<td style="padding:8px">' + esc(tr) + '</td></tr>';
+  }).join('');
+  ov.innerHTML = '<div style="background:#fff;color:#111;border-radius:10px;max-width:1000px;width:100%;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><div style="font-size:18px;font-weight:800">🔧 Matrículas mal escritas · ' + lista.length + ' albaranes</div>'
+    + '<button class="btn bs" onclick="document.getElementById(\'ovMatParecidas\').remove()" style="color:#111;background:#fff;border:1px solid #94a3b8">✕ Cerrar</button></div>'
+    + '<div style="font-size:14px;color:#334155;margin-bottom:10px">La matrícula escrita no es de la flota, pero hay <strong>una sola</strong> casi igual (una letra distinta o dos cambiadas de sitio). Desmarca las que NO sean y pulsa <strong>Corregir marcadas</strong>. La matrícula escrita se guarda en Observaciones.</div>'
+    + '<div style="max-height:60vh;overflow:auto;border:1px solid #cbd5e1;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:14px">'
+    + '<thead><tr style="background:#1f3a5f;color:#fff;text-align:left"><th style="padding:8px"><input type="checkbox" checked onchange="document.querySelectorAll(\'.mpChk\').forEach(c=>c.checked=this.checked)"></th><th style="padding:8px">Fecha</th><th style="padding:8px">Albarán</th><th style="padding:8px">Proveedor</th><th style="padding:8px">Escrita</th><th></th><th style="padding:8px">Propuesta</th><th style="padding:8px">Transportista</th></tr></thead><tbody>' + filas + '</tbody></table></div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px"><button class="btn bp" id="mpBtnCorregir" onclick="corregirMatParecidas()" style="font-size:14px;padding:9px 18px">Corregir marcadas</button></div></div>';
+  window._mpLista = lista;
+}
+async function corregirMatParecidas() {
+  const lista = window._mpLista || [];
+  const marcadas = [...document.querySelectorAll('.mpChk')].filter(c => c.checked).map(c => lista[+c.dataset.i]).filter(Boolean);
+  if (!marcadas.length) { toast('No hay ninguna marcada', 'warn'); return; }
+  if (!confirm('Se van a corregir ' + marcadas.length + ' albaranes (matrícula y transportista). ¿Seguir?')) return;
+  const btn = document.getElementById('mpBtnCorregir'); if (btn) { btn.disabled = true; btn.textContent = 'Corrigiendo…'; }
+  let ok = 0, ko = 0;
+  for (const x of marcadas) {
+    const r = x.r, nueva = _matConSufijo(r.tractora, x.cand), tr = getTransportista(x.cand) || r.transportista || null;
+    const obs = String(r.observaciones || '').includes('Matrícula en el albarán: ' + r.tractora) ? r.observaciones : ((r.observaciones ? String(r.observaciones).trim() + ' · ' : '') + 'Matrícula en el albarán: ' + r.tractora);
+    try {
+      const { error } = await sb.from('albaranes').update({ tractora: nueva, transportista: tr, observaciones: obs, editado_por: (currentUser && currentUser.id) || null }).eq('id', r.db_id);
+      if (error) throw error;
+      r.tractora = nueva; r.transportista = tr; r.observaciones = obs; r.editado_por = (currentUser && currentUser.id) || null;
+      ok++;
+    } catch (e) { ko++; console.error('[v1103] corregir matrícula', r.albaran, e); }
+  }
+  try { document.getElementById('ovMatParecidas').remove(); } catch (e) {}
+  try { analyzeRecords(); applyFilters(); renderPendientes(); } catch (e) {}
+  toast('✓ ' + ok + ' matrículas corregidas' + (ko ? ' · ' + ko + ' no se pudieron (mira el chivato)' : ''), ko ? 'warn' : 'ok');
+}
+
 function renderPendientes() {
   const box = document.getElementById('pendientesBox');
   if (!box) return;
@@ -9863,6 +9971,7 @@ function renderPendientes() {
   if (dups)   chips.push({ic:'⛔', n:dups,   tx:'duplicados',        cls:'pend-er', click:`filterByStatus('dup')`});
   if (posDups) chips.push({ic:'🔁', n:posDups, tx:'posibles duplicados', cls:'pend-wn', click:`filterByStatus('posdup')`}); // v351
   if (matDes) chips.push({ic:'🚛', n:matDes, tx:'mat. desconocidas', cls:'pend-wn', click:`filterByStatus('matdes')`});
+  if (matDes && currentRole === 'admin') { const _mp = _matParecidasLista().length; if (_mp) chips.push({ic:'🔧', n:_mp, tx:'matrículas para corregir', cls:'pend-wn', click:`abrirMatParecidas()`}); }   // v1103
   if (amarillos) chips.push({ic:'🟡', n:amarillos, tx:'marcados para revisar', cls:'pend-wn', click:`(document.getElementById('fMarca').value='amarillo',applyFilters(),document.getElementById('resCount')?.scrollIntoView({behavior:'smooth',block:'center'}))`}); // v718
   if (warns)  chips.push({ic:'⚠',  n:warns,  tx:'a revisar',         cls:'pend-wn', click:`filterByStatus('warn')`});
   if (itvCad) chips.push({ic:'🔴', n:itvCad, tx:'ITVs caducadas',    cls:'pend-er', click:`switchTab('itv')`});
@@ -14088,6 +14197,7 @@ function openModal(id) {
       alertHtml += `<div class="m-alert" style="background:rgba(255,184,0,.10);border:1px solid rgba(255,184,0,.45);color:#ffd970;padding:10px 12px">
         <div style="font-weight:600;margin-bottom:6px">🚛 Matrícula desconocida: <span style="font-family:var(--mn)">${matrShow}</span></div>
         <div style="font-size:11px;color:var(--mu);margin-bottom:8px">No está en la flota oficial ni en las aprendidas. Asigna el transportista para que la próxima vez se reconozca sola.</div>
+        ${(() => { const _c = _matParecida(r.tractora); if (!_c) return ''; const _t = getTransportista(_c) || ''; return '<div id="mMatParecidaBox" style="background:#fff;color:#111;border:2px solid #15803d;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:14px">¿Es <strong style="font-family:var(--mn)">' + esc(_c) + '</strong>' + (_t ? ' (' + esc(_t) + ')' : '') + '? Se parece mucho a la escrita. <button type="button" class="btn bp" style="font-size:12px;padding:5px 12px;margin-left:8px" onclick="_matUsarParecida(\'' + esc(_c) + '\',\'' + esc(String(r.tractora || '')) + '\')">Usar esta</button></div>'; })()}
         <select id="mAsignarTransportista" onchange="document.getElementById('mf_transportista').value=this.value" style="width:100%;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font-size:13px;margin-bottom:6px">${opts}</select>
         <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);cursor:pointer">
           <input type="checkbox" id="mAprenderMat" checked style="cursor:pointer">
