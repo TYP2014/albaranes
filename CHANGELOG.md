@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1097 (14/11/2026): EMPLEADOS · CABECERA: EMPRESAS ARRIBA Y PESTAÑAS DEBAJO. Pedido de Juan Carlos: no le gustaba el icono de "Datos de empleados" y quería las empresas arriba y después las sub-pestañas. AHORA: (1) arriba UNA fila de empresas (TYP2014 / HISPALIS / PORTES 2014 IMPORT, las que cada usuario puede ver) que vale para las 4 vistas: al pulsar una empresa cambia a la vez en Vacaciones, Datos de empleados y Primas; en Reconocimientos médicos pone "Todas las empresas juntas" (esa vista las enseña todas). (2) debajo, separadas por una línea, las 4 pestañas Datos de empleados · Vacaciones · Reconocimientos médicos · Primas, todas del mismo tamaño y solo con texto (fuera el icono 🪪). Las filas de empresas que tenía cada vista por separado se ocultan. Cambio en index.html (cabecera) y app.js (empPintarEmpresas, empSetEmpresa y dos líneas en switchEmpleadosVista/loadVacData). Sin SQL. VUELTA ATRAS: resubir v1096 (app.js e index.html).
+
+---
+
 v1096 (14/11/2026): GASOIL · "FACTURAS SUBIDAS": BOTÓN ⬇ DESCARGAR. Pedido de Juan Carlos: para bajarse una factura había que abrirla y luego descargarla. AHORA: en cada fila, al lado de "👁 Abrir", un botón azul "⬇ Descargar" que baja el PDF directamente con un nombre claro (Proveedor_Nºfactura_mes.pdf, ej. Petromiralles_6-28746_09_2026.pdf). Si el navegador no permitiera la descarga directa, abre el PDF como antes. Cambio solo en _gfsPintar y nueva _gfsDescargar (app.js). Sin SQL. VUELTA ATRAS: resubir v1095 (app.js e index.html).
 
 ---

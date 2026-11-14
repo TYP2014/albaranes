@@ -24851,6 +24851,7 @@ async function loadVacData() {
     if (!empresasPermitidas.includes(vacEmpresaActiva)) {
       vacEmpresaActiva = empresasPermitidas[0] || 'TYP2014';
     }
+    try { empPintarEmpresas(); } catch (e) {}   // v1097: fila de empresas de arriba
     // Actualizar botón activo visualmente
     empresasPermitidas.forEach(emp => {
       const btn = document.getElementById('vacSub' + emp);
@@ -27744,7 +27745,38 @@ let editRecmedId = null;
 
 // v441: selector de vistas de la pestaña EMPLEADOS (antes "Vacaciones"):
 // 🌴 Vacaciones (todo lo de siempre, intacto) · 🩺 Reconocimientos médicos
+// v1097 (JC 14/11/2026): UNA sola fila de EMPRESAS arriba para las 4 vistas de Empleados (antes cada
+// vista tenía su propia fila de empresas, debajo de las pestañas). Al pulsar una empresa se cambia en
+// Vacaciones, Datos de empleados y Primas a la vez. Reconocimientos ve todas las empresas juntas.
+function empPintarEmpresas() {
+  const bar = document.getElementById('empEmpresaBar');
+  if (!bar) return;
+  if (window._empVista === 'recmed') {
+    bar.innerHTML = '<div style="font-size:15px;font-weight:800;color:#111;padding:10px 0">Todas las empresas juntas</div>';
+    return;
+  }
+  const nom = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
+  const orden = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
+  const perm = _empDatosPermitidas().slice().sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+  bar.innerHTML = perm.map(e => '<button class="btn ' + (e === vacEmpresaActiva ? 'bp' : 'bs') + '" onclick="empSetEmpresa(\'' + e + '\')">' + (nom[e] || e) + '</button>').join('');
+}
+function empSetEmpresa(e) {
+  if (!_empDatosPermitidas().includes(e)) return;
+  switchVacEmpresa(e);                                   // Vacaciones (y vacEmpresaActiva)
+  empDatosEmpresa = e;                                   // Datos de empleados
+  primasEmpresa = e;                                     // Primas
+  try { localStorage.setItem('primas_last_emp', e); } catch (err) {}
+  if (window._empVista === 'datos') renderEmpDatos();
+  else if (window._empVista === 'primas') primasInit();
+  empPintarEmpresas();
+}
+
 function switchEmpleadosVista(v) {
+  window._empVista = v;   // v1097
+  try {                   // v1097: las 4 vistas, con la empresa elegida arriba
+    if (v === 'datos') empDatosEmpresa = vacEmpresaActiva;
+    if (v === 'primas' && _recmedEmpresas().includes(vacEmpresaActiva)) primasEmpresa = vacEmpresaActiva;
+  } catch (e) {}
   const vb = document.getElementById('empVistaVacBox');
   const rb = document.getElementById('empVistaRecmedBox');
   const bv = document.getElementById('empVistaVac');
@@ -27773,6 +27805,7 @@ function switchEmpleadosVista(v) {
     if (vb) vb.style.display = '';
     if (bv) { bv.classList.remove('bs'); bv.classList.add('bp'); }
   }
+  try { empPintarEmpresas(); } catch (e) {}   // v1097
 }
 
 
