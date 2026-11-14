@@ -2106,6 +2106,7 @@ async function loadData() {
   applyFilters();
   applyGasFilters();
   try { gasAvisoFacturasMes(); } catch (e) { console.warn('[v1100] aviso facturas gasoil:', e); }   // v1100
+  try { gasAvisoConsumoAlto(); } catch (e) { console.warn('[v1102] aviso consumo alto:', e); }   // v1102
   // v107CP: mostrar el botón de borrado múltiple si es admin.
   try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CP]', e); }
   // v100b: cada función envuelta en su propio try/catch. Si una falla (error silencioso de
@@ -17583,6 +17584,122 @@ function gasAvisoFacturasMes() {
     banner.style.display = 'none';
   }
 }
+// ============================================================
+// v1102 (JC 14/11/2026): AVISO DE CONSUMO ALTO en la cabecera.
+// Con los 3 MESES COMPLETOS anteriores (hoy 14/11 → agosto, septiembre y octubre), calcula el L/100 km
+// de cada camión igual que la vista CONSUMO (km del tacógrafo sin contar dos veces los bloques que se
+// pisan; si el tacógrafo no llega al final, los litros se cuentan solo hasta donde hay km; si cubre
+// menos de la mitad de los días, no se da cifra). Si pasa de 45 L/100 → aviso rojo con la lista.
+// Cada camión lleva "OK, ya lo sé": no vuelve a salir hasta que cambie el periodo (mes siguiente).
+// Solo admin. Calcula aparte (no toca gasRenderConsumo).
+// ============================================================
+const GAS_CONSALTO_LIMITE = 45;
+async function gasAvisoConsumoAlto() {
+  const banner = document.getElementById('gasConsAltoBanner');
+  if (!banner) return;
+  try {
+    if (typeof currentRole === 'undefined' || currentRole !== 'admin') { banner.style.display = 'none'; return; }
+    if (_kmPeriodos === null) {
+      const { data, error } = await sb.from('km_periodos').select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
+      if (error) throw error;
+      _kmPeriodos = data || [];
+    }
+    const isoN = (d) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    const hoy = new Date();
+    const fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0), ini = new Date(hoy.getFullYear(), hoy.getMonth() - 3, 1);
+    const rIni = isoN(ini), rFin = isoN(fin);
+    const periodoKey = String(rIni) + '-' + String(rFin);
+    const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const perTxt = MESES[ini.getMonth()] + '–' + MESES[fin.getMonth()] + ' ' + fin.getFullYear();
+    const normM = (m) => String(m || '').toUpperCase().replace(/[\s-]/g, '');
+    // litros de gasoil por matrícula en el periodo
+    const litros = {};
+    (gasoilRecords || []).forEach(r => {
+      const tp = String(r.tipo || '').toLowerCase();
+      if (tp && tp !== 'gasoil' && tp !== 'gas-oil' && tp !== 'diesel') return;
+      const l = parseFloat(r.litros); if (!l || l <= 0) return;
+      const m = normM(r.tractora); if (!m) return;
+      const f = _gasFechaNum(r.fecha); if (!f) return;
+      (litros[m] = litros[m] || []).push({ f, l });
+    });
+    // tramos de km SIN solapes (misma lógica que CONSUMO, v1090)
+    const porMat = {};
+    (_kmPeriodos || []).forEach(p => {
+      const m = normM(p.matricula), bi = _gasFechaNum(p.fecha_inicio), bf = _gasFechaNum(p.fecha_fin), km = parseInt(p.km_diferencia, 10) || 0;
+      if (!m || !bi || !bf || bf < bi || km <= 0) return;
+      (porMat[m] = porMat[m] || []).push({ bi, bf, km });
+    });
+    const tramos = {};
+    Object.keys(porMat).forEach(m => {
+      const grupos = {};
+      porMat[m].forEach(b => { (grupos[b.bi] = grupos[b.bi] || []).push(b); });
+      const cand = [];
+      Object.keys(grupos).forEach(k => {
+        const g = grupos[k].sort((x, y) => x.bf - y.bf || x.km - y.km);
+        let prevFin = 0, prevKm = 0;
+        g.forEach(b => {
+          if (b.bf === prevFin) return;
+          const i0 = prevFin ? isoN(new Date(_gasNumToDate(prevFin).getTime() + 86400000)) : b.bi, km = b.km - prevKm;
+          if (km >= 0) { cand.push({ ini: i0, fin: b.bf, km, cob: g[g.length - 1].bf - g[0].bi }); prevFin = b.bf; prevKm = b.km; }
+        });
+      });
+      cand.sort((x, y) => y.cob - x.cob || x.ini - y.ini);
+      const ok = [];
+      cand.forEach(c => { if (!ok.some(o => c.ini < o.fin && o.ini < c.fin)) ok.push(c); });
+      tramos[m] = ok;
+    });
+    let oks = {}; try { oks = JSON.parse(localStorage.getItem('gas_consalto_ok') || '{}') || {}; } catch (e) {}
+    const altos = [];
+    Object.keys(litros).forEach(m => {
+      let km = 0, hasta = 0, desde = 99999999;
+      (tramos[m] || []).forEach(t => {
+        if (t.fin < rIni || t.ini > rFin) return;
+        const dT = _gasDiasEntre(t.ini, t.fin), dS = _gasDiasEntre(Math.max(t.ini, rIni), Math.min(t.fin, rFin));
+        if (dT > 0 && dS > 0) km += t.km * (dS / dT);
+        hasta = Math.max(hasta, Math.min(t.fin, rFin)); desde = Math.min(desde, Math.max(t.ini, rIni));
+      });
+      km = Math.round(km);
+      if (km < 1000) return;                                                  // muy pocos km: no es fiable
+      const diasCub = _gasDiasEntre(desde, hasta), diasPer = _gasDiasEntre(rIni, rFin);
+      if (diasCub / diasPer < 0.5) return;                                    // tacógrafo con poca cobertura
+      const fL = hasta < rFin ? hasta : rFin;
+      const l = litros[m].filter(x => x.f >= rIni && x.f <= fL).reduce((a, x) => a + x.l, 0);
+      if (!l) return;
+      const c = l / km * 100;
+      if (c > GAS_CONSALTO_LIMITE && !oks[periodoKey + '|' + m]) altos.push({ m, c, l, km });
+    });
+    altos.sort((a, b) => b.c - a.c);
+    if (!altos.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+    const f0 = (n, d) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const lineas = altos.map(a => '<div style="margin:2px 0 2px 14px;line-height:1.6"><strong>' + esc(a.m) + '</strong>: <strong style="color:#b91c1c">' + f0(a.c, 1) + ' L/100</strong> · '
+      + f0(a.l, 0) + ' L en ' + f0(a.km, 0) + ' km'
+      + ' <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:8px" onclick="gasConsAltoOk(\'' + periodoKey + '|' + a.m + '\')" title="Ya lo sé: no volver a avisar de este camión en este periodo">OK, ya lo sé</button></div>').join('');
+    banner.innerHTML = '<div style="order:97;grid-column:1 / -1;background:#fff;border:3px solid #b91c1c;border-left:12px solid #b91c1c;border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">'
+      + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      + '<div style="flex:1;color:var(--tx);font-weight:600">CONSUMO ALTO (más de ' + GAS_CONSALTO_LIMITE + ' L/100, media ' + perTxt + ') · <span style="font-weight:800">' + altos.length + ' camión' + (altos.length === 1 ? '' : 'es') + '</span> <span style="font-weight:400;color:var(--mu)">(' + altos.map(a => esc(a.m) + ' ' + f0(a.c, 1)).join(' · ') + ')</span></div>'
+      + '<div style="display:flex;gap:6px">'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="var c=document.getElementById(\'gasConsAltoCuerpo\');c.style.display=c.style.display===\'none\'?\'block\':\'none\'">▾ Ver detalle</button>'
+      + '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab(\'gas\')">Ver Gasoil</button>'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="document.getElementById(\'gasConsAltoBanner\').style.display=\'none\'" title="Ocultar">✕</button>'
+      + '</div></div>'
+      + '<div id="gasConsAltoCuerpo" style="display:none;color:var(--tx);margin-top:4px">' + lineas + '</div></div>';
+    banner.style.display = 'block';
+  } catch (e) {
+    console.warn('[v1102 aviso consumo alto]', e);
+    banner.style.display = 'none';
+  }
+}
+function gasConsAltoOk(k) {
+  try {
+    const o = JSON.parse(localStorage.getItem('gas_consalto_ok') || '{}') || {};
+    o[k] = new Date().toISOString().slice(0, 10);
+    localStorage.setItem('gas_consalto_ok', JSON.stringify(o));
+  } catch (e) {}
+  const c0 = document.getElementById('gasConsAltoCuerpo'); const abierto = c0 && c0.style.display !== 'none';
+  gasAvisoConsumoAlto().then(() => { const c = document.getElementById('gasConsAltoCuerpo'); if (c && abierto) c.style.display = 'block'; });
+  toast('Hecho: no se volverá a avisar de ese camión en este periodo');
+}
+
 // v1101: "OK, este mes no hay" → esa línea no vuelve a salir ese mes (se guarda en este navegador)
 function gasFactMesOk(k) {
   try {

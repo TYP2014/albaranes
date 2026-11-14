@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1102 (14/11/2026): GASOIL · AVISO DE CONSUMO ALTO EN LA CABECERA. Pedido de Juan Carlos (mejora 4 de la revisión): enterarse de los camiones que gastan demasiado sin tener que entrar en CONSUMO. AHORA: al cargar la app (solo admin), se calcula la media de L/100 km de cada camión en los 3 MESES COMPLETOS anteriores (hoy: agosto-octubre), igual que en CONSUMO (km del tacógrafo sin contar dos veces; litros solo hasta donde hay km; si el tacógrafo cubre menos de la mitad de los días, o hay menos de 1.000 km, no se avisa). Si pasa de 45 L/100 sale un aviso rojo: "CONSUMO ALTO · N camiones (8050JJW 51,5 · …)", con Ver detalle (litros y km de cada uno), Ver Gasoil y ✕. Cada camión lleva "OK, ya lo sé": deja de avisar de ese camión hasta el periodo siguiente (se guarda en este navegador). Cambio en app.js (gasAvisoConsumoAlto, gasConsAltoOk y una llamada al cargar) e index.html (hueco del aviso). Sin SQL. VUELTA ATRAS: resubir v1101 (app.js e index.html).
+
+---
+
 v1101 (14/11/2026): GASOIL · AVISO DE FACTURA QUE FALTA: BOTÓN "OK, ESTE MES NO HAY". Pedido de Juan Carlos: no todos los proveedores llegan todos los meses (Moeve se usa poco; Portes Import puede tener solo Solred o solo Petromiralles). El aviso sigue siendo genérico (aprende de los 3 meses anteriores; Soledad 2/mes en TYP2014 e Híspalis, Petromiralles 1/mes…), pero AHORA cada línea del detalle lleva un botón "OK, este mes no hay": al pulsarlo, esa línea (empresa + proveedor + mes) no vuelve a salir; si se quitan todas, el aviso desaparece. Las demás siguen avisando (p. ej. si de Soledad falta una quincena). Se guarda en este navegador. Cambio solo en app.js (gasAvisoFacturasMes y nueva gasFactMesOk). Sin SQL. VUELTA ATRAS: resubir v1100 (app.js e index.html).
 
 ---
