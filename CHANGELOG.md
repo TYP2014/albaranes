@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1100 (14/11/2026): GASOIL · AVISO "FALTA LA FACTURA DEL MES" EN LA CABECERA. Pedido de Juan Carlos (mejora 2 de la revisión): en CONSUMO salían consumos imposibles (13-22 L/100 en mayo-julio) porque faltaban facturas de gasoil sin subir y nadie se enteraba. AHORA: a partir del día 10 de cada mes, la app mira el mes ANTERIOR y, por cada empresa y proveedor (Soledad, Solred, Petromiralles, Moeve) que en los 3 meses previos mandó factura al menos 2 meses, si ese mes no está (o vienen menos de las habituales, p. ej. Soledad manda 2 al mes) sale un aviso naranja en la cabecera: "Facturas de GASOIL de octubre 2026 · faltan N (HÍSPALIS Solred · …)", con "Ver detalle", "Ver Gasoil" y ✕ (oculta hasta mañana). La empresa de cada factura la decide la matrícula, igual que en el resto de Gasoil. Solo lo ve el admin. Con los datos de hoy (octubre) no falta ninguna, así que no debería salir. Cambio en app.js (gasAvisoFacturasMes, hideGasFactMesBanner y una llamada al cargar) e index.html (hueco del aviso). Sin SQL. VUELTA ATRAS: resubir v1099 (app.js e index.html).
+
+---
+
 v1099 (14/11/2026): GASOIL · AVISO DE FACTURA YA SUBIDA (LA FACTURA ENTERA). Pedido de Juan Carlos (mejora 1 de la revisión): había protección anti-duplicados, pero línea a línea (nº factura + matrícula + tipo); si la IA leía algo distinto la segunda vez, esas líneas se colaban (mayo-julio 2026: 7 facturas duplicadas, ≈49.660 L de más). AHORA: antes de guardar nada, se mira en la base de datos si ese Nº DE FACTURA de ese PROVEEDOR ya existe; si existe, sale una ventana "ESTA FACTURA YA ESTÁ SUBIDA" (proveedor, nº, cuántas líneas y cuándo se subió). CANCELAR = no se guarda nada (lo normal). ACEPTAR = sigue como antes, con la protección línea a línea (para completar una factura subida a medias). Solo afecta a facturas de gasoil (Soledad, Solred, Petromiralles, Moeve), no a albaranes. Cambio solo en _processOne (app.js). Sin SQL. VUELTA ATRAS: resubir v1098 (app.js e index.html).
 
 ---

@@ -2105,6 +2105,7 @@ async function loadData() {
   analyzeRecords();
   applyFilters();
   applyGasFilters();
+  try { gasAvisoFacturasMes(); } catch (e) { console.warn('[v1100] aviso facturas gasoil:', e); }   // v1100
   // v107CP: mostrar el botón de borrado múltiple si es admin.
   try { _initBorradoMultiple(); } catch (e) { console.warn('[v107CP]', e); }
   // v100b: cada función envuelta en su propio try/catch. Si una falla (error silencioso de
@@ -17495,6 +17496,92 @@ function toggleRecambDia10Detalle() {
   c.style.display = abrir ? 'block' : 'none';
   b.textContent = abrir ? '▴ Ocultar detalle' : '▾ Ver detalle';
   if (typeof _recambD10Cache !== 'undefined' && _recambD10Cache && ban) _recambD10Cache.html = ban.innerHTML;
+}
+
+// ============================================================
+// v1100 (JC 14/11/2026): AVISO "FALTA LA FACTURA DE GASOIL DEL MES".
+// A partir del día 10, mira el mes ANTERIOR: por cada empresa y proveedor que en los 3 meses previos
+// mandó factura al menos 2 meses, si este mes no está (o vienen menos de las habituales, p. ej.
+// Soledad manda 2 al mes), avisa en la cabecera. Así no salen consumos falsos por facturas sin subir
+// (caso mayo-julio 2026). Solo admin (los gestores solo ven sus propios registros y el aviso
+// saldría mal). El mes de cada factura = el de su fecha más tardía. "✕" lo oculta hasta mañana.
+// ============================================================
+const GAS_FACTMES_HIDE_KEY = 'gas_factmes_oculto';
+function gasAvisoFacturasMes() {
+  const banner = document.getElementById('gasFactMesBanner');
+  if (!banner) return;
+  try {
+    if (typeof currentRole === 'undefined' || currentRole !== 'admin') { banner.style.display = 'none'; return; }
+    const hoy = new Date();
+    const hoyIso = hoy.toISOString().slice(0, 10);
+    if (hoy.getDate() < 10 || localStorage.getItem(GAS_FACTMES_HIDE_KEY) === hoyIso) { banner.style.display = 'none'; return; }
+    const ym = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const mesObj = ym(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
+    const previos = [2, 3, 4].map(k => ym(new Date(hoy.getFullYear(), hoy.getMonth() - k, 1)));
+    const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const mesTxt = (m) => MESES[parseInt(m.slice(5), 10) - 1] + ' ' + m.slice(0, 4);
+    const provN = (x) => {
+      const t = String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (/soledad/.test(t)) return 'Neumáticos Soledad';
+      if (/solred|repsol/.test(t)) return 'Solred';
+      if (/petromiralles/.test(t)) return 'Petromiralles';
+      if (/moeve|cepsa/.test(t)) return 'Moeve';
+      return '';
+    };
+    const fYm = (f) => { const n = _gasFechaNum(f); return n ? String(n).slice(0, 4) + '-' + String(n).slice(4, 6) : ''; };
+    // facturas: empresa|proveedor|nº → mes (el de su fecha más tardía)
+    const facs = {};
+    (gasoilRecords || []).forEach(r => {
+      const nf = String(r.num_factura || '').trim();
+      const pv = provN(r.proveedor);
+      if (!nf || !pv) return;
+      let emp = 'TYP2014'; try { emp = _gasEmpresaDeRegistro(r); } catch (e) {}
+      const k = emp + '|' + pv + '|' + nf;
+      const m = fYm(r.fecha);
+      if (m && (!facs[k] || m > facs[k])) facs[k] = m;
+    });
+    const cuenta = {};   // empresa|proveedor → { mes: nº facturas }
+    Object.keys(facs).forEach(k => {
+      const [emp, pv] = k.split('|');
+      const ck = emp + '|' + pv;
+      (cuenta[ck] = cuenta[ck] || {})[facs[k]] = ((cuenta[ck] || {})[facs[k]] || 0) + 1;
+    });
+    const faltan = [];
+    Object.keys(cuenta).sort().forEach(ck => {
+      const c = cuenta[ck];
+      const meses = previos.filter(m => c[m] > 0);
+      if (meses.length < 2) return;                          // proveedor no habitual: no se avisa
+      const esperadas = Math.min(...meses.map(m => c[m]));
+      const hay = c[mesObj] || 0;
+      if (hay < esperadas) {
+        const [emp, pv] = ck.split('|');
+        faltan.push({ emp, pv, hay, esperadas });
+      }
+    });
+    if (!faltan.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+    const nomEmp = { TYP2014: 'TYP2014', HISPALIS: 'HÍSPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
+    const lineas = faltan.map(f => '<div style="margin:2px 0 2px 14px;line-height:1.5"><strong>' + esc(nomEmp[f.emp] || f.emp) + ' · ' + esc(f.pv) + '</strong>: '
+      + (f.hay ? 'hay ' + f.hay + ' de ' + f.esperadas + ' facturas' : 'no está la factura') + ' de ' + mesTxt(mesObj) + ' (los meses anteriores sí llegó)</div>').join('');
+    banner.innerHTML = '<div style="order:98;grid-column:1 / -1;background:#fff;border:3px solid #f29900;border-left:12px solid #f29900;border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">'
+      + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      + '<div style="flex:1;color:var(--tx);font-weight:600">Facturas de GASOIL de ' + mesTxt(mesObj) + ' · <span style="font-weight:800">faltan ' + faltan.length + '</span> <span style="font-weight:400;color:var(--mu)">(' + faltan.map(f => esc((nomEmp[f.emp] || f.emp) + ' ' + f.pv)).join(' · ') + ')</span></div>'
+      + '<div style="display:flex;gap:6px">'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="var c=document.getElementById(\'gasFactMesCuerpo\');c.style.display=c.style.display===\'none\'?\'block\':\'none\'">▾ Ver detalle</button>'
+      + '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab(\'gas\')">Ver Gasoil</button>'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="hideGasFactMesBanner()" title="Ocultar hasta mañana">✕</button>'
+      + '</div></div>'
+      + '<div id="gasFactMesCuerpo" style="display:none;color:var(--tx);margin-top:4px">' + lineas + '</div></div>';
+    banner.style.display = 'block';
+  } catch (e) {
+    console.warn('[v1100 aviso facturas gasoil]', e);
+    banner.style.display = 'none';
+  }
+}
+function hideGasFactMesBanner() {
+  localStorage.setItem(GAS_FACTMES_HIDE_KEY, new Date().toISOString().slice(0, 10));
+  const b = document.getElementById('gasFactMesBanner');
+  if (b) b.style.display = 'none';
+  toast('Aviso de facturas de gasoil ocultado hasta mañana');
 }
 
 function hideRecambDia10Banner() {
