@@ -9756,8 +9756,21 @@ function analyzeRecords() {
       return /^palet(cemento|mortero)$/.test(norm);
     };
     const tmCheck = parseFloat(r.tm);
+    // v1105 (JC 14/11/2026): el aviso de "TN fuera de 20-36" es para camiones a GRANEL (áridos,
+    // cisternas). Saltaba también con lo que es CORRECTO y llenaba "a revisar" (684): cobro por VIAJE
+    // (TN = 1: Tecnocatalana, Puigfel, Girona Runes…), por HORAS ("HORAS INTERIOR CANTERA", "H. INTERIOR")
+    // y ENSACADOS / PALETS (líneas de un albarán con varios materiales: "SAC 25 KG", "FLEX", "PAL").
+    // Esos ya NO se marcan por las TN. Control Demeter NO entra: son manuales y los controla la oficina.
+    const _tnNoAplica = (() => {
+      if (/control\s*demeter/i.test(String(r.proveedor || '') + ' ' + String(r.cliente || ''))) return false;
+      if (!isNaN(tmCheck) && tmCheck > 0 && tmCheck <= 1) return true;                       // cobro por viaje
+      const pr = String(r.producto || '').toUpperCase();
+      if (/\bHORAS?\b|\bH\.\s*INTERIOR|INTERIOR\s+CANTERA|INTERIOR\s+FABRICA/.test(pr)) return true;   // por horas
+      if (/\bSAC\b|SACO|ENSACAD|\b25\s*KG\b|\bPAL\b|PALET|\bFLEX\b|BIG\s*BAG/.test(pr)) return true;       // ensacado / palets
+      return false;
+    })();
     if (!isNaN(tmCheck) && (tmCheck < 20 || tmCheck > 36) && r._quality === 'ok'
-        && !_esPaletDevolucion(r.producto)) {
+        && !_esPaletDevolucion(r.producto) && !_tnNoAplica) {
       r._quality = 'warn';
     }
     // v107K83 (Juan Carlos 17/06/2026): Nº ALBARÁN DE TRASLADO HOLCIM. Estos números SIEMPRE
