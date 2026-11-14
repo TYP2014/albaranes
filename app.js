@@ -17558,10 +17558,16 @@ function gasAvisoFacturasMes() {
         faltan.push({ emp, pv, hay, esperadas });
       }
     });
+    // v1101: las que el usuario ya marcó "OK, este mes no hay" (p. ej. Moeve, que no se reposta siempre) no salen más ese mes
+    const _okKey = (f) => 'gasfm_ok_' + mesObj + '_' + f.emp + '_' + f.pv;
+    let _oks = {}; try { _oks = JSON.parse(localStorage.getItem('gasfm_ok') || '{}') || {}; } catch (e) {}
+    const pendientes = faltan.filter(f => !_oks[_okKey(f)]);
+    faltan.length = 0; pendientes.forEach(f => faltan.push(f));
     if (!faltan.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
     const nomEmp = { TYP2014: 'TYP2014', HISPALIS: 'HÍSPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
     const lineas = faltan.map(f => '<div style="margin:2px 0 2px 14px;line-height:1.5"><strong>' + esc(nomEmp[f.emp] || f.emp) + ' · ' + esc(f.pv) + '</strong>: '
-      + (f.hay ? 'hay ' + f.hay + ' de ' + f.esperadas + ' facturas' : 'no está la factura') + ' de ' + mesTxt(mesObj) + ' (los meses anteriores sí llegó)</div>').join('');
+      + (f.hay ? 'hay ' + f.hay + ' de ' + f.esperadas + ' facturas' : 'no está la factura') + ' de ' + mesTxt(mesObj) + ' (los meses anteriores sí llegó)'
+      + ' <button class="btn bs" style="font-size:10px;padding:3px 8px;margin-left:8px" onclick="gasFactMesOk(\'' + _okKey(f) + '\')" title="Este mes no hay factura de este proveedor: no volver a avisar de esta">OK, este mes no hay</button></div>').join('');
     banner.innerHTML = '<div style="order:98;grid-column:1 / -1;background:#fff;border:3px solid #f29900;border-left:12px solid #f29900;border-radius:7px;padding:5px 12px;margin:0;font-family:var(--mn);font-size:13.5px">'
       + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
       + '<div style="flex:1;color:var(--tx);font-weight:600">Facturas de GASOIL de ' + mesTxt(mesObj) + ' · <span style="font-weight:800">faltan ' + faltan.length + '</span> <span style="font-weight:400;color:var(--mu)">(' + faltan.map(f => esc((nomEmp[f.emp] || f.emp) + ' ' + f.pv)).join(' · ') + ')</span></div>'
@@ -17576,6 +17582,20 @@ function gasAvisoFacturasMes() {
     console.warn('[v1100 aviso facturas gasoil]', e);
     banner.style.display = 'none';
   }
+}
+// v1101: "OK, este mes no hay" → esa línea no vuelve a salir ese mes (se guarda en este navegador)
+function gasFactMesOk(k) {
+  try {
+    const o = JSON.parse(localStorage.getItem('gasfm_ok') || '{}') || {};
+    o[k] = new Date().toISOString().slice(0, 10);
+    localStorage.setItem('gasfm_ok', JSON.stringify(o));
+  } catch (e) {}
+  const abierto = (document.getElementById('gasFactMesCuerpo') || {}).style;
+  const estaba = abierto && abierto.display !== 'none';
+  gasAvisoFacturasMes();
+  const c = document.getElementById('gasFactMesCuerpo');
+  if (c && estaba) c.style.display = 'block';
+  toast('Hecho: no se volverá a avisar de esa factura este mes');
 }
 function hideGasFactMesBanner() {
   localStorage.setItem(GAS_FACTMES_HIDE_KEY, new Date().toISOString().slice(0, 10));

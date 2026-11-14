@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1101 (14/11/2026): GASOIL · AVISO DE FACTURA QUE FALTA: BOTÓN "OK, ESTE MES NO HAY". Pedido de Juan Carlos: no todos los proveedores llegan todos los meses (Moeve se usa poco; Portes Import puede tener solo Solred o solo Petromiralles). El aviso sigue siendo genérico (aprende de los 3 meses anteriores; Soledad 2/mes en TYP2014 e Híspalis, Petromiralles 1/mes…), pero AHORA cada línea del detalle lleva un botón "OK, este mes no hay": al pulsarlo, esa línea (empresa + proveedor + mes) no vuelve a salir; si se quitan todas, el aviso desaparece. Las demás siguen avisando (p. ej. si de Soledad falta una quincena). Se guarda en este navegador. Cambio solo en app.js (gasAvisoFacturasMes y nueva gasFactMesOk). Sin SQL. VUELTA ATRAS: resubir v1100 (app.js e index.html).
+
+---
+
 v1100 (14/11/2026): GASOIL · AVISO "FALTA LA FACTURA DEL MES" EN LA CABECERA. Pedido de Juan Carlos (mejora 2 de la revisión): en CONSUMO salían consumos imposibles (13-22 L/100 en mayo-julio) porque faltaban facturas de gasoil sin subir y nadie se enteraba. AHORA: a partir del día 10 de cada mes, la app mira el mes ANTERIOR y, por cada empresa y proveedor (Soledad, Solred, Petromiralles, Moeve) que en los 3 meses previos mandó factura al menos 2 meses, si ese mes no está (o vienen menos de las habituales, p. ej. Soledad manda 2 al mes) sale un aviso naranja en la cabecera: "Facturas de GASOIL de octubre 2026 · faltan N (HÍSPALIS Solred · …)", con "Ver detalle", "Ver Gasoil" y ✕ (oculta hasta mañana). La empresa de cada factura la decide la matrícula, igual que en el resto de Gasoil. Solo lo ve el admin. Con los datos de hoy (octubre) no falta ninguna, así que no debería salir. Cambio en app.js (gasAvisoFacturasMes, hideGasFactMesBanner y una llamada al cargar) e index.html (hueco del aviso). Sin SQL. VUELTA ATRAS: resubir v1099 (app.js e index.html).
 
 ---
