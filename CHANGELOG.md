@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1099 (14/11/2026): GASOIL · AVISO DE FACTURA YA SUBIDA (LA FACTURA ENTERA). Pedido de Juan Carlos (mejora 1 de la revisión): había protección anti-duplicados, pero línea a línea (nº factura + matrícula + tipo); si la IA leía algo distinto la segunda vez, esas líneas se colaban (mayo-julio 2026: 7 facturas duplicadas, ≈49.660 L de más). AHORA: antes de guardar nada, se mira en la base de datos si ese Nº DE FACTURA de ese PROVEEDOR ya existe; si existe, sale una ventana "ESTA FACTURA YA ESTÁ SUBIDA" (proveedor, nº, cuántas líneas y cuándo se subió). CANCELAR = no se guarda nada (lo normal). ACEPTAR = sigue como antes, con la protección línea a línea (para completar una factura subida a medias). Solo afecta a facturas de gasoil (Soledad, Solred, Petromiralles, Moeve), no a albaranes. Cambio solo en _processOne (app.js). Sin SQL. VUELTA ATRAS: resubir v1098 (app.js e index.html).
+
+---
+
 v1098 (14/11/2026): CHIVATO DE ERRORES MÁS LIMPIO. Pedido de Juan Carlos (mejora 3 de la revisión): el chivato salía en rojo por cosas que no son fallos; de 22 avisos, 10 eran descargas de tacógrafo que ya estaban guardadas ("duplicate key … uq_tacografo_sha"), que la app rechaza a propósito para no repetirlas. AHORA esos ya no se apuntan como error; el resto (escaneos vacíos, fichajes sin conexión, guardados que fallan…) se sigue apuntando igual. Cambio solo en _errRuido (app.js). Sin SQL. VUELTA ATRAS: resubir v1097 (app.js e index.html).
 
 ---

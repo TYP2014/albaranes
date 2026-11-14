@@ -4673,6 +4673,43 @@ async function _processOne(it, type, key, timeoutMs) {
     let _facturaDupOmitidos = 0;
     let _facturaTotal = 0;
 
+    // v1099 (JC 14/11/2026): FACTURA DE GASOIL YA SUBIDA → se comprueba la factura ENTERA antes de
+    // guardar nada. Antes solo se miraba línea a línea (nº factura + matrícula + tipo) y, si la IA leía
+    // algo distinto la segunda vez, esas líneas se colaban (mayo-julio 2026: 7 facturas duplicadas,
+    // ≈49.660 L de más). Ahora, si ese nº de factura de ese proveedor ya está en la base de datos,
+    // se para y se pregunta. Solo se sigue si el usuario pulsa Aceptar (p. ej. una factura subida a medias).
+    if (type !== 'alb') {
+      try {
+        const _facs = {};
+        (results || []).forEach(d => {
+          if (!(d && (d._origenFactura || d._origenFacturaMulti) && d.num_factura)) return;
+          const nf = String(d.num_factura).trim();
+          const pv = String(d.proveedor || (d._origenFactura ? 'Neumáticos Soledad' : '')).trim();
+          if (nf) _facs[nf] = pv;
+        });
+        const _pv1 = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^neumaticos\s+/, '').split(/[\s,.]+/)[0];
+        for (const nf of Object.keys(_facs)) {
+          const { data: ya, error: eYa } = await sb.from('gasoil').select('id, proveedor, fecha, created_at').eq('num_factura', nf).limit(500);
+          if (eYa) { console.warn('[v1099] no se pudo comprobar si la factura ya estaba:', eYa.message); continue; }
+          const mismas = (ya || []).filter(r => !_facs[nf] || !r.proveedor || _pv1(r.proveedor) === _pv1(_facs[nf]));
+          if (!mismas.length) continue;
+          const cuando = mismas.map(r => String(r.created_at || '').slice(0, 10)).sort()[0] || '';
+          const f = cuando ? cuando.split('-').reverse().join('/') : '?';
+          const seguir = confirm('⚠️ ESTA FACTURA YA ESTÁ SUBIDA\n\n'
+            + (mismas[0].proveedor || _facs[nf] || 'Proveedor') + ' · factura ' + nf + '\n'
+            + mismas.length + ' líneas guardadas (fecha ' + (mismas[0].fecha || '?') + '), subida el ' + f + '.\n\n'
+            + 'Pulsa CANCELAR para no subirla otra vez (lo normal).\n'
+            + 'Pulsa ACEPTAR solo si sabes que se subió a medias y quieres completar lo que falte.');
+          if (!seguir) {
+            it.status = 'done';
+            try { toast('Factura ' + nf + ' ya estaba subida: no se ha guardado nada', 'warn'); } catch (e) {}
+            console.warn('[v1099] factura ' + nf + ' ya estaba subida → no se guarda nada');
+            return false;
+          }
+        }
+      } catch (e) { console.warn('[v1099] comprobación de factura ya subida:', e); }
+    }
+
     for (const data of results) {
       // v107EO2 (26/05/2026): log de entrada al for para confirmar que el procesamiento
       // se ejecuta para cada albarán/registro. Si NO ves "[v107EO2 FOR]" en consola,
