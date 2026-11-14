@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1096 (14/11/2026): GASOIL · "FACTURAS SUBIDAS": BOTÓN ⬇ DESCARGAR. Pedido de Juan Carlos: para bajarse una factura había que abrirla y luego descargarla. AHORA: en cada fila, al lado de "👁 Abrir", un botón azul "⬇ Descargar" que baja el PDF directamente con un nombre claro (Proveedor_Nºfactura_mes.pdf, ej. Petromiralles_6-28746_09_2026.pdf). Si el navegador no permitiera la descarga directa, abre el PDF como antes. Cambio solo en _gfsPintar y nueva _gfsDescargar (app.js). Sin SQL. VUELTA ATRAS: resubir v1095 (app.js e index.html).
+
+---
+
 v1095 (13/11/2026): GASOIL · "FACTURAS SUBIDAS" POR EMPRESA Y CON FILTROS. Pedido de Juan Carlos: (1) al cambiar de empresa la lista no cambiaba y salían todas las facturas mezcladas; (2) poder localizar rápido una factura (ej. "Híspalis, julio, Petromiralles"). AHORA: la lista enseña SOLO las facturas de la empresa de la pestaña (TYP2014 / Híspalis / Portes) y se refresca sola al cambiar de pestaña; encima, filtros EN CASCADA como en Albaranes: Proveedor, Mes (desplegables que solo muestran lo que queda con los demás filtros), Nº factura (escribiendo parte del número) y casilla "Solo las subidas 2 veces", con botón "Quitar filtros". Cambio solo en verFacturasGasoilSubidas (+ _gfsGrupos, _gfsPintar, _gfsSet) y una línea en el cambio de empresa (app.js). Sin SQL. VUELTA ATRAS: resubir v1094 (app.js e index.html).
 
 ---

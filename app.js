@@ -12823,12 +12823,33 @@ function _gfsPintar() {
         + '<td ' + td + '>' + esc(g.mesTxt) + '</td>'
         + '<td ' + td + '><strong style="color:#15803d;white-space:nowrap">' + impTxt + '</strong></td>'
         + '<td ' + td + '>' + g.n + '</td>'
-        + '<td ' + td + '><a href="' + g.url + '" target="_blank" rel="noopener" style="color:#1d4ed8;font-weight:800;text-decoration:underline;white-space:nowrap">👁 Abrir PDF</a></td>'
+        + '<td ' + td + '><div style="display:flex;gap:10px;align-items:center;white-space:nowrap"><a href="' + g.url + '" target="_blank" rel="noopener" style="color:#1d4ed8;font-weight:800;text-decoration:underline">👁 Abrir</a>'
+        + '<button type="button" onclick="_gfsDescargar(this)" data-url="' + esc(g.url) + '" data-nom="' + esc(((g.prov || 'Factura') + '_' + (g.num || '') + '_' + (g.mesTxt || '')).replace(/[^\w\-ÁÉÍÓÚÑáéíóúñ]+/g, '_').replace(/_+/g, '_').replace(/_$/, '')) + '" style="font-size:13px;font-weight:800;padding:4px 10px;border-radius:6px;border:1px solid #1d4ed8;background:#1d4ed8;color:#fff;cursor:pointer">⬇ Descargar</button></div></td>'
         + '</tr>';
     });
     h += '</tbody></table></div>';
   }
   panel.innerHTML = h;
+}
+
+// v1096 (JC 14/11/2026): descargar el PDF de la factura DIRECTAMENTE (antes había que abrirlo y
+// luego descargarlo). Se baja como "Proveedor_Nºfactura_mes.pdf". Si el navegador no deja, se abre.
+async function _gfsDescargar(btn) {
+  const url = btn.dataset.url, nom = (btn.dataset.nom || 'factura') + '.pdf';
+  const txt = btn.textContent; btn.textContent = '⏳'; btn.disabled = true;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nom;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    toast('✓ Descargado ' + nom);
+  } catch (e) {
+    console.warn('[v1096] descarga directa falló, se abre el PDF:', e);
+    window.open(url, '_blank');
+  } finally { btn.textContent = txt; btn.disabled = false; }
 }
 
 function _gfsSet(k, v) {
