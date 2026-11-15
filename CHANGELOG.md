@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1106 (15/11/2026): FACTURACIÓN · TARIFAS POR SERVICIO: BOTÓN "PRECIO MES ANTERIOR" EN CADA RUTA. Pedido de Juan Carlos: al lado de "Quitar", un botón para poner el precio del mes anterior en esa ruta. AHORA: "Precio mes anterior" pone en pantalla el precio de esa ruta del mes anterior (con sus tramos de días, si los tenía), marcado en azul; NO guarda solo: se revisa y se pulsa Guardar. Si el mes anterior no tenía precio, avisa y no cambia nada. (El botón de arriba "Copiar del mes anterior" sigue igual, para todas las rutas.) Cambio solo en app.js (_tarTramoRow y nueva _tarPrecioMesAnterior). Sin SQL. VUELTA ATRAS: resubir v1105 (app.js e index.html).
+
+---
+
 v1105 (14/11/2026): ALBARANES · "A REVISAR" SIN FALSOS AVISOS DE TN. Pedido de Juan Carlos: 684 albaranes "a revisar" y casi todos correctos. Causa: el aviso de "TN fuera de 20-36" (pensado para camiones a granel: áridos, cisternas) saltaba también con el cobro por VIAJE (TN = 1: Tecnocatalana, Puigfel, Holcim, CEMEX… ~800 en 4 meses), por HORAS ("HORAS INTERIOR CANTERA GARRAF", "H. INTERIOR CANTERA", "HORAS T. INTERIOR FABRICA") y ENSACADOS / PALETS (líneas de albaranes con varios materiales: "SAC 25 KG", "BIGMAT FLEX", "PAL", "PALET"). AHORA esos ya no se marcan por las TN; los de granel siguen avisando igual (300 TN o 3 TN en un camión de grava sigue saliendo). Control Demeter NO se toca (albaranes manuales que controla la oficina: siguen saliendo). Los demás motivos de "a revisar" (campos que faltan, nº de albarán Holcim/CEMEX raro…) siguen igual. Cambio solo en analyzeRecords (app.js). Sin SQL. VUELTA ATRAS: resubir v1104 (app.js e index.html).
 
 ---

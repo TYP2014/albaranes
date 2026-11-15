@@ -970,7 +970,29 @@ function _tarTramoRow(origen, destino, desde, hasta, precio) {
     + '<span class="tarL">€/TN</span>'
     + '<button class="tarBtnG" onclick="_tarGuardarRuta(this)" title="Guardar el precio de esta ruta ahora (no borra nada)">Guardar</button>'
     + '<button class="tarBtnQ" onclick="_tarDelTramo(this)" title="Quitar este tramo">Quitar</button>'
+    + '<button class="btn bs" onclick="_tarPrecioMesAnterior(this)" style="font-size:12px;padding:5px 10px;margin-left:4px;color:#1d4ed8;border:1px solid #1d4ed8;background:#fff;font-weight:700" title="Poner en esta ruta el precio (y los tramos) del mes anterior. Luego pulsa Guardar.">Precio mes anterior</button>'
     + '</div>';
+}
+
+// v1106 (JC 15/11/2026): botón "Precio mes anterior" en cada ruta: pone en la pantalla el precio
+// (y los tramos de días, si los tenía) que esa ruta tuvo el MES ANTERIOR. NO guarda: se revisa y se
+// pulsa Guardar. Si el mes anterior no tenía precio, avisa y no cambia nada.
+function _tarPrecioMesAnterior(btn) {
+  const ruta = btn.closest('.tar-ruta'); if (!ruta) return;
+  const cont = ruta.querySelector('.tar-tramos'); if (!cont) return;
+  const anio = parseInt(document.getElementById('tarifaAnio')?.value, 10);
+  const mes = parseInt(document.getElementById('tarifaMes')?.value, 10);
+  if (!anio || !mes) return;
+  let m = mes - 1, a = anio; if (m < 1) { m = 12; a--; }
+  const origen = ruta.getAttribute('data-orig') || '', destino = ruta.getAttribute('data-dest') || '';
+  const o = _tarifaNorm(origen), d = _tarifaNorm(destino);
+  const ts = (_tarifas || []).filter(x => _tarifaNorm(x.origen) === o && _tarifaNorm(x.destino) === d
+    && Number(x.anio) === a && Number(x.mes) === m && Number(x.precio_tn) > 0)
+    .sort((x, y) => Number(x.dia_desde || 1) - Number(y.dia_desde || 1));
+  if (!ts.length) { toast('Esta ruta no tenía precio el mes anterior', 'warn'); return; }
+  cont.innerHTML = ts.map(t => _tarTramoRow(origen, destino, t.dia_desde || 1, t.dia_hasta || 31, t.precio_tn)).join('');
+  cont.querySelectorAll('.t-precio').forEach(i => { i.style.outline = '2px solid #1d4ed8'; });
+  toast('Puesto el precio del mes anterior (' + ts.map(t => Number(t.precio_tn).toFixed(2).replace('.', ',')).join(' / ') + ' €/TN). Pulsa Guardar para que quede.');
 }
 
 // v226: "+ tramo" añade una fila nueva a la ruta, empezando el día siguiente al último "hasta".
