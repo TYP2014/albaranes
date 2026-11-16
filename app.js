@@ -11218,6 +11218,18 @@ function buildDropdowns() {
       }
     });
   }
+  // v1116 (JC 16/11/2026): los desplegables de filtro (Proveedor, Origen, Destino…) se quedaban ABIERTOS
+  // tapando la pantalla aunque pinchases fuera. Ahora se cierran al pinchar fuera, al abrir otro o con la tecla Esc.
+  // Lo marcado se queda marcado (solo se pliega la lista).
+  if (!window._msCierreFuera) {
+    window._msCierreFuera = true;
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.fil-multi[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') document.querySelectorAll('details.fil-multi[open]').forEach(d => { d.open = false; });
+    });
+  }
   // v211: FILTROS ENCADENADOS (faceted). Cada desplegable solo muestra los valores que EXISTEN
   // dentro de lo ya filtrado por los OTROS filtros. Así, si filtras por una matrícula o un
   // transportista, en Origen/Destino/Material solo aparece lo que ESE camión/transportista ha
