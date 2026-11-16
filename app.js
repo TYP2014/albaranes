@@ -16152,11 +16152,12 @@ async function fiCalcular() {
 
 function _fiTotales() {
   const D = _fiDatos; if (!D) return;
-  D.base = _fiR2(D.grupos.reduce((s, g) => s + g.eur, 0) + D.lineas.reduce((s, l) => s + _fiImpLinea(l), 0));
+  // v1108 (JC 16/11/2026): los GASTOS se ponen SIN IVA y se restan de la BASE (antes del IVA), no del total.
+  D.desc = _fiR2(D.gastos.reduce((s, l) => s + (Number(l.importe) || 0), 0));
+  D.base = _fiR2(D.grupos.reduce((s, g) => s + g.eur, 0) + D.lineas.reduce((s, l) => s + _fiImpLinea(l), 0) - D.desc);
   D.iva = _fiR2(D.base * 0.21);
   D.total = _fiR2(D.base + D.iva);
-  D.desc = _fiR2(D.gastos.reduce((s, l) => s + (Number(l.importe) || 0), 0));
-  D.aPagar = _fiR2(D.total - D.desc);
+  D.aPagar = D.total;
 }
 
 function fiRender() {
@@ -16196,9 +16197,8 @@ function fiRender() {
   });
   h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'linea\')" style="background:#1f3a5f;color:#fff;font-weight:800">Añadir línea</button> <span style="font-size:14.5px;color:#2f3a48;font-weight:600">Concepto y su importe: paralizaciones, esperas, desplazamientos, extra sábado, lo que sea.</span></td></tr>';
   const tr = (t, v, big, col) => '<tr><td colspan="6" style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + t + '</td><td style="' + td + ';text-align:right;' + (big ? 'font-size:16px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + _fiN(v, 2) + ' €</td><td style="' + td + '"></td></tr>';
-  h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true);
-  // v820: gastos / descuentos (se restan del total con IVA)
-  h += '<tr><td colspan="8" style="padding:12px 9px 4px;font-weight:800;color:#b91c1c;font-size:15px">GASTOS Y DESCUENTOS <span style="font-weight:600;color:#2f3a48;font-size:14.5px">(se restan del TOTAL: repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…)</span></td></tr>';
+  // v1108: gastos / descuentos SIN IVA, se restan de la base (antes del SUBTOTAL)
+  h += '<tr><td colspan="8" style="padding:12px 9px 4px;font-weight:800;color:#b91c1c;font-size:15px">GASTOS Y DESCUENTOS <span style="font-weight:600;color:#2f3a48;font-size:14.5px">(importe SIN IVA · se restan de la base, antes del IVA: repuestos, neumáticos, filtros pagados por nosotros, pagos a cuenta…)</span></td></tr>';
   D.gastos.forEach(l => {
     h += '<tr>' +
       '<td style="' + td + '">GASTOS</td>' +
@@ -16207,7 +16207,7 @@ function fiRender() {
       '<td style="' + td + '"><button class="btn" style="padding:4px 9px;background:transparent;border:1px solid #b91c1c;color:#b91c1c;font-weight:800" title="Borrar este gasto" onclick="fiLineaBorrar(\'' + l.id + '\')">Quitar</button></td></tr>';
   });
   h += '<tr><td colspan="8" style="padding:4px 9px 8px"><button class="btn" onclick="fiLineaNueva(\'gasto\')" style="background:#b91c1c;color:#fff;font-weight:800">Añadir gasto / descuento</button></td></tr>';
-  if (D.gastos.length) h += tr('− GASTOS Y DESCUENTOS', -D.desc, false, '#b91c1c') + tr('A PAGAR', D.aPagar, true, '#1f3a5f');
+  h += tr('SUBTOTAL', D.base) + tr('I.V.A. 21 %', D.iva) + tr('TOTAL FACTURA', D.total, true);
   h += '</tbody></table></div>';
   h += '<div style="margin-top:12px"><button class="btn" onclick="fiExcel()" style="background:#16a34a;color:#fff;font-weight:800;font-size:15px;padding:9px 16px">📊 Excel de la factura</button></div>';
   out.innerHTML = h;
@@ -16286,7 +16286,7 @@ function fiVerPend() {
 }
 
 function fiExcel() {
-  const D = _fiDatos; if (!D || (!D.grupos.length && !D.lineas.length)) { toast('No hay nada en esta factura', 'err'); return; }
+  const D = _fiDatos; if (!D || (!D.grupos.length && !D.lineas.length && !D.gastos.length)) { toast('No hay nada en esta factura', 'err'); return; }
   if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
   const wb = XLSX.utils.book_new();
   const MES = _fiMesTxt(D.ym);
@@ -16297,21 +16297,14 @@ function fiExcel() {
   const rowsF = cabF.concat(D.grupos.map(g => [g.nombre, g.concepto, g.n, g.ud, g.porViaje ? g.n : Math.round(g.cant * 1000) / 1000, g.precios.map(p => _fiN(p, 2)).join(' / ') || 'SIN PRECIO', g.eur]));
   const _linX = D.lineas.filter(l => String(l.concepto || '').trim() || _fiImpLinea(l));   // v821: sin las vacías
   _linX.forEach(l => rowsF.push(['OTROS SERVICIOS', l.concepto || '', '', '', '', '', _fiImpLinea(l)]));
+  D.gastos.forEach(l => rowsF.push(['GASTOS', l.concepto || '', '', '', '', '', -(Number(l.importe) || 0)]));   // v1108: antes del SUBTOTAL (sin IVA)
   const pU = rowsF.length;
   rowsF.push(['', '', '', '', '', 'SUBTOTAL', D.base], ['', '', '', '', '', 'I.V.A. 21 %', D.iva], ['', '', '', '', '', 'TOTAL FACTURA', D.total]);
   const fS = pU + 1, fI = pU + 2, fT = pU + 3;
-  let fD = 0, fP = 0;
-  if (D.gastos.length) {   // v820
-    rowsF.push(['', '', '', '', '', '', '']);
-    D.gastos.forEach(l => rowsF.push(['GASTOS', l.concepto || '', '', '', '', '', -(Number(l.importe) || 0)]));
-    fD = rowsF.length - D.gastos.length + 1;
-    rowsF.push(['', '', '', '', '', 'A PAGAR', D.aPagar]); fP = rowsF.length;
-  }
   const wsF = XLSX.utils.aoa_to_sheet(rowsF);
   wsF['G' + fS] = { t: 'n', f: 'SUM(G' + p1 + ':G' + pU + ')', v: D.base };
   wsF['G' + fI] = { t: 'n', f: 'ROUND(G' + fS + '*0.21,2)', v: D.iva };
   wsF['G' + fT] = { t: 'n', f: 'G' + fS + '+G' + fI, v: D.total };
-  if (fP) wsF['G' + fP] = { t: 'n', f: 'G' + fT + '+SUM(G' + fD + ':G' + (fP - 1) + ')', v: D.aPagar };
   wsF['!cols'] = [26, 44, 11, 8, 12, 16, 14].map(w => ({ wch: w }));
   _estilo(wsF, 3, [6]);
   XLSX.utils.book_append_sheet(wb, wsF, 'FACTURA');
@@ -16339,13 +16332,13 @@ function fiExcel() {
   }
   if (D.gastos.length) {   // v820: pestaña GASTOS
     const rows = [['CONCEPTO', 'IMPORTE (€)']].concat(D.gastos.map(l => [l.concepto || '', Number(l.importe) || 0]));
-    rows.push(['TOTAL (se resta de la factura)', D.desc]);
+    rows.push(['TOTAL (sin IVA, se resta de la base)', D.desc]);
     const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = [50, 14].map(w => ({ wch: w })); _estilo(ws, 0, [1]);
     XLSX.utils.book_append_sheet(wb, ws, 'GASTOS');
   }
   const fich = (D.emp === 'HISPALIS' ? 'HISPALIS_' : 'TRANSMARGAZ2018_') + MES.split(' ')[0].toUpperCase() + MES.split(' ')[1] + '.xlsx';
   XLSX.writeFile(wb, fich);
-  toast('📊 ' + fich + ' · ' + _fiN(D.gastos.length ? D.aPagar : D.total, 2) + ' €', 'ok');
+  toast('📊 ' + fich + ' · ' + _fiN(D.total, 2) + ' €', 'ok');
 }
 
 // v827: precio a mano de UN albarán en esta factura; el total = TN (u horas/viajes) × ese precio. Vacío = el de la pestaña / Tarifas.
