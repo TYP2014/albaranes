@@ -4365,6 +4365,7 @@ async function processQueue(type) {
   else { _processingGas = true; _processingGasStartTs = Date.now(); }
   // v751: foto de los 'posibles duplicados' que ya habia, para avisar solo de los NUEVOS del lote
   const _v751Antes = type === 'alb' ? new Set(records.filter(r => r._posDup).map(r => String(r.db_id || r._id))) : null;
+  const _v751T0 = Date.now();   // v1118: momento en que empieza este lote
 
   const key = getKey();
   if (!key) {
@@ -4459,8 +4460,12 @@ async function processQueue(type) {
     catch (e) { console.error('[processQueue] refresco final falló:', e); }
     // v751: aviso al subir si alguno del lote choca por pesos con uno que ya estaba
     try {
+      // v1118 (JC 16/11/2026): avisar SOLO de los albaranes subidos en ESTE lote (o su pareja). Antes salían también
+      // parejas viejas de junio/agosto que no tenían nada que ver con lo que acababas de subir y liaban.
+      const _esDeEsteLote = x => !!x && (!x.created_at || Date.parse(x.created_at) >= _v751T0 - 60000);
       const nuevos = records.filter(r => r._posDup && (r._posDupMotivo === 'pesos' || r._posDupMotivo === 'neto')
-        && _v751Antes && !_v751Antes.has(String(r.db_id || r._id)));
+        && _v751Antes && !_v751Antes.has(String(r.db_id || r._id))
+        && (_esDeEsteLote(r) || _esDeEsteLote(_buscarRec(r._posDupOf))));
       if (nuevos.length) _v751AvisoSubida(nuevos);
     } catch (e) { console.warn('[v751] aviso al subir:', e); }
   }
