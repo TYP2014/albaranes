@@ -92,6 +92,7 @@ if (typeof pdfjsLib !== 'undefined') {
 <style>/* v1078: DETALLE ALBARÁN — letra de las casillas más grande, más gruesa y en negro; etiquetas más visibles */#mFields .fi,#mFields input,#mFields select,#mFields textarea{font-size:16px!important;font-weight:700!important;color:#111!important;padding:10px 12px!important}#mFields .fl,#mFields label{font-size:15px!important;font-weight:800!important;color:#111!important;letter-spacing:.8px!important}/* v1079: etiquetas a 15px */</style>
 <style>/* v1065: modal EDITAR/NUEVO TRABAJADOR el doble de grande y con letra grande */#ovTrab .modal-title{font-size:22px;color:#111}#ovTrab .modal-bd{padding:24px 32px}#ovTrab .fl{font-size:13px;color:#1a2433;font-weight:800;letter-spacing:.8px}#ovTrab .fi{font-size:17px;padding:13px 14px;min-height:50px}#ovTrab #trabModalFields>div{margin-bottom:18px!important;gap:18px!important}#ovTrab #trabF_chmBox{padding:16px 18px!important}#ovTrab #trabF_chmBox>div:first-child{font-size:14px!important;margin-bottom:12px!important}#ovTrab #trabF_chmBox>div:last-child{gap:18px!important}#ovTrab #trabModalFields>div:last-child{font-size:14px!important;line-height:1.7!important}#ovTrab .modal-ft .btn{font-size:15px;padding:12px 22px}</style>
 <style>/* v1047: pestañas principales siempre a la vista (solo PC) */@media (min-width:1000px){#adminView>.tabs{position:sticky;top:48px;z-index:199;box-shadow:0 2px 6px rgba(0,0,0,.08)}}</style>
+<style>/* v1107 */ body:not(.ver-clifact) th.col-clifact{display:none}</style>
 </head>
 <body>
 
@@ -322,6 +323,7 @@ if (typeof pdfjsLib !== 'undefined') {
                 <th id="th-obra" onclick="sortBy('obra')">Destino</th>
                 <th id="th-producto" onclick="sortBy('producto')">Material</th>
                 <th id="th-cliente" onclick="sortBy('cliente')">Cliente</th>
+                <th class="col-clifact" title="A quién FACTURAMOS de verdad (autofactura o lo que vais enseñando). Pulsa en la casilla de un albarán para indicarlo." style="white-space:nowrap">Cliente factura</th>
                 <th>Subido por</th>
                 <th>Editado por</th>
                 <th id="th-created_at" onclick="sortBy('created_at')">Subido</th>
@@ -2143,6 +2145,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1106"></script>
+<script src="app.js?v=1107"></script>
 </body>
 </html>

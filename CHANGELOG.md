@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1107 (16/11/2026): ALBARANES · COLUMNA "CLIENTE FACTURA" (a quién facturamos de verdad). Nueva columna al lado de Cliente, solo para la oficina (admin, Marta, María del Mar, Logística). Se rellena por este orden: 1) puesto a mano solo en ese albarán; 2) el nº de albarán sale en una AUTOFACTURA de Holcim, CEMEX o Sodira → "(autof.)"; 3) lo APRENDIDO: al pinchar la casilla se elige el cliente y "Todos los iguales" (mismo proveedor + origen + destino + cliente del papel) → la app lo recuerda para siempre; 4) si no se sabe, "—" en gris. Lo que pone el papel en Cliente NO se toca. SQL hecho antes (migración cliente_factura_16nov): columna albaranes.cliente_factura, tabla clientes_factura_reglas (RLS oficina + grants) y función autofact_mapa(). VUELTA ATRAS: resubir v1106 (app.js e index.html); la columna y la tabla nuevas pueden quedarse, no molestan.
+
+---
+
 v1106 (15/11/2026): FACTURACIÓN · TARIFAS POR SERVICIO: BOTÓN "PRECIO MES ANTERIOR" EN CADA RUTA. Pedido de Juan Carlos: al lado de "Quitar", un botón para poner el precio del mes anterior en esa ruta. AHORA: "Precio mes anterior" pone en pantalla el precio de esa ruta del mes anterior (con sus tramos de días, si los tenía), marcado en azul; NO guarda solo: se revisa y se pulsa Guardar. Si el mes anterior no tenía precio, avisa y no cambia nada. (El botón de arriba "Copiar del mes anterior" sigue igual, para todas las rutas.) Cambio solo en app.js (_tarTramoRow y nueva _tarPrecioMesAnterior). Sin SQL. VUELTA ATRAS: resubir v1105 (app.js e index.html).
 
 ---

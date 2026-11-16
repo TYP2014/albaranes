@@ -12516,9 +12516,113 @@ async function renderPdfPagePreview(url, pageNum, canvasId, loadingId) {
   }
 }
 
+// ===== v1107 (JC 16/11/2026): columna "CLIENTE FACTURA" (a quién FACTURAMOS de verdad) =====
+// NO toca lo que pone el papel en "Cliente" (así el cruce con los PDF sigue cuadrando).
+// Orden: 1) puesto a mano SOLO en ese albarán (columna albaranes.cliente_factura)
+//        2) el nº de albarán sale en una AUTOFACTURA (Holcim / CEMEX / Sodira) → ese
+//        3) lo APRENDIDO: regla por proveedor + origen + destino + cliente escrito (tabla clientes_factura_reglas)
+//        4) si no se sabe → "—" en gris (sin alarmas). Solo lo ve la oficina (_puedeVerFacturacion).
+const CF_CLIENTES = ['Holcim', 'CEMEX', 'UTE Muelle Adosado (Rubau)', 'Control Demeter', 'Llantada e Hijos', 'Sodira',
+  'Aridflot', 'Transports Enric Rifé', 'OP Trans Vallés', 'Canteras Canro', 'Excavacions Ribera', 'Corporación CLD',
+  'Conexis', 'Estructuras Condal', "Asfalts de l'Anoia", 'TIP Trailer'];
+const CF_AUTOF_NOMBRE = { HOLCIM: 'Holcim', CEMEX: 'CEMEX', SODIRA: 'Sodira' };
+window._cfAutof = window._cfAutof || null;   // { nº albarán: 'HOLCIM' | 'CEMEX' | 'SODIRA' }
+window._cfReglas = window._cfReglas || null; // Map clave → cliente
+function _cfNorm(s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim(); }
+function _cfClave(r) { return [r.proveedor, r.planta, r.obra, r.cliente].map(_cfNorm).join('|'); }
+async function _cfCargar() {
+  try {
+    const [a, g] = await Promise.all([
+      sb.rpc('autofact_mapa'),
+      sb.from('clientes_factura_reglas').select('clave,cliente_factura').range(0, 9999)
+    ]);
+    window._cfAutof = (a && !a.error && a.data) ? a.data : {};
+    const m = new Map();
+    ((g && !g.error && g.data) || []).forEach(x => m.set(x.clave, x.cliente_factura));
+    window._cfReglas = m;
+    console.log('[v1107 cliente factura] ' + Object.keys(window._cfAutof).length + ' albaranes en autofacturas · ' + m.size + ' reglas aprendidas');
+  } catch (e) { console.warn('[v1107 cliente factura] no se pudo cargar', e); window._cfAutof = window._cfAutof || {}; window._cfReglas = window._cfReglas || new Map(); }
+}
+function _cfDe(r) {
+  if (r.cliente_factura) return { txt: r.cliente_factura, de: 'manual' };
+  const af = window._cfAutof || {};
+  const n = String(r.albaran || '').trim();
+  let p = n ? af[n] : null;
+  if (!p && /^\d+\/\d+\/\d+$/.test(n)) p = af[n.replace(/^\d+\//, '')];   // Sodira: "1/01718/138771" ↔ "01718/138771"
+  if (p) return { txt: (CF_AUTOF_NOMBRE[p] || p), de: 'autof' };
+  const rg = window._cfReglas && window._cfReglas.get(_cfClave(r));
+  if (rg) return { txt: rg, de: 'regla' };
+  return { txt: '', de: '' };
+}
+function _cfCeldaHtml(r) {
+  const c = _cfDe(r), id = r.db_id || r._id;
+  const tit = c.de === 'autof' ? 'Sale en la autofactura de ' + c.txt : c.de === 'regla' ? 'Aprendido (mismo proveedor, origen, destino y cliente escrito). Pulsa para cambiar.' : c.de === 'manual' ? 'Puesto a mano solo en este albarán. Pulsa para cambiar.' : 'Sin saber todavía. Pulsa para indicar a quién se factura.';
+  const txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
+  return `<td class="col-clifact" style="font-size:14px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${c.de === 'manual' || c.de === 'regla' ? 'color:#1d4ed8;font-weight:600' : ''}" title="${tit}" onclick="event.stopPropagation();_cfAbrir('${id}')">${txt}</td>`;
+}
+function _cfAbrir(id) {
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) return;
+  if (!r.db_id) { toast('Guarda primero el albarán', 'warn'); return; }
+  const c = _cfDe(r), clave = _cfClave(r);
+  const iguales = records.filter(x => _cfClave(x) === clave).length;
+  document.getElementById('cfModal')?.remove();
+  const d = document.createElement('div');
+  d.id = 'cfModal';
+  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  const btns = CF_CLIENTES.map(n => `<button class="btn bs" style="font-size:13px;padding:8px 10px;text-align:left${c.txt === n ? ';border:2px solid #1d4ed8;font-weight:700' : ''}" onclick="_cfElegir(this.dataset.n)" data-n="${esc(n)}">${esc(n)}</button>`).join('');
+  d.innerHTML = `<div style="background:#fff;border-radius:10px;padding:20px 22px;max-width:560px;width:94%;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px">
+    <div style="font-weight:800;font-size:16px;margin-bottom:6px">¿A quién se FACTURA este albarán?</div>
+    <div style="color:var(--mu);font-size:13px;margin-bottom:12px;line-height:1.5">Nº ${esc(r.albaran || '—')} · ${esc(r.proveedor || '—')} · ${esc(r.planta || '—')} → ${esc(r.obra || '—')}<br>Cliente en el papel: <b>${esc(r.cliente || '—')}</b>${c.de === 'autof' ? '<br><b style="color:#b45309">Este sale en la autofactura de ' + esc(c.txt) + '.</b>' : ''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">${btns}</div>
+    <div style="display:flex;gap:6px;margin-bottom:14px"><input id="cfOtro" class="fi" placeholder="Otro cliente…" style="flex:1"><button class="btn bs" onclick="_cfElegir(document.getElementById('cfOtro').value)">Usar</button></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px;cursor:pointer"><input type="radio" name="cfAmbito" value="todos" checked style="margin-top:3px"> <span><b>Todos los iguales</b> (${iguales} cargados ahora, y los que lleguen): mismo proveedor, origen, destino y cliente del papel. La app lo recuerda.</span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:16px;cursor:pointer"><input type="radio" name="cfAmbito" value="uno" style="margin-top:3px"> <span><b>Solo este albarán</b></span></label>
+    <input type="hidden" id="cfId" value="${esc(String(id))}">
+    <div style="display:flex;justify-content:space-between;gap:8px"><button class="btn bs" style="color:var(--er)" onclick="_cfElegir('')" title="Quita lo puesto a mano o lo aprendido (con la opción elegida arriba)">Quitar</button><button class="btn bs" onclick="document.getElementById('cfModal').remove()">Cerrar</button></div>
+  </div>`;
+  document.body.appendChild(d);
+}
+async function _cfElegir(nombre) {
+  nombre = String(nombre || '').trim();
+  const id = document.getElementById('cfId')?.value;
+  const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
+  if (!r) return;
+  const amb = (document.querySelector('input[name="cfAmbito"]:checked') || {}).value || 'todos';
+  try {
+    if (amb === 'uno') {
+      const { error } = await sb.from('albaranes').update({ cliente_factura: nombre || null }).eq('id', r.db_id);
+      if (error) throw error;
+      r.cliente_factura = nombre || null;
+    } else {
+      const clave = _cfClave(r);
+      if (nombre) {
+        const { error } = await sb.from('clientes_factura_reglas').upsert({ clave, proveedor: r.proveedor || null, origen: r.planta || null, destino: r.obra || null, cliente_escrito: r.cliente || null, cliente_factura: nombre }, { onConflict: 'clave' });
+        if (error) throw error;
+        window._cfReglas.set(clave, nombre);
+      } else {
+        const { error } = await sb.from('clientes_factura_reglas').delete().eq('clave', clave);
+        if (error) throw error;
+        window._cfReglas.delete(clave);
+      }
+    }
+    document.getElementById('cfModal')?.remove();
+    toast(nombre ? '✓ Cliente factura: ' + nombre + (amb === 'uno' ? ' (solo este)' : ' (y todos los iguales)') : '✓ Quitado', 'ok');
+    renderTable();
+  } catch (e) {
+    console.error('[v1107 cliente factura] error al guardar', e);
+    toast('No se pudo guardar: ' + (e.message || e), 'err');
+  }
+}
+
 function renderTable() {
   const tbody = document.getElementById('tbody'), empty = document.getElementById('emptyState');
   if (!tbody) return;
+  // v1107: columna "Cliente factura" solo para la oficina; carga lo de autofacturas y lo aprendido una vez.
+  const _verCF = (typeof _puedeVerFacturacion === 'function') && _puedeVerFacturacion();
+  document.body.classList.toggle('ver-clifact', !!_verCF);
+  if (_verCF && !window._cfPedido) { window._cfPedido = true; _cfCargar().then(() => renderTable()); }
   document.querySelectorAll('th[id^="th-"]').forEach(th => { th.className = th.id === 'th-' + sortCol ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : ''; });
   if (!filtered.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
@@ -12550,12 +12654,13 @@ function renderTable() {
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
       <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
+      ${_verCF ? _cfCeldaHtml(r) : ''}
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${userName(r.user_id)}">${userName(r.user_id)}</td>
       <td style="color:var(--tx);font-size:14px;max-width:95px;overflow:hidden;text-overflow:ellipsis" title="${r.editado_por ? '✏️ Editado por ' + userName(r.editado_por) : ''}">${r.editado_por ? '✏️ ' + userName(r.editado_por) : ''}</td>
       <td style="color:var(--tx);font-size:14px;white-space:nowrap;min-width:135px">${fmtTS(r.created_at || r._ts)}${(r._dup && _puedeBorrarDup) ? `<button onclick="_borrarFilaDup('${r.db_id || r._id}', event)" title="Eliminar este duplicado" style="margin-left:10px;cursor:pointer;border:2px solid #b71c1c;background:var(--er);color:#fff;font-weight:800;border-radius:8px;padding:5px 12px;font-size:15px;line-height:1.2;vertical-align:middle;box-shadow:0 2px 5px rgba(0,0,0,.28)">🗑 BORRAR</button>` : ''}</td>
     </tr>`).join('')
     + (totalFil > lim
-      ? `<tr class="fila-vermas"><td colspan="16" style="text-align:center;padding:14px;background:var(--s2)">
+      ? `<tr class="fila-vermas"><td colspan="${_verCF ? 17 : 16}" style="text-align:center;padding:14px;background:var(--s2)">
            <button class="btn bs" onclick="event.stopPropagation();_verMasFilas()" style="font-size:12px;padding:7px 18px">▼ Ver más (mostrando ${lim} de ${totalFil})</button>
          </td></tr>`
       : '');
