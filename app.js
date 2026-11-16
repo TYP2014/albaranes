@@ -11667,9 +11667,6 @@ function applyFilters() {
   // v533: el Excel POR RUTAS aparece con los mismos filtros que el Excel filtrado.
   // v534: y ADEMAS solo para el ADMIN (JC). Lo pidio el: "esto solo lo gestiono yo,
   // que nadie mas lo pueda ver" — lleva lo que factura cada subcontratado.
-  // v1112: Excel de FACTURACIÓN DIRECTA (lo que facturamos nosotros, sin autofacturas) → solo oficina.
-  const bfd = document.getElementById('btnExFactDir');
-  if (bfd) bfd.style.display = (hasF && typeof _puedeVerFacturacion === 'function' && _puedeVerFacturacion()) ? 'inline-block' : 'none';
   const br = document.getElementById('btnExRutas');
   if (br) br.style.display = (hasF && currentRole === 'admin') ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
@@ -12606,8 +12603,8 @@ function _cfAbrir(id) {
     <div style="color:var(--mu);font-size:13px;margin-bottom:12px;line-height:1.5">Nº ${esc(r.albaran || '—')} · ${esc(r.proveedor || '—')} · ${esc(r.planta || '—')} → ${esc(r.obra || '—')}<br>Cliente en el papel: <b>${esc(r.cliente || '—')}</b>${c.de === 'autof' ? '<br><b style="color:#b45309">Este sale en la autofactura de ' + esc(c.txt) + '.</b>' : ''}${c.choca ? '<br><b style="color:#b91c1c">⚠ Pusiste ' + esc(c.txt) + ' a mano, pero sale en la autofactura de ' + esc(c.choca) + '. Pulsa Quitar (con "Solo este albarán") para que mande la autofactura.</b>' : ''}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">${btns}</div>
     <div style="display:flex;gap:6px;margin-bottom:14px"><input id="cfOtro" class="fi" placeholder="Otro cliente…" style="flex:1"><button class="btn bs" onclick="_cfElegir(document.getElementById('cfOtro').value)">Usar</button></div>
-    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px;cursor:pointer"><input type="radio" name="cfAmbito" value="todos" checked style="margin-top:3px"> <span><b>Todos los iguales</b> (${iguales} cargados ahora, y los que lleguen): mismo proveedor, origen, destino y cliente del papel. La app lo recuerda.</span></label>
-    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:16px;cursor:pointer"><input type="radio" name="cfAmbito" value="uno" style="margin-top:3px"> <span><b>Solo este albarán</b></span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;cursor:pointer"><input type="radio" name="cfAmbito" value="uno" checked style="margin-top:3px"> <span><b>Solo este albarán</b></span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:16px;cursor:pointer"><input type="radio" name="cfAmbito" value="todos" style="margin-top:3px"> <span><b>Todos los iguales</b> (${iguales} cargados ahora, y los que lleguen): mismo proveedor, origen, destino y cliente del papel. La app lo recuerda.</span></label>
     <input type="hidden" id="cfId" value="${esc(String(id))}">
     <div style="display:flex;justify-content:space-between;gap:8px"><button class="btn bs" style="color:var(--er)" onclick="_cfElegir('')" title="Quita lo puesto a mano o lo aprendido (con la opción elegida arriba)">Quitar</button><button class="btn bs" onclick="document.getElementById('cfModal').remove()">Cerrar</button></div>
   </div>`;
@@ -12645,81 +12642,7 @@ async function _cfElegir(nombre) {
   }
 }
 
-// ===== v1112 (JC 16/11/2026): EXCEL "FACTURACIÓN DIRECTA" =====
-// Solo lo que facturamos NOSOTROS directamente al cliente (sin autofacturas), separado por EMPRESA
-// NUESTRA que factura → CLIENTE. Empresa que factura = la del camión: Híspalis la suya, Transmargaz la suya,
-// y TYP2014 lo suyo + todos los subcontratados (Aridflot, José Miguel, Miguel Ángel, Fran, Ciprian, Satig…).
-// Quedan FUERA: lo que sale en una autofactura y lo que tiene Cliente factura Holcim o CEMEX (llega en autofactura).
-// Hoja "SIN CLIENTE": los que aún tienen "—" (menos los de proveedor o cliente del papel Holcim/CEMEX, que vendrán en autofactura).
-// Precio = PRECIO CLIENTE (tarifas_cliente, ruta + mes); si la ruta no lo tiene, sale 0 para verlo enseguida.
-// Excepciones por CLIENTE (JC 16/11/2026): Corporación CLD y Excavacions Ribera los factura SIEMPRE TYP2014, sea el camión que sea.
-const FD_CLIENTE_SIEMPRE = { 'CORPORACION CLD': 'TYP2014', 'EXCAVACIONS RIBERA': 'TYP2014' };   // v1113: + Ribera
-function _fdEmpresaDe(r, cli) {
-  const fija = FD_CLIENTE_SIEMPRE[_cfNorm(cli)];
-  if (fija) return fija;
-  const t = String(r.transportista || '').trim().toUpperCase();
-  if (t === 'TTES HISPALIS 2016') return 'HISPALIS';
-  if (t === 'TRANSMARGAZ 2018') return 'TRANSMARGAZ';
-  return 'TYP2014';
-}
-async function exportExcelFactDirecta() {
-  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
-  if (!window._cfAutof || !window._cfReglas) await _cfCargar();
-  const NOM = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ' };
-  const fuera = /^(holcim|cemex)$/i;
-  const grupos = new Map(); const sinCli = []; let nFuera = 0, nSinPrecio = 0;
-  (filtered || []).filter(r => !r._dup && r.estado_facturacion !== 'no_facturable').forEach(r => {
-    const c = _cfDe(r);
-    if (c.de === 'autof' || (c.txt && fuera.test(_cfNorm(c.txt).replace(/[^A-Z]/g, '').toLowerCase()))) { nFuera++; return; }
-    if (!c.txt) {
-      if (/holcim|cemex/i.test(String(r.proveedor || '')) || /holcim|cemex/i.test(String(r.cliente || ''))) { nFuera++; return; }   // v1114: también si el CLIENTE del papel es Holcim/CEMEX (ej. caliza Promsa → Fábrica Montcada)
-      sinCli.push(r); return;
-    }
-    const emp = _fdEmpresaDe(r, c.txt), k = emp + '|' + c.txt;
-    if (!grupos.has(k)) grupos.set(k, { emp, cli: c.txt, filas: [] });
-    grupos.get(k).filas.push(r);
-  });
-  if (!grupos.size && !sinCli.length) { toast('Con estos filtros no hay nada de facturación directa', 'warn'); return; }
-  const precioDe = r => {
-    const ts = parseDate(r.fecha || ''); if (!ts) return 0;
-    const d = new Date(ts); const p = _tarifaClienteDe(r.planta || '', r.obra || '', d.getFullYear(), d.getMonth() + 1);
-    return p != null ? Number(p) : 0;
-  };
-  const r2 = n => Math.round(n * 100) / 100;
-  const ord = arr => arr.slice().sort((a, b) => (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)) || String(a.tractora || '').localeCompare(String(b.tractora || ''), 'es', { numeric: true }));
-  const CAB = ['FECHA', 'MATRÍCULA', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TN', 'PRECIO CLIENTE (€/TN)', 'TOTAL (€)', 'CLIENTE EN EL PAPEL', 'PROVEEDOR', 'TRANSPORTISTA'];
-  const fila = r => { const tm = parseFloat(r.tm) || 0, p = precioDe(r); if (!p) nSinPrecio++; return [r.fecha || '', r.tractora || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '', tm, p, r2(tm * p), r.cliente || '', r.proveedor || '', r.transportista || '']; };
-  const ancho = ws => { ws['!cols'] = [11, 11, 18, 26, 26, 26, 9, 12, 12, 30, 28, 22].map(w => ({ wch: w })); };
-  const wb = XLSX.utils.book_new();
-  const lista = Array.from(grupos.values()).sort((a, b) => a.emp.localeCompare(b.emp) || a.cli.localeCompare(b.cli));
-  const resumen = [['FACTURACIÓN DIRECTA (sin autofacturas)'], ['Según los filtros puestos en Albaranes · ' + new Date().toLocaleDateString('es-ES')], [], ['EMPRESA QUE FACTURA', 'CLIENTE', 'ALBARANES', 'TN', 'TOTAL (€)', 'SIN PRECIO']];
-  const hojas = [];
-  lista.forEach(g => {
-    const filas = ord(g.filas).map(fila);
-    const tn = filas.reduce((s, f) => s + f[6], 0), tot = filas.reduce((s, f) => s + f[8], 0), sp = filas.filter(f => !f[7]).length;
-    resumen.push([NOM[g.emp], g.cli, filas.length, r2(tn * 1000) / 1000, r2(tot), sp || '']);
-    filas.push(['TOTAL', '', filas.length + ' alb.', '', '', '', r2(tn * 1000) / 1000, '', r2(tot)]);
-    hojas.push({ nom: (NOM[g.emp] + ' - ' + g.cli), rows: [CAB].concat(filas) });
-  });
-  if (sinCli.length) {
-    resumen.push([], ['⚠ SIN CLIENTE FACTURA', '', sinCli.length, '', '', 'Indícalo en la columna "Cliente factura"']);
-    hojas.push({ nom: 'SIN CLIENTE', rows: [CAB].concat(ord(sinCli).map(fila)) });
-  }
-  const wsR = XLSX.utils.aoa_to_sheet(resumen); wsR['!cols'] = [22, 34, 11, 12, 14, 12].map(w => ({ wch: w }));
-  XLSX.utils.book_append_sheet(wb, wsR, 'RESUMEN');
-  const usados = new Set(['RESUMEN']);
-  hojas.forEach(h => {
-    let nom = String(h.nom).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31); let k = 2;
-    while (usados.has(nom)) nom = String(h.nom).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 27) + ' ' + (k++);
-    usados.add(nom);
-    const ws = XLSX.utils.aoa_to_sheet(h.rows); ancho(ws);
-    XLSX.utils.book_append_sheet(wb, ws, nom);
-  });
-  const fich = 'FACTURACION_DIRECTA_' + new Date().toISOString().slice(0, 10) + '.xlsx';
-  XLSX.writeFile(wb, fich);
-  console.log('[v1112 fact. directa]', { grupos: lista.length, sinCliente: sinCli.length, fueraAutofactura: nFuera, sinPrecio: nSinPrecio });
-  toast('📊 ' + fich + ' · ' + lista.length + ' empresa→cliente' + (sinCli.length ? ' · ⚠ ' + sinCli.length + ' sin cliente' : '') + (nSinPrecio ? ' · ' + nSinPrecio + ' sin precio cliente' : ''), sinCli.length || nSinPrecio ? 'warn' : 'ok');
-}
+// v1117 (JC 16/11/2026): QUITADO el Excel "Facturación directa" (v1112–v1114): quién paga depende de cada viaje, no de la ruta.
 
 function renderTable() {
   const tbody = document.getElementById('tbody'), empty = document.getElementById('emptyState');

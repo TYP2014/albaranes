@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1117 (16/11/2026): QUITADO EL EXCEL "FACTURACIÓN DIRECTA" + CLIENTE FACTURA MÁS SENCILLO. Decisión de JC: quién paga depende de cada viaje (una misma cantera puede ser para OP Trans, Control Demeter, Promsa, Llantada…), no de la ruta ni del papel, así que el Excel por empresa→cliente (v1112–v1114) se quita. La columna "Cliente factura" se queda solo para: (1) indicar sola lo que sale en una AUTOFACTURA (y lo de Fábrica Montcada = Holcim) y (2) que la oficina ponga a mano quién factura. En la ventana de elegir, ahora sale marcado por defecto "Solo este albarán" ("Todos los iguales" sigue como opción). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1116 (app.js e index.html).
+
+---
+
 v1116 (16/11/2026): ALBARANES · LOS DESPLEGABLES DE FILTRO SE CIERRAN SOLOS. Los filtros con casillas (Proveedor, Origen, Destino, Matrícula, Transportista, Material, Cliente, Subido por) se quedaban abiertos tapando la pantalla aunque pinchases fuera. Ahora se pliegan al pinchar fuera, al abrir otro o con Esc; lo marcado se mantiene. Cambio solo en app.js (buildDropdowns). Sin SQL. VUELTA ATRAS: resubir v1115 (app.js e index.html).
 
 ---
