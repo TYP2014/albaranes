@@ -12654,9 +12654,11 @@ function renderTable() {
   const tbody = document.getElementById('tbody'), empty = document.getElementById('emptyState');
   if (!tbody) return;
   // v1107: columna "Cliente factura" solo para la oficina; carga lo de autofacturas y lo aprendido una vez.
-  const _verCF = (typeof _puedeVerFacturacion === 'function') && _puedeVerFacturacion();
+  // v1121 (JC 16/11/2026): columna "Cliente factura" QUITADA de la tabla (no cabía; prefiere verlo como antes).
+  // El código y la tabla de la BD se quedan por si se recupera algún día: basta con volver a poner aquí _puedeVerFacturacion().
+  const _verCF = false;
   document.body.classList.toggle('ver-clifact', !!_verCF);
-  if (_verCF && !window._cfPedido) { window._cfPedido = true; _cfCargar().then(() => renderTable()); }
+
   document.querySelectorAll('th[id^="th-"]').forEach(th => { th.className = th.id === 'th-' + sortCol ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : ''; });
   if (!filtered.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
@@ -12684,8 +12686,8 @@ function renderTable() {
         ? `<button type="button" class="btn-anexo" onclick="event.stopPropagation();_descargarAnexosAlb('${r.db_id || r._id}')" title="Descargar ${r.anexos.length > 1 ? 'los ' + r.anexos.length + ' anexos en un ZIP' : 'el anexo'} directamente (sin abrir)">⬇ 📎${r.anexos.length > 1 ? ' <b>' + r.anexos.length + '</b>' : ''}</button>`
         : `<span style="color:var(--mu);opacity:.4">—</span>`}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
-      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:170px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.planta || '')}">${r.planta || '—'}</td>
-      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.obra || '')}">${r.obra || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.planta || '')}">${r.planta || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.obra || '')}">${r.obra || '—'}</td>
       <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       ${_verCF ? _cfCeldaHtml(r) : ''}

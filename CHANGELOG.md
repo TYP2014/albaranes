@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1121 (16/11/2026): ALBARANES · QUITADA LA COLUMNA "CLIENTE FACTURA". La tabla no cabía en pantalla a más del 80 % de zoom; JC prefiere verla como antes. Se quita la columna (y su ventana), y Origen/Destino vuelven a su ancho de antes (siguen enseñando el texto completo al pasar el ratón). La columna albaranes.cliente_factura, la tabla clientes_factura_reglas y la función autofact_mapa se quedan en la BD sin usar (no molestan). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1120 (app.js e index.html).
+
+---
+
 v1120 (16/11/2026): ALBARANES · ORIGEN Y DESTINO ENTEROS AL PASAR EL RATÓN. Como desde la v1119 esas columnas son más estrechas y los nombres largos se cortan con "…", al pasar el ratón por encima ahora se ve el texto completo. Cambio solo en app.js (renderTable). Sin SQL. VUELTA ATRAS: resubir v1119 (app.js e index.html).
 
 ---
