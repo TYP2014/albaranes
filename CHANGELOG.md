@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1122 (16/11/2026): PRIMAS · NOMBRE Y MES FIJOS ARRIBA AL BAJAR. En el parte diario, encima de las columnas (DÍA, VEHÍCULO…) sale una franja azul oscuro con el trabajador · vehículo y el MES; al bajar por la tabla se queda fija arriba junto con los títulos de las columnas, así no se pierde de quién y de qué mes es. Sin el texto de explicación. Cambio solo en app.js (pintado del parte + _primasTituloFijo). Sin SQL. VUELTA ATRAS: resubir v1121 (app.js e index.html).
+
+---
+
 v1121 (16/11/2026): ALBARANES · QUITADA LA COLUMNA "CLIENTE FACTURA". La tabla no cabía en pantalla a más del 80 % de zoom; JC prefiere verla como antes. Se quita la columna (y su ventana), y Origen/Destino vuelven a su ancho de antes (siguen enseñando el texto completo al pasar el ratón). La columna albaranes.cliente_factura, la tabla clientes_factura_reglas y la función autofact_mapa se quedan en la BD sin usar (no molestan). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1120 (app.js e index.html).
 
 ---

@@ -28602,12 +28602,16 @@ function renderPrimas() {
     ' <input class="fi" id="prPlusMesMan" type="number" step="5" placeholder="a mano" title="Deja vacío para que lo calcule la app (75 € si consigue el plus TODAS las semanas · 150 € si tiene prima TODOS los días laborables). Escribe un importe solo si este mes hay una excepción." style="' + inS + ';width:100px;display:inline-block" value="' +
     ((primasRows[r.fin] && primasRows[r.fin].plus_mes_manual != null) ? _primasAttr(primasRows[r.fin].plus_mes_manual) : '') + '" onchange="primasSavePlusMes()"></td><td></td></tr>';
   box.innerHTML =
-    '<style>#primasBox input::placeholder,#primasBox textarea::placeholder{color:#333;opacity:1;font-weight:600}#primasBox th{color:#111;font-weight:800;font-size:12.5px}.prWrap{overflow-x:auto}#primasBox .prSticky thead th{font-family:var(--ss);font-size:16px!important;font-weight:800;color:#0b2545;background:#dbe5f1;letter-spacing:.8px;padding:14px 10px!important}@media (min-width:1000px){#empVistaPrimasBox>.card{overflow:visible}.prWrap{overflow-x:clip}#primasBox .prSticky thead th{position:sticky;top:94px;z-index:5;box-shadow:0 2px 0 #1e3a5f}}</style>' +   // v672: la matricula habitual "de fondo" en oscuro
+    '<style>#primasBox input::placeholder,#primasBox textarea::placeholder{color:#333;opacity:1;font-weight:600}#primasBox th{color:#111;font-weight:800;font-size:12.5px}.prWrap{overflow-x:auto}#primasBox .prSticky thead th{font-family:var(--ss);font-size:16px!important;font-weight:800;color:#0b2545;background:#dbe5f1;letter-spacing:.8px;padding:14px 10px!important}@media (min-width:1000px){#empVistaPrimasBox>.card{overflow:visible}.prWrap{overflow-x:clip}#primasBox .prSticky thead th{position:sticky;top:94px;z-index:5;box-shadow:0 2px 0 #1e3a5f}#primasBox .prSticky thead th.prTit{background:#0b2545;color:#fff;font-size:17px!important;letter-spacing:.5px;padding:9px 12px!important;box-shadow:none;z-index:6}}</style>' +   // v672: la matricula habitual "de fondo" en oscuro
     '<div class="prWrap"><table class="prSticky" style="width:100%;border-collapse:collapse;font-family:var(--mn);font-size:14px;color:#111">' +   // v672: grande y en negro · v1043: cabecera fija (estilo en el <style> de arriba)
-    '<thead><tr style="text-align:left;border-bottom:2px solid var(--bd);color:#111;font-size:12.5px;font-weight:800">' +
+    '<thead><tr class="prTitRow"><th colspan="9" class="prTit" style="text-align:left">' + _primasTituloFijo() + '</th></tr>' +   // v1122: nombre + mes fijos arriba
+    '<tr class="prColRow" style="text-align:left;border-bottom:2px solid var(--bd);color:#111;font-size:12.5px;font-weight:800">' +
     '<th style="padding:6px 8px">DÍA</th><th style="padding:6px 8px">VEHÍCULO</th><th style="padding:6px 8px">LO QUE DICE EL CONDUCTOR</th><th style="padding:6px 8px" title="A qué cliente fue ese día (lo que dice el WhatsApp). Al lado sale si sus albaranes están facturados.">CLIENTE</th><th style="padding:6px 8px">TRABAJO REALIZADO</th><th style="padding:6px 8px">NOTAS</th><th style="padding:6px 8px;text-align:right" title="Horas extra de ese día. En SÁBADO o DOMINGO: pon las horas que hizo; se paga el precio fijo del sábado/domingo de su Ficha.">EXTRA (h)</th><th style="padding:6px 8px;text-align:right">PRIMA €</th><th></th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
     '<div id="primasTotales" style="margin-top:14px;padding:12px 14px;border:1px solid var(--bd);border-radius:10px;font-family:var(--mn);font-size:14.5px;font-weight:600;color:#111;display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-end;align-items:center"></div>';
+  // v1122: la fila de columnas se coloca justo debajo de la del nombre + mes (las dos quedan fijas al bajar)
+  try { const _tr = box.querySelector('.prTitRow th'); const _h = _tr ? _tr.getBoundingClientRect().height : 0;
+        box.querySelectorAll('.prColRow th').forEach(th => { th.style.top = (94 + _h) + 'px'; }); } catch (e) {}
   _primasPintaTotales();
   document.querySelectorAll('#primasBox textarea').forEach(_primasAutoAlto);   // v678: que se lea entero lo que dice el conductor
   _primasMarcaDesfase();   // v729: en segundo plano, marca los dias cuyo texto ya no cuadra con los albaranes
@@ -28840,6 +28844,15 @@ function _primasPlusMes() {
 }
 
 // Repinta SOLO los plus y el total (sin tocar las casillas, para no perder el cursor)
+// v1122 (JC 16/11/2026): título fijo de la tabla del parte (nombre del trabajador · vehículo + mes), para no perderlo al bajar.
+function _primasTituloFijo() {
+  const sel = document.getElementById('primasTrab');
+  const nom = sel && sel.selectedIndex >= 0 ? (sel.options[sel.selectedIndex].text || '') : '';
+  const m = String(document.getElementById('primasMes')?.value || '').match(/^(\d{4})-(\d{2})$/);
+  const MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const mes = m ? (MES[parseInt(m[2], 10) - 1] + ' ' + m[1]) : '';
+  return esc(nom) + (mes ? ' &nbsp;·&nbsp; <span style="text-transform:uppercase">' + esc(mes) + '</span>' : '');
+}
 function _primasPintaTotales() {
   const r = _primasRango();
   let sumaDias = 0, sumaPlus = 0, diasConPrima = 0;
