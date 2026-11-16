@@ -12544,12 +12544,17 @@ async function _cfCargar() {
   } catch (e) { console.warn('[v1107 cliente factura] no se pudo cargar', e); window._cfAutof = window._cfAutof || {}; window._cfReglas = window._cfReglas || new Map(); }
 }
 function _cfDe(r) {
-  if (r.cliente_factura) return { txt: r.cliente_factura, de: 'manual' };
   const af = window._cfAutof || {};
   const n = String(r.albaran || '').trim();
   let p = n ? af[n] : null;
   if (!p && /^\d+\/\d+\/\d+$/.test(n)) p = af[n.replace(/^\d+\//, '')];   // Sodira: "1/01718/138771" ↔ "01718/138771"
-  if (p) return { txt: (CF_AUTOF_NOMBRE[p] || p), de: 'autof' };
+  const pNom = p ? (CF_AUTOF_NOMBRE[p] || p) : '';
+  if (r.cliente_factura) {
+    // v1111: puesto a mano "solo este" pero sale en una autofactura de OTRO cliente → aviso ⚠
+    const choca = pNom && _cfNorm(r.cliente_factura) !== _cfNorm(pNom);
+    return { txt: r.cliente_factura, de: 'manual', choca: choca ? pNom : '' };
+  }
+  if (p) return { txt: pNom, de: 'autof' };
   const rg = window._cfReglas && window._cfReglas.get(_cfClave(r));
   if (rg) return { txt: rg, de: 'regla' };
   return { txt: '', de: '' };
@@ -12557,8 +12562,14 @@ function _cfDe(r) {
 function _cfCeldaHtml(r) {
   const c = _cfDe(r), id = r.db_id || r._id;
   const tit = c.de === 'autof' ? 'Sale en la autofactura de ' + c.txt : c.de === 'regla' ? 'Aprendido (mismo proveedor, origen, destino y cliente escrito). Pulsa para cambiar.' : c.de === 'manual' ? 'Puesto a mano solo en este albarán. Pulsa para cambiar.' : 'Sin saber todavía. Pulsa para indicar a quién se factura.';
-  const txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
-  return `<td class="col-clifact" style="font-size:14px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${c.de === 'manual' || c.de === 'regla' ? 'color:#1d4ed8;font-weight:600' : ''}" title="${tit}" onclick="event.stopPropagation();_cfAbrir('${id}')">${txt}</td>`;
+  let txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
+  let titF = tit, estilo = (c.de === 'manual' || c.de === 'regla') ? 'color:#1d4ed8;font-weight:600' : '';
+  if (c.choca) {   // v1111
+    txt = '⚠ ' + esc(c.txt);
+    titF = 'OJO: pusiste ' + c.txt + ' a mano, pero este albarán sale en la autofactura de ' + c.choca + '. Pulsa para corregirlo.';
+    estilo = 'color:#fff;background:#b91c1c;font-weight:800';
+  }
+  return `<td class="col-clifact" style="font-size:14px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${estilo}" title="${esc(titF)}" onclick="event.stopPropagation();_cfAbrir('${id}')">${txt}</td>`;
 }
 function _cfAbrir(id) {
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
@@ -12574,7 +12585,7 @@ function _cfAbrir(id) {
   const btns = CF_CLIENTES.map(n => `<button class="btn bs" style="font-size:13px;padding:8px 10px;text-align:left${c.txt === n ? ';border:2px solid #1d4ed8;font-weight:700' : ''}" onclick="_cfElegir(this.dataset.n)" data-n="${esc(n)}">${esc(n)}</button>`).join('');
   d.innerHTML = `<div style="background:#fff;border-radius:10px;padding:20px 22px;max-width:560px;width:94%;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px">
     <div style="font-weight:800;font-size:16px;margin-bottom:6px">¿A quién se FACTURA este albarán?</div>
-    <div style="color:var(--mu);font-size:13px;margin-bottom:12px;line-height:1.5">Nº ${esc(r.albaran || '—')} · ${esc(r.proveedor || '—')} · ${esc(r.planta || '—')} → ${esc(r.obra || '—')}<br>Cliente en el papel: <b>${esc(r.cliente || '—')}</b>${c.de === 'autof' ? '<br><b style="color:#b45309">Este sale en la autofactura de ' + esc(c.txt) + '.</b>' : ''}</div>
+    <div style="color:var(--mu);font-size:13px;margin-bottom:12px;line-height:1.5">Nº ${esc(r.albaran || '—')} · ${esc(r.proveedor || '—')} · ${esc(r.planta || '—')} → ${esc(r.obra || '—')}<br>Cliente en el papel: <b>${esc(r.cliente || '—')}</b>${c.de === 'autof' ? '<br><b style="color:#b45309">Este sale en la autofactura de ' + esc(c.txt) + '.</b>' : ''}${c.choca ? '<br><b style="color:#b91c1c">⚠ Pusiste ' + esc(c.txt) + ' a mano, pero sale en la autofactura de ' + esc(c.choca) + '. Pulsa Quitar (con "Solo este albarán") para que mande la autofactura.</b>' : ''}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">${btns}</div>
     <div style="display:flex;gap:6px;margin-bottom:14px"><input id="cfOtro" class="fi" placeholder="Otro cliente…" style="flex:1"><button class="btn bs" onclick="_cfElegir(document.getElementById('cfOtro').value)">Usar</button></div>
     <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px;cursor:pointer"><input type="radio" name="cfAmbito" value="todos" checked style="margin-top:3px"> <span><b>Todos los iguales</b> (${iguales} cargados ahora, y los que lleguen): mismo proveedor, origen, destino y cliente del papel. La app lo recuerda.</span></label>

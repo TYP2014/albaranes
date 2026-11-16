@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1111 (16/11/2026): ALBARANES · AVISO EN "CLIENTE FACTURA" SI CHOCA CON LA AUTOFACTURA. Si a un albarán se le puso el cliente a mano ("Solo este albarán") y luego ese albarán sale en una autofactura de OTRO cliente (Holcim, CEMEX o Sodira), la casilla sale en ROJO con ⚠ y al pasar el ratón explica el choque; en la ventana de elegir también lo dice. Lo aprendido para "todos los iguales" no avisa porque ahí ya manda la autofactura. Cambio solo en app.js (_cfDe, _cfCeldaHtml, _cfAbrir). Sin SQL. VUELTA ATRAS: resubir v1110 (app.js e index.html).
+
+---
+
 v1110 (16/11/2026): VACACIONES · VISTA MES CON TODOS LOS NOMBRES. En el calendario mensual cada día enseñaba como mucho 4 personas y luego "+1 más". Ahora salen TODAS; la fila de esa semana se hace más alta y todas sus casillas quedan del mismo tamaño. Cambio solo en app.js (_vacRenderCalendarioMes). Sin SQL. VUELTA ATRAS: resubir v1109 (app.js e index.html).
 
 ---
