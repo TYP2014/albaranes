@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1110 (16/11/2026): VACACIONES · VISTA MES CON TODOS LOS NOMBRES. En el calendario mensual cada día enseñaba como mucho 4 personas y luego "+1 más". Ahora salen TODAS; la fila de esa semana se hace más alta y todas sus casillas quedan del mismo tamaño. Cambio solo en app.js (_vacRenderCalendarioMes). Sin SQL. VUELTA ATRAS: resubir v1109 (app.js e index.html).
+
+---
+
 v1109 (16/11/2026): VACACIONES · VISTA 3 MESES CON NOMBRES AL PASAR EL RATÓN. En el calendario de 3 meses, los días con varias personas salían solo como "+2", "+4"… Ahora, al pasar el ratón por un día sale un cuadro con la lista de quién falta (uno por línea, con su color y el tipo: Vac, AP, Baja…). El calendario se ve igual que antes (se quita un segundo atributo "style" que nunca se aplicaba). Cambio solo en app.js (_vacRenderCalendario3Meses + _vacTipVer/_vacTipMover/_vacTipQuitar). Sin SQL. VUELTA ATRAS: resubir v1108 (app.js e index.html).
 
 ---

@@ -25691,7 +25691,9 @@ function _vacRenderCalendarioMes() {
     if (!c) return `<div style="min-height:92px"></div>`;
     const bg = c.esFestivo ? 'rgba(255,80,80,.08)' : (c.esFinde ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.02)');
     const colorDia = c.esFestivo ? 'var(--er)' : (c.esFinde ? 'var(--mu)' : 'var(--fg)');
-    const trabajadoresHoy = c.periodosDia.slice(0, 4).map(p => {
+    // v1110 (JC 16/11/2026): se ven TODOS los nombres del día (antes solo 4 y "+N más").
+    // La fila de la semana crece sola y todas las casillas de esa semana quedan del mismo alto.
+    const trabajadoresHoy = c.periodosDia.map(p => {
       const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
       const nombreCorto = (t?.nombre || '?').split(' ')[0];
       // v107Z: cada tipo tiene su color
@@ -25703,8 +25705,7 @@ function _vacRenderCalendarioMes() {
       const color = colorMap[p.tipo] || VAC_COL.vacaciones;
       return `<div style="font-size:12px;font-weight:600;background:${color};color:#000;padding:3px 7px;border-radius:4px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openVacPeriodoModal('${p.id}')" title="${esc(t?.nombre || '')} — ${labelMap[p.tipo] || p.tipo}">${esc(nombreCorto)}</div>`;
     }).join('');
-    const masTexto = c.periodosDia.length > 4
-      ? `<div style="font-size:11px;color:var(--mu);margin-top:3px">+${c.periodosDia.length - 4} más</div>` : '';
+    const masTexto = '';
     return `<div style="min-height:92px;border:1px solid var(--bd);border-radius:5px;padding:6px;background:${bg}">
       <div style="font-family:var(--mn);font-size:15px;font-weight:700;color:${colorDia}">${c.d}</div>
       ${trabajadoresHoy}${masTexto}
