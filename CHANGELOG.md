@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1123 (16/11/2026): ALBARANES · Nº AUTOMÁTICO "SN-" CON LOS KILOS REALES. En los tickets sin nº de albarán (Holcim Cantera de Garraf…) el número que pone la app (SN-ddmmaa-KILOS-hhmm) llevaba los kilos redondeados a centenas (28,32 TN → 28300). Ahora lleva los kilos reales (28320). Desde la v350 la hora del ticket ya separa dos viajes del mismo día, y el aviso de duplicado por tara y bruto (v748) sigue cazando el mismo ticket subido dos veces. Los SN ya guardados NO cambian. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1122 (app.js e index.html).
+
+---
+
 v1122 (16/11/2026): PRIMAS · NOMBRE Y MES FIJOS ARRIBA AL BAJAR. En el parte diario, encima de las columnas (DÍA, VEHÍCULO…) sale una franja azul oscuro con el trabajador · vehículo y el MES; al bajar por la tabla se queda fija arriba junto con los títulos de las columnas, así no se pierde de quién y de qué mes es. Sin el texto de explicación. Cambio solo en app.js (pintado del parte + _primasTituloFijo). Sin SQL. VUELTA ATRAS: resubir v1121 (app.js e index.html).
 
 ---

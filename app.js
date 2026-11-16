@@ -5968,7 +5968,10 @@ async function _processOne(it, type, key, timeoutMs) {
               // a centenas de kilo, ambas lecturas dan 28700 y el duplicado se caza igual.
               // (Dos viajes reales del mismo mes tendrían que pesar a <100 kg de diferencia
               // para chocar — rarísimo, y aun así solo sería un aviso a revisar.)
-              _colaV311 = String(Math.round(_tmV311 * 10) * 100); // 28.74 → 28700
+              // v1123 (JC 16/11/2026): vuelven los KILOS REALES (28.320 → 28320), sin redondear. Desde la v350 la
+              // HORA del ticket ya separa dos viajes del mismo día, y si la IA leyera el mismo ticket con otro
+              // redondeo (28,32 / 28,3) lo sigue cazando el aviso de duplicado por TARA y BRUTO (v748).
+              _colaV311 = String(Math.round(_tmV311 * 1000)); // 28.32 → 28320
             } else if (String(data.tractora || '').trim()) {
               _colaV311 = String(data.tractora).trim().toUpperCase().replace(/\s+/g, '');
             } else {
