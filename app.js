@@ -11655,6 +11655,9 @@ function applyFilters() {
   // v533: el Excel POR RUTAS aparece con los mismos filtros que el Excel filtrado.
   // v534: y ADEMAS solo para el ADMIN (JC). Lo pidio el: "esto solo lo gestiono yo,
   // que nadie mas lo pueda ver" — lleva lo que factura cada subcontratado.
+  // v1112: Excel de FACTURACIÓN DIRECTA (lo que facturamos nosotros, sin autofacturas) → solo oficina.
+  const bfd = document.getElementById('btnExFactDir');
+  if (bfd) bfd.style.display = (hasF && typeof _puedeVerFacturacion === 'function' && _puedeVerFacturacion()) ? 'inline-block' : 'none';
   const br = document.getElementById('btnExRutas');
   if (br) br.style.display = (hasF && currentRole === 'admin') ? 'inline-block' : 'none';
   // v74: botón de descarga ZIP también visible cuando hay filtros activos
@@ -12625,6 +12628,82 @@ async function _cfElegir(nombre) {
     console.error('[v1107 cliente factura] error al guardar', e);
     toast('No se pudo guardar: ' + (e.message || e), 'err');
   }
+}
+
+// ===== v1112 (JC 16/11/2026): EXCEL "FACTURACIÓN DIRECTA" =====
+// Solo lo que facturamos NOSOTROS directamente al cliente (sin autofacturas), separado por EMPRESA
+// NUESTRA que factura → CLIENTE. Empresa que factura = la del camión: Híspalis la suya, Transmargaz la suya,
+// y TYP2014 lo suyo + todos los subcontratados (Aridflot, José Miguel, Miguel Ángel, Fran, Ciprian, Satig…).
+// Quedan FUERA: lo que sale en una autofactura y lo que tiene Cliente factura Holcim o CEMEX (llega en autofactura).
+// Hoja "SIN CLIENTE": los que aún tienen "—" (menos los de proveedor Holcim/CEMEX, que vendrán en autofactura).
+// Precio = PRECIO CLIENTE (tarifas_cliente, ruta + mes); si la ruta no lo tiene, sale 0 para verlo enseguida.
+// Excepciones por CLIENTE (JC 16/11/2026): Corporación CLD lo factura SIEMPRE TYP2014, sea el camión que sea.
+const FD_CLIENTE_SIEMPRE = { 'CORPORACION CLD': 'TYP2014' };
+function _fdEmpresaDe(r, cli) {
+  const fija = FD_CLIENTE_SIEMPRE[_cfNorm(cli)];
+  if (fija) return fija;
+  const t = String(r.transportista || '').trim().toUpperCase();
+  if (t === 'TTES HISPALIS 2016') return 'HISPALIS';
+  if (t === 'TRANSMARGAZ 2018') return 'TRANSMARGAZ';
+  return 'TYP2014';
+}
+async function exportExcelFactDirecta() {
+  if (typeof XLSX === 'undefined') { toast('No se pudo cargar el generador de Excel', 'err'); return; }
+  if (!window._cfAutof || !window._cfReglas) await _cfCargar();
+  const NOM = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ' };
+  const fuera = /^(holcim|cemex)$/i;
+  const grupos = new Map(); const sinCli = []; let nFuera = 0, nSinPrecio = 0;
+  (filtered || []).filter(r => !r._dup && r.estado_facturacion !== 'no_facturable').forEach(r => {
+    const c = _cfDe(r);
+    if (c.de === 'autof' || (c.txt && fuera.test(_cfNorm(c.txt).replace(/[^A-Z]/g, '').toLowerCase()))) { nFuera++; return; }
+    if (!c.txt) {
+      if (/holcim|cemex/i.test(String(r.proveedor || ''))) { nFuera++; return; }
+      sinCli.push(r); return;
+    }
+    const emp = _fdEmpresaDe(r, c.txt), k = emp + '|' + c.txt;
+    if (!grupos.has(k)) grupos.set(k, { emp, cli: c.txt, filas: [] });
+    grupos.get(k).filas.push(r);
+  });
+  if (!grupos.size && !sinCli.length) { toast('Con estos filtros no hay nada de facturación directa', 'warn'); return; }
+  const precioDe = r => {
+    const ts = parseDate(r.fecha || ''); if (!ts) return 0;
+    const d = new Date(ts); const p = _tarifaClienteDe(r.planta || '', r.obra || '', d.getFullYear(), d.getMonth() + 1);
+    return p != null ? Number(p) : 0;
+  };
+  const r2 = n => Math.round(n * 100) / 100;
+  const ord = arr => arr.slice().sort((a, b) => (fechaSortNum(a.fecha) - fechaSortNum(b.fecha)) || String(a.tractora || '').localeCompare(String(b.tractora || ''), 'es', { numeric: true }));
+  const CAB = ['FECHA', 'MATRÍCULA', 'Nº ALBARÁN', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TN', 'PRECIO CLIENTE (€/TN)', 'TOTAL (€)', 'CLIENTE EN EL PAPEL', 'PROVEEDOR', 'TRANSPORTISTA'];
+  const fila = r => { const tm = parseFloat(r.tm) || 0, p = precioDe(r); if (!p) nSinPrecio++; return [r.fecha || '', r.tractora || '', r.albaran || '', r.planta || '', r.obra || '', r.producto || '', tm, p, r2(tm * p), r.cliente || '', r.proveedor || '', r.transportista || '']; };
+  const ancho = ws => { ws['!cols'] = [11, 11, 18, 26, 26, 26, 9, 12, 12, 30, 28, 22].map(w => ({ wch: w })); };
+  const wb = XLSX.utils.book_new();
+  const lista = Array.from(grupos.values()).sort((a, b) => a.emp.localeCompare(b.emp) || a.cli.localeCompare(b.cli));
+  const resumen = [['FACTURACIÓN DIRECTA (sin autofacturas)'], ['Según los filtros puestos en Albaranes · ' + new Date().toLocaleDateString('es-ES')], [], ['EMPRESA QUE FACTURA', 'CLIENTE', 'ALBARANES', 'TN', 'TOTAL (€)', 'SIN PRECIO']];
+  const hojas = [];
+  lista.forEach(g => {
+    const filas = ord(g.filas).map(fila);
+    const tn = filas.reduce((s, f) => s + f[6], 0), tot = filas.reduce((s, f) => s + f[8], 0), sp = filas.filter(f => !f[7]).length;
+    resumen.push([NOM[g.emp], g.cli, filas.length, r2(tn * 1000) / 1000, r2(tot), sp || '']);
+    filas.push(['TOTAL', '', filas.length + ' alb.', '', '', '', r2(tn * 1000) / 1000, '', r2(tot)]);
+    hojas.push({ nom: (NOM[g.emp] + ' - ' + g.cli), rows: [CAB].concat(filas) });
+  });
+  if (sinCli.length) {
+    resumen.push([], ['⚠ SIN CLIENTE FACTURA', '', sinCli.length, '', '', 'Indícalo en la columna "Cliente factura"']);
+    hojas.push({ nom: 'SIN CLIENTE', rows: [CAB].concat(ord(sinCli).map(fila)) });
+  }
+  const wsR = XLSX.utils.aoa_to_sheet(resumen); wsR['!cols'] = [22, 34, 11, 12, 14, 12].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, wsR, 'RESUMEN');
+  const usados = new Set(['RESUMEN']);
+  hojas.forEach(h => {
+    let nom = String(h.nom).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31); let k = 2;
+    while (usados.has(nom)) nom = String(h.nom).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 27) + ' ' + (k++);
+    usados.add(nom);
+    const ws = XLSX.utils.aoa_to_sheet(h.rows); ancho(ws);
+    XLSX.utils.book_append_sheet(wb, ws, nom);
+  });
+  const fich = 'FACTURACION_DIRECTA_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, fich);
+  console.log('[v1112 fact. directa]', { grupos: lista.length, sinCliente: sinCli.length, fueraAutofactura: nFuera, sinPrecio: nSinPrecio });
+  toast('📊 ' + fich + ' · ' + lista.length + ' empresa→cliente' + (sinCli.length ? ' · ⚠ ' + sinCli.length + ' sin cliente' : '') + (nSinPrecio ? ' · ' + nSinPrecio + ' sin precio cliente' : ''), sinCli.length || nSinPrecio ? 'warn' : 'ok');
 }
 
 function renderTable() {
