@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1109 (16/11/2026): VACACIONES · VISTA 3 MESES CON NOMBRES AL PASAR EL RATÓN. En el calendario de 3 meses, los días con varias personas salían solo como "+2", "+4"… Ahora, al pasar el ratón por un día sale un cuadro con la lista de quién falta (uno por línea, con su color y el tipo: Vac, AP, Baja…). El calendario se ve igual que antes (se quita un segundo atributo "style" que nunca se aplicaba). Cambio solo en app.js (_vacRenderCalendario3Meses + _vacTipVer/_vacTipMover/_vacTipQuitar). Sin SQL. VUELTA ATRAS: resubir v1108 (app.js e index.html).
+
+---
+
 v1108 (16/11/2026): FACTURA HÍSPALIS / TRANSMARGAZ · LOS GASTOS VAN ANTES DE LA BASE. Los gastos y descuentos (repuestos, neumáticos, filtros, pagos a cuenta…) se ponen SIN IVA y ahora se restan de la BASE IMPONIBLE, antes del IVA: el orden es servicios → otros servicios → gastos → SUBTOTAL → IVA 21 % → TOTAL FACTURA. Desaparece la línea "A PAGAR" de después del total. Igual en pantalla y en el Excel de la factura (la fórmula del SUBTOTAL ya suma los gastos en negativo). Cambio solo en app.js (_fiTotales, fiRender, fiExcel). Sin SQL. VUELTA ATRAS: resubir v1107 (app.js e index.html).
 
 ---

@@ -25788,10 +25788,19 @@ function _vacRenderCalendario3Meses() {
             return `${t?.nombre || '?'} (${tipoLabel[p.tipo] || p.tipo})`;
           }).join(', ')
         : (esFestivo ? 'Festivo' : '');
-      const onclick = periodosDia.length === 1
-        ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" style="cursor:pointer;${borde ? borde+';' : ''}background:${bg}"`
-        : `style="${borde ? borde+';' : ''}background:${bg}"`;
-      celdas.push(`<div title="${esc(tooltip)}" ${onclick} style="min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px;border-radius:4px;color:${color}">
+      // v1109 (JC 16/11/2026): al pasar el ratón sale un cuadro con la LISTA de nombres (uno por línea, con su color y tipo).
+      // La casilla tenía 2 atributos style (el 2º nunca se aplicaba): se deja solo el 1º, así se ve IGUAL que antes.
+      const tipHtml = periodosDia.length
+        ? '<div style="font-weight:800;margin-bottom:4px">' + d + ' de ' + meses[m].toLowerCase() + ' · ' + periodosDia.length + (periodosDia.length === 1 ? ' persona' : ' personas') + '</div>' +
+          periodosDia.map(p => {
+            const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
+            return '<div style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="width:10px;height:10px;border-radius:2px;flex:none;background:' + (tipoColor[p.tipo] || VAC_COL.vacaciones) + '"></span>' + esc(t?.nombre || '?') + ' <span style="color:#666">(' + esc(tipoLabel[p.tipo] || p.tipo) + ')</span></div>';
+          }).join('') + (esFestivo ? '<div style="color:var(--er);margin-top:4px">Festivo</div>' : '')
+        : '';
+      const onclick = (periodosDia.length === 1 ? `onclick="openVacPeriodoModal('${periodosDia[0].id}')" ` : '')
+        + (tipHtml ? `data-tip="${encodeURIComponent(tipHtml)}" onmouseenter="_vacTipVer(event,this)" onmousemove="_vacTipMover(event)" onmouseleave="_vacTipQuitar()" ` : (tooltip ? `title="${esc(tooltip)}" ` : ''));
+      const cursor = periodosDia.length === 1 ? 'cursor:pointer;' : (periodosDia.length ? 'cursor:help;' : '');
+      celdas.push(`<div ${onclick}style="${cursor}${borde ? borde + ';' : ''}background:${bg}">
         <div style="font-family:var(--mn);font-size:14px;font-weight:700;line-height:1.1">${d}</div>
         ${nombreCorto ? `<div style="font-size:11px;font-weight:600;line-height:1.1;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombreCorto)}</div>` : ''}
       </div>`);
@@ -25812,6 +25821,28 @@ function _vacRenderCalendario3Meses() {
     </div>
     ${_vacLeyenda('rgba(255,80,80,.18)', true)}`;
 }
+
+// v1109: cuadro flotante con los nombres del día (vista 3 meses).
+function _vacTipVer(ev, el) {
+  let tip = document.getElementById('vacTip');
+  if (!tip) {
+    tip = document.createElement('div'); tip.id = 'vacTip';
+    tip.style.cssText = 'position:fixed;z-index:9999;background:#fff;color:#111;border:1px solid #999;border-radius:8px;padding:8px 11px;font-size:13px;font-weight:600;line-height:1.55;box-shadow:0 6px 18px rgba(0,0,0,.22);pointer-events:none;max-width:360px';
+    document.body.appendChild(tip);
+  }
+  tip.innerHTML = decodeURIComponent(el.getAttribute('data-tip') || '');
+  tip.style.display = 'block';
+  _vacTipMover(ev);
+}
+function _vacTipMover(ev) {
+  const tip = document.getElementById('vacTip'); if (!tip || tip.style.display === 'none') return;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > window.innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + h > window.innerHeight - 8) y = ev.clientY - h - 14;
+  tip.style.left = Math.max(4, x) + 'px'; tip.style.top = Math.max(4, y) + 'px';
+}
+function _vacTipQuitar() { const tip = document.getElementById('vacTip'); if (tip) tip.style.display = 'none'; }
 
 // v107X: vista AÑO COMPLETO. 12 mini-calendarios para previsión visual rápida.
 // Cada día tiene un fondo coloreado según haya vacaciones/asuntos propios/festivo.
