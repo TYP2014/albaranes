@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1115 (16/11/2026): CLIENTE FACTURA · DESTINO "FÁBRICA MONTCADA" = HOLCIM AUTOMÁTICO. Todo lo que va a Fábrica Montcada es materia prima para la fábrica de Holcim (caliza Promsa, Foj, Guixos…), sea del proveedor que sea: la columna Cliente factura pone "Holcim (fábrica)" sin tener que enseñarlo, y en el Excel de facturación directa queda fuera (va en la autofactura). Manda menos que la autofactura y que lo puesto a mano "solo este". Cambio solo en app.js (_cfDe, _cfCeldaHtml). Sin SQL. VUELTA ATRAS: resubir v1114 (app.js e index.html).
+
+---
+
 v1114 (16/11/2026): EXCEL FACTURACIÓN DIRECTA · FUERA LO QUE EN EL PAPEL VA A HOLCIM/CEMEX. En la hoja SIN CLIENTE salían albaranes de caliza Promsa → Fábrica Montcada con cliente "Holcim España" en el papel (proveedor Promsa): van en la autofactura de Holcim, así que ya no salen. Cambio solo en app.js (exportExcelFactDirecta). Sin SQL. VUELTA ATRAS: resubir v1113 (app.js e index.html).
 
 ---

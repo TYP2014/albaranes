@@ -12558,14 +12558,17 @@ function _cfDe(r) {
     return { txt: r.cliente_factura, de: 'manual', choca: choca ? pNom : '' };
   }
   if (p) return { txt: pNom, de: 'autof' };
+  // v1115 (JC 16/11/2026): todo lo que va a FÁBRICA MONTCADA es de Holcim (materia prima para su fábrica),
+  // sea del proveedor que sea (Promsa, Foj, Guixos…) → Holcim automático; llegará en su autofactura.
+  if (/^FABRICA MONTCADA$/.test(_cfNorm(r.obra))) return { txt: 'Holcim', de: 'fabrica' };
   const rg = window._cfReglas && window._cfReglas.get(_cfClave(r));
   if (rg) return { txt: rg, de: 'regla' };
   return { txt: '', de: '' };
 }
 function _cfCeldaHtml(r) {
   const c = _cfDe(r), id = r.db_id || r._id;
-  const tit = c.de === 'autof' ? 'Sale en la autofactura de ' + c.txt : c.de === 'regla' ? 'Aprendido (mismo proveedor, origen, destino y cliente escrito). Pulsa para cambiar.' : c.de === 'manual' ? 'Puesto a mano solo en este albarán. Pulsa para cambiar.' : 'Sin saber todavía. Pulsa para indicar a quién se factura.';
-  let txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
+  const tit = c.de === 'autof' ? 'Sale en la autofactura de ' + c.txt : c.de === 'fabrica' ? 'Destino Fábrica Montcada = Holcim (automático). Pulsa para cambiar solo este.' : c.de === 'regla' ? 'Aprendido (mismo proveedor, origen, destino y cliente escrito). Pulsa para cambiar.' : c.de === 'manual' ? 'Puesto a mano solo en este albarán. Pulsa para cambiar.' : 'Sin saber todavía. Pulsa para indicar a quién se factura.';
+  let txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : c.de === 'fabrica' ? ' <span style="font-size:11px;color:var(--mu)">(fábrica)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
   let titF = tit, estilo = (c.de === 'manual' || c.de === 'regla') ? 'color:#1d4ed8;font-weight:600' : '';
   if (c.choca) {   // v1111
     txt = '⚠ ' + esc(c.txt);
