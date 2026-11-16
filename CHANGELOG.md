@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1114 (16/11/2026): EXCEL FACTURACIÓN DIRECTA · FUERA LO QUE EN EL PAPEL VA A HOLCIM/CEMEX. En la hoja SIN CLIENTE salían albaranes de caliza Promsa → Fábrica Montcada con cliente "Holcim España" en el papel (proveedor Promsa): van en la autofactura de Holcim, así que ya no salen. Cambio solo en app.js (exportExcelFactDirecta). Sin SQL. VUELTA ATRAS: resubir v1113 (app.js e index.html).
+
+---
+
 v1113 (16/11/2026): EXCEL FACTURACIÓN DIRECTA · RIBERA SIEMPRE TYP2014. Transports i Excavacions Ribera (cliente "Excavacions Ribera") lo factura siempre TYP2014, sea el camión que sea (igual que Corporación CLD). Cambio solo en app.js (FD_CLIENTE_SIEMPRE). Sin SQL. VUELTA ATRAS: resubir v1112 (app.js e index.html).
 
 ---

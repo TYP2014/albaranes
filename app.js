@@ -12635,7 +12635,7 @@ async function _cfElegir(nombre) {
 // NUESTRA que factura → CLIENTE. Empresa que factura = la del camión: Híspalis la suya, Transmargaz la suya,
 // y TYP2014 lo suyo + todos los subcontratados (Aridflot, José Miguel, Miguel Ángel, Fran, Ciprian, Satig…).
 // Quedan FUERA: lo que sale en una autofactura y lo que tiene Cliente factura Holcim o CEMEX (llega en autofactura).
-// Hoja "SIN CLIENTE": los que aún tienen "—" (menos los de proveedor Holcim/CEMEX, que vendrán en autofactura).
+// Hoja "SIN CLIENTE": los que aún tienen "—" (menos los de proveedor o cliente del papel Holcim/CEMEX, que vendrán en autofactura).
 // Precio = PRECIO CLIENTE (tarifas_cliente, ruta + mes); si la ruta no lo tiene, sale 0 para verlo enseguida.
 // Excepciones por CLIENTE (JC 16/11/2026): Corporación CLD y Excavacions Ribera los factura SIEMPRE TYP2014, sea el camión que sea.
 const FD_CLIENTE_SIEMPRE = { 'CORPORACION CLD': 'TYP2014', 'EXCAVACIONS RIBERA': 'TYP2014' };   // v1113: + Ribera
@@ -12657,7 +12657,7 @@ async function exportExcelFactDirecta() {
     const c = _cfDe(r);
     if (c.de === 'autof' || (c.txt && fuera.test(_cfNorm(c.txt).replace(/[^A-Z]/g, '').toLowerCase()))) { nFuera++; return; }
     if (!c.txt) {
-      if (/holcim|cemex/i.test(String(r.proveedor || ''))) { nFuera++; return; }
+      if (/holcim|cemex/i.test(String(r.proveedor || '')) || /holcim|cemex/i.test(String(r.cliente || ''))) { nFuera++; return; }   // v1114: también si el CLIENTE del papel es Holcim/CEMEX (ej. caliza Promsa → Fábrica Montcada)
       sinCli.push(r); return;
     }
     const emp = _fdEmpresaDe(r, c.txt), k = emp + '|' + c.txt;
