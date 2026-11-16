@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1113 (16/11/2026): EXCEL FACTURACIÓN DIRECTA · RIBERA SIEMPRE TYP2014. Transports i Excavacions Ribera (cliente "Excavacions Ribera") lo factura siempre TYP2014, sea el camión que sea (igual que Corporación CLD). Cambio solo en app.js (FD_CLIENTE_SIEMPRE). Sin SQL. VUELTA ATRAS: resubir v1112 (app.js e index.html).
+
+---
+
 v1112 (16/11/2026): ALBARANES · EXCEL "FACTURACIÓN DIRECTA". Botón nuevo (sale con filtros puestos, solo oficina) que saca SOLO lo que facturamos nosotros directamente al cliente, SIN autofacturas: fuera lo que sale en una autofactura y lo que tiene Cliente factura Holcim o CEMEX. Separado por EMPRESA NUESTRA → CLIENTE (ej. HISPALIS - Control Demeter, TYP2014 - OP Trans Vallés): la empresa que factura es la del camión (Híspalis la suya, Transmargaz la suya, TYP2014 lo suyo + todos los subcontratados), salvo Corporación CLD, que lo factura siempre TYP2014. Hoja RESUMEN (albaranes, TN, total, sin precio) + una hoja por pareja empresa→cliente + hoja SIN CLIENTE (los que tienen "—", menos los de proveedor Holcim/CEMEX). Precio = PRECIO CLIENTE de la ruta y mes (0 si no está puesto). Cambio en app.js (exportExcelFactDirecta, _fdEmpresaDe, applyFilters) e index.html (botón). Sin SQL. VUELTA ATRAS: resubir v1111 (app.js e index.html).
 
 ---

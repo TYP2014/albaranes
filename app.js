@@ -12637,8 +12637,8 @@ async function _cfElegir(nombre) {
 // Quedan FUERA: lo que sale en una autofactura y lo que tiene Cliente factura Holcim o CEMEX (llega en autofactura).
 // Hoja "SIN CLIENTE": los que aún tienen "—" (menos los de proveedor Holcim/CEMEX, que vendrán en autofactura).
 // Precio = PRECIO CLIENTE (tarifas_cliente, ruta + mes); si la ruta no lo tiene, sale 0 para verlo enseguida.
-// Excepciones por CLIENTE (JC 16/11/2026): Corporación CLD lo factura SIEMPRE TYP2014, sea el camión que sea.
-const FD_CLIENTE_SIEMPRE = { 'CORPORACION CLD': 'TYP2014' };
+// Excepciones por CLIENTE (JC 16/11/2026): Corporación CLD y Excavacions Ribera los factura SIEMPRE TYP2014, sea el camión que sea.
+const FD_CLIENTE_SIEMPRE = { 'CORPORACION CLD': 'TYP2014', 'EXCAVACIONS RIBERA': 'TYP2014' };   // v1113: + Ribera
 function _fdEmpresaDe(r, cli) {
   const fija = FD_CLIENTE_SIEMPRE[_cfNorm(cli)];
   if (fija) return fija;
