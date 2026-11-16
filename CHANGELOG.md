@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1119 (16/11/2026): ALBARANES · LA TABLA YA NO SE CORTA POR LA DERECHA. Desde la columna "Cliente factura" (v1107) la tabla era más ancha que la pantalla y se cortaban "Subido" y lo de después (sobre todo con SELECCIÓN activa). Ahora: "Cliente factura" más estrecha (título en dos líneas, "af" = autofactura, "fáb" = Fábrica Montcada) y Origen/Destino algo más estrechos (el texto largo se corta con "…" y se ve entero al pasar el ratón como antes). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1118 (app.js e index.html).
+
+---
+
 v1118 (16/11/2026): ALBARANES · EL AVISO "POSIBLE ALBARÁN DUPLICADO" SOLO DE LO QUE ACABAS DE SUBIR. Al subir un albarán salía una ventana con muchas parejas antiguas (junio, julio, agosto) que no tenían nada que ver y liaban. Ahora la ventana solo enseña el albarán (o albaranes) de ESTA subida que choca por pesos con otro. Las parejas antiguas siguen marcadas en rosa (REV DUP) en la tabla para revisarlas cuando queráis. Cambio solo en app.js (processQueue, aviso v751). Sin SQL. VUELTA ATRAS: resubir v1117 (app.js e index.html).
 
 ---

@@ -12582,14 +12582,15 @@ function _cfDe(r) {
 function _cfCeldaHtml(r) {
   const c = _cfDe(r), id = r.db_id || r._id;
   const tit = c.de === 'autof' ? 'Sale en la autofactura de ' + c.txt : c.de === 'fabrica' ? 'Destino Fábrica Montcada = Holcim (automático). Pulsa para cambiar solo este.' : c.de === 'regla' ? 'Aprendido (mismo proveedor, origen, destino y cliente escrito). Pulsa para cambiar.' : c.de === 'manual' ? 'Puesto a mano solo en este albarán. Pulsa para cambiar.' : 'Sin saber todavía. Pulsa para indicar a quién se factura.';
-  let txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:11px;color:var(--mu)">(autof.)</span>' : c.de === 'fabrica' ? ' <span style="font-size:11px;color:var(--mu)">(fábrica)</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
+  // v1119: más estrecha (la tabla se cortaba por la derecha): "(autof.)" → "af", "(fábrica)" → "fáb"
+  let txt = c.txt ? esc(c.txt) + (c.de === 'autof' ? ' <span style="font-size:10px;color:var(--mu)">af</span>' : c.de === 'fabrica' ? ' <span style="font-size:10px;color:var(--mu)">fáb</span>' : '') : '<span style="color:var(--mu);opacity:.5">—</span>';
   let titF = tit, estilo = (c.de === 'manual' || c.de === 'regla') ? 'color:#1d4ed8;font-weight:600' : '';
   if (c.choca) {   // v1111
     txt = '⚠ ' + esc(c.txt);
     titF = 'OJO: pusiste ' + c.txt + ' a mano, pero este albarán sale en la autofactura de ' + c.choca + '. Pulsa para corregirlo.';
     estilo = 'color:#fff;background:#b91c1c;font-weight:800';
   }
-  return `<td class="col-clifact" style="font-size:14px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${estilo}" title="${esc(titF)}" onclick="event.stopPropagation();_cfAbrir('${id}')">${txt}</td>`;
+  return `<td class="col-clifact" style="font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${estilo}" title="${esc(titF)}" onclick="event.stopPropagation();_cfAbrir('${id}')">${txt}</td>`;
 }
 function _cfAbrir(id) {
   const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id));
@@ -12683,8 +12684,8 @@ function renderTable() {
         ? `<button type="button" class="btn-anexo" onclick="event.stopPropagation();_descargarAnexosAlb('${r.db_id || r._id}')" title="Descargar ${r.anexos.length > 1 ? 'los ' + r.anexos.length + ' anexos en un ZIP' : 'el anexo'} directamente (sin abrir)">⬇ 📎${r.anexos.length > 1 ? ' <b>' + r.anexos.length + '</b>' : ''}</button>`
         : `<span style="color:var(--mu);opacity:.4">—</span>`}</td>
       <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.proveedor || '—'}</td>
-      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
-      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:170px;overflow:hidden;text-overflow:ellipsis">${r.planta || '—'}</td>
+      <td style="color:var(--tx);font-weight:600;font-size:14px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${r.obra || '—'}</td>
       <td class="tag-mat" style="font-size:14px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.producto || '—'}</td>
       <td style="font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${r.cliente || '—'}</td>
       ${_verCF ? _cfCeldaHtml(r) : ''}
