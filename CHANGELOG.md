@@ -4,7 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
-v1119 (16/11/2026): ALBARANES · LA TABLA YA NO SE CORTA POR LA DERECHA. Desde la columna "Cliente factura" (v1107) la tabla era más ancha que la pantalla y se cortaban "Subido" y lo de después (sobre todo con SELECCIÓN activa). Ahora: "Cliente factura" más estrecha (título en dos líneas, "af" = autofactura, "fáb" = Fábrica Montcada) y Origen/Destino algo más estrechos (el texto largo se corta con "…" y se ve entero al pasar el ratón como antes). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1118 (app.js e index.html).
+v1120 (16/11/2026): ALBARANES · ORIGEN Y DESTINO ENTEROS AL PASAR EL RATÓN. Como desde la v1119 esas columnas son más estrechas y los nombres largos se cortan con "…", al pasar el ratón por encima ahora se ve el texto completo. Cambio solo en app.js (renderTable). Sin SQL. VUELTA ATRAS: resubir v1119 (app.js e index.html).
+
+---
+
+v1119 (16/11/2026): ALBARANES · LA TABLA YA NO SE CORTA POR LA DERECHA. Desde la columna "Cliente factura" (v1107) la tabla era más ancha que la pantalla y se cortaban "Subido" y lo de después (sobre todo con SELECCIÓN activa). Ahora: "Cliente factura" más estrecha (título en dos líneas, "af" = autofactura, "fáb" = Fábrica Montcada) y Origen/Destino algo más estrechos (el texto largo se corta con "…"). Cambio en app.js e index.html. Sin SQL. VUELTA ATRAS: resubir v1118 (app.js e index.html).
 
 ---
 
