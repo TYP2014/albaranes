@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1133 (17/11/2026): FACTURACIÓN · NUEVO MÓDULO DE OFERTAS (fase 1). Albaranes › Selección › "📝 Crear oferta (N)": los marcados se meten en una oferta nueva, agrupados en CONCEPTOS (origen → destino, separando por material o no) con viajes y TN sumados. Cada concepto: precio €/TN o €/viaje y TRAMOS de fechas ("+ tramo de fechas": otro precio a partir de un día). Líneas a mano (concepto + importe, negativo = descuento). Base + IVA 21 % + total. Nº de oferta a mano (en blanco si no se sabe; avisa si se repite), fecha, empresa que la hace, cliente y email de la persona de la zona (se propone el de su última oferta). Estados: En estudio · Enviada · Aprobada (pide nº de pedido SAP) · Rechazada. Botones: 💾 Guardar · 📊 Excel (pestañas OFERTA + ALBARANES) · 📄 Albaranes en PDF (ZIP con todos juntos + uno por albarán) · 🗑 Borrar. Los albaranes de la oferta quedan con la marca 🟣 OFERTADO "cliente (nº oferta)"; si se rechaza o se borra la oferta, o se quita un albarán, se les quita la marca. No toca los ya facturados. Tarjeta nueva "OFERTAS" en Facturación (solo Admin, Marta y María del Mar) con la lista y filtro por estado. SQL PREVIO: v1133_ofertas.sql (tabla ofertas + RLS + GRANT). Pendiente para siguientes versiones: PDF de la oferta, envío por email, Aprobada → Factura con la serie. VUELTA ATRAS: resubir v1132 (la tabla ofertas puede quedarse).
+
+---
+
 v1132 (17/11/2026): NEUMÁTICOS · CUADRE: "2º USO" FILTRADO EN CÓDIGO. La regla de la v1131 en el prompt no bastó: al resubir la N0000168080 la D810012134 (R3629BDW, "MONTA 2NEUMS. 2º USO") seguía saliendo como 2 x 385/65. Ahora la IA copia el texto literal de cada albarán (campo "texto") y el CÓDIGO descarta el albarán si pone 2º USO / USADO / SEGUNDA MANO. Para limpiarla: resubir la factura en la caja 3. Sin SQL. VUELTA ATRAS: resubir v1131.
 
 ---
