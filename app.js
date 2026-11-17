@@ -17919,6 +17919,8 @@ async function gasAvisoConsumoAlto() {
   if (!banner) return;
   try {
     if (typeof currentRole === 'undefined' || currentRole !== 'admin') { banner.style.display = 'none'; return; }
+    // v1129: si se cerró "hasta X fecha", no sale hasta ese día (se guarda en este navegador)
+    try { const h = localStorage.getItem('gas_consalto_hasta'); if (h && new Date().toISOString().slice(0, 10) < h) { banner.style.display = 'none'; return; } } catch (e) {}
     if (_kmPeriodos === null) {
       const { data, error } = await sb.from('km_periodos').select('matricula,empresa,fecha_inicio,fecha_fin,km_diferencia');
       if (error) throw error;
@@ -18000,7 +18002,7 @@ async function gasAvisoConsumoAlto() {
       + '<div style="display:flex;gap:6px">'
       + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="var c=document.getElementById(\'gasConsAltoCuerpo\');c.style.display=c.style.display===\'none\'?\'block\':\'none\'">▾ Ver detalle</button>'
       + '<button class="btn bp" style="font-size:10px;padding:6px 12px" onclick="switchTab(\'gas\')">Ver Gasoil</button>'
-      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="document.getElementById(\'gasConsAltoBanner\').style.display=\'none\'" title="Ocultar">✕</button>'
+      + '<button class="btn bs" style="font-size:10px;padding:6px 10px" onclick="gasConsAltoCerrar()" title="Ocultar">✕</button>'
       + '</div></div>'
       + '<div id="gasConsAltoCuerpo" style="display:none;color:var(--tx);margin-top:4px">' + lineas + '</div></div>';
     banner.style.display = 'block';
@@ -18008,6 +18010,37 @@ async function gasAvisoConsumoAlto() {
     console.warn('[v1102 aviso consumo alto]', e);
     banner.style.display = 'none';
   }
+}
+// v1129 (JC 17/11/2026): al cerrar con ✕ pregunta hasta cuándo ocultar el aviso.
+function gasConsAltoCerrar() {
+  document.getElementById('consAltoOv')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'consAltoOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const b = (dias, txt, cls) => '<button class="btn ' + cls + '" style="padding:11px;font-size:14px" onclick="gasConsAltoOcultar(' + dias + ')">' + txt + '</button>';
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;padding:20px 22px;max-width:380px;width:92%;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)">'
+    + '<div style="font-weight:800;font-size:16px;margin-bottom:14px">¿Ocultar el aviso de consumo alto…?</div>'
+    + '<div style="display:flex;flex-direction:column;gap:9px">'
+    + b(0, 'Solo ahora <span style="font-weight:400;font-size:12px">(vuelve al recargar)</span>', 'bs')
+    + b(1, 'Hasta mañana', 'bp')
+    + b(7, 'Una semana', 'bs')
+    + b(15, '15 días', 'bs')
+    + b(-1, 'Hasta el mes que viene <span style="font-weight:400;font-size:12px">(nuevo cálculo)</span>', 'bs')
+    + '<button class="btn bs" style="padding:7px;font-size:12px" onclick="document.getElementById(\'consAltoOv\').remove()">Cancelar</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+}
+function gasConsAltoOcultar(dias) {
+  document.getElementById('consAltoOv')?.remove();
+  const bn = document.getElementById('gasConsAltoBanner'); if (bn) bn.style.display = 'none';
+  if (!dias) { toast('Aviso oculto hasta que recargues'); return; }
+  const h = new Date(); let txt;
+  if (dias === -1) { const d = new Date(h.getFullYear(), h.getMonth() + 1, 1); txt = 'el 1 del mes que viene'; h.setTime(d.getTime()); }
+  else { h.setDate(h.getDate() + dias); txt = dias === 1 ? 'mañana' : h.toLocaleDateString('es-ES'); }
+  const iso = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+  try { localStorage.setItem('gas_consalto_hasta', iso); } catch (e) {}
+  toast('Aviso de consumo alto oculto hasta ' + txt);
 }
 function gasConsAltoOk(k) {
   try {

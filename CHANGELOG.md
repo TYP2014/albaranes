@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1129 (17/11/2026): GASOIL · AVISO DE CONSUMO ALTO: AL CERRAR PREGUNTA HASTA CUÁNDO. Al pinchar la ✕ del aviso rojo "CONSUMO ALTO" sale una ventana: Solo ahora (vuelve al recargar) · Hasta mañana · Una semana · 15 días · Hasta el mes que viene (cuando se recalcula). Se guarda en este navegador. El "OK, ya lo sé" por camión sigue igual. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1128.
+
+---
+
 v1128 (17/11/2026): ITV · LAS CITAS SE QUEDAN. Corrige la v1127: las citas de ITV siguen saliendo aunque el vehículo esté de baja en Taller (no afectan al que va a la ITV). Del Registro de ITV, los avisos y los contadores los de baja siguen fuera. Cambio solo en app.js (loadItvCitas). Sin SQL. VUELTA ATRAS: resubir v1127 (o v1126 para quitarlo todo).
 
 ---
