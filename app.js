@@ -12798,7 +12798,7 @@ async function _descargarAlb(ev, id) {
     : (/\.(jpe?g)(\?|#|$)/i.test(r.file_url) ? '.jpg'
     : (/\.png(\?|#|$)/i.test(r.file_url) ? '.png'
     : (/\.(gif|webp)(\?|#|$)/i.test(r.file_url) ? '.' + r.file_url.match(/\.(gif|webp)(\?|#|$)/i)[1].toLowerCase() : '.pdf')));
-  const nombre = [
+  let nombre = [
     _lmp(r.albaran || 'sinNum'),
     _lmp(r.tractora || ''),
     _lmp(String(r.fecha || '').replace(/\//g, '-'))
@@ -12806,7 +12806,16 @@ async function _descargarAlb(ev, id) {
   try {
     const resp = await fetch(r.file_url);
     if (!resp.ok) throw new Error('descarga ' + resp.status);
-    const blob = await resp.blob();
+    let blob = await resp.blob();
+    // v1125 (JC 17/11/2026): la flechita ⬇ de cada fila también baja SIEMPRE en PDF (la foto pasa a PDF A4;
+    // de un escaneo de varias páginas, solo la página de este albarán). Si no se puede convertir, va el original.
+    if (typeof PDFLib !== 'undefined' && typeof _dlAPdf === 'function') {
+      try {
+        const pm = String(r.file_url || '').match(/#page=(\d+)/);
+        const bytes = await _dlAPdf(blob, pm ? parseInt(pm[1], 10) : 0);
+        if (bytes) { blob = new Blob([bytes], { type: 'application/pdf' }); nombre = nombre.replace(/\.[a-z0-9]+$/i, '') + '.pdf'; }
+      } catch (eP) { console.warn('[v1125] no se pudo pasar a PDF, va el original', eP); }
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = nombre;

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1125 (17/11/2026): ALBARANES · LA FLECHITA ⬇ DE CADA FILA TAMBIÉN BAJA EN PDF. Marta descargaba albarán a albarán con la flechita de la fila y le salía la foto. Ahora esa flechita baja siempre un PDF: la foto pasa a una página A4 a resolución completa y, si el escaneo tiene varios albaranes, solo la página de ese albarán. Si algo no se puede convertir, baja el original como antes. (El botón de arriba "⬇ Descargar archivos" sigue preguntando "Todo en PDF / Como están".) Cambio solo en app.js (_descargarAlb). Sin SQL. VUELTA ATRAS: resubir v1124 (app.js e index.html).
+
+---
+
 v1124 (17/11/2026): ALBARANES · "DESCARGAR ARCHIVOS" TAMBIÉN EN PDF. Al pulsar "⬇ Descargar archivos" ahora pregunta: "Todo en PDF" o "Como están" (lo de siempre). En PDF (lo pide p. ej. Rifé: las fotos no se aprecian): cada albarán sale como un PDF — la foto pasa a una página A4 a su resolución completa; de un escaneo de varias páginas va SOLO la página de ese albarán — y además 00_TODOS_JUNTOS.pdf con todos en el orden de la tabla, para mandarlo de golpe. El Excel sigue dentro del ZIP. Si algún archivo no se puede pasar a PDF, va el original. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1123 (app.js e index.html).
 
 ---
