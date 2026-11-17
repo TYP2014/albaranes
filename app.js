@@ -2774,6 +2774,8 @@ function _toggleModoSel() {
   if (btnRec) btnRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
   const btnNoRec = document.getElementById('btnNoRecibidaSel');
   if (btnNoRec) btnNoRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
+  const btnFa = document.getElementById('btnFacturaSel');   // v1150: crear factura
+  if (btnFa) btnFa.style.display = (window._modoSel && _ofPuede()) ? 'flex' : 'none';
   const btnOf = document.getElementById('btnOfertaSel');   // v1133: crear oferta (Admin/Marta/MdM)
   if (btnOf) btnOf.style.display = (window._modoSel && _ofPuede()) ? 'flex' : 'none';
   const btnFI = document.getElementById('btnFacturaIntSel');   // v816: solo Admin
@@ -2816,6 +2818,7 @@ function _selUno() {
   if (spanFija) spanFija.textContent = n;
   const spanQFija = document.getElementById('selCountQFija'); // v277
   if (spanQFija) spanQFija.textContent = n;
+  const spanFa = document.getElementById('selCountFa'); if (spanFa) spanFa.textContent = n;   // v1150
   const spanOf = document.getElementById('selCountOf'); // v1133
   if (spanOf) spanOf.textContent = n;
   const spanAnx = document.getElementById('selCountAnexos'); // v616
@@ -46782,6 +46785,7 @@ async function faGuardar(silencioso, estado) {
     if (_fa.id) { const { error } = await sb.from('facturas_app').update(reg).eq('id', _fa.id); if (error) throw error; }
     else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
     if (estado) _fa.estado = estado; _fa.guardadaTotal = T.total;
+    if (_fa.estado === 'emitida') { try { await _faAEmitidas(); } catch (e) { console.error('[v1150] a F. Emitidas:', e); toast('⚠️ Guardada, pero NO se pudo apuntar en F. Emitidas: ' + (e.message || e), 'err'); } }
     // La cuenta y la forma de pago se recuerdan para la empresa
     try { const c = _faCfg[_fa.empresa] || {}; if (_fa.cuenta && (c.cuenta !== _fa.cuenta || c.forma_pago !== _fa.pago)) { await sb.from('facturas_config').upsert({ empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago, series: c.series || [] }, { onConflict: 'empresa' }); _faCfg[_fa.empresa] = Object.assign({}, c, { empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago }); } } catch (e) { console.warn('[v1149] recordar cuenta:', e); }
     if (!silencioso) toast('Factura ' + numero + ' guardada · ' + _ofEur(T.total), 'ok');
@@ -46794,7 +46798,7 @@ async function faEmitir() {
   const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
   if (!_fa.lineas.length || !T.total) { toast('La factura no tiene importe', 'err'); return; }
   if (!confirm('EMITIR la factura ' + _faNumero() + '\n\n  Cliente: ' + _fa.cliente + '\n  Fecha: ' + _ofFechaEs(_fa.fecha) + ' · Vencimiento: ' + _ofFechaEs(_fa.venc) + '\n  TOTAL: ' + _ofEur(T.total) + (sinP ? '\n\n⚠️ ' + sinP + ' concepto(s) a 0 €' : '') +
-    (_fa.filas.length ? '\n\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
+    '\n\nQuedará apuntada en la pestaña F. EMITIDAS como Pendiente de cobro.' + (_fa.filas.length ? '\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
   if (!(await faGuardar(true, 'emitida'))) return;
   const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
   for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
@@ -46828,4 +46832,44 @@ async function faPdf() {
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Factura en PDF descargada: ' + nombre, 'ok');
   } catch (e) { console.error('[v1149] PDF factura:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
+}
+
+// ============================================================================
+// v1150 (JC 17/11/2026): FACTURAS DE LA APP → PESTAÑA F. EMITIDAS + "CREAR FACTURA" DESDE ALBARANES.
+// Al EMITIR una factura (o guardar cambios en una emitida) se sube su PDF y se apunta en facturas_emitidas
+// (Pendiente; se cobra, vence y avisa como las demás). Si ese nº ya estaba (subida de Quipu), se actualiza y no
+// se duplica. Albaranes › Selección › "Crear factura": conceptos por ruta con sus TN y los albaranes al anexo.
+// ============================================================================
+async function _faAEmitidas() {
+  const numero = _faNumero(), emp = _FA_EMP_FE[_fa.empresa] || _fa.empresa, T = _faTot();
+  let url = null;
+  try { const bytes = await _faPdfBytes(); url = await uploadFile(new File([bytes], 'FACTURA_' + numero + '.pdf', { type: 'application/pdf' }), 'facturas_emitidas'); } catch (e) { console.warn('[v1150] subir PDF de la factura:', e); }
+  const cli = String(_fa.cliente || '').toUpperCase();
+  const reg = { numero, fecha: _fa.fecha || null, cliente: cli, empresa: emp, base: T.base, iva: T.iva, total: T.total, vencimiento: _fa.venc || null };
+  if (url) reg.file_url = url;
+  const { data: ya, error: e0 } = await sb.from('facturas_emitidas').select('id,estado').eq('empresa', emp).eq('numero', numero);
+  if (e0) throw e0;
+  if (ya && ya.length) { const { error } = await sb.from('facturas_emitidas').update(reg).eq('id', ya[0].id); if (error) throw error; }
+  else { const { error } = await sb.from('facturas_emitidas').insert(Object.assign({ estado: 'pendiente', observaciones: 'Hecha en la app' }, reg)); if (error) throw error; }
+  try { if (typeof _factEmit !== 'undefined' && (document.getElementById('tabContentFactemit') || {}).style.display !== 'none') loadFactEmit(); } catch (e) {}
+}
+async function _faCrearDesdeSeleccion() {
+  if (!_ofPuede()) { toast('No tienes permiso para facturar', 'err'); return; }
+  const ids = Array.from(document.querySelectorAll('.chk-sel:checked')).map(c => c.getAttribute('data-id')).filter(Boolean), recs = [];
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
+  if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
+  const fact = recs.filter(r => r.estado_facturacion === 'facturado'), ofe = recs.filter(r => r.ofertado);
+  if (fact.length && !confirm(fact.length + ' de los marcados ya están FACTURADOS. ¿Los metes igual en la factura?')) return;
+  if (ofe.length && !confirm(ofe.length + ' de los marcados están en una OFERTA (marca violeta). ¿Facturarlos igual desde aquí?')) return;
+  const filas = recs.map(_ofFilaDe).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
+  await _ofCliCargar();
+  let cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || ''; const ficha = _ofCliBuscar(cliente); if (ficha) cliente = ficha.nombre;
+  const mapa = new Map();
+  filas.forEach(x => { const k = _ofNrm(x.origen) + '|' + _ofNrm(x.destino); if (!mapa.has(k)) mapa.set(k, { origen: x.origen, destino: x.destino, f: [] }); mapa.get(k).f.push(x); });
+  const lineas = Array.from(mapa.values()).map(g => { const tn = _ofR2(g.f.reduce((a, x) => a + x.tm, 0)), a = g.f[0].fecha, b = g.f[g.f.length - 1].fecha;
+    return { concepto: 'Transporte de ' + g.origen + ' a ' + g.destino + ' (' + g.f.length + ' viajes' + (a ? ', ' + (a === b ? _ofFechaEs(a) : 'del ' + _ofFechaEs(a) + ' al ' + _ofFechaEs(b)) : '') + ')', cantidad: tn, unidad: 'tn', precio: null, importe: null, iva: 21 }; });
+  try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
+  await faNueva({ cliente, clienteDatos: ficha ? _ofCliDatos(ficha) : '', email: (ficha && ficha.email) || '', lineas,
+    filas: filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) });
 }
