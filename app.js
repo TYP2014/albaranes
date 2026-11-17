@@ -45787,6 +45787,7 @@ function _ofRender() {
     '<div style="font-size:19px;font-weight:800">Oferta ' + (_of.numero ? esc(_of.numero) : '<span style="color:var(--mu);font-weight:600">(sin nº)</span>') +
     ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:' + E[2] + ';color:' + E[1] + ';vertical-align:middle">' + E[0].toUpperCase() + (_of.pedido_sap ? ' · pedido ' + esc(_of.pedido_sap) : '') + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span></div>' +
     '<button class="btn bs" onclick="ofCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
+  h += '<!--OF_ESTADO-->';   // v1159: la barra de Estado + Crear factura + Guardar va ARRIBA
   // Datos de cabecera
   const lastNum = (_ofLista.find(o => o.numero) || {}).numero;
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
@@ -45862,13 +45863,14 @@ function _ofRender() {
   // Observaciones
   h += '<label style="display:block;margin-top:10px;font-size:12px;color:#111">Observaciones (salen en la oferta)<textarea rows="2" onchange="_of.observaciones=this.value" style="width:100%;' + inp + ';font-family:inherit">' + esc(_of.observaciones || '') + '</textarea></label>';
   // Estado
-  h += '<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Estado:</b>' +
-    ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:12px;padding:5px 12px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
-    (_of.estado === 'aprobada' ? '<span style="font-size:13px">Pedido SAP: <input value="' + _ofEA(_of.pedido_sap) + '" onchange="_of.pedido_sap=this.value.trim()" style="' + inp + ';width:140px;font-weight:700"></span>' : '') +
-    '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
-    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofAFactura()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#1b3254;color:#fff;font-weight:800" title="Abre una factura nueva con los conceptos, los albaranes y el pedido de esta oferta">Crear factura</button>' : '') +
-    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="font-size:13px;padding:8px 16px;background:#fff;border:2px solid #7c3aed;color:#7c3aed;font-weight:800" title="Si la factura se hizo fuera de la app (Quipu): apunta su nº, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Ya facturada fuera</button>' : '') +
-    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:14px;font-weight:800;color:#7c3aed">FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span><button class="btn bs" style="font-weight:800" onclick="ofVerFactura()">Abrir la factura</button>' : '') + '</div>';
+  const hEstado = '<div style="margin-top:10px;padding:12px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:15px">Estado:</b>' +
+    ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:14px;padding:9px 18px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
+    (_of.estado === 'aprobada' ? '<span style="font-size:14px;font-weight:700">Pedido SAP: <input value="' + _ofEA(_of.pedido_sap) + '" onchange="_of.pedido_sap=this.value.trim()" style="' + inp + ';width:140px;font-weight:700"></span>' : '') +
+    '<span style="font-size:12px;color:#111">(el estado se guarda al pulsar)</span><span style="margin-left:auto"></span>' +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofAFactura()" style="font-size:14px;padding:10px 18px;background:#1b3254;color:#fff;font-weight:800" title="Abre una factura nueva con los conceptos, los albaranes y el pedido de esta oferta">Crear factura</button>' : '') +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="font-size:14px;padding:10px 18px;background:#fff;border:2px solid #7c3aed;color:#7c3aed;font-weight:800" title="Si la factura se hizo fuera de la app (Quipu): apunta su nº, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Ya facturada fuera</button>' : '') +
+    (_of.estado === 'facturada' ? '<span style="font-size:15px;font-weight:800;color:#7c3aed">FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span><button class="btn bs" style="font-weight:800" onclick="ofVerFactura()">Abrir la factura</button>' : '') +
+    '<button class="btn" onclick="ofGuardar()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Guardar oferta</button></div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
@@ -45892,7 +45894,7 @@ function _ofRender() {
       '<td style="padding:4px 6px;text-align:right">' + _ofTn(x.tm) + '</td><td style="padding:4px 6px;text-align:right">' + (x.fuera ? '' : _ofTn(x._precio)) + '</td><td style="padding:4px 6px;text-align:right">' + (x.fuera ? '' : _ofEur(x._imp)) + '</td></tr>';
   });
   h += '</tbody></table></div></details>';
-  box.innerHTML = h;
+  box.innerHTML = h.replace('<!--OF_ESTADO-->', hEstado);
   if (ovEl) ovEl.scrollTop = ovSc; window.scrollTo(0, sc);
 }
 
@@ -46754,6 +46756,12 @@ function _faRender() {
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">Factura ' + (_faNumero() ? esc(_faNumero()) : '<span style="color:var(--mu)">(sin nº)</span>') +
     ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;vertical-align:middle;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></div>' +
     '<button class="btn bs" onclick="faCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
+  // v1159: Guardar / Emitir también ARRIBA
+  h += '<div style="margin-top:10px;padding:12px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:15px">Estado:</b>' +
+    '<span style="font-size:14px;padding:8px 16px;border-radius:8px;font-weight:800;background:' + (em ? '#15803d;color:#fff' : '#475569;color:#fff') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span>' +
+    '<span style="font-size:13px;color:#111">' + (em ? 'Está apuntada en F. Emitidas.' : 'Todavía no marca albaranes ni sale en F. Emitidas.') + '</span><span style="margin-left:auto"></span>' +
+    '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:' + (em ? '#1b3254;color:#fff' : '#fff;color:#1b3254') + ';font-weight:800">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
   if (_fa.oferta_id) h += '<div style="margin-top:8px;padding:8px 12px;border:2px solid #9333ea;border-radius:8px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Viene de la <b>oferta ' + esc(_fa.ofertaNum || '(sin nº)') + '</b>' + (_fa.pedido ? ' · pedido <b>' + esc(_fa.pedido) + '</b>' : '') + ' <button class="btn bs" style="font-weight:800" onclick="faVerOferta()">Abrir la oferta</button></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
     '<label style="' + lab + '">Empresa que factura<br><select onchange="faSet(\'empresa\',this.value)" style="' + inp + ';font-weight:700">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_fa.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +

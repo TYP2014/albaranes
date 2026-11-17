@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1159 (17/11/2026): OFERTAS Y FACTURAS · EL ESTADO Y LAS ACCIONES PRINCIPALES, ARRIBA. Oferta: la barra de Estado (En estudio / Enviada / Aprobada / Rechazada, más grandes), el Pedido SAP, "Crear factura", "Ya facturada fuera" y "Guardar oferta" pasan a la parte de arriba, bajo el título; abajo quedan Borrar oferta, Albaranes PDF, Excel, Oferta PDF, Paquete de envío (y también Guardar). Factura: barra arriba con el estado (BORRADOR / EMITIDA), "Guardar borrador" y "Emitir factura" (siguen también abajo). Sin SQL. VUELTA ATRAS: resubir v1158.
+
+---
+
 v1158 (17/11/2026): FACTURAS · EL VENCIMIENTO SUBE ARRIBA, JUNTO A LA FECHA DE EMISIÓN. Estaba abajo a la derecha, pequeño, y no se encontraba. Ahora va en la primera fila (Empresa · Serie · Número · Fecha de emisión · Vencimiento · Cliente), con recuadro azul marino y en negrita, indicando los días de plazo del cliente o "puesto a mano". Abajo quedan la forma de pago y la cuenta. Sin SQL. VUELTA ATRAS: resubir v1157.
 
 ---
