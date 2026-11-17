@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1134 (17/11/2026): OFERTAS · VENTANA MÁS GRANDE Y COLUMNA IVA. La ventana de la oferta ocupa casi toda la pantalla y el Concepto se lleva el sitio (Cobro, Viajes, TN, Precio, IVA e Importe estrechas). Fuera la columna "Tramo": si un concepto tiene varios tramos de fechas, el periodo sale en pequeño bajo su precio (con 🗑 para quitarlo). Nueva columna IVA por concepto (21 / 10 / 0 %) y también en cada línea a mano; los totales salen con el IVA de cada tipo por separado (y en el Excel, columna IVA + desglose). La casilla de precio vacía ya no corta el texto. Sin SQL. VUELTA ATRAS: resubir v1133.
+
+---
+
 v1133 (17/11/2026): FACTURACIÓN · NUEVO MÓDULO DE OFERTAS (fase 1). Albaranes › Selección › "📝 Crear oferta (N)": los marcados se meten en una oferta nueva, agrupados en CONCEPTOS (origen → destino, separando por material o no) con viajes y TN sumados. Cada concepto: precio €/TN o €/viaje y TRAMOS de fechas ("+ tramo de fechas": otro precio a partir de un día). Líneas a mano (concepto + importe, negativo = descuento). Base + IVA 21 % + total. Nº de oferta a mano (en blanco si no se sabe; avisa si se repite), fecha, empresa que la hace, cliente y email de la persona de la zona (se propone el de su última oferta). Estados: En estudio · Enviada · Aprobada (pide nº de pedido SAP) · Rechazada. Botones: 💾 Guardar · 📊 Excel (pestañas OFERTA + ALBARANES) · 📄 Albaranes en PDF (ZIP con todos juntos + uno por albarán) · 🗑 Borrar. Los albaranes de la oferta quedan con la marca 🟣 OFERTADO "cliente (nº oferta)"; si se rechaza o se borra la oferta, o se quita un albarán, se les quita la marca. No toca los ya facturados. Tarjeta nueva "OFERTAS" en Facturación (solo Admin, Marta y María del Mar) con la lista y filtro por estado. SQL PREVIO: v1133_ofertas.sql (tabla ofertas + RLS + GRANT). Pendiente para siguientes versiones: PDF de la oferta, envío por email, Aprobada → Factura con la serie. VUELTA ATRAS: resubir v1132 (la tabla ofertas puede quedarse).
 
 ---

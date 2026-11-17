@@ -45715,11 +45715,17 @@ function _ofConceptos() {
   });
   return L;
 }
+function _ofIvaDe(o) { const t = o && o.iva != null && o.iva !== '' ? Number(o.iva) : 21; return isNaN(t) ? 21 : t; }
 function _ofTotales(L) {
   const sub = _ofR2((L || _ofConceptos()).reduce((a, c) => a + c.imp, 0));
   const man = _ofR2(_of.lineas.reduce((a, l) => a + (Number(l.importe) || 0), 0));
-  const base = _ofR2(sub + man), iva = _ofR2(base * 0.21);
-  return { sub, man, base, iva, total: _ofR2(base + iva) };
+  // v1134: IVA por concepto/línea (21, 10 o 0). Se agrupa la base por tipo y se calcula el IVA de cada tipo.
+  const porTipo = {};
+  (L || _ofConceptos()).forEach(c => { const t = _ofIvaDe(c.cfg); porTipo[t] = (porTipo[t] || 0) + c.imp; });
+  _of.lineas.forEach(l => { const v = Number(l.importe) || 0; if (!v) return; const t = _ofIvaDe(l); porTipo[t] = (porTipo[t] || 0) + v; });
+  const desglose = Object.keys(porTipo).map(Number).sort((a, b) => b - a).map(t => { const b = _ofR2(porTipo[t]); return { tipo: t, base: b, iva: _ofR2(b * t / 100) }; }).filter(d => d.base);
+  const base = _ofR2(sub + man), iva = _ofR2(desglose.reduce((a, d) => a + d.iva, 0));
+  return { sub, man, base, iva, desglose, total: _ofR2(base + iva) };
 }
 function ofSetConc(k, campo, v) { const c = _of.conceptos[k]; if (!c) return; c[campo] = v; _ofRender(); }
 function ofSetTramo(k, i, campo, v) {
@@ -45744,7 +45750,7 @@ function _ofAbrirVentana() {
   const ov = document.createElement('div');
   ov.id = 'ofOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
-  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1150px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1400px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov);
   _ofRender();
 }
@@ -45777,38 +45783,41 @@ function _ofRender() {
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()"> Separar por material</label></div>';
   const sinPrecio = L.filter(c => c.tramos.some(t => t.cant && !Number(t.precio)));
   if (sinPrecio.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:13px;color:#8b1a1a">⚠️ ' + sinPrecio.length + ' concepto(s) SIN PRECIO (van a 0 €)</div>';
-  h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
-    ['Concepto', 'Cobro', 'Tramo', 'Viajes', 'TN', 'Precio', 'Importe', ''].map((x, i) => '<th style="padding:6px 8px' + (i >= 3 && i <= 6 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:82px"><col style="width:58px"><col style="width:82px"><col style="width:112px"><col style="width:70px"><col style="width:110px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Concepto', 'Cobro', 'Viajes', 'TN', 'Precio', 'IVA', 'Importe'].map((x, i) => '<th style="padding:6px 8px' + (i >= 2 && i !== 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(c => {
     const kA = _ofEA(c.k).replace(/'/g, '\\\'');
     c.tramos.forEach((t, j) => {
       h += '<tr style="border-top:1px solid ' + (j ? '#eee' : 'var(--bd)') + '">';
       if (j === 0) {
-        h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top;min-width:260px"><textarea rows="2" onchange="ofSetConc(\'' + kA + '\',\'texto\',this.value.trim())" style="width:100%;padding:4px 6px;border:1px solid var(--bd);border-radius:5px;font-size:13px;font-family:inherit">' + esc(c.texto) + '</textarea>' +
+        h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><textarea rows="2" onchange="ofSetConc(\'' + kA + '\',\'texto\',this.value.trim())" style="width:100%;padding:4px 6px;border:1px solid var(--bd);border-radius:5px;font-size:13px;font-family:inherit">' + esc(c.texto) + '</textarea>' +
           '<div style="font-size:11px;color:var(--mu)">' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</div>' +
           '<button class="btn bs" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="ofAddTramo(\'' + kA + '\')" title="Otro precio a partir de una fecha">+ tramo de fechas</button></td>' +
           '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'unidad\',this.value)" style="padding:4px;border:1px solid var(--bd);border-radius:5px"><option value="tn"' + (c.cfg.unidad !== 'viaje' ? ' selected' : '') + '>€/TN</option><option value="viaje"' + (c.cfg.unidad === 'viaje' ? ' selected' : '') + '>€/viaje</option></select></td>';
       }
-      const rango = c.tramos.length === 1 ? 'Todo' : (t.desde ? 'desde ' + _ofFechaEs(t.desde) : 'hasta ' + _ofFechaEs(c.tramos[1] ? c.tramos[1].desde : '')) + (t.desde && t.hasta ? ' (hasta el día antes de ' + _ofFechaEs(t.hasta) + ')' : '');
-      h += '<td style="padding:6px 8px;white-space:nowrap;font-size:12px">' + esc(rango) + (t.i > 0 ? ' <button class="btn bs" style="font-size:10px;padding:1px 6px" onclick="ofQuitarTramo(\'' + kA + '\',' + t.i + ')">🗑</button>' : '') + '</td>' +
-        '<td style="padding:6px 8px;text-align:right">' + t.viajes + '</td><td style="padding:6px 8px;text-align:right">' + _ofTn(t.tn) + '</td>' +
-        '<td style="padding:4px 8px;text-align:right"><input value="' + (t.precio != null ? String(t.precio).replace('.', ',') : '') + '" placeholder="SIN PRECIO" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'precio\',this.value)" style="width:80px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.precio) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700"></td>' +
-        '<td style="padding:6px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(t.imp) + '</td><td></td></tr>';
+      // v1134: sin columna Tramo; si hay varios, el periodo sale en pequeño bajo el precio (con su 🗑)
+      const rango = c.tramos.length === 1 ? '' : (t.desde ? 'desde ' + _ofFechaEs(t.desde) : 'hasta ' + _ofFechaEs(c.tramos[1] ? c.tramos[1].desde : ''));
+      h += '<td style="padding:6px 8px;text-align:right">' + t.viajes + '</td><td style="padding:6px 8px;text-align:right">' + _ofTn(t.tn) + '</td>' +
+        '<td style="padding:4px 8px;text-align:right"><input value="' + (t.precio != null ? String(t.precio).replace('.', ',') : '') + '" placeholder="Precio" title="Sin precio = 0 €" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'precio\',this.value)" style="width:92px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.precio) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700">' +
+        (rango ? '<div style="font-size:10.5px;color:var(--mu);white-space:nowrap">' + esc(rango) + (t.i > 0 ? ' <span style="cursor:pointer" title="Quitar este tramo" onclick="ofQuitarTramo(\'' + kA + '\',' + t.i + ')">🗑</span>' : '') + '</div>' : '') + '</td>';
+      if (j === 0) h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'iva\',Number(this.value))" style="padding:4px;border:1px solid var(--bd);border-radius:5px">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(c.cfg) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>';
+      h += '<td style="padding:6px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(t.imp) + '</td></tr>';
     });
   });
   h += '</tbody></table></div>';
   // Líneas a mano
-  h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(concepto + importe sin IVA; en negativo si es un descuento)</span></div>';
+  h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(concepto + importe sin IVA y su tipo de IVA; en negativo si es un descuento)</span></div>';
   _of.lineas.forEach((l, i) => {
     h += '<div style="display:flex;gap:6px;margin-top:6px"><input value="' + _ofEA(l.concepto) + '" placeholder="Concepto (ej. horas de espera)" oninput="_of.lineas[' + i + '].concepto=this.value" style="flex:1;' + inp + '">' +
       '<input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" placeholder="Importe €" onchange="_of.lineas[' + i + '].importe=_ofNum(this.value);_ofRender()" style="width:120px;text-align:right;' + inp + '">' +
+      '<select title="IVA de esta línea" onchange="_of.lineas[' + i + '].iva=Number(this.value);_ofRender()" style="' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>IVA ' + v + ' %</option>').join('') + '</select>' +
       '<button class="btn bs" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">🗑</button></div>';
   });
-  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',importe:null});_ofRender()">+ Añadir línea</button>';
+  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',importe:null,iva:21});_ofRender()">+ Añadir línea</button>';
   // Totales
   const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
   h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:300px;font-size:14px">' +
-    (T.man ? fila('Conceptos', T.sub) + fila('Líneas a mano', T.man) : '') + fila('Base imponible', T.base) + fila('IVA 21 %', T.iva) + fila('TOTAL', T.total, true) + '</table></div>';
+    (T.man ? fila('Conceptos', T.sub) + fila('Líneas a mano', T.man) : '') + fila('Base imponible', T.base) + T.desglose.map(d => fila((d.tipo ? 'IVA ' + d.tipo + ' %' : 'IVA 0 % (exento)') + (T.desglose.length > 1 ? ' <span style="font-size:11px;color:var(--mu)">sobre ' + _ofEur(d.base) + '</span>' : ''), d.iva)).join('') + fila('TOTAL', T.total, true) + '</table></div>';
   // Observaciones
   h += '<label style="display:block;margin-top:10px;font-size:12px;color:var(--mu)">Observaciones (salen en la oferta)<textarea rows="2" onchange="_of.observaciones=this.value" style="width:100%;' + inp + ';font-family:inherit">' + esc(_of.observaciones || '') + '</textarea></label>';
   // Estado
@@ -45948,21 +45957,21 @@ function ofExcel() {
   if (_of.pedido_sap) A.push([cel('Pedido SAP:', sB), cel(_of.pedido_sap, { font: { name: 'Arial', sz: 11 } })]);
   A.push([]);
   const hdr = A.length;
-  A.push(['CONCEPTO', 'PERIODO', 'VIAJES', 'TONELADAS', 'COBRO', 'PRECIO', 'IMPORTE'].map(x => cel(x, sH)));
+  A.push(['CONCEPTO', 'PERIODO', 'VIAJES', 'TONELADAS', 'COBRO', 'PRECIO', 'IMPORTE', 'IVA'].map(x => cel(x, sH)));
   L.forEach(c => c.tramos.forEach(t => {
     if (!t.viajes) return;
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
     const per = fs.length ? _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha) : '';
-    A.push([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE)]);
+    A.push([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]);
   }));
-  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel(_ofR2(l.importe), sE)]));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)]));
   A.push([]);
   A.push(['', '', '', '', '', cel('BASE IMPONIBLE', sB), cel(T.base, sEB)]);
-  A.push(['', '', '', '', '', cel('IVA 21 %', sB), cel(T.iva, sEB)]);
+  T.desglose.forEach(d => A.push(['', '', '', '', '', cel('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' s/ ' + _ofEur(d.base) : ''), sB), cel(d.iva, sEB)]));
   A.push(['', '', '', '', '', cel('TOTAL', sB), cel(T.total, sEB)]);
   if (_of.observaciones) { A.push([]); A.push([cel('Observaciones: ' + _of.observaciones, { font: { name: 'Arial', sz: 10, italic: true } })]); }
   const ws1 = XLSX.utils.aoa_to_sheet(A);
-  ws1['!cols'] = [{ wch: 55 }, { wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 16 }, { wch: 15 }];
+  ws1['!cols'] = [{ wch: 55 }, { wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 15 }, { wch: 7 }];
   ws1['!rows'] = []; ws1['!rows'][hdr] = { hpt: 22 };
   // Hoja ALBARANES
   const B = [['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS', 'PRECIO', 'IMPORTE', 'CONCEPTO'].map(x => cel(x, sH))];
