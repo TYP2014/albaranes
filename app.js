@@ -12785,7 +12785,26 @@ async function _descargarGas(ev, id) {
 // Descarga el archivo de verdad (no lo abre en otra pestaña): trae el contenido y lo
 // guarda con un nombre legible. Si por lo que sea no se pudiera descargar (p. ej. CORS),
 // como plan B lo abre en una pestaña nueva.
-async function _descargarAlb(ev, id) {
+// v1126 (JC 17/11/2026): la flechita ⬇ de la fila PREGUNTA el formato (PDF o como está), igual que el botón de arriba.
+function _descargarAlb(ev, id) {
+  if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
+  document.getElementById('dlModoOv')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'dlModoOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const sid = String(id).replace(/[^\w-]/g, '');
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;padding:20px 22px;max-width:420px;width:92%;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)">' +
+    '<div style="font-weight:800;font-size:16px;margin-bottom:14px">¿Cómo quieres este albarán?</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+    '<button class="btn bp" style="padding:12px;font-size:14px" onclick="document.getElementById(\'dlModoOv\').remove();_descargarAlbModo(\'' + sid + '\',true)">📄 En PDF</button>' +
+    '<button class="btn bs" style="padding:12px;font-size:14px" onclick="document.getElementById(\'dlModoOv\').remove();_descargarAlbModo(\'' + sid + '\',false)">🗂 Como está <span style="font-weight:400;font-size:12px">(original, como siempre)</span></button>' +
+    '<button class="btn bs" style="padding:8px;font-size:12px" onclick="document.getElementById(\'dlModoOv\').remove()">Cancelar</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+}
+async function _descargarAlbModo(id, enPdf) {
+  const ev = null;
   if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }
   // v324: si el firmado en segundo plano aún corre, esperarlo (para descargar con URL firmada)
   try { await window._docFirmadoInicial; } catch (e) {}
@@ -12809,7 +12828,7 @@ async function _descargarAlb(ev, id) {
     let blob = await resp.blob();
     // v1125 (JC 17/11/2026): la flechita ⬇ de cada fila también baja SIEMPRE en PDF (la foto pasa a PDF A4;
     // de un escaneo de varias páginas, solo la página de este albarán). Si no se puede convertir, va el original.
-    if (typeof PDFLib !== 'undefined' && typeof _dlAPdf === 'function') {
+    if (enPdf && typeof PDFLib !== 'undefined' && typeof _dlAPdf === 'function') {
       try {
         const pm = String(r.file_url || '').match(/#page=(\d+)/);
         const bytes = await _dlAPdf(blob, pm ? parseInt(pm[1], 10) : 0);
