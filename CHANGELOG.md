@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1151 (17/11/2026): PDF TYP2014 CON CABECERA DISTINTA A LA DE HÍSPALIS. TYP2014 (ofertas y facturas): cabecera blanca con filo azul marino arriba, nombre de la empresa en azul marino a la izquierda con CIF, teléfono, dirección y email, y a la derecha un bloque azul marino con OFERTA/FACTURA y el nº en dorado; debajo doble línea (marino + dorado). Híspalis conserva la banda oscura a todo el ancho; Import su franja lateral gris. En "Crear factura" desde albaranes, "1 viaje" en singular. Sin SQL. VUELTA ATRAS: resubir v1150.
+
+---
+
 v1150 (17/11/2026): FACTURAS · LAS EMITIDAS EN LA APP SALEN EN F. EMITIDAS + "CREAR FACTURA" DESDE ALBARANES. Al EMITIR una factura (o guardar cambios en una ya emitida) se genera su PDF, se sube y queda apuntada en la pestaña F. EMITIDAS como Pendiente (nº, fecha, cliente, empresa, base, IVA, total, vencimiento y PDF): se cobra, vence y avisa como las demás. Si ese nº ya estaba (subida desde Quipu) se actualiza, no se duplica. Albaranes › Selección › botón nuevo "Crear factura (N)": abre una factura con un concepto por ruta (viajes, periodo y TN sumadas; falta solo el precio), el cliente de los albaranes y los albaranes en el anexo. La tarjeta FACTURAS sigue en Facturación. Marta y María del Mar ya tienen acceso a Ofertas, Facturas, Clientes y Conceptos (mismo permiso que F. Emitidas). Sin SQL. VUELTA ATRAS: resubir v1149.
 
 ---

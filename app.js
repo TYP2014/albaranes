@@ -46095,15 +46095,20 @@ async function _ofPdfBytes() {
   nuevaPagina(false);
   const TEMA = _ofTemas()[_of.empresa] || _ofTemas().TYP;
   NAVY_ = TEMA.c;
-  if (TEMA.estilo === 'banda') {            // TYP2014: banda azul marino a todo el ancho + filo dorado
-    rect(0, H - 108, W, 108, TEMA.c); rect(0, H - 112, W, 4, TEMA.a);
-    const nomL = partir(empNombre, fB, 17, 300);
-    nomL.forEach((l, i) => txt(l, M, H - 44 - i * 20, 17, fB, BLANCO));
-    const yI = H - 44 - nomL.length * 20;
-    txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, rgb(0.82, 0.86, 0.92));
-    txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, rgb(0.82, 0.86, 0.92));
-    txtR(TIT, W - M, H - 50, 26, fB, BLANCO);
-    txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 70, 12, fB, TEMA.a);
+  if (TEMA.estilo === 'banda') {            // v1151 TYP2014: cabecera BLANCA, nombre en azul marino a la izquierda y bloque azul a la derecha con el documento; doble línea (marino + dorado)
+    rect(0, H - 8, W, 8, TEMA.c);
+    const nomL = partir(empNombre, fB, 18, 330);
+    nomL.forEach((l, i) => txt(l, M, H - 46 - i * 21, 18, fB, TEMA.c));
+    const yI = H - 48 - nomL.length * 21 + 4;
+    txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, GRIS);
+    txt(empDir, M, yI - 11, 8.5, fN, GRIS);
+    if (TEMA.mail) txt(TEMA.mail, M, yI - 22, 8.5, fN, GRIS);
+    const wB = 178, xB = W - M - wB;
+    rect(xB, H - 100, wB, 74, TEMA.c); rect(xB, H - 104, wB, 4, TEMA.a);
+    txtC(TIT, xB + wB / 2, H - 58, 22, fB, BLANCO);
+    txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', xB + wB / 2, H - 80, 11.5, fB, TEMA.a);
+    page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.6, color: TEMA.c });
+    page.drawLine({ start: { x: M, y: H - 120 }, end: { x: W - M, y: H - 120 }, thickness: 0.8, color: TEMA.a });
   } else if (TEMA.estilo === 'lateral') {   // Portes 2014 Import: franja vertical granate a la izquierda, fondo blanco
     rect(0, H - 120, 14, 120, TEMA.c); rect(14, H - 120, 3, 120, TEMA.a);
     const nomL = partir(empNombre, fB, 18, 300);
@@ -46868,7 +46873,7 @@ async function _faCrearDesdeSeleccion() {
   const mapa = new Map();
   filas.forEach(x => { const k = _ofNrm(x.origen) + '|' + _ofNrm(x.destino); if (!mapa.has(k)) mapa.set(k, { origen: x.origen, destino: x.destino, f: [] }); mapa.get(k).f.push(x); });
   const lineas = Array.from(mapa.values()).map(g => { const tn = _ofR2(g.f.reduce((a, x) => a + x.tm, 0)), a = g.f[0].fecha, b = g.f[g.f.length - 1].fecha;
-    return { concepto: 'Transporte de ' + g.origen + ' a ' + g.destino + ' (' + g.f.length + ' viajes' + (a ? ', ' + (a === b ? _ofFechaEs(a) : 'del ' + _ofFechaEs(a) + ' al ' + _ofFechaEs(b)) : '') + ')', cantidad: tn, unidad: 'tn', precio: null, importe: null, iva: 21 }; });
+    return { concepto: 'Transporte de ' + g.origen + ' a ' + g.destino + ' (' + g.f.length + (g.f.length === 1 ? ' viaje' : ' viajes') + (a ? ', ' + (a === b ? _ofFechaEs(a) : 'del ' + _ofFechaEs(a) + ' al ' + _ofFechaEs(b)) : '') + ')', cantidad: tn, unidad: 'tn', precio: null, importe: null, iva: 21 }; });
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
   await faNueva({ cliente, clienteDatos: ficha ? _ofCliDatos(ficha) : '', email: (ficha && ficha.email) || '', lineas,
     filas: filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) });
