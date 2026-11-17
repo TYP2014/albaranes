@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1144 (17/11/2026): VACACIONES · CALENDARIO CON NOMBRE + PRIMER APELLIDO. Antes solo salía el nombre (MIGUEL, MARIA, OSCAR…) y hay muchos repetidos; ahora MIGUEL GARCIA, OSCAR ESCOLANO… (misma regla que en Tacógrafo: se quita el 2º apellido). En la vista de 3 meses, las dos primeras palabras. Solo cambia lo que se ve. Sin SQL. VUELTA ATRAS: resubir v1143.
+
+---
+
 v1143 (17/11/2026): OFERTAS · CLIENTES EN DESPLEGABLE + COBRO POR HORAS + BOTONES FORMALES. (1) Tabla nueva clientes_ficha (nombre, NIF, dirección, email), cargada con los 16 clientes de Facturas emitidas (Holcim y Canro ya con dirección y NIF). En la oferta, Cliente es un desplegable: al elegir uno se rellenan sus datos para el PDF y su email; un cliente nuevo se graba solo al guardar la oferta. Pantalla "Clientes" (enlace junto al campo y botón en la tarjeta Ofertas) para ver, editar, añadir y borrar. (2) Cobro: nueva opción €/hora; se escribe el nº de horas en la fila (sale en PDF y Excel). (3) Aspecto: botón "Crear oferta" en azul marino sin icono; botones de abajo de la oferta grandes, iguales y solo con texto (Albaranes PDF · Excel · Oferta PDF · Paquete de envío · Guardar oferta); fuera emojis decorativos. SQL PREVIO: tabla clientes_ficha + RLS + GRANT + carga inicial. VUELTA ATRAS: resubir v1142 (la tabla puede quedarse).
 
 ---

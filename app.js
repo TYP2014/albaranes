@@ -25911,7 +25911,7 @@ function _vacRenderCalendarioMes() {
     // La fila de la semana crece sola y todas las casillas de esa semana quedan del mismo alto.
     const trabajadoresHoy = c.periodosDia.map(p => {
       const t = vacTrabajadores.find(x => x.id === p.trabajador_id);
-      const nombreCorto = (t?.nombre || '?').split(' ')[0];
+      const nombreCorto = _vacNomCorto(t?.nombre || '?');   // v1144: nombre + primer apellido
       // v107Z: cada tipo tiene su color
       const colorMap = VAC_COL;   // v484 - paleta unica
       const labelMap = {
@@ -25997,7 +25997,7 @@ function _vacRenderCalendario3Meses() {
       const borde = esHoy ? 'border:2px solid var(--ac)' : '';
       // En vista 3 meses, mostramos nombre corto del trabajador en pequeño debajo del día
       const nombreCorto = periodosDia.length === 1
-        ? (vacTrabajadores.find(x => x.id === periodosDia[0].trabajador_id)?.nombre || '').split(' ')[0]
+        ? (vacTrabajadores.find(x => x.id === periodosDia[0].trabajador_id)?.nombre || '').split(' ').slice(0, 2).join(' ')   /* v1144 */
         : (periodosDia.length > 1 ? `+${periodosDia.length}` : '');
       const tooltip = periodosDia.length
         ? periodosDia.map(p => {
@@ -46531,4 +46531,14 @@ async function ofCliBorrar(id) {
   if (!confirm('¿Borrar de la lista el cliente "' + c.nombre + '"?\n\nLas ofertas ya hechas no cambian.')) return;
   try { const { error } = await sb.from('clientes_ficha').delete().eq('id', id); if (error) throw error; _ofCli = _ofCli.filter(x => x.id !== id); _ofCliRender(); }
   catch (e) { console.error('[v1143] cliente borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+}
+
+// v1144 (JC 17/11/2026): Vacaciones · en el calendario se ve NOMBRE + PRIMER APELLIDO (hay muchos con el mismo nombre).
+// Misma regla que en Tacógrafo: con 3 o más palabras se quita la última (2º apellido), y si queda colgando una
+// partícula (I, Y, DE, DEL, LA, EL) también. MIGUEL GARCIA LOPEZ → MIGUEL GARCIA · JOSEP VALLET I CASADEVALL → JOSEP VALLET.
+function _vacNomCorto(n) {
+  let p = String(n == null ? '' : n).trim().split(/\s+/);
+  if (p.length >= 3) p = p.slice(0, -1);
+  while (p.length > 2 && /^(I|Y|DE|DEL|LA|EL)$/i.test(p[p.length - 1])) p.pop();
+  return p.join(' ');
 }
