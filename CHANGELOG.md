@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1145 (17/11/2026): OFERTAS · EL CLIENTE SE PUEDE CAMBIAR SIEMPRE. El campo Cliente era una casilla con sugerencias y, con un cliente ya escrito, solo enseñaba ese (no dejaba pasar de CEMEX a Holcim). Ahora es un desplegable de verdad con TODOS los clientes y, al final, "+ Otro cliente (escribirlo)…". Al cambiar de cliente se ponen sus datos y su email. Bajo los botones, una línea que dice qué saca cada uno (Albaranes PDF / Excel / Oferta PDF / Paquete de envío = las tres cosas en un ZIP). Sin SQL. VUELTA ATRAS: resubir v1144.
+
+---
+
 v1144 (17/11/2026): VACACIONES · CALENDARIO CON NOMBRE + PRIMER APELLIDO. Antes solo salía el nombre (MIGUEL, MARIA, OSCAR…) y hay muchos repetidos; ahora MIGUEL GARCIA, OSCAR ESCOLANO… (misma regla que en Tacógrafo: se quita el 2º apellido). En la vista de 3 meses, las dos primeras palabras. Solo cambia lo que se ve. Sin SQL. VUELTA ATRAS: resubir v1143.
 
 ---

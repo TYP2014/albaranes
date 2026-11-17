@@ -45785,8 +45785,11 @@ function _ofRender() {
     '<label style="font-size:12px;color:var(--mu)">Nº oferta<br><input value="' + _ofEA(_of.numero) + '" placeholder="' + (lastNum ? 'última: ' + _ofEA(lastNum) : 'ej. OF26-76') + '" onchange="_of.numero=this.value.trim();_ofRender()" style="' + inp + ';width:130px;font-weight:700"></label>' +
     '<label style="font-size:12px;color:var(--mu)">Fecha<br><input type="date" value="' + _ofEA(_of.fecha) + '" onchange="_of.fecha=this.value" style="' + inp + '"></label>' +
     '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><input list="ofCliList" value="' + _ofEA(_of.cliente) + '" placeholder="Empieza a escribir o elige de la lista" onchange="ofSetCliente(this.value)" style="' + inp + ';width:100%;font-weight:700"></label>' +
-    '<datalist id="ofCliList">' + _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '">').join('') + '</datalist>' +
+    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="ofSelCliente(this.value)" style="' + inp + ';width:100%;font-weight:700">' +
+      (_of.cliente && !_ofCliBuscar(_of.cliente) ? '<option value="' + _ofEA(_of.cliente) + '" selected>' + esc(_of.cliente) + '</option>' : '') +
+      (!_of.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
+      _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (_ofCliBuscar(_of.cliente) === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') +
+      '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label>' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
     '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
@@ -45862,6 +45865,7 @@ function _ofRender() {
     '<button class="btn" onclick="ofPdf()" style="' + _OF_BTN + '">Oferta PDF</button>' +
     '<button class="btn" id="ofBtnPaquete" onclick="ofPaquete()" style="' + _OF_BTN + '" title="ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
     '<button class="btn" onclick="ofGuardar()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px">Guardar oferta</button></div></div>';
+  h += '<div style="margin-top:8px;font-size:13px;color:#111;text-align:right;line-height:1.6"><b>Albaranes PDF</b>: solo los albaranes de ESTA oferta · <b>Excel</b>: el detalle de esta oferta · <b>Oferta PDF</b>: la oferta para el cliente · <b>Paquete de envío</b>: las tres cosas juntas en un ZIP, listo para adjuntar al correo</div>';
   // Detalle de albaranes
   const nf = _of.filas.filter(x => x.fuera).length;
   h += '<details style="margin-top:14px"' + (nf ? ' open' : '') + '><summary style="cursor:pointer;font-weight:700;font-size:13px">Albaranes de la oferta (' + _of.filas.length + (nf ? ', ' + nf + ' quitados' : '') + ') — quita la casilla de los que no entran</summary>' +
@@ -46465,6 +46469,12 @@ async function _ofCliCargar(forzar) {
 }
 function _ofCliBuscar(nombre) { const n = _ofNrm(nombre).replace(/[.,]/g, ''); return n ? _ofCli.find(c => _ofNrm(c.nombre).replace(/[.,]/g, '') === n) : null; }
 function _ofCliDatos(c) { return [c.direccion || '', c.nif ? 'NIF ' + c.nif : ''].filter(Boolean).join('\n'); }
+// v1145: el Cliente es un desplegable de verdad (se ven TODOS, no solo el que coincide con lo escrito) y se puede cambiar siempre.
+function ofSelCliente(v) {
+  if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _ofRender(); return; } _of.clienteDatos = ''; _of.email = ''; ofSetCliente(n.trim().toUpperCase()); return; }
+  _of.clienteDatos = ''; _of.email = '';   // al cambiar de cliente, sus datos y su email son los del nuevo
+  ofSetCliente(v);
+}
 function ofSetCliente(v) {
   _of.cliente = String(v || '').trim();
   const c = _ofCliBuscar(_of.cliente);
