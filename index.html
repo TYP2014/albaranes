@@ -263,7 +263,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn" id="btnExcelSel" onclick="exportExcelSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--in);color:#fff;font-weight:700" title="Descargar un Excel solo con los albaranes seleccionados">📊 Excel seleccionados (<span id="selCountExcel">0</span>)</button>
             <button class="btn" id="btnAnexosSel" onclick="_descargarAnexosSeleccionados()" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--ac);color:var(--ac);font-weight:700" title="Descargar en un ZIP los anexos de los albaranes seleccionados (una carpeta por albarán)">📎 Anexos ZIP (<span id="selCountAnexos">0</span>)</button>
             <button class="btn" id="btnRecibidaSel" onclick="_recibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--pu);color:#fff;font-weight:800" title="Marcar que el transportista YA NOS HA FACTURADO estos albaranes">📥 Nos han facturado (<span id="selCountRec">0</span>)</button>
-            <button class="btn" id="btnOfertaSel" onclick="_ofCrearDesdeSeleccion()" style="display:none;align-items:center;gap:5px;background:#9333ea;color:#fff;font-weight:800;border-color:#9333ea" title="Meter los albaranes seleccionados en una OFERTA nueva (se agrupan en conceptos con su precio)">📝 Crear oferta (<span id="selCountOf">0</span>)</button>
+            <button class="btn" id="btnOfertaSel" onclick="_ofCrearDesdeSeleccion()" style="display:none;align-items:center;gap:5px;background:#1b3254;color:#fff;font-weight:800;border-color:#1b3254" title="Meter los albaranes seleccionados en una OFERTA nueva (se agrupan en conceptos con su precio)">Crear oferta (<span id="selCountOf">0</span>)</button>
             <button class="btn" id="btnFacturaIntSel" onclick="_fiAbrir()" style="display:none;align-items:center;gap:5px;background:#4c1d95;color:#fff;font-weight:800" title="Solo Admin: meter los seleccionados en la factura de Híspalis o Transmargaz del mes, en la pestaña que elijas">🧾 A factura Híspalis / Transmargaz (<span id="selCountFI">0</span>)</button>
             <button class="btn" id="btnNoRecibidaSel" onclick="_noRecibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--pu);color:var(--pu);font-weight:700" title="Quitar la marca: pendiente de que nos facturen">↩ Pendiente facturarnos (<span id="selCountNoRec">0</span>)</button>
             <button class="btn br" title="BORRAR TODOS los albaranes" style="padding:6px 11px;background:var(--er);color:#fff;border-color:var(--er);display:inline-flex;align-items:center;justify-content:center" onclick="clearAll()"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
@@ -577,7 +577,8 @@ if (typeof pdfjsLib !== 'undefined') {
             <select id="ofFiltroEstado" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px"><option value="">Todas</option><option value="estudio">En estudio</option><option value="enviada">Enviadas</option><option value="aprobada">Aprobadas</option><option value="rechazada">Rechazadas</option><option value="facturada">Facturadas</option></select>
             <input id="ofFiltroTxt" type="search" placeholder="Buscar cliente, nº o pedido" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:220px">
             <button class="btn bp" onclick="ofListar()" style="font-weight:800">Ver ofertas</button>
-            <button class="btn bs" onclick="ofCatAbrir()">⭐ Conceptos habituales</button>
+            <button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>
+            <button class="btn bs" onclick="ofCliAbrir()">Clientes</button>
           </div>
           <div id="ofCardOut" style="margin-top:12px"></div>
         </div>
@@ -2161,6 +2162,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1142"></script>
+<script src="app.js?v=1143"></script>
 </body>
 </html>

@@ -45577,6 +45577,7 @@ const _OF_ESTADOS = {
   rechazada: ['Rechazada', '#b91c1c', '#fee2e2'],
   facturada: ['Facturada', '#7c3aed', '#ede9fe']
 };
+const _OF_BTN = 'padding:12px 20px;font-size:14px;font-weight:800;border:2px solid #1b3254;background:#fff;color:#1b3254;border-radius:8px;min-width:150px;justify-content:center;letter-spacing:.3px';   // v1143: botones grandes, iguales y solo texto
 const _OF_EMPRESAS = { TYP: 'Transportes y Portes 2014', PORTES: 'Portes 2014 Import', HISPALIS: 'T. Híspalis 2016' };
 let _ofLista = [];          // ofertas cargadas (para la tarjeta y para saber qué albaranes ya están ofertados)
 let _of = null;             // oferta abierta en la ventana
@@ -45712,10 +45713,10 @@ function _ofConceptos() {
     c.tramos = T.map((t, j) => {
       const hasta = T[j + 1] ? T[j + 1].desde : '';
       const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!hasta || x.fecha < hasta));
-      const cant = cfg.unidad === 'viaje' ? fs.length : fs.reduce((a, x) => a + x.tm, 0);
+      const cant = cfg.unidad === 'viaje' ? fs.length : cfg.unidad === 'hora' ? (Number(cfg.tramos[t.i].horas) || 0) : fs.reduce((a, x) => a + x.tm, 0);   // v1143: €/hora = horas escritas a mano
       const imp = _ofR2((Number(t.precio) || 0) * cant);
-      fs.forEach(x => { x._precio = Number(t.precio) || 0; x._imp = cfg.unidad === 'viaje' ? x._precio : _ofR2(x.tm * x._precio); x._concepto = c.texto; });
-      return { i: t.i, desde: t.desde, hasta, viajes: fs.length, tn: fs.reduce((a, x) => a + x.tm, 0), cant, precio: t.precio, imp };
+      fs.forEach(x => { x._precio = Number(t.precio) || 0; x._imp = cfg.unidad === 'viaje' ? x._precio : cfg.unidad === 'hora' ? _ofR2(imp / (fs.length || 1)) : _ofR2(x.tm * x._precio); x._concepto = c.texto; });
+      return { i: t.i, desde: t.desde, hasta, viajes: fs.length, tn: fs.reduce((a, x) => a + x.tm, 0), cant, precio: t.precio, imp, horas: cfg.tramos[t.i].horas };
     });
     c.viajes = c.filas.length; c.tn = c.filas.reduce((a, x) => a + x.tm, 0);
     c.imp = _ofR2(c.tramos.reduce((a, t) => a + t.imp, 0));
@@ -45737,7 +45738,7 @@ function _ofTotales(L) {
 function ofSetConc(k, campo, v) { const c = _of.conceptos[k]; if (!c) return; c[campo] = v; _ofRender(); }
 function ofSetTramo(k, i, campo, v) {
   const c = _of.conceptos[k]; if (!c || !c.tramos[i]) return;
-  c.tramos[i][campo] = campo === 'precio' ? _ofNum(v) : v; _ofRender();
+  c.tramos[i][campo] = (campo === 'precio' || campo === 'horas') ? _ofNum(v) : v; _ofRender();
 }
 function ofAddTramo(k) {
   const c = _of.conceptos[k]; if (!c) return;
@@ -45761,6 +45762,7 @@ function _ofAbrirVentana() {
   document.body.appendChild(ov);
   _ofRender();
   _ofCatCargar().then(() => { if (_of) _ofRender(); });   // v1140
+  _ofCliCargar().then(() => { if (_of) { const c = _ofCliBuscar(_of.cliente); if (c && !_of.id) { _of.cliente = c.nombre; if (!_of.clienteDatos) _of.clienteDatos = _ofCliDatos(c); if (!_of.email && c.email) _of.email = c.email; } _ofRender(); } });   // v1143
 }
 function ofCerrar() {
   if (_of && _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - _ofTotales().total) > 0.005 && !confirm('Has cambiado cosas sin guardar. ¿Cerrar igual?')) return;
@@ -45774,16 +45776,17 @@ function _ofRender() {
   const E = _OF_ESTADOS[_of.estado] || _OF_ESTADOS.estudio;
   const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px';
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
-    '<div style="font-size:19px;font-weight:800">📝 Oferta ' + (_of.numero ? esc(_of.numero) : '<span style="color:var(--mu);font-weight:600">(sin nº)</span>') +
+    '<div style="font-size:19px;font-weight:800">Oferta ' + (_of.numero ? esc(_of.numero) : '<span style="color:var(--mu);font-weight:600">(sin nº)</span>') +
     ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:' + E[2] + ';color:' + E[1] + ';vertical-align:middle">' + E[0].toUpperCase() + (_of.pedido_sap ? ' · pedido ' + esc(_of.pedido_sap) : '') + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span></div>' +
-    '<button class="btn bs" onclick="ofCerrar()">✖ Cerrar</button></div>';
+    '<button class="btn bs" onclick="ofCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
   // Datos de cabecera
   const lastNum = (_ofLista.find(o => o.numero) || {}).numero;
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
     '<label style="font-size:12px;color:var(--mu)">Nº oferta<br><input value="' + _ofEA(_of.numero) + '" placeholder="' + (lastNum ? 'última: ' + _ofEA(lastNum) : 'ej. OF26-76') + '" onchange="_of.numero=this.value.trim();_ofRender()" style="' + inp + ';width:130px;font-weight:700"></label>' +
     '<label style="font-size:12px;color:var(--mu)">Fecha<br><input type="date" value="' + _ofEA(_of.fecha) + '" onchange="_of.fecha=this.value" style="' + inp + '"></label>' +
     '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente<br><input value="' + _ofEA(_of.cliente) + '" onchange="_of.cliente=this.value.trim();if(!_of.email){_of.email=_ofEmailDe(_of.cliente);}_ofRender()" style="' + inp + ';width:100%"></label>' +
+    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><input list="ofCliList" value="' + _ofEA(_of.cliente) + '" placeholder="Empieza a escribir o elige de la lista" onchange="ofSetCliente(this.value)" style="' + inp + ';width:100%;font-weight:700"></label>' +
+    '<datalist id="ofCliList">' + _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '">').join('') + '</datalist>' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
     '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
@@ -45795,8 +45798,8 @@ function _ofRender() {
   // Conceptos
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px"><div style="font-weight:800;font-size:15px">Conceptos <span style="font-weight:400;font-size:12px;color:var(--mu)">(' + _of.filas.filter(x => !x.fuera).length + ' albaranes · ' + _ofTn(_of.filas.filter(x => !x.fuera).reduce((a, x) => a + x.tm, 0)) + ' TN)</span></div>' +
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
-  const sinPrecio = L.filter(c => c.tramos.some(t => t.cant && !Number(t.precio)));
-  if (sinPrecio.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:13px;color:#8b1a1a">⚠️ ' + sinPrecio.length + ' concepto(s) SIN PRECIO (van a 0 €)</div>';
+  const sinPrecio = L.filter(c => c.tramos.some(t => (t.cant || c.cfg.unidad === 'hora') && t.viajes && (!Number(t.precio) || !t.cant)));
+  if (sinPrecio.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:13px;color:#8b1a1a">⚠️ ' + sinPrecio.length + ' concepto(s) SIN PRECIO o sin horas (van a 0 €)</div>';
   h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:82px"><col style="width:58px"><col style="width:82px"><col style="width:112px"><col style="width:70px"><col style="width:110px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
     ['Concepto', 'Cobro', 'Viajes', 'TN', 'Precio', 'IVA', 'Importe'].map((x, i) => '<th style="padding:6px 8px' + (i >= 2 && i !== 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(c => {
@@ -45807,11 +45810,11 @@ function _ofRender() {
         h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><textarea rows="2" onchange="ofSetConc(\'' + kA + '\',\'texto\',this.value.trim())" style="width:100%;padding:4px 6px;border:1px solid var(--bd);border-radius:5px;font-size:13px;font-family:inherit">' + esc(c.texto) + '</textarea>' +
           '<div style="font-size:11px;color:var(--mu);display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + (_of.agruparMaterial ? '<span style="color:var(--tx);font-weight:700">Item <input value="' + _ofEA(c.cfg.item || '') + '" placeholder="nº" title="Nº de item del pedido SAP para este material" onchange="ofSetConc(\'' + kA + '\',\'item\',this.value.trim())" style="width:64px;padding:2px 5px;border:1px solid var(--bd);border-radius:4px;font-size:12px"></span>' : '') + '<span>' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</span></div>' +
           '<button class="btn bs" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="ofAddTramo(\'' + kA + '\')" title="Otro precio a partir de una fecha">+ tramo de fechas</button></td>' +
-          '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'unidad\',this.value)" style="padding:4px;border:1px solid var(--bd);border-radius:5px"><option value="tn"' + (c.cfg.unidad !== 'viaje' ? ' selected' : '') + '>€/TN</option><option value="viaje"' + (c.cfg.unidad === 'viaje' ? ' selected' : '') + '>€/viaje</option></select></td>';
+          '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'unidad\',this.value)" style="padding:4px;border:1px solid var(--bd);border-radius:5px"><option value="tn"' + (c.cfg.unidad !== 'viaje' && c.cfg.unidad !== 'hora' ? ' selected' : '') + '>€/TN</option><option value="viaje"' + (c.cfg.unidad === 'viaje' ? ' selected' : '') + '>€/viaje</option><option value="hora"' + (c.cfg.unidad === 'hora' ? ' selected' : '') + '>€/hora</option></select></td>';
       }
       // v1134: sin columna Tramo; si hay varios, el periodo sale en pequeño bajo el precio (con su 🗑)
       const rango = c.tramos.length === 1 ? '' : (t.desde ? 'desde ' + _ofFechaEs(t.desde) : 'hasta ' + _ofFechaEs(c.tramos[1] ? c.tramos[1].desde : ''));
-      h += '<td style="padding:6px 8px;text-align:right">' + t.viajes + '</td><td style="padding:6px 8px;text-align:right">' + _ofTn(t.tn) + '</td>' +
+      h += '<td style="padding:6px 8px;text-align:right">' + t.viajes + '</td><td style="padding:6px 8px;text-align:right">' + (c.cfg.unidad === 'hora' ? '<input value="' + (t.horas != null ? String(t.horas).replace('.', ',') : '') + '" placeholder="horas" title="Nº de horas a cobrar" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'horas\',this.value)" style="width:62px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.horas) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700"> h' : _ofTn(t.tn)) + '</td>' +
         '<td style="padding:4px 8px;text-align:right"><input value="' + (t.precio != null ? String(t.precio).replace('.', ',') : '') + '" placeholder="Precio" title="Sin precio = 0 €" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'precio\',this.value)" style="width:92px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.precio) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700">' +
         (rango ? '<div style="font-size:10.5px;color:var(--mu);white-space:nowrap">' + esc(rango) + (t.i > 0 ? ' <span style="cursor:pointer" title="Quitar este tramo" onclick="ofQuitarTramo(\'' + kA + '\',' + t.i + ')">🗑</span>' : '') + '</div>' : '') + '</td>';
       if (j === 0) h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'iva\',Number(this.value))" style="padding:4px;border:1px solid var(--bd);border-radius:5px">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(c.cfg) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>';
@@ -45835,7 +45838,7 @@ function _ofRender() {
       '<span style="width:84px;display:flex;gap:4px"><button class="btn bs" style="padding:5px 8px' + (enCat ? ';opacity:.35' : '') + '" title="' + (enCat ? 'Ya está en los conceptos habituales' : 'Guardar como concepto habitual') + '" onclick="ofLinAHabitual(' + i + ')">⭐</button>' +
       '<button class="btn bs" style="padding:5px 8px" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">🗑</button></span></div>';
   });
-  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',cantidad:null,unidad:\'h\',precio:null,importe:null,iva:21});_ofRender()">+ Añadir línea</button> <button class="btn bs" style="margin-top:6px;font-size:12px" onclick="ofCatAbrir()">⭐ Conceptos habituales</button>';
+  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',cantidad:null,unidad:\'h\',precio:null,importe:null,iva:21});_ofRender()">+ Añadir línea</button> <button class="btn bs" style="margin-top:6px;font-size:12px" onclick="ofCatAbrir()">Conceptos habituales</button>';
   // Totales
   const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
   h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:300px;font-size:14px">' +
@@ -45847,15 +45850,18 @@ function _ofRender() {
     ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:12px;padding:5px 12px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
     (_of.estado === 'aprobada' ? '<span style="font-size:13px">Pedido SAP: <input value="' + _ofEA(_of.pedido_sap) + '" onchange="_of.pedido_sap=this.value.trim()" style="' + inp + ';width:140px;font-weight:700"></span>' : '') +
     '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
-    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="margin-left:auto;font-size:12px;padding:5px 12px;background:#7c3aed;color:#fff;font-weight:800" title="Apunta el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados">🧾 Marcar facturada</button>' : '') +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#7c3aed;color:#fff;font-weight:800" title="Apunta el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Marcar facturada</button>' : '') +
     (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">🧾 FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
     (_of.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (_of.id ? '<button class="btn bs" onclick="ofBorrar()" style="color:#b91c1c">🗑 Borrar oferta</button>' : '') +
-    '<button class="btn bs" onclick="ofAlbaranesPdf()">📎 Albaranes en PDF</button><button class="btn bs" onclick="ofExcel()">📊 Excel</button><button class="btn bs" onclick="ofPdf()" style="font-weight:800">📄 Oferta en PDF</button><button class="btn bs" id="ofBtnPaquete" onclick="ofPaquete()" style="font-weight:800" title="ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo">📦 Paquete de envío</button>' +
-    '<button class="btn bp" onclick="ofGuardar()" style="font-weight:800">💾 Guardar oferta</button></div></div>';
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch">' + (_of.id ? '<button class="btn" onclick="ofBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar oferta</button>' : '') +
+    '<button class="btn" onclick="ofAlbaranesPdf()" style="' + _OF_BTN + '" title="ZIP con los albaranes: uno por albarán y todos juntos">Albaranes PDF</button>' +
+    '<button class="btn" onclick="ofExcel()" style="' + _OF_BTN + '">Excel</button>' +
+    '<button class="btn" onclick="ofPdf()" style="' + _OF_BTN + '">Oferta PDF</button>' +
+    '<button class="btn" id="ofBtnPaquete" onclick="ofPaquete()" style="' + _OF_BTN + '" title="ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
+    '<button class="btn" onclick="ofGuardar()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px">Guardar oferta</button></div></div>';
   // Detalle de albaranes
   const nf = _of.filas.filter(x => x.fuera).length;
   h += '<details style="margin-top:14px"' + (nf ? ' open' : '') + '><summary style="cursor:pointer;font-weight:700;font-size:13px">Albaranes de la oferta (' + _of.filas.length + (nf ? ', ' + nf + ' quitados' : '') + ') — quita la casilla de los que no entran</summary>' +
@@ -45902,6 +45908,7 @@ async function ofGuardar(silencioso) {
       _of.id = data.id;
     }
     _of.guardadaTotal = T.total;
+    await _ofCliGrabarSiNuevo();   // v1143
     // Marca 🟣 en los albaranes: los de dentro, ofertados (salvo si la oferta está rechazada); los que salieron, sin marca
     const dentro = vivas.map(x => x.id), fuera = antes.filter(a => !dentro.includes(String(a)));
     await _ofMarcar(dentro, _of.estado !== 'rechazada' && _of.estado !== 'facturada');
@@ -45987,7 +45994,7 @@ function _ofExcelWb() {
     if (!t.viajes) return;
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
     const per = fs.length ? _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha) : '';
-    A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
+    A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : c.cfg.unidad === 'hora' ? '€/hora (' + String(t.cant).replace('.', ',') + ' h)' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
   }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel(l.precio != null && l.cantidad != null ? Number(l.cantidad) : '', sN), cel(l.precio != null ? '€/' + (_OF_UNIDADES[l.unidad] || 'ud') : '', sC), cel(l.precio != null ? Number(l.precio) : '', sE), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
   A.push([]);
@@ -46156,8 +46163,8 @@ async function _ofPdfBytes() {
     if (!tr.viajes) return;
     const fs = c.filas.filter(x => (!tr.desde || x.fecha >= tr.desde) && (!tr.hasta || x.fecha < tr.hasta));
     const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';
-    const porViaje = c.cfg.unidad === 'viaje';
-    filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : num(tr.tn, 2) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
+    const porViaje = c.cfg.unidad === 'viaje', porHora = c.cfg.unidad === 'hora';
+    filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : porHora ? num(tr.cant, tr.cant % 1 ? 2 : 0) + ' horas' : num(tr.tn, 2) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : porHora ? '/h' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
   }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: l.precio != null && l.cantidad != null ? num(l.cantidad, Number(l.cantidad) % 1 ? 2 : 0) + ' ' + (_OF_UNIDADES[l.unidad] || '') : '', precio: l.precio != null ? eur(l.precio) : '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
   const iCon = conItem ? 1 : 0;
@@ -46422,7 +46429,7 @@ async function ofPaquete() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     toast('📦 Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : ''), A.faltan ? 'warn' : 'ok');
   } catch (e) { console.error('[v1141] paquete:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
-  finally { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = false; b.textContent = '📦 Paquete de envío'; } }
+  finally { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
 }
 // Oferta APROBADA → FACTURADA: apunta el nº de factura y marca sus albaranes como facturados 🟢.
 async function ofFacturada() {
@@ -46441,4 +46448,87 @@ async function ofFacturada() {
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; } });
   try { renderTable(); } catch (e) {}
   toast(err ? '⚠️ Oferta facturada, pero algunos albaranes no se pudieron marcar: vuelve a intentarlo' : '🧾 Oferta FACTURADA' + (_of.factura ? ' · factura ' + _of.factura : '') + ' · ' + ids.length + ' albaranes marcados 🟢', err ? 'err' : 'ok');
+}
+
+// ============================================================================
+// v1143 (JC 17/11/2026): FICHA DE CLIENTES (tabla clientes_ficha: nombre, NIF, dirección, email).
+// En la oferta el Cliente es un desplegable con los guardados; al elegir uno se rellenan sus datos para el PDF y
+// su email. Un cliente nuevo se graba solo al guardar la oferta. Botón "Clientes" = ver / editar / añadir / borrar.
+// Servirá igual para el módulo de facturas.
+// ============================================================================
+let _ofCli = [], _ofCliOk = false;
+async function _ofCliCargar(forzar) {
+  if (_ofCliOk && !forzar) return _ofCli;
+  try { const { data, error } = await sb.from('clientes_ficha').select('*').order('nombre'); if (error) throw error; _ofCli = data || []; _ofCliOk = true; }
+  catch (e) { console.error('[v1143] clientes:', e); _ofCli = []; }
+  return _ofCli;
+}
+function _ofCliBuscar(nombre) { const n = _ofNrm(nombre).replace(/[.,]/g, ''); return n ? _ofCli.find(c => _ofNrm(c.nombre).replace(/[.,]/g, '') === n) : null; }
+function _ofCliDatos(c) { return [c.direccion || '', c.nif ? 'NIF ' + c.nif : ''].filter(Boolean).join('\n'); }
+function ofSetCliente(v) {
+  _of.cliente = String(v || '').trim();
+  const c = _ofCliBuscar(_of.cliente);
+  if (c) { _of.cliente = c.nombre; const d = _ofCliDatos(c); if (d) _of.clienteDatos = d; if (c.email) _of.email = c.email; }
+  else { if (!_of.email) _of.email = _ofEmailDe(_of.cliente); if (!_of.clienteDatos) _of.clienteDatos = _ofClienteDatosDe(_of.cliente); }
+  _ofRender();
+}
+// Al guardar la oferta: cliente nuevo → se graba; cliente sin email en su ficha → se le apunta el de la oferta.
+async function _ofCliGrabarSiNuevo() {
+  try {
+    await _ofCliCargar();
+    const c = _ofCliBuscar(_of.cliente);
+    if (!c) {
+      const lin = String(_of.clienteDatos || '').split('\n').map(x => x.trim()).filter(Boolean);
+      const iN = lin.findIndex(x => /^(NIF|CIF)\b/i.test(x)); const nif = iN >= 0 ? lin[iN].replace(/^(NIF|CIF)[\s:.]*/i, '').trim() : null;
+      if (iN >= 0) lin.splice(iN, 1);
+      const { error } = await sb.from('clientes_ficha').insert({ nombre: _of.cliente, nif, direccion: lin.join('\n') || null, email: _of.email || null });
+      if (error) throw error; await _ofCliCargar(true);
+    } else if (!c.email && _of.email) { await sb.from('clientes_ficha').update({ email: _of.email }).eq('id', c.id); c.email = _of.email; }
+  } catch (e) { console.warn('[v1143] grabar cliente:', e); }
+}
+async function ofCliAbrir() {
+  if (!_ofPuede()) return;
+  await _ofCliCargar(true);
+  document.getElementById('ofCliOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'ofCliOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
+  ov.innerHTML = '<div id="ofCliBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1300px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  document.body.appendChild(ov); _ofCliRender();
+}
+function _ofCliRender() {
+  const box = document.getElementById('ofCliBox'); if (!box) return;
+  const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">Clientes</div><button class="btn bs" onclick="document.getElementById(\'ofCliOv\').remove();if(_of)_ofRender()">Cerrar</button></div>' +
+    '<div style="font-size:13px;color:#111;margin:6px 0 12px">Salen en el desplegable <b>Cliente</b> de la oferta. Cada cambio se guarda al salir de la casilla.</div>' +
+    '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Nombre (razón social)', 'NIF', 'Dirección (calle / CP y ciudad)', 'Email para ofertas', ''].map(x => '<th style="padding:7px 8px">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  _ofCli.forEach(c => { const id = "'" + c.id + "'";
+    h += '<tr style="border-top:1px solid var(--bd);vertical-align:top">' +
+      '<td style="padding:5px 8px"><input value="' + _ofEA(c.nombre) + '" onchange="ofCliSet(' + id + ',\'nombre\',this.value)" style="' + inp + ';width:100%;min-width:260px;font-weight:700"></td>' +
+      '<td style="padding:5px 8px"><input value="' + _ofEA(c.nif || '') + '" onchange="ofCliSet(' + id + ',\'nif\',this.value)" style="' + inp + ';width:120px"></td>' +
+      '<td style="padding:5px 8px"><textarea rows="2" onchange="ofCliSet(' + id + ',\'direccion\',this.value)" style="' + inp + ';width:100%;min-width:300px">' + esc(c.direccion || '') + '</textarea></td>' +
+      '<td style="padding:5px 8px"><input type="email" value="' + _ofEA(c.email || '') + '" onchange="ofCliSet(' + id + ',\'email\',this.value)" style="' + inp + ';width:100%;min-width:220px"></td>' +
+      '<td style="padding:5px 8px"><button class="btn bs" onclick="ofCliBorrar(' + id + ')">Borrar</button></td></tr>'; });
+  h += '</tbody></table></div><button class="btn bp" style="margin-top:10px;font-weight:800;padding:10px 18px" onclick="ofCliNuevo()">+ Añadir cliente</button>';
+  box.innerHTML = h;
+}
+async function ofCliSet(id, campo, v) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  const val = String(v || '').trim() || null;
+  if (campo === 'nombre' && !val) { toast('El nombre no puede quedar vacío', 'err'); _ofCliRender(); return; }
+  try { const { error } = await sb.from('clientes_ficha').update({ [campo]: val }).eq('id', id); if (error) throw error; c[campo] = val; }
+  catch (e) { console.error('[v1143] cliente set:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _ofCliRender(); }
+}
+async function ofCliNuevo() {
+  const nombre = prompt('Nombre (razón social) del cliente nuevo:');
+  if (!nombre || !nombre.trim()) return;
+  if (_ofCliBuscar(nombre)) { toast('Ese cliente ya existe', 'err'); return; }
+  try { const { error } = await sb.from('clientes_ficha').insert({ nombre: nombre.trim().toUpperCase() }); if (error) throw error; await _ofCliCargar(true); _ofCliRender(); }
+  catch (e) { console.error('[v1143] cliente nuevo:', e); toast('⚠️ No se pudo crear: ' + (e.message || e), 'err'); }
+}
+async function ofCliBorrar(id) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  if (!confirm('¿Borrar de la lista el cliente "' + c.nombre + '"?\n\nLas ofertas ya hechas no cambian.')) return;
+  try { const { error } = await sb.from('clientes_ficha').delete().eq('id', id); if (error) throw error; _ofCli = _ofCli.filter(x => x.id !== id); _ofCliRender(); }
+  catch (e) { console.error('[v1143] cliente borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
 }
