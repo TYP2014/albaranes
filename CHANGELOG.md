@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1158 (17/11/2026): FACTURAS · EL VENCIMIENTO SUBE ARRIBA, JUNTO A LA FECHA DE EMISIÓN. Estaba abajo a la derecha, pequeño, y no se encontraba. Ahora va en la primera fila (Empresa · Serie · Número · Fecha de emisión · Vencimiento · Cliente), con recuadro azul marino y en negrita, indicando los días de plazo del cliente o "puesto a mano". Abajo quedan la forma de pago y la cuenta. Sin SQL. VUELTA ATRAS: resubir v1157.
+
+---
+
 v1157 (17/11/2026): FACTURAS · MENSAJE PARA EL CLIENTE + PAQUETE DE ENVÍO. En la factura, junto a las notas, recuadro "Mensaje para el cliente" (el texto del correo, con uno de ejemplo) y el asunto montado ("Factura nº - empresa"). Botón "Paquete de envío": ZIP con la factura en PDF, los albaranes de la factura en un solo PDF y EMAIL.txt (de, para, asunto y mensaje). Igual que en las ofertas; es lo que mandará el botón de enviar. Sin SQL. VUELTA ATRAS: resubir v1156.
 
 ---

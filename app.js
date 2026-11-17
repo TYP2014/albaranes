@@ -46761,6 +46761,7 @@ function _faRender() {
     '<label style="' + lab + '">Número<br><input value="' + (_fa.n || '') + '" onchange="faSet(\'n\',this.value)" style="' + inp + ';width:80px;font-weight:800;text-align:center"></label>' +
     '<div style="' + lab + ';padding-bottom:9px">Nº de factura: <b style="font-size:16px">' + esc(_faNumero() || '—') + '</b></div>' +
     '<label style="' + lab + '">Fecha de emisión<br><input type="date" value="' + _ofEA(_fa.fecha) + '" onchange="faSet(\'fecha\',this.value)" style="' + inp + '"></label>' +
+    '<label style="' + lab + ';font-weight:700">Vencimiento <span style="font-weight:400">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:800;border:2px solid #1b3254"></label>' +
     '<label style="' + lab + ';flex:1;min-width:260px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="faSet(\'cliente\',this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_fa.cliente && !cliEn ? '<option value="' + _ofEA(_fa.cliente) + '" selected>' + esc(_fa.cliente) + '</option>' : '') + (!_fa.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
       _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (cliEn === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label></div>';
@@ -46797,8 +46798,7 @@ function _faRender() {
       (!_fa.cuenta ? '<option value="" selected>— sin cuenta: añade una —</option>' : '') +
       (_fa.cuenta && !_faCuentas(_fa.empresa).some(c => _faCuentaTxt(c) === _fa.cuenta) ? '<option value="' + _ofEA(_fa.cuenta) + '" selected>' + esc(_fa.cuenta) + '</option>' : '') +
       _faCuentas(_fa.empresa).map(c => { const t = _faCuentaTxt(c); return '<option value="' + _ofEA(t) + '"' + (t === _fa.cuenta ? ' selected' : '') + '>' + esc(t) + (c.pred ? '  (predeterminada)' : '') + '</option>'; }).join('') +
-      '<option value="__otra__">+ Otra cuenta…</option></select></label>' +
-    '<label style="' + lab + '">Vencimiento <span style="color:var(--mu)">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:700"></label></div>';
+      '<option value="__otra__">+ Otra cuenta…</option></select></label>' + '</div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:flex-start"><label style="flex:1;min-width:300px;' + lab + '">Notas (salen en la factura)<br><textarea rows="4" onchange="_fa.notas=this.value" style="width:100%;' + inp + '">' + esc(_fa.notas || '') + '</textarea></label>' +
     '<label style="flex:1;min-width:300px;' + lab + '">Mensaje para el cliente (texto del correo) · <span style="font-weight:700">Asunto: ' + esc(_faAsunto()) + '</span><br><textarea rows="4" onchange="_fa.mensaje=this.value" style="width:100%;' + inp + ';font-size:13px">' + esc(_fa.mensaje || '') + '</textarea></label></div>';
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
