@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1146 (17/11/2026): OFERTAS · LA LÍNEA DE IVA SE VE SIEMPRE EN LOS TOTALES. Con la oferta aún sin precios (base 0 €) solo salían Base imponible y TOTAL; ahora sale siempre Base imponible · IVA (una línea por cada tipo usado: 21 / 10 / 0 %) · TOTAL, en pantalla, PDF y Excel. Sin SQL. VUELTA ATRAS: resubir v1145.
+
+---
+
 v1145 (17/11/2026): OFERTAS · EL CLIENTE SE PUEDE CAMBIAR SIEMPRE. El campo Cliente era una casilla con sugerencias y, con un cliente ya escrito, solo enseñaba ese (no dejaba pasar de CEMEX a Holcim). Ahora es un desplegable de verdad con TODOS los clientes y, al final, "+ Otro cliente (escribirlo)…". Al cambiar de cliente se ponen sus datos y su email. Bajo los botones, una línea que dice qué saca cada uno (Albaranes PDF / Excel / Oferta PDF / Paquete de envío = las tres cosas en un ZIP). Sin SQL. VUELTA ATRAS: resubir v1144.
 
 ---

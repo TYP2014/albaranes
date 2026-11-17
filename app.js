@@ -45731,7 +45731,8 @@ function _ofTotales(L) {
   const porTipo = {};
   (L || _ofConceptos()).forEach(c => { const t = _ofIvaDe(c.cfg); porTipo[t] = (porTipo[t] || 0) + c.imp; });
   _of.lineas.forEach(l => { const v = Number(l.importe) || 0; if (!v) return; const t = _ofIvaDe(l); porTipo[t] = (porTipo[t] || 0) + v; });
-  const desglose = Object.keys(porTipo).map(Number).sort((a, b) => b - a).map(t => { const b = _ofR2(porTipo[t]); return { tipo: t, base: b, iva: _ofR2(b * t / 100) }; }).filter(d => d.base);
+  const desglose = Object.keys(porTipo).map(Number).sort((a, b) => b - a).map(t => { const b = _ofR2(porTipo[t]); return { tipo: t, base: b, iva: _ofR2(b * t / 100) }; });   // v1146: la línea de IVA sale SIEMPRE, aunque aún esté a 0 €
+  if (!desglose.length) desglose.push({ tipo: 21, base: 0, iva: 0 });
   const base = _ofR2(sub + man), iva = _ofR2(desglose.reduce((a, d) => a + d.iva, 0));
   return { sub, man, base, iva, desglose, total: _ofR2(base + iva) };
 }
