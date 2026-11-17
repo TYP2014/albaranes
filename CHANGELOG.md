@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1154 (17/11/2026): OFERTAS Y FACTURAS · IMPORTES CON PUNTO DE MILLAR EN PANTALLA (1.101,10 € y no 1101,10 €), columna "TN / horas" y desplegables de IVA y unidad un poco más anchos (el "21 %" salía cortado). Sin SQL. VUELTA ATRAS: resubir v1153.
+
+---
+
 v1153 (17/11/2026): OFERTAS Y FACTURAS · REPASO DE PANTALLA. Ventana de la oferta: las líneas a mano pasan a una tabla con cada título encima de su columna (antes los títulos quedaban descolocados); la caja de totales es compacta y va a la derecha (antes ocupaba todo el ancho), también en la factura; "Datos del cliente" con 3 líneas (se ve el NIF) y el mensaje con 7; viajes, TN, precio e importe alineados arriba con el concepto; etiquetas en negro; botones solo con texto ("+ habitual", "✕", "Borrar", "Cerrar") y avisos sin emojis. Arreglos: al cerrar Clientes o Conceptos habituales desde una FACTURA se refresca la factura; un concepto habitual creado desde una factura se apunta a la empresa de esa factura; el CIF de Import sale sin espacio en el PDF. Sin SQL. VUELTA ATRAS: resubir v1152.
 
 ---

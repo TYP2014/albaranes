@@ -45588,8 +45588,10 @@ let _of = null;             // oferta abierta en la ventana
 function _ofEA(s) { return esc(s == null ? '' : s).replace(/"/g, '&quot;'); }
 function _ofR2(n) { n = Number(n) || 0; return Math.sign(n) * Math.round(Math.abs(n) * 100 + 1e-7) / 100; }
 function _ofNum(v) { let t = String(v == null ? '' : v).trim().replace(/\s|€/g, ''); if (t === '') return null; if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.'); const n = Number(t); return isNaN(n) ? null : n; }
-function _ofTn(n) { return (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function _ofEur(n) { return _ofR2(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+// v1154: punto de millar SIEMPRE (1.101,10 y no 1101,10: es-ES no agrupa los números de 4 cifras)
+function _ofMil(n, d) { const r = Number(n) || 0, p = Math.abs(r).toFixed(d).split('.'); return (r < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + p[1] : ''); }
+function _ofTn(n) { return _ofMil(n, 2); }
+function _ofEur(n) { return _ofMil(_ofR2(n), 2) + ' €'; }
 function _ofIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function _ofFechaEs(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
 function _ofNrm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
@@ -45808,8 +45810,8 @@ function _ofRender() {
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
   const sinPrecio = L.filter(c => c.tramos.some(t => (t.cant || c.cfg.unidad === 'hora') && t.viajes && (!Number(t.precio) || !t.cant)));
   if (sinPrecio.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:13px;color:#8b1a1a">⚠️ ' + sinPrecio.length + ' concepto(s) SIN PRECIO o sin horas (van a 0 €)</div>';
-  h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:82px"><col style="width:58px"><col style="width:82px"><col style="width:112px"><col style="width:70px"><col style="width:110px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
-    ['Concepto', 'Cobro', 'Viajes', 'TN', 'Precio', 'IVA', 'Importe'].map((x, i) => '<th style="padding:6px 8px' + (i >= 2 && i !== 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:92px"><col style="width:62px"><col style="width:100px"><col style="width:112px"><col style="width:84px"><col style="width:120px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Concepto', 'Cobro', 'Viajes', 'TN / horas', 'Precio', 'IVA', 'Importe'].map((x, i) => '<th style="padding:6px 8px' + (i >= 2 && i !== 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(c => {
     const kA = _ofEA(c.k).replace(/'/g, '\\\'');
     c.tramos.forEach((t, j) => {
@@ -45835,7 +45837,7 @@ function _ofRender() {
   h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(empieza a escribir y salen los conceptos habituales de ' + esc(_OF_EMPRESAS[_of.empresa] || '') + '; importe sin IVA, en negativo si es un descuento)</span></div>' +
     '<datalist id="ofCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">' + (c.precio != null ? _ofEA(String(c.precio).replace('.', ',') + ' €/' + (_OF_UNIDADES[c.unidad] || 'ud')) : '') + '</option>').join('') + '</datalist>';
   if (_of.lineas.length) {   // v1153: en tabla, con cada título encima de su columna
-    h += '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:100px"><col style="width:110px"><col style="width:90px"><col style="width:130px"><col style="width:150px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    h += '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:104px"><col style="width:110px"><col style="width:104px"><col style="width:130px"><col style="width:150px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
       ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, k) => '<th style="padding:6px 8px' + (k === 1 || k === 3 || k === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
     _of.lineas.forEach((l, i) => {
       const enCat = !!_ofCatBuscar(l.concepto);
@@ -46762,7 +46764,7 @@ function _faRender() {
   // Líneas
   const catEmp = _ofCatDeEmpresa(_fa.empresa);
   h += '<div style="margin-top:16px;font-weight:800;font-size:15px">Conceptos</div><datalist id="faCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">').join('') + '</datalist>' +
-    '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:100px"><col style="width:110px"><col style="width:90px"><col style="width:130px"><col style="width:60px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:104px"><col style="width:110px"><col style="width:104px"><col style="width:130px"><col style="width:60px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
     ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, i) => '<th style="padding:6px 8px' + (i === 1 || i === 3 || i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   if (!_fa.lineas.length) h += '<tr><td colspan="7" style="padding:12px;color:#111">Sin conceptos. Pulsa <b>+ Añadir concepto</b>.</td></tr>';
   _fa.lineas.forEach((l, i) => {
