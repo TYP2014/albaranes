@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1157 (17/11/2026): FACTURAS · MENSAJE PARA EL CLIENTE + PAQUETE DE ENVÍO. En la factura, junto a las notas, recuadro "Mensaje para el cliente" (el texto del correo, con uno de ejemplo) y el asunto montado ("Factura nº - empresa"). Botón "Paquete de envío": ZIP con la factura en PDF, los albaranes de la factura en un solo PDF y EMAIL.txt (de, para, asunto y mensaje). Igual que en las ofertas; es lo que mandará el botón de enviar. Sin SQL. VUELTA ATRAS: resubir v1156.
+
+---
+
 v1156 (17/11/2026): OFERTAS ↔ FACTURAS · ENLAZADAS Y LOCALIZABLES. La factura que sale de una oferta guarda su nº de oferta y lo enseña: recuadro "Viene de la oferta OF…" con botón "Abrir la oferta", columna Oferta en la lista de facturas, línea "Oferta" en el cuadro de datos del PDF y frase "Factura correspondiente a nuestra oferta … · Pedido …" en las notas, y en las observaciones de F. Emitidas ("Hecha en la app · Oferta … · Pedido …"). La oferta FACTURADA enseña su nº de factura y tiene "Abrir la factura". Buscadores: el de Ofertas busca por cliente, nº de oferta, nº de factura, pedido o título; el nuevo de Facturas, por cliente, nº de factura, nº de oferta o pedido. Sin SQL. VUELTA ATRAS: resubir v1155.
 
 ---

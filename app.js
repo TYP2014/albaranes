@@ -46658,7 +46658,7 @@ async function faNueva(base) {
   if (!_ofPuede()) return;
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
-  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjunto la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nJuan Carlos Reina', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
   if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   if (!_fa.remitente) _fa.remitente = _faRemitentes(_fa.empresa)[0] || '';   // v1155
   _fa.n = await _faSiguiente(_fa.empresa, _fa.serie); _faVencAuto();
@@ -46670,7 +46670,7 @@ async function faAbrir(id) {
     const { data, error } = await sb.from('facturas_app').select('*').eq('id', id).single(); if (error) throw error;
     const D = data.datos || {};
     _fa = { id: data.id, empresa: data.empresa, serie: data.serie || '', n: data.n, fecha: data.fecha || '', cliente: data.cliente || '', clienteDatos: D.clienteDatos || '', email: data.email || '', estado: data.estado || 'borrador',
-      lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', ofertaNum: D.ofertaNum || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
+      lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', ofertaNum: D.ofertaNum || '', mensaje: D.mensaje || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
       oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0 };
     _faVentana();
   } catch (e) { console.error('[v1149] abrir factura:', e); toast('No se pudo abrir la factura: ' + (e.message || e), 'err'); }
@@ -46799,11 +46799,13 @@ function _faRender() {
       _faCuentas(_fa.empresa).map(c => { const t = _faCuentaTxt(c); return '<option value="' + _ofEA(t) + '"' + (t === _fa.cuenta ? ' selected' : '') + '>' + esc(t) + (c.pred ? '  (predeterminada)' : '') + '</option>'; }).join('') +
       '<option value="__otra__">+ Otra cuenta…</option></select></label>' +
     '<label style="' + lab + '">Vencimiento <span style="color:var(--mu)">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:700"></label></div>';
-  h += '<label style="display:block;margin-top:10px;' + lab + '">Notas (salen en la factura)<textarea rows="2" onchange="_fa.notas=this.value" style="width:100%;' + inp + '">' + esc(_fa.notas || '') + '</textarea></label>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:flex-start"><label style="flex:1;min-width:300px;' + lab + '">Notas (salen en la factura)<br><textarea rows="4" onchange="_fa.notas=this.value" style="width:100%;' + inp + '">' + esc(_fa.notas || '') + '</textarea></label>' +
+    '<label style="flex:1;min-width:300px;' + lab + '">Mensaje para el cliente (texto del correo) · <span style="font-weight:700">Asunto: ' + esc(_faAsunto()) + '</span><br><textarea rows="4" onchange="_fa.mensaje=this.value" style="width:100%;' + inp + ';font-size:13px">' + esc(_fa.mensaje || '') + '</textarea></label></div>';
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar</button>' : '') +
     '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
+    '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
     '<button class="btn" onclick="faGuardar()" style="' + _OF_BTN + (em ? ';background:#1b3254;color:#fff' : '') + '">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px" title="Cierra la factura con su número y marca sus albaranes como facturados">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
@@ -46821,7 +46823,7 @@ async function faGuardar(silencioso, estado) {
     if ((repQ || []).length && !confirm('⚠️ El nº ' + numero + ' ya está en Facturas emitidas (hecha en Quipu). ¿Guardar igual con ese número?')) return false;
     const reg = { empresa: _fa.empresa, serie: _fa.serie, n: _fa.n, numero, fecha: _fa.fecha || null, cliente: _fa.cliente, email: _fa.email || null, estado: estado || _fa.estado, forma_pago: _fa.pago || null, cuenta: _fa.cuenta || null, vencimiento: _fa.venc || null,
       base: T.base, iva: T.iva, total: T.total, notas: _fa.notas || null, oferta_id: _fa.oferta_id || null, albaranes: _fa.filas.map(x => x.id),
-      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', ofertaNum: _fa.ofertaNum || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
+      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', ofertaNum: _fa.ofertaNum || '', mensaje: _fa.mensaje || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
     if (estado === 'emitida') reg.emitida_el = new Date().toISOString();
     if (_fa.id) { const { error } = await sb.from('facturas_app').update(reg).eq('id', _fa.id); if (error) throw error; }
     else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
@@ -46960,4 +46962,29 @@ async function ofVerFactura() {
     document.getElementById('ofOv')?.remove(); _of = null;
     await faAbrir(data[0].id);
   } catch (e) { console.error('[v1156] abrir factura de la oferta:', e); toast('⚠️ No se pudo abrir la factura: ' + (e.message || e), 'err'); }
+}
+
+// ============================================================================
+// v1157 (JC 17/11/2026): FACTURAS · MENSAJE PARA EL CLIENTE + PAQUETE DE ENVÍO (como en las ofertas).
+// ZIP con la factura en PDF, los albaranes de la factura en un solo PDF y EMAIL.txt (de, para, asunto y mensaje).
+// Es lo que mandará el botón de enviar cuando esté.
+// ============================================================================
+function _faAsunto() { return 'Factura ' + (_faNumero() || '(sin nº)') + ' - ' + ((_LIQ_CLIENTES[_fa.empresa] || _LIQ_CLIENTES.TYP)[0][1]); }
+async function faPaquete() {
+  if (!_fa) return;
+  if (typeof JSZip === 'undefined' || typeof PDFLib === 'undefined') { toast('No se cargaron las librerías. Recarga la página.', 'err'); return; }
+  const pinta = t => { const b = document.getElementById('faBtnPaquete'); if (b) { b.disabled = true; b.textContent = t; } };
+  const antes = _of;
+  try {
+    pinta('Preparando…');
+    const base = ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90), zip = new JSZip();
+    zip.file(base + '.pdf', await _faPdfBytes());
+    let A = { n: 0, faltan: 0, bytes: null };
+    if (_fa.filas.length) { _of = { filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)) }; A = await _ofAlbaranesJuntos((i, t) => pinta('Albaranes ' + i + '/' + t)); _of = antes; if (A.bytes) zip.file('ALBARANES ' + base + '.pdf', A.bytes); }
+    zip.file('EMAIL.txt', 'DE: ' + (_fa.remitente || '(falta el correo de envío)') + '\r\nPARA: ' + (_fa.email || '(falta el email del cliente)') + '\r\nASUNTO: ' + _faAsunto() + '\r\n\r\n' + String(_fa.mensaje || '').replace(/\r?\n/g, '\r\n') + '\r\n');
+    const url = URL.createObjectURL(await zip.generateAsync({ type: 'blob' })); const a = document.createElement('a'); a.href = url; a.download = 'ENVIO ' + base + '.zip'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('Paquete descargado: factura PDF' + (_fa.filas.length ? ' + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : '') : ''), A.faltan ? 'warn' : 'ok');
+  } catch (e) { console.error('[v1157] paquete factura:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
+  finally { _of = antes; const b = document.getElementById('faBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
 }
