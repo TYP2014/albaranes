@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1135 (17/11/2026): OFERTAS · NO SEPARA POR MATERIAL SOLA + ITEM DEL PEDIDO + VENTANA A TODO EL ANCHO. Las ofertas nuevas salen con cada ruta en UNA línea (todo junto). La casilla "Separar por material (items del pedido)" se marca a mano cuando el pedido va por items: entonces cada material es una línea y lleva su casilla "Item" (nº de item del pedido SAP), que sale también como primera columna ITEM en el Excel. La ventana de la oferta ya no tiene tope de ancho (96 % de la pantalla). Sin SQL. VUELTA ATRAS: resubir v1134.
+
+---
+
 v1134 (17/11/2026): OFERTAS · VENTANA MÁS GRANDE Y COLUMNA IVA. La ventana de la oferta ocupa casi toda la pantalla y el Concepto se lleva el sitio (Cobro, Viajes, TN, Precio, IVA e Importe estrechas). Fuera la columna "Tramo": si un concepto tiene varios tramos de fechas, el periodo sale en pequeño bajo su precio (con 🗑 para quitarlo). Nueva columna IVA por concepto (21 / 10 / 0 %) y también en cada línea a mano; los totales salen con el IVA de cada tipo por separado (y en el Excel, columna IVA + desglose). La casilla de precio vacía ya no corta el texto. Sin SQL. VUELTA ATRAS: resubir v1133.
 
 ---

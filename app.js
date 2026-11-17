@@ -45654,7 +45654,7 @@ async function _ofCrearDesdeSeleccion() {
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
   _of = { id: null, numero: '', fecha: _ofIso(new Date()), empresa: 'TYP', cliente, email: _ofEmailDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
-    filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: true, guardadaTotal: null };
+    filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: false, guardadaTotal: null };   // v1135: por defecto TODO JUNTO por ruta
   _ofAbrirVentana();
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
 }
@@ -45750,7 +45750,7 @@ function _ofAbrirVentana() {
   const ov = document.createElement('div');
   ov.id = 'ofOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
-  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1400px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov);
   _ofRender();
 }
@@ -45780,7 +45780,7 @@ function _ofRender() {
     '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>';
   // Conceptos
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px"><div style="font-weight:800;font-size:15px">Conceptos <span style="font-weight:400;font-size:12px;color:var(--mu)">(' + _of.filas.filter(x => !x.fuera).length + ' albaranes · ' + _ofTn(_of.filas.filter(x => !x.fuera).reduce((a, x) => a + x.tm, 0)) + ' TN)</span></div>' +
-    '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()"> Separar por material</label></div>';
+    '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
   const sinPrecio = L.filter(c => c.tramos.some(t => t.cant && !Number(t.precio)));
   if (sinPrecio.length) h += '<div style="background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:13px;color:#8b1a1a">⚠️ ' + sinPrecio.length + ' concepto(s) SIN PRECIO (van a 0 €)</div>';
   h += '<div style="overflow-x:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:82px"><col style="width:58px"><col style="width:82px"><col style="width:112px"><col style="width:70px"><col style="width:110px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
@@ -45791,7 +45791,7 @@ function _ofRender() {
       h += '<tr style="border-top:1px solid ' + (j ? '#eee' : 'var(--bd)') + '">';
       if (j === 0) {
         h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><textarea rows="2" onchange="ofSetConc(\'' + kA + '\',\'texto\',this.value.trim())" style="width:100%;padding:4px 6px;border:1px solid var(--bd);border-radius:5px;font-size:13px;font-family:inherit">' + esc(c.texto) + '</textarea>' +
-          '<div style="font-size:11px;color:var(--mu)">' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</div>' +
+          '<div style="font-size:11px;color:var(--mu);display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + (_of.agruparMaterial ? '<span style="color:var(--tx);font-weight:700">Item <input value="' + _ofEA(c.cfg.item || '') + '" placeholder="nº" title="Nº de item del pedido SAP para este material" onchange="ofSetConc(\'' + kA + '\',\'item\',this.value.trim())" style="width:64px;padding:2px 5px;border:1px solid var(--bd);border-radius:4px;font-size:12px"></span>' : '') + '<span>' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</span></div>' +
           '<button class="btn bs" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="ofAddTramo(\'' + kA + '\')" title="Otro precio a partir de una fecha">+ tramo de fechas</button></td>' +
           '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'unidad\',this.value)" style="padding:4px;border:1px solid var(--bd);border-radius:5px"><option value="tn"' + (c.cfg.unidad !== 'viaje' ? ' selected' : '') + '>€/TN</option><option value="viaje"' + (c.cfg.unidad === 'viaje' ? ' selected' : '') + '>€/viaje</option></select></td>';
       }
@@ -45957,21 +45957,22 @@ function ofExcel() {
   if (_of.pedido_sap) A.push([cel('Pedido SAP:', sB), cel(_of.pedido_sap, { font: { name: 'Arial', sz: 11 } })]);
   A.push([]);
   const hdr = A.length;
-  A.push(['CONCEPTO', 'PERIODO', 'VIAJES', 'TONELADAS', 'COBRO', 'PRECIO', 'IMPORTE', 'IVA'].map(x => cel(x, sH)));
+  const conItem = _of.agruparMaterial;   // v1135: columna ITEM (nº de item del pedido) cuando se separa por material
+  A.push((conItem ? ['ITEM'] : []).concat(['CONCEPTO', 'PERIODO', 'VIAJES', 'TONELADAS', 'COBRO', 'PRECIO', 'IMPORTE', 'IVA']).map(x => cel(x, sH)));
   L.forEach(c => c.tramos.forEach(t => {
     if (!t.viajes) return;
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
     const per = fs.length ? _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha) : '';
-    A.push([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]);
+    A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
   }));
-  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)]));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
   A.push([]);
-  A.push(['', '', '', '', '', cel('BASE IMPONIBLE', sB), cel(T.base, sEB)]);
-  T.desglose.forEach(d => A.push(['', '', '', '', '', cel('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' s/ ' + _ofEur(d.base) : ''), sB), cel(d.iva, sEB)]));
-  A.push(['', '', '', '', '', cel('TOTAL', sB), cel(T.total, sEB)]);
+  A.push((conItem ? [''] : []).concat(['', '', '', '', '', cel('BASE IMPONIBLE', sB), cel(T.base, sEB)]));
+  T.desglose.forEach(d => A.push((conItem ? [''] : []).concat(['', '', '', '', '', cel('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' s/ ' + _ofEur(d.base) : ''), sB), cel(d.iva, sEB)])));
+  A.push((conItem ? [''] : []).concat(['', '', '', '', '', cel('TOTAL', sB), cel(T.total, sEB)]));
   if (_of.observaciones) { A.push([]); A.push([cel('Observaciones: ' + _of.observaciones, { font: { name: 'Arial', sz: 10, italic: true } })]); }
   const ws1 = XLSX.utils.aoa_to_sheet(A);
-  ws1['!cols'] = [{ wch: 55 }, { wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 15 }, { wch: 7 }];
+  ws1['!cols'] = (conItem ? [{ wch: 8 }] : []).concat([{ wch: 55 }, { wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 15 }, { wch: 7 }]);
   ws1['!rows'] = []; ws1['!rows'][hdr] = { hpt: 22 };
   // Hoja ALBARANES
   const B = [['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS', 'PRECIO', 'IMPORTE', 'CONCEPTO'].map(x => cel(x, sH))];
