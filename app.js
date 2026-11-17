@@ -18026,7 +18026,7 @@ function gasConsAltoCerrar() {
     + b(1, 'Hasta mañana', 'bp')
     + b(7, 'Una semana', 'bs')
     + b(15, '15 días', 'bs')
-    + b(-1, 'Hasta el mes que viene <span style="font-weight:400;font-size:12px">(nuevo cálculo)</span>', 'bs')
+    + b(-1, 'Hasta el mes que viene', 'bs')
     + '<button class="btn bs" style="padding:7px;font-size:12px" onclick="document.getElementById(\'consAltoOv\').remove()">Cancelar</button>'
     + '</div></div>';
   document.body.appendChild(ov);

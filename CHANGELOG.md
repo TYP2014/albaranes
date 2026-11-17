@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1130 (17/11/2026): GASOIL · Ventana de cerrar el aviso de consumo alto: el botón "Hasta el mes que viene" se salía por la derecha; se quita el "(nuevo cálculo)". Solo texto. VUELTA ATRAS: resubir v1129.
+
+---
+
 v1129 (17/11/2026): GASOIL · AVISO DE CONSUMO ALTO: AL CERRAR PREGUNTA HASTA CUÁNDO. Al pinchar la ✕ del aviso rojo "CONSUMO ALTO" sale una ventana: Solo ahora (vuelve al recargar) · Hasta mañana · Una semana · 15 días · Hasta el mes que viene (cuando se recalcula). Se guarda en este navegador. El "OK, ya lo sé" por camión sigue igual. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1128.
 
 ---
