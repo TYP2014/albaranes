@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1152 (17/11/2026): FACTURAS · CUENTAS BANCARIAS EN DESPLEGABLE + SERIES DE 12 MESES. Cada empresa tiene su lista de cuentas (facturas_config.cuentas): TYP2014 → Santander (predeterminada) y BBVA; Híspalis → Santander (predeterminada), CaixaBank y BBVA (IBAN comprobados con sus dígitos de control). En la factura la cuenta es un desplegable con la predeterminada ya puesta y "+ Otra cuenta…" (pide IBAN, banco y BIC, comprueba el IBAN y la guarda). En el PDF sale "BANCO · IBAN … · BIC …". El desplegable de series enseña los últimos 12 meses (en enero también diciembre del año anterior). SQL PREVIO: columna cuentas en facturas_config + datos. VUELTA ATRAS: resubir v1151.
+
+---
+
 v1151 (17/11/2026): PDF TYP2014 CON CABECERA DISTINTA A LA DE HÍSPALIS. TYP2014 (ofertas y facturas): cabecera blanca con filo azul marino arriba, nombre de la empresa en azul marino a la izquierda con CIF, teléfono, dirección y email, y a la derecha un bloque azul marino con OFERTA/FACTURA y el nº en dorado; debajo doble línea (marino + dorado). Híspalis conserva la banda oscura a todo el ancho; Import su franja lateral gris. En "Crear factura" desde albaranes, "1 viaje" en singular. Sin SQL. VUELTA ATRAS: resubir v1150.
 
 ---

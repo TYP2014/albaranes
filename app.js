@@ -46591,13 +46591,19 @@ function _vacNomCorto(n) {
 let _fa = null, _faLista = [], _faCfg = {}, _faPlazos = null;
 const _FA_PAGOS = ['Transferencia', 'Confirming', 'Pagaré', 'Recibo domiciliado', 'Contado'];
 const _FA_EMP_FE = { TYP: 'TYP2014', HISPALIS: 'HISPALIS', PORTES: 'PORTES 2014 IMPORT' };   // nombre de la empresa en facturas_emitidas
+// v1152: cuentas bancarias de cada empresa (facturas_config.cuentas): desplegable, con la predeterminada puesta sola.
+function _faCuentaTxt(c) { return (c.nombre ? c.nombre + ' · ' : '') + 'IBAN ' + c.iban + (c.bic ? ' · BIC ' + c.bic : ''); }
+function _faCuentas(emp) { return ((_faCfg[emp] || {}).cuentas || []).filter(c => c && c.iban); }
+function _faCuentaPred(emp) { const L = _faCuentas(emp); const c = L.find(x => x.pred) || L[0]; return c ? _faCuentaTxt(c) : ((_faCfg[emp] || {}).cuenta || ''); }
+function _faIbanOk(i) { try { let t = String(i).replace(/\s/g, '').toUpperCase(); if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(t)) return false; t = t.slice(4) + t.slice(0, 4); let r = 0; for (const ch of t) { const v = parseInt(ch, 36); r = (v > 9 ? r * 100 + v : r * 10 + v) % 97; } return r === 1; } catch (e) { return false; } }
 function _faNumero(f) { f = f || _fa; return f.serie && f.n ? f.serie + '-' + f.n : ''; }
 function _faKey(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 // Series del desplegable: las mensuales del año (formato de cada empresa) + las propias guardadas (I26, RM2026…)
 function _faSeries(emp, fechaIso) {
-  const d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1, out = [];
-  if (emp === 'PORTES') out.push(String(y));
-  else for (let i = m; i >= 1; i--) out.push(emp === 'HISPALIS' ? String(y) + String(i).padStart(2, '0') : y + '-' + String(i).padStart(2, '0'));
+  const d = new Date(), out = [];
+  // v1152: los últimos 12 meses (en enero también sale diciembre del año anterior para cerrar lo pendiente)
+  for (let i = 0; i < 12; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1), y = x.getFullYear(), mm = String(x.getMonth() + 1).padStart(2, '0');
+    const ser = emp === 'PORTES' ? String(y) : emp === 'HISPALIS' ? y + mm : y + '-' + mm; if (!out.includes(ser)) out.push(ser); }
   ((_faCfg[emp] || {}).series || []).forEach(s => { if (!out.includes(s)) out.push(s); });
   if (_fa && _fa.empresa === emp && _fa.serie && !out.includes(_fa.serie)) out.unshift(_fa.serie);
   return out;
@@ -46642,7 +46648,8 @@ async function faNueva(base) {
   if (!_ofPuede()) return;
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
-  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: cfg.cuenta || '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   _fa.n = await _faSiguiente(_fa.empresa, _fa.serie); _faVencAuto();
   _faVentana();
 }
@@ -46694,11 +46701,22 @@ function faCerrar() {
   document.getElementById('faOv')?.remove(); _fa = null;
 }
 async function faSet(campo, v) {
-  if (campo === 'empresa') { _fa.empresa = v; const c = _faCfg[v] || {}; _fa.cuenta = c.cuenta || ''; _fa.pago = c.forma_pago || _fa.pago; _fa.serie = _faSerieDeFecha(v, _fa.fecha); _fa.n = await _faSiguiente(v, _fa.serie); }
+  if (campo === 'empresa') { _fa.empresa = v; const c = _faCfg[v] || {}; _fa.cuenta = _faCuentaPred(v); _fa.pago = c.forma_pago || _fa.pago; _fa.serie = _faSerieDeFecha(v, _fa.fecha); _fa.n = await _faSiguiente(v, _fa.serie); }
   else if (campo === 'serie') {
     if (v === '__otra__') { const s = prompt('Nombre de la serie nueva (ej. RM2026):'); if (!s || !s.trim()) { _faRender(); return; } v = s.trim();
-      try { const c = _faCfg[_fa.empresa] || { empresa: _fa.empresa, series: [] }; const ser = [...new Set([...(c.series || []), v])]; await sb.from('facturas_config').upsert({ empresa: _fa.empresa, series: ser }, { onConflict: 'empresa' }); c.series = ser; _faCfg[_fa.empresa] = c; } catch (e) { console.warn('[v1149] guardar serie:', e); } }
+      try { const c = _faCfg[_fa.empresa] || { empresa: _fa.empresa, series: [] }; const ser = [...new Set([...(c.series || []), v])]; await sb.from('facturas_config').update({ series: ser }).eq('empresa', _fa.empresa); c.series = ser; _faCfg[_fa.empresa] = c; } catch (e) { console.warn('[v1149] guardar serie:', e); } }
     _fa.serie = v; _fa.n = await _faSiguiente(_fa.empresa, v); }
+  else if (campo === 'cuenta') {
+    if (v === '__otra__') {
+      const iban = prompt('IBAN de la cuenta nueva (ES..):'); if (!iban || !iban.trim()) { _faRender(); return; }
+      if (!_faIbanOk(iban) && !confirm('⚠️ Ese IBAN no parece correcto (no pasa la comprobación de dígitos). ¿Guardarlo igual?')) { _faRender(); return; }
+      const nombre = (prompt('Nombre del banco (ej. SANTANDER):') || '').trim().toUpperCase(), bic = (prompt('Código BIC/SWIFT (opcional):') || '').trim().toUpperCase();
+      const t = String(iban).replace(/\s/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim(), nueva = { nombre, iban: t, bic, pred: false };
+      try { const c = _faCfg[_fa.empresa] || { empresa: _fa.empresa }; const L = [...(c.cuentas || []), nueva]; const { error } = await sb.from('facturas_config').update({ cuentas: L }).eq('empresa', _fa.empresa); if (error) throw error; c.cuentas = L; _faCfg[_fa.empresa] = c; }
+      catch (e) { console.error('[v1152] guardar cuenta:', e); toast('⚠️ No se pudo guardar la cuenta: ' + (e.message || e), 'err'); }
+      v = _faCuentaTxt(nueva);
+    }
+    _fa.cuenta = v; }
   else if (campo === 'n') _fa.n = parseInt(v, 10) || null;
   else if (campo === 'fecha') { _fa.fecha = v; _faVencAuto(); }
   else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
@@ -46744,7 +46762,7 @@ function _faRender() {
     ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, i) => '<th style="padding:6px 8px' + (i === 1 || i === 3 || i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   if (!_fa.lineas.length) h += '<tr><td colspan="7" style="padding:12px;color:#111">Sin conceptos. Pulsa <b>+ Añadir concepto</b>.</td></tr>';
   _fa.lineas.forEach((l, i) => {
-    h += '<tr style="border-top:1px solid var(--bd);vertical-align:top"><td style="padding:5px 8px"><textarea rows="2" list="faCatList" onchange="faLin(' + i + ',\'concepto\',this.value.trim())" placeholder="Concepto (empieza a escribir un habitual o escribe libre)" style="' + inp + ';width:100%;font-size:13px">' + esc(l.concepto || '') + '</textarea></td>' +
+    h += '<tr style="border-top:1px solid var(--bd);vertical-align:top"><td style="padding:5px 8px"><textarea rows="2" onchange="faLin(' + i + ',\'concepto\',this.value.trim())" placeholder="Concepto (empieza a escribir un habitual o escribe libre)" style="' + inp + ';width:100%;font-size:13px">' + esc(l.concepto || '') + '</textarea></td>' +
       '<td style="padding:5px 8px"><input value="' + (l.cantidad != null && l.cantidad !== '' ? String(l.cantidad).replace('.', ',') : '') + '" onchange="faLin(' + i + ',\'cantidad\',this.value)" style="' + inp + ';width:100%;text-align:right"></td>' +
       '<td style="padding:5px 8px"><select onchange="faLin(' + i + ',\'unidad\',this.value)" style="' + inp + ';width:100%">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((l.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select></td>' +
       '<td style="padding:5px 8px"><input value="' + (l.precio != null && l.precio !== '' ? String(l.precio).replace('.', ',') : '') + '" onchange="faLin(' + i + ',\'precio\',this.value)" style="' + inp + ';width:100%;text-align:right"></td>' +
@@ -46761,7 +46779,11 @@ function _faRender() {
   // Pago
   h += '<div style="margin-top:14px;padding:12px;background:var(--s2);border-radius:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">' +
     '<label style="' + lab + '">Forma de pago<br><select onchange="_fa.pago=this.value" style="' + inp + '">' + [...new Set([..._FA_PAGOS, _fa.pago].filter(Boolean))].map(p => '<option' + (_fa.pago === p ? ' selected' : '') + '>' + esc(p) + '</option>').join('') + '</select></label>' +
-    '<label style="' + lab + ';flex:1;min-width:300px">Cuenta bancaria (se recuerda para ' + esc(_OF_EMPRESAS[_fa.empresa]) + ')<br><input value="' + _ofEA(_fa.cuenta) + '" placeholder="IBAN ES.. (BIC)" onchange="_fa.cuenta=this.value.trim()" style="' + inp + ';width:100%;font-weight:700"></label>' +
+    '<label style="' + lab + ';flex:1;min-width:340px">Cuenta bancaria de ' + esc(_OF_EMPRESAS[_fa.empresa]) + '<br><select onchange="faSet(\'cuenta\',this.value)" style="' + inp + ';width:100%;font-weight:700">' +
+      (!_fa.cuenta ? '<option value="" selected>— sin cuenta: añade una —</option>' : '') +
+      (_fa.cuenta && !_faCuentas(_fa.empresa).some(c => _faCuentaTxt(c) === _fa.cuenta) ? '<option value="' + _ofEA(_fa.cuenta) + '" selected>' + esc(_fa.cuenta) + '</option>' : '') +
+      _faCuentas(_fa.empresa).map(c => { const t = _faCuentaTxt(c); return '<option value="' + _ofEA(t) + '"' + (t === _fa.cuenta ? ' selected' : '') + '>' + esc(t) + (c.pred ? '  (predeterminada)' : '') + '</option>'; }).join('') +
+      '<option value="__otra__">+ Otra cuenta…</option></select></label>' +
     '<label style="' + lab + '">Vencimiento <span style="color:var(--mu)">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:700"></label></div>';
   h += '<label style="display:block;margin-top:10px;' + lab + '">Notas (salen en la factura)<textarea rows="2" onchange="_fa.notas=this.value" style="width:100%;' + inp + '">' + esc(_fa.notas || '') + '</textarea></label>';
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
@@ -46791,8 +46813,8 @@ async function faGuardar(silencioso, estado) {
     else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
     if (estado) _fa.estado = estado; _fa.guardadaTotal = T.total;
     if (_fa.estado === 'emitida') { try { await _faAEmitidas(); } catch (e) { console.error('[v1150] a F. Emitidas:', e); toast('⚠️ Guardada, pero NO se pudo apuntar en F. Emitidas: ' + (e.message || e), 'err'); } }
-    // La cuenta y la forma de pago se recuerdan para la empresa
-    try { const c = _faCfg[_fa.empresa] || {}; if (_fa.cuenta && (c.cuenta !== _fa.cuenta || c.forma_pago !== _fa.pago)) { await sb.from('facturas_config').upsert({ empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago, series: c.series || [] }, { onConflict: 'empresa' }); _faCfg[_fa.empresa] = Object.assign({}, c, { empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago }); } } catch (e) { console.warn('[v1149] recordar cuenta:', e); }
+    // La forma de pago se recuerda para la empresa (v1152: las cuentas van en su lista, no se pisan)
+    try { const c = _faCfg[_fa.empresa] || {}; if (_fa.pago && c.forma_pago !== _fa.pago) { await sb.from('facturas_config').update({ forma_pago: _fa.pago }).eq('empresa', _fa.empresa); c.forma_pago = _fa.pago; } } catch (e) { console.warn('[v1152] recordar forma de pago:', e); }
     if (!silencioso) toast('Factura ' + numero + ' guardada · ' + _ofEur(T.total), 'ok');
     _faRender(); if ((document.getElementById('faCardOut') || {}).innerHTML) faListar();
     return true;
