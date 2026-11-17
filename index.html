@@ -584,6 +584,23 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
+      <div class="card" id="faCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#1b3254"></div>FACTURAS <span style="font-size:10px;color:var(--mu);font-weight:400">(hechas en la app · serie, cliente, conceptos, vencimiento)</span></div>
+        </div>
+        <div class="card-bd">
+          <div style="font-size:14px;color:#111;line-height:1.6">Pulsa <b>Nueva factura</b>, o desde una oferta aprobada <b>Crear factura</b>. Pincha una de la lista para abrirla.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <select id="faFiltroEmp" onchange="faListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px"><option value="">Todas las empresas</option><option value="TYP">Transportes y Portes 2014</option><option value="PORTES">Portes 2014 Import</option><option value="HISPALIS">T. Híspalis 2016</option></select>
+            <button class="btn bs" onclick="faListar()" style="font-weight:800">Ver facturas</button>
+            <button class="btn bp" onclick="faNueva()" style="font-weight:800">Nueva factura</button>
+            <button class="btn bs" onclick="ofCliAbrir()">Clientes</button>
+            <button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>
+          </div>
+          <div id="faCardOut" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="card" id="fiCard" style="margin-top:18px;display:none">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#4c1d95"></div>FACTURA HÍSPALIS / TRANSMARGAZ <span style="font-size:10px;color:var(--mu);font-weight:400">(lo que nos facturan · solo Admin)</span></div>
@@ -2162,6 +2179,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1148"></script>
+<script src="app.js?v=1149"></script>
 </body>
 </html>

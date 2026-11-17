@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1149 (17/11/2026): FACTURACIÓN · NUEVO MÓDULO DE FACTURAS (fase 1). Tarjeta FACTURAS con lista, "Nueva factura", Clientes y Conceptos habituales. La factura lleva: empresa que factura; SERIE en desplegable como en Quipu (TYP2014: 2026-11, 2026-10… + I26, RM2026; Híspalis: 202611…; Import: 2026; "+ Otra serie…" se guarda); NÚMERO propuesto = el siguiente de esa serie mirando Facturas emitidas y las de la app (editable; avisa si está repetido); fecha de emisión; cliente en desplegable (ficha de clientes) con sus datos; pedido/referencia; conceptos (habituales o libres) con cantidad, unidad, precio, IVA 21/10/0 e importe; totales con IVA por tipo; forma de pago, cuenta bancaria (se recuerda por empresa) y vencimiento (fecha + plazo del cliente de clientes_plazo, 60 días si no tiene; editable). "Factura PDF" con el mismo formato de cada empresa que las ofertas (FACTURA, vencimiento, pago y cuenta, anexo de albaranes). Guardar borrador / Emitir factura (marca los albaranes como facturados y la oferta como FACTURADA). En una oferta APROBADA: botón "Crear factura" (trae conceptos, albaranes y pedido); el antiguo "Marcar facturada" pasa a "Ya facturada fuera". Pendiente: envío a Quipu ingresos y al cliente. SQL PREVIO: tablas facturas_app y facturas_config + RLS + GRANT. VUELTA ATRAS: resubir v1148.
+
+---
+
 v1148 (17/11/2026): OFERTAS · CLIENTES: LLANTADA CON SU RAZÓN SOCIAL COMPLETA. En la ficha de clientes, Llantada pasa a "TRANSPORTES LLANTADA E HIJOS, S.L." (CIF B95006615, Pol. Ind. El Campillo, parcela 1-2, Fase II, Apdo. 55, 48500 Gallarta - Abanto y Ciérvana), según su factura 26/260435. Para que los albaranes que ponen "Llantada e Hijos, S.L." sigan encontrando la ficha, el desplegable reconoce también el nombre corto cuando la razón social acaba igual. Sin SQL de estructura (solo el dato). VUELTA ATRAS: resubir v1147.
 
 ---

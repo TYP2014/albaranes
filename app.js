@@ -1476,6 +1476,7 @@ async function onLogin(user) {
   try { liqInitCard(); } catch (e) {} // v709: liquidacion de autonomos (solo admin/Marta/MdM)
   try { fiInitCard(); } catch (e) {} // v818: factura Hispalis / Transmargaz (solo admin)
   try { ofInitCard(); } catch (e) {} // v1133: ofertas
+  try { faInitCard(); } catch (e) {} // v1149: facturas
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'block';
   document.getElementById('hdrUser').textContent = profile?.name || user.email;
@@ -34188,7 +34189,7 @@ function _factRepasoBorrar(id) {
 // ============================================================================
 const _FACT_PANELES = [
   ['factHolcimCard', 'Holcim'], ['factCemexCard', 'CEMEX'], ['factSodiraCard', 'Sodira'],
-  ['ofCard', 'Ofertas'],
+  ['ofCard', 'Ofertas'], ['faCard', 'Facturas'],
   ['liqAutCard', 'Subcontratados'], ['fiCard', 'Factura Híspalis / Transmargaz'],
   ['factTarifasCard', 'Tarifas por servicio'], ['tarifasCliCard', 'Precio cliente']
 ];
@@ -45854,7 +45855,8 @@ function _ofRender() {
     ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:12px;padding:5px 12px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
     (_of.estado === 'aprobada' ? '<span style="font-size:13px">Pedido SAP: <input value="' + _ofEA(_of.pedido_sap) + '" onchange="_of.pedido_sap=this.value.trim()" style="' + inp + ';width:140px;font-weight:700"></span>' : '') +
     '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
-    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#7c3aed;color:#fff;font-weight:800" title="Apunta el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Marcar facturada</button>' : '') +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofAFactura()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#1b3254;color:#fff;font-weight:800" title="Abre una factura nueva con los conceptos, los albaranes y el pedido de esta oferta">Crear factura</button>' : '') +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="font-size:13px;padding:8px 16px;background:#fff;border:2px solid #7c3aed;color:#7c3aed;font-weight:800" title="Si la factura se hizo fuera de la app (Quipu): apunta su nº, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Ya facturada fuera</button>' : '') +
     (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">🧾 FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
@@ -46059,7 +46061,8 @@ function _ofTemas() { const r = (a, b, c) => PDFLib.rgb(a, b, c); return {
 function _ofFechaLarga(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return ''; return Number(m[3]) + ' de ' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][Number(m[2]) - 1] + ' de ' + m[1]; }
 async function _ofPdfBytes() {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const L = _ofConceptos(), T = _ofTotales(L);
+  const DOC = _of._doc || null, TIT = DOC ? DOC.tipo : 'OFERTA';   // v1149: el mismo PDF sirve para FACTURA
+  const L = DOC ? [] : _ofConceptos(), T = _ofTotales(L);
   const doc = await PDFDocument.create();
   const fN = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
   let NAVY_ = null; const GRIS = rgb(0.42, 0.45, 0.5), LINEA = rgb(0.82, 0.85, 0.89), NEGRO = rgb(0.1, 0.1, 0.12), BLANCO = rgb(1, 1, 1);
@@ -46081,7 +46084,7 @@ async function _ofPdfBytes() {
     if (cabeceraCorta) {
       rect(0, H - 46, W, 46, NAVY);
       txt(empNombre, M, H - 29, 11, fB, BLANCO);
-      txtR('OFERTA ' + (_of.numero || ''), W - M, H - 29, 11, fB, BLANCO);
+      txtR(TIT + ' ' + (_of.numero || ''), W - M, H - 29, 11, fB, BLANCO);
       y = H - 74;
     }
   };
@@ -46096,7 +46099,7 @@ async function _ofPdfBytes() {
     const yI = H - 44 - nomL.length * 20;
     txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, rgb(0.82, 0.86, 0.92));
     txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, rgb(0.82, 0.86, 0.92));
-    txtR('OFERTA', W - M, H - 50, 26, fB, BLANCO);
+    txtR(TIT, W - M, H - 50, 26, fB, BLANCO);
     txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 70, 12, fB, TEMA.a);
   } else if (TEMA.estilo === 'lateral') {   // Portes 2014 Import: franja vertical granate a la izquierda, fondo blanco
     rect(0, H - 120, 14, 120, TEMA.c); rect(14, H - 120, 3, 120, TEMA.a);
@@ -46106,7 +46109,7 @@ async function _ofPdfBytes() {
     txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, GRIS);
     txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, GRIS);
     rect(W - M - 170, H - 92, 170, 56, TEMA.c);
-    txtC('OFERTA', W - M - 85, H - 62, 20, fB, BLANCO);
+    txtC(TIT, W - M - 85, H - 62, 20, fB, BLANCO);
     txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 85, H - 81, 11, fB, rgb(0.9, 0.9, 0.9));
     page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.2, color: TEMA.c });
   } else {                                   // v1137 Híspalis: estilo "TLS" — banda alta, filo dorado, cuadro gris de datos y pie de color
@@ -46115,7 +46118,7 @@ async function _ofPdfBytes() {
     nomL.forEach((l, i) => txt(l, M, H - 48 - i * 22, 19, fB, BLANCO));
     const yI = H - 50 - nomL.length * 22;
     [empDir, 'CIF ' + empCif].concat(TEMA.tel ? ['Tel. ' + TEMA.tel] : []).forEach((l, i) => txt(l, M, yI - i * 12, 9, fN, rgb(0.9, 0.92, 0.95)));
-    txtR('OFERTA', W - M, H - 56, 28, fB, BLANCO);
+    txtR(TIT, W - M, H - 56, 28, fB, BLANCO);
     txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 75, 10.5, fN, TEMA.a);
     txtR(_ofFechaLarga(_of.fecha), W - M, H - 90, 9.5, fN, BLANCO);
   }
@@ -46130,15 +46133,17 @@ async function _ofPdfBytes() {
     cliT.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 12, 270).slice(0, 2).forEach(ll => { txt(ll, M, yc, i ? 9.5 : 12, i ? fN : fB, i === cliT.length - 1 && /NIF|CIF/i.test(l) ? NEGRO : NEGRO); yc -= i ? 13 : 16; }));
     const xG = M + 320, wG = ANCHO - 320;
     const est = _OF_ESTADOS[_of.estado] || _OF_ESTADOS.estudio;
-    const dd = [['FECHA', _ofFechaEs(_of.fecha)], ['VÁLIDA HASTA', _of.validez ? _ofFechaEs(_of.validez) : ''], ['PEDIDO SAP', _of.pedido_sap || '']].filter(d => d[1]);
-    const hG = 26 + dd.length * 30 + 22;
+    const dd = [['FECHA', _ofFechaEs(_of.fecha)], DOC ? ['VENCIMIENTO', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['VÁLIDA HASTA', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'PEDIDO' : 'PEDIDO SAP', _of.pedido_sap || '']].filter(d => d[1]);
+    const hG = 26 + dd.length * 30 + (DOC ? 0 : 22);
     rect(xG, y + 8 - hG, wG, hG, rgb(0.949, 0.953, 0.961));
     let yg = y - 8;
     dd.forEach(d => { txt(d[0], xG + 14, yg, 7.5, fB, GRIS); txt(d[1], xG + 14, yg - 14, 11, fN); yg -= 30; });
+    if (!DOC) {
     txt('ESTADO', xG + 14, yg, 7.5, fB, GRIS);
     const et = est[0].toUpperCase(), we = fB.widthOfTextAtSize(et, 8) + 24;
     page.drawRectangle({ x: xG + 90, y: yg - 6, width: we, height: 17, color: rgb(0.96, 0.62, 0.07) });
     txtC(et, xG + 90 + we / 2, yg - 0.5, 8, fB, BLANCO);
+    }
     y = Math.min(yc, y + 8 - hG) - 26;
   } else {
   const cliL = [_of.cliente].concat(String(_of.clienteDatos || '').split('\n').map(s => s.trim()).filter(Boolean));
@@ -46148,17 +46153,17 @@ async function _ofPdfBytes() {
   txt('CLIENTE', M + 14, y - 17, 8, fB, GRIS);
   cliL.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 11, 270).slice(0, 2).forEach((ll, j) => txt(ll, M + 14, y - 33 - i * 13 - j * 12, i ? 9.5 : 11, i ? fN : fB)));
   const xD = M + 320, wD = ANCHO - 320;
-  const datos = [['Fecha', _ofFechaEs(_of.fecha)], ['Válida hasta', _of.validez ? _ofFechaEs(_of.validez) : ''], ['Pedido SAP', _of.pedido_sap || '']].filter(d => d[1]);
+  const datos = [['Fecha', _ofFechaEs(_of.fecha)], DOC ? ['Vencimiento', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['Válida hasta', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'Pedido' : 'Pedido SAP', _of.pedido_sap || '']].filter(d => d[1]);
   rect(xD, y - hCaja, wD, hCaja, null, LINEA);
   datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
   y -= hCaja + 22;
   }
   if (_of.titulo) { partir(_of.titulo, fB, 12, ANCHO).slice(0, 2).forEach(l => { txt(l, M, y, 12, fB, NAVY); y -= 15; }); y -= 3; }   // v1141
-  txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
-  y -= 18;
+  if (!DOC) { txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
+  y -= 18; }
   // ===== Tabla de conceptos =====
   const conItem = !!_of.agruparMaterial;
-  const cols = (conItem ? [['Item', 38, 'l']] : []).concat([['Concepto', 0, 'l'], ['Viajes', 40, 'r'], ['Cantidad', 70, 'r'], ['Precio', 64, 'r'], ['IVA', 32, 'r'], ['Importe', 74, 'r']]);
+  const cols = (conItem ? [['Item', 38, 'l']] : []).concat([['Concepto', 0, 'l'], [DOC ? '' : 'Viajes', DOC ? 4 : 40, 'r'], ['Cantidad', 70, 'r'], ['Precio', 64, 'r'], ['IVA', 32, 'r'], ['Importe', 74, 'r']]);
   const fijo = cols.reduce((a, c) => a + c[1], 0); cols.forEach(c => { if (!c[1]) c[1] = ANCHO - fijo; });
   const xs = []; let xx = M; cols.forEach(c => { xs.push(xx); xx += c[1]; });
   const cabTabla = () => { rect(M, y - 20, ANCHO, 20, NAVY); cols.forEach((c, i) => { const yy = y - 13.5; if (c[2] === 'r') txtR(c[0].toUpperCase(), xs[i] + c[1] - 6, yy, 7.5, fB, BLANCO); else if (c[2] === 'c') txtC(c[0].toUpperCase(), xs[i] + c[1] / 2, yy, 7.5, fB, BLANCO); else txt(c[0].toUpperCase(), xs[i] + 6, yy, 7.5, fB, BLANCO); }); y -= 20; };
@@ -46204,11 +46209,18 @@ async function _ofPdfBytes() {
   // ===== Notas y condiciones =====
   const notas = [];
   if (_of.observaciones) notas.push(_of.observaciones);
+  if (DOC) {
+    if (DOC.pago) notas.push('Forma de pago: ' + DOC.pago);
+    if (DOC.cuenta) notas.push('Cuenta bancaria: ' + DOC.cuenta);
+    if (DOC.venc) notas.push('Vencimiento: ' + _ofFechaEs(DOC.venc));
+    if (_of.filas.length) notas.push('Se adjunta el detalle de los ' + _of.filas.length + ' albaranes facturados.');
+  } else {
   notas.push('Se adjunta el detalle de los ' + _of.filas.filter(x => !x.fuera).length + ' albaranes incluidos en esta oferta.');
   notas.push('Precios sin IVA. El IVA se aplica según el tipo indicado en cada línea.');
+  }
   const notL = []; notas.forEach(n => partir(n, fN, 9, ANCHO - 24).forEach(l => notL.push(l)));
   if (y - (notL.length * 12 + 30) < 70) { nuevaPagina(true); }
-  txt('NOTAS', M, y, 8, fB, GRIS); y -= 8;
+  txt(DOC ? 'PAGO Y NOTAS' : 'NOTAS', M, y, 8, fB, GRIS); y -= 8;
   rect(M, y - notL.length * 12 - 12, ANCHO, notL.length * 12 + 12, CLARO_T);
   notL.forEach((l, i) => txt(l, M + 12, y - 15 - i * 12, 9));
   y -= notL.length * 12 + 24;
@@ -46557,4 +46569,263 @@ function _vacNomCorto(n) {
   if (p.length >= 3) p = p.slice(0, -1);
   while (p.length > 2 && /^(I|Y|DE|DEL|LA|EL)$/i.test(p[p.length - 1])) p.pop();
   return p.join(' ');
+}
+
+// ============================================================================
+// v1149 (JC 17/11/2026): MÓDULO DE FACTURAS (fase 1). Tarjeta FACTURAS en Facturación.
+// Factura = empresa + SERIE (desplegable, como en Quipu) + nº (se propone el siguiente; editable) + fecha de emisión
+// + cliente (desplegable de la ficha de clientes) + líneas (concepto con catálogo, cantidad, unidad, precio, IVA) +
+// forma de pago, cuenta bancaria (se recuerda por empresa) y vencimiento (fecha + plazo del cliente; editable).
+// PDF con el mismo formato de cada empresa que las ofertas. Borrador → Emitida (marca albaranes 🟢 y la oferta
+// como FACTURADA). Desde una oferta APROBADA: "Crear factura" (trae conceptos, albaranes y pedido).
+// Tablas: facturas_app, facturas_config. Pendiente: envío a Quipu ingresos y al cliente por email.
+// ============================================================================
+let _fa = null, _faLista = [], _faCfg = {}, _faPlazos = null;
+const _FA_PAGOS = ['Transferencia', 'Confirming', 'Pagaré', 'Recibo domiciliado', 'Contado'];
+const _FA_EMP_FE = { TYP: 'TYP2014', HISPALIS: 'HISPALIS', PORTES: 'PORTES 2014 IMPORT' };   // nombre de la empresa en facturas_emitidas
+function _faNumero(f) { f = f || _fa; return f.serie && f.n ? f.serie + '-' + f.n : ''; }
+function _faKey(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+// Series del desplegable: las mensuales del año (formato de cada empresa) + las propias guardadas (I26, RM2026…)
+function _faSeries(emp, fechaIso) {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1, out = [];
+  if (emp === 'PORTES') out.push(String(y));
+  else for (let i = m; i >= 1; i--) out.push(emp === 'HISPALIS' ? String(y) + String(i).padStart(2, '0') : y + '-' + String(i).padStart(2, '0'));
+  ((_faCfg[emp] || {}).series || []).forEach(s => { if (!out.includes(s)) out.push(s); });
+  if (_fa && _fa.empresa === emp && _fa.serie && !out.includes(_fa.serie)) out.unshift(_fa.serie);
+  return out;
+}
+function _faSerieDeFecha(emp, iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})/); if (!m) return ''; return emp === 'PORTES' ? m[1] : emp === 'HISPALIS' ? m[1] + m[2] : m[1] + '-' + m[2]; }
+async function _faCargarCfg() {
+  try { const { data, error } = await sb.from('facturas_config').select('*'); if (error) throw error; _faCfg = {}; (data || []).forEach(c => { _faCfg[c.empresa] = c; }); }
+  catch (e) { console.error('[v1149] config facturas:', e); if (/does not exist|relation|permission/i.test(e.message || '')) toast('Falta el SQL de la v1149 (tablas de facturas)', 'err'); }
+  if (!_faPlazos) { try { const { data } = await sb.from('clientes_plazo').select('cliente_key,dias'); _faPlazos = data || []; } catch (e) { _faPlazos = []; } }
+}
+function _faPlazoDe(cliente) { const k = _faKey(cliente); if (!k) return 60; const p = (_faPlazos || []).find(x => x.cliente_key === k || k.endsWith(x.cliente_key) || x.cliente_key.endsWith(k)); return p ? Number(p.dias) || 60 : 60; }
+function _faVencAuto() { if (!_fa || _fa.vencManual || !_fa.fecha) return; const d = new Date(_fa.fecha + 'T12:00:00'); d.setDate(d.getDate() + _faPlazoDe(_fa.cliente)); _fa.venc = _ofIso(d); }
+// Siguiente nº de la serie: el mayor de Facturas emitidas (lo de Quipu) y de las facturas de la app, + 1
+async function _faSiguiente(emp, serie) {
+  let max = 0; const pref = serie + '-';
+  const mira = num => { const s = String(num || ''); if (!s.startsWith(pref)) return; const r = s.slice(pref.length); if (/^\d+$/.test(r)) max = Math.max(max, parseInt(r, 10)); };
+  try { const { data } = await sb.from('facturas_emitidas').select('numero').eq('empresa', _FA_EMP_FE[emp] || emp).like('numero', pref + '%'); (data || []).forEach(x => mira(x.numero)); } catch (e) { console.warn('[v1149] siguiente (emitidas):', e); }
+  try { let q = sb.from('facturas_app').select('id,n').eq('empresa', emp).eq('serie', serie); const { data } = await q; (data || []).forEach(x => { if (!_fa || x.id !== _fa.id) max = Math.max(max, Number(x.n) || 0); }); } catch (e) { console.warn('[v1149] siguiente (app):', e); }
+  return max + 1;
+}
+// ---------- Tarjeta ----------
+function faInitCard() { const c = document.getElementById('faCard'); if (!c) return; c.style.display = _ofPuede() ? '' : 'none'; }
+async function faListar() {
+  const out = document.getElementById('faCardOut'); if (!out) return;
+  out.innerHTML = '<div style="padding:10px">Cargando facturas…</div>';
+  try { const { data, error } = await sb.from('facturas_app').select('id,empresa,numero,fecha,cliente,estado,total,vencimiento').order('created_at', { ascending: false }); if (error) throw error; _faLista = data || []; }
+  catch (e) { console.error('[v1149] listar facturas:', e); out.innerHTML = '<div style="color:#c62828;padding:10px">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; return; }
+  const fe = (document.getElementById('faFiltroEmp') || {}).value || '';
+  const L = _faLista.filter(f => !fe || f.empresa === fe);
+  if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay facturas hechas en la app' + (fe ? ' de esa empresa' : '') + '. Pulsa <b>Nueva factura</b>, o desde una oferta aprobada <b>Crear factura</b>.</div>'; return; }
+  let h = '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Estado', 'Nº factura', 'Empresa', 'Fecha', 'Cliente', 'Total', 'Vencimiento', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  L.forEach(f => { const em = f.estado === 'emitida';
+    h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
+      '<td style="padding:7px 8px;font-weight:700">' + esc(f.numero || '(sin nº)') + '</td><td style="padding:7px 8px">' + esc(_OF_EMPRESAS[f.empresa] || f.empresa) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.fecha)) + '</td>' +
+      '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
+      '<td style="padding:7px 8px"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button></td></tr>'; });
+  out.innerHTML = h + '</tbody></table></div>';
+}
+// ---------- Nueva / abrir ----------
+async function faNueva(base) {
+  if (!_ofPuede()) return;
+  await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
+  const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: cfg.cuenta || '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa.n = await _faSiguiente(_fa.empresa, _fa.serie); _faVencAuto();
+  _faVentana();
+}
+async function faAbrir(id) {
+  try {
+    await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
+    const { data, error } = await sb.from('facturas_app').select('*').eq('id', id).single(); if (error) throw error;
+    const D = data.datos || {};
+    _fa = { id: data.id, empresa: data.empresa, serie: data.serie || '', n: data.n, fecha: data.fecha || '', cliente: data.cliente || '', clienteDatos: D.clienteDatos || '', email: data.email || '', estado: data.estado || 'borrador',
+      lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', notas: data.notas || '', titulo: D.titulo || '',
+      oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0 };
+    _faVentana();
+  } catch (e) { console.error('[v1149] abrir factura:', e); toast('No se pudo abrir la factura: ' + (e.message || e), 'err'); }
+}
+// Desde una oferta APROBADA: trae empresa, cliente, conceptos (con cantidad y precio), líneas, albaranes y pedido.
+async function ofAFactura() {
+  if (!_of) return;
+  if (!_of.id || (_of.guardadaTotal != null && Math.abs(_of.guardadaTotal - _ofTotales().total) > 0.005)) { toast('Guarda primero la oferta', 'err'); return; }
+  const L = _ofConceptos(), lineas = [];
+  L.forEach(c => c.tramos.forEach(t => { if (!t.viajes) return;
+    const u = c.cfg.unidad === 'viaje' ? 'viaje' : c.cfg.unidad === 'hora' ? 'h' : 'tn';
+    const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
+    const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : 'del ' + _ofFechaEs(fs[0].fecha) + ' al ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';
+    lineas.push({ concepto: (c.cfg.item ? 'Item ' + c.cfg.item + ' · ' : '') + c.texto + (per ? ' (' + per + ')' : ''), cantidad: _ofR2(t.cant), unidad: u, precio: Number(t.precio) || 0, iva: _ofIvaDe(c.cfg), importe: t.imp }); }));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => lineas.push(Object.assign({}, l)));
+  const base = { empresa: _of.empresa, cliente: _of.cliente, clienteDatos: _of.clienteDatos || '', email: _of.email || '', lineas, pedido: _of.pedido_sap || '', titulo: _of.titulo || '', oferta_id: _of.id,
+    notas: 'Según oferta ' + (_of.numero || '') + (_of.pedido_sap ? ' · Pedido ' + _of.pedido_sap : ''), filas: _of.filas.filter(x => !x.fuera).map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) };
+  document.getElementById('ofOv')?.remove(); _of = null;
+  await faNueva(base);
+}
+// ---------- Ventana ----------
+function _faVentana() {
+  document.getElementById('faOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'faOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
+  ov.innerHTML = '<div id="faBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  document.body.appendChild(ov); _faRender();
+}
+function _faTot() {
+  const porTipo = {}; _fa.lineas.forEach(l => { const v = Number(l.importe) || 0; if (!v) return; const t = _ofIvaDe(l); porTipo[t] = (porTipo[t] || 0) + v; });
+  const desglose = Object.keys(porTipo).map(Number).sort((a, b) => b - a).map(t => { const b = _ofR2(porTipo[t]); return { tipo: t, base: b, iva: _ofR2(b * t / 100) }; });
+  if (!desglose.length) desglose.push({ tipo: 21, base: 0, iva: 0 });
+  const base = _ofR2(desglose.reduce((a, d) => a + d.base, 0)), iva = _ofR2(desglose.reduce((a, d) => a + d.iva, 0));
+  return { base, iva, desglose, total: _ofR2(base + iva) };
+}
+function faCerrar() {
+  const T = _faTot().total;
+  if (_fa && (_fa.guardadaTotal == null ? (_fa.lineas.length || _fa.cliente) : Math.abs(_fa.guardadaTotal - T) > 0.005) && !confirm('Hay cambios sin guardar. ¿Cerrar igual?')) return;
+  document.getElementById('faOv')?.remove(); _fa = null;
+}
+async function faSet(campo, v) {
+  if (campo === 'empresa') { _fa.empresa = v; const c = _faCfg[v] || {}; _fa.cuenta = c.cuenta || ''; _fa.pago = c.forma_pago || _fa.pago; _fa.serie = _faSerieDeFecha(v, _fa.fecha); _fa.n = await _faSiguiente(v, _fa.serie); }
+  else if (campo === 'serie') {
+    if (v === '__otra__') { const s = prompt('Nombre de la serie nueva (ej. RM2026):'); if (!s || !s.trim()) { _faRender(); return; } v = s.trim();
+      try { const c = _faCfg[_fa.empresa] || { empresa: _fa.empresa, series: [] }; const ser = [...new Set([...(c.series || []), v])]; await sb.from('facturas_config').upsert({ empresa: _fa.empresa, series: ser }, { onConflict: 'empresa' }); c.series = ser; _faCfg[_fa.empresa] = c; } catch (e) { console.warn('[v1149] guardar serie:', e); } }
+    _fa.serie = v; _fa.n = await _faSiguiente(_fa.empresa, v); }
+  else if (campo === 'n') _fa.n = parseInt(v, 10) || null;
+  else if (campo === 'fecha') { _fa.fecha = v; _faVencAuto(); }
+  else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
+  else if (campo === 'cliente') {
+    if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _faRender(); return; } v = n.trim().toUpperCase(); }
+    _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && c.email) || ''; if (c) _fa.cliente = c.nombre; _faVencAuto(); }
+  else _fa[campo] = v;
+  _faRender();
+}
+function faLin(i, campo, v) {
+  const l = _fa.lineas[i]; if (!l) return;
+  if (campo === 'concepto') { l.concepto = v; const c = _ofCatBuscar(v); if (c) { l.concepto = c.nombre; l.unidad = c.unidad || 'ud'; l.iva = c.iva == null ? 21 : Number(c.iva); if (c.precio != null) l.precio = Number(c.precio); if (l.cantidad == null || l.cantidad === '') l.cantidad = 1; _ofLinRecalc(l); } }
+  else if (campo === 'unidad') l.unidad = v; else if (campo === 'iva') l.iva = Number(v);
+  else if (campo === 'importe') { l.importe = _ofNum(v); l.precio = null; }
+  else { l[campo] = _ofNum(v); _ofLinRecalc(l); }
+  _faRender();
+}
+function _faRender() {
+  const box = document.getElementById('faBox'); if (!box || !_fa) return;
+  const ovEl = document.getElementById('faOv'), sc = ovEl ? ovEl.scrollTop : 0;
+  const T = _faTot(), em = _fa.estado === 'emitida';
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit', lab = 'font-size:12px;color:#111';
+  const series = _faSeries(_fa.empresa, _fa.fecha), cliEn = _ofCliBuscar(_fa.cliente);
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">Factura ' + (_faNumero() ? esc(_faNumero()) : '<span style="color:var(--mu)">(sin nº)</span>') +
+    ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;vertical-align:middle;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></div>' +
+    '<button class="btn bs" onclick="faCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
+    '<label style="' + lab + '">Empresa que factura<br><select onchange="faSet(\'empresa\',this.value)" style="' + inp + ';font-weight:700">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_fa.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
+    '<label style="' + lab + '">Serie<br><select onchange="faSet(\'serie\',this.value)" style="' + inp + ';font-weight:700">' + series.map(s => '<option value="' + _ofEA(s) + '"' + (_fa.serie === s ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '<option value="__otra__">+ Otra serie…</option></select></label>' +
+    '<label style="' + lab + '">Número<br><input value="' + (_fa.n || '') + '" onchange="faSet(\'n\',this.value)" style="' + inp + ';width:80px;font-weight:800;text-align:center"></label>' +
+    '<div style="' + lab + ';padding-bottom:9px">Nº de factura: <b style="font-size:16px">' + esc(_faNumero() || '—') + '</b></div>' +
+    '<label style="' + lab + '">Fecha de emisión<br><input type="date" value="' + _ofEA(_fa.fecha) + '" onchange="faSet(\'fecha\',this.value)" style="' + inp + '"></label>' +
+    '<label style="' + lab + ';flex:1;min-width:260px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="faSet(\'cliente\',this.value)" style="' + inp + ';width:100%;font-weight:700">' +
+      (_fa.cliente && !cliEn ? '<option value="' + _ofEA(_fa.cliente) + '" selected>' + esc(_fa.cliente) + '</option>' : '') + (!_fa.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
+      _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (cliEn === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label></div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
+    '<label style="' + lab + ';flex:1;min-width:300px">Datos del cliente (dirección, CP, NIF)<br><textarea rows="3" onchange="_fa.clienteDatos=this.value" style="' + inp + ';width:100%;font-size:13px">' + esc(_fa.clienteDatos || '') + '</textarea></label>' +
+    '<label style="' + lab + ';flex:1;min-width:240px">Pedido / referencia del cliente<br><input value="' + _ofEA(_fa.pedido) + '" placeholder="ej. nº de pedido SAP" onchange="_fa.pedido=this.value.trim()" style="' + inp + ';width:100%"></label></div>';
+  // Líneas
+  const catEmp = _ofCatDeEmpresa(_fa.empresa);
+  h += '<div style="margin-top:16px;font-weight:800;font-size:15px">Conceptos</div><datalist id="faCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">').join('') + '</datalist>' +
+    '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:100px"><col style="width:110px"><col style="width:90px"><col style="width:130px"><col style="width:60px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, i) => '<th style="padding:6px 8px' + (i === 1 || i === 3 || i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  if (!_fa.lineas.length) h += '<tr><td colspan="7" style="padding:12px;color:#111">Sin conceptos. Pulsa <b>+ Añadir concepto</b>.</td></tr>';
+  _fa.lineas.forEach((l, i) => {
+    h += '<tr style="border-top:1px solid var(--bd);vertical-align:top"><td style="padding:5px 8px"><textarea rows="2" list="faCatList" onchange="faLin(' + i + ',\'concepto\',this.value.trim())" placeholder="Concepto (empieza a escribir un habitual o escribe libre)" style="' + inp + ';width:100%;font-size:13px">' + esc(l.concepto || '') + '</textarea></td>' +
+      '<td style="padding:5px 8px"><input value="' + (l.cantidad != null && l.cantidad !== '' ? String(l.cantidad).replace('.', ',') : '') + '" onchange="faLin(' + i + ',\'cantidad\',this.value)" style="' + inp + ';width:100%;text-align:right"></td>' +
+      '<td style="padding:5px 8px"><select onchange="faLin(' + i + ',\'unidad\',this.value)" style="' + inp + ';width:100%">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((l.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select></td>' +
+      '<td style="padding:5px 8px"><input value="' + (l.precio != null && l.precio !== '' ? String(l.precio).replace('.', ',') : '') + '" onchange="faLin(' + i + ',\'precio\',this.value)" style="' + inp + ';width:100%;text-align:right"></td>' +
+      '<td style="padding:5px 8px"><select onchange="faLin(' + i + ',\'iva\',this.value)" style="' + inp + ';width:100%">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>' +
+      '<td style="padding:5px 8px"><input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" title="Cantidad × precio; también se puede escribir directo" onchange="faLin(' + i + ',\'importe\',this.value)" style="' + inp + ';width:100%;text-align:right;font-weight:800"></td>' +
+      '<td style="padding:5px 8px"><button class="btn bs" style="padding:6px 9px" title="Quitar" onclick="_fa.lineas.splice(' + i + ',1);_faRender()">✕</button></td></tr>'; });
+  h += '</tbody></table></div><div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn bs" style="font-weight:800" onclick="_fa.lineas.push({concepto:\'\',cantidad:1,unidad:\'ud\',precio:null,importe:null,iva:21});_faRender()">+ Añadir concepto</button>' +
+    '<select onchange="if(this.value){_fa.lineas.push({concepto:\'\',cantidad:1,unidad:\'ud\',precio:null,importe:null,iva:21});faLin(_fa.lineas.length-1,\'concepto\',this.value);}" style="' + inp + '"><option value="">+ Añadir un concepto habitual…</option>' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">' + esc(c.nombre) + (c.precio != null ? ' — ' + String(c.precio).replace('.', ',') + ' €/' + (_OF_UNIDADES[c.unidad] || 'ud') : '') + '</option>').join('') + '</select>' +
+    '<button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>' + (_fa.filas.length ? '<span style="font-size:13px;color:#111">· ' + _fa.filas.length + ' albaranes de la oferta (salen en el anexo del PDF)</span>' : '') + '</div>';
+  // Totales
+  const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:320px;font-size:14px">' + fila('Base imponible', T.base) +
+    T.desglose.map(d => fila('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' <span style="font-size:11px;color:var(--mu)">sobre ' + _ofEur(d.base) + '</span>' : ''), d.iva)).join('') + fila('TOTAL', T.total, true) + '</table></div>';
+  // Pago
+  h += '<div style="margin-top:14px;padding:12px;background:var(--s2);border-radius:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">' +
+    '<label style="' + lab + '">Forma de pago<br><select onchange="_fa.pago=this.value" style="' + inp + '">' + [...new Set([..._FA_PAGOS, _fa.pago].filter(Boolean))].map(p => '<option' + (_fa.pago === p ? ' selected' : '') + '>' + esc(p) + '</option>').join('') + '</select></label>' +
+    '<label style="' + lab + ';flex:1;min-width:300px">Cuenta bancaria (se recuerda para ' + esc(_OF_EMPRESAS[_fa.empresa]) + ')<br><input value="' + _ofEA(_fa.cuenta) + '" placeholder="IBAN ES.. (BIC)" onchange="_fa.cuenta=this.value.trim()" style="' + inp + ';width:100%;font-weight:700"></label>' +
+    '<label style="' + lab + '">Vencimiento <span style="color:var(--mu)">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:700"></label></div>';
+  h += '<label style="display:block;margin-top:10px;' + lab + '">Notas (salen en la factura)<textarea rows="2" onchange="_fa.notas=this.value" style="width:100%;' + inp + '">' + esc(_fa.notas || '') + '</textarea></label>';
+  const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
+  h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar</button>' : '') +
+    '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
+    '<button class="btn" onclick="faGuardar()" style="' + _OF_BTN + (em ? ';background:#1b3254;color:#fff' : '') + '">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? '' : '<button class="btn" onclick="faEmitir()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px" title="Cierra la factura con su número y marca sus albaranes como facturados">Emitir factura</button>') + '</div></div>';
+  box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
+}
+// ---------- Guardar / emitir / borrar ----------
+async function faGuardar(silencioso, estado) {
+  if (!_fa) return false;
+  if (!_fa.cliente) { toast('Elige el cliente', 'err'); return false; }
+  if (!_fa.serie || !_fa.n) { toast('Falta la serie o el número', 'err'); return false; }
+  const numero = _faNumero(), T = _faTot();
+  try {
+    const { data: rep } = await sb.from('facturas_app').select('id').eq('empresa', _fa.empresa).eq('numero', numero);
+    if ((rep || []).some(x => x.id !== _fa.id)) { toast('El nº ' + numero + ' ya lo tiene otra factura de ' + _OF_EMPRESAS[_fa.empresa] + '. Cambia el número.', 'err'); return false; }
+    const { data: repQ } = await sb.from('facturas_emitidas').select('id').eq('empresa', _FA_EMP_FE[_fa.empresa]).eq('numero', numero);
+    if ((repQ || []).length && !confirm('⚠️ El nº ' + numero + ' ya está en Facturas emitidas (hecha en Quipu). ¿Guardar igual con ese número?')) return false;
+    const reg = { empresa: _fa.empresa, serie: _fa.serie, n: _fa.n, numero, fecha: _fa.fecha || null, cliente: _fa.cliente, email: _fa.email || null, estado: estado || _fa.estado, forma_pago: _fa.pago || null, cuenta: _fa.cuenta || null, vencimiento: _fa.venc || null,
+      base: T.base, iva: T.iva, total: T.total, notas: _fa.notas || null, oferta_id: _fa.oferta_id || null, albaranes: _fa.filas.map(x => x.id),
+      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
+    if (estado === 'emitida') reg.emitida_el = new Date().toISOString();
+    if (_fa.id) { const { error } = await sb.from('facturas_app').update(reg).eq('id', _fa.id); if (error) throw error; }
+    else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
+    if (estado) _fa.estado = estado; _fa.guardadaTotal = T.total;
+    // La cuenta y la forma de pago se recuerdan para la empresa
+    try { const c = _faCfg[_fa.empresa] || {}; if (_fa.cuenta && (c.cuenta !== _fa.cuenta || c.forma_pago !== _fa.pago)) { await sb.from('facturas_config').upsert({ empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago, series: c.series || [] }, { onConflict: 'empresa' }); _faCfg[_fa.empresa] = Object.assign({}, c, { empresa: _fa.empresa, cuenta: _fa.cuenta, forma_pago: _fa.pago }); } } catch (e) { console.warn('[v1149] recordar cuenta:', e); }
+    if (!silencioso) toast('Factura ' + numero + ' guardada · ' + _ofEur(T.total), 'ok');
+    _faRender(); if ((document.getElementById('faCardOut') || {}).innerHTML) faListar();
+    return true;
+  } catch (e) { console.error('[v1149] guardar factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
+}
+async function faEmitir() {
+  if (!_fa) return;
+  const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
+  if (!_fa.lineas.length || !T.total) { toast('La factura no tiene importe', 'err'); return; }
+  if (!confirm('EMITIR la factura ' + _faNumero() + '\n\n  Cliente: ' + _fa.cliente + '\n  Fecha: ' + _ofFechaEs(_fa.fecha) + ' · Vencimiento: ' + _ofFechaEs(_fa.venc) + '\n  TOTAL: ' + _ofEur(T.total) + (sinP ? '\n\n⚠️ ' + sinP + ' concepto(s) a 0 €' : '') +
+    (_fa.filas.length ? '\n\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
+  if (!(await faGuardar(true, 'emitida'))) return;
+  const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
+  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.ofertado = false; r.ofertado_cliente = null; } });
+  if (_fa.oferta_id) { try { const { data: o } = await sb.from('ofertas').select('datos').eq('id', _fa.oferta_id).single(); const d = Object.assign({}, (o && o.datos) || {}, { factura: _faNumero() }); await sb.from('ofertas').update({ estado: 'facturada', datos: d }).eq('id', _fa.oferta_id); } catch (e) { console.error('[v1149] oferta facturada:', e); err++; } }
+  try { renderTable(); } catch (e) {}
+  toast(err ? '⚠️ Factura emitida, pero algo no se pudo marcar (albaranes u oferta): revísalo' : 'Factura ' + _faNumero() + ' EMITIDA' + (ids.length ? ' · ' + ids.length + ' albaranes facturados' : ''), err ? 'err' : 'ok');
+  _faRender(); faListar();
+}
+async function faBorrar() {
+  if (!_fa || !_fa.id) return;
+  if (!confirm('¿BORRAR la factura ' + _faNumero() + ' de la app?' + (_fa.estado === 'emitida' ? '\n\n⚠️ Está EMITIDA: su número quedará libre y los albaranes NO se desmarcan solos.' : ''))) return;
+  try { const { error } = await sb.from('facturas_app').delete().eq('id', _fa.id); if (error) throw error; toast('Factura borrada', 'ok'); document.getElementById('faOv')?.remove(); _fa = null; faListar(); }
+  catch (e) { console.error('[v1149] borrar factura:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+}
+// ---------- PDF (mismo formato por empresa que las ofertas) ----------
+async function _faPdfBytes() {
+  const antes = _of;
+  try {
+    _of = { numero: _faNumero(), fecha: _fa.fecha, validez: '', empresa: _fa.empresa, cliente: _fa.cliente, clienteDatos: _fa.clienteDatos, titulo: '', pedido_sap: _fa.pedido, observaciones: _fa.notas, estado: 'estudio',
+      filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)), conceptos: {}, lineas: _fa.lineas, agruparMaterial: false,
+      _doc: { tipo: 'FACTURA', venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta } };
+    return await _ofPdfBytes();
+  } finally { _of = antes; }
+}
+async function faPdf() {
+  if (!_fa) return;
+  try {
+    const bytes = await _faPdfBytes();
+    const nombre = ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90) + '.pdf';
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Factura en PDF descargada: ' + nombre, 'ok');
+  } catch (e) { console.error('[v1149] PDF factura:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
 }
