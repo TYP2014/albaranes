@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1142 (17/11/2026): OFERTAS · PAQUETE DE ENVÍO: REINTENTO AL BAJAR ALBARANES. Si se pedía el paquete nada más abrir la app, los albaranes podían no bajar (enlace del archivo aún sin firmar) y el ZIP salía sin ellos. Ahora cada albarán se intenta 2 veces, esperando entre medias. Sin SQL. VUELTA ATRAS: resubir v1141.
+
+---
+
 v1141 (17/11/2026): OFERTAS · TÍTULO + MENSAJE, PAQUETE DE ENVÍO Y "MARCAR FACTURADA". Campos nuevos: "Título de la oferta" (ej. Horas interior de cantera; sale en el asunto, en la lista de ofertas, en el PDF y en el Excel) y "Mensaje para el cliente" (el texto del correo, con uno de ejemplo ya puesto); el asunto se ve montado: "Oferta nº - título - empresa". Botón "📦 Paquete de envío": un ZIP con la oferta en PDF, el Excel, TODOS los albaranes en un solo PDF y EMAIL.txt (para, asunto, mensaje) — lo mismo que mandará el botón de email cuando se monte. En una oferta APROBADA, botón "🧾 Marcar facturada": pide el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados 🟢 (quita el 🟣); el nº de factura sale en la oferta y en la lista. Sin SQL. VUELTA ATRAS: resubir v1140.
 
 ---

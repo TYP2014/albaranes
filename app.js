@@ -46385,14 +46385,23 @@ async function _ofAlbaranesJuntos(avisa) {
     const r = records.find(x => String(x.db_id) === filas[i].id);
     if (avisa) avisa(i + 1, filas.length);
     if (!r || !hasValidUrl(r.file_url)) { faltan++; continue; }
-    try {
-      const url = r.file_url.split('#')[0], pm = r.file_url.match(/#page=(\d+)/);
-      if (!cache.has(url)) cache.set(url, fetch(url).then(resp => { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.blob(); }));
-      const bytes = await _dlAPdf(await cache.get(url), pm ? parseInt(pm[1], 10) : 0);
-      const d = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
-      (await todo.copyPages(d, d.getPageIndices())).forEach(pg => todo.addPage(pg));
-      n++;
-    } catch (e) { console.warn('[v1141] albarán sin bajar:', filas[i].albaran, e); faltan++; }
+    // v1142: 2 intentos (si el enlace del archivo aún no estaba firmado al abrir la app, el 1º falla; se espera y se relee)
+    let hecho = false;
+    for (let intento = 0; intento < 2 && !hecho; intento++) {
+      try {
+        const url = r.file_url.split('#')[0], pm = r.file_url.match(/#page=(\d+)/);
+        if (!cache.has(url)) cache.set(url, fetch(url).then(resp => { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.blob(); }));
+        const bytes = await _dlAPdf(await cache.get(url), pm ? parseInt(pm[1], 10) : 0);
+        const d = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        (await todo.copyPages(d, d.getPageIndices())).forEach(pg => todo.addPage(pg));
+        n++; hecho = true;
+      } catch (e) {
+        console.warn('[v1142] albarán sin bajar (intento ' + (intento + 1) + '):', filas[i].albaran, e);
+        try { cache.delete(r.file_url.split('#')[0]); } catch (e2) {}
+        if (intento === 0) await new Promise(res => setTimeout(res, 2500));
+      }
+    }
+    if (!hecho) faltan++;
   }
   return { bytes: n ? await todo.save() : null, n, faltan };
 }
