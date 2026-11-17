@@ -45760,6 +45760,7 @@ function _ofAbrirVentana() {
   ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov);
   _ofRender();
+  _ofCatCargar().then(() => { if (_of) _ofRender(); });   // v1140
 }
 function ofCerrar() {
   if (_of && _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - _ofTotales().total) > 0.005 && !confirm('Has cambiado cosas sin guardar. ¿Cerrar igual?')) return;
@@ -45815,15 +45816,23 @@ function _ofRender() {
     });
   });
   h += '</tbody></table></div>';
-  // Líneas a mano
-  h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(concepto + importe sin IVA y su tipo de IVA; en negativo si es un descuento)</span></div>';
+  // Líneas a mano (v1140: concepto con catálogo + cantidad + unidad + precio + IVA + importe)
+  const catEmp = _ofCatDeEmpresa(_of.empresa);
+  h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(empieza a escribir y salen los conceptos habituales de ' + esc(_OF_EMPRESAS[_of.empresa] || '') + '; importe sin IVA, en negativo si es un descuento)</span></div>' +
+    '<datalist id="ofCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">' + (c.precio != null ? _ofEA(String(c.precio).replace('.', ',') + ' €/' + (_OF_UNIDADES[c.unidad] || 'ud')) : '') + '</option>').join('') + '</datalist>';
+  if (_of.lineas.length) h += '<div style="display:flex;gap:6px;margin-top:6px;font-size:11px;color:var(--mu)"><span style="flex:1">Concepto</span><span style="width:80px;text-align:right">Cantidad</span><span style="width:86px">Unidad</span><span style="width:96px;text-align:right">Precio</span><span style="width:104px">IVA</span><span style="width:110px;text-align:right">Importe</span><span style="width:84px"></span></div>';
   _of.lineas.forEach((l, i) => {
-    h += '<div style="display:flex;gap:6px;margin-top:6px"><input value="' + _ofEA(l.concepto) + '" placeholder="Concepto (ej. horas de espera)" oninput="_of.lineas[' + i + '].concepto=this.value" style="flex:1;' + inp + '">' +
-      '<input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" placeholder="Importe €" onchange="_of.lineas[' + i + '].importe=_ofNum(this.value);_ofRender()" style="width:120px;text-align:right;' + inp + '">' +
-      '<select title="IVA de esta línea" onchange="_of.lineas[' + i + '].iva=Number(this.value);_ofRender()" style="' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>IVA ' + v + ' %</option>').join('') + '</select>' +
-      '<button class="btn bs" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">🗑</button></div>';
+    const enCat = !!_ofCatBuscar(l.concepto);
+    h += '<div style="display:flex;gap:6px;margin-top:4px;align-items:center"><input list="ofCatList" value="' + _ofEA(l.concepto) + '" placeholder="Concepto (ej. horas de trabajo con cisterna)" onchange="ofLinConcepto(' + i + ',this.value)" style="flex:1;min-width:200px;' + inp + '">' +
+      '<input value="' + (l.cantidad != null && l.cantidad !== '' ? String(l.cantidad).replace('.', ',') : '') + '" placeholder="Cant." onchange="ofLinSet(' + i + ',\'cantidad\',this.value)" style="width:80px;text-align:right;' + inp + '">' +
+      '<select onchange="ofLinSet(' + i + ',\'unidad\',this.value)" style="width:86px;' + inp + '">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((l.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select>' +
+      '<input value="' + (l.precio != null && l.precio !== '' ? String(l.precio).replace('.', ',') : '') + '" placeholder="Precio" onchange="ofLinSet(' + i + ',\'precio\',this.value)" style="width:96px;text-align:right;' + inp + '">' +
+      '<select title="IVA de esta línea" onchange="_of.lineas[' + i + '].iva=Number(this.value);_ofRender()" style="width:104px;' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>IVA ' + v + ' %</option>').join('') + '</select>' +
+      '<input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" placeholder="Importe €" title="Cantidad × precio; también puedes escribir el importe directamente" onchange="ofLinSet(' + i + ',\'importe\',this.value)" style="width:110px;text-align:right;font-weight:700;' + inp + '">' +
+      '<span style="width:84px;display:flex;gap:4px"><button class="btn bs" style="padding:5px 8px' + (enCat ? ';opacity:.35' : '') + '" title="' + (enCat ? 'Ya está en los conceptos habituales' : 'Guardar como concepto habitual') + '" onclick="ofLinAHabitual(' + i + ')">⭐</button>' +
+      '<button class="btn bs" style="padding:5px 8px" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">🗑</button></span></div>';
   });
-  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',importe:null,iva:21});_ofRender()">+ Añadir línea</button>';
+  h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',cantidad:null,unidad:\'h\',precio:null,importe:null,iva:21});_ofRender()">+ Añadir línea</button> <button class="btn bs" style="margin-top:6px;font-size:12px" onclick="ofCatAbrir()">⭐ Conceptos habituales</button>';
   // Totales
   const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
   h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:300px;font-size:14px">' +
@@ -45975,7 +45984,7 @@ function ofExcel() {
     const per = fs.length ? _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha) : '';
     A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
   }));
-  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel('', sC), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel(l.precio != null && l.cantidad != null ? Number(l.cantidad) : '', sN), cel(l.precio != null ? '€/' + (_OF_UNIDADES[l.unidad] || 'ud') : '', sC), cel(l.precio != null ? Number(l.precio) : '', sE), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
   A.push([]);
   A.push((conItem ? [''] : []).concat(['', '', '', '', '', cel('BASE IMPONIBLE', sB), cel(T.base, sEB)]));
   T.desglose.forEach(d => A.push((conItem ? [''] : []).concat(['', '', '', '', '', cel('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' s/ ' + _ofEur(d.base) : ''), sB), cel(d.iva, sEB)])));
@@ -46140,7 +46149,7 @@ async function _ofPdfBytes() {
     const porViaje = c.cfg.unidad === 'viaje';
     filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : num(tr.tn, 2) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
   }));
-  _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: '', precio: '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: l.precio != null && l.cantidad != null ? num(l.cantidad, Number(l.cantidad) % 1 ? 2 : 0) + ' ' + (_OF_UNIDADES[l.unidad] || '') : '', precio: l.precio != null ? eur(l.precio) : '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
   const iCon = conItem ? 1 : 0;
   filas.forEach((f, k) => {
     const lin = partir(f.concepto, fN, 9, cols[iCon][1] - 12);
@@ -46231,4 +46240,119 @@ async function ofPdf() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     toast('📄 Oferta en PDF descargada: ' + nombre, 'ok');
   } catch (e) { console.error('[v1136] PDF oferta:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
+}
+
+// ============================================================================
+// v1140 (JC 17/11/2026): CATÁLOGO DE CONCEPTOS HABITUALES (para ofertas y, luego, facturas).
+// Tabla `conceptos_habituales`: nombre, unidad, precio habitual, IVA y qué empresas lo usan. En las líneas a mano
+// de la oferta, al escribir salen los de la empresa que hace la oferta; al elegir uno se rellenan unidad, precio e
+// IVA. La línea a mano pasa a ser concepto + cantidad + unidad + precio (+ importe, que también se puede escribir).
+// ⭐ en la línea = guardarla como habitual. "⭐ Conceptos habituales" = ver / editar / borrar.
+// ============================================================================
+const _OF_UNIDADES = { h: 'horas', viaje: 'viajes', tn: 'TN', dia: 'días', ud: 'uds.' };
+let _ofCat = [], _ofCatOk = false;
+async function _ofCatCargar(forzar) {
+  if (_ofCatOk && !forzar) return _ofCat;
+  try {
+    const { data, error } = await sb.from('conceptos_habituales').select('*').order('nombre');
+    if (error) throw error;
+    _ofCat = data || []; _ofCatOk = true;
+  } catch (e) { console.error('[v1140] catálogo:', e); _ofCat = []; }
+  return _ofCat;
+}
+function _ofCatDeEmpresa(emp) { return _ofCat.filter(c => !c.empresas || !c.empresas.length || c.empresas.includes(emp)); }
+function _ofCatBuscar(nombre) { const n = _ofNrm(nombre); return n ? _ofCat.find(c => _ofNrm(c.nombre) === n) : null; }
+function _ofLinRecalc(l) { if (l.precio != null && l.precio !== '') l.importe = _ofR2((l.cantidad == null || l.cantidad === '' ? 1 : Number(l.cantidad)) * Number(l.precio)); }
+// Al escribir/elegir el concepto de una línea: si es uno del catálogo, se rellenan unidad, precio e IVA.
+function ofLinConcepto(i, v) {
+  const l = _of.lineas[i]; if (!l) return;
+  l.concepto = v;
+  const c = _ofCatBuscar(v);
+  if (c) {
+    l.concepto = c.nombre; l.unidad = c.unidad || 'ud'; l.iva = c.iva == null ? 21 : Number(c.iva);
+    if (c.precio != null) l.precio = Number(c.precio);
+    if (l.cantidad == null || l.cantidad === '') l.cantidad = 1;
+    _ofLinRecalc(l);
+  }
+  _ofRender();
+}
+function ofLinSet(i, campo, v) {
+  const l = _of.lineas[i]; if (!l) return;
+  if (campo === 'unidad') l.unidad = v;
+  else if (campo === 'importe') { l.importe = _ofNum(v); l.precio = null; }   // importe escrito a mano manda
+  else { l[campo] = _ofNum(v); _ofLinRecalc(l); }
+  _ofRender();
+}
+async function ofLinAHabitual(i) {
+  const l = _of.lineas[i]; if (!l || !String(l.concepto || '').trim()) { toast('Escribe primero el concepto', 'err'); return; }
+  if (_ofCatBuscar(l.concepto)) { toast('Ese concepto ya está en los habituales', 'warn'); return; }
+  try {
+    const { error } = await sb.from('conceptos_habituales').insert({ nombre: l.concepto.trim(), unidad: l.unidad || 'ud', precio: l.precio != null && l.precio !== '' ? Number(l.precio) : null, iva: _ofIvaDe(l), empresas: [_of.empresa] });
+    if (error) throw error;
+    await _ofCatCargar(true); _ofRender();
+    toast('⭐ Guardado en conceptos habituales de ' + (_OF_EMPRESAS[_of.empresa] || _of.empresa), 'ok');
+  } catch (e) { console.error('[v1140] guardar habitual:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+// ---------- Pantalla de conceptos habituales ----------
+async function ofCatAbrir() {
+  if (!_ofPuede()) return;
+  await _ofCatCargar(true);
+  document.getElementById('ofCatOv')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'ofCatOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
+  ov.innerHTML = '<div id="ofCatBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1100px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  document.body.appendChild(ov);
+  _ofCatRender();
+}
+function _ofCatRender() {
+  const box = document.getElementById('ofCatBox'); if (!box) return;
+  const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">⭐ Conceptos habituales</div><button class="btn bs" onclick="document.getElementById(\'ofCatOv\').remove();if(_of)_ofRender()">✖ Cerrar</button></div>' +
+    '<div style="font-size:13px;color:var(--mu);margin:6px 0 12px">Salen al escribir en las líneas a mano de la oferta, solo los de la empresa que la hace. Cada cambio se guarda al salir de la casilla.</div>' +
+    '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
+    ['Concepto', 'Unidad', 'Precio habitual', 'IVA', 'TYP2014', 'Import', 'Híspalis', ''].map((x, i) => '<th style="padding:7px 8px' + (i >= 4 && i <= 6 ? ';text-align:center' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+  if (!_ofCat.length) h += '<tr><td colspan="8" style="padding:12px;color:var(--mu)">Todavía no hay ninguno. Pulsa "+ Añadir concepto".</td></tr>';
+  _ofCat.forEach(c => {
+    const id = "'" + c.id + "'", emp = c.empresas || [];
+    h += '<tr style="border-top:1px solid var(--bd)">' +
+      '<td style="padding:5px 8px"><input value="' + _ofEA(c.nombre) + '" onchange="ofCatSet(' + id + ',\'nombre\',this.value)" style="' + inp + ';width:100%;min-width:260px"></td>' +
+      '<td style="padding:5px 8px"><select onchange="ofCatSet(' + id + ',\'unidad\',this.value)" style="' + inp + '">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((c.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select></td>' +
+      '<td style="padding:5px 8px"><input value="' + (c.precio != null ? String(c.precio).replace('.', ',') : '') + '" placeholder="€" onchange="ofCatSet(' + id + ',\'precio\',this.value)" style="' + inp + ';width:100px;text-align:right"></td>' +
+      '<td style="padding:5px 8px"><select onchange="ofCatSet(' + id + ',\'iva\',this.value)" style="' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (Number(c.iva == null ? 21 : c.iva) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>' +
+      ['TYP', 'PORTES', 'HISPALIS'].map(e => '<td style="padding:5px 8px;text-align:center"><input type="checkbox"' + (emp.includes(e) ? ' checked' : '') + ' onchange="ofCatEmp(' + id + ',\'' + e + '\',this.checked)" style="width:18px;height:18px"></td>').join('') +
+      '<td style="padding:5px 8px"><button class="btn bs" onclick="ofCatBorrar(' + id + ')">🗑</button></td></tr>';
+  });
+  h += '</tbody></table></div><button class="btn bp" style="margin-top:10px;font-weight:800" onclick="ofCatNuevo()">+ Añadir concepto</button>';
+  box.innerHTML = h;
+}
+async function ofCatSet(id, campo, v) {
+  const c = _ofCat.find(x => x.id === id); if (!c) return;
+  let val = v;
+  if (campo === 'precio') val = _ofNum(v); else if (campo === 'iva') val = Number(v); else if (campo === 'nombre') { val = String(v).trim(); if (!val) { toast('El concepto no puede quedar vacío', 'err'); _ofCatRender(); return; } }
+  try { const { error } = await sb.from('conceptos_habituales').update({ [campo]: val }).eq('id', id); if (error) throw error; c[campo] = val; }
+  catch (e) { console.error('[v1140] catálogo set:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _ofCatRender(); }
+}
+async function ofCatEmp(id, emp, on) {
+  const c = _ofCat.find(x => x.id === id); if (!c) return;
+  const s = new Set(c.empresas || []); if (on) s.add(emp); else s.delete(emp);
+  if (!s.size) { toast('Tiene que quedar al menos una empresa marcada', 'err'); _ofCatRender(); return; }
+  try { const { error } = await sb.from('conceptos_habituales').update({ empresas: [...s] }).eq('id', id); if (error) throw error; c.empresas = [...s]; }
+  catch (e) { console.error('[v1140] catálogo empresas:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _ofCatRender(); }
+}
+async function ofCatNuevo() {
+  const nombre = prompt('Nombre del concepto habitual (ej. Horas de trabajo interior de fábrica con cisterna):');
+  if (!nombre || !nombre.trim()) return;
+  if (_ofCatBuscar(nombre)) { toast('Ya existe un concepto con ese nombre', 'err'); return; }
+  try {
+    const { error } = await sb.from('conceptos_habituales').insert({ nombre: nombre.trim(), unidad: 'h', precio: null, iva: 21, empresas: [_of ? _of.empresa : 'TYP'] });
+    if (error) throw error;
+    await _ofCatCargar(true); _ofCatRender();
+  } catch (e) { console.error('[v1140] catálogo nuevo:', e); toast('⚠️ No se pudo crear: ' + (e.message || e), 'err'); }
+}
+async function ofCatBorrar(id) {
+  const c = _ofCat.find(x => x.id === id); if (!c) return;
+  if (!confirm('¿Borrar el concepto habitual "' + c.nombre + '"?\n\nLas ofertas ya hechas no cambian.')) return;
+  try { const { error } = await sb.from('conceptos_habituales').delete().eq('id', id); if (error) throw error; _ofCat = _ofCat.filter(x => x.id !== id); _ofCatRender(); }
+  catch (e) { console.error('[v1140] catálogo borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
 }

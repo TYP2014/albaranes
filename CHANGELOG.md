@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1140 (17/11/2026): OFERTAS · CATÁLOGO DE CONCEPTOS HABITUALES. Tabla nueva conceptos_habituales (nombre, unidad, precio habitual, IVA, empresas que lo usan). En las líneas a mano de la oferta, al empezar a escribir salen los habituales de la empresa que hace la oferta; al elegir uno se rellenan unidad, precio e IVA y solo queda poner la cantidad. La línea a mano pasa a ser Concepto + Cantidad + Unidad (horas, viajes, TN, días, uds.) + Precio + IVA + Importe (cantidad × precio; el importe también se puede escribir directo). ⭐ en la línea = guardarla como habitual. Botón "⭐ Conceptos habituales" (en la oferta y en la tarjeta Ofertas): ver, editar, marcar para qué empresas (TYP2014 / Import / Híspalis) y borrar. La cantidad y el precio salen también en el PDF y el Excel. Las ofertas antiguas (línea = concepto + importe) siguen valiendo. SQL PREVIO: tabla conceptos_habituales + RLS + GRANT. VUELTA ATRAS: resubir v1139 (la tabla puede quedarse).
+
+---
+
 v1139 (17/11/2026): OFERTAS · PDF PORTES 2014 IMPORT EN GRIS MEDIO (antes negro), más claro que el grafito de Híspalis. Sin SQL. VUELTA ATRAS: resubir v1138.
 
 ---

@@ -577,6 +577,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <select id="ofFiltroEstado" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px"><option value="">Todas</option><option value="estudio">En estudio</option><option value="enviada">Enviadas</option><option value="aprobada">Aprobadas</option><option value="rechazada">Rechazadas</option><option value="facturada">Facturadas</option></select>
             <input id="ofFiltroTxt" type="search" placeholder="Buscar cliente, nº o pedido" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:220px">
             <button class="btn bp" onclick="ofListar()" style="font-weight:800">Ver ofertas</button>
+            <button class="btn bs" onclick="ofCatAbrir()">⭐ Conceptos habituales</button>
           </div>
           <div id="ofCardOut" style="margin-top:12px"></div>
         </div>
@@ -2160,6 +2161,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1139"></script>
+<script src="app.js?v=1140"></script>
 </body>
 </html>
