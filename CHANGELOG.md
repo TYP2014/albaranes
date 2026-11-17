@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1153 (17/11/2026): OFERTAS Y FACTURAS · REPASO DE PANTALLA. Ventana de la oferta: las líneas a mano pasan a una tabla con cada título encima de su columna (antes los títulos quedaban descolocados); la caja de totales es compacta y va a la derecha (antes ocupaba todo el ancho), también en la factura; "Datos del cliente" con 3 líneas (se ve el NIF) y el mensaje con 7; viajes, TN, precio e importe alineados arriba con el concepto; etiquetas en negro; botones solo con texto ("+ habitual", "✕", "Borrar", "Cerrar") y avisos sin emojis. Arreglos: al cerrar Clientes o Conceptos habituales desde una FACTURA se refresca la factura; un concepto habitual creado desde una factura se apunta a la empresa de esa factura; el CIF de Import sale sin espacio en el PDF. Sin SQL. VUELTA ATRAS: resubir v1152.
+
+---
+
 v1152 (17/11/2026): FACTURAS · CUENTAS BANCARIAS EN DESPLEGABLE + SERIES DE 12 MESES. Cada empresa tiene su lista de cuentas (facturas_config.cuentas): TYP2014 → Santander (predeterminada) y BBVA; Híspalis → Santander (predeterminada), CaixaBank y BBVA (IBAN comprobados con sus dígitos de control). En la factura la cuenta es un desplegable con la predeterminada ya puesta y "+ Otra cuenta…" (pide IBAN, banco y BIC, comprueba el IBAN y la guarda). En el PDF sale "BANCO · IBAN … · BIC …". El desplegable de series enseña los últimos 12 meses (en enero también diciembre del año anterior). SQL PREVIO: columna cuentas en facturas_config + datos. VUELTA ATRAS: resubir v1151.
 
 ---

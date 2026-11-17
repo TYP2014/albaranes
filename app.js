@@ -45622,7 +45622,7 @@ async function ofListar() {
   const L = _ofLista.filter(o => (!fe || o.estado === fe) && (!fq || _ofNrm((o.cliente || '') + ' ' + (o.numero || '') + ' ' + (o.pedido_sap || '')).includes(fq)));
   const cuenta = {}; _ofLista.forEach(o => { cuenta[o.estado] = (cuenta[o.estado] || 0) + 1; });
   let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' + Object.keys(_OF_ESTADOS).map(k => '<span style="font-size:12px;padding:3px 9px;border-radius:12px;background:' + _OF_ESTADOS[k][2] + ';color:' + _OF_ESTADOS[k][1] + ';font-weight:700">' + _OF_ESTADOS[k][0] + ': ' + (cuenta[k] || 0) + '</span>').join('') + '</div>';
-  if (!L.length) { out.innerHTML = h + '<div style="color:var(--mu);padding:10px">No hay ofertas' + (fe || fq ? ' con ese filtro' : '') + '. Se crean desde <b>Albaranes › Selección › 📝 Crear oferta</b>.</div>'; return; }
+  if (!L.length) { out.innerHTML = h + '<div style="color:var(--mu);padding:10px">No hay ofertas' + (fe || fq ? ' con ese filtro' : '') + '. Se crean desde <b>Albaranes › Selección › Crear oferta</b>.</div>'; return; }
   h += '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
     ['Estado', 'Nº oferta', 'Fecha', 'Cliente', 'Albaranes', 'Total', 'Pedido SAP', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(o => {
@@ -45787,22 +45787,22 @@ function _ofRender() {
   // Datos de cabecera
   const lastNum = (_ofLista.find(o => o.numero) || {}).numero;
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
-    '<label style="font-size:12px;color:var(--mu)">Nº oferta<br><input value="' + _ofEA(_of.numero) + '" placeholder="' + (lastNum ? 'última: ' + _ofEA(lastNum) : 'ej. OF26-76') + '" onchange="_of.numero=this.value.trim();_ofRender()" style="' + inp + ';width:130px;font-weight:700"></label>' +
-    '<label style="font-size:12px;color:var(--mu)">Fecha<br><input type="date" value="' + _ofEA(_of.fecha) + '" onchange="_of.fecha=this.value" style="' + inp + '"></label>' +
-    '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value;_ofRender()" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="ofSelCliente(this.value)" style="' + inp + ';width:100%;font-weight:700">' +
+    '<label style="font-size:12px;color:#111">Nº oferta<br><input value="' + _ofEA(_of.numero) + '" placeholder="' + (lastNum ? 'última: ' + _ofEA(lastNum) : 'ej. OF26-76') + '" onchange="_of.numero=this.value.trim();_ofRender()" style="' + inp + ';width:130px;font-weight:700"></label>' +
+    '<label style="font-size:12px;color:#111">Fecha<br><input type="date" value="' + _ofEA(_of.fecha) + '" onchange="_of.fecha=this.value" style="' + inp + '"></label>' +
+    '<label style="font-size:12px;color:#111">La hace<br><select onchange="_of.empresa=this.value;_ofRender()" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
+    '<label style="font-size:12px;color:#111;flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="ofSelCliente(this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_of.cliente && !_ofCliBuscar(_of.cliente) ? '<option value="' + _ofEA(_of.cliente) + '" selected>' + esc(_of.cliente) + '</option>' : '') +
       (!_of.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
       _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (_ofCliBuscar(_of.cliente) === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') +
       '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label>' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
+    '<label style="font-size:12px;color:#111;flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
     '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:300px">Datos del cliente para el PDF (dirección, CP, NIF — se recuerdan)<br><textarea rows="2" onchange="_of.clienteDatos=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.clienteDatos || '') + '</textarea></label>' +
-    '<label style="font-size:12px;color:var(--mu)">Válida hasta<br><input type="date" value="' + _ofEA(_of.validez || '') + '" onchange="_of.validez=this.value" style="' + inp + '"></label></div>';
+    '<label style="font-size:12px;color:#111;flex:1;min-width:300px">Datos del cliente para el PDF (dirección, CP, NIF — se recuerdan)<br><textarea rows="3" onchange="_of.clienteDatos=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.clienteDatos || '') + '</textarea></label>' +
+    '<label style="font-size:12px;color:#111">Válida hasta<br><input type="date" value="' + _ofEA(_of.validez || '') + '" onchange="_of.validez=this.value" style="' + inp + '"></label></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
-    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:260px">Título de la oferta (va en el asunto del correo y en el PDF)<br><input value="' + _ofEA(_of.titulo || '') + '" placeholder="ej. Horas interior de cantera · octubre" onchange="_of.titulo=this.value.trim();_ofRender()" style="' + inp + ';width:100%;font-weight:700"></label>' +
-    '<label style="font-size:12px;color:var(--mu);flex:2;min-width:320px">Mensaje para el cliente (el texto del correo) · <span style="color:var(--tx)">Asunto: ' + esc(_ofAsunto()) + '</span><br><textarea rows="4" onchange="_of.mensaje=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.mensaje || '') + '</textarea></label></div>';
+    '<label style="font-size:12px;color:#111;flex:1;min-width:260px">Título de la oferta (va en el asunto del correo y en el PDF)<br><input value="' + _ofEA(_of.titulo || '') + '" placeholder="ej. Horas interior de cantera · octubre" onchange="_of.titulo=this.value.trim();_ofRender()" style="' + inp + ';width:100%;font-weight:700"></label>' +
+    '<label style="font-size:12px;color:#111;flex:2;min-width:320px">Mensaje para el cliente (el texto del correo) · <span style="color:var(--tx)">Asunto: ' + esc(_ofAsunto()) + '</span><br><textarea rows="7" onchange="_of.mensaje=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.mensaje || '') + '</textarea></label></div>';
   // Conceptos
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px"><div style="font-weight:800;font-size:15px">Conceptos <span style="font-weight:400;font-size:12px;color:var(--mu)">(' + _of.filas.filter(x => !x.fuera).length + ' albaranes · ' + _ofTn(_of.filas.filter(x => !x.fuera).reduce((a, x) => a + x.tm, 0)) + ' TN)</span></div>' +
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
@@ -45822,11 +45822,11 @@ function _ofRender() {
       }
       // v1134: sin columna Tramo; si hay varios, el periodo sale en pequeño bajo el precio (con su 🗑)
       const rango = c.tramos.length === 1 ? '' : (t.desde ? 'desde ' + _ofFechaEs(t.desde) : 'hasta ' + _ofFechaEs(c.tramos[1] ? c.tramos[1].desde : ''));
-      h += '<td style="padding:6px 8px;text-align:right">' + t.viajes + '</td><td style="padding:6px 8px;text-align:right">' + (c.cfg.unidad === 'hora' ? '<input value="' + (t.horas != null ? String(t.horas).replace('.', ',') : '') + '" placeholder="horas" title="Nº de horas a cobrar" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'horas\',this.value)" style="width:62px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.horas) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700"> h' : _ofTn(t.tn)) + '</td>' +
-        '<td style="padding:4px 8px;text-align:right"><input value="' + (t.precio != null ? String(t.precio).replace('.', ',') : '') + '" placeholder="Precio" title="Sin precio = 0 €" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'precio\',this.value)" style="width:92px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.precio) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700">' +
-        (rango ? '<div style="font-size:10.5px;color:var(--mu);white-space:nowrap">' + esc(rango) + (t.i > 0 ? ' <span style="cursor:pointer" title="Quitar este tramo" onclick="ofQuitarTramo(\'' + kA + '\',' + t.i + ')">🗑</span>' : '') + '</div>' : '') + '</td>';
+      h += '<td style="padding:11px 8px 6px;text-align:right;vertical-align:top">' + t.viajes + '</td><td style="padding:' + (c.cfg.unidad === 'hora' ? '6px' : '11px') + ' 8px 6px;text-align:right;vertical-align:top">' + (c.cfg.unidad === 'hora' ? '<input value="' + (t.horas != null ? String(t.horas).replace('.', ',') : '') + '" placeholder="horas" title="Nº de horas a cobrar" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'horas\',this.value)" style="width:62px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.horas) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700"> h' : _ofTn(t.tn)) + '</td>' +
+        '<td style="padding:6px 8px;text-align:right;vertical-align:top"><input value="' + (t.precio != null ? String(t.precio).replace('.', ',') : '') + '" placeholder="Precio" title="Sin precio = 0 €" onchange="ofSetTramo(\'' + kA + '\',' + t.i + ',\'precio\',this.value)" style="width:92px;padding:4px 6px;text-align:right;border:1px solid ' + (Number(t.precio) ? 'var(--bd)' : '#c62828') + ';border-radius:5px;font-weight:700">' +
+        (rango ? '<div style="font-size:10.5px;color:var(--mu);white-space:nowrap">' + esc(rango) + (t.i > 0 ? ' <span style="cursor:pointer" title="Quitar este tramo" onclick="ofQuitarTramo(\'' + kA + '\',' + t.i + ')">✕</span>' : '') + '</div>' : '') + '</td>';
       if (j === 0) h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'iva\',Number(this.value))" style="padding:4px;border:1px solid var(--bd);border-radius:5px">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(c.cfg) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>';
-      h += '<td style="padding:6px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(t.imp) + '</td></tr>';
+      h += '<td style="padding:11px 8px 6px;text-align:right;font-weight:800;white-space:nowrap;vertical-align:top">' + _ofEur(t.imp) + '</td></tr>';
     });
   });
   h += '</tbody></table></div>';
@@ -45834,25 +45834,29 @@ function _ofRender() {
   const catEmp = _ofCatDeEmpresa(_of.empresa);
   h += '<div style="margin-top:12px;font-weight:700;font-size:13px">Líneas a mano <span style="font-weight:400;color:var(--mu);font-size:12px">(empieza a escribir y salen los conceptos habituales de ' + esc(_OF_EMPRESAS[_of.empresa] || '') + '; importe sin IVA, en negativo si es un descuento)</span></div>' +
     '<datalist id="ofCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">' + (c.precio != null ? _ofEA(String(c.precio).replace('.', ',') + ' €/' + (_OF_UNIDADES[c.unidad] || 'ud')) : '') + '</option>').join('') + '</datalist>';
-  if (_of.lineas.length) h += '<div style="display:flex;gap:6px;margin-top:6px;font-size:11px;color:var(--mu)"><span style="flex:1">Concepto</span><span style="width:80px;text-align:right">Cantidad</span><span style="width:86px">Unidad</span><span style="width:96px;text-align:right">Precio</span><span style="width:104px">IVA</span><span style="width:110px;text-align:right">Importe</span><span style="width:84px"></span></div>';
-  _of.lineas.forEach((l, i) => {
-    const enCat = !!_ofCatBuscar(l.concepto);
-    h += '<div style="display:flex;gap:6px;margin-top:4px;align-items:center"><input list="ofCatList" value="' + _ofEA(l.concepto) + '" placeholder="Concepto (ej. horas de trabajo con cisterna)" onchange="ofLinConcepto(' + i + ',this.value)" style="flex:1;min-width:200px;' + inp + '">' +
-      '<input value="' + (l.cantidad != null && l.cantidad !== '' ? String(l.cantidad).replace('.', ',') : '') + '" placeholder="Cant." onchange="ofLinSet(' + i + ',\'cantidad\',this.value)" style="width:80px;text-align:right;' + inp + '">' +
-      '<select onchange="ofLinSet(' + i + ',\'unidad\',this.value)" style="width:86px;' + inp + '">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((l.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select>' +
-      '<input value="' + (l.precio != null && l.precio !== '' ? String(l.precio).replace('.', ',') : '') + '" placeholder="Precio" onchange="ofLinSet(' + i + ',\'precio\',this.value)" style="width:96px;text-align:right;' + inp + '">' +
-      '<select title="IVA de esta línea" onchange="_of.lineas[' + i + '].iva=Number(this.value);_ofRender()" style="width:104px;' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>IVA ' + v + ' %</option>').join('') + '</select>' +
-      '<input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" placeholder="Importe €" title="Cantidad × precio; también puedes escribir el importe directamente" onchange="ofLinSet(' + i + ',\'importe\',this.value)" style="width:110px;text-align:right;font-weight:700;' + inp + '">' +
-      '<span style="width:84px;display:flex;gap:4px"><button class="btn bs" style="padding:5px 8px' + (enCat ? ';opacity:.35' : '') + '" title="' + (enCat ? 'Ya está en los conceptos habituales' : 'Guardar como concepto habitual') + '" onclick="ofLinAHabitual(' + i + ')">⭐</button>' +
-      '<button class="btn bs" style="padding:5px 8px" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">🗑</button></span></div>';
-  });
+  if (_of.lineas.length) {   // v1153: en tabla, con cada título encima de su columna
+    h += '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:100px"><col style="width:110px"><col style="width:90px"><col style="width:130px"><col style="width:150px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+      ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, k) => '<th style="padding:6px 8px' + (k === 1 || k === 3 || k === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+    _of.lineas.forEach((l, i) => {
+      const enCat = !!_ofCatBuscar(l.concepto);
+      h += '<tr style="border-top:1px solid var(--bd)"><td style="padding:5px 8px"><input list="ofCatList" value="' + _ofEA(l.concepto) + '" placeholder="Concepto (ej. horas de trabajo con cisterna)" onchange="ofLinConcepto(' + i + ',this.value)" style="width:100%;' + inp + '"></td>' +
+        '<td style="padding:5px 8px"><input value="' + (l.cantidad != null && l.cantidad !== '' ? String(l.cantidad).replace('.', ',') : '') + '" onchange="ofLinSet(' + i + ',\'cantidad\',this.value)" style="width:100%;text-align:right;' + inp + '"></td>' +
+        '<td style="padding:5px 8px"><select onchange="ofLinSet(' + i + ',\'unidad\',this.value)" style="width:100%;' + inp + '">' + Object.keys(_OF_UNIDADES).map(u => '<option value="' + u + '"' + ((l.unidad || 'ud') === u ? ' selected' : '') + '>' + _OF_UNIDADES[u] + '</option>').join('') + '</select></td>' +
+        '<td style="padding:5px 8px"><input value="' + (l.precio != null && l.precio !== '' ? String(l.precio).replace('.', ',') : '') + '" onchange="ofLinSet(' + i + ',\'precio\',this.value)" style="width:100%;text-align:right;' + inp + '"></td>' +
+        '<td style="padding:5px 8px"><select title="IVA de esta línea" onchange="_of.lineas[' + i + '].iva=Number(this.value);_ofRender()" style="width:100%;' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (_ofIvaDe(l) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>' +
+        '<td style="padding:5px 8px"><input value="' + (l.importe != null ? String(l.importe).replace('.', ',') : '') + '" title="Cantidad × precio; también puedes escribir el importe directamente" onchange="ofLinSet(' + i + ',\'importe\',this.value)" style="width:100%;text-align:right;font-weight:800;' + inp + '"></td>' +
+        '<td style="padding:5px 8px;white-space:nowrap">' + (enCat ? '' : '<button class="btn bs" style="padding:5px 8px;font-size:11px" title="Guardar este concepto en los habituales" onclick="ofLinAHabitual(' + i + ')">+ habitual</button> ') +
+        '<button class="btn bs" style="padding:5px 9px" title="Quitar la línea" onclick="_of.lineas.splice(' + i + ',1);_ofRender()">✕</button></td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
   h += '<button class="btn bs" style="margin-top:6px;font-size:12px" onclick="_of.lineas.push({concepto:\'\',cantidad:null,unidad:\'h\',precio:null,importe:null,iva:21});_ofRender()">+ Añadir línea</button> <button class="btn bs" style="margin-top:6px;font-size:12px" onclick="ofCatAbrir()">Conceptos habituales</button>';
   // Totales
   const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
-  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:300px;font-size:14px">' +
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;width:420px;max-width:100%;font-size:14px">' +
     (T.man ? fila('Conceptos', T.sub) + fila('Líneas a mano', T.man) : '') + fila('Base imponible', T.base) + T.desglose.map(d => fila((d.tipo ? 'IVA ' + d.tipo + ' %' : 'IVA 0 % (exento)') + (T.desglose.length > 1 ? ' <span style="font-size:11px;color:var(--mu)">sobre ' + _ofEur(d.base) + '</span>' : ''), d.iva)).join('') + fila('TOTAL', T.total, true) + '</table></div>';
   // Observaciones
-  h += '<label style="display:block;margin-top:10px;font-size:12px;color:var(--mu)">Observaciones (salen en la oferta)<textarea rows="2" onchange="_of.observaciones=this.value" style="width:100%;' + inp + ';font-family:inherit">' + esc(_of.observaciones || '') + '</textarea></label>';
+  h += '<label style="display:block;margin-top:10px;font-size:12px;color:#111">Observaciones (salen en la oferta)<textarea rows="2" onchange="_of.observaciones=this.value" style="width:100%;' + inp + ';font-family:inherit">' + esc(_of.observaciones || '') + '</textarea></label>';
   // Estado
   h += '<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Estado:</b>' +
     ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:12px;padding:5px 12px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
@@ -45860,7 +45864,7 @@ function _ofRender() {
     '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
     (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofAFactura()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#1b3254;color:#fff;font-weight:800" title="Abre una factura nueva con los conceptos, los albaranes y el pedido de esta oferta">Crear factura</button>' : '') +
     (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="font-size:13px;padding:8px 16px;background:#fff;border:2px solid #7c3aed;color:#7c3aed;font-weight:800" title="Si la factura se hizo fuera de la app (Quipu): apunta su nº, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Ya facturada fuera</button>' : '') +
-    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">🧾 FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
+    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
@@ -45923,7 +45927,7 @@ async function ofGuardar(silencioso) {
     const dentro = vivas.map(x => x.id), fuera = antes.filter(a => !dentro.includes(String(a)));
     await _ofMarcar(dentro, _of.estado !== 'rechazada' && _of.estado !== 'facturada');
     if (fuera.length) await _ofMarcar(fuera, false);
-    if (!silencioso) toast('💾 Oferta guardada' + (_of.numero ? ' (' + _of.numero + ')' : '') + ' · ' + _ofEur(T.total), 'ok');
+    if (!silencioso) toast('Oferta guardada' + (_of.numero ? ' (' + _of.numero + ')' : '') + ' · ' + _ofEur(T.total), 'ok');
     await ofCargar(); _ofRender();
     if (document.getElementById('ofCardOut') && document.getElementById('ofCardOut').innerHTML) ofListar();
     return true;
@@ -46034,7 +46038,7 @@ function ofExcel() {
   if (!_of) return;
   const nombre = _ofNombreBase() + '.xlsx';
   XLSX.writeFile(_ofExcelWb(), nombre);
-  toast('📊 Excel descargado: ' + nombre, 'ok');
+  toast('Excel descargado: ' + nombre, 'ok');
 }
 
 // ---------- Albaranes en PDF (todos juntos + uno por albarán, en ZIP) ----------
@@ -46075,7 +46079,7 @@ async function _ofPdfBytes() {
   const num = (n, d) => { const p = Math.abs(Number(n) || 0).toFixed(d).split('.'); return ((Number(n) || 0) < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + p[1] : ''); };
   const partir = (s, font, size, ancho) => { const out = []; String(t(s)).split('\n').forEach(par => { let l = ''; par.split(' ').forEach(p => { const n = l ? l + ' ' + p : p; if (font.widthOfTextAtSize(n, size) > ancho && l) { out.push(l); l = p; } else l = n; }); out.push(l); }); return out; };
   const emp = _LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP;
-  const empNombre = emp[0][1], empCif = emp[1][1], empDir = emp[2][1] + ', ' + emp[3][1] + (emp[4] ? ' (' + emp[4][1] + ')' : '');
+  const empNombre = emp[0][1], empCif = String(emp[1][1]).replace(/\s/g, ''), empDir = emp[2][1] + ', ' + emp[3][1] + (emp[4] ? ' (' + emp[4][1] + ')' : '');
   let page, y;
   const txt = (s, x, yy, size, font, color) => page.drawText(t(s), { x, y: yy, size, font: font || fN, color: color || NEGRO });
   const txtR = (s, xr, yy, size, font, color) => { const f = font || fN, v = t(s); page.drawText(v, { x: xr - f.widthOfTextAtSize(v, size), y: yy, size, font: f, color: color || NEGRO }); };
@@ -46280,7 +46284,7 @@ async function ofPdf() {
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast('📄 Oferta en PDF descargada: ' + nombre, 'ok');
+    toast('Oferta en PDF descargada: ' + nombre, 'ok');
   } catch (e) { console.error('[v1136] PDF oferta:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
 }
 
@@ -46332,7 +46336,7 @@ async function ofLinAHabitual(i) {
     const { error } = await sb.from('conceptos_habituales').insert({ nombre: l.concepto.trim(), unidad: l.unidad || 'ud', precio: l.precio != null && l.precio !== '' ? Number(l.precio) : null, iva: _ofIvaDe(l), empresas: [_of.empresa] });
     if (error) throw error;
     await _ofCatCargar(true); _ofRender();
-    toast('⭐ Guardado en conceptos habituales de ' + (_OF_EMPRESAS[_of.empresa] || _of.empresa), 'ok');
+    toast('Guardado en conceptos habituales de ' + (_OF_EMPRESAS[_of.empresa] || _of.empresa), 'ok');
   } catch (e) { console.error('[v1140] guardar habitual:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }
 // ---------- Pantalla de conceptos habituales ----------
@@ -46350,8 +46354,8 @@ async function ofCatAbrir() {
 function _ofCatRender() {
   const box = document.getElementById('ofCatBox'); if (!box) return;
   const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px';
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">⭐ Conceptos habituales</div><button class="btn bs" onclick="document.getElementById(\'ofCatOv\').remove();if(_of)_ofRender()">✖ Cerrar</button></div>' +
-    '<div style="font-size:13px;color:var(--mu);margin:6px 0 12px">Salen al escribir en las líneas a mano de la oferta, solo los de la empresa que la hace. Cada cambio se guarda al salir de la casilla.</div>' +
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">Conceptos habituales</div><button class="btn bs" style="padding:9px 16px;font-weight:800" onclick="document.getElementById(\'ofCatOv\').remove();if(_of)_ofRender();if(_fa)_faRender()">Cerrar</button></div>' +
+    '<div style="font-size:13px;color:var(--mu);margin:6px 0 12px">Salen al escribir un concepto en las ofertas y en las facturas, solo los de la empresa que la hace. Cada cambio se guarda al salir de la casilla.</div>' +
     '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
     ['Concepto', 'Unidad', 'Precio habitual', 'IVA', 'TYP2014', 'Import', 'Híspalis', ''].map((x, i) => '<th style="padding:7px 8px' + (i >= 4 && i <= 6 ? ';text-align:center' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   if (!_ofCat.length) h += '<tr><td colspan="8" style="padding:12px;color:var(--mu)">Todavía no hay ninguno. Pulsa "+ Añadir concepto".</td></tr>';
@@ -46363,7 +46367,7 @@ function _ofCatRender() {
       '<td style="padding:5px 8px"><input value="' + (c.precio != null ? String(c.precio).replace('.', ',') : '') + '" placeholder="€" onchange="ofCatSet(' + id + ',\'precio\',this.value)" style="' + inp + ';width:100px;text-align:right"></td>' +
       '<td style="padding:5px 8px"><select onchange="ofCatSet(' + id + ',\'iva\',this.value)" style="' + inp + '">' + [21, 10, 0].map(v => '<option value="' + v + '"' + (Number(c.iva == null ? 21 : c.iva) === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></td>' +
       ['TYP', 'PORTES', 'HISPALIS'].map(e => '<td style="padding:5px 8px;text-align:center"><input type="checkbox"' + (emp.includes(e) ? ' checked' : '') + ' onchange="ofCatEmp(' + id + ',\'' + e + '\',this.checked)" style="width:18px;height:18px"></td>').join('') +
-      '<td style="padding:5px 8px"><button class="btn bs" onclick="ofCatBorrar(' + id + ')">🗑</button></td></tr>';
+      '<td style="padding:5px 8px"><button class="btn bs" onclick="ofCatBorrar(' + id + ')">Borrar</button></td></tr>';
   });
   h += '</tbody></table></div><button class="btn bp" style="margin-top:10px;font-weight:800" onclick="ofCatNuevo()">+ Añadir concepto</button>';
   box.innerHTML = h;
@@ -46387,7 +46391,7 @@ async function ofCatNuevo() {
   if (!nombre || !nombre.trim()) return;
   if (_ofCatBuscar(nombre)) { toast('Ya existe un concepto con ese nombre', 'err'); return; }
   try {
-    const { error } = await sb.from('conceptos_habituales').insert({ nombre: nombre.trim(), unidad: 'h', precio: null, iva: 21, empresas: [_of ? _of.empresa : 'TYP'] });
+    const { error } = await sb.from('conceptos_habituales').insert({ nombre: nombre.trim(), unidad: 'h', precio: null, iva: 21, empresas: [_of ? _of.empresa : (_fa ? _fa.empresa : 'TYP')] });   // v1153: también desde una factura
     if (error) throw error;
     await _ofCatCargar(true); _ofCatRender();
   } catch (e) { console.error('[v1140] catálogo nuevo:', e); toast('⚠️ No se pudo crear: ' + (e.message || e), 'err'); }
@@ -46452,7 +46456,7 @@ async function ofPaquete() {
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'ENVIO ' + base + '.zip'; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast('📦 Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : ''), A.faltan ? 'warn' : 'ok');
+    toast('Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : ''), A.faltan ? 'warn' : 'ok');
   } catch (e) { console.error('[v1141] paquete:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
   finally { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
 }
@@ -46534,7 +46538,7 @@ async function ofCliAbrir() {
 function _ofCliRender() {
   const box = document.getElementById('ofCliBox'); if (!box) return;
   const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit';
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">Clientes</div><button class="btn bs" onclick="document.getElementById(\'ofCliOv\').remove();if(_of)_ofRender()">Cerrar</button></div>' +
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:800">Clientes</div><button class="btn bs" style="padding:9px 16px;font-weight:800" onclick="document.getElementById(\'ofCliOv\').remove();if(_of)_ofRender();if(_fa)_faRender()">Cerrar</button></div>' +
     '<div style="font-size:13px;color:#111;margin:6px 0 12px">Salen en el desplegable <b>Cliente</b> de la oferta. Cada cambio se guarda al salir de la casilla.</div>' +
     '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
     ['Nombre (razón social)', 'NIF', 'Dirección (calle / CP y ciudad)', 'Email para ofertas', ''].map(x => '<th style="padding:7px 8px">' + x + '</th>').join('') + '</tr></thead><tbody>';
@@ -46774,7 +46778,7 @@ function _faRender() {
     '<button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>' + (_fa.filas.length ? '<span style="font-size:13px;color:#111">· ' + _fa.filas.length + ' albaranes de la oferta (salen en el anexo del PDF)</span>' : '') + '</div>';
   // Totales
   const fila = (t, v, b) => '<tr><td style="padding:4px 12px' + (b ? ';font-weight:800' : '') + '">' + t + '</td><td style="padding:4px 12px;text-align:right' + (b ? ';font-weight:800;font-size:16px' : '') + '">' + _ofEur(v) + '</td></tr>';
-  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;min-width:320px;font-size:14px">' + fila('Base imponible', T.base) +
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="border:1px solid var(--bd);border-collapse:collapse;width:420px;max-width:100%;font-size:14px">' + fila('Base imponible', T.base) +
     T.desglose.map(d => fila('IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' <span style="font-size:11px;color:var(--mu)">sobre ' + _ofEur(d.base) + '</span>' : ''), d.iva)).join('') + fila('TOTAL', T.total, true) + '</table></div>';
   // Pago
   h += '<div style="margin-top:14px;padding:12px;background:var(--s2);border-radius:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">' +
