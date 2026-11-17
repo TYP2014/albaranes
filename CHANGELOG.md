@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1132 (17/11/2026): NEUMÁTICOS · CUADRE: "2º USO" FILTRADO EN CÓDIGO. La regla de la v1131 en el prompt no bastó: al resubir la N0000168080 la D810012134 (R3629BDW, "MONTA 2NEUMS. 2º USO") seguía saliendo como 2 x 385/65. Ahora la IA copia el texto literal de cada albarán (campo "texto") y el CÓDIGO descarta el albarán si pone 2º USO / USADO / SEGUNDA MANO. Para limpiarla: resubir la factura en la caja 3. Sin SQL. VUELTA ATRAS: resubir v1131.
+
+---
+
 v1131 (17/11/2026): NEUMÁTICOS · CUADRE: LOS DE "2º USO" NO SON STOCK. En la factura de servicio de Soledad, si se montan cubiertas de "2º USO" / usadas (del cliente, guardadas en el taller), la IA las descarta ("2º uso (no es stock de nuevos)") y ya no salen en el aviso rojo de "facturado sin albarán / no sé a qué ficha restarlas". Caso real: D810012134 (R3629BDW) de la factura N0000168080 de Híspalis. Solo prompt de la factura (anti-ejemplo). Para limpiar el aviso de esa factura: volver a subirla en la caja 3 (se sobrescribe, no se duplica). Sin SQL. VUELTA ATRAS: resubir v1130.
 
 ---

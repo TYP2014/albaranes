@@ -8665,6 +8665,7 @@ Para cada albarán devuelve:
    · "modelo": corto, sin marca: "HD5", "HS5", "HT3 SR", "HS3+". Si no se distingue, "".
    · "propiedad": 🔴 SE DECIDE POR EL PRECIO, NO POR EL TEXTO. Mira la línea de la cubierta EN LA FACTURA: si esa línea NO tiene IMPORTE (ni precio unitario ni importe: las columnas están vacías o solo hay un "1,00" de cantidad), la cubierta NO se cobra → es del cliente → "SU_PROPIEDAD". Solo pon "COMPRA" si la línea de esa cubierta LLEVA UN IMPORTE EN EUROS. Que ponga "S/PROP", "DE SU PROPIEDAD" o "DE SU STOCK" confirma que es "SU_PROPIEDAD", pero su AUSENCIA no significa compra: hay muchos albaranes donde no lo escriben y la cubierta es igualmente del cliente. Ojo: los importes de MONTAJE, FIJACIÓN, EQUILIBRADO, DESPLAZAMIENTO o MANO DE OBRA son mano de obra, NO son el precio de la cubierta — no los cuentes como si la cubierta se vendiera.
 - "total_cubiertas": la suma de las cantidades de "neumaticos" (0 si no hay).
+- "texto": 🔴 OBLIGATORIO (v1132). Copia LITERAL, tal cual está escrito, el texto de TODAS las líneas de ese albarán SIN números de precio (solo la DENOMINACIÓN), separadas por " / ". Ej: "MANTENIMIENTO CAMIÓN / MONTAJE+FIJACION / MONTA 2NEUMS. 2º USO / S/PROP. 3er EJE REMOLQUE / MATR.: R3629BDW". No resumas ni corrijas nada.
 
 🔴 CÓMO SE LEE LA CANTIDAD DE CUBIERTAS (patrones reales, apréndelos):
 (a) "MONTA 4NEUMS.S/PROP" o "MONTA 1NEUM. S/PROP" → la cantidad es el número PEGADO a "NEUM"/"NEUMS", sea 1, 2, 3 o 4. Da igual singular o plural.
@@ -8790,6 +8791,18 @@ async function handleNeumCuadreFiles(fileList) {
   // en Soledad la medida SIEMPRE viene escrita (315/80X22,5, 385/65X22,5...).
   // NO se descarta en silencio: el albaran queda marcado con el motivo, para
   // que JC lo mire en el papel si alguna vez fuera un fallo de lectura.
+  // v1132 (JC 17/11/2026): FILTRO EN CODIGO de cubiertas de 2º USO / usadas. Son del cliente, guardadas
+  // en el taller, NO del stock de nuevos. Se mira el texto literal que copia la IA (campo "texto"),
+  // porque la regla del prompt sola no basta (D810012134 de N0000168080 salía como 2 x 385/65).
+  alb.forEach(a => {
+    if (!a || !a.es_neumatico) return;
+    const tx = String(a.texto || '') + ' ' + (a.neumaticos || []).map(n => [n && n.texto, n && n.modelo].join(' ')).join(' ');
+    if (/\b2\s*[ºª°o]?\s*USO\b|SEGUNDO\s+USO|\bUSAD[OA]S?\b|SEGUNDA\s+MANO|\b2\s*[ªa]\s+MANO\b/i.test(tx)) {
+      console.log('[v1132 neum] 2º uso, fuera del stock:', a.num_albaran, tx);
+      a.es_neumatico = false; a.neumaticos = []; a.total_cubiertas = 0;
+      a.motivo_descarte = '2º uso (no es stock de nuevos)';
+    }
+  });
   alb.forEach(a => {
     if (!a || !a.es_neumatico) return;
     // v844: ademas la medida tiene que ser de CUBIERTA (ancho/perfil, con "/": 315/80, 385/65).
