@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1156 (17/11/2026): OFERTAS ↔ FACTURAS · ENLAZADAS Y LOCALIZABLES. La factura que sale de una oferta guarda su nº de oferta y lo enseña: recuadro "Viene de la oferta OF…" con botón "Abrir la oferta", columna Oferta en la lista de facturas, línea "Oferta" en el cuadro de datos del PDF y frase "Factura correspondiente a nuestra oferta … · Pedido …" en las notas, y en las observaciones de F. Emitidas ("Hecha en la app · Oferta … · Pedido …"). La oferta FACTURADA enseña su nº de factura y tiene "Abrir la factura". Buscadores: el de Ofertas busca por cliente, nº de oferta, nº de factura, pedido o título; el nuevo de Facturas, por cliente, nº de factura, nº de oferta o pedido. Sin SQL. VUELTA ATRAS: resubir v1155.
+
+---
+
 v1155 (17/11/2026): OFERTAS Y FACTURAS · "ENVIAR DESDE" (CORREO REMITENTE POR EMPRESA). Cada empresa tiene su lista de correos de envío: TYP2014 empieza con administracion@ y juancarlos@ttesyportes2014.com; Híspalis e Import vacías. En la oferta y en la factura hay un desplegable "Enviar desde" (por defecto el primero de la empresa; "+ Otro correo…" lo añade a la lista de esa empresa). Se guarda con cada documento y sale como "DE:" en el EMAIL.txt del paquete; lo usará el botón de enviar. En la factura aparece además "Email del cliente". SQL PREVIO: columna remitentes en facturas_config. VUELTA ATRAS: resubir v1154.
 
 ---

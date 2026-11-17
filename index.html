@@ -576,7 +576,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="font-size:14px;color:#111;line-height:1.6">Las ofertas se crean desde <b>Albaranes › Selección › Crear oferta</b>. Aquí ves todas: pincha una para abrirla, ponerle precios, cambiar su estado o sacar el Excel y los albaranes.</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
             <select id="ofFiltroEstado" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px"><option value="">Todas</option><option value="estudio">En estudio</option><option value="enviada">Enviadas</option><option value="aprobada">Aprobadas</option><option value="rechazada">Rechazadas</option><option value="facturada">Facturadas</option></select>
-            <input id="ofFiltroTxt" type="search" placeholder="Buscar cliente, nº o pedido" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:220px">
+            <input id="ofFiltroTxt" type="search" placeholder="Buscar cliente, nº oferta, nº factura o pedido" onchange="ofListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:300px">
             <button class="btn bp" onclick="ofListar()" style="font-weight:800">Ver ofertas</button>
             <button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>
             <button class="btn bs" onclick="ofCliAbrir()">Clientes</button>
@@ -593,6 +593,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div style="font-size:14px;color:#111;line-height:1.6">Pulsa <b>Nueva factura</b>, o desde una oferta aprobada <b>Crear factura</b>. Pincha una de la lista para abrirla.</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
             <select id="faFiltroEmp" onchange="faListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px"><option value="">Todas las empresas</option><option value="TYP">Transportes y Portes 2014</option><option value="PORTES">Portes 2014 Import</option><option value="HISPALIS">T. Híspalis 2016</option></select>
+            <input id="faFiltroTxt" type="search" placeholder="Buscar cliente, nº factura, nº oferta o pedido" onchange="faListar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:300px">
             <button class="btn bs" onclick="faListar()" style="font-weight:800">Ver facturas</button>
             <button class="btn bp" onclick="faNueva()" style="font-weight:800">Nueva factura</button>
             <button class="btn bs" onclick="ofCliAbrir()">Clientes</button>
@@ -2180,6 +2181,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1155"></script>
+<script src="app.js?v=1156"></script>
 </body>
 </html>

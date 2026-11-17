@@ -45621,7 +45621,7 @@ async function ofListar() {
   await ofCargar();
   const fe = (document.getElementById('ofFiltroEstado') || {}).value || '';
   const fq = _ofNrm((document.getElementById('ofFiltroTxt') || {}).value || '');
-  const L = _ofLista.filter(o => (!fe || o.estado === fe) && (!fq || _ofNrm((o.cliente || '') + ' ' + (o.numero || '') + ' ' + (o.pedido_sap || '')).includes(fq)));
+  const L = _ofLista.filter(o => (!fe || o.estado === fe) && (!fq || _ofNrm((o.cliente || '') + ' ' + (o.numero || '') + ' ' + (o.pedido_sap || '') + ' ' + (o.factura || '') + ' ' + (o.titulo || '')).includes(fq)));
   const cuenta = {}; _ofLista.forEach(o => { cuenta[o.estado] = (cuenta[o.estado] || 0) + 1; });
   let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' + Object.keys(_OF_ESTADOS).map(k => '<span style="font-size:12px;padding:3px 9px;border-radius:12px;background:' + _OF_ESTADOS[k][2] + ';color:' + _OF_ESTADOS[k][1] + ';font-weight:700">' + _OF_ESTADOS[k][0] + ': ' + (cuenta[k] || 0) + '</span>').join('') + '</div>';
   if (!L.length) { out.innerHTML = h + '<div style="color:var(--mu);padding:10px">No hay ofertas' + (fe || fq ? ' con ese filtro' : '') + '. Se crean desde <b>Albaranes › Selección › Crear oferta</b>.</div>'; return; }
@@ -45868,7 +45868,7 @@ function _ofRender() {
     '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
     (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofAFactura()" style="margin-left:auto;font-size:13px;padding:8px 16px;background:#1b3254;color:#fff;font-weight:800" title="Abre una factura nueva con los conceptos, los albaranes y el pedido de esta oferta">Crear factura</button>' : '') +
     (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="font-size:13px;padding:8px 16px;background:#fff;border:2px solid #7c3aed;color:#7c3aed;font-weight:800" title="Si la factura se hizo fuera de la app (Quipu): apunta su nº, pasa la oferta a FACTURADA y marca sus albaranes como facturados">Ya facturada fuera</button>' : '') +
-    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
+    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:14px;font-weight:800;color:#7c3aed">FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span><button class="btn bs" style="font-weight:800" onclick="ofVerFactura()">Abrir la factura</button>' : '') + '</div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
@@ -46149,7 +46149,7 @@ async function _ofPdfBytes() {
     cliT.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 12, 270).slice(0, 2).forEach(ll => { txt(ll, M, yc, i ? 9.5 : 12, i ? fN : fB, i === cliT.length - 1 && /NIF|CIF/i.test(l) ? NEGRO : NEGRO); yc -= i ? 13 : 16; }));
     const xG = M + 320, wG = ANCHO - 320;
     const est = _OF_ESTADOS[_of.estado] || _OF_ESTADOS.estudio;
-    const dd = [['FECHA', _ofFechaEs(_of.fecha)], DOC ? ['VENCIMIENTO', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['VÁLIDA HASTA', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'PEDIDO' : 'PEDIDO SAP', _of.pedido_sap || '']].filter(d => d[1]);
+    const dd = [['FECHA', _ofFechaEs(_of.fecha)], DOC ? ['VENCIMIENTO', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['VÁLIDA HASTA', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'PEDIDO' : 'PEDIDO SAP', _of.pedido_sap || ''], ['OFERTA', DOC ? (DOC.oferta || '') : '']].filter(d => d[1]);
     const hG = 26 + dd.length * 30 + (DOC ? 0 : 22);
     rect(xG, y + 8 - hG, wG, hG, rgb(0.949, 0.953, 0.961));
     let yg = y - 8;
@@ -46163,13 +46163,13 @@ async function _ofPdfBytes() {
     y = Math.min(yc, y + 8 - hG) - 26;
   } else {
   const cliL = [_of.cliente].concat(String(_of.clienteDatos || '').split('\n').map(s => s.trim()).filter(Boolean));
-  const hCaja = Math.max(78, 30 + cliL.length * 13);
+  const hCaja = Math.max(78, 30 + cliL.length * 13, 22 + ((DOC && DOC.oferta ? 1 : 0) + 1 + ((DOC ? DOC.venc : _of.validez) ? 1 : 0) + (_of.pedido_sap ? 1 : 0)) * 18);   // v1156: cabe también la línea Oferta
   rect(M, y - hCaja, 300, hCaja, CLARO_T);
   rect(M, y - hCaja, 3, hCaja, NAVY);
   txt('CLIENTE', M + 14, y - 17, 8, fB, GRIS);
   cliL.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 11, 270).slice(0, 2).forEach((ll, j) => txt(ll, M + 14, y - 33 - i * 13 - j * 12, i ? 9.5 : 11, i ? fN : fB)));
   const xD = M + 320, wD = ANCHO - 320;
-  const datos = [['Fecha', _ofFechaEs(_of.fecha)], DOC ? ['Vencimiento', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['Válida hasta', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'Pedido' : 'Pedido SAP', _of.pedido_sap || '']].filter(d => d[1]);
+  const datos = [['Fecha', _ofFechaEs(_of.fecha)], DOC ? ['Vencimiento', DOC.venc ? _ofFechaEs(DOC.venc) : ''] : ['Válida hasta', _of.validez ? _ofFechaEs(_of.validez) : ''], [DOC ? 'Pedido' : 'Pedido SAP', _of.pedido_sap || ''], ['Oferta', DOC ? (DOC.oferta || '') : '']].filter(d => d[1]);
   rect(xD, y - hCaja, wD, hCaja, null, LINEA);
   datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
   y -= hCaja + 22;
@@ -46229,6 +46229,7 @@ async function _ofPdfBytes() {
     if (DOC.pago) notas.push('Forma de pago: ' + DOC.pago);
     if (DOC.cuenta) notas.push('Cuenta bancaria: ' + DOC.cuenta);
     if (DOC.venc) notas.push('Vencimiento: ' + _ofFechaEs(DOC.venc));
+    if (DOC.oferta) notas.push('Factura correspondiente a nuestra oferta ' + DOC.oferta + (_of.pedido_sap ? ' · Pedido ' + _of.pedido_sap : '') + '.');
     if (_of.filas.length) notas.push('Se adjunta el detalle de los ' + _of.filas.length + ' albaranes facturados.');
   } else {
   notas.push('Se adjunta el detalle de los ' + _of.filas.filter(x => !x.fuera).length + ' albaranes incluidos en esta oferta.');
@@ -46637,17 +46638,18 @@ function faInitCard() { const c = document.getElementById('faCard'); if (!c) ret
 async function faListar() {
   const out = document.getElementById('faCardOut'); if (!out) return;
   out.innerHTML = '<div style="padding:10px">Cargando facturas…</div>';
-  try { const { data, error } = await sb.from('facturas_app').select('id,empresa,numero,fecha,cliente,estado,total,vencimiento').order('created_at', { ascending: false }); if (error) throw error; _faLista = data || []; }
+  try { const { data, error } = await sb.from('facturas_app').select('id,empresa,numero,fecha,cliente,estado,total,vencimiento,oferta_id,datos->ofertaNum,datos->pedido').order('created_at', { ascending: false }); if (error) throw error; _faLista = data || []; }
   catch (e) { console.error('[v1149] listar facturas:', e); out.innerHTML = '<div style="color:#c62828;padding:10px">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; return; }
   const fe = (document.getElementById('faFiltroEmp') || {}).value || '';
-  const L = _faLista.filter(f => !fe || f.empresa === fe);
-  if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay facturas hechas en la app' + (fe ? ' de esa empresa' : '') + '. Pulsa <b>Nueva factura</b>, o desde una oferta aprobada <b>Crear factura</b>.</div>'; return; }
+  const fq = _ofNrm((document.getElementById('faFiltroTxt') || {}).value || '');   // v1156: busca por cliente, nº de factura, nº de oferta o pedido
+  const L = _faLista.filter(f => (!fe || f.empresa === fe) && (!fq || _ofNrm([f.cliente, f.numero, f.ofertaNum, f.pedido].join(' ')).includes(fq)));
+  if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay facturas hechas en la app' + (fe || fq ? ' con ese filtro' : '') + '. Pulsa <b>Nueva factura</b>, o desde una oferta aprobada <b>Crear factura</b>.</div>'; return; }
   let h = '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
-    ['Estado', 'Nº factura', 'Empresa', 'Fecha', 'Cliente', 'Total', 'Vencimiento', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+    ['Estado', 'Nº factura', 'Empresa', 'Fecha', 'Cliente', 'Oferta', 'Total', 'Vencimiento', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 6 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(f => { const em = f.estado === 'emitida';
     h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + esc(f.numero || '(sin nº)') + '</td><td style="padding:7px 8px">' + esc(_OF_EMPRESAS[f.empresa] || f.empresa) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.fecha)) + '</td>' +
-      '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
+      '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;font-weight:700;color:#7c3aed;white-space:nowrap">' + (f.oferta_id ? esc(f.ofertaNum || '(sin nº)') : '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
       '<td style="padding:7px 8px"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button></td></tr>'; });
   out.innerHTML = h + '</tbody></table></div>';
 }
@@ -46656,7 +46658,7 @@ async function faNueva(base) {
   if (!_ofPuede()) return;
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
-  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
   if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   if (!_fa.remitente) _fa.remitente = _faRemitentes(_fa.empresa)[0] || '';   // v1155
   _fa.n = await _faSiguiente(_fa.empresa, _fa.serie); _faVencAuto();
@@ -46668,7 +46670,7 @@ async function faAbrir(id) {
     const { data, error } = await sb.from('facturas_app').select('*').eq('id', id).single(); if (error) throw error;
     const D = data.datos || {};
     _fa = { id: data.id, empresa: data.empresa, serie: data.serie || '', n: data.n, fecha: data.fecha || '', cliente: data.cliente || '', clienteDatos: D.clienteDatos || '', email: data.email || '', estado: data.estado || 'borrador',
-      lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
+      lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', ofertaNum: D.ofertaNum || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
       oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0 };
     _faVentana();
   } catch (e) { console.error('[v1149] abrir factura:', e); toast('No se pudo abrir la factura: ' + (e.message || e), 'err'); }
@@ -46685,7 +46687,7 @@ async function ofAFactura() {
     lineas.push({ concepto: (c.cfg.item ? 'Item ' + c.cfg.item + ' · ' : '') + c.texto + (per ? ' (' + per + ')' : ''), cantidad: _ofR2(t.cant), unidad: u, precio: Number(t.precio) || 0, iva: _ofIvaDe(c.cfg), importe: t.imp }); }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => lineas.push(Object.assign({}, l)));
   const base = { empresa: _of.empresa, cliente: _of.cliente, clienteDatos: _of.clienteDatos || '', email: _of.email || '', lineas, pedido: _of.pedido_sap || '', titulo: _of.titulo || '', oferta_id: _of.id, remitente: _of.remitente || '',
-    notas: 'Según oferta ' + (_of.numero || '') + (_of.pedido_sap ? ' · Pedido ' + _of.pedido_sap : ''), filas: _of.filas.filter(x => !x.fuera).map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) };
+    ofertaNum: _of.numero || '(sin nº)', notas: '', filas: _of.filas.filter(x => !x.fuera).map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) };
   document.getElementById('ofOv')?.remove(); _of = null;
   await faNueva(base);
 }
@@ -46752,6 +46754,7 @@ function _faRender() {
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">Factura ' + (_faNumero() ? esc(_faNumero()) : '<span style="color:var(--mu)">(sin nº)</span>') +
     ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;vertical-align:middle;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></div>' +
     '<button class="btn bs" onclick="faCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
+  if (_fa.oferta_id) h += '<div style="margin-top:8px;padding:8px 12px;border:2px solid #9333ea;border-radius:8px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Viene de la <b>oferta ' + esc(_fa.ofertaNum || '(sin nº)') + '</b>' + (_fa.pedido ? ' · pedido <b>' + esc(_fa.pedido) + '</b>' : '') + ' <button class="btn bs" style="font-weight:800" onclick="faVerOferta()">Abrir la oferta</button></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
     '<label style="' + lab + '">Empresa que factura<br><select onchange="faSet(\'empresa\',this.value)" style="' + inp + ';font-weight:700">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_fa.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
     '<label style="' + lab + '">Serie<br><select onchange="faSet(\'serie\',this.value)" style="' + inp + ';font-weight:700">' + series.map(s => '<option value="' + _ofEA(s) + '"' + (_fa.serie === s ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '<option value="__otra__">+ Otra serie…</option></select></label>' +
@@ -46818,7 +46821,7 @@ async function faGuardar(silencioso, estado) {
     if ((repQ || []).length && !confirm('⚠️ El nº ' + numero + ' ya está en Facturas emitidas (hecha en Quipu). ¿Guardar igual con ese número?')) return false;
     const reg = { empresa: _fa.empresa, serie: _fa.serie, n: _fa.n, numero, fecha: _fa.fecha || null, cliente: _fa.cliente, email: _fa.email || null, estado: estado || _fa.estado, forma_pago: _fa.pago || null, cuenta: _fa.cuenta || null, vencimiento: _fa.venc || null,
       base: T.base, iva: T.iva, total: T.total, notas: _fa.notas || null, oferta_id: _fa.oferta_id || null, albaranes: _fa.filas.map(x => x.id),
-      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
+      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', ofertaNum: _fa.ofertaNum || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
     if (estado === 'emitida') reg.emitida_el = new Date().toISOString();
     if (_fa.id) { const { error } = await sb.from('facturas_app').update(reg).eq('id', _fa.id); if (error) throw error; }
     else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
@@ -46858,7 +46861,7 @@ async function _faPdfBytes() {
   try {
     _of = { numero: _faNumero(), fecha: _fa.fecha, validez: '', empresa: _fa.empresa, cliente: _fa.cliente, clienteDatos: _fa.clienteDatos, titulo: '', pedido_sap: _fa.pedido, observaciones: _fa.notas, estado: 'estudio',
       filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)), conceptos: {}, lineas: _fa.lineas, agruparMaterial: false,
-      _doc: { tipo: 'FACTURA', venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta } };
+      _doc: { tipo: 'FACTURA', venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta, oferta: _fa.oferta_id ? (_fa.ofertaNum || '') : '' } };
     return await _ofPdfBytes();
   } finally { _of = antes; }
 }
@@ -46888,7 +46891,7 @@ async function _faAEmitidas() {
   const { data: ya, error: e0 } = await sb.from('facturas_emitidas').select('id,estado').eq('empresa', emp).eq('numero', numero);
   if (e0) throw e0;
   if (ya && ya.length) { const { error } = await sb.from('facturas_emitidas').update(reg).eq('id', ya[0].id); if (error) throw error; }
-  else { const { error } = await sb.from('facturas_emitidas').insert(Object.assign({ estado: 'pendiente', observaciones: 'Hecha en la app' }, reg)); if (error) throw error; }
+  else { const { error } = await sb.from('facturas_emitidas').insert(Object.assign({ estado: 'pendiente', observaciones: 'Hecha en la app' + (_fa.oferta_id ? ' · Oferta ' + (_fa.ofertaNum || '') : '') + (_fa.pedido ? ' · Pedido ' + _fa.pedido : '') }, reg)); if (error) throw error; }
   try { if (typeof _factEmit !== 'undefined' && (document.getElementById('tabContentFactemit') || {}).style.display !== 'none') loadFactEmit(); } catch (e) {}
 }
 async function _faCrearDesdeSeleccion() {
@@ -46934,4 +46937,27 @@ async function faSetRem(doc, v) {
     catch (e) { console.error('[v1155] guardar remitente:', e); toast('⚠️ No se pudo guardar el correo: ' + (e.message || e), 'err'); }
   }
   D.remitente = v; if (doc === 'of') _ofRender(); else _faRender();
+}
+
+// ============================================================================
+// v1156 (JC 17/11/2026): ENLACE OFERTA ↔ FACTURA, para localizarlas. La factura que viene de una oferta guarda y
+// enseña su nº de oferta (pantalla, lista, PDF y observaciones de F. Emitidas) y tiene "Abrir la oferta"; la oferta
+// facturada enseña su nº de factura y tiene "Abrir la factura". Los buscadores de Ofertas y de Facturas buscan por
+// cualquiera de los dos números (y por pedido).
+// ============================================================================
+async function faVerOferta() {
+  if (!_fa || !_fa.oferta_id) return; const id = _fa.oferta_id;
+  if (_fa.guardadaTotal == null || Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { if (!confirm('La factura tiene cambios sin guardar. ¿Cerrarla y abrir la oferta?')) return; }
+  document.getElementById('faOv')?.remove(); _fa = null;
+  await ofCargar(); await ofAbrir(id);
+}
+async function ofVerFactura() {
+  if (!_of || !_of.id) return;
+  try {
+    const { data, error } = await sb.from('facturas_app').select('id,numero').eq('oferta_id', _of.id).order('created_at', { ascending: false }).limit(1);
+    if (error) throw error;
+    if (!data || !data.length) { toast('La factura ' + (_of.factura || '') + ' no se hizo en la app (se hizo fuera, en Quipu). Búscala en F. Emitidas por su número.', 'warn'); return; }
+    document.getElementById('ofOv')?.remove(); _of = null;
+    await faAbrir(data[0].id);
+  } catch (e) { console.error('[v1156] abrir factura de la oferta:', e); toast('⚠️ No se pudo abrir la factura: ' + (e.message || e), 'err'); }
 }
