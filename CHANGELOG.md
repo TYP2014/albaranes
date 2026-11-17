@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1141 (17/11/2026): OFERTAS · TÍTULO + MENSAJE, PAQUETE DE ENVÍO Y "MARCAR FACTURADA". Campos nuevos: "Título de la oferta" (ej. Horas interior de cantera; sale en el asunto, en la lista de ofertas, en el PDF y en el Excel) y "Mensaje para el cliente" (el texto del correo, con uno de ejemplo ya puesto); el asunto se ve montado: "Oferta nº - título - empresa". Botón "📦 Paquete de envío": un ZIP con la oferta en PDF, el Excel, TODOS los albaranes en un solo PDF y EMAIL.txt (para, asunto, mensaje) — lo mismo que mandará el botón de email cuando se monte. En una oferta APROBADA, botón "🧾 Marcar facturada": pide el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados 🟢 (quita el 🟣); el nº de factura sale en la oferta y en la lista. Sin SQL. VUELTA ATRAS: resubir v1140.
+
+---
+
 v1140 (17/11/2026): OFERTAS · CATÁLOGO DE CONCEPTOS HABITUALES. Tabla nueva conceptos_habituales (nombre, unidad, precio habitual, IVA, empresas que lo usan). En las líneas a mano de la oferta, al empezar a escribir salen los habituales de la empresa que hace la oferta; al elegir uno se rellenan unidad, precio e IVA y solo queda poner la cantidad. La línea a mano pasa a ser Concepto + Cantidad + Unidad (horas, viajes, TN, días, uds.) + Precio + IVA + Importe (cantidad × precio; el importe también se puede escribir directo). ⭐ en la línea = guardarla como habitual. Botón "⭐ Conceptos habituales" (en la oferta y en la tarjeta Ofertas): ver, editar, marcar para qué empresas (TYP2014 / Import / Híspalis) y borrar. La cantidad y el precio salen también en el PDF y el Excel. Las ofertas antiguas (línea = concepto + importe) siguen valiendo. SQL PREVIO: tabla conceptos_habituales + RLS + GRANT. VUELTA ATRAS: resubir v1139 (la tabla puede quedarse).
 
 ---

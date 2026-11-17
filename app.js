@@ -45598,7 +45598,7 @@ function ofInitCard() {
 }
 async function ofCargar() {
   try {
-    const { data, error } = await sb.from('ofertas').select('id,numero,fecha,empresa,cliente,email,estado,pedido_sap,albaranes,base,iva,total,updated_at,datos->clienteDatos').order('created_at', { ascending: false });
+    const { data, error } = await sb.from('ofertas').select('id,numero,fecha,empresa,cliente,email,estado,pedido_sap,albaranes,base,iva,total,updated_at,datos->clienteDatos,datos->titulo,datos->factura').order('created_at', { ascending: false });
     if (error) throw error;
     _ofLista = (data || []).map(o => Object.assign(o, { datos: { clienteDatos: o.clienteDatos || '' } }));
   } catch (e) {
@@ -45626,7 +45626,7 @@ async function ofListar() {
       '<td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:' + E[2] + ';color:' + E[1] + ';font-weight:800;white-space:nowrap">' + E[0].toUpperCase() + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + (o.numero ? esc(o.numero) : '<span style="color:var(--mu);font-weight:400">(sin nº)</span>') + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(o.fecha)) + '</td>' +
-      '<td style="padding:7px 8px">' + esc(o.cliente || '') + '</td>' +
+      '<td style="padding:7px 8px">' + esc(o.cliente || '') + (o.titulo ? '<div style="font-size:12px;color:var(--mu)">' + esc(o.titulo) + '</div>' : '') + (o.factura ? '<div style="font-size:12px;color:#7c3aed;font-weight:700">Factura ' + esc(o.factura) + '</div>' : '') + '</td>' +
       '<td style="padding:7px 8px">' + ((o.albaranes || []).length) + '</td>' +
       '<td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(o.total) + '</td>' +
       '<td style="padding:7px 8px">' + esc(o.pedido_sap || '') + '</td>' +
@@ -45653,7 +45653,7 @@ async function _ofCrearDesdeSeleccion() {
   // Cliente propuesto: el que más se repite
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
-  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
+  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjunto nuestra oferta con el Excel de detalle y los albaranes de los servicios realizados.\n\nQuedo a la espera de vuestra aprobación y del nº de pedido.\n\nUn saludo,\nJuan Carlos Reina', empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
     filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: false, guardadaTotal: null };   // v1135: por defecto TODO JUNTO por ruta
   _ofAbrirVentana();
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
@@ -45685,7 +45685,7 @@ async function ofAbrir(id) {
     const D = data.datos || {};
     _of = { id: data.id, numero: data.numero || '', fecha: data.fecha || _ofIso(new Date()), empresa: data.empresa || 'TYP', cliente: data.cliente || '', email: data.email || '',
       estado: data.estado || 'estudio', pedido_sap: data.pedido_sap || '', observaciones: data.observaciones || '',
-      filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [], clienteDatos: D.clienteDatos || '', validez: D.validez || '',
+      filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [], titulo: D.titulo || '', mensaje: D.mensaje || '', factura: D.factura || '', clienteDatos: D.clienteDatos || '', validez: D.validez || '',
       agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at };
     _ofAbrirVentana();
   } catch (e) { console.error('[v1133] abrir oferta:', e); toast('No se pudo abrir la oferta: ' + (e.message || e), 'err'); }
@@ -45775,7 +45775,7 @@ function _ofRender() {
   const inp = 'padding:6px 8px;border:1px solid var(--bd);border-radius:6px;font-size:14px';
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
     '<div style="font-size:19px;font-weight:800">📝 Oferta ' + (_of.numero ? esc(_of.numero) : '<span style="color:var(--mu);font-weight:600">(sin nº)</span>') +
-    ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:' + E[2] + ';color:' + E[1] + ';vertical-align:middle">' + E[0].toUpperCase() + (_of.pedido_sap ? ' · pedido ' + esc(_of.pedido_sap) : '') + '</span></div>' +
+    ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:' + E[2] + ';color:' + E[1] + ';vertical-align:middle">' + E[0].toUpperCase() + (_of.pedido_sap ? ' · pedido ' + esc(_of.pedido_sap) : '') + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span></div>' +
     '<button class="btn bs" onclick="ofCerrar()">✖ Cerrar</button></div>';
   // Datos de cabecera
   const lastNum = (_ofLista.find(o => o.numero) || {}).numero;
@@ -45789,6 +45789,9 @@ function _ofRender() {
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:300px">Datos del cliente para el PDF (dirección, CP, NIF — se recuerdan)<br><textarea rows="2" onchange="_of.clienteDatos=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.clienteDatos || '') + '</textarea></label>' +
     '<label style="font-size:12px;color:var(--mu)">Válida hasta<br><input type="date" value="' + _ofEA(_of.validez || '') + '" onchange="_of.validez=this.value" style="' + inp + '"></label></div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
+    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:260px">Título de la oferta (va en el asunto del correo y en el PDF)<br><input value="' + _ofEA(_of.titulo || '') + '" placeholder="ej. Horas interior de cantera · octubre" onchange="_of.titulo=this.value.trim();_ofRender()" style="' + inp + ';width:100%;font-weight:700"></label>' +
+    '<label style="font-size:12px;color:var(--mu);flex:2;min-width:320px">Mensaje para el cliente (el texto del correo) · <span style="color:var(--tx)">Asunto: ' + esc(_ofAsunto()) + '</span><br><textarea rows="4" onchange="_of.mensaje=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.mensaje || '') + '</textarea></label></div>';
   // Conceptos
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px"><div style="font-weight:800;font-size:15px">Conceptos <span style="font-weight:400;font-size:12px;color:var(--mu)">(' + _of.filas.filter(x => !x.fuera).length + ' albaranes · ' + _ofTn(_of.filas.filter(x => !x.fuera).reduce((a, x) => a + x.tm, 0)) + ' TN)</span></div>' +
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
@@ -45843,13 +45846,15 @@ function _ofRender() {
   h += '<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Estado:</b>' +
     ['estudio', 'enviada', 'aprobada', 'rechazada'].map(k => '<button class="btn" onclick="ofEstado(\'' + k + '\')" style="font-size:12px;padding:5px 12px;border:2px solid ' + _OF_ESTADOS[k][1] + ';background:' + (_of.estado === k ? _OF_ESTADOS[k][1] : '#fff') + ';color:' + (_of.estado === k ? '#fff' : _OF_ESTADOS[k][1]) + ';font-weight:800">' + _OF_ESTADOS[k][0] + '</button>').join('') +
     (_of.estado === 'aprobada' ? '<span style="font-size:13px">Pedido SAP: <input value="' + _ofEA(_of.pedido_sap) + '" onchange="_of.pedido_sap=this.value.trim()" style="' + inp + ';width:140px;font-weight:700"></span>' : '') +
-    '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span></div>';
+    '<span style="font-size:12px;color:var(--mu)">(se guarda al pulsar)</span>' +
+    (_of.estado === 'aprobada' ? '<button class="btn" onclick="ofFacturada()" style="margin-left:auto;font-size:12px;padding:5px 12px;background:#7c3aed;color:#fff;font-weight:800" title="Apunta el nº de factura, pasa la oferta a FACTURADA y marca sus albaranes como facturados">🧾 Marcar facturada</button>' : '') +
+    (_of.estado === 'facturada' ? '<span style="margin-left:auto;font-size:13px;font-weight:800;color:#7c3aed">🧾 FACTURADA' + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span>' : '') + '</div>';
   // Botones
   const cambiado = _of.guardadaTotal != null && Math.abs(_of.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
     (_of.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (_of.id ? '<button class="btn bs" onclick="ofBorrar()" style="color:#b91c1c">🗑 Borrar oferta</button>' : '') +
-    '<button class="btn bs" onclick="ofAlbaranesPdf()">📎 Albaranes en PDF</button><button class="btn bs" onclick="ofExcel()">📊 Excel</button><button class="btn bs" onclick="ofPdf()" style="font-weight:800">📄 Oferta en PDF</button>' +
+    '<button class="btn bs" onclick="ofAlbaranesPdf()">📎 Albaranes en PDF</button><button class="btn bs" onclick="ofExcel()">📊 Excel</button><button class="btn bs" onclick="ofPdf()" style="font-weight:800">📄 Oferta en PDF</button><button class="btn bs" id="ofBtnPaquete" onclick="ofPaquete()" style="font-weight:800" title="ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo">📦 Paquete de envío</button>' +
     '<button class="btn bp" onclick="ofGuardar()" style="font-weight:800">💾 Guardar oferta</button></div></div>';
   // Detalle de albaranes
   const nf = _of.filas.filter(x => x.fuera).length;
@@ -45882,7 +45887,7 @@ async function ofGuardar(silencioso) {
   const filas = _of.filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, transportista: x.transportista, origen: x.origen, destino: x.destino, producto: x.producto, cliente: x.cliente, tm: x.tm, fuera: !!x.fuera }));
   const usados = new Set(L.map(c => c.k)); const conceptos = {}; Object.keys(_of.conceptos).forEach(k => { if (usados.has(k)) conceptos[k] = _of.conceptos[k]; });
   const reg = { numero: _of.numero || null, fecha: _of.fecha || null, empresa: _of.empresa, cliente: _of.cliente, email: _of.email || null, estado: _of.estado, pedido_sap: _of.pedido_sap || null,
-    albaranes: vivas.map(x => x.id), datos: { filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '' }, base: T.base, iva: T.iva, total: T.total,
+    albaranes: vivas.map(x => x.id), datos: { filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '', titulo: _of.titulo || '', mensaje: _of.mensaje || '', factura: _of.factura || '' }, base: T.base, iva: T.iva, total: T.total,
     observaciones: _of.observaciones || null, updated_at: new Date().toISOString() };
   try {
     let antes = [];
@@ -45957,8 +45962,7 @@ async function ofBorrar() {
 }
 
 // ---------- Excel (OFERTA + ALBARANES) ----------
-function ofExcel() {
-  if (!_of) return;
+function _ofExcelWb() {
   const L = _ofConceptos(), T = _ofTotales(L);
   const bd = { top: { style: 'thin', color: { rgb: '999999' } }, bottom: { style: 'thin', color: { rgb: '999999' } }, left: { style: 'thin', color: { rgb: '999999' } }, right: { style: 'thin', color: { rgb: '999999' } } };
   const sH = { font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 }, fill: { fgColor: { rgb: '1F4E79' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: bd };
@@ -45973,6 +45977,7 @@ function ofExcel() {
   A.push([cel(emp[0][1], sB)], [cel('C.I.F.: ' + emp[1][1], { font: { name: 'Arial', sz: 10 } })], []);
   A.push([cel('Cliente:', sB), cel(_of.cliente, { font: { name: 'Arial', sz: 11 } })]);
   A.push([cel('Fecha:', sB), cel(_ofFechaEs(_of.fecha), { font: { name: 'Arial', sz: 11 } })]);
+  if (_of.titulo) A.push([cel('Asunto:', sB), cel(_of.titulo, { font: { name: 'Arial', sz: 11 } })]);
   if (_of.pedido_sap) A.push([cel('Pedido SAP:', sB), cel(_of.pedido_sap, { font: { name: 'Arial', sz: 11 } })]);
   A.push([]);
   const hdr = A.length;
@@ -46006,8 +46011,12 @@ function ofExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, 'OFERTA');
   XLSX.utils.book_append_sheet(wb, ws2, 'ALBARANES');
-  const nombre = ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90) + '.xlsx';
-  XLSX.writeFile(wb, nombre);
+  return wb;
+}
+function ofExcel() {
+  if (!_of) return;
+  const nombre = _ofNombreBase() + '.xlsx';
+  XLSX.writeFile(_ofExcelWb(), nombre);
   toast('📊 Excel descargado: ' + nombre, 'ok');
 }
 
@@ -46132,6 +46141,7 @@ async function _ofPdfBytes() {
   datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
   y -= hCaja + 22;
   }
+  if (_of.titulo) { partir(_of.titulo, fB, 12, ANCHO).slice(0, 2).forEach(l => { txt(l, M, y, 12, fB, NAVY); y -= 15; }); y -= 3; }   // v1141
   txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
   y -= 18;
   // ===== Tabla de conceptos =====
@@ -46355,4 +46365,71 @@ async function ofCatBorrar(id) {
   if (!confirm('¿Borrar el concepto habitual "' + c.nombre + '"?\n\nLas ofertas ya hechas no cambian.')) return;
   try { const { error } = await sb.from('conceptos_habituales').delete().eq('id', id); if (error) throw error; _ofCat = _ofCat.filter(x => x.id !== id); _ofCatRender(); }
   catch (e) { console.error('[v1140] catálogo borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+}
+
+// ============================================================================
+// v1141 (JC 17/11/2026): OFERTAS · TÍTULO + MENSAJE, PAQUETE DE ENVÍO Y ENLACE CON FACTURACIÓN.
+// Título corto de la oferta (va en el asunto, la lista y el PDF) y mensaje para el cliente (el texto del correo).
+// "📦 Paquete de envío": un ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo
+// (para, asunto y mensaje). Es lo mismo que mandará el botón de email cuando esté. "🧾 Marcar facturada": en una
+// oferta aprobada, apunta el nº de factura, la pasa a FACTURADA y marca sus albaranes como facturados 🟢.
+// ============================================================================
+function _ofNombreBase() { return ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90); }
+function _ofAsunto() { return 'Oferta ' + (_of.numero || '(sin nº)') + (_of.titulo ? ' - ' + _of.titulo : '') + ' - ' + ((_LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP)[0][1]); }
+// Todos los albaranes de la oferta en UN solo PDF (en orden de fecha). Devuelve { bytes, n, faltan }.
+async function _ofAlbaranesJuntos(avisa) {
+  try { await window._docFirmadoInicial; } catch (e) {}
+  const filas = _of.filas.filter(x => !x.fuera).slice().sort((a, b) => a.fecha.localeCompare(b.fecha) || a.albaran.localeCompare(b.albaran, 'es', { numeric: true }));
+  const todo = await PDFLib.PDFDocument.create(); const cache = new Map(); let n = 0, faltan = 0;
+  for (let i = 0; i < filas.length; i++) {
+    const r = records.find(x => String(x.db_id) === filas[i].id);
+    if (avisa) avisa(i + 1, filas.length);
+    if (!r || !hasValidUrl(r.file_url)) { faltan++; continue; }
+    try {
+      const url = r.file_url.split('#')[0], pm = r.file_url.match(/#page=(\d+)/);
+      if (!cache.has(url)) cache.set(url, fetch(url).then(resp => { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.blob(); }));
+      const bytes = await _dlAPdf(await cache.get(url), pm ? parseInt(pm[1], 10) : 0);
+      const d = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+      (await todo.copyPages(d, d.getPageIndices())).forEach(pg => todo.addPage(pg));
+      n++;
+    } catch (e) { console.warn('[v1141] albarán sin bajar:', filas[i].albaran, e); faltan++; }
+  }
+  return { bytes: n ? await todo.save() : null, n, faltan };
+}
+async function ofPaquete() {
+  if (!_of) return;
+  if (typeof JSZip === 'undefined' || typeof PDFLib === 'undefined') { toast('No se cargaron las librerías. Recarga la página.', 'err'); return; }
+  const btn = document.getElementById('ofBtnPaquete'); const pinta = t => { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = true; b.textContent = t; } };
+  try {
+    pinta('⏳ Preparando…');
+    const base = _ofNombreBase(), zip = new JSZip();
+    zip.file(base + '.pdf', await _ofPdfBytes());
+    zip.file(base + '.xlsx', XLSX.write(_ofExcelWb(), { type: 'array', bookType: 'xlsx' }));
+    const A = await _ofAlbaranesJuntos((i, t) => pinta('⏳ Albaranes ' + i + '/' + t));
+    if (A.bytes) zip.file('ALBARANES ' + base + '.pdf', A.bytes);
+    zip.file('EMAIL.txt', 'PARA: ' + (_of.email || '(falta el email)') + '\r\nASUNTO: ' + _ofAsunto() + '\r\n\r\n' + String(_of.mensaje || '').replace(/\r?\n/g, '\r\n') + '\r\n');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'ENVIO ' + base + '.zip'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('📦 Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : ''), A.faltan ? 'warn' : 'ok');
+  } catch (e) { console.error('[v1141] paquete:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
+  finally { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = false; b.textContent = '📦 Paquete de envío'; } }
+}
+// Oferta APROBADA → FACTURADA: apunta el nº de factura y marca sus albaranes como facturados 🟢.
+async function ofFacturada() {
+  if (!_of || !_of.id) { toast('Guarda primero la oferta', 'err'); return; }
+  const vivas = _of.filas.filter(x => !x.fuera);
+  const n = prompt('🧾 Oferta FACTURADA.\n\nNº de factura (ej. 2026-11-16):', _of.factura || '');
+  if (n === null) return;
+  if (!confirm('Se va a:\n  · pasar la oferta a FACTURADA' + (n.trim() ? ' (factura ' + n.trim() + ')' : '') + '\n  · marcar sus ' + vivas.length + ' albaranes como FACTURADOS 🟢 y quitarles la marca 🟣\n\n¿Continuar?')) return;
+  _of.factura = n.trim(); _of.estado = 'facturada';
+  if (!(await ofGuardar(true))) return;
+  const ids = vivas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha }).in('id', ids.slice(i, i + 100)); if (error) throw error; }
+    catch (e) { console.error('[v1141] marcar facturados:', e); err++; }
+  }
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; } });
+  try { renderTable(); } catch (e) {}
+  toast(err ? '⚠️ Oferta facturada, pero algunos albaranes no se pudieron marcar: vuelve a intentarlo' : '🧾 Oferta FACTURADA' + (_of.factura ? ' · factura ' + _of.factura : '') + ' · ' + ids.length + ' albaranes marcados 🟢', err ? 'err' : 'ok');
 }
