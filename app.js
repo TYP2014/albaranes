@@ -16682,8 +16682,66 @@ function exportarResumenExcel() {
 // más un Excel con los datos. Útil para enviar al cliente o revisar varios a la vez.
 // Deduplicación: si dos albaranes comparten el mismo PDF compartido (multipágina), descarga
 // el PDF una sola vez pero lo añade al ZIP con dos nombres distintos.
-async function descargarArchivosFiltrados() {
+// v1124 (JC 17/11/2026): al descargar, elegir "Como están" (lo de siempre) o "Todo en PDF" (Rifé pide los
+// albaranes en PDF: las fotos no se aprecian). En modo PDF: cada albarán es un PDF (la foto pasa a página A4 a
+// resolución completa; de un escaneo de varias páginas va SOLO su página) + TODOS_JUNTOS.pdf con todos en orden.
+function descargarArchivosFiltrados() {
   if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
+  document.getElementById('dlModoOv')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'dlModoOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;padding:20px 22px;max-width:460px;width:92%;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)">' +
+    '<div style="font-weight:800;font-size:16px;margin-bottom:6px">¿Cómo quieres los archivos?</div>' +
+    '<div style="color:var(--mu);margin-bottom:16px">' + filtered.length + ' albaranes filtrados</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+    '<button class="btn bp" style="padding:12px;font-size:14px" onclick="document.getElementById(\'dlModoOv\').remove();_descargarArchivosFiltrados(true)">📄 Todo en PDF <span style="font-weight:400;font-size:12px">(un PDF por albarán + todos juntos)</span></button>' +
+    '<button class="btn bs" style="padding:12px;font-size:14px" onclick="document.getElementById(\'dlModoOv\').remove();_descargarArchivosFiltrados(false)">🗂 Como están <span style="font-weight:400;font-size:12px">(fotos y PDF originales, como siempre)</span></button>' +
+    '<button class="btn bs" style="padding:8px;font-size:12px" onclick="document.getElementById(\'dlModoOv\').remove()">Cancelar</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+}
+// v1124: convierte lo bajado (foto o PDF) en un PDF de ese albarán. Devuelve Uint8Array o null si no se puede.
+async function _dlAPdf(blob, pagina) {
+  const { PDFDocument } = PDFLib;
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const esPdf = buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;   // %PDF
+  if (esPdf) {
+    const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+    const n = src.getPageCount();
+    if (!pagina || pagina > n) return buf;                       // sin página concreta → el PDF tal cual
+    const out = await PDFDocument.create();
+    const [pg] = await out.copyPages(src, [pagina - 1]);
+    out.addPage(pg);
+    return await out.save();
+  }
+  // Foto: JPG/PNG directo; otros formatos (webp…) se pasan a JPG con un canvas
+  const out = await PDFDocument.create();
+  let img;
+  const esPng = buf[0] === 0x89 && buf[1] === 0x50;
+  const esJpg = buf[0] === 0xFF && buf[1] === 0xD8;
+  if (esJpg) img = await out.embedJpg(buf);
+  else if (esPng) img = await out.embedPng(buf);
+  else {
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    const jb = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.92));
+    img = await out.embedJpg(new Uint8Array(await jb.arrayBuffer()));
+  }
+  // Página A4 en el mismo sentido que la foto (vertical u horizontal), foto centrada y lo más grande posible
+  const vert = img.height >= img.width;
+  const W = vert ? 595.28 : 841.89, H = vert ? 841.89 : 595.28, M = 14;
+  const k = Math.min((W - 2 * M) / img.width, (H - 2 * M) / img.height);
+  const w = img.width * k, h = img.height * k;
+  const page = out.addPage([W, H]);
+  page.drawImage(img, { x: (W - w) / 2, y: (H - h) / 2, width: w, height: h });
+  return await out.save();
+}
+async function _descargarArchivosFiltrados(enPdf) {
+  if (!filtered.length) { toast('Sin datos filtrados', 'err'); return; }
+  if (enPdf && typeof PDFLib === 'undefined') { toast('No se pudo cargar el generador de PDF. Recarga la página.', 'err'); return; }
   if (typeof JSZip === 'undefined') { toast('Librería ZIP no cargada. Recarga la página.', 'err'); return; }
   // v324: si el firmado en segundo plano aún corre, esperarlo (para bajar todo con URL firmada)
   try { await window._docFirmadoInicial; } catch (e) {}
@@ -16750,6 +16808,7 @@ async function descargarArchivosFiltrados() {
     // Procesar en lotes de 4 paralelos
     const LOTE = 4;
     const usadosNombre = new Set();
+    const pdfsJuntos = [];   // v1124
     for (let i = 0; i < conArchivo.length; i += LOTE) {
       const lote = conArchivo.slice(i, i + LOTE);
       await Promise.all(lote.map(async (r) => {
@@ -16760,12 +16819,20 @@ async function descargarArchivosFiltrados() {
         const extRaw = (cleanUrl.split('?')[0].split('.').pop() || 'pdf').toLowerCase();
         const ext = ['pdf','jpg','jpeg','png','gif','webp'].includes(extRaw) ? extRaw : 'pdf';
         try {
-          const blob = await descargarUno(cleanUrl);
-          let nombre = nombreArchivo(r, ext);
+          let blob = await descargarUno(cleanUrl);
+          let extF = ext;
+          if (enPdf) {   // v1124
+            const pm = (r.file_url || '').match(/#page=(\d+)/);
+            try {
+              const pdfBytes = await _dlAPdf(blob, pm ? parseInt(pm[1], 10) : 0);
+              if (pdfBytes) { blob = new Blob([pdfBytes], { type: 'application/pdf' }); extF = 'pdf'; pdfsJuntos.push({ r, bytes: pdfBytes }); }
+            } catch (eP) { console.warn('[v1124] no se pudo pasar a PDF, va el original:', r.albaran, eP); }
+          }
+          let nombre = nombreArchivo(r, extF);
           // Si el nombre ya existe (raro, pero por seguridad), añadir índice
           let idx = 2;
           while (usadosNombre.has(nombre)) {
-            nombre = nombreArchivo(r, ext).replace('.' + ext, `_${idx}.${ext}`);
+            nombre = nombreArchivo(r, extF).replace('.' + extF, `_${idx}.${extF}`);
             idx++;
           }
           usadosNombre.add(nombre);
@@ -16779,6 +16846,21 @@ async function descargarArchivosFiltrados() {
       }));
     }
 
+    // v1124: TODOS_JUNTOS.pdf, en el mismo orden que la tabla
+    if (enPdf && pdfsJuntos.length) {
+      try {
+        if (btn) btn.textContent = '⏳ Juntando PDF...';
+        const orden = new Map(conArchivo.map((r, i) => [r, i]));
+        pdfsJuntos.sort((a, b) => orden.get(a.r) - orden.get(b.r));
+        const todo = await PDFLib.PDFDocument.create();
+        for (const p of pdfsJuntos) {
+          const d = await PDFLib.PDFDocument.load(p.bytes, { ignoreEncryption: true });
+          (await todo.copyPages(d, d.getPageIndices())).forEach(pg => todo.addPage(pg));
+        }
+        zip.file('00_TODOS_JUNTOS.pdf', await todo.save());
+      } catch (eJ) { console.warn('[v1124] no se pudo juntar todo en un PDF:', eJ); }
+    }
+
     // 3) Generar ZIP final
     if (btn) btn.textContent = '⏳ Generando ZIP...';
     const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
@@ -16787,7 +16869,7 @@ async function descargarArchivosFiltrados() {
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `albaranes_${new Date().toISOString().slice(0,10)}_${conArchivo.length}docs.zip`;
+    a.download = `albaranes_${new Date().toISOString().slice(0,10)}_${conArchivo.length}docs${enPdf ? '_PDF' : ''}.zip`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);

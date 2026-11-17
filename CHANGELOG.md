@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1124 (17/11/2026): ALBARANES · "DESCARGAR ARCHIVOS" TAMBIÉN EN PDF. Al pulsar "⬇ Descargar archivos" ahora pregunta: "Todo en PDF" o "Como están" (lo de siempre). En PDF (lo pide p. ej. Rifé: las fotos no se aprecian): cada albarán sale como un PDF — la foto pasa a una página A4 a su resolución completa; de un escaneo de varias páginas va SOLO la página de ese albarán — y además 00_TODOS_JUNTOS.pdf con todos en el orden de la tabla, para mandarlo de golpe. El Excel sigue dentro del ZIP. Si algún archivo no se puede pasar a PDF, va el original. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1123 (app.js e index.html).
+
+---
+
 v1123 (16/11/2026): ALBARANES · Nº AUTOMÁTICO "SN-" CON LOS KILOS REALES. En los tickets sin nº de albarán (Holcim Cantera de Garraf…) el número que pone la app (SN-ddmmaa-KILOS-hhmm) llevaba los kilos redondeados a centenas (28,32 TN → 28300). Ahora lleva los kilos reales (28320). Desde la v350 la hora del ticket ya separa dos viajes del mismo día, y el aviso de duplicado por tara y bruto (v748) sigue cazando el mismo ticket subido dos veces. Los SN ya guardados NO cambian. Cambio solo en app.js. Sin SQL. VUELTA ATRAS: resubir v1122 (app.js e index.html).
 
 ---
