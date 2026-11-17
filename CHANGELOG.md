@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1139 (17/11/2026): OFERTAS · PDF PORTES 2014 IMPORT EN GRIS MEDIO (antes negro), más claro que el grafito de Híspalis. Sin SQL. VUELTA ATRAS: resubir v1138.
+
+---
+
 v1138 (17/11/2026): OFERTAS · PDF HÍSPALIS EN GRIS GRAFITO (no azul). Mismo diseño estilo TLS con filo dorado. Sin SQL. VUELTA ATRAS: resubir v1137.
 
 ---
