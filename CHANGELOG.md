@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1137 (17/11/2026): OFERTAS · PDF: COLORES PARA IMPRESORA EN BLANCO Y NEGRO. Portes 2014 Import pasa a NEGRO (fuera el granate). Híspalis cambia de diseño al estilo del ejemplo TLS: banda alta azul acero con filo dorado, OFERTA + nº + fecha larga a la derecha, CLIENTE subrayado, cuadro gris con Fecha / Válida hasta / Pedido SAP / Estado, y pie con banda de color (fuera el verde). TYP2014 sigue igual (azul marino + dorado). Sin SQL. VUELTA ATRAS: resubir v1136.
+
+---
+
 v1136 (17/11/2026): OFERTAS · OFERTA EN PDF CON FORMATO PROPIO DE CADA EMPRESA. Botón "📄 Oferta en PDF" en la ventana de la oferta. Cada empresa su diseño: TYP2014 banda azul marino con filo dorado; Portes 2014 Import franja granate a la izquierda y cuadro OFERTA; Híspalis cabecera centrada en verde. Lleva: empresa con CIF y dirección, cliente con sus datos (dirección/NIF), fecha, válida hasta, pedido SAP si lo hay, tabla de conceptos (item si se separa por material, periodo bajo el concepto, viajes, cantidad, precio, IVA, importe), base + IVA por tipo + TOTAL, notas, y en hojas aparte el ANEXO con el detalle de albaranes; pie con página X de Y. Nuevos campos en la oferta: "Datos del cliente para el PDF" (se recuerdan para el siguiente; Holcim ya viene puesto) y "Válida hasta" (15 días por defecto). El botón de albaranes pasa a "📎 Albaranes en PDF". Sin SQL. VUELTA ATRAS: resubir v1135.
 
 ---

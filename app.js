@@ -46023,9 +46023,10 @@ async function ofAlbaranesPdf() {
 // totales con el IVA de cada tipo, notas y, en páginas aparte, el ANEXO con el detalle de los albaranes.
 function _ofTemas() { const r = (a, b, c) => PDFLib.rgb(a, b, c); return {
   TYP:      { estilo: 'banda',   c: r(0.106, 0.196, 0.329), a: r(0.78, 0.62, 0.27), claro: r(0.925, 0.945, 0.969), tel: '630 574 208', mail: 'administracion@ttesyportes2014.com' },
-  PORTES:   { estilo: 'lateral', c: r(0.45, 0.09, 0.22),   a: r(0.80, 0.55, 0.62), claro: r(0.975, 0.94, 0.95),  tel: '', mail: '' },
-  HISPALIS: { estilo: 'centro',  c: r(0.05, 0.36, 0.33),   a: r(0.55, 0.72, 0.45), claro: r(0.93, 0.965, 0.955), tel: '', mail: '' }
+  PORTES:   { estilo: 'lateral', c: r(0.13, 0.13, 0.14),   a: r(0.62, 0.62, 0.64), claro: r(0.95, 0.95, 0.955), tel: '', mail: '' },   // v1137: negro (se imprime en B/N)
+  HISPALIS: { estilo: 'tls',     c: r(0.15, 0.32, 0.48),   a: r(0.82, 0.66, 0.36), claro: r(0.949, 0.953, 0.961), tel: '', mail: '' }
 }; }
+function _ofFechaLarga(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return ''; return Number(m[3]) + ' de ' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][Number(m[2]) - 1] + ' de ' + m[1]; }
 async function _ofPdfBytes() {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const L = _ofConceptos(), T = _ofTotales(L);
@@ -46076,20 +46077,40 @@ async function _ofPdfBytes() {
     txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, GRIS);
     rect(W - M - 170, H - 92, 170, 56, TEMA.c);
     txtC('OFERTA', W - M - 85, H - 62, 20, fB, BLANCO);
-    txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 85, H - 81, 11, fB, rgb(0.97, 0.88, 0.92));
+    txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 85, H - 81, 11, fB, rgb(0.9, 0.9, 0.9));
     page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.2, color: TEMA.c });
-  } else {                                   // Híspalis: cabecera centrada con doble filo verde
-    page.drawLine({ start: { x: M, y: H - 30 }, end: { x: W - M, y: H - 30 }, thickness: 2.5, color: TEMA.c });
-    page.drawLine({ start: { x: M, y: H - 34 }, end: { x: W - M, y: H - 34 }, thickness: 0.8, color: TEMA.a });
-    txtC(empNombre, W / 2, H - 58, 18, fB, TEMA.c);
-    txtC('CIF ' + empCif + '  ·  ' + empDir + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), W / 2, H - 72, 8.5, fN, GRIS);
-    rect(M, H - 112, ANCHO, 26, TEMA.c);
-    txt('OFERTA', M + 12, H - 103, 13, fB, BLANCO);
-    txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 12, H - 103, 12, fB, BLANCO);
+  } else {                                   // v1137 Híspalis: estilo "TLS" — banda alta, filo dorado, cuadro gris de datos y pie de color
+    rect(0, H - 118, W, 118, TEMA.c); rect(0, H - 124, W, 6, TEMA.a);
+    const nomL = partir(empNombre, fB, 19, 330);
+    nomL.forEach((l, i) => txt(l, M, H - 48 - i * 22, 19, fB, BLANCO));
+    const yI = H - 50 - nomL.length * 22;
+    [empDir, 'CIF ' + empCif].concat(TEMA.tel ? ['Tel. ' + TEMA.tel] : []).forEach((l, i) => txt(l, M, yI - i * 12, 9, fN, rgb(0.9, 0.92, 0.95)));
+    txtR('OFERTA', W - M, H - 56, 28, fB, BLANCO);
+    txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 75, 10.5, fN, TEMA.a);
+    txtR(_ofFechaLarga(_of.fecha), W - M, H - 90, 9.5, fN, BLANCO);
   }
   const NAVY = TEMA.c, CLARO_T = TEMA.claro;
   // Cliente + datos de la oferta
   y = H - 140;
+  if (TEMA.estilo === 'tls') {
+    y = H - 158;
+    const cliT = [_of.cliente].concat(String(_of.clienteDatos || '').split('\n').map(s => s.trim()).filter(Boolean));
+    txt('CLIENTE', M, y, 8, fB, GRIS); page.drawLine({ start: { x: M, y: y - 4 }, end: { x: M + 100, y: y - 4 }, thickness: 0.8, color: TEMA.a });
+    let yc = y - 20;
+    cliT.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 12, 270).slice(0, 2).forEach(ll => { txt(ll, M, yc, i ? 9.5 : 12, i ? fN : fB, i === cliT.length - 1 && /NIF|CIF/i.test(l) ? NEGRO : NEGRO); yc -= i ? 13 : 16; }));
+    const xG = M + 320, wG = ANCHO - 320;
+    const est = _OF_ESTADOS[_of.estado] || _OF_ESTADOS.estudio;
+    const dd = [['FECHA', _ofFechaEs(_of.fecha)], ['VÁLIDA HASTA', _of.validez ? _ofFechaEs(_of.validez) : ''], ['PEDIDO SAP', _of.pedido_sap || '']].filter(d => d[1]);
+    const hG = 26 + dd.length * 30 + 22;
+    rect(xG, y + 8 - hG, wG, hG, rgb(0.949, 0.953, 0.961));
+    let yg = y - 8;
+    dd.forEach(d => { txt(d[0], xG + 14, yg, 7.5, fB, GRIS); txt(d[1], xG + 14, yg - 14, 11, fN); yg -= 30; });
+    txt('ESTADO', xG + 14, yg, 7.5, fB, GRIS);
+    const et = est[0].toUpperCase(), we = fB.widthOfTextAtSize(et, 8) + 24;
+    page.drawRectangle({ x: xG + 90, y: yg - 6, width: we, height: 17, color: rgb(0.96, 0.62, 0.07) });
+    txtC(et, xG + 90 + we / 2, yg - 0.5, 8, fB, BLANCO);
+    y = Math.min(yc, y + 8 - hG) - 26;
+  } else {
   const cliL = [_of.cliente].concat(String(_of.clienteDatos || '').split('\n').map(s => s.trim()).filter(Boolean));
   const hCaja = Math.max(78, 30 + cliL.length * 13);
   rect(M, y - hCaja, 300, hCaja, CLARO_T);
@@ -46101,6 +46122,7 @@ async function _ofPdfBytes() {
   rect(xD, y - hCaja, wD, hCaja, null, LINEA);
   datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
   y -= hCaja + 22;
+  }
   txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
   y -= 18;
   // ===== Tabla de conceptos =====
@@ -46186,6 +46208,12 @@ async function _ofPdfBytes() {
   const pags = doc.getPages();
   pags.forEach((p, i) => {
     page = p;
+    if (TEMA.estilo === 'tls') {   // v1137: pie con banda de color
+      p.drawRectangle({ x: 0, y: 0, width: W, height: 34, color: TEMA.c }); p.drawRectangle({ x: 0, y: 34, width: W, height: 4, color: TEMA.a });
+      txt(empNombre + '  ·  CIF ' + empCif + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, 14, 7.5, fN, BLANCO);
+      txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, 14, 7.5, fN, BLANCO);
+      return;
+    }
     p.drawLine({ start: { x: M, y: 38 }, end: { x: W - M, y: 38 }, thickness: 0.5, color: LINEA });
     txt(empNombre + '  ·  CIF ' + empCif + '  ·  ' + empDir, M, 26, 7, fN, GRIS);
     txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, 26, 7, fN, GRIS);
