@@ -45598,9 +45598,9 @@ function ofInitCard() {
 }
 async function ofCargar() {
   try {
-    const { data, error } = await sb.from('ofertas').select('id,numero,fecha,empresa,cliente,email,estado,pedido_sap,albaranes,base,iva,total,updated_at').order('created_at', { ascending: false });
+    const { data, error } = await sb.from('ofertas').select('id,numero,fecha,empresa,cliente,email,estado,pedido_sap,albaranes,base,iva,total,updated_at,datos->clienteDatos').order('created_at', { ascending: false });
     if (error) throw error;
-    _ofLista = data || [];
+    _ofLista = (data || []).map(o => Object.assign(o, { datos: { clienteDatos: o.clienteDatos || '' } }));
   } catch (e) {
     console.error('[v1133] cargar ofertas:', e);
     if (/does not exist|relation|permission/i.test(e.message || '')) toast('Falta ejecutar el SQL de la v1133 (tabla ofertas) en Supabase', 'err');
@@ -45653,7 +45653,7 @@ async function _ofCrearDesdeSeleccion() {
   // Cliente propuesto: el que más se repite
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
-  _of = { id: null, numero: '', fecha: _ofIso(new Date()), empresa: 'TYP', cliente, email: _ofEmailDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
+  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
     filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: false, guardadaTotal: null };   // v1135: por defecto TODO JUNTO por ruta
   _ofAbrirVentana();
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
@@ -45665,6 +45665,13 @@ function _ofFilaDe(r) {
     tm: parseFloat(r.tm) || 0, fuera: false };
 }
 // El email del cliente: el de su última oferta (suele ser siempre la misma persona por zona)
+// v1136: dirección y NIF del cliente para el PDF: los de su última oferta; Holcim ya viene puesto.
+function _ofClienteDatosDe(cliente) {
+  const n = _ofNrm(cliente); const o = _ofLista.find(x => x.datos && x.datos.clienteDatos && _ofNrm(x.cliente) === n);
+  if (o) return o.datos.clienteDatos;
+  if (/HOLCIM/.test(n)) return 'Av. Manoteras, nº20, Edificio Tokyo, 1ª planta\n28050 Madrid\nNIF A08000424';
+  return '';
+}
 function _ofEmailDe(cliente) {
   const n = _ofNrm(cliente); const o = _ofLista.find(x => x.email && _ofNrm(x.cliente) === n);
   return o ? o.email : '';
@@ -45678,7 +45685,7 @@ async function ofAbrir(id) {
     const D = data.datos || {};
     _of = { id: data.id, numero: data.numero || '', fecha: data.fecha || _ofIso(new Date()), empresa: data.empresa || 'TYP', cliente: data.cliente || '', email: data.email || '',
       estado: data.estado || 'estudio', pedido_sap: data.pedido_sap || '', observaciones: data.observaciones || '',
-      filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [],
+      filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [], clienteDatos: D.clienteDatos || '', validez: D.validez || '',
       agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at };
     _ofAbrirVentana();
   } catch (e) { console.error('[v1133] abrir oferta:', e); toast('No se pudo abrir la oferta: ' + (e.message || e), 'err'); }
@@ -45777,7 +45784,10 @@ function _ofRender() {
     '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente<br><input value="' + _ofEA(_of.cliente) + '" onchange="_of.cliente=this.value.trim();if(!_of.email){_of.email=_ofEmailDe(_of.cliente);}_ofRender()" style="' + inp + ';width:100%"></label>' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
-    '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>';
+    '<datalist id="ofEmails">' + [...new Set(_ofLista.map(o => o.email).filter(Boolean))].map(e => '<option value="' + _ofEA(e) + '">').join('') + '</datalist></div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
+    '<label style="font-size:12px;color:var(--mu);flex:1;min-width:300px">Datos del cliente para el PDF (dirección, CP, NIF — se recuerdan)<br><textarea rows="2" onchange="_of.clienteDatos=this.value" style="' + inp + ';width:100%;font-family:inherit;font-size:13px">' + esc(_of.clienteDatos || '') + '</textarea></label>' +
+    '<label style="font-size:12px;color:var(--mu)">Válida hasta<br><input type="date" value="' + _ofEA(_of.validez || '') + '" onchange="_of.validez=this.value" style="' + inp + '"></label></div>';
   // Conceptos
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px"><div style="font-weight:800;font-size:15px">Conceptos <span style="font-weight:400;font-size:12px;color:var(--mu)">(' + _of.filas.filter(x => !x.fuera).length + ' albaranes · ' + _ofTn(_of.filas.filter(x => !x.fuera).reduce((a, x) => a + x.tm, 0)) + ' TN)</span></div>' +
     '<label style="font-size:13px"><input type="checkbox"' + (_of.agruparMaterial ? ' checked' : '') + ' onchange="_of.agruparMaterial=this.checked;_ofRender()" title="Márcalo cuando el pedido va por ITEMS (un item por material). Sin marcar, cada ruta va en una sola línea"> Separar por material (items del pedido)</label></div>';
@@ -45830,7 +45840,7 @@ function _ofRender() {
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
     (_of.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (_of.id ? '<button class="btn bs" onclick="ofBorrar()" style="color:#b91c1c">🗑 Borrar oferta</button>' : '') +
-    '<button class="btn bs" onclick="ofAlbaranesPdf()">📄 Albaranes en PDF</button><button class="btn bs" onclick="ofExcel()">📊 Excel</button>' +
+    '<button class="btn bs" onclick="ofAlbaranesPdf()">📎 Albaranes en PDF</button><button class="btn bs" onclick="ofExcel()">📊 Excel</button><button class="btn bs" onclick="ofPdf()" style="font-weight:800">📄 Oferta en PDF</button>' +
     '<button class="btn bp" onclick="ofGuardar()" style="font-weight:800">💾 Guardar oferta</button></div></div>';
   // Detalle de albaranes
   const nf = _of.filas.filter(x => x.fuera).length;
@@ -45863,7 +45873,7 @@ async function ofGuardar(silencioso) {
   const filas = _of.filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, transportista: x.transportista, origen: x.origen, destino: x.destino, producto: x.producto, cliente: x.cliente, tm: x.tm, fuera: !!x.fuera }));
   const usados = new Set(L.map(c => c.k)); const conceptos = {}; Object.keys(_of.conceptos).forEach(k => { if (usados.has(k)) conceptos[k] = _of.conceptos[k]; });
   const reg = { numero: _of.numero || null, fecha: _of.fecha || null, empresa: _of.empresa, cliente: _of.cliente, email: _of.email || null, estado: _of.estado, pedido_sap: _of.pedido_sap || null,
-    albaranes: vivas.map(x => x.id), datos: { filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial }, base: T.base, iva: T.iva, total: T.total,
+    albaranes: vivas.map(x => x.id), datos: { filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '' }, base: T.base, iva: T.iva, total: T.total,
     observaciones: _of.observaciones || null, updated_at: new Date().toISOString() };
   try {
     let antes = [];
@@ -46006,4 +46016,191 @@ async function ofAlbaranesPdf() {
   try { filtered = recs; await _descargarArchivosFiltrados(true); }
   catch (e) { console.error('[v1133] albaranes PDF:', e); toast('⚠️ No se pudieron bajar los albaranes: ' + (e.message || e), 'err'); }
   finally { filtered = antes; }
+}
+
+// ---------- PDF de la oferta (v1136) ----------
+// Cabecera azul marino con la empresa que la hace, cliente y datos de la oferta, tabla de conceptos,
+// totales con el IVA de cada tipo, notas y, en páginas aparte, el ANEXO con el detalle de los albaranes.
+function _ofTemas() { const r = (a, b, c) => PDFLib.rgb(a, b, c); return {
+  TYP:      { estilo: 'banda',   c: r(0.106, 0.196, 0.329), a: r(0.78, 0.62, 0.27), claro: r(0.925, 0.945, 0.969), tel: '630 574 208', mail: 'administracion@ttesyportes2014.com' },
+  PORTES:   { estilo: 'lateral', c: r(0.45, 0.09, 0.22),   a: r(0.80, 0.55, 0.62), claro: r(0.975, 0.94, 0.95),  tel: '', mail: '' },
+  HISPALIS: { estilo: 'centro',  c: r(0.05, 0.36, 0.33),   a: r(0.55, 0.72, 0.45), claro: r(0.93, 0.965, 0.955), tel: '', mail: '' }
+}; }
+async function _ofPdfBytes() {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const L = _ofConceptos(), T = _ofTotales(L);
+  const doc = await PDFDocument.create();
+  const fN = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
+  let NAVY_ = null; const GRIS = rgb(0.42, 0.45, 0.5), LINEA = rgb(0.82, 0.85, 0.89), NEGRO = rgb(0.1, 0.1, 0.12), BLANCO = rgb(1, 1, 1);
+  const W = 595.28, H = 841.89, M = 40, ANCHO = W - 2 * M;
+  const t = s => _liqPdfTxt(s);
+  const eur = n => { const r = _ofR2(n), p = Math.abs(r).toFixed(2).split('.'); return (r < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1] + ' €'; };
+  const num = (n, d) => { const p = Math.abs(Number(n) || 0).toFixed(d).split('.'); return ((Number(n) || 0) < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + p[1] : ''); };
+  const partir = (s, font, size, ancho) => { const out = []; String(t(s)).split('\n').forEach(par => { let l = ''; par.split(' ').forEach(p => { const n = l ? l + ' ' + p : p; if (font.widthOfTextAtSize(n, size) > ancho && l) { out.push(l); l = p; } else l = n; }); out.push(l); }); return out; };
+  const emp = _LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP;
+  const empNombre = emp[0][1], empCif = emp[1][1], empDir = emp[2][1] + ', ' + emp[3][1] + (emp[4] ? ' (' + emp[4][1] + ')' : '');
+  let page, y;
+  const txt = (s, x, yy, size, font, color) => page.drawText(t(s), { x, y: yy, size, font: font || fN, color: color || NEGRO });
+  const txtR = (s, xr, yy, size, font, color) => { const f = font || fN, v = t(s); page.drawText(v, { x: xr - f.widthOfTextAtSize(v, size), y: yy, size, font: f, color: color || NEGRO }); };
+  const txtC = (s, xc, yy, size, font, color) => { const f = font || fN, v = t(s); page.drawText(v, { x: xc - f.widthOfTextAtSize(v, size) / 2, y: yy, size, font: f, color: color || NEGRO }); };
+  const rect = (x, yy, w, h, color, borde) => page.drawRectangle(Object.assign({ x, y: yy, width: w, height: h }, color ? { color } : {}, borde ? { borderColor: borde, borderWidth: 0.7 } : {}));
+  const nuevaPagina = (cabeceraCorta) => {
+    const NAVY = NAVY_ || (_ofTemas()[_of.empresa] || _ofTemas().TYP).c;
+    page = doc.addPage([W, H]);
+    if (cabeceraCorta) {
+      rect(0, H - 46, W, 46, NAVY);
+      txt(empNombre, M, H - 29, 11, fB, BLANCO);
+      txtR('OFERTA ' + (_of.numero || ''), W - M, H - 29, 11, fB, BLANCO);
+      y = H - 74;
+    }
+  };
+  // ===== Página 1: cabecera — cada empresa con su estilo (v1136) =====
+  nuevaPagina(false);
+  const TEMA = _ofTemas()[_of.empresa] || _ofTemas().TYP;
+  NAVY_ = TEMA.c;
+  if (TEMA.estilo === 'banda') {            // TYP2014: banda azul marino a todo el ancho + filo dorado
+    rect(0, H - 108, W, 108, TEMA.c); rect(0, H - 112, W, 4, TEMA.a);
+    const nomL = partir(empNombre, fB, 17, 300);
+    nomL.forEach((l, i) => txt(l, M, H - 44 - i * 20, 17, fB, BLANCO));
+    const yI = H - 44 - nomL.length * 20;
+    txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, rgb(0.82, 0.86, 0.92));
+    txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, rgb(0.82, 0.86, 0.92));
+    txtR('OFERTA', W - M, H - 50, 26, fB, BLANCO);
+    txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 70, 12, fB, TEMA.a);
+  } else if (TEMA.estilo === 'lateral') {   // Portes 2014 Import: franja vertical granate a la izquierda, fondo blanco
+    rect(0, H - 120, 14, 120, TEMA.c); rect(14, H - 120, 3, 120, TEMA.a);
+    const nomL = partir(empNombre, fB, 18, 300);
+    nomL.forEach((l, i) => txt(l, M, H - 46 - i * 21, 18, fB, TEMA.c));
+    const yI = H - 46 - nomL.length * 21;
+    txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, GRIS);
+    txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, GRIS);
+    rect(W - M - 170, H - 92, 170, 56, TEMA.c);
+    txtC('OFERTA', W - M - 85, H - 62, 20, fB, BLANCO);
+    txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 85, H - 81, 11, fB, rgb(0.97, 0.88, 0.92));
+    page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.2, color: TEMA.c });
+  } else {                                   // Híspalis: cabecera centrada con doble filo verde
+    page.drawLine({ start: { x: M, y: H - 30 }, end: { x: W - M, y: H - 30 }, thickness: 2.5, color: TEMA.c });
+    page.drawLine({ start: { x: M, y: H - 34 }, end: { x: W - M, y: H - 34 }, thickness: 0.8, color: TEMA.a });
+    txtC(empNombre, W / 2, H - 58, 18, fB, TEMA.c);
+    txtC('CIF ' + empCif + '  ·  ' + empDir + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), W / 2, H - 72, 8.5, fN, GRIS);
+    rect(M, H - 112, ANCHO, 26, TEMA.c);
+    txt('OFERTA', M + 12, H - 103, 13, fB, BLANCO);
+    txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 12, H - 103, 12, fB, BLANCO);
+  }
+  const NAVY = TEMA.c, CLARO_T = TEMA.claro;
+  // Cliente + datos de la oferta
+  y = H - 140;
+  const cliL = [_of.cliente].concat(String(_of.clienteDatos || '').split('\n').map(s => s.trim()).filter(Boolean));
+  const hCaja = Math.max(78, 30 + cliL.length * 13);
+  rect(M, y - hCaja, 300, hCaja, CLARO_T);
+  rect(M, y - hCaja, 3, hCaja, NAVY);
+  txt('CLIENTE', M + 14, y - 17, 8, fB, GRIS);
+  cliL.forEach((l, i) => partir(l, i ? fN : fB, i ? 9.5 : 11, 270).slice(0, 2).forEach((ll, j) => txt(ll, M + 14, y - 33 - i * 13 - j * 12, i ? 9.5 : 11, i ? fN : fB)));
+  const xD = M + 320, wD = ANCHO - 320;
+  const datos = [['Fecha', _ofFechaEs(_of.fecha)], ['Válida hasta', _of.validez ? _ofFechaEs(_of.validez) : ''], ['Pedido SAP', _of.pedido_sap || '']].filter(d => d[1]);
+  rect(xD, y - hCaja, wD, hCaja, null, LINEA);
+  datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
+  y -= hCaja + 22;
+  txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
+  y -= 18;
+  // ===== Tabla de conceptos =====
+  const conItem = !!_of.agruparMaterial;
+  const cols = (conItem ? [['Item', 38, 'l']] : []).concat([['Concepto', 0, 'l'], ['Viajes', 40, 'r'], ['Cantidad', 70, 'r'], ['Precio', 64, 'r'], ['IVA', 32, 'r'], ['Importe', 74, 'r']]);
+  const fijo = cols.reduce((a, c) => a + c[1], 0); cols.forEach(c => { if (!c[1]) c[1] = ANCHO - fijo; });
+  const xs = []; let xx = M; cols.forEach(c => { xs.push(xx); xx += c[1]; });
+  const cabTabla = () => { rect(M, y - 20, ANCHO, 20, NAVY); cols.forEach((c, i) => { const yy = y - 13.5; if (c[2] === 'r') txtR(c[0].toUpperCase(), xs[i] + c[1] - 6, yy, 7.5, fB, BLANCO); else if (c[2] === 'c') txtC(c[0].toUpperCase(), xs[i] + c[1] / 2, yy, 7.5, fB, BLANCO); else txt(c[0].toUpperCase(), xs[i] + 6, yy, 7.5, fB, BLANCO); }); y -= 20; };
+  cabTabla();
+  const filas = [];
+  L.forEach(c => c.tramos.forEach(tr => {
+    if (!tr.viajes) return;
+    const fs = c.filas.filter(x => (!tr.desde || x.fecha >= tr.desde) && (!tr.hasta || x.fecha < tr.hasta));
+    const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';
+    const porViaje = c.cfg.unidad === 'viaje';
+    filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : num(tr.tn, 2) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
+  }));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: '', precio: '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
+  const iCon = conItem ? 1 : 0;
+  filas.forEach((f, k) => {
+    const lin = partir(f.concepto, fN, 9, cols[iCon][1] - 12);
+    const hF = Math.max(22, 10 + lin.length * 11.5 + (f.periodo ? 10 : 0));
+    if (y - hF < 150) { nuevaPagina(true); cabTabla(); }
+    if (k % 2) rect(M, y - hF, ANCHO, hF, rgb(0.972, 0.978, 0.986));
+    const yy = y - 14;
+    const vals = (conItem ? [f.item] : []).concat([null, f.viajes, f.cantidad, f.precio, f.iva, f.importe]);
+    vals.forEach((v, i) => {
+      const c = cols[i];
+      if (v === null) { lin.forEach((l, j) => txt(l, xs[i] + 6, yy - j * 11.5, 9)); if (f.periodo) txt('Periodo: ' + f.periodo, xs[i] + 6, yy - lin.length * 11.5 - 0.5, 7.5, fN, GRIS); return; }
+      const font = i === cols.length - 1 ? fB : fN, size = 8.5;
+      if (c[2] === 'r') txtR(v, xs[i] + c[1] - 6, yy, size, font); else if (c[2] === 'c') txtC(v, xs[i] + c[1] / 2, yy, size, font); else txt(v, xs[i] + 6, yy, size, font);
+    });
+    y -= hF;
+    page.drawLine({ start: { x: M, y }, end: { x: M + ANCHO, y }, thickness: 0.5, color: LINEA });
+  });
+  // ===== Totales =====
+  y -= 14;
+  const nTot = 2 + T.desglose.length;
+  if (y - nTot * 17 - 30 < 70) { nuevaPagina(true); }
+  const xT = M + ANCHO - 230;
+  const filaT = (a, b) => { txt(a, xT + 10, y - 12, 9.5, fN, GRIS); txtR(b, M + ANCHO - 10, y - 12, 10, fN); y -= 17; };
+  filaT('Base imponible', eur(T.base));
+  T.desglose.forEach(d => filaT(d.tipo ? 'IVA ' + d.tipo + ' %' + (T.desglose.length > 1 ? ' (sobre ' + eur(d.base) + ')' : '') : 'IVA 0 % (exento)', eur(d.iva)));
+  y -= 4;
+  rect(xT, y - 26, 230, 26, NAVY);
+  txt('TOTAL', xT + 10, y - 17, 11, fB, BLANCO); txtR(eur(T.total), M + ANCHO - 10, y - 17.5, 13, fB, BLANCO);
+  y -= 46;
+  // ===== Notas y condiciones =====
+  const notas = [];
+  if (_of.observaciones) notas.push(_of.observaciones);
+  notas.push('Se adjunta el detalle de los ' + _of.filas.filter(x => !x.fuera).length + ' albaranes incluidos en esta oferta.');
+  notas.push('Precios sin IVA. El IVA se aplica según el tipo indicado en cada línea.');
+  const notL = []; notas.forEach(n => partir(n, fN, 9, ANCHO - 24).forEach(l => notL.push(l)));
+  if (y - (notL.length * 12 + 30) < 70) { nuevaPagina(true); }
+  txt('NOTAS', M, y, 8, fB, GRIS); y -= 8;
+  rect(M, y - notL.length * 12 - 12, ANCHO, notL.length * 12 + 12, CLARO_T);
+  notL.forEach((l, i) => txt(l, M + 12, y - 15 - i * 12, 9));
+  y -= notL.length * 12 + 24;
+  // ===== ANEXO: albaranes =====
+  const albs = _of.filas.filter(x => !x.fuera).slice().sort((a, b) => a.fecha.localeCompare(b.fecha) || a.albaran.localeCompare(b.albaran, 'es', { numeric: true }));
+  if (albs.length) {
+    nuevaPagina(true);
+    txt('ANEXO · DETALLE DE ALBARANES', M, y, 12, fB, NAVY);
+    txtR(albs.length + ' albaranes · ' + num(albs.reduce((a, x) => a + x.tm, 0), 2) + ' TN', M + ANCHO, y, 9, fN, GRIS);
+    y -= 16;
+    const ca = [['Fecha', 52, 'l'], ['Nº albarán', 78, 'l'], ['Matrícula', 54, 'l'], ['Origen', 0, 'l'], ['Destino', 0, 'l'], ['Material', 0, 'l'], ['TN', 46, 'r']];
+    const fj = ca.reduce((a, c) => a + c[1], 0), libres = ca.filter(c => !c[1]).length; ca.forEach(c => { if (!c[1]) c[1] = (ANCHO - fj) / libres; });
+    const xa = []; let x2 = M; ca.forEach(c => { xa.push(x2); x2 += c[1]; });
+    const cabA = () => { rect(M, y - 17, ANCHO, 17, NAVY); ca.forEach((c, i) => c[2] === 'r' ? txtR(c[0].toUpperCase(), xa[i] + c[1] - 5, y - 11.5, 7, fB, BLANCO) : txt(c[0].toUpperCase(), xa[i] + 5, y - 11.5, 7, fB, BLANCO)); y -= 17; };
+    const corta = (s, w, f, z) => { s = t(s); if (f.widthOfTextAtSize(s, z) <= w) return s; while (s.length > 1 && f.widthOfTextAtSize(s + '…', z) > w) s = s.slice(0, -1); return s + '…'; };
+    cabA();
+    albs.forEach((a, k) => {
+      if (y - 15 < 60) { nuevaPagina(true); cabA(); }
+      if (k % 2) rect(M, y - 15, ANCHO, 15, rgb(0.972, 0.978, 0.986));
+      const v = [_ofFechaEs(a.fecha), a.albaran, a.tractora, a.origen, a.destino, a.producto, num(a.tm, 2)];
+      v.forEach((s, i) => { const c = ca[i]; if (c[2] === 'r') txtR(s, xa[i] + c[1] - 5, y - 10.5, 7.5, fN); else txt(corta(s, c[1] - 9, fN, 7.5), xa[i] + 5, y - 10.5, 7.5, fN); });
+      y -= 15;
+    });
+    page.drawLine({ start: { x: M, y }, end: { x: M + ANCHO, y }, thickness: 0.8, color: NAVY });
+    txtR('TOTAL  ' + num(albs.reduce((a, x) => a + x.tm, 0), 2) + ' TN', M + ANCHO - 5, y - 12, 8.5, fB);
+  }
+  // ===== Pie en todas las páginas =====
+  const pags = doc.getPages();
+  pags.forEach((p, i) => {
+    page = p;
+    p.drawLine({ start: { x: M, y: 38 }, end: { x: W - M, y: 38 }, thickness: 0.5, color: LINEA });
+    txt(empNombre + '  ·  CIF ' + empCif + '  ·  ' + empDir, M, 26, 7, fN, GRIS);
+    txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, 26, 7, fN, GRIS);
+  });
+  return await doc.save();
+}
+async function ofPdf() {
+  if (!_of) return;
+  if (typeof PDFLib === 'undefined') { toast('No se pudo cargar el generador de PDF. Recarga la página.', 'err'); return; }
+  try {
+    const bytes = await _ofPdfBytes();
+    const nombre = ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90) + '.pdf';
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('📄 Oferta en PDF descargada: ' + nombre, 'ok');
+  } catch (e) { console.error('[v1136] PDF oferta:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
 }
