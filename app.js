@@ -45785,7 +45785,7 @@ function _ofRender() {
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
     '<label style="font-size:12px;color:var(--mu)">Nº oferta<br><input value="' + _ofEA(_of.numero) + '" placeholder="' + (lastNum ? 'última: ' + _ofEA(lastNum) : 'ej. OF26-76') + '" onchange="_of.numero=this.value.trim();_ofRender()" style="' + inp + ';width:130px;font-weight:700"></label>' +
     '<label style="font-size:12px;color:var(--mu)">Fecha<br><input type="date" value="' + _ofEA(_of.fecha) + '" onchange="_of.fecha=this.value" style="' + inp + '"></label>' +
-    '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
+    '<label style="font-size:12px;color:var(--mu)">La hace<br><select onchange="_of.empresa=this.value;_ofRender()" style="' + inp + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_of.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
     '<label style="font-size:12px;color:var(--mu);flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="ofSelCliente(this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_of.cliente && !_ofCliBuscar(_of.cliente) ? '<option value="' + _ofEA(_of.cliente) + '" selected>' + esc(_of.cliente) + '</option>' : '') +
       (!_of.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1147 (17/11/2026): OFERTAS · AL CAMBIAR "LA HACE" SE REFRESCA LA PANTALLA. Al pasar de TYP2014 a Import (o Híspalis), el asunto del correo y los conceptos habituales seguían enseñando la empresa anterior hasta tocar otra casilla (por dentro ya estaba bien: PDF, Excel y guardado salían con la empresa elegida). Ahora cambia al momento. Sin SQL. VUELTA ATRAS: resubir v1146.
+
+---
+
 v1146 (17/11/2026): OFERTAS · LA LÍNEA DE IVA SE VE SIEMPRE EN LOS TOTALES. Con la oferta aún sin precios (base 0 €) solo salían Base imponible y TOTAL; ahora sale siempre Base imponible · IVA (una línea por cada tipo usado: 21 / 10 / 0 %) · TOTAL, en pantalla, PDF y Excel. Sin SQL. VUELTA ATRAS: resubir v1145.
 
 ---
