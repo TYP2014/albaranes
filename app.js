@@ -18049,12 +18049,26 @@ function hideRecambDia10Banner() {
   toast('Cuadre de recambios ocultado hasta mañana');
 }
 
+// v1127 (JC 17/11/2026): los vehículos DADOS DE BAJA en Taller (vendidos, desguace…) no salen en ITV
+// (registro, citas, avisos ni contadores). No se borra nada: si se vuelve a dar de alta, reaparecen.
+const _itvNormMat = m => String(m || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+async function _itvMatsBaja() {
+  try {
+    const { data, error } = await sb.from('taller_vehiculos').select('matricula').eq('activo', false);
+    if (error) throw error;
+    return new Set((data || []).map(v => _itvNormMat(v.matricula)).filter(Boolean));
+  } catch (e) { console.warn('[v1127] no se pudieron leer las bajas de Taller:', e); return new Set(); }
+}
+
 async function loadItvData() {
   if (!window._tieneITV) return;  // doble check de seguridad
   try {
-    const { data, error } = await sb.from('itv').select('*').order('fecha_caducidad', { ascending: true, nullsFirst: false });
+    const [{ data, error }, _bajas] = await Promise.all([
+      sb.from('itv').select('*').order('fecha_caducidad', { ascending: true, nullsFirst: false }),
+      _itvMatsBaja()
+    ]);
     if (error) throw error;
-    itvRecords = (data || []).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    itvRecords = (data || []).filter(r => !_bajas.has(_itvNormMat(r.matricula))).map(r => ({ ...r, db_id: r.id, _id: r.id }));
     try { await firmarCampo(itvRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado itv:', e); }
     applyItvFilters();
     updateItvStats();
@@ -18129,7 +18143,8 @@ async function loadItvCitas() {
     // v537: antes de pintar, se van las citas cuyo dia ya paso.
     const _borradas = await _itvBorrarCitasPasadas(data);
     const _fuera = new Set(_borradas.map(r => r.id));
-    itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id)).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    const _bajasC = await _itvMatsBaja();   // v1127
+    itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id) && !_bajasC.has(_itvNormMat(r.matricula))).map(r => ({ ...r, db_id: r.id, _id: r.id }));
     try { await firmarCampo(itvCitasRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado citas:', e); }
     applyCitasFilters();
     renderItvCitasBanner();   // v608: aviso global de las citas de ITV ya cogidas

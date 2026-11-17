@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1127 (17/11/2026): ITV · LOS VEHÍCULOS DE BAJA EN TALLER YA NO SALEN. Los camiones dados de baja en Taller (ej. 5258HYX y 7683JGB, vendidos para exportación) dejan de aparecer en el Registro de ITV, en las citas, en los avisos de caducidad y en los contadores. No se borra nada de la BD: si se vuelven a dar de alta en Taller, reaparecen con todo su histórico. Cambio solo en app.js (loadItvData / loadItvCitas). Sin SQL. VUELTA ATRAS: resubir v1126.
+
+---
+
 v1126 (17/11/2026): ALBARANES · LA FLECHITA ⬇ DE LA FILA PREGUNTA EL FORMATO. Al pinchar la flechita de un albarán sale la ventana "📄 En PDF / 🗂 Como está (original)", igual que en "⬇ Descargar archivos". En PDF: la foto pasa a A4 y de un escaneo de varios albaranes solo su página. Como está: el archivo original de siempre. Cambio solo en app.js (_descargarAlb → ventana + _descargarAlbModo). Sin SQL. VUELTA ATRAS: resubir v1125 (o v1124).
 
 ---
