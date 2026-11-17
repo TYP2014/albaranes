@@ -46468,7 +46468,12 @@ async function _ofCliCargar(forzar) {
   catch (e) { console.error('[v1143] clientes:', e); _ofCli = []; }
   return _ofCli;
 }
-function _ofCliBuscar(nombre) { const n = _ofNrm(nombre).replace(/[.,]/g, ''); return n ? _ofCli.find(c => _ofNrm(c.nombre).replace(/[.,]/g, '') === n) : null; }
+// v1148: además del nombre exacto, vale el nombre "corto" del albarán si la razón social de la ficha ACABA igual
+// (albarán "Llantada e Hijos, S.L." = ficha "TRANSPORTES LLANTADA E HIJOS, S.L."), o al revés.
+function _ofCliBuscar(nombre) {
+  const q = x => _ofNrm(x).replace(/[.,]/g, '').replace(/\s+/g, ' ').trim(); const n = q(nombre); if (!n) return null;
+  return _ofCli.find(c => q(c.nombre) === n) || (n.length >= 10 ? _ofCli.find(c => { const m = q(c.nombre); return m.length >= 10 && (m.endsWith(' ' + n) || n.endsWith(' ' + m)); }) : null) || null;
+}
 function _ofCliDatos(c) { return [c.direccion || '', c.nif ? 'NIF ' + c.nif : ''].filter(Boolean).join('\n'); }
 // v1145: el Cliente es un desplegable de verdad (se ven TODOS, no solo el que coincide con lo escrito) y se puede cambiar siempre.
 function ofSelCliente(v) {

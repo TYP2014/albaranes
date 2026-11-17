@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1148 (17/11/2026): OFERTAS · CLIENTES: LLANTADA CON SU RAZÓN SOCIAL COMPLETA. En la ficha de clientes, Llantada pasa a "TRANSPORTES LLANTADA E HIJOS, S.L." (CIF B95006615, Pol. Ind. El Campillo, parcela 1-2, Fase II, Apdo. 55, 48500 Gallarta - Abanto y Ciérvana), según su factura 26/260435. Para que los albaranes que ponen "Llantada e Hijos, S.L." sigan encontrando la ficha, el desplegable reconoce también el nombre corto cuando la razón social acaba igual. Sin SQL de estructura (solo el dato). VUELTA ATRAS: resubir v1147.
+
+---
+
 v1147 (17/11/2026): OFERTAS · AL CAMBIAR "LA HACE" SE REFRESCA LA PANTALLA. Al pasar de TYP2014 a Import (o Híspalis), el asunto del correo y los conceptos habituales seguían enseñando la empresa anterior hasta tocar otra casilla (por dentro ya estaba bien: PDF, Excel y guardado salían con la empresa elegida). Ahora cambia al momento. Sin SQL. VUELTA ATRAS: resubir v1146.
 
 ---
