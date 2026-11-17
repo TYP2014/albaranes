@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1128 (17/11/2026): ITV · LAS CITAS SE QUEDAN. Corrige la v1127: las citas de ITV siguen saliendo aunque el vehículo esté de baja en Taller (no afectan al que va a la ITV). Del Registro de ITV, los avisos y los contadores los de baja siguen fuera. Cambio solo en app.js (loadItvCitas). Sin SQL. VUELTA ATRAS: resubir v1127 (o v1126 para quitarlo todo).
+
+---
+
 v1127 (17/11/2026): ITV · LOS VEHÍCULOS DE BAJA EN TALLER YA NO SALEN. Los camiones dados de baja en Taller (ej. 5258HYX y 7683JGB, vendidos para exportación) dejan de aparecer en el Registro de ITV, en las citas, en los avisos de caducidad y en los contadores. No se borra nada de la BD: si se vuelven a dar de alta en Taller, reaparecen con todo su histórico. Cambio solo en app.js (loadItvData / loadItvCitas). Sin SQL. VUELTA ATRAS: resubir v1126.
 
 ---

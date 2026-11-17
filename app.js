@@ -18050,7 +18050,7 @@ function hideRecambDia10Banner() {
 }
 
 // v1127 (JC 17/11/2026): los vehículos DADOS DE BAJA en Taller (vendidos, desguace…) no salen en ITV
-// (registro, citas, avisos ni contadores). No se borra nada: si se vuelve a dar de alta, reaparecen.
+// (registro, avisos ni contadores; las citas SÍ se quedan, v1128). No se borra nada: si se vuelve a dar de alta, reaparecen.
 const _itvNormMat = m => String(m || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 async function _itvMatsBaja() {
   try {
@@ -18143,8 +18143,8 @@ async function loadItvCitas() {
     // v537: antes de pintar, se van las citas cuyo dia ya paso.
     const _borradas = await _itvBorrarCitasPasadas(data);
     const _fuera = new Set(_borradas.map(r => r.id));
-    const _bajasC = await _itvMatsBaja();   // v1127
-    itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id) && !_bajasC.has(_itvNormMat(r.matricula))).map(r => ({ ...r, db_id: r.id, _id: r.id }));
+    // v1128: las CITAS se quedan aunque el vehículo esté de baja (JC: no afecta a quien va a la ITV)
+    itvCitasRecords = (data || []).filter(r => !_fuera.has(r.id)).map(r => ({ ...r, db_id: r.id, _id: r.id }));
     try { await firmarCampo(itvCitasRecords, 'file_url'); } catch (e) { console.warn('[v322] firmado citas:', e); }
     applyCitasFilters();
     renderItvCitasBanner();   // v608: aviso global de las citas de ITV ya cogidas
