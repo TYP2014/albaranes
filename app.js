@@ -46024,7 +46024,7 @@ async function ofAlbaranesPdf() {
 function _ofTemas() { const r = (a, b, c) => PDFLib.rgb(a, b, c); return {
   TYP:      { estilo: 'banda',   c: r(0.106, 0.196, 0.329), a: r(0.78, 0.62, 0.27), claro: r(0.925, 0.945, 0.969), tel: '630 574 208', mail: 'administracion@ttesyportes2014.com' },
   PORTES:   { estilo: 'lateral', c: r(0.13, 0.13, 0.14),   a: r(0.62, 0.62, 0.64), claro: r(0.95, 0.95, 0.955), tel: '', mail: '' },   // v1137: negro (se imprime en B/N)
-  HISPALIS: { estilo: 'tls',     c: r(0.15, 0.32, 0.48),   a: r(0.82, 0.66, 0.36), claro: r(0.949, 0.953, 0.961), tel: '', mail: '' }
+  HISPALIS: { estilo: 'tls',     c: r(0.18, 0.2, 0.235),  /* v1138: grafito */   a: r(0.82, 0.66, 0.36), claro: r(0.949, 0.953, 0.961), tel: '', mail: '' }
 }; }
 function _ofFechaLarga(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return ''; return Number(m[3]) + ' de ' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][Number(m[2]) - 1] + ' de ' + m[1]; }
 async function _ofPdfBytes() {

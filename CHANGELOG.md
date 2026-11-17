@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1138 (17/11/2026): OFERTAS · PDF HÍSPALIS EN GRIS GRAFITO (no azul). Mismo diseño estilo TLS con filo dorado. Sin SQL. VUELTA ATRAS: resubir v1137.
+
+---
+
 v1137 (17/11/2026): OFERTAS · PDF: COLORES PARA IMPRESORA EN BLANCO Y NEGRO. Portes 2014 Import pasa a NEGRO (fuera el granate). Híspalis cambia de diseño al estilo del ejemplo TLS: banda alta azul acero con filo dorado, OFERTA + nº + fecha larga a la derecha, CLIENTE subrayado, cuadro gris con Fecha / Válida hasta / Pedido SAP / Estado, y pie con banda de color (fuera el verde). TYP2014 sigue igual (azul marino + dorado). Sin SQL. VUELTA ATRAS: resubir v1136.
 
 ---
