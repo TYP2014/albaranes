@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1155 (17/11/2026): OFERTAS Y FACTURAS · "ENVIAR DESDE" (CORREO REMITENTE POR EMPRESA). Cada empresa tiene su lista de correos de envío: TYP2014 empieza con administracion@ y juancarlos@ttesyportes2014.com; Híspalis e Import vacías. En la oferta y en la factura hay un desplegable "Enviar desde" (por defecto el primero de la empresa; "+ Otro correo…" lo añade a la lista de esa empresa). Se guarda con cada documento y sale como "DE:" en el EMAIL.txt del paquete; lo usará el botón de enviar. En la factura aparece además "Email del cliente". SQL PREVIO: columna remitentes en facturas_config. VUELTA ATRAS: resubir v1154.
+
+---
+
 v1154 (17/11/2026): OFERTAS Y FACTURAS · IMPORTES CON PUNTO DE MILLAR EN PANTALLA (1.101,10 € y no 1101,10 €), columna "TN / horas" y desplegables de IVA y unidad un poco más anchos (el "21 %" salía cortado). Sin SQL. VUELTA ATRAS: resubir v1153.
 
 ---
