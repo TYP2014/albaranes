@@ -45795,7 +45795,7 @@ async function _ofFiltrarLibres(recs, para) {
 async function ofNueva() {
   if (!_ofPuede()) { toast('No tienes permiso para hacer ofertas', 'err'); return; }
   await ofCargar();
-  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjunto nuestra oferta.\n\nQuedo a la espera de vuestra aprobación y del nº de pedido.\n\nUn saludo,\nJuan Carlos Reina', empresa: 'TYP', cliente: '', email: '', clienteDatos: '', estado: 'estudio', pedido_sap: '', observaciones: '',
+  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjuntamos nuestra oferta.\n\nQuedamos a la espera de su aprobación y del nº de pedido.\n\nUn saludo,\nDepartamento de Administración', empresa: 'TYP', cliente: '', email: '', clienteDatos: '', estado: 'estudio', pedido_sap: '', observaciones: '',
     filas: [], conceptos: {}, lineas: [{ concepto: '', cantidad: 1, unidad: 'h', precio: null, importe: null, iva: 21 }], agruparMaterial: false, guardadaTotal: null, historial: [], anexos: [] };
   _ofAbrirVentana();
 }
@@ -45857,7 +45857,7 @@ async function _ofCrearDesdeSeleccion() {
   // Cliente propuesto: el que más se repite
   const cc = {}; recs.forEach(r => { const c = _ofCliFactura(r.cliente); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
-  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjunto nuestra oferta con el Excel de detalle y los albaranes de los servicios realizados.\n\nQuedo a la espera de vuestra aprobación y del nº de pedido.\n\nUn saludo,\nJuan Carlos Reina', empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
+  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjuntamos nuestra oferta con el Excel de detalle y los albaranes de los servicios realizados.\n\nQuedamos a la espera de su aprobación y del nº de pedido.\n\nUn saludo,\nDepartamento de Administración', empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
     filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: false, guardadaTotal: null };   // v1135: por defecto TODO JUNTO por ruta
   _ofAbrirVentana();
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
@@ -47026,7 +47026,7 @@ async function faNueva(base) {
   if (!_ofPuede()) return;
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
-  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: '', cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjunto la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nJuan Carlos Reina', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: '', cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjuntamos la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nDepartamento de Administración', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
   { const fc = _ofCliBuscar(_fa.cliente); if (fc) { if (fc.email_facturas) _fa.email = fc.email_facturas; if (fc.forma_pago && !(base && base.pago)) _fa.pago = fc.forma_pago; } }   // v1171: email de facturas y forma de pago de la ficha de Contactos
   if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   if (!_fa.remitente) _fa.remitente = _faRemitentes(_fa.empresa)[0] || '';   // v1155
@@ -47461,11 +47461,23 @@ function _faExcelWb() {
   const ws = XLSX.utils.aoa_to_sheet(A); ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 26 }, { wch: 12 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ALBARANES'); return wb;
 }
+// v1193: correo formal, sin nombre propio (unas veces lo envía Juan Carlos y otras la oficina) y con el pie legal de la empresa
+function _feTextoDe(f) {
+  let t = String(f.mensaje || '').replace(/\nJuan Carlos Reina\s*$/, '\nDepartamento de Administración');
+  if (!f.filas.length) t = t.replace(/Adjunt(o|amos) la factura y el detalle de los albaranes de los servicios realizados\./, 'Adjuntamos la factura.');
+  return t;
+}
+function _fePieLegal(emp, remitente) {
+  const d = _LIQ_CLIENTES[emp] || _LIQ_CLIENTES.TYP, nom = d[0][1], cif = String(d[1][1]).replace(/\s/g, ''), mail = remitente || 'administracion@ttesyportes2014.com';
+  return '--\n' + nom + ' · CIF ' + cif + '\nC/ Jarcha, 11 - 41100 Coria del Río (Sevilla)\n\n' +
+    'AVISO DE CONFIDENCIALIDAD: este mensaje y sus archivos adjuntos van dirigidos exclusivamente a su destinatario y pueden contener información confidencial. Si lo ha recibido por error, le rogamos que nos lo comunique por esta misma vía y lo elimine.\n\n' +
+    'PROTECCIÓN DE DATOS: de acuerdo con el Reglamento (UE) 2016/679 y la Ley Orgánica 3/2018, le informamos de que sus datos de contacto son tratados por ' + nom + ', como responsable, con la finalidad de gestionar la relación comercial y la facturación, sobre la base de dicha relación. Se conservarán mientras esta se mantenga y durante los plazos legales, y no se cederán a terceros salvo obligación legal. Puede ejercer sus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a ' + mail + '.';
+}
 async function faEnviarAbrir() {
   if (!_fa) return;
   if (!_fa.id) { toast('Primero guarda la factura (borrador o emitida).', 'err'); return; }   // v1192: el borrador SÍ se puede mandar al cliente para que lo revise (nunca a Quipu)
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
-  _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), cliente: true, pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _feTextoDe(_fa), cliente: true, pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
   { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
@@ -47499,7 +47511,8 @@ function _feRender() {
     '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Para (email del cliente; varios separados por coma)<br><input value="' + _ofEA(_fe.para) + '" oninput="_fe.para=this.value"' + (sinCli ? ' disabled' : '') + ' style="' + inp + ';font-weight:700' + gris + '"></label></div>' +
     '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_fe.cc) + '" oninput="_fe.cc=this.value"' + (sinCli ? ' disabled' : '') + ' style="' + inp + gris + '"></label></div>' +
     '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_fe.asunto) + '" oninput="_fe.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
-    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Texto del correo<br><textarea rows="7" oninput="_fe.texto=this.value" style="' + inp + '">' + esc(_fe.texto) + '</textarea></label></div>';
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Texto del correo<br><textarea rows="14" oninput="_fe.texto=this.value" style="' + inp + ';font-size:15px;line-height:1.45">' + esc(_fe.texto) + '</textarea></label>' +
+    '<details style="margin-top:4px;font-size:12px;color:#475569"><summary style="cursor:pointer">Al final del correo al cliente se añade solo el pie legal de ' + esc((_LIQ_CLIENTES[_fa.empresa] || _LIQ_CLIENTES.TYP)[0][1]) + ' (confidencialidad y protección de datos) · ver</summary><div style="white-space:pre-wrap;margin-top:4px;padding:8px;background:var(--s2);border-radius:6px">' + esc(_fePieLegal(_fa.empresa, _fa.remitente)) + '</div></details></div>';
   const chk = (k, txt, dis, nota) => '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0' + (dis ? ';color:#999' : '') + '"><input type="checkbox"' + (_fe[k] && !dis ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="_fe.' + k + '=this.checked" style="width:17px;height:17px"> <span>' + txt + (nota ? ' <span style="font-size:12px;color:#666">' + nota + '</span>' : '') + '</span></label>';
   h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:2px">Qué le adjunto al cliente</div>' +
     chk('pdf', 'Factura en PDF', sinCli) + chk('excel', 'Excel con el detalle de albaranes', sinCli || !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', sinCli || !hayAlb, hayAlb ? '' : '') +
@@ -47531,7 +47544,7 @@ async function faEnviar() {
     }
     if (alCliente) {
       paso('Enviando al cliente…');
-      const r = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
+      const r = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: (_fe.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_fa.empresa, _fa.remitente), adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
       _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
       if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy;   // v1170
       if (r.ok) {   // v1175: la app RECUERDA lo que escribes al enviar
