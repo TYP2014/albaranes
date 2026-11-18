@@ -26842,7 +26842,7 @@ function renderTallerTabla() {
     // v1209: cisternas (columna carroceria = 'cisterna') con su propia foto, para distinguirlas de las bañeras
     const _icoCisterna = '<img src="cisterna_app.webp?v=1212" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     // v1213: vehículos con foto propia (camión rígido con grúa 1270LST)
-    const _FOTO_PROPIA = { '1270LST': ['rigido_grua_app.webp?v=1213', 'Camión grúa'] };
+    const _FOTO_PROPIA = { '1270LST': ['rigido_grua_app.webp?v=1214', 'Camión grúa'] };
     const _fp = _FOTO_PROPIA[String(v.matricula || '').toUpperCase()];
     const tipoIcon = _fp ? '<img src="' + _fp[0] + '" alt="' + _fp[1] + '" title="' + _fp[1] + '" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">'
       : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? _icoCisterna : _icoSemi) : _icoTractora;
