@@ -20259,7 +20259,7 @@ function switchTab(tab) {
   // J24: al entrar en Facturación, pintar los meses con autofactura guardada.
   if (tab === 'facturacion') { try { factPanelesInit(); } catch (e) { console.warn('[v893] paneles:', e); } try { _factRepasosPintar(); } catch (e) { console.warn('[v511] pintar repasos:', e); } try { factCargarMeses(); factCargarMesesHolcim(); factCargarMesesPromotora(); factCargarMesesSodira(); } catch (e) { console.warn('[J24] meses:', e); } try { _tarifasInitSelects(); loadTarifas(); } catch (e) { console.warn('[tarifas] init:', e); } try { const _cc = document.getElementById('tarifasCliCard'); if (_cc) _cc.style.display = (currentRole === 'admin') ? '' : 'none'; if (currentRole === 'admin') { _tarifasCliInitSelects(); loadTarifasCliente(); } } catch (e) { console.warn('[tarifas-cliente] init:', e); } }
   // v101: cargar ITVs al entrar en su pestaña
-  if (tab === 'taco') { tacoSec(_tacoSecActiva || 'subir'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
+  if (tab === 'taco') { tacoSec(_tacoSecActiva || 'panel'); tacoCargarLista(); }     // v389: seccion activa + avisos (usan tacoFicheros)
   if (tab === 'itv') { loadItvData(); if (window._itvSoloLectura) setTimeout(_aplicarItvSoloLectura, 200); }
   // v594: cargar DeCA al entrar en su pestaña
   if (tab === 'deca') { loadDecaData(); }
@@ -36974,7 +36974,9 @@ function _tacoParseVU_G1(b) {
       p += 4;
       out.memDesde = _tacoU32(b, p); out.memHasta = _tacoU32(b, p + 4); p += 8;
       p += 1 + 58;
-      p += 1 + b[p] * 98;                      // bloqueos de empresa
+      { const nL = b[p]; out.bloqueos = [];           // v1160: bloqueos de empresa (antes se saltaban)
+        for (let k = 0; k < nL; k++) out.bloqueos.push(_tacoLockRec(b, p + 1 + k * 98));
+        p += 1 + nL * 98; }
       p += 1 + b[p] * 31;                      // controles
       p += 128;
     } else if (trep === 0x02) {                // un dia de actividad
@@ -37056,6 +37058,10 @@ function _tacoParseVU_G2(b) {
         if (a.rt === 0x0a && a.n) out.vin = _tacoTxt(b, a.dp, 17);
         if ((a.rt === 0x0b || a.rt === 0x24) && a.n && a.rs >= 14) out.matricula = _tacoLimpiaMat(_tacoTxt(b, a.dp + 1, a.rs - 1));   // v369: 0x24 en los mas nuevos
         if (a.rt === 0x13 && a.n) { out.memDesde = _tacoU32(b, a.dp); out.memHasta = _tacoU32(b, a.dp + 4); }
+        if (a.rt === 0x10 && a.rs >= 98) {           // v1160: VuCompanyLocksRecord (bloqueos de empresa)
+          out.bloqueos = [];
+          for (let k = 0; k < a.n; k++) out.bloqueos.push(_tacoLockRec(b, a.dp + k * a.rs));
+        }
       });
     }
     if (trep === 0x25 || trep === 0x35) {
@@ -37762,6 +37768,7 @@ function tacoEmpGlobal(emp) {
   // cambiar de empresa seguian saliendo los camiones de todas mezclados
   // (cazado por JC: "estan mezclados, no diferencia empresa").
   if (document.getElementById('tacoVencBox')) tacoVencVer();
+  if (_tacoSecActiva === 'panel') tacoPanelPintar();   // v1160
 }
 
 // Quien tiene datos guardados, para el desplegable.
@@ -39370,7 +39377,12 @@ const TACO_CAR_SQL = 'alter table public.tacografo_ficheros add column if not ex
 
 async function _tacoGuardarMem(id, r) {
   try {
-    if (!id || !r || r.tipo !== 'vehiculo' || !r.memDesde) return;
+    if (!id || !r || r.tipo !== 'vehiculo') return;
+    if (Array.isArray(r.bloqueos)) {                // v1160: bloqueo de empresa
+      const { error: eB } = await sb.from('tacografo_ficheros').update({ bloqueos: r.bloqueos }).eq('id', id);
+      if (eB) console.warn('[v1160] no se pudo apuntar el bloqueo (¿falta la columna bloqueos?):', eB.message || eB);
+    }
+    if (!r.memDesde) return;
     const md = _tacoISO(r.memDesde);
     if (!md) return;
     const { error } = await sb.from('tacografo_ficheros').update({ mem_desde: md }).eq('id', id);
@@ -39909,7 +39921,7 @@ const _TACO_BTN_CERRAR = `<div style="display:flex;justify-content:flex-end;marg
 // Mapa aprobado: SUBIR · CONDUCTORES · VEHICULOS · INFORMES · ARCHIVO.
 // Vehiculos e Informes estan en obra: de momento explican que llevaran.
 // ============================================================
-let _tacoSecActiva = 'subir';
+let _tacoSecActiva = 'panel';   // v1160: se entra por el PANEL
 function tacoSec(sec) {
   _tacoSecActiva = sec;
   // v480 (fallo real que conto JC): el informe abierto NO se cerraba NUNCA
@@ -39918,13 +39930,14 @@ function tacoSec(sec) {
   // vez que se entra en una seccion, la pantalla de informes vuelve a su
   // parrilla - que es lo que uno espera al llegar.
   _tacoRepReset();
-  ['subir', 'conductores', 'vehiculos', 'vencimientos', 'carnetcap', 'informes', 'archivo'].forEach(x => {
+  ['panel', 'subir', 'conductores', 'vehiculos', 'vencimientos', 'carnetcap', 'informes', 'archivo'].forEach(x => {
     const d = document.getElementById('tacoSec' + x);
     if (d) d.style.display = (x === sec) ? '' : 'none';
     const b = document.getElementById('tacoSecBtn' + x);
     if (b) { b.classList.remove('bp', 'bs'); b.classList.add(x === sec ? 'bp' : 'bs'); }
   });
   // cada seccion carga lo suyo al entrar (y no antes)
+  if (sec === 'panel') tacoPanelVer(true);            // v1160
   if (sec === 'subir') tacoBuzonMirar();              // v829
   if (sec === 'archivo') tacoCargarLista();
   if (sec === 'conductores') tacoInfPintarSelector();
@@ -46995,4 +47008,337 @@ async function faPaquete() {
     toast('Paquete descargado: factura PDF' + (_fa.filas.length ? ' + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : '') : ''), A.faltan ? 'warn' : 'ok');
   } catch (e) { console.error('[v1157] paquete factura:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
   finally { _of = antes; const b = document.getElementById('faBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
+}
+
+// ============================================================
+// TACOGRAFO — v1160 (18/11/2026) · PANEL (a la vista, como ASG)
+//
+// JC: "tenerlo todo a la vista". Una tabla por empresa (la barra EMPRESA de
+// arriba hace de pestañas), con dos vistas: VEHICULOS y CONDUCTORES.
+// Una fila por camion o tarjeta, con su ULTIMA descarga.
+//
+// BLOQUEO DE EMPRESA (lo nuevo). Cada descarga de camion trae dentro la lista
+// de bloqueos: que empresa metio su tarjeta de empresa, cuando bloqueo y
+// cuando desbloqueo. Antes el lector se saltaba ese trozo; ahora lo lee.
+//  · VERDE: el bloqueo vigente es de la empresa a la que pertenece el camion.
+//  · ROJO : sin bloqueo vigente, o bloqueado por OTRA empresa (camion comprado
+//           de segunda mano sin bloquear a nuestro nombre, por ejemplo).
+//  · GRIS : todavia no se ha podido leer (fichero no disponible).
+// Es la foto A FECHA DE LA ULTIMA DESCARGA, no de hoy: por eso al lado sale
+// cuando fue esa descarga.
+// Las descargas antiguas no tenian el dato: al abrir el panel se leen solas
+// desde el archivo (solo la ultima de cada camion) y se apunta en la columna
+// `bloqueos`. Si la columna aun no existe, se lee igual pero no se guarda.
+// SOLO LECTURA salvo ese apunte. No cambia nada de lo que ya habia.
+// ============================================================
+
+function _tacoLockRec(b, r) {
+  return {
+    in: _tacoISO(_tacoU32(b, r)),
+    out: _tacoISO(_tacoU32(b, r + 4)),
+    emp: _tacoTxt(b, r + 8, 36),
+    tarj: _tacoTxt(b, r + 82, 16)
+  };
+}
+
+// A que empresa nuestra corresponde el nombre grabado en la tarjeta de empresa.
+// OJO con el orden: "PORTES 2014 IMPORT" tambien contiene "PORTES 2014".
+function _tacoBloqEmpresa(nombre) {
+  const n = String(nombre || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!n) return null;
+  if (/IMPORT/.test(n)) return 'PORTES';
+  if (/HISPALIS/.test(n)) return 'HISPALIS';
+  if (/MARGAZ/.test(n)) return 'TRANSMARGAZ';
+  if (/PORTES\s*2014|TYP\s*2014/.test(n)) return 'TYP2014';
+  return null;
+}
+
+// El bloqueo que esta en vigor (sin fecha de desbloqueo); si hubiera varios, el mas reciente.
+function _tacoBloqVigente(lista) {
+  if (!Array.isArray(lista)) return null;
+  const v = lista.filter(x => x && x.in && !x.out).sort((a, c) => (c.in || '').localeCompare(a.in || ''));
+  return v[0] || null;
+}
+
+// Estado del semaforo: { c: 'ok'|'mal'|'nodato', txt, tit, desde }
+function _tacoBloqEstado(f) {
+  if (!f || !Array.isArray(f.bloqueos)) return { c: 'nodato', txt: 'sin leer', tit: 'Todavía no se ha podido leer el bloqueo de esta descarga', desde: null };
+  const v = _tacoBloqVigente(f.bloqueos);
+  if (!v) {
+    const ult = f.bloqueos.filter(x => x && x.in).sort((a, c) => (c.in || '').localeCompare(a.in || ''))[0];
+    return { c: 'mal', txt: 'SIN BLOQUEO', desde: null,
+      tit: ult ? `Último bloqueo: ${ult.emp || '¿?'} (${_tacoDMY2(ult.in)} → ${_tacoDMY2(ult.out)})` : 'El tacógrafo no tiene ningún bloqueo de empresa' };
+  }
+  const emp = _tacoBloqEmpresa(v.emp);
+  const tit = `${v.emp || '¿?'} · bloqueado el ${_tacoDMY2(v.in)}${v.tarj ? ' · tarjeta ' + v.tarj : ''}`;
+  if (emp && emp === f.empresa) return { c: 'ok', txt: _TACO_EMP_NOM[emp] || emp, tit, desde: v.in };
+  return { c: 'mal', txt: (v.emp || 'OTRA EMPRESA'), tit: 'Bloqueado por otra empresa: ' + tit, desde: v.in, otra: true };
+}
+
+// Lee el bloqueo de una descarga ya guardada (fichero del archivo) y lo apunta.
+async function _tacoBloqLeerFichero(f) {
+  try {
+    if (!f || !f.file_url) return false;
+    const { data: blob, error } = await sb.storage.from('documentos').download(f.file_url);
+    if (error || !blob) throw error || new Error('sin fichero');
+    const r = tacoLeerBuffer(await blob.arrayBuffer(), f.file_nombre || '');
+    if (r.tipo !== 'vehiculo' || !Array.isArray(r.bloqueos)) return false;
+    f.bloqueos = r.bloqueos;
+    const { error: eU } = await sb.from('tacografo_ficheros').update({ bloqueos: r.bloqueos }).eq('id', f.id);
+    if (eU) console.warn('[v1160] bloqueo leído pero no guardado (¿falta la columna bloqueos?):', eU.message || eU);
+    console.log('[v1160] ' + (f.matricula || '¿?') + ' — bloqueos leídos:', r.bloqueos);
+    return true;
+  } catch (e) {
+    console.warn('[v1160] no se pudo leer el bloqueo de ' + (f && f.matricula) + ':', e.message || e);
+    return false;
+  }
+}
+
+let _tacoPan = { vista: 'veh', q: '', filtro: 'todos', pag: 1, porPag: 25, orden: null, dir: 1, fich: null, leyendo: false };
+
+async function tacoPanelVer(forzar) {
+  const box = document.getElementById('tacoPanelBox');
+  if (!box) return;
+  if (forzar || !_tacoPan.fich) {
+    box.innerHTML = '<div style="font-family:var(--mn);font-size:13px;color:var(--mu);padding:14px">Cargando…</div>';
+    try {
+      const filas = [];
+      for (let i = 0; i < 20; i++) {
+        const { data, error } = await sb.from('tacografo_ficheros').select('*')
+          .order('fecha_hasta', { ascending: false }).range(i * 1000, i * 1000 + 999);
+        if (error) throw error;
+        filas.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      _tacoPan.fich = filas;
+      await _tacoCargarTrabajadores();
+      _tacoPan.vehBaja = await _tacoVehDeBaja();
+      try {
+        const { data: veh } = await sb.from('taller_vehiculos').select('matricula, empresa').eq('activo', true);
+        _tacoPan.flota = veh || [];
+      } catch (e) { _tacoPan.flota = []; }
+    } catch (e) {
+      box.innerHTML = `<div style="color:var(--erd);font-family:var(--mn);font-size:13px;padding:14px">No se ha podido cargar: ${e.message || e}</div>`;
+      return;
+    }
+  }
+  tacoPanelPintar();
+  _tacoPanelRellenarBloqueos();
+}
+
+// Ultima descarga de cada camion y de cada tarjeta (respetando la empresa elegida arriba).
+function _tacoPanelFilas() {
+  const fs = (_tacoPan.fich || []).filter(_tacoEmpPasa);
+  const hoy = Date.now();
+  const diasA = iso => iso ? Math.ceil((new Date(iso + 'T00:00:00Z').getTime() - hoy) / 86400000) : null;
+  if (_tacoPan.vista === 'veh') {
+    const ult = new Map();
+    fs.forEach(f => {
+      if (f.tipo !== 'vehiculo' || !f.matricula) return;
+      const m = _tacoNormMat(f.matricula);
+      const a = ult.get(m);
+      if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ult.set(m, f);
+    });
+    const filas = [];
+    ult.forEach((f, m) => {
+      if (_tacoPan.vehBaja && _tacoPan.vehBaja.has(m)) return;
+      const d = _tacoDiasDesde(f.fecha_hasta);
+      const bl = _tacoBloqEstado(f);
+      filas.push({ f, mat: m, emp: f.empresa, ultima: f.fecha_hasta, desde: f.fecha_desde,
+        prox: d === null ? null : TACO_DIAS_VEHICULO - d, bl, rev: f.proxima_revision, revDias: diasA(f.proxima_revision), gen: f.generacion });
+    });
+    // camiones activos en Taller sin ninguna descarga
+    (_tacoPan.flota || []).forEach(v => {
+      if (!_tacoEmpPasa(v)) return;
+      const m = _tacoNormMat(v.matricula);
+      if (!m || /^[A-Z]/.test(m) || ult.has(m)) return;     // remolques fuera: no llevan tacógrafo
+      filas.push({ f: null, mat: m, emp: v.empresa, ultima: null, desde: null, prox: null,
+        bl: { c: 'nodato', txt: 'sin descarga', tit: 'No hay ninguna descarga de este camión en la app' }, rev: null, revDias: null, gen: '' });
+    });
+    return filas;
+  }
+  const bajas = _tacoBajasSet();
+  const ult = new Map();
+  fs.forEach(f => {
+    if (f.tipo !== 'conductor') return;
+    const k = f.tarjeta_num ? 'T:' + _tacoRaiz14(f.tarjeta_num) : (f.conductor_nombre ? 'N:' + _tacoNormNombre(f.conductor_nombre).sort().join(' ') : null);
+    if (!k) return;
+    const a = ult.get(k);
+    if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ult.set(k, f);
+  });
+  const filas = [];
+  ult.forEach(f => {
+    if (_tacoEsBaja(bajas, f.tarjeta_num, f.conductor_nombre)) return;
+    const d = _tacoDiasDesde(f.fecha_hasta);
+    filas.push({ f, nom: f.conductor_nombre || '—', emp: f.empresa, tarj: f.tarjeta_num || '', ultima: f.fecha_hasta,
+      prox: d === null ? null : TACO_DIAS_TARJETA - d, cad: f.tarjeta_caduca, cadDias: diasA(f.tarjeta_caduca) });
+  });
+  return filas;
+}
+
+function _tacoPanelProblema(x) {
+  if (_tacoPan.vista === 'veh') return !x.f || x.bl.c === 'mal' || (x.prox !== null && x.prox < 15) || (x.revDias !== null && x.revDias < 30);
+  return (x.prox !== null && x.prox < 7) || (x.cadDias !== null && x.cadDias < 60);
+}
+
+function tacoPanelPintar() {
+  const box = document.getElementById('tacoPanelBox');
+  if (!box || !_tacoPan.fich) return;
+  const P = _tacoPan, veh = P.vista === 'veh';
+  let filas = _tacoPanelFilas();
+  const total = filas.length;
+  const nRojo = veh ? filas.filter(x => x.bl.c === 'mal').length : 0;
+  const nVerde = veh ? filas.filter(x => x.bl.c === 'ok').length : 0;
+  const nProb = filas.filter(_tacoPanelProblema).length;
+
+  const q = P.q.trim().toUpperCase();
+  if (q) filas = filas.filter(x => (veh ? x.mat + ' ' + (x.bl.txt || '') : x.nom + ' ' + x.tarj).toUpperCase().includes(q));
+  if (P.filtro === 'problemas') filas = filas.filter(_tacoPanelProblema);
+  if (P.filtro === 'rojo') filas = filas.filter(x => x.bl && x.bl.c === 'mal');
+
+  // orden: por defecto lo que mas urge arriba
+  const key = P.orden || (veh ? 'mat' : 'nom');
+  const val = x => {
+    if (key === 'bl') return { mal: 0, nodato: 1, ok: 2 }[x.bl.c] ?? 3;
+    const v = x[key];
+    return v === null || v === undefined || v === '' ? null : v;
+  };
+  filas.sort((a, c) => {
+    const va = val(a), vc = val(c);
+    if (va === null && vc === null) return 0;
+    if (va === null) return 1;
+    if (vc === null) return -1;
+    return (typeof va === 'number' ? va - vc : String(va).localeCompare(String(vc))) * P.dir;
+  });
+
+  const nPag = P.porPag ? Math.max(1, Math.ceil(filas.length / P.porPag)) : 1;
+  if (P.pag > nPag) P.pag = nPag;
+  const ver = P.porPag ? filas.slice((P.pag - 1) * P.porPag, P.pag * P.porPag) : filas;
+
+  const VERDE = 'background:#cdeccf;color:#145c2c', ROJO = 'background:#f6c9c7;color:#8f1f1b', AMBAR = 'background:#fbe3b4;color:#7a4b06', GRIS = 'background:#e7eaee;color:#5b6570';
+  const tonoDias = (d, ambar) => d === null ? GRIS : d < 0 ? ROJO : d <= ambar ? AMBAR : VERDE;
+  const dmy = _tacoDMY2;
+  const conEmp = _tacoEmpGlobal === 'TODAS';
+  const th = (k, t, tip) => `<th onclick="tacoPanelOrden('${k}')" title="${tip || 'Ordenar'}" class="${P.orden === k ? (P.dir > 0 ? 'sort-asc' : 'sort-desc') : ''}">${t}</th>`;
+  const desc = f => f && f.file_url
+    ? `<button class="btn bs" style="padding:5px 10px;font-size:12px" onclick="tacoPanelBajar('${f.id}')" title="${(f.file_nombre || '').replace(/"/g, '')}">⬇</button>` : '';
+
+  let h = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+    <button class="btn ${veh ? 'bp' : 'bs'}" onclick="tacoPanelVista('veh')">🚚 VEHÍCULOS</button>
+    <button class="btn ${veh ? 'bs' : 'bp'}" onclick="tacoPanelVista('cond')">👤 CONDUCTORES</button>
+    <span style="flex:1"></span>
+    ${veh ? `<span class="tp-chip" style="${VERDE}">🟢 ${nVerde} bloqueados bien</span>
+             <span class="tp-chip" style="${ROJO}">🔴 ${nRojo} sin bloquear / otra empresa</span>` : ''}
+    <span class="tp-chip" style="${nProb ? AMBAR : VERDE}">⚠ ${nProb} con algo pendiente</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+    <input id="tacoPanQ" type="search" placeholder="Buscar ${veh ? 'matrícula o empresa del bloqueo' : 'conductor o nº de tarjeta'}…" value="${P.q.replace(/"/g, '&quot;')}"
+      oninput="tacoPanelBuscar(this.value)" style="flex:1;min-width:200px;padding:9px 12px;font-size:14px;border:1px solid var(--bd);border-radius:8px">
+    <select onchange="tacoPanelFiltro(this.value)" style="padding:9px 10px;font-size:14px;border:1px solid var(--bd);border-radius:8px">
+      <option value="todos" ${P.filtro === 'todos' ? 'selected' : ''}>Todos (${total})</option>
+      <option value="problemas" ${P.filtro === 'problemas' ? 'selected' : ''}>Solo con algo pendiente (${nProb})</option>
+      ${veh ? `<option value="rojo" ${P.filtro === 'rojo' ? 'selected' : ''}>Solo bloqueo en rojo (${nRojo})</option>` : ''}
+    </select>
+    <select onchange="tacoPanelPorPag(this.value)" style="padding:9px 10px;font-size:14px;border:1px solid var(--bd);border-radius:8px" title="Filas por página">
+      ${[25, 50, 0].map(n => `<option value="${n}" ${P.porPag === n ? 'selected' : ''}>${n ? n + ' por página' : 'Ver todos'}</option>`).join('')}
+    </select>
+  </div>`;
+
+  if (!filas.length) {
+    h += `<div style="font-family:var(--mn);font-size:13px;color:var(--mu);padding:18px;text-align:center">Nada que enseñar con este filtro.</div>`;
+  } else if (veh) {
+    h += `<div style="overflow-x:auto"><table class="tbl tp-tabla"><thead><tr>
+      ${th('mat', 'Matrícula')}${conEmp ? th('emp', 'Empresa') : ''}
+      ${th('bl', 'Bloqueo de empresa', 'Verde = bloqueado a nombre de su empresa · Rojo = sin bloqueo u otra empresa')}
+      ${th('ultima', 'Última descarga')}${th('prox', 'Días próx. descarga', 'Plazo legal: ' + TACO_DIAS_VEHICULO + ' días')}
+      ${th('rev', 'Próx. revisión tacógrafo')}${th('desde', 'Datos desde')}${th('gen', 'Gen.')}<th></th></tr></thead><tbody>` +
+      ver.map(x => {
+        const bl = x.bl;
+        const blCel = bl.c === 'ok' ? VERDE : bl.c === 'mal' ? ROJO : GRIS;
+        return `<tr>
+        <td><b>${x.mat}</b></td>${conEmp ? `<td>${_TACO_EMP_NOM[x.emp] || x.emp || '—'}</td>` : ''}
+        <td style="${blCel};font-weight:700;white-space:normal;min-width:190px" title="${(bl.tit || '').replace(/"/g, '')}">${bl.c === 'ok' ? '✓ ' : bl.c === 'mal' ? '✗ ' : ''}${bl.txt}${bl.desde ? `<div style="font-weight:400;font-size:12px">desde ${dmy(bl.desde)}</div>` : ''}</td>
+        <td>${x.ultima ? dmy(x.ultima) : '—'}</td>
+        <td style="${tonoDias(x.prox, 15)};text-align:center;font-weight:700">${x.prox === null ? '—' : x.prox < 0 ? 'vencida ' + (-x.prox) : x.prox}</td>
+        <td style="${tonoDias(x.revDias, 60)};text-align:center">${x.rev ? dmy(x.rev) : '—'}</td>
+        <td>${x.desde ? dmy(x.desde) : '—'}</td>
+        <td style="text-align:center">${x.gen || '—'}</td>
+        <td style="text-align:center">${desc(x.f)}</td></tr>`;
+      }).join('') + `</tbody></table></div>`;
+  } else {
+    h += `<div style="overflow-x:auto"><table class="tbl tp-tabla"><thead><tr>
+      ${th('nom', 'Conductor')}${conEmp ? th('emp', 'Empresa') : ''}${th('tarj', 'Nº de tarjeta')}
+      ${th('ultima', 'Última descarga')}${th('prox', 'Días próx. descarga', 'Plazo legal: ' + TACO_DIAS_TARJETA + ' días')}
+      ${th('cad', 'Caducidad tarjeta')}<th></th></tr></thead><tbody>` +
+      ver.map(x => `<tr>
+        <td><b>${_tacoNomCorto(x.nom)}</b></td>${conEmp ? `<td>${_TACO_EMP_NOM[x.emp] || x.emp || '—'}</td>` : ''}
+        <td>${x.tarj || '—'}</td>
+        <td>${x.ultima ? dmy(x.ultima) : '—'}</td>
+        <td style="${tonoDias(x.prox, 7)};text-align:center;font-weight:700">${x.prox === null ? '—' : x.prox < 0 ? 'vencida ' + (-x.prox) : x.prox}</td>
+        <td style="${tonoDias(x.cadDias, 60)};text-align:center">${x.cad ? dmy(x.cad) : '—'}</td>
+        <td style="text-align:center">${desc(x.f)}</td></tr>`).join('') + `</tbody></table></div>`;
+  }
+
+  if (filas.length) {
+    const ini = P.porPag ? (P.pag - 1) * P.porPag + 1 : 1, fin = P.porPag ? Math.min(filas.length, P.pag * P.porPag) : filas.length;
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px">
+      <span style="font-family:var(--mn);font-size:12.5px;color:var(--mu)">Mostrando ${ini} a ${fin} de ${filas.length}</span>
+      ${nPag > 1 ? `<span style="display:flex;gap:4px">
+        <button class="btn bs" style="padding:5px 11px" ${P.pag <= 1 ? 'disabled' : ''} onclick="tacoPanelPag(${P.pag - 1})">Anterior</button>
+        ${Array.from({ length: nPag }, (_, i) => `<button class="btn ${i + 1 === P.pag ? 'bp' : 'bs'}" style="padding:5px 11px" onclick="tacoPanelPag(${i + 1})">${i + 1}</button>`).join('')}
+        <button class="btn bs" style="padding:5px 11px" ${P.pag >= nPag ? 'disabled' : ''} onclick="tacoPanelPag(${P.pag + 1})">Siguiente</button></span>` : ''}
+    </div>`;
+  }
+  if (veh) h += `<div style="font-family:var(--mn);font-size:11px;color:var(--mu);margin-top:10px">
+    El bloqueo es el que tenía el tacógrafo el día de su última descarga. Rojo = el tacógrafo no está bloqueado con la tarjeta de empresa que le toca:
+    hay que meter la tarjeta de empresa en el camión y bloquearlo. ${P.leyendo ? '<b>Leyendo los bloqueos de las descargas antiguas…</b>' : ''}</div>`;
+
+  box.innerHTML = h;
+  // que el buscador no pierda el cursor al repintar
+  if (P._foco) { const i = document.getElementById('tacoPanQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } P._foco = false; }
+}
+
+// Descargas antiguas sin el dato de bloqueo: se leen del archivo (solo la ultima de cada camion).
+async function _tacoPanelRellenarBloqueos() {
+  if (_tacoPan.leyendo || !_tacoPan.fich) return;
+  const ult = new Map();
+  _tacoPan.fich.forEach(f => {
+    if (f.tipo !== 'vehiculo' || !f.matricula) return;
+    const m = _tacoNormMat(f.matricula), a = ult.get(m);
+    if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ult.set(m, f);
+  });
+  const pend = [...ult.values()].filter(f => !Array.isArray(f.bloqueos) && f.file_url && !f._blIntentado);
+  if (!pend.length) return;
+  _tacoPan.leyendo = true;
+  if (_tacoPan.vista === 'veh') tacoPanelPintar();
+  let i = 0;
+  const trabajador = async () => {
+    while (i < pend.length) {
+      const f = pend[i++];
+      f._blIntentado = true;
+      await _tacoBloqLeerFichero(f);
+    }
+  };
+  await Promise.all([trabajador(), trabajador(), trabajador()]);
+  _tacoPan.leyendo = false;
+  if (_tacoSecActiva === 'panel') tacoPanelPintar();
+}
+
+function tacoPanelVista(v) { _tacoPan.vista = v; _tacoPan.pag = 1; _tacoPan.orden = null; _tacoPan.dir = 1; _tacoPan.filtro = 'todos'; tacoPanelPintar(); }
+function tacoPanelBuscar(v) { _tacoPan.q = v || ''; _tacoPan.pag = 1; _tacoPan._foco = true; tacoPanelPintar(); }
+function tacoPanelFiltro(v) { _tacoPan.filtro = v; _tacoPan.pag = 1; tacoPanelPintar(); }
+function tacoPanelPorPag(v) { _tacoPan.porPag = parseInt(v, 10) || 0; _tacoPan.pag = 1; tacoPanelPintar(); }
+function tacoPanelPag(n) { _tacoPan.pag = n; tacoPanelPintar(); }
+function tacoPanelOrden(k) {
+  if (_tacoPan.orden === k) _tacoPan.dir = -_tacoPan.dir; else { _tacoPan.orden = k; _tacoPan.dir = 1; }
+  tacoPanelPintar();
+}
+async function tacoPanelBajar(id) {
+  const f = (_tacoPan.fich || []).find(x => x.id === id);
+  if (!f || !f.file_url) return;
+  try {
+    const { data, error } = await sb.storage.from('documentos').createSignedUrl(f.file_url, 600, { download: f.file_nombre || 'tacografo.ddd' });
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank', 'noopener');
+  } catch (e) { toast('No se ha podido preparar la descarga: ' + (e.message || e), 'err'); }
 }

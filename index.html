@@ -732,7 +732,8 @@ if (typeof pdfjsLib !== 'undefined') {
 
       <div id="tacoDesconocidos"></div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px" id="tacoSecBar">
-        <button class="btn bp" id="tacoSecBtnsubir"       onclick="tacoSec('subir')">SUBIR</button>
+        <button class="btn bp" id="tacoSecBtnpanel"       onclick="tacoSec('panel')">📋 PANEL</button>
+        <button class="btn bs" id="tacoSecBtnsubir"       onclick="tacoSec('subir')">SUBIR</button>
         <button class="btn bs" id="tacoSecBtnconductores" onclick="tacoSec('conductores')">CONDUCTORES</button>
         <button class="btn bs" id="tacoSecBtnvehiculos"   onclick="tacoSec('vehiculos')">VEHÍCULOS</button>
         <button class="btn bs" id="tacoSecBtnvencimientos" onclick="tacoSec('vencimientos')">VENCIMIENTOS</button>
@@ -742,7 +743,18 @@ if (typeof pdfjsLib !== 'undefined') {
       </div>
 
       <!-- ======== SECCION SUBIR ======== -->
-      <div id="tacoSecsubir">
+      <!-- ======== v1160: PANEL (todo a la vista: vehiculos y conductores, bloqueo de empresa) ======== -->
+      <div id="tacoSecpanel">
+        <style>
+          #tacoSecpanel .tp-chip{font-family:var(--ss);font-size:13px;font-weight:700;padding:7px 12px;border-radius:999px}
+          #tacoSecpanel .tp-tabla th{font-size:12.5px!important;color:#1f3a5f!important;font-weight:800;white-space:normal;vertical-align:bottom}
+          #tacoSecpanel .tp-tabla td{font-size:14.5px!important;padding:10px 12px!important;border-bottom:1px solid #e3e7ec}
+          #tacoSecpanel .tp-tabla tbody tr:nth-child(odd) td:not([style*="background"]){background:#f6f8fa}
+        </style>
+        <div class="card"><div class="card-bd"><div id="tacoPanelBox"></div></div></div>
+      </div>
+
+      <div id="tacoSecsubir" style="display:none">
       <div class="card">
         <div class="card-hd"><div class="card-ti"><span class="dot" style="background:#7b8ff0"></span>TACÓGRAFO · LECTOR DE FICHEROS</div></div>
         <div class="card-bd">
@@ -2181,6 +2193,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1159"></script>
+<script src="app.js?v=1160"></script>
 </body>
 </html>

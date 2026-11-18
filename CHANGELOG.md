@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1160 (18/11/2026): TACÓGRAFO · PANEL "TODO A LA VISTA" + BLOQUEO DE EMPRESA. Nueva sección 📋 PANEL (la primera, y por donde se entra al Tacógrafo), al estilo ASG: tabla de VEHÍCULOS y tabla de CONDUCTORES, una fila por camión/tarjeta con su última descarga, siguiendo la barra EMPRESA de arriba como pestañas. Vehículos: matrícula · BLOQUEO DE EMPRESA (verde = bloqueado a nombre de su empresa; rojo = sin bloqueo o bloqueado por otra empresa; con la fecha del bloqueo) · última descarga · días para la próxima (90) · próxima revisión del tacógrafo · datos desde · generación · descargar original. Salen también los camiones activos en Taller sin ninguna descarga; fuera remolques y camiones de baja. Conductores: nombre · nº de tarjeta · última descarga · días para la próxima (28) · caducidad de la tarjeta; fuera los de baja. Buscador, filtro "solo con algo pendiente" / "solo bloqueo en rojo", ordenar pinchando en la columna y páginas de 25/50/todos. El lector de descargas de camión (1ª y 2ª generación) ya NO se salta los bloqueos de empresa: los guarda en la columna nueva `bloqueos`. Las descargas antiguas se leen solas del archivo al abrir el panel (solo la última de cada camión). El bloqueo es el del día de la última descarga. SQL PREVIO: columna bloqueos (jsonb) en tacografo_ficheros. VUELTA ATRAS: resubir v1159 (la columna puede quedarse).
+
+---
+
 v1159 (17/11/2026): OFERTAS Y FACTURAS · EL ESTADO Y LAS ACCIONES PRINCIPALES, ARRIBA. Oferta: la barra de Estado (En estudio / Enviada / Aprobada / Rechazada, más grandes), el Pedido SAP, "Crear factura", "Ya facturada fuera" y "Guardar oferta" pasan a la parte de arriba, bajo el título; abajo quedan Borrar oferta, Albaranes PDF, Excel, Oferta PDF, Paquete de envío (y también Guardar). Factura: barra arriba con el estado (BORRADOR / EMITIDA), "Guardar borrador" y "Emitir factura" (siguen también abajo). Sin SQL. VUELTA ATRAS: resubir v1158.
 
 ---
