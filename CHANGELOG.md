@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1165 (18/11/2026): OFERTAS Y FACTURAS · AL GUARDAR, A LA LISTA. (1) GUARDAR BORRADOR / GUARDAR CAMBIOS de la factura cierra la ventana (antes se quedaba abierta). (2) Al guardar una oferta o una factura, la app te lleva a Facturación > Ofertas (o Facturas) con la lista a la vista, aunque la hubieras creado desde Albaranes. Si el guardado falla, la ventana no se cierra. EMITIR FACTURA sigue dejando la ventana abierta para sacar el PDF y el paquete. Sin SQL. VUELTA ATRAS: resubir v1164.
+
+---
+
 v1164 (18/11/2026): OFERTAS Y FACTURAS · LA LISTA SALE SOLA Y GUARDAR CIERRA. (1) Al entrar en Ofertas (o en Facturas) la lista aparece sola, la más nueva arriba; el botón "Ver ofertas" pasa a ser "Ocultar lista / Mostrar lista". (2) La lista de ofertas tiene columna FACTURA: el nº de factura, "Facturada" o "Sin facturar". (3) Al pulsar GUARDAR OFERTA, si se guarda bien, la ventana se cierra y se vuelve a la lista; si falla, se queda abierta con el aviso. Cambiar el estado sigue sin cerrar. (4) La línea gris de la ruta bajo el concepto, más grande. Sin SQL. VUELTA ATRAS: resubir v1163.
 
 ---

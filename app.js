@@ -45672,6 +45672,14 @@ async function ofCargar() {
   return _ofLista;
 }
 // v1164: la lista sale sola; el botón solo sirve para recogerla / volver a enseñarla
+// v1165: tras guardar, a Facturación > Ofertas (o Facturas) con la lista a la vista, se guardara desde donde se guardara
+function _ofIrALista(card) {
+  try {
+    if (card === 'ofCard') window._ofListaOculta = false; else window._faListaOculta = false;
+    switchTab('facturacion');          // refresca los paneles y, si ya era el activo, su lista
+    factPanelElegir(card);             // si no lo era, lo activa y saca su lista
+  } catch (e) { console.warn('[v1165] ir a la lista:', e); try { card === 'ofCard' ? ofListar() : faListar(); } catch (e2) {} }
+}
 function _listaBtn(id, oculta) { const b = document.getElementById(id); if (b) b.textContent = oculta ? 'Mostrar lista' : 'Ocultar lista'; }
 function ofToggleLista() { window._ofListaOculta = !window._ofListaOculta; if (window._ofListaOculta) { const o = document.getElementById('ofCardOut'); if (o) o.innerHTML = ''; _listaBtn('ofBtnLista', true); } else ofListar(); }
 function faToggleLista() { window._faListaOculta = !window._faListaOculta; if (window._faListaOculta) { const o = document.getElementById('faCardOut'); if (o) o.innerHTML = ''; _listaBtn('faBtnLista', true); } else faListar(); }
@@ -45997,7 +46005,7 @@ async function ofGuardar(silencioso) {
     if (fuera.length) await _ofMarcar(fuera, false);
     if (!silencioso) toast('Oferta guardada' + (_of.numero ? ' (' + _of.numero + ')' : '') + ' · ' + _ofEur(T.total), 'ok');
     await ofCargar(); _ofRender();
-    if (!silencioso) { document.getElementById('ofOv')?.remove(); _of = null; }   // v1164: al pulsar Guardar oferta, si se guardó bien, la ventana se cierra
+    if (!silencioso) { document.getElementById('ofOv')?.remove(); _of = null; _ofIrALista('ofCard'); return true; }   // v1164: Guardar cierra · v1165: y te lleva a la lista de ofertas
     if (document.getElementById('ofCardOut') && !window._ofListaOculta) ofListar();
     return true;
   } catch (e) { console.error('[v1133] guardar oferta:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
@@ -46904,6 +46912,7 @@ async function faGuardar(silencioso, estado) {
     // La forma de pago se recuerda para la empresa (v1152: las cuentas van en su lista, no se pisan)
     try { const c = _faCfg[_fa.empresa] || {}; if (_fa.pago && c.forma_pago !== _fa.pago) { await sb.from('facturas_config').update({ forma_pago: _fa.pago }).eq('empresa', _fa.empresa); c.forma_pago = _fa.pago; } } catch (e) { console.warn('[v1152] recordar forma de pago:', e); }
     if (!silencioso) toast('Factura ' + numero + ' guardada · ' + _ofEur(T.total), 'ok');
+    if (!silencioso) { document.getElementById('faOv')?.remove(); _fa = null; _ofIrALista('faCard'); return true; }   // v1165: Guardar cierra y te lleva a la lista de facturas
     _faRender(); if ((document.getElementById('faCardOut') || {}).innerHTML) faListar();
     return true;
   } catch (e) { console.error('[v1149] guardar factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
