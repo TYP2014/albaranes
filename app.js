@@ -22250,7 +22250,8 @@ const TRANSPORTISTAS = {
   '6497NMW':'TYP2014','6521NHV':'TTES HISPALIS 2016','6558HWG':'TRANSMARGAZ 2018','6590JLK':'OP TRANS V.',
   '6733JKM':'OP TRANS V.','6807HYY':'TYP2014','6892JXH':'TRANSMARGAZ 2018',
   '6910MFN':'OP TRANS V.','7007JML':'ANTONIO MARTIN','7047LCB':'TYP2014',
-  '7067MKZ':'TYP2014','7131JJT':'TTES HISPALIS 2016','7293LWH':'OP TRANS V.',
+  '7067MKZ':'TYP2014','7091NND':'TYP2014','7131JJT':'TTES HISPALIS 2016',   // v1177: 7091NND (tacógrafo bloqueado TYP2014 desde 01/06/2026)
+ '7293LWH':'OP TRANS V.',
   '7482MTL':'OP TRANS V.','7511JWY':'T. REFRIGERADOS DOMINGUEZ','7532LPP':'TYP2014',
   '7609LVJ':'T. SATIG 79','7683JGB':'TYP2014','7778LXT':'OP TRANS V.',
   '7820LXT':'TYP2014','7874LCM':'TYP2014','7878MBN':'T. SATIG 79',
@@ -38571,10 +38572,18 @@ async function tacoCargarLista() {
   _tacoTrabajadores = null;
   cont.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu);padding:14px">Cargando…</div>';
   try {
-    const { data, error } = await sb.from('tacografo_ficheros')
-      .select('*').order('fecha_descarga', { ascending: false });
-    if (error) throw error;
-    tacoFicheros = data || [];
+    // v1177: Supabase corta en 1000 filas por peticion. Con la importacion de
+    // ASG hay mas de 2.600 ficheros y los camiones con descargas antiguas
+    // desaparecian de los avisos ("sin ninguna descarga"). Se lee por tandas.
+    const data = [];
+    for (let i = 0; i < 50; i++) {
+      const { data: d, error } = await sb.from('tacografo_ficheros')
+        .select('*').order('fecha_descarga', { ascending: false }).range(i * 1000, i * 1000 + 999);
+      if (error) throw error;
+      data.push(...(d || []));
+      if (!d || d.length < 1000) break;
+    }
+    tacoFicheros = data;
     // v375: se firma DIRECTAMENTE contra el almacen.
     // firmarCampo() NO servia aqui: espera la URL entera (busca "/documentos/"
     // dentro del texto) porque el resto de la app guarda la direccion completa.

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1177 (18/11/2026): TACÓGRAFO · 7091NND EN EL MAPA + AVISOS CON TODOS LOS FICHEROS. (1) La matrícula 7091NND (TYP2014, tacógrafo bloqueado por TYP2014 desde 01/06/2026) no estaba en el mapa de matrículas y sus 23 descargas de ASG se quedaban fuera ("no está en el mapa de la app"); añadida como TYP2014. (2) El archivo del Tacógrafo (y con él "Descargas pendientes" y "Sin ninguna descarga guardada") solo leía los 1000 ficheros más recientes; con la importación de ASG hay más de 2.600 y los camiones con descargas antiguas salían como "sin ninguna descarga". Ahora se leen todos, por tandas de 1000. Sin SQL. VUELTA ATRAS: resubir v1176.
+
+---
+
 v1176 (18/11/2026): ENVÍO DE FACTURAS · CASILLA "ENVIAR AL CLIENTE". Arriba de la ventana de envío hay una casilla "Enviar al cliente", marcada por defecto. Si se desmarca, al cliente no le llega nada (sus casillas quedan en gris, sin borrar el email) y solo sale lo demás que esté marcado, p. ej. la copia a Quipu. Sin SQL. VUELTA ATRAS: resubir v1175.
 
 ---
