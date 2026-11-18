@@ -45819,7 +45819,7 @@ function _ofAbrirVentana() {
   const ov = document.createElement('div');
   ov.id = 'ofOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
-  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="ofBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(96vw / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov);
   _ofRender();
   _ofCatCargar().then(() => { if (_of) _ofRender(); });   // v1140
@@ -46408,7 +46408,7 @@ async function ofCatAbrir() {
   const ov = document.createElement('div');
   ov.id = 'ofCatOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
-  ov.innerHTML = '<div id="ofCatBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1100px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="ofCatBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1100px;width:calc(96vw / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov);
   _ofCatRender();
 }
@@ -46593,7 +46593,7 @@ async function ofCliAbrir() {
   document.getElementById('ofCliOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'ofCliOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
-  ov.innerHTML = '<div id="ofCliBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1300px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="ofCliBox" style="background:#fff;border-radius:12px;padding:18px 20px;max-width:1300px;width:calc(96vw / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov); _ofCliRender();
 }
 function _ofCliRender() {
@@ -46752,7 +46752,7 @@ function _faVentana() {
   document.getElementById('faOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'faOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
-  ov.innerHTML = '<div id="faBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:96vw;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="faBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(96vw / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov); _faRender();
 }
 function _faTot() {

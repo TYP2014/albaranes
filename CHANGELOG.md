@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1163 (18/11/2026): OFERTAS Y FACTURAS · LETRA MÁS GRANDE. Las ventanas de la oferta, la factura, Clientes y Conceptos habituales se ven un 20 % más grandes (textos, casillas donde se escribe y botones). No cambia nada más ni los PDF. Sin SQL. VUELTA ATRAS: resubir v1162.
+
+---
+
 v1162 (18/11/2026): TACÓGRAFO · SUBIR ACEPTA LOS ZIP DE ASG. Se pueden soltar (o elegir) ZIP en SUBIR: la app los abre sola, también los ZIP dentro de ZIP (ASG mete cada descarga en su propio .TGD.zip), y se queda solo con los ficheros de tacógrafo (.TGD .DDD .V1B .C1B). Después, todo igual que siempre: los repetidos no se duplican y la empresa se saca de la matrícula. Sin SQL. VUELTA ATRAS: resubir v1161.
 
 ---
