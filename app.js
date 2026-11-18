@@ -26840,7 +26840,7 @@ function renderTallerTabla() {
     const _icoTractora = '<img src="tractora_app.webp?v=967" alt="Tractora" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const _icoSemi = '<img src="semirremolque_app.webp?v=967" alt="Remolque" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     // v1209: cisternas (columna carroceria = 'cisterna') con su propia foto, para distinguirlas de las bañeras
-    const _icoCisterna = '<img src="cisterna_app.webp?v=1210" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
+    const _icoCisterna = '<img src="cisterna_app.webp?v=1211" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? _icoCisterna : _icoSemi) : _icoTractora;
     // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
     let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
