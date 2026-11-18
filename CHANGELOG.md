@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1179 (18/11/2026): TACÓGRAFO · ARCHIVO: ENLACES DE DESCARGA POR TANDAS. Desde la v1177 se leen todos los ficheros (más de 2.600) y al pedir los enlaces de descarga de golpe el almacén lo rechazaba ("no más de 1000"): los botones "⬇ Descargar" del ARCHIVO se quedaban sin enlace. Ahora se piden por tandas de 1000. Sin SQL. VUELTA ATRAS: resubir v1178.
+
+---
+
 v1178 (18/11/2026): OFERTAS Y FACTURAS · PESO EXACTO DEL ALBARÁN SIEMPRE. Decisión de JC. Las toneladas se enseñan con 2 decimales, o con 3 cuando el albarán los trae (30,335 TN), en la factura, su anexo, la oferta, el Excel de la oferta y el Excel de detalle de la factura. Antes se enseñaba el peso redondeado (30,34) pero se cobraba por el exacto, y cantidad x precio no daba el importe (30,34 x 2,00 = 60,68 y la factura ponía 60,67); además el total de toneladas salía distinto en el anexo (60,59) y en el Excel (60,60). Los importes NO cambian: ya se calculaban con el peso exacto. Sin SQL. VUELTA ATRAS: resubir v1177.
 
 ---

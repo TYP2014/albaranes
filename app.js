@@ -38596,11 +38596,15 @@ async function tacoCargarLista() {
     try {
       const rutas = tacoFicheros.map(f => f._ruta).filter(Boolean);
       if (rutas.length) {
-        const { data: firm, error: eF } = await sb.storage.from('documentos')
-          .createSignedUrls(rutas, 3600);
-        if (eF) throw eF;
+        // v1179: el almacen admite como mucho 1000 rutas por peticion; con la
+        // importacion de ASG hay mas, asi que se firman por tandas de 1000.
         const mapa = new Map();
-        (firm || []).forEach(x => { if (x && x.signedUrl && !x.error) mapa.set(x.path, x.signedUrl); });
+        for (let i = 0; i < rutas.length; i += 1000) {
+          const { data: firm, error: eF } = await sb.storage.from('documentos')
+            .createSignedUrls(rutas.slice(i, i + 1000), 3600);
+          if (eF) throw eF;
+          (firm || []).forEach(x => { if (x && x.signedUrl && !x.error) mapa.set(x.path, x.signedUrl); });
+        }
         tacoFicheros.forEach(f => {
           const u = mapa.get(f._ruta);
           f.file_url = u ? u + '&download=' + encodeURIComponent(f.file_nombre || 'tacografo.ddd') : null;
