@@ -6515,6 +6515,7 @@ const MATRICULAS_VALIDAS = [
   '6102LSR','9499LHT','8504LTF','1270LST','7067MKZ','9918MXC','8678NGL','7047LCB','7874LCM','1748JGL',
   '5258HYX','6807HYY','4537HYY','8992NLF','9487MPL','9401MPL','6118MLD','8735MYM','4839NBF','5412NKD',
   '0755KMB','1479JDM',
+  '3423NVF',  // v1203 (18/11/2026) DAF XF 530 FT nueva de Portes 2014 Import (matriculada 18/11/2026)
   // TTES HISPALIS 2016
   '4210NGF','5123MVF','5360JZR','0742KMB','6521NHV','6285LMG','9566NBR','7131JJT','2006JJT','9295JJZ',
   '4576JLK','4380MPL','6420JZT','7984NTM',  // v980 (27/10/2026) DAF XF 530 nueva
@@ -8158,7 +8159,8 @@ const _CIF_EMP_GAS = {
 // clasificación de gasoil. Matrículas confirmadas por JC/revisor: 1479JDM (con histórico) y
 // 0755KMB (0 registros hoy, camión que suele estar parado; NO confundir con 0742KMB de Híspalis).
 const _MAT_EMP_GAS = {
-  '1479JDM': 'PORTES', '0755KMB': 'PORTES'
+  '1479JDM': 'PORTES', '0755KMB': 'PORTES',
+  '3423NVF': 'PORTES'   // v1203 (18/11/2026) DAF XF 530 FT nueva
 };
 // Extrae el texto de las primeras páginas de un PDF (base64) con pdf.js, para
 // detectar de qué proveedor es la factura ANTES de elegir el lector.
@@ -22264,6 +22266,7 @@ const TRANSPORTISTAS = {
   '8680LPR':'TRANSMARGAZ 2018','8735MYM':'TYP2014','8928LDK':'OP TRANS V.',
   '8992NLF':'TYP2014','7984NTM':'TTES HISPALIS 2016',  // v980 (27/10/2026) DAF XF 530 nueva
   '9860NTY':'TTES HISPALIS 2016',  // v1071 (09/11/2026) DAF XF 530 nueva
+  '3423NVF':'TYP2014',  // v1203 (18/11/2026) DAF XF 530 FT de Portes 2014 Import: en albaranes sale como TYP2014, igual que 1479JDM y 0755KMB
   '9074NMT':'TTES HISPALIS 2016','9189LWK':'OP TRANS V.','9217HWN':'TRANSMARGAZ 2018',
   '9295JJZ':'TTES HISPALIS 2016','9346MNY':'TRANSMARGAZ 2018','9357MNV':'OP TRANS V.',
   '9401MPL':'TYP2014','9487MPL':'TYP2014','9495LHT':'T. SATIG 79',
