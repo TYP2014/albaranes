@@ -47365,7 +47365,7 @@ async function faEnviarAbrir() {
   if (!_fa) return;
   if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
-  _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), cliente: true, pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
   { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
@@ -47393,13 +47393,15 @@ function _feRender() {
   if (okCli.length || okQ.length) h += '<div style="margin-top:8px;background:#fff7e6;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:13px;color:#7a4b00">' +
     (okCli.length ? '<b>Ya enviada al cliente</b> el ' + esc(fh(okCli[0].created_at)) + ' a ' + esc(okCli[0].para || '') + (okCli.length > 1 ? ' (' + okCli.length + ' veces)' : '') + '. Si envías, le llegará otra vez.<br>' : '') +
     (okQ.length ? '<b>Ya enviada a Quipu</b> el ' + esc(fh(okQ[0].created_at)) + '.' : '') + '</div>';
-  h += '<div style="margin-top:12px"><label style="font-size:12px;color:#111">Para (email del cliente; varios separados por coma)<br><input value="' + _ofEA(_fe.para) + '" oninput="_fe.para=this.value" style="' + inp + ';font-weight:700"></label></div>' +
-    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_fe.cc) + '" oninput="_fe.cc=this.value" style="' + inp + '"></label></div>' +
+  const sinCli = !_fe.cliente, gris = sinCli ? ';background:#f1f3f5;color:#999' : '';   // v1176: casilla para NO enviar al cliente sin tener que borrar su email
+  h += '<label style="display:flex;gap:8px;align-items:center;font-size:15px;font-weight:800;margin-top:12px;cursor:pointer"><input type="checkbox"' + (_fe.cliente ? ' checked' : '') + ' onchange="_fe.cliente=this.checked;_feRender()" style="width:18px;height:18px"> Enviar al cliente' + (sinCli ? ' <span style="font-weight:400;font-size:12px;color:#b45309">desmarcado: al cliente no le llega nada</span>' : '') + '</label>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Para (email del cliente; varios separados por coma)<br><input value="' + _ofEA(_fe.para) + '" oninput="_fe.para=this.value"' + (sinCli ? ' disabled' : '') + ' style="' + inp + ';font-weight:700' + gris + '"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_fe.cc) + '" oninput="_fe.cc=this.value"' + (sinCli ? ' disabled' : '') + ' style="' + inp + gris + '"></label></div>' +
     '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_fe.asunto) + '" oninput="_fe.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
     '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Texto del correo<br><textarea rows="7" oninput="_fe.texto=this.value" style="' + inp + '">' + esc(_fe.texto) + '</textarea></label></div>';
   const chk = (k, txt, dis, nota) => '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0' + (dis ? ';color:#999' : '') + '"><input type="checkbox"' + (_fe[k] && !dis ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="_fe.' + k + '=this.checked" style="width:17px;height:17px"> <span>' + txt + (nota ? ' <span style="font-size:12px;color:#666">' + nota + '</span>' : '') + '</span></label>';
   h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:2px">Qué le adjunto al cliente</div>' +
-    chk('pdf', 'Factura en PDF', false) + chk('excel', 'Excel con el detalle de albaranes', !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', !hayAlb, hayAlb ? '' : '') +
+    chk('pdf', 'Factura en PDF', sinCli) + chk('excel', 'Excel con el detalle de albaranes', sinCli || !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', sinCli || !hayAlb, hayAlb ? '' : '') +
     '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">' + chk('quipu', 'Copia a Quipu (ingresos)', !(listo && R.quipu), 'correo aparte, solo con el PDF de la factura') + '</div></div>';
   if (_fe.hecho.length) h += '<div style="margin-top:10px;font-size:13px">' + _fe.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
   h += '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px"><button class="btn bs" onclick="feCerrar()" style="padding:10px 18px;font-weight:800"' + (_fe.enviando ? ' disabled' : '') + '>' + (_fe.hecho.length ? 'Cerrar' : 'Cancelar') + '</button>' +
@@ -47408,7 +47410,7 @@ function _feRender() {
 }
 async function faEnviar() {
   if (!_fe || !_fa || _fe.enviando) return;
-  const para = String(_fe.para || '').trim(), alCliente = _fe.pdf || _fe.excel || _fe.alb;
+  const para = String(_fe.para || '').trim(), alCliente = _fe.cliente && (_fe.pdf || _fe.excel || _fe.alb);
   if (!alCliente && !_fe.quipu) { toast('No has marcado nada para enviar', 'err'); return; }
   if (alCliente && !para) { toast('Falta el email del cliente', 'err'); return; }
   if (!String(_fe.asunto || '').trim()) { toast('Falta el asunto', 'err'); return; }

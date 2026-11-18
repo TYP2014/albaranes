@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1176 (18/11/2026): ENVÍO DE FACTURAS · CASILLA "ENVIAR AL CLIENTE". Arriba de la ventana de envío hay una casilla "Enviar al cliente", marcada por defecto. Si se desmarca, al cliente no le llega nada (sus casillas quedan en gris, sin borrar el email) y solo sale lo demás que esté marcado, p. ej. la copia a Quipu. Sin SQL. VUELTA ATRAS: resubir v1175.
+
+---
+
 v1175 (18/11/2026): ENVÍO DE FACTURAS · LA APP RECUERDA LOS CORREOS. (1) "Con copia a" (p. ej. administración) se guarda por empresa al enviar y sale ya puesto en el siguiente envío; si se borra la casilla y se envía, se olvida. (2) Si el cliente no tenía "Email para facturas" en Contactos, se le apunta el que se escribió en "Para" al enviar. SQL YA APLICADO: columna copia_envio en facturas_config. VUELTA ATRAS: resubir v1174.
 
 ---
