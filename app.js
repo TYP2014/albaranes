@@ -47463,7 +47463,7 @@ function _faExcelWb() {
 }
 async function faEnviarAbrir() {
   if (!_fa) return;
-  if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
+  if (!_fa.id) { toast('Primero guarda la factura (borrador o emitida).', 'err'); return; }   // v1192: el borrador SÍ se puede mandar al cliente para que lo revise (nunca a Quipu)
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
   _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), cliente: true, pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
   { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
