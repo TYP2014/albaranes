@@ -47164,7 +47164,8 @@ function _faRender() {
     '<span style="font-size:14px;padding:8px 16px;border-radius:8px;font-weight:800;background:' + (em ? '#15803d;color:#fff' : '#475569;color:#fff') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span>' +
     '<span style="font-size:13px;color:#111">' + (em ? 'Está apuntada en F. Emitidas.' : 'Todavía no marca albaranes ni sale en F. Emitidas.') + '</span><span style="margin-left:auto"></span>' +
     // v1189: todos los botones ARRIBA; PDF / Paquete / Enviar solo cuando la factura ya está guardada
-    (_fa.id ? '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
+    (_fa.id ? '<button class="btn" onclick="faDuplicar()" style="' + _OF_BTN + ';border:2px solid #7c3aed;color:#7c3aed;background:#fff" title="Abre una factura NUEVA con el mismo cliente, conceptos, precios y forma de pago. Número siguiente y fecha en blanco. No copia los albaranes.">Duplicar</button>' +
+      '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
       '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
       '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>'
       : '<span style="font-size:12px;color:#475569">PDF, paquete y envío salen al guardar el borrador</span>') +
@@ -47224,6 +47225,18 @@ function _faRender() {
     '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:11px;padding:5px 10px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
+}
+// v1201: DUPLICAR (como en Quipu): factura nueva en borrador con el mismo cliente, conceptos, precios, forma de pago, cuenta, notas y mensaje.
+// Número = el siguiente de la serie; fecha en blanco (obligatoria). NO copia los albaranes ni la oferta (un albarán no se factura dos veces).
+async function faDuplicar() {
+  if (!_fa) return;
+  const num = _faNumero(), cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005;
+  if (cambiado && !confirm('Has cambiado esta factura y no la has guardado.\n\nAceptar = duplicar igual (los cambios sin guardar de ' + num + ' se pierden, pero van en la copia) · Cancelar = volver y guardar primero')) return;
+  const teniaAlb = _fa.filas.length;
+  const base = { empresa: _fa.empresa, cliente: _fa.cliente, clienteDatos: _fa.clienteDatos || '', email: _fa.email || '', lineas: JSON.parse(JSON.stringify(_fa.lineas || [])), pago: _fa.pago, cuenta: _fa.cuenta, notas: _fa.notas || '', mensaje: _fa.mensaje || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '' };
+  document.getElementById('faOv')?.remove(); _fa = null;
+  await faNueva(base);
+  if (_fa) toast('Copia de ' + num + ' → factura nueva ' + (_faNumero() || '') + ' en borrador. Pon la fecha y revisa los conceptos.' + (teniaAlb ? ' Los ' + teniaAlb + ' albaranes NO se copian.' : ''), 'ok');
 }
 // ---------- Guardar / emitir / borrar ----------
 function _faLinLlena(l) { return !!((l.concepto || '').trim() || Number(l.importe) || Number(l.precio)); }   // v1190: una línea en blanco no cuenta
