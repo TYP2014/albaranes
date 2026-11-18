@@ -45792,9 +45792,58 @@ async function ofAbrir(id) {
     _of = { id: data.id, numero: data.numero || '', fecha: data.fecha || _ofIso(new Date()), empresa: data.empresa || 'TYP', cliente: data.cliente || '', email: data.email || '',
       estado: data.estado || 'estudio', pedido_sap: data.pedido_sap || '', observaciones: data.observaciones || '',
       filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [], titulo: D.titulo || '', mensaje: D.mensaje || '', factura: D.factura || '', remitente: D.remitente || '', clienteDatos: D.clienteDatos || '', validez: D.validez || '',
-      agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at };
+      agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at, historial: Array.isArray(D.historial) ? D.historial : [] };
+    try { _of._foto = _ofFoto(); } catch (e) { console.warn('[v1167] foto:', e); }   // v1167: cómo estaba al abrirla, para apuntar luego qué se cambia
     _ofAbrirVentana();
   } catch (e) { console.error('[v1133] abrir oferta:', e); toast('No se pudo abrir la oferta: ' + (e.message || e), 'err'); }
+}
+
+// ============================================================================
+// v1167 (JC 18/11/2026): HISTORIAL DE CAMBIOS DE LA OFERTA. El cliente hace rectificar ofertas (un precio, un
+// concepto…). Cada vez que se guarda, se compara con cómo estaba y se apunta fecha, quién y QUÉ cambió.
+// Va dentro de la propia oferta (datos.historial), sin tabla nueva. Se ve abajo: "Historial de cambios".
+// ============================================================================
+function _ofFoto() {
+  const L = _ofConceptos(), T = _ofTotales(L);
+  return { numero: _of.numero || '', fecha: _of.fecha || '', cliente: _of.cliente || '', empresa: _of.empresa || '', estado: _of.estado || '', pedido: _of.pedido_sap || '', titulo: _of.titulo || '', validez: _of.validez || '',
+    obs: _of.observaciones || '', factura: _of.factura || '', total: _ofR2(T.total),
+    albs: _of.filas.filter(x => !x.fuera).map(x => String(x.albaran || x.id)),
+    conc: L.map(c => ({ k: c.k, texto: c.texto || '', unidad: c.cfg.unidad || 'tn', iva: _ofIvaDe(c.cfg), item: c.cfg.item || '', tramos: c.tramos.map(t => ({ desde: t.desde || '', precio: Number(t.precio) || 0, horas: Number(t.horas) || 0 })) })),
+    lin: (_of.lineas || []).map(l => ({ concepto: String(l.concepto || ''), importe: Number(l.importe) || 0 })) };
+}
+function _ofDiff(a, b) {
+  const c = [], q = v => '"' + (String(v).length > 60 ? String(v).slice(0, 57) + '…' : v) + '"', u = { tn: '€/TN', viaje: '€/viaje', hora: '€/hora' }, p = n => String(_ofR2(n)).replace('.', ',');
+  const campo = (k, nom, f) => { if (a[k] !== b[k]) c.push(nom + ': ' + (f ? f(a[k]) : (a[k] || '(vacío)')) + ' → ' + (f ? f(b[k]) : (b[k] || '(vacío)'))); };
+  campo('estado', 'Estado', v => (_OF_ESTADOS[v] || [v])[0]); campo('numero', 'Nº de oferta'); campo('cliente', 'Cliente'); campo('empresa', 'Empresa que la hace', v => _OF_EMPRESAS[v] || v);
+  campo('fecha', 'Fecha', v => v ? _ofFechaEs(v) : '(vacío)'); campo('validez', 'Válida hasta', v => v ? _ofFechaEs(v) : '(vacío)'); campo('pedido', 'Pedido SAP'); campo('titulo', 'Título'); campo('factura', 'Factura');
+  if (a.obs !== b.obs) c.push('Observaciones cambiadas');
+  const ma = new Map(a.conc.map(x => [x.k, x]));
+  b.conc.forEach(y => { const x = ma.get(y.k); if (!x) return;
+    if (x.texto !== y.texto) c.push('Concepto: ' + q(x.texto) + ' → ' + q(y.texto));
+    if (x.unidad !== y.unidad) c.push('Cobro de ' + q(y.texto) + ': ' + (u[x.unidad] || x.unidad) + ' → ' + (u[y.unidad] || y.unidad));
+    if (x.iva !== y.iva) c.push('IVA de ' + q(y.texto) + ': ' + x.iva + ' % → ' + y.iva + ' %');
+    if (x.item !== y.item) c.push('Item de ' + q(y.texto) + ': ' + (x.item || '(vacío)') + ' → ' + (y.item || '(vacío)'));
+    if (x.tramos.length !== y.tramos.length) c.push('Tramos de fechas de ' + q(y.texto) + ': ' + x.tramos.length + ' → ' + y.tramos.length);
+    y.tramos.forEach((t, i) => { const o = x.tramos[i]; if (!o) { c.push('Precio nuevo en ' + q(y.texto) + (t.desde ? ' desde ' + _ofFechaEs(t.desde) : '') + ': ' + p(t.precio)); return; }
+      const donde = q(y.texto) + (y.tramos.length > 1 && t.desde ? ' (desde ' + _ofFechaEs(t.desde) + ')' : '');
+      if (o.precio !== t.precio) c.push('Precio de ' + donde + ': ' + p(o.precio) + ' → ' + p(t.precio) + ' ' + (u[y.unidad] || ''));
+      if (o.horas !== t.horas) c.push('Horas de ' + donde + ': ' + p(o.horas) + ' → ' + p(t.horas));
+      if (o.desde !== t.desde) c.push('Fecha del tramo de ' + q(y.texto) + ': ' + (o.desde ? _ofFechaEs(o.desde) : 'inicio') + ' → ' + (t.desde ? _ofFechaEs(t.desde) : 'inicio')); }); });
+  const sa = new Set(a.albs), sb2 = new Set(b.albs), quit = a.albs.filter(x => !sb2.has(x)), pues = b.albs.filter(x => !sa.has(x));
+  const lista = v => v.slice(0, 12).join(', ') + (v.length > 12 ? '… (' + v.length + ')' : '');
+  if (quit.length) c.push('Albaranes quitados: ' + lista(quit)); if (pues.length) c.push('Albaranes añadidos: ' + lista(pues));
+  const la = a.lin.map(l => l.concepto + ' = ' + _ofEur(l.importe)), lb = b.lin.map(l => l.concepto + ' = ' + _ofEur(l.importe));
+  la.filter(x => !lb.includes(x)).forEach(x => c.push('Línea a mano quitada o cambiada: ' + q(x))); lb.filter(x => !la.includes(x)).forEach(x => c.push('Línea a mano nueva: ' + q(x)));
+  if (Math.abs(a.total - b.total) > 0.005) c.push('TOTAL: ' + _ofEur(a.total) + ' → ' + _ofEur(b.total));
+  return c;
+}
+function _ofQuien() { try { return (typeof userMap !== 'undefined' && currentUser && userMap[currentUser.id] && userMap[currentUser.id].name) || (currentUser && currentUser.email) || ''; } catch (e) { return ''; } }
+function _ofHistHtml() {
+  const H = (_of.historial || []).slice().reverse(); if (!H.length) return '';
+  const f = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
+  return '<details style="margin-top:12px" open><summary style="cursor:pointer;font-weight:700;font-size:13px">Historial de cambios (' + H.length + ')</summary>' +
+    '<div style="margin-top:6px;border:1px solid var(--bd);border-radius:8px;max-height:300px;overflow-y:auto">' + H.map((e, i) => '<div style="padding:7px 10px;font-size:13px' + (i ? ';border-top:1px solid var(--bd)' : '') + '"><b>' + esc(f(e.t)) + '</b>' + (e.q ? ' · ' + esc(e.q) : '') +
+      '<ul style="margin:3px 0 0 18px;padding:0">' + (e.c || []).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>').join('') + '</div></details>';
 }
 
 // ---------- Conceptos y tramos ----------
@@ -45993,6 +46042,7 @@ function _ofRender() {
       '<td style="padding:4px 6px;text-align:right">' + _ofTn(x.tm) + '</td><td style="padding:4px 6px;text-align:right">' + (x.fuera ? '' : _ofTn(x._precio)) + '</td><td style="padding:4px 6px;text-align:right">' + (x.fuera ? '' : _ofEur(x._imp)) + '</td></tr>';
   });
   h += '</tbody></table></div></details>';
+  h += _ofHistHtml();   // v1167
   box.innerHTML = h.replace('<!--OF_ESTADO-->', hEstado);
   if (ovEl) ovEl.scrollTop = ovSc; window.scrollTo(0, sc);
 }
@@ -46015,8 +46065,14 @@ async function ofGuardar(silencioso) {
   // En datos: las filas sin los campos calculados
   const filas = _of.filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, transportista: x.transportista, origen: x.origen, destino: x.destino, producto: x.producto, cliente: x.cliente, tm: x.tm, fuera: !!x.fuera }));
   const usados = new Set(L.map(c => c.k)); const conceptos = {}; Object.keys(_of.conceptos).forEach(k => { if (usados.has(k)) conceptos[k] = _of.conceptos[k]; });
+  // v1167: historial — qué cambia respecto a como estaba guardada
+  let fotoNueva = null; const histAntes = (_of.historial || []).slice();
+  try { fotoNueva = _ofFoto();
+    const cambios = !_of.id ? ['Oferta creada · ' + vivas.length + ' albaranes · total ' + _ofEur(T.total)] : (_of._foto ? _ofDiff(_of._foto, fotoNueva) : []);
+    if (cambios.length) _of.historial = histAntes.concat([{ t: new Date().toISOString(), q: _ofQuien(), c: cambios }]).slice(-300);
+  } catch (e) { console.warn('[v1167] historial:', e); }
   const reg = { numero: _of.numero || null, fecha: _of.fecha || null, empresa: _of.empresa, cliente: _of.cliente, email: _of.email || null, estado: _of.estado, pedido_sap: _of.pedido_sap || null,
-    albaranes: vivas.map(x => x.id), datos: { filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '', titulo: _of.titulo || '', mensaje: _of.mensaje || '', factura: _of.factura || '', remitente: _of.remitente || '' }, base: T.base, iva: T.iva, total: T.total,
+    albaranes: vivas.map(x => x.id), datos: { historial: _of.historial || [], filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '', titulo: _of.titulo || '', mensaje: _of.mensaje || '', factura: _of.factura || '', remitente: _of.remitente || '' }, base: T.base, iva: T.iva, total: T.total,
     observaciones: _of.observaciones || null, updated_at: new Date().toISOString() };
   try {
     let antes = [];
@@ -46030,7 +46086,7 @@ async function ofGuardar(silencioso) {
       if (error) throw error;
       _of.id = data.id;
     }
-    _of.guardadaTotal = T.total;
+    _of.guardadaTotal = T.total; if (fotoNueva) _of._foto = fotoNueva;
     await _ofCliGrabarSiNuevo();   // v1143
     // Marca 🟣 en los albaranes: los de dentro, ofertados (salvo si la oferta está rechazada); los que salieron, sin marca
     const dentro = vivas.map(x => x.id), fuera = antes.filter(a => !dentro.includes(String(a)));
@@ -46041,7 +46097,7 @@ async function ofGuardar(silencioso) {
     if (!silencioso) { document.getElementById('ofOv')?.remove(); _of = null; _ofIrALista('ofCard'); return true; }   // v1164: Guardar cierra · v1165: y te lleva a la lista de ofertas
     if (document.getElementById('ofCardOut') && !window._ofListaOculta) ofListar();
     return true;
-  } catch (e) { console.error('[v1133] guardar oferta:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
+  } catch (e) { console.error('[v1133] guardar oferta:', e); if (_of) _of.historial = histAntes; toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
 }
 // Pone / quita la marca violeta 🟣 en la BD y en pantalla. No toca albaranes ya FACTURADOS.
 async function _ofMarcar(ids, poner) {
@@ -46968,7 +47024,7 @@ async function faEmitir() {
   const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
   for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.ofertado = false; r.ofertado_cliente = null; } });
-  if (_fa.oferta_id) { try { const { data: o } = await sb.from('ofertas').select('datos').eq('id', _fa.oferta_id).single(); const d = Object.assign({}, (o && o.datos) || {}, { factura: _faNumero() }); await sb.from('ofertas').update({ estado: 'facturada', datos: d }).eq('id', _fa.oferta_id); } catch (e) { console.error('[v1149] oferta facturada:', e); err++; } }
+  if (_fa.oferta_id) { try { const { data: o } = await sb.from('ofertas').select('datos').eq('id', _fa.oferta_id).single(); const d = Object.assign({}, (o && o.datos) || {}, { factura: _faNumero() }); d.historial = (Array.isArray(d.historial) ? d.historial : []).concat([{ t: new Date().toISOString(), q: _ofQuien(), c: ['Facturada con la factura ' + _faNumero()] }]); await sb.from('ofertas').update({ estado: 'facturada', datos: d }).eq('id', _fa.oferta_id); } catch (e) { console.error('[v1149] oferta facturada:', e); err++; } }
   try { renderTable(); } catch (e) {}
   toast(err ? '⚠️ Factura emitida, pero algo no se pudo marcar (albaranes u oferta): revísalo' : 'Factura ' + _faNumero() + ' EMITIDA' + (ids.length ? ' · ' + ids.length + ' albaranes facturados' : ''), err ? 'err' : 'ok');
   _faRender(); faListar();

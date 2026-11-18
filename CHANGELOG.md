@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1167 (18/11/2026): OFERTAS · HISTORIAL DE CAMBIOS. Cada vez que se guarda una oferta, la app compara con cómo estaba y apunta fecha, hora, quién y QUÉ cambió: precio (de cuánto a cuánto), texto del concepto, cobro, IVA, item, horas, tramos, albaranes quitados o añadidos, líneas a mano, estado, nº, cliente, pedido SAP, título, fechas y total. Se ve abajo en la oferta: "Historial de cambios", lo último arriba. También apunta la creación y cuando se factura. Va guardado dentro de la propia oferta (sin tabla nueva). Las ofertas ya hechas empiezan su historial a partir de ahora. Sin SQL. VUELTA ATRAS: resubir v1166.
+
+---
+
 v1166 (18/11/2026): OFERTAS Y FACTURAS · CANDADO ANTI-DUPLICADOS. Un albarán ya no puede ir en dos ofertas ni en dos facturas (antes solo avisaba y dejaba seguir). Se mira siempre en la base de datos: (a) albaranes ya FACTURADOS, (b) albaranes que están en otra oferta viva (no rechazada), (c) albaranes que están en otra factura de la app, borrador o emitida. Al CREAR oferta o factura desde la selección, los cogidos se quedan fuera (se dice cuáles y por qué) y se sigue solo con los libres; si todos están cogidos, no se crea. Los albaranes de una oferta se facturan solo desde SU oferta ("Crear factura"). Al GUARDAR la oferta y al EMITIR la factura se vuelve a comprobar. Una oferta = una factura: si ya tiene una, "Crear factura" abre esa. Si la comprobación falla (sin conexión), no deja seguir. Sin SQL. VUELTA ATRAS: resubir v1165.
 
 ---
