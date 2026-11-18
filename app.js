@@ -45687,6 +45687,8 @@ function _ofTn(n) { const r = _ofR3(n); return _ofMil(r, Math.abs(r * 100 - Math
 function _ofEur(n) { return _ofMil(_ofR2(n), 2) + ' €'; }
 function _ofIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function _ofFechaEs(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
+// v1191: a la Planta de Hormigones de Montcada no se le factura: el cliente es SIEMPRE Holcim
+function _ofCliFactura(c) { c = String(c || '').trim(); return /PLANTA\s+(DE\s+)?HORMIGON(ES)?\s+(DE\s+)?MONT?CADA/.test(_ofNrm(c)) ? 'HOLCIM ESPAÑA, S.A.U.' : c; }
 function _ofNrm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
 function _ofPuede() { try { return _puedeVerFactEmit(); } catch (e) { return false; } }
 
@@ -45853,7 +45855,7 @@ async function _ofCrearDesdeSeleccion() {
   const libres = await _ofFiltrarLibres(recs, 'oferta'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
   { const quedan = libres.slice(); recs.length = 0; quedan.forEach(r => recs.push(r)); }   // v1173: copia antes de vaciar (si no sobraba ninguno, 'libres' ERA 'recs' y la oferta salía con 0 albaranes)
   // Cliente propuesto: el que más se repite
-  const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
+  const cc = {}; recs.forEach(r => { const c = _ofCliFactura(r.cliente); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
   _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjunto nuestra oferta con el Excel de detalle y los albaranes de los servicios realizados.\n\nQuedo a la espera de vuestra aprobación y del nº de pedido.\n\nUn saludo,\nJuan Carlos Reina', empresa: 'TYP', cliente, email: _ofEmailDe(cliente), clienteDatos: _ofClienteDatosDe(cliente), estado: 'estudio', pedido_sap: '', observaciones: '',
     filas: recs.map(_ofFilaDe), conceptos: {}, lineas: [], agruparMaterial: false, guardadaTotal: null };   // v1135: por defecto TODO JUNTO por ruta
@@ -47349,7 +47351,7 @@ async function _faCrearDesdeSeleccion() {
   const libres = await _ofFiltrarLibres(recs, 'factura'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
   { const quedan = libres.slice(); recs.length = 0; quedan.forEach(r => recs.push(r)); }   // v1173: copia antes de vaciar (si no sobraba ninguno, 'libres' ERA 'recs' y la oferta salía con 0 albaranes)
   const filas = recs.map(_ofFilaDe).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
+  const cc = {}; recs.forEach(r => { const c = _ofCliFactura(r.cliente); if (c) cc[c] = (cc[c] || 0) + 1; });
   await _ofCliCargar();
   let cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || ''; const ficha = _ofCliBuscar(cliente); if (ficha) cliente = ficha.nombre;
   const mapa = new Map();
@@ -47476,6 +47478,7 @@ async function faEnviarAbrir() {
   _fe.robot = r; _fe.previos = prev; _fe.estado = '';
   if (prev.some(x => x.ok && x.destino === 'quipu')) _fe.quipu = false;   // a Quipu, una sola vez
   if (r && r.ok && !r.quipu) _fe.quipu = false;
+  if (_fa.estado !== 'emitida') _fe.quipu = false;   // v1191: un BORRADOR nunca va a Quipu, solo al cliente
   _feRender();
 }
 function feCerrar() { if (_fe && _fe.enviando) return; document.getElementById('feOv')?.remove(); _fe = null; }
@@ -47500,7 +47503,7 @@ function _feRender() {
   const chk = (k, txt, dis, nota) => '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0' + (dis ? ';color:#999' : '') + '"><input type="checkbox"' + (_fe[k] && !dis ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="_fe.' + k + '=this.checked" style="width:17px;height:17px"> <span>' + txt + (nota ? ' <span style="font-size:12px;color:#666">' + nota + '</span>' : '') + '</span></label>';
   h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:2px">Qué le adjunto al cliente</div>' +
     chk('pdf', 'Factura en PDF', sinCli) + chk('excel', 'Excel con el detalle de albaranes', sinCli || !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', sinCli || !hayAlb, hayAlb ? '' : '') +
-    '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">' + chk('quipu', 'Copia a Quipu (ingresos)', !(listo && R.quipu), 'correo aparte, solo con el PDF de la factura') + '</div></div>';
+    '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">' + chk('quipu', 'Copia a Quipu (ingresos)', !(listo && R.quipu) || _fa.estado !== 'emitida', _fa.estado !== 'emitida' ? 'es un BORRADOR: a Quipu solo va la factura EMITIDA' : 'correo aparte, solo con el PDF de la factura') + '</div></div>';
   if (_fe.hecho.length) h += '<div style="margin-top:10px;font-size:13px">' + _fe.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
   h += '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px"><button class="btn bs" onclick="feCerrar()" style="padding:10px 18px;font-weight:800"' + (_fe.enviando ? ' disabled' : '') + '>' + (_fe.hecho.length ? 'Cerrar' : 'Cancelar') + '</button>' +
     '<button class="btn" id="feBtn" onclick="faEnviar()" style="padding:10px 22px;font-weight:800;background:' + (listo && !_fe.enviando ? '#1b3254' : '#9aa5b5') + ';color:#fff"' + (listo && !_fe.enviando ? '' : ' disabled') + '>' + (_fe.enviando ? 'Enviando…' : 'Enviar') + '</button></div>';
@@ -47540,7 +47543,7 @@ async function faEnviar() {
         if (!_fa.email) _fa.email = paraN;
       }
     }
-    if (_fe.quipu) {
+    if (_fe.quipu && _fa.estado === 'emitida') {
       if (pdf.length > 100 * 1024) _fe.hecho.push({ ok: false, txt: 'NO se envió a Quipu: el PDF pesa ' + Math.round(pdf.length / 1024) + ' KB y Quipu solo admite 100 KB por archivo' });
       else { paso('Enviando a Quipu…');
         const q = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'quipu', asunto: _fe.asunto.trim(), texto: 'Factura ' + _faNumero() + ' · ' + _fa.cliente, adjuntos: [{ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) }], doc_tipo: 'factura', doc_id: _fa.id });
