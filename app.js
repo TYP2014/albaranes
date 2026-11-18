@@ -48031,7 +48031,7 @@ function _pinRender() {
         const k = v.matricula + '|' + t, pin = _pin.pins.get(k) || '', ver = _pin.ver.has(k);
         h += '<td style="padding:8px;white-space:nowrap"><input type="' + (ver ? 'text' : 'password') + '" inputmode="numeric" autocomplete="off" value="' + _ofEA(pin) + '" placeholder="—" onchange="pinGuardar(\'' + v.matricula + '\',\'' + t + '\',this.value)" style="' + inp + '"> ' +
           '<button class="btn bs" title="Ver / ocultar" onclick="_pin.ver.' + (ver ? 'delete' : 'add') + '(\'' + k + '\');_pinRender()" style="padding:5px 8px">' + (ver ? 'Ocultar' : 'Ver') + '</button> ' +
-          (pin ? '<button class="btn" onclick="pinEnviar(\'' + v.matricula + '\',\'' + t + '\')" style="padding:5px 10px;border:2px solid #15803d;color:#15803d;background:#fff;font-weight:800">Enviar</button>' : '') + '</td>'; });
+          '<button class="btn" onclick="pinEnviar(\'' + v.matricula + '\',\'' + t + '\')" title="' + (pin ? 'Enviar este PIN al conductor por WhatsApp' : 'Primero escribe el PIN') + '" style="padding:5px 10px;font-weight:800;' + (pin ? 'border:2px solid #15803d;color:#fff;background:#16a34a' : 'border:2px solid #cbd5e1;color:#94a3b8;background:#fff') + '">📲 WhatsApp</button></td>'; });
       h += '</tr>'; });
     h += '</tbody></table></div>';
   }
@@ -48048,8 +48048,8 @@ async function pinGuardar(mat, tipo, val) {
   _pinRender();
 }
 async function pinEnviar(mat, tipo) {
-  const pin = _pin && _pin.pins.get(mat + '|' + tipo); if (!pin) return;
-  const txt = 'Hola, para el camión ' + mat + ':\nPIN de la tarjeta ' + _PIN_TIPOS[tipo] + ': ' + pin + '\n\nNo lo compartas con nadie. Un saludo.';
+  const pin = _pin && _pin.pins.get(mat + '|' + tipo); if (!pin) { toast('Ese camión no tiene PIN de ' + _PIN_TIPOS[tipo] + '. Escríbelo primero en la casilla.', 'err'); return; }
+  const txt = 'Hola. El PIN de la tarjeta ' + _PIN_TIPOS[tipo].toUpperCase() + ' del camión ' + mat + ' es: ' + pin + '\n\nEs solo para la tarjeta de ese camión. No lo compartas con nadie.\nUn saludo.';
   try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(txt); toast('Mensaje copiado: pégalo en el WhatsApp del conductor', 'ok'); }
   catch (e) { prompt('Copia este mensaje y pégalo en el WhatsApp del conductor:', txt); }
