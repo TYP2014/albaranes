@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1161 (18/11/2026): TACÓGRAFO · PANEL · "ÚLTIMA DESCARGA" = FECHA REAL DE LA DESCARGA. Se saca del nombre del fichero (V_1270LST_E_20260803_0811.TGD → 03/08/2026) y los días para la próxima descarga (90 camión / 28 tarjeta) cuentan desde ahí, no desde el último día con datos (un camión parado no sale vencido por eso). Si el nombre no trae fecha o no es creíble, se usa el último día con datos. Columna nueva "Última actividad" (último día con datos) en Vehículos y Conductores. Solo el PANEL; los avisos de "Descargas pendientes" siguen igual. Sin SQL. VUELTA ATRAS: resubir v1160.
+
+---
+
 v1160 (18/11/2026): TACÓGRAFO · PANEL "TODO A LA VISTA" + BLOQUEO DE EMPRESA. Nueva sección 📋 PANEL (la primera, y por donde se entra al Tacógrafo), al estilo ASG: tabla de VEHÍCULOS y tabla de CONDUCTORES, una fila por camión/tarjeta con su última descarga, siguiendo la barra EMPRESA de arriba como pestañas. Vehículos: matrícula · BLOQUEO DE EMPRESA (verde = bloqueado a nombre de su empresa; rojo = sin bloqueo o bloqueado por otra empresa; con la fecha del bloqueo) · última descarga · días para la próxima (90) · próxima revisión del tacógrafo · datos desde · generación · descargar original. Salen también los camiones activos en Taller sin ninguna descarga; fuera remolques y camiones de baja. Conductores: nombre · nº de tarjeta · última descarga · días para la próxima (28) · caducidad de la tarjeta; fuera los de baja. Buscador, filtro "solo con algo pendiente" / "solo bloqueo en rojo", ordenar pinchando en la columna y páginas de 25/50/todos. El lector de descargas de camión (1ª y 2ª generación) ya NO se salta los bloqueos de empresa: los guarda en la columna nueva `bloqueos`. Las descargas antiguas se leen solas del archivo al abrir el panel (solo la última de cada camión). El bloqueo es el del día de la última descarga. SQL PREVIO: columna bloqueos (jsonb) en tacografo_ficheros. VUELTA ATRAS: resubir v1159 (la columna puede quedarse).
 
 ---

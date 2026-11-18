@@ -47094,6 +47094,23 @@ async function _tacoBloqLeerFichero(f) {
   }
 }
 
+// v1161: FECHA REAL DE LA DESCARGA. Va en el nombre del fichero
+// (V_1270LST_E_20260803_0811.TGD, C_20261106_1204_J_...DDD). El plazo legal
+// (90 / 28 dias) cuenta desde la descarga, no desde el ultimo dia con datos:
+// un camion parado una semana no esta "vencido" por eso. Si el nombre no trae
+// fecha, o trae una absurda, se usa el ultimo dia con datos (lo prudente).
+function _tacoFechaDescarga(f) {
+  const hasta = f && f.fecha_hasta || null;
+  const m = String(f && f.file_nombre || '').match(/(?:^|[^0-9])(20[2-3]\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?![0-9])/);
+  if (!m) return hasta;
+  const iso = `${m[1]}-${m[2]}-${m[3]}`;
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (iso > hoy) return hasta;                       // fecha futura: no se fia
+  if (hasta && iso < hasta) return hasta;            // no puede ser anterior a sus propios datos
+  if (hasta && (new Date(iso) - new Date(hasta)) / 86400000 > 120) return hasta;   // demasiado lejos de sus datos: no se fia
+  return iso;
+}
+
 let _tacoPan = { vista: 'veh', q: '', filtro: 'todos', pag: 1, porPag: 25, orden: null, dir: 1, fich: null, leyendo: false };
 
 async function tacoPanelVer(forzar) {
@@ -47139,12 +47156,19 @@ function _tacoPanelFilas() {
       const a = ult.get(m);
       if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ult.set(m, f);
     });
+    const descV = new Map();                          // v1161: la descarga mas reciente de cada camion
+    fs.forEach(f => {
+      if (f.tipo !== 'vehiculo' || !f.matricula) return;
+      const m = _tacoNormMat(f.matricula), dd = _tacoFechaDescarga(f);
+      if (dd && (!descV.get(m) || dd > descV.get(m))) descV.set(m, dd);
+    });
     const filas = [];
     ult.forEach((f, m) => {
       if (_tacoPan.vehBaja && _tacoPan.vehBaja.has(m)) return;
-      const d = _tacoDiasDesde(f.fecha_hasta);
+      const desc = descV.get(m) || f.fecha_hasta;
+      const d = _tacoDiasDesde(desc);
       const bl = _tacoBloqEstado(f);
-      filas.push({ f, mat: m, emp: f.empresa, ultima: f.fecha_hasta, desde: f.fecha_desde,
+      filas.push({ f, mat: m, emp: f.empresa, ultima: desc, act: f.fecha_hasta, desde: f.fecha_desde,
         prox: d === null ? null : TACO_DIAS_VEHICULO - d, bl, rev: f.proxima_revision, revDias: diasA(f.proxima_revision), gen: f.generacion });
     });
     // camiones activos en Taller sin ninguna descarga
@@ -47152,7 +47176,7 @@ function _tacoPanelFilas() {
       if (!_tacoEmpPasa(v)) return;
       const m = _tacoNormMat(v.matricula);
       if (!m || /^[A-Z]/.test(m) || ult.has(m)) return;     // remolques fuera: no llevan tacógrafo
-      filas.push({ f: null, mat: m, emp: v.empresa, ultima: null, desde: null, prox: null,
+      filas.push({ f: null, mat: m, emp: v.empresa, ultima: null, act: null, desde: null, prox: null,
         bl: { c: 'nodato', txt: 'sin descarga', tit: 'No hay ninguna descarga de este camión en la app' }, rev: null, revDias: null, gen: '' });
     });
     return filas;
@@ -47166,11 +47190,19 @@ function _tacoPanelFilas() {
     const a = ult.get(k);
     if (!a || (f.fecha_hasta || '') > (a.fecha_hasta || '')) ult.set(k, f);
   });
+  const descC = new Map();                            // v1161: la descarga mas reciente de cada tarjeta
+  fs.forEach(f => {
+    if (f.tipo !== 'conductor') return;
+    const k = f.tarjeta_num ? 'T:' + _tacoRaiz14(f.tarjeta_num) : (f.conductor_nombre ? 'N:' + _tacoNormNombre(f.conductor_nombre).sort().join(' ') : null);
+    const dd = _tacoFechaDescarga(f);
+    if (k && dd && (!descC.get(k) || dd > descC.get(k))) descC.set(k, dd);
+  });
   const filas = [];
-  ult.forEach(f => {
+  ult.forEach((f, k) => {
     if (_tacoEsBaja(bajas, f.tarjeta_num, f.conductor_nombre)) return;
-    const d = _tacoDiasDesde(f.fecha_hasta);
-    filas.push({ f, nom: f.conductor_nombre || '—', emp: f.empresa, tarj: f.tarjeta_num || '', ultima: f.fecha_hasta,
+    const desc = descC.get(k) || f.fecha_hasta;
+    const d = _tacoDiasDesde(desc);
+    filas.push({ f, nom: f.conductor_nombre || '—', emp: f.empresa, tarj: f.tarjeta_num || '', ultima: desc, act: f.fecha_hasta,
       prox: d === null ? null : TACO_DIAS_TARJETA - d, cad: f.tarjeta_caduca, cadDias: diasA(f.tarjeta_caduca) });
   });
   return filas;
@@ -47251,7 +47283,7 @@ function tacoPanelPintar() {
       ${th('mat', 'Matrícula')}${conEmp ? th('emp', 'Empresa') : ''}
       ${th('bl', 'Bloqueo de empresa', 'Verde = bloqueado a nombre de su empresa · Rojo = sin bloqueo u otra empresa')}
       ${th('ultima', 'Última descarga')}${th('prox', 'Días próx. descarga', 'Plazo legal: ' + TACO_DIAS_VEHICULO + ' días')}
-      ${th('rev', 'Próx. revisión tacógrafo')}${th('desde', 'Datos desde')}${th('gen', 'Gen.')}<th></th></tr></thead><tbody>` +
+      ${th('rev', 'Próx. revisión tacógrafo')}${th('desde', 'Datos desde')}${th('act', 'Última actividad')}${th('gen', 'Gen.')}<th></th></tr></thead><tbody>` +
       ver.map(x => {
         const bl = x.bl;
         const blCel = bl.c === 'ok' ? VERDE : bl.c === 'mal' ? ROJO : GRIS;
@@ -47262,6 +47294,7 @@ function tacoPanelPintar() {
         <td style="${tonoDias(x.prox, 15)};text-align:center;font-weight:700">${x.prox === null ? '—' : x.prox < 0 ? 'vencida ' + (-x.prox) : x.prox}</td>
         <td style="${tonoDias(x.revDias, 60)};text-align:center">${x.rev ? dmy(x.rev) : '—'}</td>
         <td>${x.desde ? dmy(x.desde) : '—'}</td>
+        <td>${x.act ? dmy(x.act) : '—'}</td>
         <td style="text-align:center">${x.gen || '—'}</td>
         <td style="text-align:center">${desc(x.f)}</td></tr>`;
       }).join('') + `</tbody></table></div>`;
@@ -47269,12 +47302,13 @@ function tacoPanelPintar() {
     h += `<div style="overflow-x:auto"><table class="tbl tp-tabla"><thead><tr>
       ${th('nom', 'Conductor')}${conEmp ? th('emp', 'Empresa') : ''}${th('tarj', 'Nº de tarjeta')}
       ${th('ultima', 'Última descarga')}${th('prox', 'Días próx. descarga', 'Plazo legal: ' + TACO_DIAS_TARJETA + ' días')}
-      ${th('cad', 'Caducidad tarjeta')}<th></th></tr></thead><tbody>` +
+      ${th('act', 'Última actividad')}${th('cad', 'Caducidad tarjeta')}<th></th></tr></thead><tbody>` +
       ver.map(x => `<tr>
         <td><b>${_tacoNomCorto(x.nom)}</b></td>${conEmp ? `<td>${_TACO_EMP_NOM[x.emp] || x.emp || '—'}</td>` : ''}
         <td>${x.tarj || '—'}</td>
         <td>${x.ultima ? dmy(x.ultima) : '—'}</td>
         <td style="${tonoDias(x.prox, 7)};text-align:center;font-weight:700">${x.prox === null ? '—' : x.prox < 0 ? 'vencida ' + (-x.prox) : x.prox}</td>
+        <td>${x.act ? dmy(x.act) : '—'}</td>
         <td style="${tonoDias(x.cadDias, 60)};text-align:center">${x.cad ? dmy(x.cad) : '—'}</td>
         <td style="text-align:center">${desc(x.f)}</td></tr>`).join('') + `</tbody></table></div>`;
   }
