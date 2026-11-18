@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1181 (18/11/2026): TACÓGRAFO · VEHÍCULOS Y CONDUCTORES NO SE ROMPEN CON DESCARGAS SIN DÍAS. La lista de camiones/conductores de las secciones VEHÍCULOS y CONDUCTORES ponía primero las descargas sin ningún día de actividad (camión parado o descarga solo técnica, fecha vacía) y fallaba con "Invalid time value". Ahora se ignoran esas descargas para calcular la última fecha, y se leen todos los ficheros por tandas de 1000 (antes solo los 1000 más recientes). Sin SQL. VUELTA ATRAS: resubir v1180.
+
+---
+
 v1180 (18/11/2026): OFERTAS Y FACTURAS · QUIÉN PUEDE FACTURAR A CADA CLIENTE. Regla de JC: "Holcim lo facturan Import o TYP2014, nunca Híspalis"; "CEMEX, TYP2014". En Contactos, cada cliente tiene tres casillas "Le factura: TYP2014 / Import / Híspalis" (sin marcar = cualquiera). Ya puestas: HOLCIM = Import y TYP2014; CEMEX = TYP2014. Con eso: (1) al elegir el cliente en una oferta o factura, si la empresa puesta no puede facturarle, la app cambia sola a una que sí y lo dice; (2) si se fuerza otra empresa, sale una franja roja fija arriba; (3) pregunta antes de GUARDAR la oferta y antes de EMITIR la factura. No bloquea, avisa. SQL YA APLICADO: columna empresas en clientes_ficha. VUELTA ATRAS: resubir v1179.
 
 ---

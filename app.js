@@ -37829,10 +37829,20 @@ function tacoInfToggleBajas(v) { _tacoInfVerBajas = !!v; tacoInfPintarSelector()
 
 async function _tacoInfCargarPersonas() {
   if (_tacoInfPersonas) return _tacoInfPersonas;
-  const { data, error } = await sb.from('tacografo_ficheros')
-    .select('tipo, matricula, tarjeta_num, conductor_nombre, empresa, fecha_hasta')
-    .order('fecha_hasta', { ascending: false }).limit(1000);
-  if (error) throw error;
+  // v1181: (1) fuera las descargas SIN dias (fecha_hasta vacia: camion parado o
+  // descarga solo tecnica); ordenando de mas nuevo a mas viejo salian las
+  // primeras y su fecha vacia rompia VEHICULOS ("Invalid time value").
+  // (2) por tandas de 1000: con la importacion de ASG hay mas de 2.600 ficheros.
+  const data = [];
+  for (let i = 0; i < 50; i++) {
+    const { data: d, error } = await sb.from('tacografo_ficheros')
+      .select('tipo, matricula, tarjeta_num, conductor_nombre, empresa, fecha_hasta')
+      .not('fecha_hasta', 'is', null)
+      .order('fecha_hasta', { ascending: false }).range(i * 1000, i * 1000 + 999);
+    if (error) throw error;
+    data.push(...(d || []));
+    if (!d || d.length < 1000) break;
+  }
   const m = new Map();
   (data || []).forEach(f => {
     const raiz = (f.tarjeta_num || '').toUpperCase().replace(/\s/g, '').slice(0, 14);
