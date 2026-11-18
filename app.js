@@ -47024,7 +47024,7 @@ async function faNueva(base) {
   if (!_ofPuede()) return;
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
-  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjunto la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nJuan Carlos Reina', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: '', cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjunto la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nJuan Carlos Reina', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
   { const fc = _ofCliBuscar(_fa.cliente); if (fc) { if (fc.email_facturas) _fa.email = fc.email_facturas; if (fc.forma_pago && !(base && base.pago)) _fa.pago = fc.forma_pago; } }   // v1171: email de facturas y forma de pago de la ficha de Contactos
   if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   if (!_fa.remitente) _fa.remitente = _faRemitentes(_fa.empresa)[0] || '';   // v1155
@@ -47067,7 +47067,7 @@ function _faVentana() {
   document.getElementById('faOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'faOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
-  ov.innerHTML = '<div id="faBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(96vw / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.innerHTML = '<div id="faBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(96vw / 1.2);min-height:calc((100vh - 40px) / 1.2);display:flex;flex-direction:column;zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
   document.body.appendChild(ov); _faRender();
 }
 function _faTot() {
@@ -47083,7 +47083,7 @@ function faCerrar() {
   document.getElementById('faOv')?.remove(); _fa = null;
 }
 async function faSet(campo, v) {
-  if (campo === 'empresa') { _fa.empresa = v; const c = _faCfg[v] || {}; _fa.cuenta = _faCuentaPred(v); _fa.remitente = _faRemitentes(v)[0] || ''; _fa.pago = c.forma_pago || _fa.pago; _fa.serie = _faSerieDeFecha(v, _fa.fecha); _fa.n = await _faSiguiente(v, _fa.serie); }
+  if (campo === 'empresa') { _fa.empresa = v; const c = _faCfg[v] || {}; _fa.cuenta = _faCuentaPred(v); _fa.remitente = _faRemitentes(v)[0] || ''; _fa.pago = c.forma_pago || _fa.pago; _fa.serie = _faSerieDeFecha(v, _fa.fecha || _ofIso(new Date())); _fa.n = await _faSiguiente(v, _fa.serie); }
   else if (campo === 'serie') {
     if (v === '__otra__') { const s = prompt('Nombre de la serie nueva (ej. RM2026):'); if (!s || !s.trim()) { _faRender(); return; } v = s.trim();
       try { const c = _faCfg[_fa.empresa] || { empresa: _fa.empresa, series: [] }; const ser = [...new Set([...(c.series || []), v])]; await sb.from('facturas_config').update({ series: ser }).eq('empresa', _fa.empresa); c.series = ser; _faCfg[_fa.empresa] = c; } catch (e) { console.warn('[v1149] guardar serie:', e); } }
@@ -47100,7 +47100,9 @@ async function faSet(campo, v) {
     }
     _fa.cuenta = v; }
   else if (campo === 'n') _fa.n = parseInt(v, 10) || null;
-  else if (campo === 'fecha') { _fa.fecha = v; _faVencAuto(); }
+  else if (campo === 'fecha') {   // v1188: si la serie era la automática del mes, sigue a la fecha
+    const antes = _faSerieDeFecha(_fa.empresa, _fa.fecha || _ofIso(new Date())), nueva = _faSerieDeFecha(_fa.empresa, v); _fa.fecha = v; _faVencAuto();
+    if (v && _fa.estado !== 'emitida' && nueva && nueva !== antes && _fa.serie === antes) { _fa.serie = nueva; _fa.n = await _faSiguiente(_fa.empresa, nueva); toast('Por la fecha, la serie pasa a ' + nueva + ' · nº ' + _fa.n, 'ok'); } }
   else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
   else if (campo === 'cliente') {
     if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _faRender(); return; } v = n.trim().toUpperCase(); }
@@ -47139,7 +47141,7 @@ function _faRender() {
     '<label style="' + lab + '">Serie<br><select onchange="faSet(\'serie\',this.value)" style="' + inp + ';font-weight:700">' + series.map(s => '<option value="' + _ofEA(s) + '"' + (_fa.serie === s ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '<option value="__otra__">+ Otra serie…</option></select></label>' +
     '<label style="' + lab + '">Número<br><input value="' + (_fa.n || '') + '" onchange="faSet(\'n\',this.value)" style="' + inp + ';width:80px;font-weight:800;text-align:center"></label>' +
     '<div style="' + lab + ';padding-bottom:9px">Nº de factura: <b style="font-size:16px">' + esc(_faNumero() || '—') + '</b></div>' +
-    '<label style="' + lab + '">Fecha de emisión<br><input type="date" value="' + _ofEA(_fa.fecha) + '" onchange="faSet(\'fecha\',this.value)" style="' + inp + '"></label>' +
+    '<label style="' + lab + ';font-weight:800;color:' + (_fa.fecha ? '#92400e' : '#b91c1c') + '">' + (_fa.fecha ? 'Fecha de emisión' : '⚠ Fecha de emisión · OBLIGATORIA') + '<br><input type="date" value="' + _ofEA(_fa.fecha) + '" onchange="faSet(\'fecha\',this.value)" style="' + inp + ';font-weight:800;font-size:15px;border:3px solid ' + (_fa.fecha ? '#f59e0b;background:#fffbeb' : '#dc2626;background:#fef2f2') + '"></label>' +   // v1188: la fecha se pone SIEMPRE a mano
     '<label style="' + lab + ';font-weight:700">Vencimiento <span style="font-weight:400">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:800;border:2px solid #1b3254"></label>' +
     '<label style="' + lab + ';flex:1;min-width:260px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="faSet(\'cliente\',this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_fa.cliente && !cliEn ? '<option value="' + _ofEA(_fa.cliente) + '" selected>' + esc(_fa.cliente) + '</option>' : '') + (!_fa.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
@@ -47152,7 +47154,7 @@ function _faRender() {
   // Líneas
   const catEmp = _ofCatDeEmpresa(_fa.empresa);
   h += '<div style="margin-top:16px;font-weight:800;font-size:15px">Conceptos</div><datalist id="faCatList">' + catEmp.map(c => '<option value="' + _ofEA(c.nombre) + '">').join('') + '</datalist>' +
-    '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:104px"><col style="width:110px"><col style="width:104px"><col style="width:130px"><col style="width:60px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
+    '<div style="border:1px solid var(--bd);border-radius:8px;margin-top:6px;overflow-x:auto;flex:1 0 auto;min-height:240px"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed"><colgroup><col><col style="width:96px"><col style="width:104px"><col style="width:110px"><col style="width:104px"><col style="width:130px"><col style="width:60px"></colgroup><thead><tr style="background:var(--s2);text-align:left">' +
     ['Concepto', 'Cantidad', 'Unidad', 'Precio', 'IVA', 'Importe', ''].map((x, i) => '<th style="padding:6px 8px' + (i === 1 || i === 3 || i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   if (!_fa.lineas.length) h += '<tr><td colspan="7" style="padding:12px;color:#111">Sin conceptos. Pulsa <b>+ Añadir concepto</b>.</td></tr>';
   _fa.lineas.forEach((l, i) => {
@@ -47195,6 +47197,7 @@ async function faGuardar(silencioso, estado) {
   if (!_fa) return false;
   if (!_fa.cliente) { toast('Elige el cliente', 'err'); return false; }
   if (!_fa.serie || !_fa.n) { toast('Falta la serie o el número', 'err'); return false; }
+  if (!_fa.fecha) { alert('Falta la FECHA DE EMISIÓN.\n\nPonla en la casilla marcada en rojo (arriba). Sin fecha no se puede guardar ni emitir.'); return false; }   // v1188
   const numero = _faNumero(), T = _faTot();
   try {
     const { data: rep } = await sb.from('facturas_app').select('id').eq('empresa', _fa.empresa).eq('numero', numero);
@@ -47222,6 +47225,12 @@ async function faEmitir() {
   const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
   // v1186: si no deja emitir, que se vea POR QUÉ (Marta se encontró el botón "que no hacía nada" con la factura a 0 €)
   if (!_fa.cliente) { alert('No se puede emitir: falta elegir el CLIENTE.'); return; }
+  if (!_fa.fecha) { alert('No se puede emitir: falta la FECHA DE EMISIÓN.\n\nPonla en la casilla marcada en rojo (arriba).'); return; }   // v1188
+  try {   // v1188: que el orden de fechas siga al de los números dentro de la serie
+    const { data: otras } = await sb.from('facturas_app').select('id,numero,n,fecha').eq('empresa', _fa.empresa).eq('serie', _fa.serie).eq('estado', 'emitida');
+    const mal = (otras || []).filter(o => o.id !== _fa.id && o.fecha && o.n != null && ((o.n < _fa.n && o.fecha > _fa.fecha) || (o.n > _fa.n && o.fecha < _fa.fecha)));
+    if (mal.length && !confirm('⚠️ La fecha no sigue el orden de los números.\n\nEsta factura: ' + _faNumero() + ' con fecha ' + _ofFechaEs(_fa.fecha) + '\n' + mal.slice(0, 5).map(o => '  · ' + o.numero + ' tiene fecha ' + _ofFechaEs(o.fecha)).join('\n') + '\n\nLo normal es Cancelar y corregir la fecha (o el número).\n\nAceptar = emitir igual · Cancelar = volver')) return;
+  } catch (e) { console.warn('[v1188] orden de fechas:', e); }
   if (!_fa.lineas.length) { alert('No se puede emitir: la factura no tiene ningún concepto.\n\nPulsa "+ Añadir concepto" y ponle cantidad y precio.'); return; }
   if (!T.total) { if (!confirm('⚠️ Esta factura está a 0 €: ' + (sinP === 1 ? 'el concepto no tiene' : 'los ' + sinP + ' conceptos no tienen') + ' precio.\n\nLo normal es Cancelar y poner el precio.\n\nAceptar = emitirla igual a 0 € · Cancelar = volver y poner el precio')) return; }
   if (!_cliEmpOk(_fa.cliente, _fa.empresa) && !confirm('⚠️ A ' + _fa.cliente + ' le factura ' + _cliEmpTxt(_fa.cliente) + ', y vas a EMITIR esta factura con ' + _OF_EMPRESAS[_fa.empresa] + '.\n\nAceptar = emitir igual · Cancelar = volver y cambiar la empresa')) return;   // v1180
