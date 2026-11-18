@@ -47990,6 +47990,7 @@ async function tacoPanelBajar(id) {
 // Botón "Enviar" → mensaje para el conductor por la hoja de compartir del móvil/PC (o copiado),
 // sin meter el PIN en ninguna URL. Petromiralles no va aquí (PIN dinámico).
 // ============================================================
+const _PETRO_URL = 'https://customers.petromiralles.com/?langlnk=ES#!/login';   // v1208: web de clientes de Petromiralles (cambiar teléfonos del PIN dinámico)
 const _PIN_TIPOS = { SOLRED: 'Solred (clásica)', SOLRED_DKV: 'Solred DKV' };
 const _PIN_EMPRESAS = { TYP2014: 'TYP2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };
 let _pin = null;   // { emp, veh: [{matricula, notas, emp}], pins: Map('MAT|TIPO' -> pin), ver: Set }
@@ -48019,7 +48020,7 @@ function _pinRender() {
   const box = document.getElementById('pinBox'); if (!box || !_pin) return;
   const L = _pin.veh.filter(x => x.emp === _pin.emp).sort((a, b) => a.matricula.localeCompare(b.matricula));
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:15px;font-family:var(--mn);width:90px;text-align:center;letter-spacing:2px';
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">🔑 PIN de las tarjetas Solred</div><button class="btn bs" onclick="pinCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>' +
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">🔑 PIN de las tarjetas Solred</div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="' + _PETRO_URL + '" target="_blank" rel="noopener" title="Abre la web de clientes de Petromiralles en otra pestaña (la app sigue abierta)" style="padding:9px 14px;font-weight:800;border:2px solid #0369a1;color:#0369a1;background:#fff;text-decoration:none">⛽ Petromiralles · teléfonos ↗</a><button class="btn bs" onclick="pinCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div></div>' +
     '<div style="font-size:13px;color:#111;margin-top:6px">Solo el PIN, sin número de tarjeta. Lo ven Admin, Marta y María del Mar. Escribe el PIN y sal de la casilla para guardarlo; déjala vacía para borrarlo. <b>Enviar</b> abre el WhatsApp (o lo copia) con el mensaje para el conductor.</div>' +
     _pinPegarHtml() +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' + Object.keys(_PIN_EMPRESAS).map(e => '<button class="btn ' + (e === _pin.emp ? 'bp' : 'bs') + '" onclick="_pin.emp=\'' + e + '\';_pinRender()" style="font-weight:800">' + _PIN_EMPRESAS[e] + '</button>').join('') + '</div>';
