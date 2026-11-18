@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1187 (18/11/2026): ALBARANES · "CON QUÉ FACTURA SE FACTURÓ" SE VE BIEN. En la v1182 el texto de la factura salía en pequeño al lado de la etiqueta y se montaba encima de la columna siguiente (lo vio JC). Ahora: la etiqueta verde "Facturado" de lo facturado desde la app lleva un filete claro por debajo para distinguirla, y al pasar el ratón sale AL MOMENTO un cartel grande y oscuro: "Factura 2026-11-16 · TYP2014 · 18/11/2026". Ya no hay texto fijo que descuadre la tabla. El buscador sigue encontrando por nº de factura. Sin SQL. VUELTA ATRAS: resubir v1186.
+
+---
+
 v1186 (18/11/2026): OFERTAS Y FACTURAS · LOS AVISOS YA SE VEN, Y SE DICE POR QUÉ NO DEJA EMITIR. Lo encontró Marta: con la factura a 0 € el botón Emitir "no hacía nada". Sí avisaba, pero el aviso salía DEBAJO de la ventana oscura y no se veía (pasaba con todos los avisos dentro de oferta, factura, envío, Contactos y Conceptos). Arreglado: (1) los avisos van siempre por encima de todo; con una de esas ventanas abierta salen arriba, en el centro y más grandes, y los de error duran 9 segundos; (2) al emitir: sin cliente o sin conceptos, ventana que explica qué falta; a 0 €, pregunta si se emite igual o se vuelve a poner el precio. OJO: esta versión lleva TAMBIÉN styles.css (4 archivos). Sin SQL. VUELTA ATRAS: resubir v1185 (app.js, index.html y styles.css).
 
 ---

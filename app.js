@@ -11956,9 +11956,10 @@ function factIcon(r) {
   // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
   if (est === 'facturado')      return r.fact_fija
     ? _pill('🔒 Facturado', '#1f3a5f', 'Facturado FIJADO a mano: el cruce de Holcim no lo puede devolver a pendiente')
-    : _pill('✓ Facturado', '#2e7d5b', 'Facturado a cliente' + (r.factura_ref ? ' · ' + String(r.factura_ref).replace(/"/g, '') : '')) +
-      // v1182: debajo, con qué factura y qué empresa (solo lo facturado desde Ofertas/Facturas de la app)
-      (r.factura_ref && r.factura_tipo === 'emitida' ? '<div style="font-size:10px;font-weight:700;color:#2e7d5b;line-height:1.2;margin-top:2px;white-space:nowrap">' + esc(r.factura_ref) + '</div>' : '');
+    : (r.factura_ref && r.factura_tipo === 'emitida'
+        // v1187: facturado desde la app → la etiqueta lleva un filete blanco debajo y, al pasar el ratón, sale al momento un cartel con la factura y la empresa
+        ? '<span data-fatip="Factura ' + esc(String(r.factura_ref)) + (r.factura_fecha ? ' · ' + esc(_ofFechaEs(String(r.factura_fecha).slice(0, 10))) : '') + '" style="display:inline-block;cursor:help;background:#2e7d5b;color:#fff;font-size:11px;font-weight:700;line-height:1;padding:5px 8px;border-radius:4px;white-space:nowrap;vertical-align:middle;box-shadow:inset 0 -3px 0 #a7f3d0">✓ Facturado</span>'
+        : _pill('✓ Facturado', '#2e7d5b', 'Facturado a cliente' + (r.factura_ref ? ' · ' + String(r.factura_ref).replace(/"/g, '') : '')));
   if (est === 'no_facturable')  return _pill('No facturable', '#6b7280', 'No facturable');
   return _pill('Pendiente', '#b83a36', 'Pendiente de facturar al cliente');
 }
@@ -46873,6 +46874,22 @@ async function cliEmp(id, emp, on) {
   catch (e) { console.error('[v1180] quién factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
   _cliPintar();
 }
+// v1187: cartel flotante instantáneo para cualquier cosa con data-fatip (hoy: "con qué factura se facturó" en Albaranes).
+// Va pegado al ratón y por encima de todo; no depende del ancho de la columna (el texto fijo se montaba sobre la de al lado).
+(function () {
+  if (window._faTipOn) return; window._faTipOn = true;
+  let tip = null;
+  const quita = () => { if (tip) { tip.remove(); tip = null; } };
+  document.addEventListener('mouseover', e => {
+    const el = e.target && e.target.closest ? e.target.closest('[data-fatip]') : null; if (!el) { quita(); return; }
+    if (!tip) { tip = document.createElement('div'); tip.style.cssText = 'position:fixed;z-index:100001;background:#12263f;color:#fff;font-size:14px;font-weight:700;padding:9px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.35);pointer-events:none;white-space:nowrap'; document.body.appendChild(tip); }
+    tip.textContent = el.getAttribute('data-fatip');
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(6, Math.min(r.left, window.innerWidth - w - 6)) + 'px';
+    tip.style.top = (r.top - h - 6 < 4 ? r.bottom + 6 : r.top - h - 6) + 'px';
+  });
+  document.addEventListener('scroll', quita, true);
+})();
 const _OF_EMP_CORTO = { TYP: 'TYP2014', PORTES: 'Import', HISPALIS: 'Híspalis' };   // v1182: para "quién lo facturó" en la pestaña Albaranes
 const _CLI_ENVIO = { '': 'Todo (factura + Excel + albaranes)', factura: 'Solo la factura', excel: 'Factura + Excel', albaranes: 'Factura + albaranes' };
 async function cliListar() {
