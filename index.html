@@ -346,6 +346,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <button class="btn bs" id="gasSubHISPALIS" onclick="switchGasEmpresa('HISPALIS')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">T. HISPALIS 2016</button>
         <button class="btn bs" id="gasSubTRANSMARGAZ" onclick="switchGasEmpresa('TRANSMARGAZ')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">TRANSMARGAZ 2018</button>
         <button class="btn bs" id="gasSubPORTES" onclick="switchGasEmpresa('PORTES')" style="font-size:13px;padding:14px 24px;letter-spacing:.5px;white-space:nowrap">PORTES 2014 IMPORT</button>
+        <button class="btn" id="gasPinBtn" onclick="pinAbrir()" title="PIN de las tarjetas Solred por vehículo (solo oficina)" style="font-size:13px;padding:14px 18px;white-space:nowrap;border:2px solid #b45309;color:#b45309;background:#fff;font-weight:800">🔑 PIN tarjetas</button>
         <!-- J18: SUBIR FACTURA y SUBIR KM globales. Da igual la empresa de la subpestaña:
              la factura/Excel llevan el CIF (y matrículas) y la app los manda solos a la
              empresa correcta. Por eso van aquí arriba, fuera de cada empresa. -->
@@ -2208,6 +2209,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1203"></script>
+<script src="app.js?v=1204"></script>
 </body>
 </html>

@@ -47982,3 +47982,75 @@ async function tacoPanelBajar(id) {
     window.open(data.signedUrl, '_blank', 'noopener');
   } catch (e) { toast('No se ha podido preparar la descarga: ' + (e.message || e), 'err'); }
 }
+
+
+// ============================================================
+// v1204 (18/11/2026): PIN DE LAS TARJETAS DE GASOIL POR VEHÍCULO (Solred clásica y Solred DKV).
+// Solo el PIN (nunca el nº de tarjeta). Tabla tarjetas_pin con RLS: solo Admin, Marta y Mª del Mar.
+// Botón "Enviar" → mensaje para el conductor por la hoja de compartir del móvil/PC (o copiado),
+// sin meter el PIN en ninguna URL. Petromiralles no va aquí (PIN dinámico).
+// ============================================================
+const _PIN_TIPOS = { SOLRED: 'Solred (clásica)', SOLRED_DKV: 'Solred DKV' };
+const _PIN_EMPRESAS = { TYP2014: 'TYP2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };
+let _pin = null;   // { emp, veh: [{matricula, notas, emp}], pins: Map('MAT|TIPO' -> pin), ver: Set }
+function _pinPuede() { try { return _ofPuede(); } catch (e) { return false; } }
+async function pinAbrir(emp) {
+  if (!_pinPuede()) { toast('Solo la oficina puede ver los PIN de las tarjetas', 'err'); return; }
+  emp = emp || (_pin && _pin.emp) || 'TYP2014';
+  try {
+    const [v, p] = await Promise.all([
+      sb.from('taller_vehiculos').select('matricula,empresa,notas,tipo_vehiculo,activo').eq('activo', true).in('empresa', ['TYP2014', 'HISPALIS']),
+      sb.from('tarjetas_pin').select('matricula,tipo,pin,updated_at')]);
+    if (v.error) throw v.error; if (p.error) throw p.error;
+    const veh = (v.data || []).filter(x => (x.tipo_vehiculo || 'tractora') !== 'semirremolque' && !/^R/i.test(x.matricula || ''))
+      .map(x => ({ matricula: String(x.matricula).toUpperCase(), notas: x.notas || '', emp: (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[String(x.matricula).toUpperCase()]) ? _MAT_EMP_GAS[String(x.matricula).toUpperCase()] : x.empresa }));
+    const pins = new Map(); (p.data || []).forEach(x => pins.set(x.matricula + '|' + x.tipo, x.pin));
+    _pin = { emp, veh, pins, ver: new Set() };
+  } catch (e) { console.error('[v1204] PIN tarjetas:', e); toast('No se pudieron cargar los PIN: ' + (e.message || e), 'err'); return; }
+  document.getElementById('pinOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'pinOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 8px';
+  ov.innerHTML = '<div id="pinBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:min(860px,96vw);box-shadow:0 10px 30px rgba(0,0,0,.25)"></div>';
+  ov.addEventListener('click', e => { if (e.target === ov) pinCerrar(); });
+  document.body.appendChild(ov); _pinRender();
+}
+function pinCerrar() { document.getElementById('pinOv')?.remove(); _pin = null; }
+function _pinRender() {
+  const box = document.getElementById('pinBox'); if (!box || !_pin) return;
+  const L = _pin.veh.filter(x => x.emp === _pin.emp).sort((a, b) => a.matricula.localeCompare(b.matricula));
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:15px;font-family:var(--mn);width:90px;text-align:center;letter-spacing:2px';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">🔑 PIN de las tarjetas Solred</div><button class="btn bs" onclick="pinCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>' +
+    '<div style="font-size:13px;color:#111;margin-top:6px">Solo el PIN, sin número de tarjeta. Lo ven Admin, Marta y María del Mar. Escribe el PIN y sal de la casilla para guardarlo; déjala vacía para borrarlo. <b>Enviar</b> abre el WhatsApp (o lo copia) con el mensaje para el conductor.</div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' + Object.keys(_PIN_EMPRESAS).map(e => '<button class="btn ' + (e === _pin.emp ? 'bp' : 'bs') + '" onclick="_pin.emp=\'' + e + '\';_pinRender()" style="font-weight:800">' + _PIN_EMPRESAS[e] + '</button>').join('') + '</div>';
+  if (!L.length) h += '<div style="padding:14px;color:#111">No hay tractoras de ' + esc(_PIN_EMPRESAS[_pin.emp]) + ' en Taller.</div>';
+  else {
+    h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:var(--s2);text-align:left"><th style="padding:8px">Vehículo</th>' + Object.keys(_PIN_TIPOS).map(t => '<th style="padding:8px">' + _PIN_TIPOS[t] + '</th>').join('') + '</tr></thead><tbody>';
+    L.forEach(v => {
+      h += '<tr style="border-top:1px solid var(--bd)"><td style="padding:8px"><b style="font-family:var(--mn)">' + esc(v.matricula) + '</b>' + (v.notas ? '<div style="font-size:11px;color:#475569">' + esc(String(v.notas).slice(0, 40)) + '</div>' : '') + '</td>';
+      Object.keys(_PIN_TIPOS).forEach(t => {
+        const k = v.matricula + '|' + t, pin = _pin.pins.get(k) || '', ver = _pin.ver.has(k);
+        h += '<td style="padding:8px;white-space:nowrap"><input type="' + (ver ? 'text' : 'password') + '" inputmode="numeric" autocomplete="off" value="' + _ofEA(pin) + '" placeholder="—" onchange="pinGuardar(\'' + v.matricula + '\',\'' + t + '\',this.value)" style="' + inp + '"> ' +
+          '<button class="btn bs" title="Ver / ocultar" onclick="_pin.ver.' + (ver ? 'delete' : 'add') + '(\'' + k + '\');_pinRender()" style="padding:5px 8px">' + (ver ? 'Ocultar' : 'Ver') + '</button> ' +
+          (pin ? '<button class="btn" onclick="pinEnviar(\'' + v.matricula + '\',\'' + t + '\')" style="padding:5px 10px;border:2px solid #15803d;color:#15803d;background:#fff;font-weight:800">Enviar</button>' : '') + '</td>'; });
+      h += '</tr>'; });
+    h += '</tbody></table></div>';
+  }
+  box.innerHTML = h;
+}
+async function pinGuardar(mat, tipo, val) {
+  if (!_pin) return; const pin = String(val || '').replace(/\s/g, ''), k = mat + '|' + tipo;
+  if (pin && !/^\d{4,8}$/.test(pin)) { toast('El PIN tiene que ser solo números (4 a 8 cifras)', 'err'); _pinRender(); return; }
+  try {
+    if (!pin) { if (_pin.pins.has(k) && !confirm('¿Borrar el PIN de ' + _PIN_TIPOS[tipo] + ' del ' + mat + '?')) { _pinRender(); return; }
+      const { error } = await sb.from('tarjetas_pin').delete().eq('matricula', mat).eq('tipo', tipo); if (error) throw error; _pin.pins.delete(k); toast('PIN borrado', 'ok'); }
+    else { const { error } = await sb.from('tarjetas_pin').upsert({ matricula: mat, tipo, pin, updated_at: new Date().toISOString() }, { onConflict: 'matricula,tipo' }); if (error) throw error; _pin.pins.set(k, pin); toast('PIN guardado · ' + mat + ' · ' + _PIN_TIPOS[tipo], 'ok'); }
+  } catch (e) { console.error('[v1204] guardar PIN:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+  _pinRender();
+}
+async function pinEnviar(mat, tipo) {
+  const pin = _pin && _pin.pins.get(mat + '|' + tipo); if (!pin) return;
+  const txt = 'Hola, para el camión ' + mat + ':\nPIN de la tarjeta ' + _PIN_TIPOS[tipo] + ': ' + pin + '\n\nNo lo compartas con nadie. Un saludo.';
+  try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(txt); toast('Mensaje copiado: pégalo en el WhatsApp del conductor', 'ok'); }
+  catch (e) { prompt('Copia este mensaje y pégalo en el WhatsApp del conductor:', txt); }
+}
