@@ -46046,7 +46046,7 @@ function _ofRender() {
     '<label style="font-size:12px;color:#111;flex:1;min-width:200px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="ofSelCliente(this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_of.cliente && !_ofCliBuscar(_of.cliente) ? '<option value="' + _ofEA(_of.cliente) + '" selected>' + esc(_of.cliente) + '</option>' : '') +
       (!_of.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
-      _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (_ofCliBuscar(_of.cliente) === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') +
+      _cliOpciones(_ofCliBuscar(_of.cliente)) +
       '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label>' +
     '<label style="font-size:12px;color:#111;min-width:230px">Enviar desde<br>' + _faRemSelect('of', _of.remitente || '', _of.empresa, inp) + '</label>' +
     '<label style="font-size:12px;color:#111;flex:1;min-width:220px">Email (persona de la zona)<br><input type="email" list="ofEmails" value="' + _ofEA(_of.email) + '" placeholder="se guarda para la próxima" onchange="_of.email=this.value.trim()" style="' + inp + ';width:100%"></label>' +
@@ -46776,7 +46776,22 @@ function _ofCliBuscar(nombre) {
 }
 function _ofCliDatos(c) { return [c.direccion || '', c.nif ? 'NIF ' + c.nif : ''].filter(Boolean).join('\n'); }
 // v1145: el Cliente es un desplegable de verdad (se ven TODOS, no solo el que coincide con lo escrito) y se puede cambiar siempre.
+// v1195: el desplegable de clientes enseña solo los HABITUALES (marcados en Contactos); el resto sigue en Contactos y sale con "Ver todos"
+function _cliOpciones(sel) {
+  const op = c => '<option value="' + _ofEA(c.nombre) + '"' + (sel === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>';
+  const hab = _ofCli.filter(c => c.habitual), resto = _ofCli.filter(c => !c.habitual);
+  if (!hab.length || !resto.length) return _ofCli.map(op).join('');
+  if (!window._cliVerTodos) return hab.map(op).join('') + (sel && !sel.habitual ? op(sel) : '') + '<option value="__todos__">▾ Ver todos los clientes (' + resto.length + ' más)…</option>';
+  return '<optgroup label="Habituales">' + hab.map(op).join('') + '</optgroup><optgroup label="Resto de clientes">' + resto.map(op).join('') + '</optgroup><option value="__habituales__">▴ Ver solo los habituales</option>';
+}
+function _cliVerCambio(v) { if (v === '__todos__') { window._cliVerTodos = true; return true; } if (v === '__habituales__') { window._cliVerTodos = false; return true; } return false; }
+async function cliHab(id, on) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  try { const { error } = await sb.from('clientes_ficha').update({ habitual: !!on }).eq('id', id); if (error) throw error; c.habitual = !!on; toast(on ? 'Habitual: sale en el desplegable' : 'Ya no sale en el desplegable (sigue en Contactos)', 'ok'); _cliPintar(); }
+  catch (e) { console.error('[v1195] habitual:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _cliPintar(); }
+}
 function ofSelCliente(v) {
+  if (_cliVerCambio(v)) { _ofRender(); return; }
   if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _ofRender(); return; } _of.clienteDatos = ''; _of.email = ''; ofSetCliente(n.trim().toUpperCase()); return; }
   _of.clienteDatos = ''; _of.email = '';   // al cambiar de cliente, sus datos y su email son los del nuevo
   ofSetCliente(v);
@@ -46903,13 +46918,14 @@ async function cliListar() {
 function _cliPintar() {
   const out = document.getElementById('cliCardOut'); if (!out) return;
   const fq = _ofNrm((document.getElementById('cliFiltroTxt') || {}).value || '');
-  const L = _ofCli.filter(c => !fq || _ofNrm([c.nombre, c.nif, c.email, c.email_facturas, c.contacto, c.telefono].join(' ')).includes(fq));
+  const L = _ofCli.filter(c => !fq || _ofNrm([c.nombre, c.nif, c.email, c.email_facturas, c.contacto, c.telefono].join(' ')).includes(fq)).sort((a, b) => (b.habitual ? 1 : 0) - (a.habitual ? 1 : 0));   // habituales arriba
   if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay clientes' + (fq ? ' con ese texto' : '') + '. Pulsa <b>Añadir cliente</b>.</div>'; return; }
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit;width:100%', lab = 'font-size:12px;color:#111;display:block';
   const campo = (c, k, t, ancho, extra) => '<label style="' + lab + ';flex:' + ancho + ';min-width:' + (extra && extra.min || 150) + 'px">' + t + '<br><input value="' + _ofEA(c[k] == null ? '' : c[k]) + '"' + (extra && extra.ph ? ' placeholder="' + extra.ph + '"' : '') + ' onchange="cliSet(\'' + c.id + '\',\'' + k + '\',this.value)" style="' + inp + (extra && extra.b ? ';font-weight:700' : '') + '"></label>';
-  out.innerHTML = '<div style="font-size:13px;color:#111;margin-bottom:8px">' + L.length + ' cliente(s). Cada cambio se guarda al salir de la casilla.</div>' + L.map(c => {
+  out.innerHTML = '<div style="font-size:13px;color:#111;margin-bottom:8px">' + L.length + ' cliente(s), ' + L.filter(c => c.habitual).length + ' habituales (arriba, en verde). En el desplegable de ofertas y facturas salen solo los <b>habituales</b>; el resto, con "Ver todos". Cada cambio se guarda al salir de la casilla.</div>' + L.map(c => {
     const falta = [!c.nif && 'NIF', !c.direccion && 'dirección', !(c.email_facturas || c.email) && 'email'].filter(Boolean);
-    return '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff">' +
+    return '<div style="border:' + (c.habitual ? '2px solid #15803d' : '1px solid var(--bd)') + ';border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff">' +
+      '<label style="display:inline-flex;gap:8px;align-items:center;cursor:pointer;font-size:13px;font-weight:800;margin-bottom:6px;color:' + (c.habitual ? '#15803d' : '#475569') + '"><input type="checkbox"' + (c.habitual ? ' checked' : '') + ' onchange="cliHab(\'' + c.id + '\',this.checked)" style="width:17px;height:17px"> HABITUAL <span style="font-weight:400;color:#475569">(sale en el desplegable de ofertas y facturas)</span></label>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' + campo(c, 'nombre', 'Razón social', 3, { min: 280, b: 1 }) + campo(c, 'nif', 'NIF', 1, { min: 120 }) + campo(c, 'contacto', 'Persona de contacto', 2) + campo(c, 'telefono', 'Teléfono', 1, { min: 120 }) +
         '<button class="btn bs" onclick="cliBorrar(\'' + c.id + '\')" style="padding:8px 12px;border-color:#b91c1c;color:#b91c1c">Borrar</button></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start"><label style="' + lab + ';flex:2;min-width:280px">Dirección fiscal (calle / CP y ciudad)<br><textarea rows="2" onchange="cliSet(\'' + c.id + '\',\'direccion\',this.value)" style="' + inp + '">' + esc(c.direccion || '') + '</textarea></label>' +
@@ -47108,6 +47124,7 @@ async function faSet(campo, v) {
     if (v && _fa.estado !== 'emitida' && nueva && nueva !== antes && _fa.serie === antes) { _fa.serie = nueva; _fa.n = await _faSiguiente(_fa.empresa, nueva); toast('Por la fecha, la serie pasa a ' + nueva + ' · nº ' + _fa.n, 'ok'); } }
   else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
   else if (campo === 'cliente') {
+    if (_cliVerCambio(v)) { _faRender(); return; }
     if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _faRender(); return; } v = n.trim().toUpperCase(); }
     _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && (c.email_facturas || c.email)) || ''; if (c) { _fa.cliente = c.nombre; if (c.forma_pago) _fa.pago = c.forma_pago; } _faVencAuto();
     if (c && _fa.estado !== 'emitida' && !_cliEmpOk(c.nombre, _fa.empresa)) { const e = _cliEmpresas(c.nombre)[0]; await faSet('empresa', e); toast('A ' + c.nombre + ' le factura ' + _cliEmpTxt(c.nombre) + ': he puesto ' + _OF_EMPRESAS[e], 'ok'); return; } }   // v1180
@@ -47153,7 +47170,7 @@ function _faRender() {
     '<label style="' + lab + ';font-weight:700">Vencimiento <span style="font-weight:400">(' + (_fa.vencManual ? 'puesto a mano' : _faPlazoDe(_fa.cliente) + ' días') + ')</span><br><input type="date" value="' + _ofEA(_fa.venc || '') + '" onchange="faSet(\'venc\',this.value)" style="' + inp + ';font-weight:800;border:2px solid #1b3254"></label>' +
     '<label style="' + lab + ';flex:1;min-width:260px">Cliente <a href="#" onclick="ofCliAbrir();return false" style="font-weight:700;color:#1d4ed8">(ver / añadir clientes)</a><br><select onchange="faSet(\'cliente\',this.value)" style="' + inp + ';width:100%;font-weight:700">' +
       (_fa.cliente && !cliEn ? '<option value="' + _ofEA(_fa.cliente) + '" selected>' + esc(_fa.cliente) + '</option>' : '') + (!_fa.cliente ? '<option value="" selected>— elige cliente —</option>' : '') +
-      _ofCli.map(c => '<option value="' + _ofEA(c.nombre) + '"' + (cliEn === c ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label></div>';
+      _cliOpciones(cliEn) + '<option value="__otro__">+ Otro cliente (escribirlo)…</option></select></label></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
     '<label style="' + lab + ';flex:1;min-width:300px">Datos del cliente (dirección, CP, NIF)<br><textarea rows="3" onchange="_fa.clienteDatos=this.value" style="' + inp + ';width:100%;font-size:13px">' + esc(_fa.clienteDatos || '') + '</textarea></label>' +
     '<div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:6px"><label style="' + lab + '">Enviar desde<br>' + _faRemSelect('fa', _fa.remitente || '', _fa.empresa, inp) + '</label>' +
