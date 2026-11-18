@@ -48021,6 +48021,7 @@ function _pinRender() {
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:15px;font-family:var(--mn);width:90px;text-align:center;letter-spacing:2px';
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">🔑 PIN de las tarjetas Solred</div><button class="btn bs" onclick="pinCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>' +
     '<div style="font-size:13px;color:#111;margin-top:6px">Solo el PIN, sin número de tarjeta. Lo ven Admin, Marta y María del Mar. Escribe el PIN y sal de la casilla para guardarlo; déjala vacía para borrarlo. <b>Enviar</b> abre el WhatsApp (o lo copia) con el mensaje para el conductor.</div>' +
+    _pinPegarHtml() +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' + Object.keys(_PIN_EMPRESAS).map(e => '<button class="btn ' + (e === _pin.emp ? 'bp' : 'bs') + '" onclick="_pin.emp=\'' + e + '\';_pinRender()" style="font-weight:800">' + _PIN_EMPRESAS[e] + '</button>').join('') + '</div>';
   if (!L.length) h += '<div style="padding:14px;color:#111">No hay tractoras de ' + esc(_PIN_EMPRESAS[_pin.emp]) + ' en Taller.</div>';
   else {
@@ -48036,6 +48037,57 @@ function _pinRender() {
     h += '</tbody></table></div>';
   }
   box.innerHTML = h;
+}
+// v1206: PEGAR DESDE EXCEL. Se pegan las columnas de matrícula y PIN (una o varias parejas por fila).
+// "DKV" detrás del PIN → Solred DKV; si no, Solred clásica. "Nº0107" y similares NO son PIN y se saltan.
+function _pinPegarHtml() {
+  const P = _pin.pegar;
+  if (!P) return '<div style="margin-top:12px"><button class="btn" onclick="_pin.pegar={txt:\'\',filas:null};_pinRender()" style="font-weight:800;border:2px solid #1b3254;color:#1b3254;background:#fff">📋 Pegar desde Excel</button></div>';
+  let h = '<div style="margin-top:12px;padding:12px;border:2px solid #1b3254;border-radius:10px;background:#f8fafc"><div style="font-weight:800;font-size:14px">📋 Pegar desde Excel</div>' +
+    '<div style="font-size:12px;color:#111;margin:4px 0 8px">Copia en tu Excel las columnas MATRÍCULA y PIN (puedes coger varias columnas a la vez) y pégalas aquí. Si al lado del PIN pone <b>DKV</b>, va a Solred DKV; si no, a Solred clásica. No pegues las de prepago.</div>' +
+    '<textarea id="pinPegarTxt" rows="7" placeholder="6521NHV&#9;5216&#10;2254JVJ&#9;6513 DKV" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;font-family:var(--mn);font-size:13px">' + esc(P.txt || '') + '</textarea>' +
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn bp" onclick="pinPegarRevisar()" style="font-weight:800">Revisar</button><button class="btn bs" onclick="_pin.pegar=null;_pinRender()">Cancelar</button></div>';
+  if (P.filas) {
+    const ok = P.filas.filter(f => f.estado === 'ok');
+    h += '<div style="margin-top:10px;border:1px solid var(--bd);border-radius:8px;overflow:auto;max-height:340px;background:#fff"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left"><th style="padding:6px 8px">Matrícula</th><th style="padding:6px 8px">Empresa</th><th style="padding:6px 8px">Tarjeta</th><th style="padding:6px 8px">PIN</th><th style="padding:6px 8px">Qué pasa</th></tr></thead><tbody>' +
+      P.filas.map(f => '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px 8px;font-family:var(--mn);font-weight:700">' + esc(f.mat) + '</td><td style="padding:6px 8px">' + esc(f.emp ? _PIN_EMPRESAS[f.emp] || f.emp : '—') + '</td><td style="padding:6px 8px">' + esc(_PIN_TIPOS[f.tipo]) + '</td><td style="padding:6px 8px;font-family:var(--mn)">' + '•'.repeat(String(f.pin).length) + '</td>' +
+        '<td style="padding:6px 8px;font-weight:700;color:' + (f.estado === 'ok' ? '#15803d' : '#b91c1c') + '">' + esc(f.nota) + '</td></tr>').join('') + '</tbody></table></div>' +
+      '<div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap"><button class="btn" onclick="pinPegarGuardar()" ' + (ok.length ? '' : 'disabled ') + 'style="font-weight:800;background:#15803d;color:#fff;padding:9px 16px">Guardar ' + ok.length + ' PIN</button>' +
+      '<span style="font-size:12px;color:#111">Las filas en rojo no se guardan.</span></div>';
+  }
+  return h + '</div>';
+}
+function pinPegarRevisar() {
+  const txt = (document.getElementById('pinPegarTxt') || {}).value || ''; _pin.pegar.txt = txt;
+  const conocidas = new Map(_pin.veh.map(v => [v.matricula, v.emp])), filas = [], vistos = new Map();
+  txt.split(/\r?\n/).forEach(linea => {
+    const cel = linea.split(/\t|;/).map(x => x.trim());
+    for (let i = 0; i < cel.length; i++) {
+      const m = cel[i].toUpperCase().replace(/[\s-]/g, '');
+      if (!/^\d{3,4}[A-Z]{3}$/.test(m)) continue;
+      const sig = (cel[i + 1] || '').toUpperCase(), mm = sig.match(/^(\d{4,8})\s*(DKV)?$/);
+      if (!mm) { if (sig) filas.push({ mat: m, tipo: 'SOLRED', pin: '', estado: 'mal', nota: '"' + sig + '" no es un PIN (se salta)' }); continue; }
+      const tipo = mm[2] ? 'SOLRED_DKV' : 'SOLRED', f = { mat: m, tipo, pin: mm[1], emp: conocidas.get(m) || null };
+      if (!conocidas.has(m)) { f.estado = 'mal'; f.nota = 'No está en las tractoras de Taller (¿matrícula mal escrita?)'; }
+      else { const ant = _pin.pins.get(m + '|' + tipo); f.estado = 'ok'; f.nota = !ant ? 'Nuevo' : ant === f.pin ? 'Igual que el que ya tenía' : 'Cambia el PIN que tenía'; }
+      const k = m + '|' + tipo;
+      if (vistos.has(k) && f.estado === 'ok') { const o = vistos.get(k); if (o.pin !== f.pin) { o.estado = f.estado = 'mal'; o.nota = f.nota = 'Repetida con otro PIN: pon solo una'; } else continue; }
+      vistos.set(k, f); filas.push(f);
+    }
+  });
+  if (!filas.length) { toast('No he encontrado ninguna matrícula con su PIN en lo pegado', 'err'); }
+  _pin.pegar.filas = filas; _pinRender();
+}
+async function pinPegarGuardar() {
+  const ok = ((_pin.pegar || {}).filas || []).filter(f => f.estado === 'ok'); if (!ok.length) return;
+  if (!confirm('¿Guardar ' + ok.length + ' PIN? Los que ya tuvieran otro PIN se sustituyen.')) return;
+  try {
+    const now = new Date().toISOString();
+    const { error } = await sb.from('tarjetas_pin').upsert(ok.map(f => ({ matricula: f.mat, tipo: f.tipo, pin: f.pin, updated_at: now })), { onConflict: 'matricula,tipo' });
+    if (error) throw error;
+    ok.forEach(f => _pin.pins.set(f.mat + '|' + f.tipo, f.pin)); _pin.pegar = null;
+    toast('✓ ' + ok.length + ' PIN guardados', 'ok'); _pinRender();
+  } catch (e) { console.error('[v1206] pegar PIN:', e); toast('⚠️ No se pudieron guardar: ' + (e.message || e), 'err'); }
 }
 async function pinGuardar(mat, tipo, val) {
   if (!_pin) return; const pin = String(val || '').replace(/\s/g, ''), k = mat + '|' + tipo;
