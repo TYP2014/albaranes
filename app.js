@@ -45672,6 +45672,12 @@ const _OF_ESTADOS = {
   facturada: ['Facturada', '#7c3aed', '#ede9fe']
 };
 const _OF_BTN = 'padding:12px 20px;font-size:14px;font-weight:800;border:2px solid #1b3254;background:#fff;color:#1b3254;border-radius:8px;min-width:150px;justify-content:center;letter-spacing:.3px';   // v1143: botones grandes, iguales y solo texto
+// v1196: datos de inscripción en el Registro Mercantil (art. 24 del Código de Comercio: van en facturas, ofertas y correspondencia).
+// Sacados de la nota del Registro de cada escritura de constitución. TYP: pendiente (la escritura que tenemos no trae la nota del Registro).
+const _OF_REGISTRO = {
+  HISPALIS: 'Inscrita en el Registro Mercantil de Sevilla, Tomo 6272, Folio 13, Hoja SE-111350, Inscripción 1ª',
+  PORTES: 'Inscrita en el Registro Mercantil de Sevilla, Tomo 6964, Folio 215, Hoja SE-128081, Inscripción 1ª'
+};
 const _OF_EMPRESAS = { TYP: 'Transportes y Portes 2014', PORTES: 'Portes 2014 Import', HISPALIS: 'T. Híspalis 2016' };
 let _ofLista = [];          // ofertas cargadas (para la tarjeta y para saber qué albaranes ya están ofertados)
 let _of = null;             // oferta abierta en la ventana
@@ -46536,13 +46542,16 @@ async function _ofPdfBytes() {
     page = p;
     if (TEMA.estilo === 'tls') {   // v1137: pie con banda de color
       p.drawRectangle({ x: 0, y: 0, width: W, height: 34, color: TEMA.c }); p.drawRectangle({ x: 0, y: 34, width: W, height: 4, color: TEMA.a });
-      txt(empNombre + '  ·  CIF ' + empCif + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, 14, 7.5, fN, BLANCO);
-      txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, 14, 7.5, fN, BLANCO);
+      const regT = _OF_REGISTRO[_of.empresa];
+      txt(empNombre + '  ·  CIF ' + empCif + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, regT ? 19 : 14, 7.5, fN, BLANCO);
+      if (regT) txt(regT, M, 8, 6.5, fN, BLANCO);
+      txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, regT ? 19 : 14, 7.5, fN, BLANCO);
       return;
     }
     p.drawLine({ start: { x: M, y: 38 }, end: { x: W - M, y: 38 }, thickness: 0.5, color: LINEA });
     txt(empNombre + '  ·  CIF ' + empCif + '  ·  ' + empDir, M, 26, 7, fN, GRIS);
     txtR('Página ' + (i + 1) + ' de ' + pags.length, W - M, 26, 7, fN, GRIS);
+    if (_OF_REGISTRO[_of.empresa]) txt(_OF_REGISTRO[_of.empresa], M, 16, 6.5, fN, GRIS);
   });
   return await doc.save();
 }
@@ -47486,7 +47495,7 @@ function _feTextoDe(f) {
 }
 function _fePieLegal(emp, remitente) {
   const d = _LIQ_CLIENTES[emp] || _LIQ_CLIENTES.TYP, nom = d[0][1], cif = String(d[1][1]).replace(/\s/g, ''), mail = remitente || 'administracion@ttesyportes2014.com';
-  return '--\n' + nom + ' · CIF ' + cif + '\nC/ Jarcha, 11 - 41100 Coria del Río (Sevilla)\n\n' +
+  return '--\n' + nom + ' · CIF ' + cif + '\nC/ Jarcha, 11 - 41100 Coria del Río (Sevilla)\n' + (_OF_REGISTRO[emp] ? _OF_REGISTRO[emp] + '\n' : '') + '\n' +
     'AVISO DE CONFIDENCIALIDAD: este mensaje y sus archivos adjuntos van dirigidos exclusivamente a su destinatario y pueden contener información confidencial. Si lo ha recibido por error, le rogamos que nos lo comunique por esta misma vía y lo elimine.\n\n' +
     'PROTECCIÓN DE DATOS: de acuerdo con el Reglamento (UE) 2016/679 y la Ley Orgánica 3/2018, le informamos de que sus datos de contacto son tratados por ' + nom + ', como responsable, con la finalidad de gestionar la relación comercial y la facturación, sobre la base de dicha relación. Se conservarán mientras esta se mantenga y durante los plazos legales, y no se cederán a terceros salvo obligación legal. Puede ejercer sus derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a ' + mail + '.';
 }
