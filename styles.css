@@ -1152,7 +1152,8 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 #tallerTabla td[style*="color:var(--wnd)"]{color:#8a4b00!important}
 #tallerTabla tbody tr:hover td{background:#f4f7fb}
 #tallerTabla td .btn{font-size:13.5px!important;padding:8px 14px!important;font-weight:700;color:#111!important}
-#tallerTabla td img{width:72px!important;height:44px!important}
+#tallerTabla td img:not(.tipoFoto){width:72px!important;height:44px!important}
+#tallerTabla td .tipoNombre{color:#111!important;font-weight:800}
 #tallerBajasBox{font-size:14.5px}
 #tallerBajasBox [style*="font-size:11px"],#tallerBajasBox [style*="font-size:12px"]{font-size:14px!important;color:#111!important}
 
