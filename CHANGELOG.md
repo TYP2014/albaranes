@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1169 (18/11/2026): FACTURAS · ENVIAR POR CORREO DESDE LA APP (de momento solo Híspalis). Botón verde "Enviar por correo" en la factura EMITIDA. Abre una ventanita con: desde qué correo sale, Para, Con copia, Asunto, Texto y casillas para elegir qué se adjunta (Factura PDF · Excel con el detalle de albaranes · Albaranes en PDF) más "Copia a Quipu" (correo aparte, SOLO con el PDF de la factura; si pesa más de 100 KB no se manda y avisa). Avisa si la factura ya se envió antes (al cliente o a Quipu). El correo lo manda un robot de Google que vive en tteshispalis2016@gmail.com (proyecto "Enviar facturas Hispalis"); la app habla con él a través de la función enviar-correo de Supabase, que comprueba que quien envía es de la oficina. Cada envío queda apuntado en la tabla correos_enviados. TYP2014 e Import todavía no tienen envío: el botón lo dice y remite al Paquete de envío. SQL YA APLICADO: tablas correo_robots (solo servidor) y correos_enviados. VUELTA ATRAS: resubir v1168 (las tablas y la función pueden quedarse).
+
+---
+
 v1168 (18/11/2026): OFERTAS · AVISO SIN TÍTULO Y PERIODO DEL EXCEL. (1) Al pulsar PAQUETE DE ENVÍO sin haber puesto título a la oferta, avisa (como Outlook cuando falta el asunto): Aceptar = continuar sin título, Cancelar = volver para ponerlo. (2) En el Excel de la oferta, cuando los albaranes del concepto son de un solo día sale una sola fecha (antes "03/11/2026 - 03/11/2026"); si son varios días, "del … al …". Sin SQL. VUELTA ATRAS: resubir v1167.
 
 ---

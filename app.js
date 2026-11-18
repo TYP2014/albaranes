@@ -46981,6 +46981,7 @@ function _faRender() {
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar</button>' : '') +
     '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
     '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
+    '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>' +
     '<button class="btn" onclick="faGuardar()" style="' + _OF_BTN + (em ? ';background:#1b3254;color:#fff' : '') + '">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px" title="Cierra la factura con su número y marca sus albaranes como facturados">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
@@ -47166,6 +47167,115 @@ async function faPaquete() {
     toast('Paquete descargado: factura PDF' + (_fa.filas.length ? ' + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : '') : ''), A.faltan ? 'warn' : 'ok');
   } catch (e) { console.error('[v1157] paquete factura:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
   finally { _of = antes; const b = document.getElementById('faBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
+}
+
+// ============================================================================
+// v1169 (JC 18/11/2026): ENVIAR LA FACTURA POR CORREO DESDE LA APP.
+// Botón "Enviar por correo" en la factura EMITIDA. Abre una ventanita: a quién va, asunto, texto y casillas
+// para elegir qué se adjunta (factura PDF · Excel de albaranes · albaranes PDF) + "Copia a Quipu".
+// El correo NO sale del navegador: se lo pasa a la función enviar-correo de Supabase ("el portero del correo"),
+// que comprueba que eres de la oficina y se lo da al robot de Google de esa empresa (hoy solo Híspalis, que
+// envía desde su Gmail). A Quipu va SOLO el PDF de la factura (Quipu: un único documento y máx. 100 KB).
+// Cada envío queda apuntado en la tabla correos_enviados y se enseña arriba de la ventanita ("Ya enviada el…").
+// ============================================================================
+let _fe = null;   // estado de la ventanita de envío
+function _feB64(bytes) { const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); }
+async function _feLlamar(body) {
+  const { data, error } = await sb.functions.invoke('enviar-correo', { body });
+  if (error) { let m = error.message || String(error); try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) {} return { ok: false, error: m }; }
+  return data || { ok: false, error: 'Sin respuesta' };
+}
+function _faBase() { return ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90); }
+// Excel sencillo con el detalle de los albaranes de la factura (para que el cliente compruebe)
+function _faExcelWb() {
+  const F = _fa.filas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.albaran).localeCompare(String(b.albaran), 'es', { numeric: true }));
+  const A = [['FACTURA ' + _faNumero()], [(_LIQ_CLIENTES[_fa.empresa] || _LIQ_CLIENTES.TYP)[0][1]], ['Cliente: ' + _fa.cliente], ['Fecha: ' + _ofFechaEs(_fa.fecha)], [], ['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS']];
+  F.forEach(x => A.push([_ofFechaEs(x.fecha), String(x.albaran || ''), x.tractora || '', x.origen || '', x.destino || '', x.producto || '', _ofR2(x.tm)]));
+  A.push(['', '', '', '', '', 'TOTAL', _ofR2(F.reduce((a, x) => a + (Number(x.tm) || 0), 0))]);
+  const ws = XLSX.utils.aoa_to_sheet(A); ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 26 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ALBARANES'); return wb;
+}
+async function faEnviarAbrir() {
+  if (!_fa) return;
+  if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
+  if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
+  _fe = { para: _fa.email || '', cc: '', asunto: _faAsunto(), texto: _fa.mensaje || '', pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  document.getElementById('feOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'feOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
+  ov.innerHTML = '<div id="feBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(min(760px,94vw) / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.3)"></div>';
+  document.body.appendChild(ov); _feRender();
+  const [r, prev] = await Promise.all([_feLlamar({ empresa: _fa.empresa, ping: true }),
+    sb.from('correos_enviados').select('created_at,para,destino,ok,adjuntos,error').eq('doc_tipo', 'factura').eq('doc_id', _fa.id).order('created_at', { ascending: false }).limit(20).then(x => x.data || [], () => [])]);
+  if (!_fe) return;
+  _fe.robot = r; _fe.previos = prev; _fe.estado = '';
+  if (prev.some(x => x.ok && x.destino === 'quipu')) _fe.quipu = false;   // a Quipu, una sola vez
+  if (r && r.ok && !r.quipu) _fe.quipu = false;
+  _feRender();
+}
+function feCerrar() { if (_fe && _fe.enviando) return; document.getElementById('feOv')?.remove(); _fe = null; }
+function _feRender() {
+  const box = document.getElementById('feBox'); if (!box || !_fe) return;
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:100%;font-family:inherit', R = _fe.robot, listo = R && R.ok, hayAlb = !!_fa.filas.length;
+  const fh = t => { const d = new Date(t); return d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
+  const okCli = _fe.previos.filter(x => x.ok && x.destino !== 'quipu'), okQ = _fe.previos.filter(x => x.ok && x.destino === 'quipu');
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:18px;font-weight:800">Enviar factura ' + esc(_faNumero()) + '</div><button class="btn bs" onclick="feCerrar()" style="padding:8px 14px;font-weight:800">Cerrar</button></div>';
+  if (_fe.estado) h += '<div style="margin-top:10px;font-size:13px;color:#444">' + esc(_fe.estado) + '</div>';
+  if (R && !R.ok) h += '<div style="margin-top:10px;background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:8px 12px;font-size:13px;color:#8b1a1a"><b>No se puede enviar desde la app:</b> ' + esc(R.error || '') + '<br>Mientras tanto, usa <b>Paquete de envío</b> y mándalo tú desde el correo.</div>';
+  if (listo) h += '<div style="margin-top:10px;font-size:13px">Sale desde <b>' + esc(R.remitente || R.cuenta || '') + '</b> <span style="color:#666">· hoy quedan ' + esc(String(R.quedan_hoy)) + ' envíos</span></div>';
+  if (okCli.length || okQ.length) h += '<div style="margin-top:8px;background:#fff7e6;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:13px;color:#7a4b00">' +
+    (okCli.length ? '<b>Ya enviada al cliente</b> el ' + esc(fh(okCli[0].created_at)) + ' a ' + esc(okCli[0].para || '') + (okCli.length > 1 ? ' (' + okCli.length + ' veces)' : '') + '. Si envías, le llegará otra vez.<br>' : '') +
+    (okQ.length ? '<b>Ya enviada a Quipu</b> el ' + esc(fh(okQ[0].created_at)) + '.' : '') + '</div>';
+  h += '<div style="margin-top:12px"><label style="font-size:12px;color:#111">Para (email del cliente; varios separados por coma)<br><input value="' + _ofEA(_fe.para) + '" oninput="_fe.para=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_fe.cc) + '" oninput="_fe.cc=this.value" style="' + inp + '"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_fe.asunto) + '" oninput="_fe.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Texto del correo<br><textarea rows="7" oninput="_fe.texto=this.value" style="' + inp + '">' + esc(_fe.texto) + '</textarea></label></div>';
+  const chk = (k, txt, dis, nota) => '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0' + (dis ? ';color:#999' : '') + '"><input type="checkbox"' + (_fe[k] && !dis ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="_fe.' + k + '=this.checked" style="width:17px;height:17px"> <span>' + txt + (nota ? ' <span style="font-size:12px;color:#666">' + nota + '</span>' : '') + '</span></label>';
+  h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:2px">Qué le adjunto al cliente</div>' +
+    chk('pdf', 'Factura en PDF', false) + chk('excel', 'Excel con el detalle de albaranes', !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', !hayAlb, hayAlb ? '' : '') +
+    '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">' + chk('quipu', 'Copia a Quipu (ingresos)', !(listo && R.quipu), 'correo aparte, solo con el PDF de la factura') + '</div></div>';
+  if (_fe.hecho.length) h += '<div style="margin-top:10px;font-size:13px">' + _fe.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
+  h += '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px"><button class="btn bs" onclick="feCerrar()" style="padding:10px 18px;font-weight:800"' + (_fe.enviando ? ' disabled' : '') + '>' + (_fe.hecho.length ? 'Cerrar' : 'Cancelar') + '</button>' +
+    '<button class="btn" id="feBtn" onclick="faEnviar()" style="padding:10px 22px;font-weight:800;background:' + (listo && !_fe.enviando ? '#1b3254' : '#9aa5b5') + ';color:#fff"' + (listo && !_fe.enviando ? '' : ' disabled') + '>' + (_fe.enviando ? 'Enviando…' : 'Enviar') + '</button></div>';
+  box.innerHTML = h;
+}
+async function faEnviar() {
+  if (!_fe || !_fa || _fe.enviando) return;
+  const para = String(_fe.para || '').trim(), alCliente = _fe.pdf || _fe.excel || _fe.alb;
+  if (!alCliente && !_fe.quipu) { toast('No has marcado nada para enviar', 'err'); return; }
+  if (alCliente && !para) { toast('Falta el email del cliente', 'err'); return; }
+  if (!String(_fe.asunto || '').trim()) { toast('Falta el asunto', 'err'); return; }
+  _fe.enviando = true; _fe.hecho = []; const paso = t => { if (_fe) { _fe.estado = t; _feRender(); } };
+  const antes = _of;
+  try {
+    const base = _faBase(); paso('Preparando la factura…');
+    const pdf = await _faPdfBytes(), adj = [];
+    if (_fe.pdf) adj.push({ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) });
+    if (_fe.excel && _fa.filas.length) adj.push({ nombre: 'DETALLE ' + base + '.xlsx', tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: _feB64(XLSX.write(_faExcelWb(), { type: 'array', bookType: 'xlsx' })) });
+    let faltan = 0;
+    if (_fe.alb && _fa.filas.length) {
+      _of = { filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)) };
+      const A = await _ofAlbaranesJuntos((i, t) => paso('Juntando albaranes ' + i + '/' + t)); _of = antes; faltan = A.faltan || 0;
+      if (A.bytes) adj.push({ nombre: 'ALBARANES ' + base + '.pdf', tipo: 'application/pdf', base64: _feB64(A.bytes) });
+      if (faltan && !confirm('⚠️ ' + faltan + ' albarán(es) no tienen archivo o no se pudieron cargar, así que NO irán en el PDF de albaranes.\n\nAceptar = enviar igual · Cancelar = no enviar')) { _fe.enviando = false; paso(''); return; }
+    }
+    if (alCliente) {
+      paso('Enviando al cliente…');
+      const r = await _feLlamar({ empresa: _fa.empresa, destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
+      _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
+      if (r.ok && _fa.email !== para.split(/[,;\s]+/)[0] && !_fa.email) { _fa.email = para.split(/[,;\s]+/)[0]; }
+    }
+    if (_fe.quipu) {
+      if (pdf.length > 100 * 1024) _fe.hecho.push({ ok: false, txt: 'NO se envió a Quipu: el PDF pesa ' + Math.round(pdf.length / 1024) + ' KB y Quipu solo admite 100 KB por archivo' });
+      else { paso('Enviando a Quipu…');
+        const q = await _feLlamar({ empresa: _fa.empresa, destino: 'quipu', asunto: _fe.asunto.trim(), texto: 'Factura ' + _faNumero() + ' · ' + _fa.cliente, adjuntos: [{ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) }], doc_tipo: 'factura', doc_id: _fa.id });
+        _fe.hecho.push(q.ok ? { ok: true, txt: 'Copia enviada a Quipu' } : { ok: false, txt: 'NO se envió a Quipu: ' + (q.error || 'error') }); if (q.ok) _fe.quipu = false; }
+    }
+    const mal = _fe.hecho.filter(x => !x.ok).length;
+    toast(mal ? '⚠️ Algo no se envió: mira el detalle en la ventana' : 'Factura ' + _faNumero() + ' enviada', mal ? 'err' : 'ok');
+    try { const { data } = await sb.from('correos_enviados').select('created_at,para,destino,ok,adjuntos,error').eq('doc_tipo', 'factura').eq('doc_id', _fa.id).order('created_at', { ascending: false }).limit(20); if (_fe) _fe.previos = data || []; } catch (e) {}
+  } catch (e) { console.error('[v1169] enviar factura:', e); if (_fe) _fe.hecho.push({ ok: false, txt: 'Error: ' + (e.message || e) }); toast('⚠️ No se pudo enviar: ' + (e.message || e), 'err'); }
+  finally { _of = antes; if (_fe) { _fe.enviando = false; _fe.estado = ''; _feRender(); } }
 }
 
 // ============================================================
