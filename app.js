@@ -46561,7 +46561,7 @@ async function ofPdf() {
   if (typeof PDFLib === 'undefined') { toast('No se pudo cargar el generador de PDF. Recarga la página.', 'err'); return; }
   try {
     const bytes = await _ofPdfBytes();
-    const nombre = ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90) + '.pdf';
+    const nombre = _ofNombreBase() + '.pdf';
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
@@ -46691,7 +46691,8 @@ async function ofCatBorrar(id) {
 // (para, asunto y mensaje). Es lo mismo que mandará el botón de email cuando esté. "🧾 Marcar facturada": en una
 // oferta aprobada, apunta el nº de factura, la pasa a FACTURADA y marca sus albaranes como facturados 🟢.
 // ============================================================================
-function _ofNombreBase() { return ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90).replace(/[.\s]+$/, ''); }   // v1170: sin punto final (salía "S.L.U..pdf")
+const _OF_EMP_ARCHIVO = { TYP: 'TYP2014', PORTES: 'IMPORT', HISPALIS: 'HISPALIS' };   // v1200: la empresa que emite va al final del nombre del archivo
+function _ofNombreBase() { return (('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80).replace(/[.\s]+$/, '') + ' - ' + (_OF_EMP_ARCHIVO[_of.empresa] || _of.empresa)); }   // v1170: sin punto final (salía "S.L.U..pdf")
 function _ofAsunto() { return 'Oferta ' + (_of.numero || '(sin nº)') + (_of.titulo ? ' - ' + _of.titulo : '') + ' - ' + ((_LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP)[0][1]); }
 // Todos los albaranes de la oferta en UN solo PDF (en orden de fecha). Devuelve { bytes, n, faltan }.
 async function _ofAlbaranesJuntos(avisa) {
@@ -47345,7 +47346,7 @@ async function faPdf() {
   if (!_fa) return;
   try {
     const bytes = await _faPdfBytes();
-    const nombre = ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90) + '.pdf';
+    const nombre = _faBase() + '.pdf';
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Factura en PDF descargada: ' + nombre, 'ok');
   } catch (e) { console.error('[v1149] PDF factura:', e); toast('⚠️ No se pudo hacer el PDF: ' + (e.message || e), 'err'); }
@@ -47478,7 +47479,7 @@ async function _feLlamar(body) {
   if (error) { let m = error.message || String(error); try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) {} return { ok: false, error: m }; }
   return data || { ok: false, error: 'Sin respuesta' };
 }
-function _faBase() { return ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90).replace(/[.\s]+$/, ''); }   // v1170: sin punto final
+function _faBase() { return (('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80).replace(/[.\s]+$/, '') + ' - ' + (_OF_EMP_ARCHIVO[_fa.empresa] || _fa.empresa)); }   // v1170: sin punto final
 // Excel sencillo con el detalle de los albaranes de la factura (para que el cliente compruebe)
 function _faExcelWb() {
   const F = _fa.filas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.albaran).localeCompare(String(b.albaran), 'es', { numeric: true }));
