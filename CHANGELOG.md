@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1182 (18/11/2026): ALBARANES · SE VE CON QUÉ FACTURA Y QUÉ EMPRESA SE FACTURÓ CADA UNO. Al emitir una factura desde la app, cada albarán guarda la referencia "nº de factura · empresa" (ej. "2026-11-16 · TYP2014"). En la pestaña Albaranes sale en pequeño debajo de la etiqueta verde "Facturado", y también al pasar el ratón. Los ofertados guardan además la empresa que oferta ("Holcim (OF26-76) · Import"). El buscador de Albaranes encuentra ya por nº de factura o de oferta. Lo mismo al marcar una oferta como "Ya facturada fuera". Al borrar la factura, la referencia se quita. Solo vale para lo facturado desde Ofertas/Facturas a partir de ahora; las autofacturas de Holcim/CEMEX/Sodira siguen igual. Sin SQL (usa las columnas factura_ref y factura_tipo que ya existían). VUELTA ATRAS: resubir v1181.
+
+---
+
 v1181 (18/11/2026): TACÓGRAFO · VEHÍCULOS Y CONDUCTORES NO SE ROMPEN CON DESCARGAS SIN DÍAS. La lista de camiones/conductores de las secciones VEHÍCULOS y CONDUCTORES ponía primero las descargas sin ningún día de actividad (camión parado o descarga solo técnica, fecha vacía) y fallaba con "Invalid time value". Ahora se ignoran esas descargas para calcular la última fecha, y se leen todos los ficheros por tandas de 1000 (antes solo los 1000 más recientes). Sin SQL. VUELTA ATRAS: resubir v1180.
 
 ---

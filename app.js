@@ -11599,7 +11599,7 @@ function applyFilters() {
       const er = r.estado_factura_recibida || 'pendiente';
       if (er !== fRec) return false;
     }
-    if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
+    if (q) { const h = ['albaran','tractora','remolque','cliente','proveedor','producto','obra','planta','fecha','factura_ref','ofertado_cliente']; if (!h.some(k => r[k] && String(r[k]).toLowerCase().includes(q))) return false; }
     return true;
   });
   filtered.sort((a, b) => {
@@ -11956,7 +11956,9 @@ function factIcon(r) {
   // Facturado a CLIENTE: verde=facturado, gris=no facturable, rojo=pendiente.
   if (est === 'facturado')      return r.fact_fija
     ? _pill('🔒 Facturado', '#1f3a5f', 'Facturado FIJADO a mano: el cruce de Holcim no lo puede devolver a pendiente')
-    : _pill('✓ Facturado', '#2e7d5b', 'Facturado a cliente');
+    : _pill('✓ Facturado', '#2e7d5b', 'Facturado a cliente' + (r.factura_ref ? ' · ' + String(r.factura_ref).replace(/"/g, '') : '')) +
+      // v1182: debajo, con qué factura y qué empresa (solo lo facturado desde Ofertas/Facturas de la app)
+      (r.factura_ref && r.factura_tipo === 'emitida' ? '<div style="font-size:10px;font-weight:700;color:#2e7d5b;line-height:1.2;margin-top:2px;white-space:nowrap">' + esc(r.factura_ref) + '</div>' : '');
   if (est === 'no_facturable')  return _pill('No facturable', '#6b7280', 'No facturable');
   return _pill('Pendiente', '#b83a36', 'Pendiente de facturar al cliente');
 }
@@ -46192,7 +46194,7 @@ async function ofGuardar(silencioso) {
 // Pone / quita la marca violeta 🟣 en la BD y en pantalla. No toca albaranes ya FACTURADOS.
 async function _ofMarcar(ids, poner) {
   if (!ids.length) return;
-  const etiqueta = poner ? (_of.cliente + (_of.numero ? ' (' + _of.numero + ')' : '')) : null;
+  const etiqueta = poner ? (_of.cliente + (_of.numero ? ' (' + _of.numero + ')' : '') + ' · ' + (_OF_EMP_CORTO[_of.empresa] || _of.empresa)) : null;   // v1182: con la empresa que oferta
   const vale = ids.filter(id => { const r = records.find(x => String(x.db_id) === String(id)); return !r || r.estado_facturacion !== 'facturado'; });
   for (let i = 0; i < vale.length; i += 100) {
     const g = vale.slice(i, i + 100);
@@ -46732,12 +46734,12 @@ async function ofFacturada() {
   if (!confirm('Se va a:\n  · pasar la oferta a FACTURADA' + (n.trim() ? ' (factura ' + n.trim() + ')' : '') + '\n  · marcar sus ' + vivas.length + ' albaranes como FACTURADOS 🟢 y quitarles la marca 🟣\n\n¿Continuar?')) return;
   _of.factura = n.trim(); _of.estado = 'facturada';
   if (!(await ofGuardar(true))) return;
-  const ids = vivas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
+  const ids = vivas.map(x => x.id), fecha = new Date().toISOString(), refFu = (_of.factura || 'sin nº') + ' · ' + (_OF_EMP_CORTO[_of.empresa] || _of.empresa); let err = 0;   // v1182
   for (let i = 0; i < ids.length; i += 100) {
-    try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha }).in('id', ids.slice(i, i + 100)); if (error) throw error; }
+    try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, factura_ref: refFu, factura_tipo: 'emitida' }).in('id', ids.slice(i, i + 100)); if (error) throw error; }
     catch (e) { console.error('[v1141] marcar facturados:', e); err++; }
   }
-  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; } });
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.factura_ref = refFu; r.factura_tipo = 'emitida'; } });
   try { renderTable(); } catch (e) {}
   toast(err ? '⚠️ Oferta facturada, pero algunos albaranes no se pudieron marcar: vuelve a intentarlo' : '🧾 Oferta FACTURADA' + (_of.factura ? ' · factura ' + _of.factura : '') + ' · ' + ids.length + ' albaranes marcados 🟢', err ? 'err' : 'ok');
 }
@@ -46863,6 +46865,7 @@ async function cliEmp(id, emp, on) {
   catch (e) { console.error('[v1180] quién factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
   _cliPintar();
 }
+const _OF_EMP_CORTO = { TYP: 'TYP2014', PORTES: 'Import', HISPALIS: 'Híspalis' };   // v1182: para "quién lo facturó" en la pestaña Albaranes
 const _CLI_ENVIO = { '': 'Todo (factura + Excel + albaranes)', factura: 'Solo la factura', excel: 'Factura + Excel', albaranes: 'Factura + albaranes' };
 async function cliListar() {
   const out = document.getElementById('cliCardOut'); if (!out) return;
@@ -47201,9 +47204,9 @@ async function faEmitir() {
   if (!confirm('EMITIR la factura ' + _faNumero() + '\n\n  Cliente: ' + _fa.cliente + '\n  Fecha: ' + _ofFechaEs(_fa.fecha) + ' · Vencimiento: ' + _ofFechaEs(_fa.venc) + '\n  TOTAL: ' + _ofEur(T.total) + (sinP ? '\n\n⚠️ ' + sinP + ' concepto(s) a 0 €' : '') +
     '\n\nQuedará apuntada en la pestaña F. EMITIDAS como Pendiente de cobro.' + (_fa.filas.length ? '\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
   if (!(await faGuardar(true, 'emitida'))) return;
-  const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(); let err = 0;
-  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
-  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.ofertado = false; r.ofertado_cliente = null; } });
+  const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(), refFa = _faNumero() + ' · ' + (_OF_EMP_CORTO[_fa.empresa] || _fa.empresa); let err = 0;   // v1182: cada albarán guarda con qué factura y qué empresa se facturó
+  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null, factura_ref: refFa, factura_tipo: 'emitida' }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.ofertado = false; r.ofertado_cliente = null; r.factura_ref = refFa; r.factura_tipo = 'emitida'; } });
   if (_fa.oferta_id) { try { const { data: o } = await sb.from('ofertas').select('datos').eq('id', _fa.oferta_id).single(); const d = Object.assign({}, (o && o.datos) || {}, { factura: _faNumero() }); d.historial = (Array.isArray(d.historial) ? d.historial : []).concat([{ t: new Date().toISOString(), q: _ofQuien(), c: ['Facturada con la factura ' + _faNumero()] }]); await sb.from('ofertas').update({ estado: 'facturada', datos: d }).eq('id', _fa.oferta_id); } catch (e) { console.error('[v1149] oferta facturada:', e); err++; } }
   try { renderTable(); } catch (e) {}
   toast(err ? '⚠️ Factura emitida, pero algo no se pudo marcar (albaranes u oferta): revísalo' : 'Factura ' + _faNumero() + ' EMITIDA' + (ids.length ? ' · ' + ids.length + ' albaranes facturados' : ''), err ? 'err' : 'ok');
@@ -47238,10 +47241,10 @@ async function faBorrar() {
     '\n¿Continuar?')) return;
   let err = 0;
   // 1) Albaranes: dejan de estar facturados (y vuelven a su oferta si venían de una)
-  const etiqueta = oferta ? ((oferta.cliente || '') + (oferta.numero ? ' (' + oferta.numero + ')' : '')) : null;
-  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, ofertado: !!oferta, ofertado_cliente: etiqueta }).in('id', ids.slice(i, i + 100)).eq('estado_facturacion', 'facturado'); if (error) throw error; } catch (e) { console.error('[v1172] desmarcar albaranes:', e); err++; } }
+  const etiqueta = oferta ? ((oferta.cliente || '') + (oferta.numero ? ' (' + oferta.numero + ')' : '') + ' · ' + (_OF_EMP_CORTO[_fa.empresa] || _fa.empresa)) : null;
+  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, ofertado: !!oferta, ofertado_cliente: etiqueta, factura_ref: null, factura_tipo: null }).in('id', ids.slice(i, i + 100)).eq('estado_facturacion', 'facturado'); if (error) throw error; } catch (e) { console.error('[v1172] desmarcar albaranes:', e); err++; } }
   if (err) { toast('⚠️ No se pudieron desmarcar los albaranes: la factura NO se ha borrado. Inténtalo otra vez.', 'err'); return; }
-  ids.forEach(id => { const r = records.find(x => String(x.db_id) === id); if (r && r.estado_facturacion === 'facturado') { r.estado_facturacion = 'pendiente'; r.factura_fecha = null; r.ofertado = !!oferta; r.ofertado_cliente = etiqueta; } });
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === id); if (r && r.estado_facturacion === 'facturado') { r.estado_facturacion = 'pendiente'; r.factura_fecha = null; r.ofertado = !!oferta; r.ofertado_cliente = etiqueta; r.factura_ref = null; r.factura_tipo = null; } });
   // 2) La oferta vuelve a APROBADA
   if (oferta) { try { const d = Object.assign({}, oferta.datos || {}, { factura: '' }); d.historial = (Array.isArray(d.historial) ? d.historial : []).concat([{ t: new Date().toISOString(), q: _ofQuien(), c: ['Factura ' + num + ' BORRADA: la oferta vuelve a Aprobada'] }]);
     const { error } = await sb.from('ofertas').update({ estado: 'aprobada', datos: d }).eq('id', oferta.id); if (error) throw error; } catch (e) { console.error('[v1172] oferta a aprobada:', e); err++; } }
