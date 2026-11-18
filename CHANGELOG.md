@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1178 (18/11/2026): OFERTAS Y FACTURAS · PESO EXACTO DEL ALBARÁN SIEMPRE. Decisión de JC. Las toneladas se enseñan con 2 decimales, o con 3 cuando el albarán los trae (30,335 TN), en la factura, su anexo, la oferta, el Excel de la oferta y el Excel de detalle de la factura. Antes se enseñaba el peso redondeado (30,34) pero se cobraba por el exacto, y cantidad x precio no daba el importe (30,34 x 2,00 = 60,68 y la factura ponía 60,67); además el total de toneladas salía distinto en el anexo (60,59) y en el Excel (60,60). Los importes NO cambian: ya se calculaban con el peso exacto. Sin SQL. VUELTA ATRAS: resubir v1177.
+
+---
+
 v1177 (18/11/2026): TACÓGRAFO · 7091NND EN EL MAPA + AVISOS CON TODOS LOS FICHEROS. (1) La matrícula 7091NND (TYP2014, tacógrafo bloqueado por TYP2014 desde 01/06/2026) no estaba en el mapa de matrículas y sus 23 descargas de ASG se quedaban fuera ("no está en el mapa de la app"); añadida como TYP2014. (2) El archivo del Tacógrafo (y con él "Descargas pendientes" y "Sin ninguna descarga guardada") solo leía los 1000 ficheros más recientes; con la importación de ASG hay más de 2.600 y los camiones con descargas antiguas salían como "sin ninguna descarga". Ahora se leen todos, por tandas de 1000. Sin SQL. VUELTA ATRAS: resubir v1176.
 
 ---

@@ -45655,7 +45655,10 @@ function _ofR2(n) { n = Number(n) || 0; return Math.sign(n) * Math.round(Math.ab
 function _ofNum(v) { let t = String(v == null ? '' : v).trim().replace(/\s|€/g, ''); if (t === '') return null; if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.'); const n = Number(t); return isNaN(n) ? null : n; }
 // v1154: punto de millar SIEMPRE (1.101,10 y no 1101,10: es-ES no agrupa los números de 4 cifras)
 function _ofMil(n, d) { const r = Number(n) || 0, p = Math.abs(r).toFixed(d).split('.'); return (r < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + p[1] : ''); }
-function _ofTn(n) { return _ofMil(n, 2); }
+// v1178 (JC 18/11/2026): "peso exacto de albarán siempre". Las toneladas se enseñan con 2 decimales, o con 3 cuando el albarán
+// los trae (30,335), para que cantidad x precio dé SIEMPRE el importe y los totales coincidan en factura, anexo, oferta y Excel.
+function _ofR3(n) { n = Number(n) || 0; return Math.sign(n) * Math.round(Math.abs(n) * 1000 + 1e-7) / 1000; }
+function _ofTn(n) { const r = _ofR3(n); return _ofMil(r, Math.abs(r * 100 - Math.round(r * 100)) > 1e-6 ? 3 : 2); }
 function _ofEur(n) { return _ofMil(_ofR2(n), 2) + ' €'; }
 function _ofIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function _ofFechaEs(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || ''); }
@@ -46226,7 +46229,7 @@ function _ofExcelWb() {
   const bd = { top: { style: 'thin', color: { rgb: '999999' } }, bottom: { style: 'thin', color: { rgb: '999999' } }, left: { style: 'thin', color: { rgb: '999999' } }, right: { style: 'thin', color: { rgb: '999999' } } };
   const sH = { font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 }, fill: { fgColor: { rgb: '1F4E79' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: bd };
   const sC = { font: { name: 'Arial', sz: 10 }, border: bd, alignment: { vertical: 'center', wrapText: true } };
-  const sN = Object.assign({}, sC, { numFmt: '#,##0.00' }), sE = Object.assign({}, sC, { numFmt: '#,##0.00 €' });
+  const sN = Object.assign({}, sC, { numFmt: '#,##0.00#' }), sE = Object.assign({}, sC, { numFmt: '#,##0.00 €' });
   const sB = { font: { bold: true, name: 'Arial', sz: 11 } }, sEB = { font: { bold: true, name: 'Arial', sz: 11 }, numFmt: '#,##0.00 €', border: bd };
   const cel = (v, s) => ({ v: v == null ? '' : v, t: typeof v === 'number' ? 'n' : 's', s });
   const emp = (_LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP);
@@ -46246,7 +46249,7 @@ function _ofExcelWb() {
     if (!t.viajes) return;
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
     const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : 'del ' + _ofFechaEs(fs[0].fecha) + ' al ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';   // v1168: un solo día = una sola fecha
-    A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : c.cfg.unidad === 'hora' ? '€/hora (' + String(t.cant).replace('.', ',') + ' h)' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
+    A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR3(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : c.cfg.unidad === 'hora' ? '€/hora (' + String(t.cant).replace('.', ',') + ' h)' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
   }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel(l.precio != null && l.cantidad != null ? Number(l.cantidad) : '', sN), cel(l.precio != null ? '€/' + (_OF_UNIDADES[l.unidad] || 'ud') : '', sC), cel(l.precio != null ? Number(l.precio) : '', sE), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
   A.push([]);
@@ -46260,10 +46263,10 @@ function _ofExcelWb() {
   // Hoja ALBARANES
   const B = [['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS', 'PRECIO', 'IMPORTE', 'CONCEPTO'].map(x => cel(x, sH))];
   _of.filas.filter(x => !x.fuera).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.albaran.localeCompare(b.albaran, 'es', { numeric: true })).forEach(x => {
-    B.push([cel(_ofFechaEs(x.fecha), sC), cel(x.albaran, sC), cel(x.tractora, sC), cel(x.origen, sC), cel(x.destino, sC), cel(x.producto, sC), cel(_ofR2(x.tm), sN), cel(x._precio || 0, sE), cel(x._imp || 0, sE), cel(x._concepto || '', sC)]);
+    B.push([cel(_ofFechaEs(x.fecha), sC), cel(x.albaran, sC), cel(x.tractora, sC), cel(x.origen, sC), cel(x.destino, sC), cel(x.producto, sC), cel(_ofR3(x.tm), sN), cel(x._precio || 0, sE), cel(x._imp || 0, sE), cel(x._concepto || '', sC)]);
   });
   const vivas = _of.filas.filter(x => !x.fuera);
-  B.push(['', '', '', '', '', cel('TOTAL', sB), cel(_ofR2(vivas.reduce((a, x) => a + x.tm, 0)), Object.assign({}, sN, { font: { bold: true, name: 'Arial', sz: 10 } })), '', cel(_ofR2(vivas.reduce((a, x) => a + (x._imp || 0), 0)), sEB), '']);
+  B.push(['', '', '', '', '', cel('TOTAL', sB), cel(_ofR3(vivas.reduce((a, x) => a + x.tm, 0)), Object.assign({}, sN, { font: { bold: true, name: 'Arial', sz: 10 } })), '', cel(_ofR2(vivas.reduce((a, x) => a + (x._imp || 0), 0)), sEB), '']);
   const ws2 = XLSX.utils.aoa_to_sheet(B);
   ws2['!cols'] = [{ wch: 11 }, { wch: 16 }, { wch: 11 }, { wch: 26 }, { wch: 26 }, { wch: 30 }, { wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 45 }];
   ws2['!autofilter'] = { ref: 'A1:J' + (B.length - 1) };
@@ -46424,9 +46427,9 @@ async function _ofPdfBytes() {
     const fs = c.filas.filter(x => (!tr.desde || x.fecha >= tr.desde) && (!tr.hasta || x.fecha < tr.hasta));
     const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';
     const porViaje = c.cfg.unidad === 'viaje', porHora = c.cfg.unidad === 'hora';
-    filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : porHora ? num(tr.cant, tr.cant % 1 ? 2 : 0) + ' horas' : num(tr.tn, 2) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : porHora ? '/h' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
+    filas.push({ item: c.cfg.item || '', concepto: c.texto, periodo: per, viajes: String(tr.viajes), cantidad: porViaje ? tr.viajes + ' viajes' : porHora ? num(tr.cant, tr.cant % 1 ? 2 : 0) + ' horas' : _ofTn(tr.tn) + ' TN', precio: eur(Number(tr.precio) || 0) + (porViaje ? '/v' : porHora ? '/h' : '/TN'), iva: _ofIvaDe(c.cfg) + '%', importe: eur(tr.imp) });
   }));
-  _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: l.precio != null && l.cantidad != null ? num(l.cantidad, Number(l.cantidad) % 1 ? 2 : 0) + ' ' + (_OF_UNIDADES[l.unidad] || '') : '', precio: l.precio != null ? eur(l.precio) : '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
+  _of.lineas.filter(l => Number(l.importe)).forEach(l => filas.push({ item: '', concepto: l.concepto || 'Otros', periodo: '', viajes: '', cantidad: l.precio != null && l.cantidad != null ? (Number(l.cantidad) % 1 ? _ofTn(l.cantidad) : num(l.cantidad, 0)) + ' ' + (_OF_UNIDADES[l.unidad] || '') : '', precio: l.precio != null ? eur(l.precio) : '', iva: _ofIvaDe(l) + '%', importe: eur(l.importe) }));
   const iCon = conItem ? 1 : 0;
   filas.forEach((f, k) => {
     const lin = partir(f.concepto, fN, 9, cols[iCon][1] - 12);
@@ -46480,7 +46483,7 @@ async function _ofPdfBytes() {
   if (albs.length) {
     nuevaPagina(true);
     txt('ANEXO · DETALLE DE ALBARANES', M, y, 12, fB, NAVY);
-    txtR(albs.length + ' albaranes · ' + num(albs.reduce((a, x) => a + x.tm, 0), 2) + ' TN', M + ANCHO, y, 9, fN, GRIS);
+    txtR(albs.length + ' albaranes · ' + _ofTn(albs.reduce((a, x) => a + x.tm, 0)) + ' TN', M + ANCHO, y, 9, fN, GRIS);
     y -= 16;
     const ca = [['Fecha', 52, 'l'], ['Nº albarán', 78, 'l'], ['Matrícula', 54, 'l'], ['Origen', 0, 'l'], ['Destino', 0, 'l'], ['Material', 0, 'l'], ['TN', 46, 'r']];
     const fj = ca.reduce((a, c) => a + c[1], 0), libres = ca.filter(c => !c[1]).length; ca.forEach(c => { if (!c[1]) c[1] = (ANCHO - fj) / libres; });
@@ -46491,12 +46494,12 @@ async function _ofPdfBytes() {
     albs.forEach((a, k) => {
       if (y - 15 < 60) { nuevaPagina(true); cabA(); }
       if (k % 2) rect(M, y - 15, ANCHO, 15, rgb(0.972, 0.978, 0.986));
-      const v = [_ofFechaEs(a.fecha), a.albaran, a.tractora, a.origen, a.destino, a.producto, num(a.tm, 2)];
+      const v = [_ofFechaEs(a.fecha), a.albaran, a.tractora, a.origen, a.destino, a.producto, _ofTn(a.tm)];
       v.forEach((s, i) => { const c = ca[i]; if (c[2] === 'r') txtR(s, xa[i] + c[1] - 5, y - 10.5, 7.5, fN); else txt(corta(s, c[1] - 9, fN, 7.5), xa[i] + 5, y - 10.5, 7.5, fN); });
       y -= 15;
     });
     page.drawLine({ start: { x: M, y }, end: { x: M + ANCHO, y }, thickness: 0.8, color: NAVY });
-    txtR('TOTAL  ' + num(albs.reduce((a, x) => a + x.tm, 0), 2) + ' TN', M + ANCHO - 5, y - 12, 8.5, fB);
+    txtR('TOTAL  ' + _ofTn(albs.reduce((a, x) => a + x.tm, 0)) + ' TN', M + ANCHO - 5, y - 12, 8.5, fB);
   }
   // ===== Pie en todas las páginas =====
   const pags = doc.getPages();
@@ -46986,7 +46989,7 @@ async function ofAFactura() {
     const u = c.cfg.unidad === 'viaje' ? 'viaje' : c.cfg.unidad === 'hora' ? 'h' : 'tn';
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
     const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : 'del ' + _ofFechaEs(fs[0].fecha) + ' al ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';
-    lineas.push({ concepto: (c.cfg.item ? 'Item ' + c.cfg.item + ' · ' : '') + c.texto + (per ? ' (' + per + ')' : ''), cantidad: _ofR2(t.cant), unidad: u, precio: Number(t.precio) || 0, iva: _ofIvaDe(c.cfg), importe: t.imp }); }));
+    lineas.push({ concepto: (c.cfg.item ? 'Item ' + c.cfg.item + ' · ' : '') + c.texto + (per ? ' (' + per + ')' : ''), cantidad: u === 'tn' ? _ofR3(t.cant) : _ofR2(t.cant), unidad: u, precio: Number(t.precio) || 0, iva: _ofIvaDe(c.cfg), importe: t.imp }); }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => lineas.push(Object.assign({}, l)));
   const base = { empresa: _of.empresa, cliente: _of.cliente, clienteDatos: _of.clienteDatos || '', email: _of.email || '', lineas, pedido: _of.pedido_sap || '', titulo: _of.titulo || '', oferta_id: _of.id, remitente: _of.remitente || '',
     ofertaNum: _of.numero || '(sin nº)', notas: '', filas: _of.filas.filter(x => !x.fuera).map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, origen: x.origen, destino: x.destino, producto: x.producto, tm: x.tm })) };
@@ -47265,7 +47268,7 @@ async function _faCrearDesdeSeleccion() {
   let cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || ''; const ficha = _ofCliBuscar(cliente); if (ficha) cliente = ficha.nombre;
   const mapa = new Map();
   filas.forEach(x => { const k = _ofNrm(x.origen) + '|' + _ofNrm(x.destino); if (!mapa.has(k)) mapa.set(k, { origen: x.origen, destino: x.destino, f: [] }); mapa.get(k).f.push(x); });
-  const lineas = Array.from(mapa.values()).map(g => { const tn = _ofR2(g.f.reduce((a, x) => a + x.tm, 0)), a = g.f[0].fecha, b = g.f[g.f.length - 1].fecha;
+  const lineas = Array.from(mapa.values()).map(g => { const tn = _ofR3(g.f.reduce((a, x) => a + x.tm, 0)), a = g.f[0].fecha, b = g.f[g.f.length - 1].fecha;
     return { concepto: 'Transporte de ' + g.origen + ' a ' + g.destino + ' (' + g.f.length + (g.f.length === 1 ? ' viaje' : ' viajes') + (a ? ', ' + (a === b ? _ofFechaEs(a) : 'del ' + _ofFechaEs(a) + ' al ' + _ofFechaEs(b)) : '') + ')', cantidad: tn, unidad: 'tn', precio: null, importe: null, iva: 21 }; });
   try { if (window._modoSel) _toggleModoSel(); } catch (e) {}
   await faNueva({ cliente, clienteDatos: ficha ? _ofCliDatos(ficha) : '', email: (ficha && ficha.email) || '', lineas,
@@ -47365,8 +47368,8 @@ function _faBase() { return ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _
 function _faExcelWb() {
   const F = _fa.filas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.albaran).localeCompare(String(b.albaran), 'es', { numeric: true }));
   const A = [['FACTURA ' + _faNumero()], [(_LIQ_CLIENTES[_fa.empresa] || _LIQ_CLIENTES.TYP)[0][1]], ['Cliente: ' + _fa.cliente], ['Fecha: ' + _ofFechaEs(_fa.fecha)], [], ['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS']];
-  F.forEach(x => A.push([_ofFechaEs(x.fecha), String(x.albaran || ''), x.tractora || '', x.origen || '', x.destino || '', x.producto || '', _ofR2(x.tm)]));
-  A.push(['', '', '', '', '', 'TOTAL', _ofR2(F.reduce((a, x) => a + (Number(x.tm) || 0), 0))]);
+  F.forEach(x => A.push([_ofFechaEs(x.fecha), String(x.albaran || ''), x.tractora || '', x.origen || '', x.destino || '', x.producto || '', _ofR3(x.tm)]));
+  A.push(['', '', '', '', '', 'TOTAL', _ofR3(F.reduce((a, x) => a + (Number(x.tm) || 0), 0))]);
   const ws = XLSX.utils.aoa_to_sheet(A); ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 26 }, { wch: 12 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ALBARANES'); return wb;
 }
