@@ -23822,7 +23822,7 @@ function sortBy(col) { sortCol === col ? sortDir *= -1 : (sortCol = col, sortDir
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 let toastT;
-function toast(msg, type='ok') { const el = document.getElementById('toast'); el.textContent = msg; el.className = 'toast show' + (type==='err'?' err':type==='warn'?' warn':''); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 4000); }
+function toast(msg, type='ok') { const el = document.getElementById('toast'); el.textContent = msg; el.className = 'toast show' + (type==='err'?' err':type==='warn'?' warn':''); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), type === 'err' ? 9000 : 4000); }   // v1186: los avisos de error duran más (9 s) para que dé tiempo a leerlos
 
 // ============================================================
 // PRELIQUIDACIONES
@@ -47203,7 +47203,10 @@ async function faGuardar(silencioso, estado) {
 async function faEmitir() {
   if (!_fa) return;
   const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
-  if (!_fa.lineas.length || !T.total) { toast('La factura no tiene importe', 'err'); return; }
+  // v1186: si no deja emitir, que se vea POR QUÉ (Marta se encontró el botón "que no hacía nada" con la factura a 0 €)
+  if (!_fa.cliente) { alert('No se puede emitir: falta elegir el CLIENTE.'); return; }
+  if (!_fa.lineas.length) { alert('No se puede emitir: la factura no tiene ningún concepto.\n\nPulsa "+ Añadir concepto" y ponle cantidad y precio.'); return; }
+  if (!T.total) { if (!confirm('⚠️ Esta factura está a 0 €: ' + (sinP === 1 ? 'el concepto no tiene' : 'los ' + sinP + ' conceptos no tienen') + ' precio.\n\nLo normal es Cancelar y poner el precio.\n\nAceptar = emitirla igual a 0 € · Cancelar = volver y poner el precio')) return; }
   if (!_cliEmpOk(_fa.cliente, _fa.empresa) && !confirm('⚠️ A ' + _fa.cliente + ' le factura ' + _cliEmpTxt(_fa.cliente) + ', y vas a EMITIR esta factura con ' + _OF_EMPRESAS[_fa.empresa] + '.\n\nAceptar = emitir igual · Cancelar = volver y cambiar la empresa')) return;   // v1180
   if (_fa.filas.length) {   // v1166: candado anti-duplicados antes de emitir
     const ocu = await _ofAlbOcupados(_fa.filas.map(x => x.id), { saltaOferta: _fa.oferta_id || undefined, saltaFactura: _fa.id || undefined }); if (!ocu) return;

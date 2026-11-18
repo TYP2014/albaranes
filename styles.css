@@ -460,7 +460,7 @@ tbody tr.row-warn:hover{background:rgba(245,166,35,.22)}
 .preview-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:rgba(74,99,133,.1);color:var(--in);border:1px solid rgba(74,99,133,.2);font-family:var(--mn);font-size:10px;cursor:pointer;text-decoration:none;margin-top:8px}
 
 /* TOAST */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:12px 18px;font-family:var(--mn);font-size:12px;color:var(--ac);z-index:999;transform:translateY(20px);opacity:0;transition:all .3s;pointer-events:none}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:12px 18px;font-family:var(--mn);font-size:12px;color:var(--ac);z-index:100000;transform:translateY(20px);opacity:0;transition:all .3s;pointer-events:none}
 .toast.show{transform:translateY(0);opacity:1}
 .toast.err{color:var(--er);border-color:rgba(184,58,54,.3)}
 .toast.warn{color:var(--wnd);border-color:rgba(245,166,35,.3)}
@@ -1299,3 +1299,9 @@ html.vistaPC #avisosGrid .btn{font-size:10px!important;padding:4px 9px!important
 #precHolcimCont .phRuta small{white-space:normal!important}
 /* v1029: botón CONCILIAR (btn bp) en la tabla de Recambios — la regla de arriba lo pintaba azul sobre azul y no se leía */
 #tabContentTaller #recambiosTabla td .btn.bp{color:#fff!important;border-color:var(--ac)}
+
+/* v1186 (18/11/2026): los avisos quedaban TAPADOS por las ventanas de oferta / factura / envío / contactos (estaban por debajo).
+   Ahora van siempre por encima de todo, y con una de esas ventanas abierta salen arriba, en el centro y más grandes. */
+body:has(#ofOv,#faOv,#feOv,#ofCliOv,#ofCatOv) .toast{top:16px;bottom:auto;left:50%;right:auto;transform:translate(-50%,-20px);font-size:15px;font-weight:700;padding:14px 22px;max-width:86vw;box-shadow:0 8px 28px rgba(0,0,0,.35);border-width:2px}
+body:has(#ofOv,#faOv,#feOv,#ofCliOv,#ofCatOv) .toast.show{transform:translate(-50%,0)}
+body:has(#ofOv,#faOv,#feOv,#ofCliOv,#ofCatOv) .toast.err{border-color:#c62828;background:#fff5f5}
