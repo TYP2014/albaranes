@@ -47219,9 +47219,9 @@ function _faRender() {
     '<label style="flex:1;min-width:300px;' + lab + '">Mensaje para el cliente (texto del correo) · <span style="font-weight:700">Asunto: ' + esc(_faAsunto()) + '</span><br><textarea rows="9" onchange="_fa.mensaje=this.value" style="width:100%;' + inp + ';line-height:1.45">' + esc(_fa.mensaje || '') + '</textarea></label></div>';
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar</button>' : '') +
-    '<button class="btn" onclick="faGuardar()" style="font-size:12px;padding:6px 12px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
-    (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:12px;padding:6px 12px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #b91c1c;background:#fff;color:#b91c1c">Borrar</button>' : '') +
+    '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:11px;padding:5px 10px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
 }
 // ---------- Guardar / emitir / borrar ----------
