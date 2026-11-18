@@ -46577,7 +46577,7 @@ async function ofCatBorrar(id) {
 // (para, asunto y mensaje). Es lo mismo que mandará el botón de email cuando esté. "🧾 Marcar facturada": en una
 // oferta aprobada, apunta el nº de factura, la pasa a FACTURADA y marca sus albaranes como facturados 🟢.
 // ============================================================================
-function _ofNombreBase() { return ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90); }
+function _ofNombreBase() { return ('OFERTA ' + (_of.numero || 'SIN NUM') + ' - ' + _of.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90).replace(/[.\s]+$/, ''); }   // v1170: sin punto final (salía "S.L.U..pdf")
 function _ofAsunto() { return 'Oferta ' + (_of.numero || '(sin nº)') + (_of.titulo ? ' - ' + _of.titulo : '') + ' - ' + ((_LIQ_CLIENTES[_of.empresa] || _LIQ_CLIENTES.TYP)[0][1]); }
 // Todos los albaranes de la oferta en UN solo PDF (en orden de fecha). Devuelve { bytes, n, faltan }.
 async function _ofAlbaranesJuntos(avisa) {
@@ -47157,7 +47157,7 @@ async function faPaquete() {
   const antes = _of;
   try {
     pinta('Preparando…');
-    const base = ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90), zip = new JSZip();
+    const base = _faBase(), zip = new JSZip();
     zip.file(base + '.pdf', await _faPdfBytes());
     let A = { n: 0, faltan: 0, bytes: null };
     if (_fa.filas.length) { _of = { filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)) }; A = await _ofAlbaranesJuntos((i, t) => pinta('Albaranes ' + i + '/' + t)); _of = antes; if (A.bytes) zip.file('ALBARANES ' + base + '.pdf', A.bytes); }
@@ -47185,7 +47185,7 @@ async function _feLlamar(body) {
   if (error) { let m = error.message || String(error); try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) {} return { ok: false, error: m }; }
   return data || { ok: false, error: 'Sin respuesta' };
 }
-function _faBase() { return ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90); }
+function _faBase() { return ('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90).replace(/[.\s]+$/, ''); }   // v1170: sin punto final
 // Excel sencillo con el detalle de los albaranes de la factura (para que el cliente compruebe)
 function _faExcelWb() {
   const F = _fa.filas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.albaran).localeCompare(String(b.albaran), 'es', { numeric: true }));
@@ -47199,7 +47199,7 @@ async function faEnviarAbrir() {
   if (!_fa) return;
   if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
-  _fe = { para: _fa.email || '', cc: '', asunto: _faAsunto(), texto: _fa.mensaje || '', pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  _fe = { para: _fa.email || '', cc: '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
@@ -47262,14 +47262,15 @@ async function faEnviar() {
     if (alCliente) {
       paso('Enviando al cliente…');
       const r = await _feLlamar({ empresa: _fa.empresa, destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
-      _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
+      _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
+      if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy;   // v1170
       if (r.ok && _fa.email !== para.split(/[,;\s]+/)[0] && !_fa.email) { _fa.email = para.split(/[,;\s]+/)[0]; }
     }
     if (_fe.quipu) {
       if (pdf.length > 100 * 1024) _fe.hecho.push({ ok: false, txt: 'NO se envió a Quipu: el PDF pesa ' + Math.round(pdf.length / 1024) + ' KB y Quipu solo admite 100 KB por archivo' });
       else { paso('Enviando a Quipu…');
         const q = await _feLlamar({ empresa: _fa.empresa, destino: 'quipu', asunto: _fe.asunto.trim(), texto: 'Factura ' + _faNumero() + ' · ' + _fa.cliente, adjuntos: [{ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) }], doc_tipo: 'factura', doc_id: _fa.id });
-        _fe.hecho.push(q.ok ? { ok: true, txt: 'Copia enviada a Quipu' } : { ok: false, txt: 'NO se envió a Quipu: ' + (q.error || 'error') }); if (q.ok) _fe.quipu = false; }
+        _fe.hecho.push(q.ok ? { ok: true, txt: 'Copia enviada a Quipu' } : { ok: false, txt: 'NO se envió a Quipu: ' + (q.error || 'error') }); if (q.ok) { _fe.quipu = false; if (q.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = q.quedan_hoy; } }
     }
     const mal = _fe.hecho.filter(x => !x.ok).length;
     toast(mal ? '⚠️ Algo no se envió: mira el detalle en la ventana' : 'Factura ' + _faNumero() + ' enviada', mal ? 'err' : 'ok');

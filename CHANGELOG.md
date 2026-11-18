@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1170 (18/11/2026): ENVÍO DE FACTURAS · RETOQUES TRAS LA PRIMERA PRUEBA (llegó bien a la bandeja de entrada). (1) El nombre del adjunto ya no lleva dos puntos seguidos ("…S.L.U..pdf"); igual en ofertas y en el paquete. (2) Si la factura no lleva albaranes, el texto propuesto dice "Adjunto la factura." y no menciona el detalle de albaranes. (3) "Hoy quedan N envíos" se actualiza después de enviar, y el resultado dice también a quién fue la copia. Sin SQL. VUELTA ATRAS: resubir v1169.
+
+---
+
 v1169 (18/11/2026): FACTURAS · ENVIAR POR CORREO DESDE LA APP (de momento solo Híspalis). Botón verde "Enviar por correo" en la factura EMITIDA. Abre una ventanita con: desde qué correo sale, Para, Con copia, Asunto, Texto y casillas para elegir qué se adjunta (Factura PDF · Excel con el detalle de albaranes · Albaranes en PDF) más "Copia a Quipu" (correo aparte, SOLO con el PDF de la factura; si pesa más de 100 KB no se manda y avisa). Avisa si la factura ya se envió antes (al cliente o a Quipu). El correo lo manda un robot de Google que vive en tteshispalis2016@gmail.com (proyecto "Enviar facturas Hispalis"); la app habla con él a través de la función enviar-correo de Supabase, que comprueba que quien envía es de la oficina. Cada envío queda apuntado en la tabla correos_enviados. TYP2014 e Import todavía no tienen envío: el botón lo dice y remite al Paquete de envío. SQL YA APLICADO: tablas correo_robots (solo servidor) y correos_enviados. VUELTA ATRAS: resubir v1168 (las tablas y la función pueden quedarse).
 
 ---
