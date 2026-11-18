@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1180 (18/11/2026): OFERTAS Y FACTURAS · QUIÉN PUEDE FACTURAR A CADA CLIENTE. Regla de JC: "Holcim lo facturan Import o TYP2014, nunca Híspalis"; "CEMEX, TYP2014". En Contactos, cada cliente tiene tres casillas "Le factura: TYP2014 / Import / Híspalis" (sin marcar = cualquiera). Ya puestas: HOLCIM = Import y TYP2014; CEMEX = TYP2014. Con eso: (1) al elegir el cliente en una oferta o factura, si la empresa puesta no puede facturarle, la app cambia sola a una que sí y lo dice; (2) si se fuerza otra empresa, sale una franja roja fija arriba; (3) pregunta antes de GUARDAR la oferta y antes de EMITIR la factura. No bloquea, avisa. SQL YA APLICADO: columna empresas en clientes_ficha. VUELTA ATRAS: resubir v1179.
+
+---
+
 v1179 (18/11/2026): TACÓGRAFO · ARCHIVO: ENLACES DE DESCARGA POR TANDAS. Desde la v1177 se leen todos los ficheros (más de 2.600) y al pedir los enlaces de descarga de golpe el almacén lo rechazaba ("no más de 1000"): los botones "⬇ Descargar" del ARCHIVO se quedaban sin enlace. Ahora se piden por tandas de 1000. Sin SQL. VUELTA ATRAS: resubir v1178.
 
 ---

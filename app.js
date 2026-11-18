@@ -46013,6 +46013,7 @@ function _ofRender() {
     ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:' + E[2] + ';color:' + E[1] + ';vertical-align:middle">' + E[0].toUpperCase() + (_of.pedido_sap ? ' · pedido ' + esc(_of.pedido_sap) : '') + (_of.factura ? ' · factura ' + esc(_of.factura) : '') + '</span></div>' +
     '<button class="btn bs" onclick="ofCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
   h += '<!--OF_ESTADO-->';   // v1159: la barra de Estado + Crear factura + Guardar va ARRIBA
+  h += _cliEmpFranja(_of.cliente, _of.empresa, 'oferta');   // v1180
   // Datos de cabecera
   const lastNum = (_ofLista.find(o => o.numero) || {}).numero;
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
@@ -46139,6 +46140,7 @@ async function ofGuardar(silencioso) {
     const ocu = await _ofAlbOcupados(vivas.map(x => x.id), { saltaOferta: _of.id }); if (!ocu) return false;
     if (ocu.size) { alert('No se puede guardar la oferta: ' + ocu.size + ' albarán(es) ya están cogidos.\n\n' + _ofOcuTxt(vivas.filter(x => ocu.has(String(x.id))).map(x => ({ albaran: x.albaran, m: ocu.get(String(x.id)) }))) + '\n\nQuítales la casilla abajo, en "Albaranes de la oferta", y guarda otra vez.'); return false; }
   }
+  if (!silencioso && !_cliEmpOk(_of.cliente, _of.empresa) && !confirm('⚠️ A ' + _of.cliente + ' le factura ' + _cliEmpTxt(_of.cliente) + ', y esta oferta la hace ' + _OF_EMPRESAS[_of.empresa] + '.\n\nAceptar = guardar igual · Cancelar = volver y cambiar la empresa')) return false;   // v1180
   const L = _ofConceptos(), T = _ofTotales(L);
   // En datos: las filas sin los campos calculados
   const filas = _of.filas.map(x => ({ id: x.id, albaran: x.albaran, fecha: x.fecha, tractora: x.tractora, transportista: x.transportista, origen: x.origen, destino: x.destino, producto: x.producto, cliente: x.cliente, tm: x.tm, fuera: !!x.fuera }));
@@ -46759,7 +46761,8 @@ function ofSelCliente(v) {
 function ofSetCliente(v) {
   _of.cliente = String(v || '').trim();
   const c = _ofCliBuscar(_of.cliente);
-  if (c) { _of.cliente = c.nombre; const d = _ofCliDatos(c); if (d) _of.clienteDatos = d; if (c.email) _of.email = c.email; }
+  if (c) { _of.cliente = c.nombre; const d = _ofCliDatos(c); if (d) _of.clienteDatos = d; if (c.email) _of.email = c.email;
+    if (!_cliEmpOk(c.nombre, _of.empresa)) { const e = _cliEmpresas(c.nombre)[0]; _of.empresa = e; _of.remitente = _faRemitentes(e)[0] || ''; toast('A ' + c.nombre + ' le factura ' + _cliEmpTxt(c.nombre) + ': he puesto ' + _OF_EMPRESAS[e], 'ok'); } }   // v1180
   else { if (!_of.email) _of.email = _ofEmailDe(_of.cliente); if (!_of.clienteDatos) _of.clienteDatos = _ofClienteDatosDe(_of.cliente); }
   _ofRender();
 }
@@ -46831,6 +46834,25 @@ async function ofCliBorrar(id) {
 // datos fiscales, email (uno para ofertas y otro para facturas, varios separados por coma), días de vencimiento,
 // forma de pago y qué se le adjunta al enviarle la factura.
 // ============================================================================
+// v1180 (JC 18/11/2026): QUIÉN PUEDE FACTURAR A CADA CLIENTE. "Holcim lo facturan Import o TYP2014, nunca Híspalis";
+// "CEMEX, TYP2014". En la ficha de Contactos se marca qué empresas del grupo facturan a ese cliente (sin marcar = cualquiera).
+// La oferta y la factura eligen sola una empresa válida al elegir el cliente, enseñan una franja roja si no cuadra y
+// preguntan antes de Guardar la oferta / Emitir la factura.
+function _cliEmpresas(cliente) { const c = _ofCliBuscar(cliente); return c && Array.isArray(c.empresas) ? c.empresas.filter(e => _OF_EMPRESAS[e]) : []; }
+function _cliEmpOk(cliente, emp) { const L = _cliEmpresas(cliente); return !L.length || L.includes(emp); }
+function _cliEmpTxt(cliente) { return _cliEmpresas(cliente).map(e => _OF_EMPRESAS[e]).join(' o '); }
+function _cliEmpFranja(cliente, emp, doc) {
+  if (!cliente || _cliEmpOk(cliente, emp)) return '';
+  return '<div style="margin-top:8px;background:rgba(198,40,40,.1);border:2px solid #c62828;border-radius:8px;padding:9px 12px;font-size:14px;font-weight:700;color:#8b1a1a">⚠ A ' + esc(cliente) + ' le factura ' + esc(_cliEmpTxt(cliente)) + ', y esta ' + doc + ' la hace ' + esc(_OF_EMPRESAS[emp] || emp) + '. Cambia la empresa.</div>';
+}
+async function cliEmp(id, emp, on) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  const L = (Array.isArray(c.empresas) ? c.empresas : []).filter(e => e !== emp); if (on) L.push(emp);
+  const val = Object.keys(_OF_EMPRESAS).filter(e => L.includes(e));
+  try { const { error } = await sb.from('clientes_ficha').update({ empresas: val.length ? val : null }).eq('id', id); if (error) throw error; c.empresas = val.length ? val : null; toast('Guardado', 'ok'); }
+  catch (e) { console.error('[v1180] quién factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+  _cliPintar();
+}
 const _CLI_ENVIO = { '': 'Todo (factura + Excel + albaranes)', factura: 'Solo la factura', excel: 'Factura + Excel', albaranes: 'Factura + albaranes' };
 async function cliListar() {
   const out = document.getElementById('cliCardOut'); if (!out) return;
@@ -46856,6 +46878,8 @@ function _cliPintar() {
         '<label style="' + lab + ';flex:1;min-width:170px">Forma de pago<br><select onchange="cliSet(\'' + c.id + '\',\'forma_pago\',this.value)" style="' + inp + '"><option value="">(la de la empresa)</option>' + _FA_PAGOS.map(x => '<option' + (c.forma_pago === x ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
         '<label style="' + lab + ';flex:2;min-width:240px">Al enviarle la factura se adjunta<br><select onchange="cliSet(\'' + c.id + '\',\'envio\',this.value)" style="' + inp + '">' + Object.keys(_CLI_ENVIO).map(k => '<option value="' + k + '"' + ((c.envio || '') === k ? ' selected' : '') + '>' + _CLI_ENVIO[k] + '</option>').join('') + '</select></label>' +
         campo(c, 'notas', 'Notas (ej. exige nº de pedido SAP)', 4, { min: 260 }) + '</div>' +
+      '<div style="margin-top:8px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px"><b>Le factura:</b>' + Object.keys(_OF_EMPRESAS).map(e => '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox"' + ((c.empresas || []).includes(e) ? ' checked' : '') + ' onchange="cliEmp(\'' + c.id + '\',\'' + e + '\',this.checked)" style="width:16px;height:16px"> ' + esc(_OF_EMPRESAS[e]) + '</label>').join('') +
+        '<span style="color:#666;font-size:12px">' + ((c.empresas || []).length ? 'las demás empresas avisan si intentan facturarle' : 'sin marcar = cualquiera de las tres') + '</span></div>' +
       (falta.length ? '<div style="margin-top:6px;font-size:12px;font-weight:700;color:#b45309">Falta: ' + falta.join(', ') + '</div>' : '') + '</div>'; }).join('');
 }
 async function cliSet(id, campo, v) {
@@ -47042,7 +47066,8 @@ async function faSet(campo, v) {
   else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
   else if (campo === 'cliente') {
     if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _faRender(); return; } v = n.trim().toUpperCase(); }
-    _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && (c.email_facturas || c.email)) || ''; if (c) { _fa.cliente = c.nombre; if (c.forma_pago) _fa.pago = c.forma_pago; } _faVencAuto(); }
+    _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && (c.email_facturas || c.email)) || ''; if (c) { _fa.cliente = c.nombre; if (c.forma_pago) _fa.pago = c.forma_pago; } _faVencAuto();
+    if (c && _fa.estado !== 'emitida' && !_cliEmpOk(c.nombre, _fa.empresa)) { const e = _cliEmpresas(c.nombre)[0]; await faSet('empresa', e); toast('A ' + c.nombre + ' le factura ' + _cliEmpTxt(c.nombre) + ': he puesto ' + _OF_EMPRESAS[e], 'ok'); return; } }   // v1180
   else _fa[campo] = v;
   _faRender();
 }
@@ -47069,6 +47094,7 @@ function _faRender() {
     '<span style="font-size:13px;color:#111">' + (em ? 'Está apuntada en F. Emitidas.' : 'Todavía no marca albaranes ni sale en F. Emitidas.') + '</span><span style="margin-left:auto"></span>' +
     '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:' + (em ? '#1b3254;color:#fff' : '#fff;color:#1b3254') + ';font-weight:800">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
+  h += _cliEmpFranja(_fa.cliente, _fa.empresa, 'factura');   // v1180
   if (_fa.oferta_id) h += '<div style="margin-top:8px;padding:8px 12px;border:2px solid #9333ea;border-radius:8px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Viene de la <b>oferta ' + esc(_fa.ofertaNum || '(sin nº)') + '</b>' + (_fa.pedido ? ' · pedido <b>' + esc(_fa.pedido) + '</b>' : '') + ' <button class="btn bs" style="font-weight:800" onclick="faVerOferta()">Abrir la oferta</button></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">' +
     '<label style="' + lab + '">Empresa que factura<br><select onchange="faSet(\'empresa\',this.value)" style="' + inp + ';font-weight:700">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '"' + (_fa.empresa === k ? ' selected' : '') + '>' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
@@ -47157,6 +47183,7 @@ async function faEmitir() {
   if (!_fa) return;
   const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
   if (!_fa.lineas.length || !T.total) { toast('La factura no tiene importe', 'err'); return; }
+  if (!_cliEmpOk(_fa.cliente, _fa.empresa) && !confirm('⚠️ A ' + _fa.cliente + ' le factura ' + _cliEmpTxt(_fa.cliente) + ', y vas a EMITIR esta factura con ' + _OF_EMPRESAS[_fa.empresa] + '.\n\nAceptar = emitir igual · Cancelar = volver y cambiar la empresa')) return;   // v1180
   if (_fa.filas.length) {   // v1166: candado anti-duplicados antes de emitir
     const ocu = await _ofAlbOcupados(_fa.filas.map(x => x.id), { saltaOferta: _fa.oferta_id || undefined, saltaFactura: _fa.id || undefined }); if (!ocu) return;
     if (ocu.size) { alert('NO se puede emitir: ' + ocu.size + ' albarán(es) de esta factura ya están cogidos.\n\n' + _ofOcuTxt(_fa.filas.filter(x => ocu.has(String(x.id))).map(x => ({ albaran: x.albaran, m: ocu.get(String(x.id)) }))) + '\n\nBorra este borrador y vuelve a crear la factura sin ellos.'); return; }
