@@ -26842,7 +26842,7 @@ function renderTallerTabla() {
     // v1209: cisternas (columna carroceria = 'cisterna') con su propia foto, para distinguirlas de las bañeras
     const _icoCisterna = '<img src="cisterna_app.webp?v=1212" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     // v1213: vehículos con foto propia (camión rígido con grúa 1270LST)
-    const _FOTO_PROPIA = { 'R8672BCN': ['plataforma_app.webp?v=1215', 'Plataforma'], 'R4665BCD': ['plataforma_app.webp?v=1215', 'Plataforma'], '1270LST': ['rigido_grua_app.webp?v=1214', 'Camión grúa'] };
+    const _FOTO_PROPIA = { 'R8672BCN': ['plataforma_app.webp?v=1215', 'Plataforma'], 'R4665BCD': ['plataforma_app.webp?v=1215', 'Plataforma'], '1270LST': ['rigido_grua_app.webp?v=1220', 'Camión grúa'] };
     const _fp = _FOTO_PROPIA[String(v.matricula || '').toUpperCase()];
     const tipoIcon = _fp ? '<img src="' + _fp[0] + '" alt="' + _fp[1] + '" title="' + _fp[1] + '" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">'
       : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? _icoCisterna : _icoSemi) : _icoTractora;
@@ -26857,7 +26857,7 @@ function renderTallerTabla() {
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
       <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
-      <td style="font-size:11px"><div style="display:flex;align-items:center;gap:10px"><span style="width:140px;flex:0 0 140px;height:64px;display:flex;justify-content:center;align-items:center">${(_fp || v.carroceria === 'cisterna') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:cover;border-radius:6px;display:block"') : tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:contain;display:block"')}</span><span class="tipoNombre" style="min-width:90px;font-weight:700">${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</span></div></td>
+      <td style="font-size:11px"><div style="display:flex;align-items:center;gap:10px"><span style="width:140px;flex:0 0 140px;height:64px;display:flex;justify-content:center;align-items:center">${((_fp && _fp[1] === 'Plataforma') || v.carroceria === 'cisterna') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:cover;border-radius:6px;display:block"') : tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:contain;display:block"')}</span><span class="tipoNombre" style="min-width:90px;font-weight:700">${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</span></div></td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
       ${kmFechaCell}
       <td style="font-size:11px">${e.ultimaFecha}</td>
