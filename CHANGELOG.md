@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1174 (18/11/2026): OFERTAS · NUEVA OFERTA SIN ALBARANES Y DOCUMENTOS ANEXOS. (1) Botón "Nueva oferta (sin albaranes)" en la tarjeta de Ofertas: abre una oferta en blanco con una línea a mano, para ofertar horas u otros servicios. (2) En cualquier oferta, apartado "Documentos anexos" con "+ Añadir documento" (PDF o fotos, hasta 10 MB cada uno): para tickets de peaje, de camarote, etc. NO son albaranes: no pasan por SUBIR ni salen en la pestaña Albaranes; se guardan con la oferta (carpeta ofertas_anexos del almacén). Se pueden Ver y Quitar, salen en el Paquete de envío dentro de la carpeta ANEXOS, y el historial apunta cuándo se añade o se quita uno. Al borrar la oferta se borran sus anexos. Sin SQL. VUELTA ATRAS: resubir v1173.
+
+---
+
 v1173 (18/11/2026): OFERTAS Y FACTURAS · ARREGLO: SALÍAN SIN ALBARANES AL CREARLAS DESDE LA SELECCIÓN. Fallo metido en la v1166 (candado anti-duplicados): cuando NINGUNO de los albaranes marcados estaba cogido, la oferta (o la factura) se abría con 0 albaranes. Lo vio JC al hacer la "2ª PRUEBA". Corregido en los dos sitios. Además: ya se puede guardar una oferta que solo tiene líneas a mano con importe (horas de trabajo, etc.), sin albaranes. Sin SQL. VUELTA ATRAS: resubir v1172 (pero vuelve el fallo).
 
 ---

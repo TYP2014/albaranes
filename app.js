@@ -45746,6 +45746,65 @@ async function _ofFiltrarLibres(recs, para) {
   return recs.filter(r => !ocu.has(String(r.db_id)));
 }
 
+// ============================================================================
+// v1174 (JC 18/11/2026): OFERTA SIN ALBARANES + DOCUMENTOS ANEXOS.
+// (1) Botón "Nueva oferta (sin albaranes)" en la tarjeta de Ofertas: para ofertar horas, servicios, etc. con
+//     líneas a mano. (2) A cualquier oferta se le pueden ANEXAR documentos que NO son albaranes (tickets de peaje,
+//     de camarote…): se suben a una carpeta propia del almacén (ofertas_anexos), NO pasan por SUBIR ni aparecen en
+//     la pestaña Albaranes, y viajan con la oferta: salen en el Paquete de envío, dentro de la carpeta ANEXOS.
+// ============================================================================
+async function ofNueva() {
+  if (!_ofPuede()) { toast('No tienes permiso para hacer ofertas', 'err'); return; }
+  await ofCargar();
+  _of = { id: null, numero: '', fecha: _ofIso(new Date()), validez: _ofIso(new Date(Date.now() + 15 * 864e5)), titulo: '', factura: '', mensaje: 'Buenos días,\n\nAdjunto nuestra oferta.\n\nQuedo a la espera de vuestra aprobación y del nº de pedido.\n\nUn saludo,\nJuan Carlos Reina', empresa: 'TYP', cliente: '', email: '', clienteDatos: '', estado: 'estudio', pedido_sap: '', observaciones: '',
+    filas: [], conceptos: {}, lineas: [{ concepto: '', cantidad: 1, unidad: 'h', precio: null, importe: null, iva: 21 }], agruparMaterial: false, guardadaTotal: null, historial: [], anexos: [] };
+  _ofAbrirVentana();
+}
+function _ofAnexosHtml() {
+  const A = _of.anexos || [], kb = n => n > 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round((n || 0) / 1024)) + ' KB';
+  return '<div style="margin-top:14px;border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-weight:700;font-size:13px">Documentos anexos <span style="font-weight:400;color:#555;font-size:12px">(tickets de peaje, camarote… no son albaranes; van en el Paquete de envío)</span></div>' +
+    '<button class="btn bs" onclick="ofAnexoElegir()" style="font-weight:800;padding:8px 14px">+ Añadir documento</button></div>' +
+    (A.length ? '<div style="margin-top:8px">' + A.map((a, i) => '<div style="display:flex;gap:10px;align-items:center;padding:5px 0' + (i ? ';border-top:1px solid var(--bd)' : '') + ';font-size:13px"><span style="flex:1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.nombre) + '</span><span style="color:#666;white-space:nowrap">' + kb(a.size) + '</span>' +
+      '<button class="btn bs" style="padding:4px 12px" onclick="ofAnexoVer(' + i + ')">Ver</button><button class="btn bs" style="padding:4px 12px;border-color:#b91c1c;color:#b91c1c" onclick="ofAnexoQuitar(' + i + ')">Quitar</button></div>').join('') +
+      '</div><div style="margin-top:4px;font-size:12px;color:#b45309;font-weight:700">Quedan guardados con la oferta al pulsar Guardar oferta.</div>' : '<div style="margin-top:6px;font-size:13px;color:#666">Ninguno.</div>') + '</div>';
+}
+function ofAnexoElegir() {
+  const f = document.createElement('input'); f.type = 'file'; f.multiple = true; f.accept = '.pdf,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*';
+  f.onchange = () => ofAnexoSubir(Array.from(f.files || []));
+  f.click();
+}
+async function ofAnexoSubir(files) {
+  if (!_of || !files.length) return;
+  _of.anexos = _of.anexos || []; let ok = 0, mal = 0;
+  for (const file of files) {
+    if (file.size > 10 * 1048576) { toast('"' + file.name + '" pesa más de 10 MB: no se sube', 'err'); mal++; continue; }
+    if (_of.anexos.some(a => a.nombre === file.name)) { toast('Ya hay un anexo llamado "' + file.name + '"', 'err'); mal++; continue; }
+    try {
+      toast('Subiendo ' + file.name + '…', 'ok');
+      const limpio = String(file.name || 'archivo').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'archivo';
+      const path = 'ofertas_anexos/' + currentUser.id + '/' + Date.now() + '_' + limpio;
+      const { error } = await sb.storage.from('documentos').upload(path, file); if (error) throw error;
+      if (!_of) return;
+      _of.anexos.push({ nombre: file.name, path, tipo: file.type || '', size: file.size }); ok++;
+    } catch (e) { console.error('[v1174] subir anexo:', e); toast('⚠️ No se pudo subir "' + file.name + '": ' + (e.message || e), 'err'); mal++; }
+  }
+  if (_of) _ofRender();
+  if (ok) toast(ok + ' documento(s) anexado(s). Pulsa Guardar oferta para que queden guardados.', 'ok');
+}
+async function ofAnexoVer(i) {
+  const a = (_of.anexos || [])[i]; if (!a) return;
+  try { const { data, error } = await sb.storage.from('documentos').createSignedUrl(a.path, 600); if (error) throw error; window.open(data.signedUrl, '_blank'); }
+  catch (e) { console.error('[v1174] ver anexo:', e); toast('⚠️ No se pudo abrir: ' + (e.message || e), 'err'); }
+}
+function ofAnexoQuitar(i) {
+  const a = (_of.anexos || [])[i]; if (!a) return;
+  if (!confirm('¿Quitar de la oferta el documento "' + a.nombre + '"?')) return;
+  _of.anexos.splice(i, 1); _ofRender();
+  toast('Quitado. Pulsa Guardar oferta para que quede guardado.', 'ok');
+  // El archivo se borra del almacén solo si la oferta aún no estaba guardada con él (si lo estaba, se borra al guardar sin él)
+  sb.storage.from('documentos').remove([a.path]).then(() => {}, e => console.warn('[v1174] quitar archivo anexo:', e));
+}
+
 // ---------- Crear desde Albaranes (modo selección) ----------
 async function _ofCrearDesdeSeleccion() {
   if (!_ofPuede()) { toast('No tienes permiso para hacer ofertas', 'err'); return; }
@@ -45792,7 +45851,7 @@ async function ofAbrir(id) {
     _of = { id: data.id, numero: data.numero || '', fecha: data.fecha || _ofIso(new Date()), empresa: data.empresa || 'TYP', cliente: data.cliente || '', email: data.email || '',
       estado: data.estado || 'estudio', pedido_sap: data.pedido_sap || '', observaciones: data.observaciones || '',
       filas: Array.isArray(D.filas) ? D.filas : [], conceptos: D.conceptos || {}, lineas: Array.isArray(D.lineas) ? D.lineas : [], titulo: D.titulo || '', mensaje: D.mensaje || '', factura: D.factura || '', remitente: D.remitente || '', clienteDatos: D.clienteDatos || '', validez: D.validez || '',
-      agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at, historial: Array.isArray(D.historial) ? D.historial : [] };
+      agruparMaterial: D.agruparMaterial !== false, guardadaTotal: Number(data.total) || 0, updated_at: data.updated_at, historial: Array.isArray(D.historial) ? D.historial : [], anexos: Array.isArray(D.anexos) ? D.anexos : [] };
     try { _of._foto = _ofFoto(); } catch (e) { console.warn('[v1167] foto:', e); }   // v1167: cómo estaba al abrirla, para apuntar luego qué se cambia
     _ofAbrirVentana();
   } catch (e) { console.error('[v1133] abrir oferta:', e); toast('No se pudo abrir la oferta: ' + (e.message || e), 'err'); }
@@ -45809,7 +45868,8 @@ function _ofFoto() {
     obs: _of.observaciones || '', factura: _of.factura || '', total: _ofR2(T.total),
     albs: _of.filas.filter(x => !x.fuera).map(x => String(x.albaran || x.id)),
     conc: L.map(c => ({ k: c.k, texto: c.texto || '', unidad: c.cfg.unidad || 'tn', iva: _ofIvaDe(c.cfg), item: c.cfg.item || '', tramos: c.tramos.map(t => ({ desde: t.desde || '', precio: Number(t.precio) || 0, horas: Number(t.horas) || 0 })) })),
-    lin: (_of.lineas || []).map(l => ({ concepto: String(l.concepto || ''), importe: Number(l.importe) || 0 })) };
+    lin: (_of.lineas || []).map(l => ({ concepto: String(l.concepto || ''), importe: Number(l.importe) || 0 })),
+    anx: (_of.anexos || []).map(a => String(a.nombre || '')) };
 }
 function _ofDiff(a, b) {
   const c = [], q = v => '"' + (String(v).length > 60 ? String(v).slice(0, 57) + '…' : v) + '"', u = { tn: '€/TN', viaje: '€/viaje', hora: '€/hora' }, p = n => String(_ofR2(n)).replace('.', ',');
@@ -45834,6 +45894,7 @@ function _ofDiff(a, b) {
   if (quit.length) c.push('Albaranes quitados: ' + lista(quit)); if (pues.length) c.push('Albaranes añadidos: ' + lista(pues));
   const la = a.lin.map(l => l.concepto + ' = ' + _ofEur(l.importe)), lb = b.lin.map(l => l.concepto + ' = ' + _ofEur(l.importe));
   la.filter(x => !lb.includes(x)).forEach(x => c.push('Línea a mano quitada o cambiada: ' + q(x))); lb.filter(x => !la.includes(x)).forEach(x => c.push('Línea a mano nueva: ' + q(x)));
+  { const xa = a.anx || [], xb = b.anx || []; xa.filter(x => !xb.includes(x)).forEach(x => c.push('Documento anexo quitado: ' + q(x))); xb.filter(x => !xa.includes(x)).forEach(x => c.push('Documento anexo añadido: ' + q(x))); }
   if (Math.abs(a.total - b.total) > 0.005) c.push('TOTAL: ' + _ofEur(a.total) + ' → ' + _ofEur(b.total));
   return c;
 }
@@ -46030,6 +46091,7 @@ function _ofRender() {
     '<button class="btn" id="ofBtnPaquete" onclick="ofPaquete()" style="' + _OF_BTN + '" title="ZIP con la oferta en PDF, el Excel, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
     '<button class="btn" onclick="ofGuardar()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px">Guardar oferta</button></div></div>';
   h += '<div style="margin-top:8px;font-size:13px;color:#111;text-align:right;line-height:1.6"><b>Albaranes PDF</b>: solo los albaranes de ESTA oferta · <b>Excel</b>: el detalle de esta oferta · <b>Oferta PDF</b>: la oferta para el cliente · <b>Paquete de envío</b>: las tres cosas juntas en un ZIP, listo para adjuntar al correo</div>';
+  h += _ofAnexosHtml();   // v1174
   // Detalle de albaranes
   const nf = _of.filas.filter(x => x.fuera).length;
   h += '<details style="margin-top:14px"' + (nf ? ' open' : '') + '><summary style="cursor:pointer;font-weight:700;font-size:13px">Albaranes de la oferta (' + _of.filas.length + (nf ? ', ' + nf + ' quitados' : '') + ') — quita la casilla de los que no entran</summary>' +
@@ -46072,7 +46134,7 @@ async function ofGuardar(silencioso) {
     if (cambios.length) _of.historial = histAntes.concat([{ t: new Date().toISOString(), q: _ofQuien(), c: cambios }]).slice(-300);
   } catch (e) { console.warn('[v1167] historial:', e); }
   const reg = { numero: _of.numero || null, fecha: _of.fecha || null, empresa: _of.empresa, cliente: _of.cliente, email: _of.email || null, estado: _of.estado, pedido_sap: _of.pedido_sap || null,
-    albaranes: vivas.map(x => x.id), datos: { historial: _of.historial || [], filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '', titulo: _of.titulo || '', mensaje: _of.mensaje || '', factura: _of.factura || '', remitente: _of.remitente || '' }, base: T.base, iva: T.iva, total: T.total,
+    albaranes: vivas.map(x => x.id), datos: { historial: _of.historial || [], anexos: _of.anexos || [], filas, conceptos, lineas: _of.lineas, agruparMaterial: _of.agruparMaterial, clienteDatos: _of.clienteDatos || '', validez: _of.validez || '', titulo: _of.titulo || '', mensaje: _of.mensaje || '', factura: _of.factura || '', remitente: _of.remitente || '' }, base: T.base, iva: T.iva, total: T.total,
     observaciones: _of.observaciones || null, updated_at: new Date().toISOString() };
   try {
     let antes = [];
@@ -46138,9 +46200,10 @@ async function ofBorrar() {
   if (!_of || !_of.id) return;
   if (!confirm('🗑 ¿BORRAR la oferta ' + (_of.numero || '(sin nº)') + ' de ' + _of.cliente + '?\n\nA sus albaranes se les quita la marca 🟣. Los albaranes NO se borran.')) return;
   try {
-    const ids = _of.filas.map(x => x.id);
+    const ids = _of.filas.map(x => x.id), rutas = (_of.anexos || []).map(a => a.path).filter(Boolean);
     const { error } = await sb.from('ofertas').delete().eq('id', _of.id);
     if (error) throw error;
+    if (rutas.length) { try { await sb.storage.from('documentos').remove(rutas); } catch (e) { console.warn('[v1174] quitar anexos:', e); } }
     await _ofMarcar(ids, false);
     toast('Oferta borrada', 'ok');
     document.getElementById('ofOv')?.remove(); _of = null;
@@ -46621,11 +46684,14 @@ async function ofPaquete() {
     zip.file(base + '.xlsx', XLSX.write(_ofExcelWb(), { type: 'array', bookType: 'xlsx' }));
     const A = await _ofAlbaranesJuntos((i, t) => pinta('⏳ Albaranes ' + i + '/' + t));
     if (A.bytes) zip.file('ALBARANES ' + base + '.pdf', A.bytes);
+    let anxMal = 0;   // v1174: los documentos anexos van en una carpeta ANEXOS
+    for (const a of (_of.anexos || [])) { try { pinta('⏳ Anexo ' + a.nombre); const { data, error } = await sb.storage.from('documentos').download(a.path); if (error) throw error; zip.file('ANEXOS/' + String(a.nombre).replace(/[\\/:*?"<>|]/g, '-'), data); } catch (e) { console.warn('[v1174] anexo sin bajar:', a.nombre, e); anxMal++; } }
     zip.file('EMAIL.txt', 'DE: ' + (_of.remitente || '(falta el correo de envío)') + '\r\nPARA: ' + (_of.email || '(falta el email)') + '\r\nASUNTO: ' + _ofAsunto() + '\r\n\r\n' + String(_of.mensaje || '').replace(/\r?\n/g, '\r\n') + '\r\n');
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'ENVIO ' + base + '.zip'; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast('Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (A.faltan ? ' (⚠️ ' + A.faltan + ' sin archivo o sin cargar)' : ''), A.faltan ? 'warn' : 'ok');
+    const nAnx = (_of.anexos || []).length - anxMal;
+    toast('Paquete descargado: oferta PDF + Excel + ' + A.n + ' albaranes' + (nAnx ? ' + ' + nAnx + ' anexo(s)' : '') + (A.faltan ? ' (⚠️ ' + A.faltan + ' albaranes sin archivo o sin cargar)' : '') + (anxMal ? ' (⚠️ ' + anxMal + ' anexo(s) no se pudieron bajar)' : ''), A.faltan || anxMal ? 'warn' : 'ok');
   } catch (e) { console.error('[v1141] paquete:', e); toast('⚠️ No se pudo preparar el paquete: ' + (e.message || e), 'err'); }
   finally { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = false; b.textContent = 'Paquete de envío'; } }
 }
