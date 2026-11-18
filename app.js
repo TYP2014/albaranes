@@ -45755,7 +45755,7 @@ async function _ofCrearDesdeSeleccion() {
   if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
   await ofCargar();
   const libres = await _ofFiltrarLibres(recs, 'oferta'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
-  recs.length = 0; libres.forEach(r => recs.push(r));
+  { const quedan = libres.slice(); recs.length = 0; quedan.forEach(r => recs.push(r)); }   // v1173: copia antes de vaciar (si no sobraba ninguno, 'libres' ERA 'recs' y la oferta salía con 0 albaranes)
   // Cliente propuesto: el que más se repite
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
@@ -46052,7 +46052,7 @@ async function ofGuardar(silencioso) {
   if (!_of) return false;
   if (!_of.cliente) { toast('Pon el cliente', 'err'); return false; }
   const vivas = _of.filas.filter(x => !x.fuera);
-  if (!vivas.length) { toast('La oferta no tiene ningún albarán', 'err'); return false; }
+  if (!vivas.length && !(_of.lineas || []).some(l => Number(l.importe))) { toast('La oferta está vacía: no tiene albaranes ni líneas a mano con importe', 'err'); return false; }   // v1173: vale una oferta solo con líneas a mano (horas, etc.)
   if (_of.numero) {
     const rep = _ofLista.find(o => o.numero && o.id !== _of.id && _ofNrm(o.numero) === _ofNrm(_of.numero));
     if (rep && !confirm('⚠️ El nº ' + _of.numero + ' ya lo tiene otra oferta (' + (rep.cliente || '') + ', ' + _ofFechaEs(rep.fecha) + '). ¿Guardar igual?')) return false;
@@ -47183,7 +47183,7 @@ async function _faCrearDesdeSeleccion() {
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
   if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
   const libres = await _ofFiltrarLibres(recs, 'factura'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
-  recs.length = 0; libres.forEach(r => recs.push(r));
+  { const quedan = libres.slice(); recs.length = 0; quedan.forEach(r => recs.push(r)); }   // v1173: copia antes de vaciar (si no sobraba ninguno, 'libres' ERA 'recs' y la oferta salía con 0 albaranes)
   const filas = recs.map(_ofFilaDe).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   await _ofCliCargar();
