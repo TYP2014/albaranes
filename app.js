@@ -46173,7 +46173,7 @@ function _ofExcelWb() {
   L.forEach(c => c.tramos.forEach(t => {
     if (!t.viajes) return;
     const fs = c.filas.filter(x => (!t.desde || x.fecha >= t.desde) && (!t.hasta || x.fecha < t.hasta));
-    const per = fs.length ? _ofFechaEs(fs[0].fecha) + ' - ' + _ofFechaEs(fs[fs.length - 1].fecha) : '';
+    const per = fs.length ? (fs[0].fecha === fs[fs.length - 1].fecha ? _ofFechaEs(fs[0].fecha) : 'del ' + _ofFechaEs(fs[0].fecha) + ' al ' + _ofFechaEs(fs[fs.length - 1].fecha)) : '';   // v1168: un solo día = una sola fecha
     A.push((conItem ? [cel(c.cfg.item || '', sC)] : []).concat([cel(c.texto, sC), cel(per, sC), cel(t.viajes, sC), cel(_ofR2(t.tn), sN), cel(c.cfg.unidad === 'viaje' ? '€/viaje' : c.cfg.unidad === 'hora' ? '€/hora (' + String(t.cant).replace('.', ',') + ' h)' : '€/TN', sC), cel(Number(t.precio) || 0, sE), cel(t.imp, sE), cel(_ofIvaDe(c.cfg) + ' %', sC)]));
   }));
   _of.lineas.filter(l => Number(l.importe)).forEach(l => A.push((conItem ? [cel('', sC)] : []).concat([cel(l.concepto || 'Otros', sC), cel('', sC), cel('', sC), cel(l.precio != null && l.cantidad != null ? Number(l.cantidad) : '', sN), cel(l.precio != null ? '€/' + (_OF_UNIDADES[l.unidad] || 'ud') : '', sC), cel(l.precio != null ? Number(l.precio) : '', sE), cel(_ofR2(l.importe), sE), cel(_ofIvaDe(l) + ' %', sC)])));
@@ -46611,6 +46611,8 @@ async function _ofAlbaranesJuntos(avisa) {
 async function ofPaquete() {
   if (!_of) return;
   if (typeof JSZip === 'undefined' || typeof PDFLib === 'undefined') { toast('No se cargaron las librerías. Recarga la página.', 'err'); return; }
+  // v1168: como Outlook cuando falta el asunto: avisa y deja elegir
+  if (!String(_of.titulo || '').trim() && !confirm('No has puesto TÍTULO a la oferta (es lo que va en el asunto del correo y en el PDF).\n\nAceptar = continuar sin título · Cancelar = volver para ponerlo')) return;
   const btn = document.getElementById('ofBtnPaquete'); const pinta = t => { const b = document.getElementById('ofBtnPaquete'); if (b) { b.disabled = true; b.textContent = t; } };
   try {
     pinta('⏳ Preparando…');

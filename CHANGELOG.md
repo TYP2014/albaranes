@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1168 (18/11/2026): OFERTAS · AVISO SIN TÍTULO Y PERIODO DEL EXCEL. (1) Al pulsar PAQUETE DE ENVÍO sin haber puesto título a la oferta, avisa (como Outlook cuando falta el asunto): Aceptar = continuar sin título, Cancelar = volver para ponerlo. (2) En el Excel de la oferta, cuando los albaranes del concepto son de un solo día sale una sola fecha (antes "03/11/2026 - 03/11/2026"); si son varios días, "del … al …". Sin SQL. VUELTA ATRAS: resubir v1167.
+
+---
+
 v1167 (18/11/2026): OFERTAS · HISTORIAL DE CAMBIOS. Cada vez que se guarda una oferta, la app compara con cómo estaba y apunta fecha, hora, quién y QUÉ cambió: precio (de cuánto a cuánto), texto del concepto, cobro, IVA, item, horas, tramos, albaranes quitados o añadidos, líneas a mano, estado, nº, cliente, pedido SAP, título, fechas y total. Se ve abajo en la oferta: "Historial de cambios", lo último arriba. También apunta la creación y cuando se factura. Va guardado dentro de la propia oferta (sin tabla nueva). Las ofertas ya hechas empiezan su historial a partir de ahora. Sin SQL. VUELTA ATRAS: resubir v1166.
 
 ---
