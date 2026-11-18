@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1183 (18/11/2026): ENVÍO DE FACTURAS · PREPARADO PARA MICROSOFT 365 (TYP2014 e Import). La ventana de envío manda ya al servidor el correo elegido en "Enviar desde", y enseña por dónde sale (Gmail o Microsoft 365). La función enviar-correo del servidor (v2) sabe enviar por Microsoft 365 desde los buzones de la lista de cada empresa, con copia a su Quipu. FALTA para que funcione: registrar la aplicación en Microsoft 365 y poner sus tres datos en el servidor (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET); hasta entonces, en TYP2014 e Import el botón dice que falta conectar Microsoft 365. Híspalis (Gmail) sigue igual. SQL YA APLICADO: columna tipo en correo_robots y filas de TYP e Import. VUELTA ATRAS: resubir v1182.
+
+---
+
 v1182 (18/11/2026): ALBARANES · SE VE CON QUÉ FACTURA Y QUÉ EMPRESA SE FACTURÓ CADA UNO. Al emitir una factura desde la app, cada albarán guarda la referencia "nº de factura · empresa" (ej. "2026-11-16 · TYP2014"). En la pestaña Albaranes sale en pequeño debajo de la etiqueta verde "Facturado", y también al pasar el ratón. Los ofertados guardan además la empresa que oferta ("Holcim (OF26-76) · Import"). El buscador de Albaranes encuentra ya por nº de factura o de oferta. Lo mismo al marcar una oferta como "Ya facturada fuera". Al borrar la factura, la referencia se quita. Solo vale para lo facturado desde Ofertas/Facturas a partir de ahora; las autofacturas de Holcim/CEMEX/Sodira siguen igual. Sin SQL (usa las columnas factura_ref y factura_tipo que ya existían). VUELTA ATRAS: resubir v1181.
 
 ---
