@@ -26840,7 +26840,7 @@ function renderTallerTabla() {
     const _icoTractora = '<img src="tractora_app.webp?v=967" alt="Tractora" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const _icoSemi = '<img src="semirremolque_app.webp?v=967" alt="Remolque" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     // v1209: cisternas (columna carroceria = 'cisterna') con su propia foto, para distinguirlas de las bañeras
-    const _icoCisterna = '<img src="cisterna_app.webp?v=1211" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
+    const _icoCisterna = '<img src="cisterna_app.webp?v=1212" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? _icoCisterna : _icoSemi) : _icoTractora;
     // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
     let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
@@ -26853,7 +26853,7 @@ function renderTallerTabla() {
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
       <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
-      <td style="font-size:11px">${tipoIcon} ${v.tipo_vehiculo === 'semirremolque' ? 'Remolque' : 'Tractora'}</td>
+      <td style="font-size:11px">${tipoIcon} ${v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
       ${kmFechaCell}
       <td style="font-size:11px">${e.ultimaFecha}</td>
