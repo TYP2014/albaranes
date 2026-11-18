@@ -767,7 +767,7 @@ if (typeof pdfjsLib !== 'undefined') {
                ondrop="event.preventDefault();this.classList.remove('dzover');tacoSoltar(event.dataTransfer.files)">
             <div class="dz-t">Arrastra los ficheros de tacógrafo · o haz clic para seleccionar · <b>varios a la vez</b></div>
             <div class="dz-t" style="font-size:14px">.TGD · .DDD · de camión (V_...) o de tarjeta de conductor (C_... / D_...) · sin renombrar</div>
-            <input type="file" id="tacoInput" multiple accept=".TGD,.tgd,.DDD,.ddd,.V1B,.C1B" onchange="tacoSoltar(this.files);this.value=''">
+            <input type="file" id="tacoInput" multiple accept=".TGD,.tgd,.DDD,.ddd,.V1B,.C1B,.zip,.ZIP" onchange="tacoSoltar(this.files);this.value=''">
           </div>
           <div id="tacoResultado" style="margin-top:16px"></div>
           <div id="tacoGuardarBox" style="margin-top:16px"></div>
@@ -2193,6 +2193,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1161"></script>
+<script src="app.js?v=1162"></script>
 </body>
 </html>

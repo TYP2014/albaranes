@@ -43238,8 +43238,49 @@ function tacoRJexcel() {
   toast('✓ Excel del registro de jornadas descargado');
 }
 
+// v1162: ZIP DE ASG. El portal de ASG entrega las descargas de un camion o de
+// un conductor en un ZIP, y DENTRO cada descarga va en otro .zip
+// (V_1270LST_E_20261116_0457.TGD.zip). Se abren aqui, en el navegador, a
+// cualquier profundidad, y solo se quedan los ficheros de tacografo
+// (.TGD .DDD .V1B .C1B). Lo demas (pdf, txt...) se ignora. Despues todo sigue
+// el camino de siempre: misma lectura, misma huella (los repetidos no se
+// duplican) y misma forma de adivinar la empresa.
+const _TACO_EXT_OK = /\.(tgd|ddd|v1b|c1b)$/i;
+async function _tacoAbrirZips(files) {
+  const out = []; let nZip = 0, nIgn = 0;
+  const abrir = async (blob, prof) => {
+    const z = await JSZip.loadAsync(blob instanceof ArrayBuffer ? blob : await blob.arrayBuffer());
+    nZip++;
+    for (const e of Object.values(z.files)) {
+      if (e.dir) continue;
+      const nom = e.name.split('/').pop();
+      if (!nom || nom.startsWith('.') || /^__MACOSX/.test(e.name)) continue;
+      if (/\.zip$/i.test(nom) && prof < 4) { await abrir(await e.async('arraybuffer'), prof + 1); continue; }
+      if (_TACO_EXT_OK.test(nom)) out.push(new File([await e.async('arraybuffer')], nom, { type: 'application/octet-stream' }));
+      else nIgn++;
+    }
+  };
+  for (const f of files) {
+    if (/\.zip$/i.test(f.name)) {
+      try { await abrir(f, 0); }
+      catch (e) { console.warn('[v1162] no se pudo abrir el ZIP ' + f.name + ':', e.message || e); toast('No se ha podido abrir ' + f.name, 'err'); }
+    } else out.push(f);
+  }
+  console.log('[v1162] ZIP abiertos: ' + nZip + ' · ficheros de tacógrafo: ' + out.length + (nIgn ? ' · ignorados: ' + nIgn : ''));
+  return out;
+}
+
 function tacoSoltar(files) {
   if (!files || !files.length) return;
+  if ([...files].some(f => /\.zip$/i.test(f.name))) {               // v1162
+    const box = document.getElementById('tacoResultado');
+    if (box) box.innerHTML = '<div style="font-family:var(--mn);font-size:12px;color:var(--mu)">Abriendo los ZIP…</div>';
+    _tacoAbrirZips([...files]).then(fs => {
+      if (!fs.length) { if (box) box.innerHTML = '<div style="color:var(--erd);font-family:var(--mn);font-size:12px">Dentro de los ZIP no había ninguna descarga de tacógrafo (.TGD / .DDD).</div>'; return; }
+      if (fs.length > 1) tacoSoltarVarios(fs); else tacoSoltar(fs);
+    });
+    return;
+  }
   // v376: mas de uno -> modo lote. Uno solo -> como siempre.
   if (files.length > 1) { tacoSoltarVarios([...files]); return; }
   const f = files[0];

@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1162 (18/11/2026): TACÓGRAFO · SUBIR ACEPTA LOS ZIP DE ASG. Se pueden soltar (o elegir) ZIP en SUBIR: la app los abre sola, también los ZIP dentro de ZIP (ASG mete cada descarga en su propio .TGD.zip), y se queda solo con los ficheros de tacógrafo (.TGD .DDD .V1B .C1B). Después, todo igual que siempre: los repetidos no se duplican y la empresa se saca de la matrícula. Sin SQL. VUELTA ATRAS: resubir v1161.
+
+---
+
 v1161 (18/11/2026): TACÓGRAFO · PANEL · "ÚLTIMA DESCARGA" = FECHA REAL DE LA DESCARGA. Se saca del nombre del fichero (V_1270LST_E_20260803_0811.TGD → 03/08/2026) y los días para la próxima descarga (90 camión / 28 tarjeta) cuentan desde ahí, no desde el último día con datos (un camión parado no sale vencido por eso). Si el nombre no trae fecha o no es creíble, se usa el último día con datos. Columna nueva "Última actividad" (último día con datos) en Vehículos y Conductores. Solo el PANEL; los avisos de "Descargas pendientes" siguen igual. Sin SQL. VUELTA ATRAS: resubir v1160.
 
 ---
