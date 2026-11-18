@@ -45673,8 +45673,9 @@ const _OF_ESTADOS = {
 };
 const _OF_BTN = 'padding:12px 20px;font-size:14px;font-weight:800;border:2px solid #1b3254;background:#fff;color:#1b3254;border-radius:8px;min-width:150px;justify-content:center;letter-spacing:.3px';   // v1143: botones grandes, iguales y solo texto
 // v1196: datos de inscripción en el Registro Mercantil (art. 24 del Código de Comercio: van en facturas, ofertas y correspondencia).
-// Sacados de la nota del Registro de cada escritura de constitución. TYP: pendiente (la escritura que tenemos no trae la nota del Registro).
+// Sacados de la nota del Registro de cada escritura de constitución (TYP añadida en la v1197).
 const _OF_REGISTRO = {
+  TYP: 'Inscrita en el Registro Mercantil de Sevilla, Tomo 5968, Folio 21, Hoja SE-103857, Inscripción 1ª',
   HISPALIS: 'Inscrita en el Registro Mercantil de Sevilla, Tomo 6272, Folio 13, Hoja SE-111350, Inscripción 1ª',
   PORTES: 'Inscrita en el Registro Mercantil de Sevilla, Tomo 6964, Folio 215, Hoja SE-128081, Inscripción 1ª'
 };
