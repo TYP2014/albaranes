@@ -45712,6 +45712,40 @@ async function ofListar() {
   out.innerHTML = h + '</tbody></table></div>';
 }
 
+// ============================================================================
+// v1166 (JC 18/11/2026): CANDADO ANTI-DUPLICADOS. Un albarán no puede ir en dos ofertas ni en dos facturas.
+// Se mira SIEMPRE en la base de datos (no en lo que hay en pantalla): albaranes ya FACTURADOS, albaranes que están
+// en otra oferta viva (no rechazada) y albaranes que están en otra factura de la app (borrador o emitida).
+// Devuelve Map id -> motivo; null si no se pudo comprobar (y entonces NO se deja seguir).
+// ============================================================================
+async function _ofAlbOcupados(ids, o) {
+  o = o || {}; ids = [...new Set((ids || []).map(String))]; const m = new Map(), dentro = new Set(ids);
+  try {
+    if (!o.sinFacturados) for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await sb.from('albaranes').select('id,estado_facturacion').in('id', ids.slice(i, i + 200)); if (error) throw error;
+      (data || []).forEach(a => { if (a.estado_facturacion === 'facturado') m.set(String(a.id), 'ya está FACTURADO'); });
+    }
+    const { data: fs, error: e2 } = await sb.from('facturas_app').select('id,numero,estado,oferta_id,albaranes'); if (e2) throw e2;
+    (fs || []).forEach(f => { if (f.id === o.saltaFactura || (o.saltaOferta && f.oferta_id === o.saltaOferta)) return;
+      (f.albaranes || []).forEach(a => { a = String(a); if (dentro.has(a) && !m.has(a)) m.set(a, 'está en la factura ' + (f.numero || 'sin nº') + (f.estado === 'emitida' ? '' : ' (borrador)')); }); });
+    const { data: os, error: e3 } = await sb.from('ofertas').select('id,numero,cliente,estado,albaranes'); if (e3) throw e3;
+    (os || []).forEach(x => { if (x.id === o.saltaOferta || x.estado === 'rechazada') return;
+      (x.albaranes || []).forEach(a => { a = String(a); if (dentro.has(a) && !m.has(a)) m.set(a, 'está en la oferta ' + (x.numero || 'sin nº') + (x.cliente ? ' (' + x.cliente + ')' : '')); }); });
+    return m;
+  } catch (e) { console.error('[v1166] comprobar duplicados:', e); toast('⚠️ No se pudo comprobar si hay albaranes repetidos. Inténtalo otra vez.', 'err'); return null; }
+}
+function _ofOcuTxt(lista) { return lista.slice(0, 10).map(x => '  · ' + (x.albaran || '(sin nº)') + ' → ' + x.m).join('\n') + (lista.length > 10 ? '\n  · … y ' + (lista.length - 10) + ' más' : ''); }
+// Quita de la selección los que ya están cogidos. Devuelve los que quedan libres, o null si no se sigue.
+async function _ofFiltrarLibres(recs, para) {
+  const ocu = await _ofAlbOcupados(recs.map(r => String(r.db_id))); if (!ocu) return null;
+  const fuera = recs.filter(r => ocu.has(String(r.db_id))); if (!fuera.length) return recs;
+  const txt = _ofOcuTxt(fuera.map(r => ({ albaran: r.albaran, m: ocu.get(String(r.db_id)) })));
+  const nota = para === 'factura' ? '\n\n(Los que están en una oferta se facturan desde SU oferta, con "Crear factura".)' : '';
+  if (fuera.length === recs.length) { alert('No se puede crear la ' + para + ': los ' + recs.length + ' albaranes marcados ya están cogidos.\n\n' + txt + nota); return null; }
+  if (!confirm(fuera.length + ' de los ' + recs.length + ' marcados NO pueden entrar (para no duplicar):\n\n' + txt + nota + '\n\nAceptar = crear la ' + para + ' con los ' + (recs.length - fuera.length) + ' restantes · Cancelar = no hacer nada')) return null;
+  return recs.filter(r => !ocu.has(String(r.db_id)));
+}
+
 // ---------- Crear desde Albaranes (modo selección) ----------
 async function _ofCrearDesdeSeleccion() {
   if (!_ofPuede()) { toast('No tienes permiso para hacer ofertas', 'err'); return; }
@@ -45720,13 +45754,8 @@ async function _ofCrearDesdeSeleccion() {
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
   if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
   await ofCargar();
-  // Albaranes que ya están en otra oferta viva (no rechazada)
-  const enOtra = {};
-  _ofLista.filter(o => o.estado !== 'rechazada').forEach(o => (o.albaranes || []).forEach(a => { enOtra[String(a)] = o; }));
-  const rep = recs.filter(r => enOtra[String(r.db_id)]);
-  if (rep.length && !confirm('🟣 ' + rep.length + ' de los marcados YA están en otra oferta:\n' + rep.slice(0, 8).map(r => '  · ' + (r.albaran || '') + ' → ' + (enOtra[String(r.db_id)].numero || 'oferta sin nº') + ' (' + (enOtra[String(r.db_id)].cliente || '') + ')').join('\n') + (rep.length > 8 ? '\n  · …' : '') + '\n\nAceptar = meterlos IGUAL en esta oferta · Cancelar = no hacer nada')) return;
-  const fact = recs.filter(r => r.estado_facturacion === 'facturado');
-  if (fact.length && !confirm('🟢 ' + fact.length + ' de los marcados ya están FACTURADOS. ¿Los metes igual en la oferta?')) return;
+  const libres = await _ofFiltrarLibres(recs, 'oferta'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
+  recs.length = 0; libres.forEach(r => recs.push(r));
   // Cliente propuesto: el que más se repite
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   const cliente = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '';
@@ -45977,6 +46006,10 @@ async function ofGuardar(silencioso) {
   if (_of.numero) {
     const rep = _ofLista.find(o => o.numero && o.id !== _of.id && _ofNrm(o.numero) === _ofNrm(_of.numero));
     if (rep && !confirm('⚠️ El nº ' + _of.numero + ' ya lo tiene otra oferta (' + (rep.cliente || '') + ', ' + _ofFechaEs(rep.fecha) + '). ¿Guardar igual?')) return false;
+  }
+  if (_of.estado !== 'rechazada' && _of.estado !== 'facturada') {   // v1166: candado también al guardar (por si otra persona los cogió mientras tanto)
+    const ocu = await _ofAlbOcupados(vivas.map(x => x.id), { saltaOferta: _of.id }); if (!ocu) return false;
+    if (ocu.size) { alert('No se puede guardar la oferta: ' + ocu.size + ' albarán(es) ya están cogidos.\n\n' + _ofOcuTxt(vivas.filter(x => ocu.has(String(x.id))).map(x => ({ albaran: x.albaran, m: ocu.get(String(x.id)) }))) + '\n\nQuítales la casilla abajo, en "Albaranes de la oferta", y guarda otra vez.'); return false; }
   }
   const L = _ofConceptos(), T = _ofTotales(L);
   // En datos: las filas sin los campos calculados
@@ -46753,6 +46786,10 @@ async function faAbrir(id) {
 async function ofAFactura() {
   if (!_of) return;
   if (!_of.id || (_of.guardadaTotal != null && Math.abs(_of.guardadaTotal - _ofTotales().total) > 0.005)) { toast('Guarda primero la oferta', 'err'); return; }
+  try {   // v1166: una oferta = una factura. Si ya tiene una (aunque sea borrador), se abre esa en vez de hacer otra
+    const { data: ya, error } = await sb.from('facturas_app').select('id,numero,estado').eq('oferta_id', _of.id).limit(1); if (error) throw error;
+    if (ya && ya.length) { toast('Esta oferta ya tiene la factura ' + (ya[0].numero || '') + (ya[0].estado === 'emitida' ? '' : ' (borrador)') + ': te la abro', 'ok'); document.getElementById('ofOv')?.remove(); _of = null; await faAbrir(ya[0].id); return; }
+  } catch (e) { console.error('[v1166] factura de la oferta:', e); toast('⚠️ No se pudo comprobar si la oferta ya tiene factura. Inténtalo otra vez.', 'err'); return; }
   const L = _ofConceptos(), lineas = [];
   L.forEach(c => c.tramos.forEach(t => { if (!t.viajes) return;
     const u = c.cfg.unidad === 'viaje' ? 'viaje' : c.cfg.unidad === 'hora' ? 'h' : 'tn';
@@ -46921,6 +46958,10 @@ async function faEmitir() {
   if (!_fa) return;
   const T = _faTot(), sinP = _fa.lineas.filter(l => !Number(l.importe)).length;
   if (!_fa.lineas.length || !T.total) { toast('La factura no tiene importe', 'err'); return; }
+  if (_fa.filas.length) {   // v1166: candado anti-duplicados antes de emitir
+    const ocu = await _ofAlbOcupados(_fa.filas.map(x => x.id), { saltaOferta: _fa.oferta_id || undefined, saltaFactura: _fa.id || undefined }); if (!ocu) return;
+    if (ocu.size) { alert('NO se puede emitir: ' + ocu.size + ' albarán(es) de esta factura ya están cogidos.\n\n' + _ofOcuTxt(_fa.filas.filter(x => ocu.has(String(x.id))).map(x => ({ albaran: x.albaran, m: ocu.get(String(x.id)) }))) + '\n\nBorra este borrador y vuelve a crear la factura sin ellos.'); return; }
+  }
   if (!confirm('EMITIR la factura ' + _faNumero() + '\n\n  Cliente: ' + _fa.cliente + '\n  Fecha: ' + _ofFechaEs(_fa.fecha) + ' · Vencimiento: ' + _ofFechaEs(_fa.venc) + '\n  TOTAL: ' + _ofEur(T.total) + (sinP ? '\n\n⚠️ ' + sinP + ' concepto(s) a 0 €' : '') +
     '\n\nQuedará apuntada en la pestaña F. EMITIDAS como Pendiente de cobro.' + (_fa.filas.length ? '\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
   if (!(await faGuardar(true, 'emitida'))) return;
@@ -46982,9 +47023,8 @@ async function _faCrearDesdeSeleccion() {
   const ids = Array.from(document.querySelectorAll('.chk-sel:checked')).map(c => c.getAttribute('data-id')).filter(Boolean), recs = [];
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
   if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
-  const fact = recs.filter(r => r.estado_facturacion === 'facturado'), ofe = recs.filter(r => r.ofertado);
-  if (fact.length && !confirm(fact.length + ' de los marcados ya están FACTURADOS. ¿Los metes igual en la factura?')) return;
-  if (ofe.length && !confirm(ofe.length + ' de los marcados están en una OFERTA (marca violeta). ¿Facturarlos igual desde aquí?')) return;
+  const libres = await _ofFiltrarLibres(recs, 'factura'); if (!libres) return;   // v1166: candado anti-duplicados (antes solo avisaba)
+  recs.length = 0; libres.forEach(r => recs.push(r));
   const filas = recs.map(_ofFilaDe).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const cc = {}; recs.forEach(r => { const c = String(r.cliente || '').trim(); if (c) cc[c] = (cc[c] || 0) + 1; });
   await _ofCliCargar();

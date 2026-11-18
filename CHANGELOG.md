@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1166 (18/11/2026): OFERTAS Y FACTURAS · CANDADO ANTI-DUPLICADOS. Un albarán ya no puede ir en dos ofertas ni en dos facturas (antes solo avisaba y dejaba seguir). Se mira siempre en la base de datos: (a) albaranes ya FACTURADOS, (b) albaranes que están en otra oferta viva (no rechazada), (c) albaranes que están en otra factura de la app, borrador o emitida. Al CREAR oferta o factura desde la selección, los cogidos se quedan fuera (se dice cuáles y por qué) y se sigue solo con los libres; si todos están cogidos, no se crea. Los albaranes de una oferta se facturan solo desde SU oferta ("Crear factura"). Al GUARDAR la oferta y al EMITIR la factura se vuelve a comprobar. Una oferta = una factura: si ya tiene una, "Crear factura" abre esa. Si la comprobación falla (sin conexión), no deja seguir. Sin SQL. VUELTA ATRAS: resubir v1165.
+
+---
+
 v1165 (18/11/2026): OFERTAS Y FACTURAS · AL GUARDAR, A LA LISTA. (1) GUARDAR BORRADOR / GUARDAR CAMBIOS de la factura cierra la ventana (antes se quedaba abierta). (2) Al guardar una oferta o una factura, la app te lleva a Facturación > Ofertas (o Facturas) con la lista a la vista, aunque la hubieras creado desde Albaranes. Si el guardado falla, la ventana no se cierra. EMITIR FACTURA sigue dejando la ventana abierta para sacar el PDF y el paquete. Sin SQL. VUELTA ATRAS: resubir v1164.
 
 ---
