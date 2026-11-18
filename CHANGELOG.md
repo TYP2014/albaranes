@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1184 (18/11/2026): ENVÍO DE FACTURAS · AHORA SÍ, LA PARTE DE LA APP PARA MICROSOFT 365. La v1183 se subió por error SIN el cambio de app.js (solo llevaba el número y la nota). Esta lo trae: la ventana de envío manda al servidor el correo elegido en "Enviar desde" y enseña por dónde sale (Gmail o Microsoft 365); "hoy quedan N envíos" solo sale en Gmail. Sin SQL. VUELTA ATRAS: resubir v1182.
+
+---
+
 v1183 (18/11/2026): ENVÍO DE FACTURAS · PREPARADO PARA MICROSOFT 365 (TYP2014 e Import). La ventana de envío manda ya al servidor el correo elegido en "Enviar desde", y enseña por dónde sale (Gmail o Microsoft 365). La función enviar-correo del servidor (v2) sabe enviar por Microsoft 365 desde los buzones de la lista de cada empresa, con copia a su Quipu. FALTA para que funcione: registrar la aplicación en Microsoft 365 y poner sus tres datos en el servidor (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET); hasta entonces, en TYP2014 e Import el botón dice que falta conectar Microsoft 365. Híspalis (Gmail) sigue igual. SQL YA APLICADO: columna tipo en correo_robots y filas de TYP e Import. VUELTA ATRAS: resubir v1182.
 
 ---

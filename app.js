@@ -47428,7 +47428,7 @@ async function faEnviarAbrir() {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
   ov.innerHTML = '<div id="feBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(min(760px,94vw) / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.3)"></div>';
   document.body.appendChild(ov); _feRender();
-  const [r, prev] = await Promise.all([_feLlamar({ empresa: _fa.empresa, ping: true }),
+  const [r, prev] = await Promise.all([_feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', ping: true }),
     sb.from('correos_enviados').select('created_at,para,destino,ok,adjuntos,error').eq('doc_tipo', 'factura').eq('doc_id', _fa.id).order('created_at', { ascending: false }).limit(20).then(x => x.data || [], () => [])]);
   if (!_fe) return;
   _fe.robot = r; _fe.previos = prev; _fe.estado = '';
@@ -47445,7 +47445,7 @@ function _feRender() {
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:18px;font-weight:800">Enviar factura ' + esc(_faNumero()) + '</div><button class="btn bs" onclick="feCerrar()" style="padding:8px 14px;font-weight:800">Cerrar</button></div>';
   if (_fe.estado) h += '<div style="margin-top:10px;font-size:13px;color:#444">' + esc(_fe.estado) + '</div>';
   if (R && !R.ok) h += '<div style="margin-top:10px;background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:8px 12px;font-size:13px;color:#8b1a1a"><b>No se puede enviar desde la app:</b> ' + esc(R.error || '') + '<br>Mientras tanto, usa <b>Paquete de envío</b> y mándalo tú desde el correo.</div>';
-  if (listo) h += '<div style="margin-top:10px;font-size:13px">Sale desde <b>' + esc(R.remitente || R.cuenta || '') + '</b> <span style="color:#666">· hoy quedan ' + esc(String(R.quedan_hoy)) + ' envíos</span></div>';
+  if (listo) h += '<div style="margin-top:10px;font-size:13px">Sale desde <b>' + esc(R.remitente || R.cuenta || '') + '</b>' + (R.via ? ' <span style="color:#666">· ' + esc(R.via) + '</span>' : '') + (R.quedan_hoy != null ? ' <span style="color:#666">· hoy quedan ' + esc(String(R.quedan_hoy)) + ' envíos</span>' : '') + '</div>';   // v1184
   if (okCli.length || okQ.length) h += '<div style="margin-top:8px;background:#fff7e6;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:13px;color:#7a4b00">' +
     (okCli.length ? '<b>Ya enviada al cliente</b> el ' + esc(fh(okCli[0].created_at)) + ' a ' + esc(okCli[0].para || '') + (okCli.length > 1 ? ' (' + okCli.length + ' veces)' : '') + '. Si envías, le llegará otra vez.<br>' : '') +
     (okQ.length ? '<b>Ya enviada a Quipu</b> el ' + esc(fh(okQ[0].created_at)) + '.' : '') + '</div>';
@@ -47486,7 +47486,7 @@ async function faEnviar() {
     }
     if (alCliente) {
       paso('Enviando al cliente…');
-      const r = await _feLlamar({ empresa: _fa.empresa, destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
+      const r = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
       _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
       if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy;   // v1170
       if (r.ok) {   // v1175: la app RECUERDA lo que escribes al enviar
@@ -47501,7 +47501,7 @@ async function faEnviar() {
     if (_fe.quipu) {
       if (pdf.length > 100 * 1024) _fe.hecho.push({ ok: false, txt: 'NO se envió a Quipu: el PDF pesa ' + Math.round(pdf.length / 1024) + ' KB y Quipu solo admite 100 KB por archivo' });
       else { paso('Enviando a Quipu…');
-        const q = await _feLlamar({ empresa: _fa.empresa, destino: 'quipu', asunto: _fe.asunto.trim(), texto: 'Factura ' + _faNumero() + ' · ' + _fa.cliente, adjuntos: [{ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) }], doc_tipo: 'factura', doc_id: _fa.id });
+        const q = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'quipu', asunto: _fe.asunto.trim(), texto: 'Factura ' + _faNumero() + ' · ' + _fa.cliente, adjuntos: [{ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) }], doc_tipo: 'factura', doc_id: _fa.id });
         _fe.hecho.push(q.ok ? { ok: true, txt: 'Copia enviada a Quipu' } : { ok: false, txt: 'NO se envió a Quipu: ' + (q.error || 'error') }); if (q.ok) { _fe.quipu = false; if (q.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = q.quedan_hoy; } }
     }
     const mal = _fe.hecho.filter(x => !x.ok).length;
