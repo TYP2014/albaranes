@@ -34205,6 +34205,7 @@ function factPanelesRefrescar() {
   if (!act) { try { act = localStorage.getItem('factPanelActivo'); } catch (e) {} }
   if (!vis.some(p => p[0] === act)) act = vis.length ? vis[0][0] : '';
   window._factPanelActivo = act;
+  if (window._factPanelAuto !== act) { window._factPanelAuto = act; try { if (act === 'ofCard' && !window._ofListaOculta) ofListar(); if (act === 'faCard' && !window._faListaOculta) faListar(); } catch (e) { console.warn('[v1164] lista sola:', e); } }   // v1164: Ofertas y Facturas enseñan su lista nada más entrar
   _FACT_PANELES.forEach(p => { const c = document.getElementById(p[0]); if (c) c.classList.toggle('fact-oculto', p[0] !== act); });
   const h = vis.map(p => '<button class="btn ' + (p[0] === act ? 'bp' : 'bs') + '" style="font-size:13px;padding:9px 18px;min-width:150px" onclick="factPanelElegir(\'' + p[0] + '\')">' + p[1] + '</button>').join('');
   if (bar.getAttribute('data-h') !== h) { bar.innerHTML = h; bar.setAttribute('data-h', h); }
@@ -34215,6 +34216,7 @@ function factPanelElegir(id) {
   factPanelesRefrescar();
 }
 function factPanelesInit() {
+  window._factPanelAuto = null;   // v1164: al volver a Facturación, la lista se refresca
   factPanelesRefrescar();
   if (_factPanelObs || typeof MutationObserver === 'undefined') return;
   // Si los permisos muestran u ocultan una tarjeta mas tarde (cambia su style), la barra se actualiza sola.
@@ -45669,8 +45671,13 @@ async function ofCargar() {
   }
   return _ofLista;
 }
+// v1164: la lista sale sola; el botón solo sirve para recogerla / volver a enseñarla
+function _listaBtn(id, oculta) { const b = document.getElementById(id); if (b) b.textContent = oculta ? 'Mostrar lista' : 'Ocultar lista'; }
+function ofToggleLista() { window._ofListaOculta = !window._ofListaOculta; if (window._ofListaOculta) { const o = document.getElementById('ofCardOut'); if (o) o.innerHTML = ''; _listaBtn('ofBtnLista', true); } else ofListar(); }
+function faToggleLista() { window._faListaOculta = !window._faListaOculta; if (window._faListaOculta) { const o = document.getElementById('faCardOut'); if (o) o.innerHTML = ''; _listaBtn('faBtnLista', true); } else faListar(); }
 async function ofListar() {
   const out = document.getElementById('ofCardOut'); if (!out) return;
+  window._ofListaOculta = false; _listaBtn('ofBtnLista', false);
   out.innerHTML = '<div style="color:var(--mu);padding:10px">Cargando ofertas…</div>';
   await ofCargar();
   const fe = (document.getElementById('ofFiltroEstado') || {}).value || '';
@@ -45680,17 +45687,18 @@ async function ofListar() {
   let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' + Object.keys(_OF_ESTADOS).map(k => '<span style="font-size:12px;padding:3px 9px;border-radius:12px;background:' + _OF_ESTADOS[k][2] + ';color:' + _OF_ESTADOS[k][1] + ';font-weight:700">' + _OF_ESTADOS[k][0] + ': ' + (cuenta[k] || 0) + '</span>').join('') + '</div>';
   if (!L.length) { out.innerHTML = h + '<div style="color:var(--mu);padding:10px">No hay ofertas' + (fe || fq ? ' con ese filtro' : '') + '. Se crean desde <b>Albaranes › Selección › Crear oferta</b>.</div>'; return; }
   h += '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
-    ['Estado', 'Nº oferta', 'Fecha', 'Cliente', 'Albaranes', 'Total', 'Pedido SAP', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
+    ['Estado', 'Nº oferta', 'Fecha', 'Cliente', 'Albaranes', 'Total', 'Pedido SAP', 'Factura', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 5 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(o => {
     const E = _OF_ESTADOS[o.estado] || _OF_ESTADOS.estudio;
     h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="ofAbrir(\'' + o.id + '\')">' +
       '<td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:' + E[2] + ';color:' + E[1] + ';font-weight:800;white-space:nowrap">' + E[0].toUpperCase() + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + (o.numero ? esc(o.numero) : '<span style="color:var(--mu);font-weight:400">(sin nº)</span>') + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(o.fecha)) + '</td>' +
-      '<td style="padding:7px 8px">' + esc(o.cliente || '') + (o.titulo ? '<div style="font-size:12px;color:var(--mu)">' + esc(o.titulo) + '</div>' : '') + (o.factura ? '<div style="font-size:12px;color:#7c3aed;font-weight:700">Factura ' + esc(o.factura) + '</div>' : '') + '</td>' +
+      '<td style="padding:7px 8px">' + esc(o.cliente || '') + (o.titulo ? '<div style="font-size:12px;color:var(--mu)">' + esc(o.titulo) + '</div>' : '') + '</td>' +
       '<td style="padding:7px 8px">' + ((o.albaranes || []).length) + '</td>' +
       '<td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(o.total) + '</td>' +
       '<td style="padding:7px 8px">' + esc(o.pedido_sap || '') + '</td>' +
+      '<td style="padding:7px 8px;white-space:nowrap;font-weight:700;color:' + (o.factura ? '#15803d' : '#888') + '">' + (o.factura ? esc(o.factura) : (o.estado === 'facturada' ? 'Facturada' : 'Sin facturar')) + '</td>' +
       '<td style="padding:7px 8px"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button></td></tr>';
   });
   out.innerHTML = h + '</tbody></table></div>';
@@ -45875,7 +45883,7 @@ function _ofRender() {
       h += '<tr style="border-top:1px solid ' + (j ? '#eee' : 'var(--bd)') + '">';
       if (j === 0) {
         h += '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><textarea rows="2" onchange="ofSetConc(\'' + kA + '\',\'texto\',this.value.trim())" style="width:100%;padding:4px 6px;border:1px solid var(--bd);border-radius:5px;font-size:13px;font-family:inherit">' + esc(c.texto) + '</textarea>' +
-          '<div style="font-size:11px;color:var(--mu);display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + (_of.agruparMaterial ? '<span style="color:var(--tx);font-weight:700">Item <input value="' + _ofEA(c.cfg.item || '') + '" placeholder="nº" title="Nº de item del pedido SAP para este material" onchange="ofSetConc(\'' + kA + '\',\'item\',this.value.trim())" style="width:64px;padding:2px 5px;border:1px solid var(--bd);border-radius:4px;font-size:12px"></span>' : '') + '<span>' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</span></div>' +
+          '<div style="font-size:13px;color:#444;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">' + (_of.agruparMaterial ? '<span style="color:var(--tx);font-weight:700">Item <input value="' + _ofEA(c.cfg.item || '') + '" placeholder="nº" title="Nº de item del pedido SAP para este material" onchange="ofSetConc(\'' + kA + '\',\'item\',this.value.trim())" style="width:64px;padding:2px 5px;border:1px solid var(--bd);border-radius:4px;font-size:12px"></span>' : '') + '<span>' + esc(c.origen) + ' → ' + esc(c.destino) + (c.producto ? ' · ' + esc(c.producto) : '') + '</span></div>' +
           '<button class="btn bs" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="ofAddTramo(\'' + kA + '\')" title="Otro precio a partir de una fecha">+ tramo de fechas</button></td>' +
           '<td rowspan="' + c.tramos.length + '" style="padding:6px 8px;vertical-align:top"><select onchange="ofSetConc(\'' + kA + '\',\'unidad\',this.value)" style="padding:4px;border:1px solid var(--bd);border-radius:5px"><option value="tn"' + (c.cfg.unidad !== 'viaje' && c.cfg.unidad !== 'hora' ? ' selected' : '') + '>€/TN</option><option value="viaje"' + (c.cfg.unidad === 'viaje' ? ' selected' : '') + '>€/viaje</option><option value="hora"' + (c.cfg.unidad === 'hora' ? ' selected' : '') + '>€/hora</option></select></td>';
       }
@@ -45989,7 +45997,8 @@ async function ofGuardar(silencioso) {
     if (fuera.length) await _ofMarcar(fuera, false);
     if (!silencioso) toast('Oferta guardada' + (_of.numero ? ' (' + _of.numero + ')' : '') + ' · ' + _ofEur(T.total), 'ok');
     await ofCargar(); _ofRender();
-    if (document.getElementById('ofCardOut') && document.getElementById('ofCardOut').innerHTML) ofListar();
+    if (!silencioso) { document.getElementById('ofOv')?.remove(); _of = null; }   // v1164: al pulsar Guardar oferta, si se guardó bien, la ventana se cierra
+    if (document.getElementById('ofCardOut') && !window._ofListaOculta) ofListar();
     return true;
   } catch (e) { console.error('[v1133] guardar oferta:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
 }
@@ -46693,6 +46702,7 @@ async function _faSiguiente(emp, serie) {
 function faInitCard() { const c = document.getElementById('faCard'); if (!c) return; c.style.display = _ofPuede() ? '' : 'none'; }
 async function faListar() {
   const out = document.getElementById('faCardOut'); if (!out) return;
+  window._faListaOculta = false; _listaBtn('faBtnLista', false);
   out.innerHTML = '<div style="padding:10px">Cargando facturas…</div>';
   try { const { data, error } = await sb.from('facturas_app').select('id,empresa,numero,fecha,cliente,estado,total,vencimiento,oferta_id,datos->ofertaNum,datos->pedido').order('created_at', { ascending: false }); if (error) throw error; _faLista = data || []; }
   catch (e) { console.error('[v1149] listar facturas:', e); out.innerHTML = '<div style="color:#c62828;padding:10px">No se pudieron cargar: ' + esc(e.message || e) + '</div>'; return; }
