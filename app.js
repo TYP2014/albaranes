@@ -48064,7 +48064,7 @@ function pinPegarRevisar() {
     const cel = linea.split(/\t|;/).map(x => x.trim());
     for (let i = 0; i < cel.length; i++) {
       const m = cel[i].toUpperCase().replace(/[\s-]/g, '');
-      if (!/^\d{3,4}[A-Z]{3}$/.test(m)) continue;
+      if (!/^\d{3,4}[A-Z]{3}$/.test(m) || /DKV$/.test(m)) continue;   // v1207: "6513 DKV" es un PIN, no una matrícula
       const sig = (cel[i + 1] || '').toUpperCase(), mm = sig.match(/^(\d{4,8})\s*(DKV)?$/);
       if (!mm) { if (sig) filas.push({ mat: m, tipo: 'SOLRED', pin: '', estado: 'mal', nota: '"' + sig + '" no es un PIN (se salta)' }); continue; }
       const tipo = mm[2] ? 'SOLRED_DKV' : 'SOLRED', f = { mat: m, tipo, pin: mm[1], emp: conocidas.get(m) || null };
