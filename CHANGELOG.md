@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1172 (18/11/2026): FACTURAS · BORRAR UNA FACTURA EMITIDA LO DESHACE TODO. Antes, al borrar una emitida, sus albaranes se quedaban como FACTURADOS para siempre (y con el candado anti-duplicados ya no se podían volver a facturar). Ahora BORRAR: (1) quita la factura de Facturas y su línea de F. Emitidas (solo la que apuntó la app), (2) sus albaranes dejan de estar facturados: vuelven a su oferta en violeta si venía de una oferta, o quedan libres, (3) la oferta vuelve a APROBADA y lo apunta en su historial, (4) el número queda libre. Avisa antes de todo lo que va a pasar, y avisa si la factura ya se envió al cliente o a Quipu (borrarla aquí no la borra allí). Si figura como COBRADA en F. Emitidas, no deja borrarla. Editar una factura (precio, concepto, vencimiento) NO toca los albaranes. Un borrador se borra sin más. Sin SQL. VUELTA ATRAS: resubir v1171.
+
+---
+
 v1171 (18/11/2026): FACTURACIÓN · CONTACTOS (la ficha completa de los clientes, como en Quipu). Botón nuevo "Contactos" en la barra de Facturación, solo para clientes a los que facturamos. Lista a la vista con buscador y "Añadir cliente". Cada ficha, todo editable (se guarda al salir de la casilla): razón social, NIF, persona de contacto, teléfono, dirección fiscal, EMAIL PARA FACTURAS y EMAIL PARA OFERTAS (admiten varios separados por coma), días de vencimiento, forma de pago, qué se adjunta al enviarle la factura (todo / solo factura / factura + Excel / factura + albaranes) y notas. Avisa en naranja de lo que falta (NIF, dirección, email). Al elegir el cliente en una factura se rellenan solos el email de facturas, el vencimiento (los días de la ficha mandan sobre el plazo antiguo) y la forma de pago; al enviar, las casillas salen marcadas según la ficha y se pueden cambiar. Es la misma lista que el botón "Clientes" de ofertas y facturas. SQL YA APLICADO: columnas nuevas en clientes_ficha. VUELTA ATRAS: resubir v1170 (las columnas pueden quedarse).
 
 ---

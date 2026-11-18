@@ -47092,9 +47092,51 @@ async function faEmitir() {
 }
 async function faBorrar() {
   if (!_fa || !_fa.id) return;
-  if (!confirm('¿BORRAR la factura ' + _faNumero() + ' de la app?' + (_fa.estado === 'emitida' ? '\n\n⚠️ Está EMITIDA: su número quedará libre y los albaranes NO se desmarcan solos.' : ''))) return;
-  try { const { error } = await sb.from('facturas_app').delete().eq('id', _fa.id); if (error) throw error; toast('Factura borrada', 'ok'); document.getElementById('faOv')?.remove(); _fa = null; faListar(); }
-  catch (e) { console.error('[v1149] borrar factura:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+  const num = _faNumero(), emitida = _fa.estado === 'emitida';
+  if (!emitida) {   // borrador: no marcó nada, se borra sin más
+    if (!confirm('¿BORRAR el borrador ' + num + '?\n\nNo se ha emitido: no hay nada más que deshacer.')) return;
+    try { const { error } = await sb.from('facturas_app').delete().eq('id', _fa.id); if (error) throw error; toast('Borrador borrado', 'ok'); document.getElementById('faOv')?.remove(); _fa = null; _ofIrALista('faCard'); }
+    catch (e) { console.error('[v1149] borrar factura:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+    return;
+  }
+  // v1172: borrar una factura EMITIDA lo DESHACE TODO (antes los albaranes se quedaban como facturados para siempre)
+  const ids = (_fa.filas || []).map(x => String(x.id)), empFE = _FA_EMP_FE[_fa.empresa] || _fa.empresa;
+  let fe = [], envios = [], oferta = null;
+  try {
+    const r1 = await sb.from('facturas_emitidas').select('id,estado,observaciones').eq('empresa', empFE).eq('numero', num); if (r1.error) throw r1.error; fe = r1.data || [];
+    const r2 = await sb.from('correos_enviados').select('destino,ok').eq('doc_tipo', 'factura').eq('doc_id', _fa.id).eq('ok', true); envios = r2.data || [];
+    if (_fa.oferta_id) { const r3 = await sb.from('ofertas').select('id,numero,cliente,estado,datos').eq('id', _fa.oferta_id).maybeSingle(); oferta = r3.data || null; }
+  } catch (e) { console.error('[v1172] antes de borrar:', e); toast('⚠️ No se pudo comprobar la factura. Inténtalo otra vez.', 'err'); return; }
+  const cobrada = fe.some(x => x.estado && x.estado !== 'pendiente');
+  if (cobrada) { alert('La factura ' + num + ' figura como COBRADA (o con otro estado) en F. Emitidas.\n\nNo se borra desde aquí: primero ponla como pendiente en F. Emitidas, o hablamos de hacer una rectificativa.'); return; }
+  const aCli = envios.some(x => x.destino !== 'quipu'), aQ = envios.some(x => x.destino === 'quipu');
+  if (!confirm('BORRAR la factura EMITIDA ' + num + ' y DESHACER todo:\n\n' +
+    '  · Se borra de Facturas y de F. Emitidas\n' +
+    (ids.length ? '  · Sus ' + ids.length + ' albaranes dejan de estar FACTURADOS' + (oferta ? ' y vuelven a su oferta (violeta)' : ' y quedan libres para facturar') + '\n' : '') +
+    (oferta ? '  · La oferta ' + (oferta.numero || '(sin nº)') + ' vuelve a APROBADA\n' : '') +
+    '  · El nº ' + num + ' queda libre\n' +
+    (aCli || aQ ? '\n⚠️ Esta factura YA SE ENVIÓ ' + [aCli && 'al cliente', aQ && 'a Quipu'].filter(Boolean).join(' y ') + '. Borrarla aquí NO la borra de su correo' + (aQ ? ' ni de Quipu (allí hay que quitarla a mano)' : '') + '.\n' : '') +
+    '\n¿Continuar?')) return;
+  let err = 0;
+  // 1) Albaranes: dejan de estar facturados (y vuelven a su oferta si venían de una)
+  const etiqueta = oferta ? ((oferta.cliente || '') + (oferta.numero ? ' (' + oferta.numero + ')' : '')) : null;
+  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, ofertado: !!oferta, ofertado_cliente: etiqueta }).in('id', ids.slice(i, i + 100)).eq('estado_facturacion', 'facturado'); if (error) throw error; } catch (e) { console.error('[v1172] desmarcar albaranes:', e); err++; } }
+  if (err) { toast('⚠️ No se pudieron desmarcar los albaranes: la factura NO se ha borrado. Inténtalo otra vez.', 'err'); return; }
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === id); if (r && r.estado_facturacion === 'facturado') { r.estado_facturacion = 'pendiente'; r.factura_fecha = null; r.ofertado = !!oferta; r.ofertado_cliente = etiqueta; } });
+  // 2) La oferta vuelve a APROBADA
+  if (oferta) { try { const d = Object.assign({}, oferta.datos || {}, { factura: '' }); d.historial = (Array.isArray(d.historial) ? d.historial : []).concat([{ t: new Date().toISOString(), q: _ofQuien(), c: ['Factura ' + num + ' BORRADA: la oferta vuelve a Aprobada'] }]);
+    const { error } = await sb.from('ofertas').update({ estado: 'aprobada', datos: d }).eq('id', oferta.id); if (error) throw error; } catch (e) { console.error('[v1172] oferta a aprobada:', e); err++; } }
+  // 3) F. Emitidas (solo la línea que apuntó la app)
+  const mias = fe.filter(x => /^Hecha en la app/i.test(x.observaciones || ''));
+  if (mias.length) { try { const { error } = await sb.from('facturas_emitidas').delete().in('id', mias.map(x => x.id)); if (error) throw error; } catch (e) { console.error('[v1172] quitar de F. Emitidas:', e); err++; } }
+  // 4) La factura
+  try { const { error } = await sb.from('facturas_app').delete().eq('id', _fa.id); if (error) throw error; }
+  catch (e) { console.error('[v1172] borrar factura:', e); toast('⚠️ Albaranes desmarcados, pero la factura NO se pudo borrar: ' + (e.message || e), 'err'); return; }
+  try { renderTable(); } catch (e) {}
+  try { if ((document.getElementById('tabContentFactemit') || {}).style.display !== 'none') loadFactEmit(); } catch (e) {}
+  const queda = fe.length - mias.length;
+  toast(err ? '⚠️ Factura borrada, pero algo no se pudo deshacer (oferta o F. Emitidas): revísalo' : 'Factura ' + num + ' borrada y todo deshecho' + (queda ? ' · OJO: en F. Emitidas queda una ' + num + ' que no puso la app' : ''), err || queda ? 'err' : 'ok');
+  document.getElementById('faOv')?.remove(); _fa = null; _ofIrALista('faCard');
 }
 // ---------- PDF (mismo formato por empresa que las ofertas) ----------
 async function _faPdfBytes() {
