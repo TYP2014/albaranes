@@ -47045,7 +47045,8 @@ async function faListar() {
     h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + esc(f.numero || '(sin nº)') + '</td><td style="padding:7px 8px">' + esc(_OF_EMPRESAS[f.empresa] || f.empresa) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.fecha)) + '</td>' +
       '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;font-weight:700;color:#7c3aed;white-space:nowrap">' + (f.oferta_id ? esc(f.ofertaNum || '(sin nº)') : '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
-      '<td style="padding:7px 8px"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button></td></tr>'; });
+      '<td style="padding:7px 8px;white-space:nowrap"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button> ' +
+      '<button class="btn bs" onclick="event.stopPropagation();faDuplicarDe(\'' + f.id + '\')" style="font-size:11px;padding:3px 9px;border-color:#7c3aed;color:#7c3aed;font-weight:700" title="Factura nueva con el mismo cliente, conceptos y precios. Número siguiente y fecha en blanco.">Duplicar</button></td></tr>'; });
   out.innerHTML = h + '</tbody></table></div>';
 }
 // ---------- Nueva / abrir ----------
@@ -47228,6 +47229,8 @@ function _faRender() {
 }
 // v1201: DUPLICAR (como en Quipu): factura nueva en borrador con el mismo cliente, conceptos, precios, forma de pago, cuenta, notas y mensaje.
 // Número = el siguiente de la serie; fecha en blanco (obligatoria). NO copia los albaranes ni la oferta (un albarán no se factura dos veces).
+// v1202: Duplicar directamente desde la lista, sin abrir antes la factura
+async function faDuplicarDe(id) { await faAbrir(id); if (_fa && _fa.id === id) await faDuplicar(); }
 async function faDuplicar() {
   if (!_fa) return;
   const num = _faNumero(), cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005;
