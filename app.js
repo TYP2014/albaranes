@@ -26839,7 +26839,9 @@ function renderTallerTabla() {
     // v296: iconos de tipo cambiados de dibujo SVG a FOTO real (tractora / bañera). Las imágenes viven en el repo (junto a app.js). object-fit:cover recorta el fondo a una miniatura limpia.
     const _icoTractora = '<img src="tractora_app.webp?v=967" alt="Tractora" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
     const _icoSemi = '<img src="semirremolque_app.webp?v=967" alt="Remolque" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
-    const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? _icoSemi : _icoTractora;
+    // v1209: cisternas (columna carroceria = 'cisterna') con su propia foto, para distinguirlas de las bañeras
+    const _icoCisterna = '<img src="cisterna_app.webp?v=1209" alt="Cisterna" title="Cisterna" style="height:68px;width:auto;object-fit:contain;vertical-align:middle" loading="lazy">';
+    const tipoIcon = v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? _icoCisterna : _icoSemi) : _icoTractora;
     // v107K43: celda de fecha de los km (de cuándo se leyó el cuentakm). Ámbar si >45 días.
     let kmFechaCell = '<td style="font-size:11px;color:var(--mu)">—</td>';
     if (v.km_actual_fecha) {
