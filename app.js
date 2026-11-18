@@ -26857,7 +26857,7 @@ function renderTallerTabla() {
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
       <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
-      <td style="font-size:11px">${tipoIcon} ${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</td>
+      <td style="font-size:11px"><div style="display:flex;align-items:center;gap:10px"><span style="width:150px;flex:0 0 150px;display:flex;justify-content:center;align-items:center">${tipoIcon.replace('width:auto;', 'width:auto;max-width:150px;')}</span><span style="min-width:90px;font-weight:700">${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</span></div></td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
       ${kmFechaCell}
       <td style="font-size:11px">${e.ultimaFecha}</td>
