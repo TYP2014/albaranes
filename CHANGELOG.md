@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1175 (18/11/2026): ENVÍO DE FACTURAS · LA APP RECUERDA LOS CORREOS. (1) "Con copia a" (p. ej. administración) se guarda por empresa al enviar y sale ya puesto en el siguiente envío; si se borra la casilla y se envía, se olvida. (2) Si el cliente no tenía "Email para facturas" en Contactos, se le apunta el que se escribió en "Para" al enviar. SQL YA APLICADO: columna copia_envio en facturas_config. VUELTA ATRAS: resubir v1174.
+
+---
+
 v1174 (18/11/2026): OFERTAS · NUEVA OFERTA SIN ALBARANES Y DOCUMENTOS ANEXOS. (1) Botón "Nueva oferta (sin albaranes)" en la tarjeta de Ofertas: abre una oferta en blanco con una línea a mano, para ofertar horas u otros servicios. (2) En cualquier oferta, apartado "Documentos anexos" con "+ Añadir documento" (PDF o fotos, hasta 10 MB cada uno): para tickets de peaje, de camarote, etc. NO son albaranes: no pasan por SUBIR ni salen en la pestaña Albaranes; se guardan con la oferta (carpeta ofertas_anexos del almacén). Se pueden Ver y Quitar, salen en el Paquete de envío dentro de la carpeta ANEXOS, y el historial apunta cuándo se añade o se quita uno. Al borrar la oferta se borran sus anexos. Sin SQL. VUELTA ATRAS: resubir v1173.
 
 ---

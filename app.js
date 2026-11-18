@@ -47365,7 +47365,7 @@ async function faEnviarAbrir() {
   if (!_fa) return;
   if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
-  _fe = { para: _fa.email || '', cc: '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
   { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
@@ -47431,7 +47431,14 @@ async function faEnviar() {
       const r = await _feLlamar({ empresa: _fa.empresa, destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: _fe.texto || '', adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
       _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
       if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy;   // v1170
-      if (r.ok && _fa.email !== para.split(/[,;\s]+/)[0] && !_fa.email) { _fa.email = para.split(/[,;\s]+/)[0]; }
+      if (r.ok) {   // v1175: la app RECUERDA lo que escribes al enviar
+        const ccN = String(_fe.cc || '').split(/[,;\s]+/).filter(Boolean).join(', '), paraN = para.split(/[,;\s]+/).filter(Boolean).join(', '), cfg = _faCfg[_fa.empresa];
+        // "Con copia a": se guarda por empresa y sale puesto en el siguiente envío (si lo borras, se olvida)
+        if (cfg && (cfg.copia_envio || '') !== ccN) { try { const { error } = await sb.from('facturas_config').update({ copia_envio: ccN || null }).eq('empresa', _fa.empresa); if (error) throw error; cfg.copia_envio = ccN || null; } catch (e) { console.warn('[v1175] recordar copia:', e); } }
+        // "Para": si el cliente no tenía email de facturas en Contactos, se le apunta este
+        try { const fc = _ofCliBuscar(_fa.cliente); if (fc && !fc.email_facturas && paraN) { const { error } = await sb.from('clientes_ficha').update({ email_facturas: paraN }).eq('id', fc.id); if (error) throw error; fc.email_facturas = paraN; } } catch (e) { console.warn('[v1175] recordar email del cliente:', e); }
+        if (!_fa.email) _fa.email = paraN;
+      }
     }
     if (_fe.quipu) {
       if (pdf.length > 100 * 1024) _fe.hecho.push({ ok: false, txt: 'NO se envió a Quipu: el PDF pesa ' + Math.round(pdf.length / 1024) + ' KB y Quipu solo admite 100 KB por archivo' });
