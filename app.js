@@ -47132,6 +47132,11 @@ function _faRender() {
   h += '<div style="margin-top:10px;padding:12px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:15px">Estado:</b>' +
     '<span style="font-size:14px;padding:8px 16px;border-radius:8px;font-weight:800;background:' + (em ? '#15803d;color:#fff' : '#475569;color:#fff') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span>' +
     '<span style="font-size:13px;color:#111">' + (em ? 'Está apuntada en F. Emitidas.' : 'Todavía no marca albaranes ni sale en F. Emitidas.') + '</span><span style="margin-left:auto"></span>' +
+    // v1189: todos los botones ARRIBA; PDF / Paquete / Enviar solo cuando la factura ya está guardada
+    (_fa.id ? '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
+      '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
+      '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>'
+      : '<span style="font-size:12px;color:#475569">PDF, paquete y envío salen al guardar el borrador</span>') +
     '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:' + (em ? '#1b3254;color:#fff' : '#fff;color:#1b3254') + ';font-weight:800">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
   h += _cliEmpFranja(_fa.cliente, _fa.empresa, 'factura');   // v1180
@@ -47185,11 +47190,8 @@ function _faRender() {
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar</button>' : '') +
-    '<button class="btn" onclick="faPdf()" style="' + _OF_BTN + '">Factura PDF</button>' +
-    '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
-    '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>' +
-    '<button class="btn" onclick="faGuardar()" style="' + _OF_BTN + (em ? ';background:#1b3254;color:#fff' : '') + '">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
-    (em ? '' : '<button class="btn" onclick="faEmitir()" style="' + _OF_BTN + ';background:#1b3254;color:#fff;min-width:190px" title="Cierra la factura con su número y marca sus albaranes como facturados">Emitir factura</button>') + '</div></div>';
+    '<button class="btn" onclick="faGuardar()" style="font-size:12px;padding:6px 12px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:12px;padding:6px 12px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
 }
 // ---------- Guardar / emitir / borrar ----------
