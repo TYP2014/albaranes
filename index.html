@@ -603,6 +603,20 @@ if (typeof pdfjsLib !== 'undefined') {
         </div>
       </div>
 
+      <div class="card" id="cliCard" style="margin-top:18px;display:none">
+        <div class="card-hd">
+          <div class="st"><div class="dot" style="--c:#0f766e"></div>CONTACTOS <span style="font-size:10px;color:var(--mu);font-weight:400">(clientes a los que facturamos · datos fiscales, emails, vencimiento)</span></div>
+        </div>
+        <div class="card-bd">
+          <div style="font-size:14px;color:#111;line-height:1.6">La ficha de cada cliente. De aquí salen solos los datos al hacer una oferta o una factura: NIF y dirección, emails, días de vencimiento, forma de pago y qué se le adjunta.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <input id="cliFiltroTxt" type="search" placeholder="Buscar cliente, NIF, email o persona" oninput="_cliPintar()" style="padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:320px">
+            <button class="btn bp" onclick="cliNuevo()" style="font-weight:800">Añadir cliente</button>
+          </div>
+          <div id="cliCardOut" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="card" id="fiCard" style="margin-top:18px;display:none">
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:#4c1d95"></div>FACTURA HÍSPALIS / TRANSMARGAZ <span style="font-size:10px;color:var(--mu);font-weight:400">(lo que nos facturan · solo Admin)</span></div>
@@ -2193,6 +2207,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1170"></script>
+<script src="app.js?v=1171"></script>
 </body>
 </html>

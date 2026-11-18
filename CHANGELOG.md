@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1171 (18/11/2026): FACTURACIÓN · CONTACTOS (la ficha completa de los clientes, como en Quipu). Botón nuevo "Contactos" en la barra de Facturación, solo para clientes a los que facturamos. Lista a la vista con buscador y "Añadir cliente". Cada ficha, todo editable (se guarda al salir de la casilla): razón social, NIF, persona de contacto, teléfono, dirección fiscal, EMAIL PARA FACTURAS y EMAIL PARA OFERTAS (admiten varios separados por coma), días de vencimiento, forma de pago, qué se adjunta al enviarle la factura (todo / solo factura / factura + Excel / factura + albaranes) y notas. Avisa en naranja de lo que falta (NIF, dirección, email). Al elegir el cliente en una factura se rellenan solos el email de facturas, el vencimiento (los días de la ficha mandan sobre el plazo antiguo) y la forma de pago; al enviar, las casillas salen marcadas según la ficha y se pueden cambiar. Es la misma lista que el botón "Clientes" de ofertas y facturas. SQL YA APLICADO: columnas nuevas en clientes_ficha. VUELTA ATRAS: resubir v1170 (las columnas pueden quedarse).
+
+---
+
 v1170 (18/11/2026): ENVÍO DE FACTURAS · RETOQUES TRAS LA PRIMERA PRUEBA (llegó bien a la bandeja de entrada). (1) El nombre del adjunto ya no lleva dos puntos seguidos ("…S.L.U..pdf"); igual en ofertas y en el paquete. (2) Si la factura no lleva albaranes, el texto propuesto dice "Adjunto la factura." y no menciona el detalle de albaranes. (3) "Hoy quedan N envíos" se actualiza después de enviar, y el resultado dice también a quién fue la copia. Sin SQL. VUELTA ATRAS: resubir v1169.
 
 ---

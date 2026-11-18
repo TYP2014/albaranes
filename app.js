@@ -34192,7 +34192,7 @@ function _factRepasoBorrar(id) {
 // ============================================================================
 const _FACT_PANELES = [
   ['factHolcimCard', 'Holcim'], ['factCemexCard', 'CEMEX'], ['factSodiraCard', 'Sodira'],
-  ['ofCard', 'Ofertas'], ['faCard', 'Facturas'],
+  ['ofCard', 'Ofertas'], ['faCard', 'Facturas'], ['cliCard', 'Contactos'],
   ['liqAutCard', 'Subcontratados'], ['fiCard', 'Factura Híspalis / Transmargaz'],
   ['factTarifasCard', 'Tarifas por servicio'], ['tarifasCliCard', 'Precio cliente']
 ];
@@ -34205,7 +34205,7 @@ function factPanelesRefrescar() {
   if (!act) { try { act = localStorage.getItem('factPanelActivo'); } catch (e) {} }
   if (!vis.some(p => p[0] === act)) act = vis.length ? vis[0][0] : '';
   window._factPanelActivo = act;
-  if (window._factPanelAuto !== act) { window._factPanelAuto = act; try { if (act === 'ofCard' && !window._ofListaOculta) ofListar(); if (act === 'faCard' && !window._faListaOculta) faListar(); } catch (e) { console.warn('[v1164] lista sola:', e); } }   // v1164: Ofertas y Facturas enseñan su lista nada más entrar
+  if (window._factPanelAuto !== act) { window._factPanelAuto = act; try { if (act === 'ofCard' && !window._ofListaOculta) ofListar(); if (act === 'faCard' && !window._faListaOculta) faListar(); if (act === 'cliCard') cliListar(); } catch (e) { console.warn('[v1164] lista sola:', e); } }   // v1164: Ofertas y Facturas enseñan su lista nada más entrar
   _FACT_PANELES.forEach(p => { const c = document.getElementById(p[0]); if (c) c.classList.toggle('fact-oculto', p[0] !== act); });
   const h = vis.map(p => '<button class="btn ' + (p[0] === act ? 'bp' : 'bs') + '" style="font-size:13px;padding:9px 18px;min-width:150px" onclick="factPanelElegir(\'' + p[0] + '\')">' + p[1] + '</button>').join('');
   if (bar.getAttribute('data-h') !== h) { bar.innerHTML = h; bar.setAttribute('data-h', h); }
@@ -46742,6 +46742,62 @@ async function ofCliBorrar(id) {
   catch (e) { console.error('[v1143] cliente borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
 }
 
+// ============================================================================
+// v1171 (JC 18/11/2026): CONTACTOS — la ficha completa de los CLIENTES (solo a quién facturamos), como en Quipu.
+// Botón "Contactos" en la barra de Facturación. Todo editable y se guarda al salir de cada casilla (misma tabla
+// clientes_ficha que el botón Clientes de ofertas y facturas). De aquí salen solos, al elegir el cliente:
+// datos fiscales, email (uno para ofertas y otro para facturas, varios separados por coma), días de vencimiento,
+// forma de pago y qué se le adjunta al enviarle la factura.
+// ============================================================================
+const _CLI_ENVIO = { '': 'Todo (factura + Excel + albaranes)', factura: 'Solo la factura', excel: 'Factura + Excel', albaranes: 'Factura + albaranes' };
+async function cliListar() {
+  const out = document.getElementById('cliCardOut'); if (!out) return;
+  if (!out.innerHTML) out.innerHTML = '<div style="padding:10px">Cargando contactos…</div>';
+  await _ofCliCargar(true); if (!_faCfg || !Object.keys(_faCfg).length) { try { await _faCargarCfg(); } catch (e) {} }
+  _cliPintar();
+}
+function _cliPintar() {
+  const out = document.getElementById('cliCardOut'); if (!out) return;
+  const fq = _ofNrm((document.getElementById('cliFiltroTxt') || {}).value || '');
+  const L = _ofCli.filter(c => !fq || _ofNrm([c.nombre, c.nif, c.email, c.email_facturas, c.contacto, c.telefono].join(' ')).includes(fq));
+  if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay clientes' + (fq ? ' con ese texto' : '') + '. Pulsa <b>Añadir cliente</b>.</div>'; return; }
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit;width:100%', lab = 'font-size:12px;color:#111;display:block';
+  const campo = (c, k, t, ancho, extra) => '<label style="' + lab + ';flex:' + ancho + ';min-width:' + (extra && extra.min || 150) + 'px">' + t + '<br><input value="' + _ofEA(c[k] == null ? '' : c[k]) + '"' + (extra && extra.ph ? ' placeholder="' + extra.ph + '"' : '') + ' onchange="cliSet(\'' + c.id + '\',\'' + k + '\',this.value)" style="' + inp + (extra && extra.b ? ';font-weight:700' : '') + '"></label>';
+  out.innerHTML = '<div style="font-size:13px;color:#111;margin-bottom:8px">' + L.length + ' cliente(s). Cada cambio se guarda al salir de la casilla.</div>' + L.map(c => {
+    const falta = [!c.nif && 'NIF', !c.direccion && 'dirección', !(c.email_facturas || c.email) && 'email'].filter(Boolean);
+    return '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fff">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' + campo(c, 'nombre', 'Razón social', 3, { min: 280, b: 1 }) + campo(c, 'nif', 'NIF', 1, { min: 120 }) + campo(c, 'contacto', 'Persona de contacto', 2) + campo(c, 'telefono', 'Teléfono', 1, { min: 120 }) +
+        '<button class="btn bs" onclick="cliBorrar(\'' + c.id + '\')" style="padding:8px 12px;border-color:#b91c1c;color:#b91c1c">Borrar</button></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start"><label style="' + lab + ';flex:2;min-width:280px">Dirección fiscal (calle / CP y ciudad)<br><textarea rows="2" onchange="cliSet(\'' + c.id + '\',\'direccion\',this.value)" style="' + inp + '">' + esc(c.direccion || '') + '</textarea></label>' +
+        '<div style="flex:3;min-width:300px;display:flex;gap:10px;flex-wrap:wrap">' + campo(c, 'email_facturas', 'Email para FACTURAS', 1, { min: 240, ph: 'varios separados por coma' }) + campo(c, 'email', 'Email para OFERTAS', 1, { min: 240, ph: 'varios separados por coma' }) + '</div></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-end">' + campo(c, 'dias_venc', 'Días de vencimiento', 1, { min: 130, ph: '60' }) +
+        '<label style="' + lab + ';flex:1;min-width:170px">Forma de pago<br><select onchange="cliSet(\'' + c.id + '\',\'forma_pago\',this.value)" style="' + inp + '"><option value="">(la de la empresa)</option>' + _FA_PAGOS.map(x => '<option' + (c.forma_pago === x ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
+        '<label style="' + lab + ';flex:2;min-width:240px">Al enviarle la factura se adjunta<br><select onchange="cliSet(\'' + c.id + '\',\'envio\',this.value)" style="' + inp + '">' + Object.keys(_CLI_ENVIO).map(k => '<option value="' + k + '"' + ((c.envio || '') === k ? ' selected' : '') + '>' + _CLI_ENVIO[k] + '</option>').join('') + '</select></label>' +
+        campo(c, 'notas', 'Notas (ej. exige nº de pedido SAP)', 4, { min: 260 }) + '</div>' +
+      (falta.length ? '<div style="margin-top:6px;font-size:12px;font-weight:700;color:#b45309">Falta: ' + falta.join(', ') + '</div>' : '') + '</div>'; }).join('');
+}
+async function cliSet(id, campo, v) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  let val = String(v == null ? '' : v).trim() || null;
+  if (campo === 'nombre') { if (!val) { toast('La razón social no puede quedar vacía', 'err'); _cliPintar(); return; } val = val.toUpperCase(); const otro = _ofCli.find(x => x.id !== id && _ofNrm(x.nombre) === _ofNrm(val)); if (otro) { toast('Ya hay otro cliente con ese nombre', 'err'); _cliPintar(); return; } }
+  if (campo === 'dias_venc' && val != null) { const n = parseInt(val, 10); if (!(n > 0 && n <= 365)) { toast('Días de vencimiento: un número entre 1 y 365', 'err'); _cliPintar(); return; } val = n; }
+  if ((campo === 'email' || campo === 'email_facturas') && val) { const partes = val.split(/[,;\s]+/).filter(Boolean), malos = partes.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x)); if (malos.length) { toast('Email mal escrito: ' + malos.join(', '), 'err'); _cliPintar(); return; } val = partes.join(', '); }
+  try { const { error } = await sb.from('clientes_ficha').update({ [campo]: val }).eq('id', id); if (error) throw error; c[campo] = val; toast('Guardado', 'ok'); if (campo === 'nombre' || campo === 'email' || campo === 'email_facturas' || campo === 'dias_venc') _cliPintar(); }
+  catch (e) { console.error('[v1171] contacto:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _cliPintar(); }
+}
+async function cliNuevo() {
+  const nombre = prompt('Razón social del cliente nuevo:'); if (!nombre || !nombre.trim()) return;
+  await _ofCliCargar(true); if (_ofCliBuscar(nombre)) { toast('Ese cliente ya existe', 'err'); return; }
+  try { const { error } = await sb.from('clientes_ficha').insert({ nombre: nombre.trim().toUpperCase() }); if (error) throw error; const f = document.getElementById('cliFiltroTxt'); if (f) f.value = nombre.trim(); await cliListar(); }
+  catch (e) { console.error('[v1171] contacto nuevo:', e); toast('⚠️ No se pudo crear: ' + (e.message || e), 'err'); }
+}
+async function cliBorrar(id) {
+  const c = _ofCli.find(x => x.id === id); if (!c) return;
+  if (!confirm('¿Borrar el cliente "' + c.nombre + '" de Contactos?\n\nLas ofertas y facturas ya hechas no cambian.')) return;
+  try { const { error } = await sb.from('clientes_ficha').delete().eq('id', id); if (error) throw error; _ofCli = _ofCli.filter(x => x.id !== id); _cliPintar(); }
+  catch (e) { console.error('[v1171] contacto borrar:', e); toast('⚠️ No se pudo borrar: ' + (e.message || e), 'err'); }
+}
+
 // v1144 (JC 17/11/2026): Vacaciones · en el calendario se ve NOMBRE + PRIMER APELLIDO (hay muchos con el mismo nombre).
 // Misma regla que en Tacógrafo: con 3 o más palabras se quita la última (2º apellido), y si queda colgando una
 // partícula (I, Y, DE, DEL, LA, EL) también. MIGUEL GARCIA LOPEZ → MIGUEL GARCIA · JOSEP VALLET I CASADEVALL → JOSEP VALLET.
@@ -46787,7 +46843,8 @@ async function _faCargarCfg() {
   catch (e) { console.error('[v1149] config facturas:', e); if (/does not exist|relation|permission/i.test(e.message || '')) toast('Falta el SQL de la v1149 (tablas de facturas)', 'err'); }
   if (!_faPlazos) { try { const { data } = await sb.from('clientes_plazo').select('cliente_key,dias'); _faPlazos = data || []; } catch (e) { _faPlazos = []; } }
 }
-function _faPlazoDe(cliente) { const k = _faKey(cliente); if (!k) return 60; const p = (_faPlazos || []).find(x => x.cliente_key === k || k.endsWith(x.cliente_key) || x.cliente_key.endsWith(k)); return p ? Number(p.dias) || 60 : 60; }
+function _faPlazoDe(cliente) { const fc = _ofCliBuscar(cliente); if (fc && Number(fc.dias_venc) > 0) return Number(fc.dias_venc);   // v1171: manda la ficha de Contactos
+  const k = _faKey(cliente); if (!k) return 60; const p = (_faPlazos || []).find(x => x.cliente_key === k || k.endsWith(x.cliente_key) || x.cliente_key.endsWith(k)); return p ? Number(p.dias) || 60 : 60; }
 function _faVencAuto() { if (!_fa || _fa.vencManual || !_fa.fecha) return; const d = new Date(_fa.fecha + 'T12:00:00'); d.setDate(d.getDate() + _faPlazoDe(_fa.cliente)); _fa.venc = _ofIso(d); }
 // Siguiente nº de la serie: el mayor de Facturas emitidas (lo de Quipu) y de las facturas de la app, + 1
 async function _faSiguiente(emp, serie) {
@@ -46798,7 +46855,7 @@ async function _faSiguiente(emp, serie) {
   return max + 1;
 }
 // ---------- Tarjeta ----------
-function faInitCard() { const c = document.getElementById('faCard'); if (!c) return; c.style.display = _ofPuede() ? '' : 'none'; }
+function faInitCard() { const c = document.getElementById('faCard'); if (c) c.style.display = _ofPuede() ? '' : 'none'; const k = document.getElementById('cliCard'); if (k) k.style.display = _ofPuede() ? '' : 'none'; }
 async function faListar() {
   const out = document.getElementById('faCardOut'); if (!out) return;
   window._faListaOculta = false; _listaBtn('faBtnLista', false);
@@ -46824,6 +46881,7 @@ async function faNueva(base) {
   await _faCargarCfg(); await _ofCliCargar(); await _ofCatCargar();
   const emp = (base && base.empresa) || (document.getElementById('faFiltroEmp') || {}).value || 'TYP', hoy = _ofIso(new Date()), cfg = _faCfg[emp] || {};
   _fa = Object.assign({ id: null, empresa: emp, serie: _faSerieDeFecha(emp, hoy), n: null, fecha: hoy, cliente: '', clienteDatos: '', email: '', estado: 'borrador', ofertaNum: '', mensaje: 'Buenos días,\n\nAdjunto la factura y el detalle de los albaranes de los servicios realizados.\n\nUn saludo,\nJuan Carlos Reina', lineas: [], pago: cfg.forma_pago || 'Transferencia', cuenta: '', venc: '', vencManual: false, pedido: '', notas: '', titulo: '', oferta_id: null, filas: [], guardadaTotal: null }, base || {});
+  { const fc = _ofCliBuscar(_fa.cliente); if (fc) { if (fc.email_facturas) _fa.email = fc.email_facturas; if (fc.forma_pago && !(base && base.pago)) _fa.pago = fc.forma_pago; } }   // v1171: email de facturas y forma de pago de la ficha de Contactos
   if (!_fa.cuenta) _fa.cuenta = _faCuentaPred(_fa.empresa);
   if (!_fa.remitente) _fa.remitente = _faRemitentes(_fa.empresa)[0] || '';   // v1155
   _fa.n = await _faSiguiente(_fa.empresa, _fa.serie); _faVencAuto();
@@ -46902,7 +46960,7 @@ async function faSet(campo, v) {
   else if (campo === 'venc') { _fa.venc = v; _fa.vencManual = !!v; if (!v) _faVencAuto(); }
   else if (campo === 'cliente') {
     if (v === '__otro__') { const n = prompt('Nombre (razón social) del cliente:'); if (!n || !n.trim()) { _faRender(); return; } v = n.trim().toUpperCase(); }
-    _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && c.email) || ''; if (c) _fa.cliente = c.nombre; _faVencAuto(); }
+    _fa.cliente = v; const c = _ofCliBuscar(v); _fa.clienteDatos = c ? _ofCliDatos(c) : ''; _fa.email = (c && (c.email_facturas || c.email)) || ''; if (c) { _fa.cliente = c.nombre; if (c.forma_pago) _fa.pago = c.forma_pago; } _faVencAuto(); }
   else _fa[campo] = v;
   _faRender();
 }
@@ -46943,7 +47001,7 @@ function _faRender() {
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start">' +
     '<label style="' + lab + ';flex:1;min-width:300px">Datos del cliente (dirección, CP, NIF)<br><textarea rows="3" onchange="_fa.clienteDatos=this.value" style="' + inp + ';width:100%;font-size:13px">' + esc(_fa.clienteDatos || '') + '</textarea></label>' +
     '<div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:6px"><label style="' + lab + '">Enviar desde<br>' + _faRemSelect('fa', _fa.remitente || '', _fa.empresa, inp) + '</label>' +
-      '<label style="' + lab + '">Email del cliente (para enviarle la factura)<br><input type="email" value="' + _ofEA(_fa.email || '') + '" onchange="_fa.email=this.value.trim()" style="' + inp + ';width:100%"></label></div>' +
+      '<label style="' + lab + '">Email del cliente (para enviarle la factura)<br><input type="text" placeholder="varios separados por coma" value="' + _ofEA(_fa.email || '') + '" onchange="_fa.email=this.value.trim()" style="' + inp + ';width:100%"></label></div>' +
     '<label style="' + lab + ';flex:1;min-width:240px">Pedido / referencia del cliente<br><input value="' + _ofEA(_fa.pedido) + '" placeholder="ej. nº de pedido SAP" onchange="_fa.pedido=this.value.trim()" style="' + inp + ';width:100%"></label></div>';
   // Líneas
   const catEmp = _ofCatDeEmpresa(_fa.empresa);
@@ -47200,6 +47258,7 @@ async function faEnviarAbrir() {
   if (_fa.estado !== 'emitida' || !_fa.id) { toast('Primero EMITE la factura. Un borrador no se envía al cliente.', 'err'); return; }
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
   _fe = { para: _fa.email || '', cc: '', asunto: _faAsunto(), texto: _fa.filas.length ? (_fa.mensaje || '') : String(_fa.mensaje || '').replace('Adjunto la factura y el detalle de los albaranes de los servicios realizados.', 'Adjunto la factura.'), pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
