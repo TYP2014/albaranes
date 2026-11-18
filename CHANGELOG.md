@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+v1185 (18/11/2026): TACÓGRAFO · TRANSMARGAZ FUERA PARA ADMIN Y OFICINA. Por decisión de JC (lo gestionarán ellos), en el Tacógrafo ya no salen los camiones, conductores ni avisos de Transmargaz 2018: panel, "Descargas pendientes" (incluido "Sin ninguna descarga guardada"), vehículos/conductores, carnet y CAP, archivo, y desaparece su botón en la barra de empresa. El usuario de Transmargaz sigue viendo solo lo suyo. Sin SQL. VUELTA ATRAS: resubir v1184.
+
+---
+
 v1184 (18/11/2026): ENVÍO DE FACTURAS · AHORA SÍ, LA PARTE DE LA APP PARA MICROSOFT 365. La v1183 se subió por error SIN el cambio de app.js (solo llevaba el número y la nota). Esta lo trae: la ventana de envío manda al servidor el correo elegido en "Enviar desde" y enseña por dónde sale (Gmail o Microsoft 365); "hoy quedan N envíos" solo sale en Gmail. Sin SQL. VUELTA ATRAS: resubir v1182.
 
 ---

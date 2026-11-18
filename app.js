@@ -37753,7 +37753,14 @@ function _tacoTxtMadrid() {
   return '\u23F1 Fechas y horas en <b>hora de España</b> (la que vale para la Inspección) \u00b7 el tac\u00f3grafo graba en UTC y se convierte al mostrarlo';
 }
 
-function _tacoEmpPasa(x) { return _tacoEmpGlobal === 'TODAS' || x.empresa === _tacoEmpGlobal; }
+// v1185: TRANSMARGAZ FUERA del Tacografo para JC y la oficina (orden de JC
+// 18/11/2026: "si lo quiere gestionar lo hara el/ellos"). Ni sus camiones, ni
+// sus conductores, ni sus avisos. Solo el usuario de Transmargaz ve lo suyo.
+function _tacoOcultaTMG() { try { return !(typeof _recambiosEsTransmargaz === 'function' && _recambiosEsTransmargaz()); } catch (e) { return true; } }
+function _tacoEmpPasa(x) {
+  if (x && x.empresa === 'TRANSMARGAZ' && _tacoOcultaTMG()) return false;   // v1185
+  return _tacoEmpGlobal === 'TODAS' || x.empresa === _tacoEmpGlobal;
+}
 function tacoEmpGlobal(emp) {
   _tacoEmpGlobal = emp;
   ['TODAS', 'TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
@@ -38630,9 +38637,10 @@ async function tacoCargarLista() {
     const hay = new Set(tacoFicheros.map(f => f.empresa));
     ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'].forEach(e => {
       const b = document.getElementById('tacoSub' + e);
-      if (b) b.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
+      const _fuera = (e === 'TRANSMARGAZ' && _tacoOcultaTMG());     // v1185
+      if (b) b.style.display = (!_fuera && (hay.size === 0 || hay.has(e))) ? '' : 'none';
       const g = document.getElementById('tacoEmpG' + e);          // v422: la barra global, igual
-      if (g) g.style.display = (hay.size === 0 || hay.has(e)) ? '' : 'none';
+      if (g) g.style.display = (!_fuera && (hay.size === 0 || hay.has(e))) ? '' : 'none';
     });
     tacoPintarLista();
     tacoPintarAvisos();          // v377
@@ -38647,7 +38655,7 @@ function tacoPintarLista() {
   const cont = document.getElementById('tacoLista');
   const cnt = document.getElementById('tacoListaCount');
   if (!cont) return;
-  const fs = tacoFicheros.filter(f => tacoEmpresaActiva === 'TODAS' || f.empresa === tacoEmpresaActiva);
+  const fs = tacoFicheros.filter(f => (tacoEmpresaActiva === 'TODAS' || f.empresa === tacoEmpresaActiva) && !(f.empresa === 'TRANSMARGAZ' && _tacoOcultaTMG()));   // v1185
   if (cnt) cnt.textContent = fs.length + (fs.length === 1 ? ' fichero' : ' ficheros');
 
   if (!fs.length) {
@@ -40329,7 +40337,7 @@ function _vencDocsDe(trabs) {
   (trabs || []).forEach(t => {
     if (t.archivado || t.fecha_baja) return;
     if (permitidas.size && !permitidas.has(t.empresa)) return;
-    if (_tacoEmpGlobal !== 'TODAS' && t.empresa !== _tacoEmpGlobal) return;
+    if (!_tacoEmpPasa(t)) return;   // v1185: (antes solo el filtro de empresa) + fuera Transmargaz
     _VENC_DOCS.forEach(d => {
       const iso = t[d.campo] || null;
       (iso ? conFecha : sinFecha).push({ trab: t, doc: d, iso: iso });
