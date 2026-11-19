@@ -48211,10 +48211,12 @@ function vdRender() {
         const etq = (tipo === 'EXTRA1' || tipo === 'EXTRA2') && x && x.etiqueta ? '<div style="font-size:10px;color:#111;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _ofEA(x.etiqueta) + '">' + esc(x.etiqueta) + '</div>' : '';
         let cel;
         const ck = url ? '<input type="checkbox" title="Marcar este documento para enviar o descargar"' + (_vd.dsel.has(m + '|' + tipo) ? ' checked' : '') + ' onchange="vdDSel(\'' + m + '|' + tipo + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;margin-right:3px;accent-color:#15803d">' : '';
-        if (tipo === 'ITV') cel = url ? ck + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a>' : '<span style="color:#94a3b8" title="Se sube en el módulo ITV">— (ITV)</span>';
+        if (tipo === 'ITV') { cel = url ? ck + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a>' : '<span style="color:#94a3b8" title="Se sube en el módulo ITV">— (ITV)</span>';
+          const it = _vd.itv.get(m); if (it && it.fecha_caducidad) cel += _vdVenceHtml(String(it.fecha_caducidad).slice(0, 10), null); }
         else {
           cel = (url ? ck + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' : '') +
             '<label style="cursor:pointer;font-size:11px;color:' + (url ? '#475569' : '#1b3254') + ';font-weight:' + (url ? '600' : '800') + ';text-decoration:underline">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="vdSubir(\'' + v.id + '\',\'' + tipo + '\',this)"></label>';
+          if (_VD_VENCE.includes(tipo) && x && x.file_url) cel += _vdVenceHtml(x.vence, 'vdVenceEditar(\'' + m + '\',\'' + tipo + '\')');
           if (tipo === 'DECL_HOLCIM') cel += '<div><a href="javascript:void(0)" onclick="vdDeclUno(\'' + v.id + '\')" style="font-size:11px;font-weight:800;color:#1b3254">Generar</a></div>';
         }
         t += '<td style="padding:6px;text-align:center;white-space:nowrap">' + etq + cel + '</td>';
@@ -48233,6 +48235,48 @@ function _vdDocsDe(v) {   // documentos subidos de un vehículo
   return L;
 }
 function _vdDocsMarcados() { const L = []; _vdLista().forEach(v => _vdDocsDe(v).forEach(d => { if (_vd.dsel.has(d.mat + '|' + d.tipo)) L.push(d); })); return L; }
+// v1229: VENCIMIENTO del seguro y de la tarjeta de transporte. Al subir: 1º la fecha del NOMBRE del archivo (…_01052027.pdf),
+// y si no la lleva, se lee del PDF (seguro: "11/11/26 A 01/05/27"; tarjeta: columna Validez de la fila de la matrícula). Siempre editable.
+const _VD_VENCE = ['SEGURO', 'TT'];
+function _vdIsoDe(d, m, a) { a = Number(a); if (a < 100) a += 2000; d = Number(d); m = Number(m);
+  const f = new Date(Date.UTC(a, m - 1, d)); if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d || a < 2020 || a > 2045) return null;
+  return a + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+async function _vdVenceDe(file, tipo, mat) {
+  const nom = String(file.name || '').replace(/\.[a-z0-9]+$/i, '');
+  const ns = nom.match(/(?:^|\D)(\d{2})[.\-_]?(\d{2})[.\-_]?(\d{4})(?!\d)/g);
+  if (ns) for (const t of ns.reverse()) { const g = t.match(/(\d{2})[.\-_]?(\d{2})[.\-_]?(\d{4})$/); const iso = g && _vdIsoDe(g[1], g[2], g[3]); if (iso) return iso; }
+  if (!/pdf/i.test(file.type || '') && !/\.pdf$/i.test(file.name || '')) return null;
+  try {
+    const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: new Uint8Array(await file.arrayBuffer()) })).promise; let txt = '';
+    for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) { const it = (await (await pdf.getPage(p)).getTextContent()).items; let y = null;
+      it.forEach(x => { const yy = Math.round(x.transform[5]); txt += (y !== null && Math.abs(yy - y) > 3 ? '\n' : ' ') + x.str; y = yy; }); txt += '\n'; }
+    const F = '(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{2,4})';
+    if (tipo === 'SEGURO') {
+      let g = txt.match(new RegExp(F + '\\s*(?:A|AL|HASTA)\\s*' + F, 'i')); if (g) return _vdIsoDe(g[4], g[5], g[6]);
+      g = txt.match(new RegExp('(?:vencimiento|fin de (?:la )?vigencia|hasta|efecto hasta)[^0-9\\n]{0,30}' + F, 'i')); if (g) return _vdIsoDe(g[1], g[2], g[3]);
+    } else {
+      // tarjeta de transporte: la validez es la fecha MÁS LEJANA del documento (las demás son de aprobación o de impresión)
+      const ds = [...txt.matchAll(new RegExp(F, 'g'))].map(g => _vdIsoDe(g[1], g[2], g[3])).filter(Boolean).sort();
+      if (ds.length) return ds[ds.length - 1];
+    }
+  } catch (e) { console.warn('[v1229] leer vencimiento:', e); }
+  return null;
+}
+function _vdVenceHtml(iso, onclick) {
+  const hoy = _ofIso(new Date()), en30 = _ofIso(new Date(Date.now() + 30 * 864e5));
+  if (!iso) return onclick ? '<div><a href="javascript:void(0)" onclick="' + onclick + '" style="font-size:11px;font-weight:800;color:#b91c1c">poner vencimiento</a></div>' : '';
+  const col = iso < hoy ? '#b91c1c' : iso <= en30 ? '#b45309' : '#111', txt = (iso < hoy ? 'VENCIDO ' : 'vence ') + _ofFechaEs(iso);
+  return '<div style="font-size:11px;font-weight:800;color:' + col + '">' + (onclick ? '<a href="javascript:void(0)" onclick="' + onclick + '" title="Pulsa para cambiar la fecha" style="color:inherit;text-decoration:underline dotted">' + txt + '</a>' : txt) + '</div>';
+}
+async function vdVenceEditar(mat, tipo) {
+  const x = _vd.docs.get(mat + '|' + tipo); if (!x) return;
+  const r = prompt('Vencimiento de ' + (tipo === 'SEGURO' ? 'SEGURO' : 'TARJETA DE TRANSPORTE') + ' · ' + mat + ' (DD/MM/AAAA). Vacío = sin fecha:', x.vence ? _ofFechaEs(x.vence) : '');
+  if (r === null) return; let iso = null;
+  if (r.trim()) { const g = r.trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/); iso = g && _vdIsoDe(g[1], g[2], g[3]); if (!iso) { toast('Fecha no válida. Pon DD/MM/AAAA', 'err'); return; } }
+  try { const { error } = await sb.from('vehiculos_docs').update({ vence: iso, updated_at: new Date().toISOString() }).eq('matricula', mat).eq('tipo', tipo); if (error) throw error;
+    toast('✓ ' + mat + (iso ? ' · vence el ' + _ofFechaEs(iso) : ' · sin fecha'), 'ok'); await vdCargar(); }
+  catch (e) { console.error('[v1229] vencimiento:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
 function _vdNomCol(tipo) { const x = _vd.docs.get('__CABECERA__|' + tipo); const t = _VD_TIPOS.find(z => z[0] === tipo); return x && x.etiqueta ? x.etiqueta : (t ? t[1] : tipo); }
 async function vdNombrarCol(tipo) {   // v1226: la oficina le pone nombre a "Otro 1" / "Otro 2" (p. ej. "Autorización Prosa"); vale para todas las empresas
   const ant = (_vd.docs.get('__CABECERA__|' + tipo) || {}).etiqueta || '';
@@ -48250,10 +48294,11 @@ function vdSel(m, on) {
   vdRender();
 }
 function vdSelTodos() { const L = _vdLista(), todos = L.every(v => _vd.sel.has(String(v.matricula).toUpperCase())); L.forEach(v => { const m = String(v.matricula).toUpperCase(); todos ? _vd.sel.delete(m) : _vd.sel.add(m); _vdDocsDe(v).forEach(d => todos ? _vd.dsel.delete(d.mat + '|' + d.tipo) : _vd.dsel.add(d.mat + '|' + d.tipo)); }); vdRender(); }
-async function _vdGuardarDoc(mat, tipo, file, etiqueta) {
+async function _vdGuardarDoc(mat, tipo, file, etiqueta, vence) {
   const url = await uploadFile(file, 'vehiculos-docs');
   const fila = { matricula: mat, tipo, file_url: url, file_name: file.name || null, updated_at: new Date().toISOString() };
   if (etiqueta !== undefined) fila.etiqueta = etiqueta;
+  if (vence !== undefined) fila.vence = vence;
   const { error } = await sb.from('vehiculos_docs').upsert(fila, { onConflict: 'matricula,tipo' }); if (error) throw error;
 }
 async function vdSubir(vehId, tipo, input) {
@@ -48266,7 +48311,10 @@ async function vdSubir(vehId, tipo, input) {
       let etq;
       if ((tipo === 'EXTRA1' || tipo === 'EXTRA2') && (_vd.docs.get('__CABECERA__|' + tipo) || {}).etiqueta) etq = null;   // v1226: la columna ya tiene nombre → el documento se llama así
       else if (tipo === 'EXTRA1' || tipo === 'EXTRA2') { const ant = (_vd.docs.get(mat + '|' + tipo) || {}).etiqueta || ''; etq = prompt('¿Qué documento es? (p. ej. "Certificado ATP", "Revisión extintores")', ant); if (etq === null) { input.value = ''; return; } etq = etq.trim() || 'Otro'; }
-      toast('Subiendo…', 'ok'); await _vdGuardarDoc(mat, tipo, file, etq);
+      let vence;
+      if (_VD_VENCE.includes(tipo)) { toast('Leyendo el vencimiento…', 'ok'); vence = await _vdVenceDe(file, tipo, mat); }   // v1229
+      toast('Subiendo…', 'ok'); await _vdGuardarDoc(mat, tipo, file, etq, vence);
+      if (_VD_VENCE.includes(tipo)) toast(vence ? '✓ ' + mat + ' · vence el ' + _ofFechaEs(vence) + ' (si está mal, pulsa en la fecha)' : '⚠️ ' + mat + ': no he encontrado el vencimiento. Pulsa en "poner vencimiento".', vence ? 'ok' : 'err');
     }
     toast('✓ Subido · ' + mat, 'ok'); await vdCargar();
   } catch (e) { console.error('[v1223] subir doc:', e); toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); }
