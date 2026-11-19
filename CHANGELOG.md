@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1226 — 19/11/2026 · Documentación: cabecera gruesa y fija, "Otro 1/2" con nombre
+- La cabecera de las tablas (Matrícula, Ficha técnica, Permiso…) es más gruesa (fondo azul oscuro, letra blanca en negrita) y se queda FIJA al bajar por la lista: la tabla hace scroll dentro de su caja.
+- "Otro 1" y "Otro 2": pulsando en su cabecera (✏️) la oficina le pone nombre (p. ej. "Autorización Prosa"), para todas las empresas. Los documentos de esa columna toman ese nombre y ya no se pregunta al subir. Vacío = vuelve a "Otro 1/2". Las demás columnas son fijas. Se guarda en vehiculos_docs (matricula `__CABECERA__`), sin SQL nuevo.
+
+---
+
 ## v1225 — 19/11/2026 · Documentación: marcar documento a documento + arreglo de permisos
 - En cada documento subido hay una **casilla verde**: se marcan solo los papeles que se quieren (p. ej. PC y FT del 1270LST). "📤 Enviar marcados (N doc.)" y "⬇ Descargar marcados" mandan/bajan SOLO esos. La casilla de la izquierda marca todos los del camión.
 - SQL (ya aplicado): la política storage_select del bucket documentos no incluía la carpeta `vehiculos-docs`, así que solo el admin podía bajar plantillas y documentos (a Marta le daba error 400 al generar la declaración). Añadida con el mismo permiso que Taller (puede_ver_taller()).

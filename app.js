@@ -48195,8 +48195,12 @@ function vdRender() {
   }
   const tabla = (titulo, L, tipoVeh) => {
     const cols = _VD_TIPOS.filter(t => t[2] === 'ambos' || t[2] === tipoVeh);
-    let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:center">' +
-      '<th style="padding:8px;width:30px"></th><th style="padding:8px;text-align:left">Matrícula</th>' + cols.map(c => '<th style="padding:8px">' + c[1] + '</th>').join('') + '<th style="padding:8px">Todo</th></tr></thead><tbody>';
+    // v1226: cabecera gruesa y FIJA al bajar (la tabla hace scroll dentro de su caja); "Otro 1/2" con nombre editable
+    const th = 'position:sticky;top:0;z-index:2;background:#1b3254;color:#fff;padding:10px 8px;font-size:13px;font-weight:900;letter-spacing:.3px;box-shadow:inset 0 -3px 0 #0f1f36;white-space:nowrap';
+    const cab = c => { if (c[0] !== 'EXTRA1' && c[0] !== 'EXTRA2') return c[1];
+      const n = _vdNomCol(c[0]); return '<span title="Pulsa para ponerle nombre a esta columna" onclick="vdNombrarCol(\'' + c[0] + '\')" style="cursor:pointer;border-bottom:2px dashed #93c5fd">' + esc(n) + ' ✏️</span>'; };
+    let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px;overflow:auto;max-height:72vh"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:center">' +
+      '<th style="' + th + ';width:30px"></th><th style="' + th + ';text-align:left">MATRÍCULA</th>' + cols.map(c => '<th style="' + th + '">' + cab(c) + '</th>').join('') + '<th style="' + th + '">TODO</th></tr></thead><tbody>';
     L.forEach(v => {
       const m = String(v.matricula).toUpperCase();
       t += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;text-align:center"><input type="checkbox" ' + (_vd.sel.has(m) ? 'checked ' : '') + 'onchange="vdSel(\'' + m + '\',this.checked)" style="width:16px;height:16px"></td>' +
@@ -48224,10 +48228,19 @@ function vdRender() {
 function _vdDocsDe(v) {   // documentos subidos de un vehículo
   const mat = String(v.matricula).toUpperCase(), L = [];
   _VD_TIPOS.forEach(([tipo, nom]) => { const url = _vdUrlDe(v, tipo); if (!url) return;
-    const x = _vd.docs.get(mat + '|' + tipo); L.push({ v, mat, tipo, etq: x && x.etiqueta ? x.etiqueta : nom, url, ext: _vdExt(url, x && x.file_name), sel: true }); });
+    const x = _vd.docs.get(mat + '|' + tipo); L.push({ v, mat, tipo, etq: x && x.etiqueta ? x.etiqueta : _vdNomCol(tipo), url, ext: _vdExt(url, x && x.file_name), sel: true }); });
   return L;
 }
 function _vdDocsMarcados() { const L = []; _vdLista().forEach(v => _vdDocsDe(v).forEach(d => { if (_vd.dsel.has(d.mat + '|' + d.tipo)) L.push(d); })); return L; }
+function _vdNomCol(tipo) { const x = _vd.docs.get('__CABECERA__|' + tipo); const t = _VD_TIPOS.find(z => z[0] === tipo); return x && x.etiqueta ? x.etiqueta : (t ? t[1] : tipo); }
+async function vdNombrarCol(tipo) {   // v1226: la oficina le pone nombre a "Otro 1" / "Otro 2" (p. ej. "Autorización Prosa"); vale para todas las empresas
+  const ant = (_vd.docs.get('__CABECERA__|' + tipo) || {}).etiqueta || '';
+  let n = prompt('Nombre de esta columna (p. ej. "Autorización Prosa").\nDéjalo vacío para que vuelva a llamarse "' + (_VD_TIPOS.find(z => z[0] === tipo) || [, tipo])[1] + '".', ant);
+  if (n === null) return; n = n.trim().slice(0, 40);
+  try { const { error } = await sb.from('vehiculos_docs').upsert({ matricula: '__CABECERA__', tipo, etiqueta: n || null, file_url: null, updated_at: new Date().toISOString() }, { onConflict: 'matricula,tipo' }); if (error) throw error;
+    toast('✓ Columna: ' + (n || 'sin nombre'), 'ok'); await vdCargar(); }
+  catch (e) { console.error('[v1226] nombre columna:', e); toast('⚠️ No se pudo guardar el nombre: ' + (e.message || e), 'err'); }
+}
 function vdDSel(k, on) { if (on) _vd.dsel.add(k); else _vd.dsel.delete(k); vdRender(); }
 function vdSel(m, on) {
   if (on) _vd.sel.add(m); else _vd.sel.delete(m);
@@ -48250,7 +48263,8 @@ async function vdSubir(vehId, tipo, input) {
     if (tipo === 'FT') { toast('Subiendo ficha técnica…', 'ok'); const url = await uploadFile(file, 'fichas-tecnicas'); const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId); if (error) throw error; await loadTallerData(); }
     else {
       let etq;
-      if (tipo === 'EXTRA1' || tipo === 'EXTRA2') { const ant = (_vd.docs.get(mat + '|' + tipo) || {}).etiqueta || ''; etq = prompt('¿Qué documento es? (p. ej. "Certificado ATP", "Revisión extintores")', ant); if (etq === null) { input.value = ''; return; } etq = etq.trim() || 'Otro'; }
+      if ((tipo === 'EXTRA1' || tipo === 'EXTRA2') && (_vd.docs.get('__CABECERA__|' + tipo) || {}).etiqueta) etq = null;   // v1226: la columna ya tiene nombre → el documento se llama así
+      else if (tipo === 'EXTRA1' || tipo === 'EXTRA2') { const ant = (_vd.docs.get(mat + '|' + tipo) || {}).etiqueta || ''; etq = prompt('¿Qué documento es? (p. ej. "Certificado ATP", "Revisión extintores")', ant); if (etq === null) { input.value = ''; return; } etq = etq.trim() || 'Otro'; }
       toast('Subiendo…', 'ok'); await _vdGuardarDoc(mat, tipo, file, etq);
     }
     toast('✓ Subido · ' + mat, 'ok'); await vdCargar();
@@ -48336,7 +48350,7 @@ async function _vdZipDe(zip, v, carpeta) {
   const mat = String(v.matricula).toUpperCase(); let n = 0; const fallos = [];
   for (const [tipo, nom] of _VD_TIPOS) {
     const url = _vdUrlDe(v, tipo); if (!url) continue;
-    const x = _vd.docs.get(mat + '|' + tipo), etq = x && x.etiqueta ? x.etiqueta : nom;
+    const x = _vd.docs.get(mat + '|' + tipo), etq = x && x.etiqueta ? x.etiqueta : _vdNomCol(tipo);
     try { const b = await _vdBytes(url); zip.file((carpeta ? mat + '/' : '') + mat + ' - ' + etq.replace(/[\\/:*?"<>|.]/g, ' ').trim() + '.' + _vdExt(url, x && x.file_name), b); n++; }
     catch (e) { fallos.push(mat + ' · ' + nom); }
   }
