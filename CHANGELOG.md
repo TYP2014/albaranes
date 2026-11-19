@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1241 — 19/11/2026 · Documentación de trabajadores: fechas imposibles
+- Si la IA lee una fecha que no existe (p. ej. 30 de febrero), ahora se deja sin fecha en vez de fallar la subida (pasó con el CAP de Lahcen al cargar CONDUCTORES_HISPALIS).
+
+---
+
 ## v1240 — 19/11/2026 · Documentación de trabajadores: CAP y lectura de fechas
 - Cargar carpeta: en el CAP manda la TARJETA sobre el diploma/certificado del curso (a Nilson le cogía el diploma del curso y salía caducado).
 - La IA a veces contestaba con dos bloques y la fecha se perdía (CAP de Ivan Hyrych): ahora se coge el primero. Se le pide que no ponga la fecha de nacimiento como fecha del documento (pasó con el DNI de César; corregido a mano).

@@ -48799,7 +48799,7 @@ async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nomb
   const d = await res.json(); const tx = (d.content || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
   const m1 = tx.match(/\{[^{}]*\}/); if (!m1) return {};   // v1240: a veces contesta con DOS bloques {..}{..}: se coge el primero
   const o = JSON.parse(m1[0]);
-  const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null;
+  const ok = s => { const g = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return g ? _vdIsoDe(g[3], g[2], g[1]) : null; };   // v1241: fecha IMPOSIBLE (30/02…) = sin fecha, no error
   return { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
 }
 async function _tdFechas(file, t, w) {   // { fecha_doc, vence }
