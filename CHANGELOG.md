@@ -4,6 +4,14 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1237 — 19/11/2026 · Empleados > Documentación de los trabajadores
+- Nueva pestaña "Documentación" en Empleados: una fila por trabajador con 16 huecos (DNI/NIE, carnet, CAP, tarjeta de tacógrafo, apto médico, alta/ITA, formación e información PRL, curso PRL 2h art.19, recibí PRL, curso on-line, EPIs, autorización de conducción, información GPS, protección de datos y Otro 1/Otro 2 con nombre editable). Cabecera fija al bajar.
+- Cada documento guarda FECHA DEL DOCUMENTO y CADUCIDAD (las plataformas piden las dos), editables pulsando en ellas. Al subir: fecha del nombre del archivo; DNI/carnet/CAP sin fecha en el nombre → la lee la IA (Haiku 4.5); apto médico → caduca al año de la fecha del certificado; tarjeta de tacógrafo → la de la ficha.
+- "📂 Cargar carpeta de OneDrive": se elige p. ej. CONDUCTORES_HISPALIS; la app empareja cada subcarpeta con su trabajador, reparte cada archivo en su hueco (si hay varios del mismo tipo, el más nuevo), salta EX EMPLEADOS, no pisa lo que ya hay y enseña la lista antes de subir. ZIP por trabajador.
+- SQL (ya aplicado): tablas trabajadores_docs y trabajadores_docs_cab con los permisos de la ficha del trabajador; carpeta de Storage trabajadores-docs.
+
+---
+
 ## v1236 — 19/11/2026 · Aviso arriba: seguro y tarjeta de transporte de los vehículos
 - Barra nueva arriba ("📄 …") con los papeles de los VEHÍCULOS de Taller > Documentación. Solo la ven la oficina y el admin; los vehículos de baja no avisan.
   - SEGURO: avisa el día que vence ("VENCE HOY") y los días siguientes ("YA VENCIDO") hasta que se suba el nuevo.

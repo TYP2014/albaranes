@@ -28515,6 +28515,7 @@ function empSetEmpresa(e) {
   primasEmpresa = e;                                     // Primas
   try { localStorage.setItem('primas_last_emp', e); } catch (err) {}
   if (window._empVista === 'datos') renderEmpDatos();
+  else if (window._empVista === 'docs') tdRender();   // v1237
   else if (window._empVista === 'primas') primasInit();
   empPintarEmpresas();
 }
@@ -28533,7 +28534,9 @@ function switchEmpleadosVista(v) {
   const bpr = document.getElementById('empVistaPrimas');     // v659
   const db = document.getElementById('empVistaDatosBox');    // v1051
   const bd = document.getElementById('empVistaDatos');       // v1051
-  [[vb,bv],[rb,br],[pb,bpr],[db,bd]].forEach(([caja,boton]) => {
+  const dcb = document.getElementById('empVistaDocsBox');    // v1237
+  const bdc = document.getElementById('empVistaDocs');       // v1237
+  [[vb,bv],[rb,br],[pb,bpr],[db,bd],[dcb,bdc]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -28545,6 +28548,10 @@ function switchEmpleadosVista(v) {
     if (pb) pb.style.display = '';
     if (bpr) { bpr.classList.remove('bs'); bpr.classList.add('bp'); }
     primasInit();
+  } else if (v === 'docs') {    // v1237: documentación de los trabajadores
+    if (dcb) dcb.style.display = '';
+    if (bdc) { bdc.classList.remove('bs'); bdc.classList.add('bp'); }
+    tdCargar();
   } else if (v === 'datos') {   // v1051
     if (db) db.style.display = '';
     if (bd) { bd.classList.remove('bs'); bd.classList.add('bp'); }
@@ -48667,4 +48674,240 @@ async function vdeCorreo() {
     toast(r.ok ? 'Documentación enviada' : '⚠️ No se envió: mira la ventana', r.ok ? 'ok' : 'err');
   } catch (e) { if (_vde) _vde.hecho.push({ ok: false, txt: e.message === 'Cancelado' ? 'No se ha enviado nada' : 'Error: ' + (e.message || e) }); }
   finally { if (_vde) { _vde.enviando = false; _vde.estado = ''; _vdeRender(); } }
+}
+
+// ============================================================================
+// v1237 (JC 19/11/2026): EMPLEADOS > DOCUMENTACIÓN — los papeles de cada trabajador que piden las
+// plataformas (Metacontratas, Achilles, e-coordina): DNI, carnet, CAP, tarjeta de tacógrafo, apto médico,
+// alta/ITA, formación e información PRL, curso PRL 2h, recibí PRL, curso on-line, EPIs, autorización,
+// GPS, protección de datos y dos huecos libres con nombre editable.
+//  · Cada documento guarda FECHA DEL DOCUMENTO y CADUCIDAD (las plataformas piden las dos). Editables.
+//  · Al subir, la fecha sale del NOMBRE del archivo; si no la lleva y es DNI / carnet / CAP, la lee la IA.
+//    Apto médico: caduca al año de la fecha del certificado. Tarjeta de tacógrafo: la de la ficha.
+//  · "📂 Cargar carpeta": se elige la carpeta de OneDrive (CONDUCTORES_HISPALIS…) y la app reparte cada
+//    archivo en su trabajador y su hueco; antes de subir enseña la lista para revisarla.
+// Tablas: trabajadores_docs, trabajadores_docs_cab (SQL ya aplicado). Storage: documentos/trabajadores-docs.
+// ============================================================================
+const _TD_TIPOS = [
+  ['DNI', 'DNI / NIE', true], ['CARNET', 'Carnet conducir', true], ['CAP', 'CAP', true], ['TACO', 'Tarjeta tacógrafo', true],
+  ['APTO', 'Apto médico', true], ['ALTA', 'Alta / ITA', false], ['FORM_INF', 'Formación e información PRL', false],
+  ['CURSO_PRL', 'Curso PRL 2h (art. 19)', false], ['RECIBI', 'Recibí PRL', false], ['CURSO_ON', 'Curso on-line', false],
+  ['EPIS', 'Entrega EPIs', false], ['AUTORIZ', 'Autorización conducción', false], ['GPS', 'Información GPS', false],
+  ['CONFID', 'Protección de datos', false], ['EXTRA1', 'Otro 1', false], ['EXTRA2', 'Otro 2', false] ];
+const _TD_B = '(?:^|[^a-z0-9])', _TD_E = '(?=[^a-z0-9]|$)';
+const _tdRe = (p) => new RegExp(p.replace(/<B>/g, _TD_B).replace(/<E>/g, _TD_E), 'i');
+const _TD_REGLAS = [
+  ['APTO', _tdRe('certificado de aptitud|<B>aptitud<E>|reconocimiento m[eé]dico|<B>apto<E>')],
+  ['ALTA', _tdRe('<B>alta<E>|<B>ita<E>|<B>idc<E>')],
+  ['DNI', _tdRe('<B>(dni|nie)<E>')],
+  ['TACO', _tdRe('tac[oó]grafo|tarjeta t\\.|tarjeta( de)? conductor')],
+  ['RECIBI', _tdRe('recib')],
+  ['FORM_INF', _tdRe('for(m|maci[oó]n)?\\.?\\s*e\\s*inf|formaci[oó]n e informaci|cert\\.?\\s*informaci')],
+  ['CURSO_PRL', _tdRe('<B>2\\s?h<E>|art\\.?\\s?19|curso de prevenci|curso prl|formaci[oó]n en prevenci|form(aci[oó]n)? .*conduc(ci[oó]n)? y transporte')],
+  ['CURSO_ON', _tdRe('certificado_del_curso|certificado del curso|certificado curso_|curso online|curso on-line')],
+  ['CAP', _tdRe('<B>cap<E>')],
+  ['CARNET', _tdRe('carn[eé]|cernet|permiso de conduc|provisional')],
+  ['EPIS', _tdRe('<B>epi\'?s?<E>')],
+  ['AUTORIZ', _tdRe('autorizaci')],
+  ['GPS', _tdRe('<B>gps<E>')],
+  ['CONFID', _tdRe('confidencial|protecci[oó]n de datos|<B>lopd<E>')],
+];
+function _tdClasificar(nombre) { const n = String(nombre).replace(/\.[a-z0-9]+$/i, ''); for (const [t, re] of _TD_REGLAS) if (re.test(n)) return t; return null; }
+function _tdFechaNombre(nombre) {   // fecha escrita en el nombre: 25_09_2026, 16 08 2023, 05082025, 22032029
+  const n = String(nombre).replace(/\.[a-z0-9]+$/i, '');
+  const r = [...n.matchAll(/(?:^|\D)(\d{2})[ _.\-]?(\d{2})[ _.\-]?(\d{4})(?!\d)/g)];
+  for (const g of r.reverse()) { const d = +g[1], m = +g[2], a = +g[3]; if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && a >= 2000 && a <= 2045) return a + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+  return null;
+}
+
+let _td = { docs: new Map(), firm: new Map(), cab: new Map(), cargando: false };
+function _tdNomCol(t) { const c = _td.cab.get(t); const x = _TD_TIPOS.find(z => z[0] === t); return c && c.etiqueta ? c.etiqueta : (x ? x[1] : t); }
+function _tdLista() { return (vacTrabajadores || []).filter(t => t.empresa === vacEmpresaActiva && !t.archivado).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))); }
+async function tdCargar() {
+  const out = document.getElementById('empDocsOut'); if (!out) return;
+  if (!(vacTrabajadores || []).length) { try { await loadVacData(); } catch (e) {} }
+  out.innerHTML = '<div style="padding:14px;color:#111">Cargando documentación…</div>';
+  try {
+    const ids = (vacTrabajadores || []).map(t => t.id);
+    let filas = [];
+    for (let i = 0; i < ids.length; i += 150) { const { data, error } = await sb.from('trabajadores_docs').select('*').in('trabajador_id', ids.slice(i, i + 150)); if (error) throw error; filas = filas.concat(data || []); }
+    const { data: cab } = await sb.from('trabajadores_docs_cab').select('*');
+    _td.docs = new Map(filas.map(x => [x.trabajador_id + '|' + x.tipo, x]));
+    _td.cab = new Map((cab || []).map(x => [x.tipo, x]));
+    const urls = filas.map(x => x.file_url).filter(Boolean);
+    _td.firm = urls.length ? await firmarDocs(urls) : new Map();
+  } catch (e) { console.error('[v1237] documentación trabajadores:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; return; }
+  tdRender();
+}
+function _tdFechaHtml(x, t, tid) {
+  const vencible = (_TD_TIPOS.find(z => z[0] === t) || [])[2];
+  const ed = 'tdFechasEditar(\'' + tid + '\',\'' + t + '\')';
+  if (x.vence) return _vdVenceHtml(String(x.vence).slice(0, 10), ed);
+  if (vencible) return _vdVenceHtml(null, ed);
+  return '<div><a href="javascript:void(0)" onclick="' + ed + '" style="font-size:11px;color:#475569" title="Poner fecha del documento o caducidad">' + (x.fecha_doc ? 'doc. ' + _ofFechaEs(String(x.fecha_doc).slice(0, 10)) : '+ fecha') + '</a></div>';
+}
+function tdRender() {
+  const out = document.getElementById('empDocsOut'); if (!out) return;
+  const L = _tdLista();
+  const tb = document.querySelector('#appPage .tabs'), topFijo = tb ? (parseFloat(getComputedStyle(tb).top) || 0) + tb.offsetHeight : 94;
+  const th = 'position:sticky;top:' + topFijo + 'px;z-index:5;background:#1b3254;color:#fff;padding:9px 6px;font-size:11.5px;font-weight:900;box-shadow:inset 0 -3px 0 #0f1f36;text-align:center;line-height:1.2';
+  const cab = t => (t === 'EXTRA1' || t === 'EXTRA2') ? '<span onclick="tdNombrarCol(\'' + t + '\')" style="cursor:pointer;border-bottom:2px dashed #93c5fd" title="Pulsa para ponerle nombre">' + esc(_tdNomCol(t)) + ' ✏️</span>' : esc(_tdNomCol(t)).toUpperCase();
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+    '<div style="font-size:15px;font-weight:800;color:#111">Documentación de trabajadores · ' + esc(vacEmpresaActiva) + ' (' + L.length + ')</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta de OneDrive<input type="file" webkitdirectory directory multiple style="display:none" onchange="tdCarpeta(this)"></label>' +
+    '<button class="btn bs" onclick="tdCargar()" style="font-weight:800">Refrescar</button></div></div>' +
+    '<div style="font-size:12.5px;color:#111;margin-bottom:8px">Pulsa <b>Subir</b> en cada hueco, o <b>📂 Cargar carpeta</b> y elige la carpeta de los conductores (por ejemplo CONDUCTORES_HISPALIS): la app reparte cada archivo en su sitio y te lo enseña antes de subir. Las fechas en <u>subrayado</u> se cambian pulsando en ellas.</div>';
+  h += '<div style="border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="' + th + ';text-align:left">TRABAJADOR</th>' +
+    _TD_TIPOS.map(([t]) => '<th style="' + th + '">' + cab(t) + '</th>').join('') + '<th style="' + th + '">TODO</th></tr></thead><tbody>';
+  L.forEach(w => {
+    let n = 0;
+    h += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;font-weight:800;color:#111;white-space:nowrap;font-size:12.5px">' + esc(w.nombre) + '</td>';
+    _TD_TIPOS.forEach(([t]) => {
+      const x = _td.docs.get(w.id + '|' + t), url = x && x.file_url ? (_td.firm.get(x.file_url) || x.file_url) : null;
+      const inp = '<label style="cursor:pointer;color:#1b3254;text-decoration:underline;font-size:11px">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept=".pdf,image/*" style="display:none" onchange="tdSubir(\'' + w.id + '\',\'' + t + '\',this)"></label>';
+      let cel = url ? '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' + inp + _tdFechaHtml(x, t, w.id) : inp;
+      if (url) n++;
+      h += '<td style="padding:5px 4px;text-align:center;vertical-align:middle">' + cel + '</td>';
+    });
+    h += '<td style="padding:5px;text-align:center"><button class="btn bs" onclick="tdZip(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px"' + (n ? '' : ' disabled') + '>⬇ ZIP</button></td></tr>';
+  });
+  if (!L.length) h += '<tr><td colspan="' + (_TD_TIPOS.length + 2) + '" style="padding:14px;color:#475569">No hay trabajadores activos en esta empresa.</td></tr>';
+  h += '</tbody></table></div>';
+  out.innerHTML = h;
+}
+async function tdNombrarCol(t) {
+  const ant = (_td.cab.get(t) || {}).etiqueta || '';
+  let n = prompt('Nombre de esta columna (p. ej. "Trabajos en altura"). Vacío = "' + (_TD_TIPOS.find(z => z[0] === t) || [, t])[1] + '".', ant);
+  if (n === null) return; n = n.trim().slice(0, 40);
+  try { const { error } = await sb.from('trabajadores_docs_cab').upsert({ tipo: t, etiqueta: n || null, updated_at: new Date().toISOString() }, { onConflict: 'tipo' }); if (error) throw error; await tdCargar(); }
+  catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+function _tdMas(iso, anios) { const [a, m, d] = iso.split('-').map(Number); return _vdIsoDe(d, m, a + anios) || null; }
+async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nombre → la IA lee la caducidad y la fecha de expedición
+  if (file.size > 4.5 * 1048576) return {};
+  const esPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
+  const mt = esPdf ? 'application/pdf' : (/png$/i.test(file.name) ? 'image/png' : /webp$/i.test(file.name) ? 'image/webp' : 'image/jpeg');
+  if (!esPdf && !/jpe?g|png|webp/i.test(file.name)) return {};
+  const b64 = _feB64(new Uint8Array(await file.arrayBuffer()));
+  const que = { DNI: 'DNI o NIE español: la caducidad es "VALIDEZ" / "fecha de caducidad".', CARNET: 'Permiso de conducir español: la caducidad es la de la categoría C+E (o C si no hay C+E), columna 11 de la parte de atrás; si no se ve, la del apartado 4b.', CAP: 'Tarjeta CAP / certificado de aptitud profesional (código 95): la caducidad es la fecha del código 95 o "válido hasta".' }[t] || '';
+  const prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de expedición). Si algo no se lee claro, "" — NUNCA lo inventes.';
+  const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 200,
+    messages: [{ role: 'user', content: [esPdf ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } } : { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } }, { type: 'text', text: prompt }] }] }) });
+  if (!res.ok) throw new Error('IA ' + res.status);
+  const d = await res.json(); const tx = (d.content || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
+  const o = JSON.parse(tx.slice(tx.indexOf('{'), tx.lastIndexOf('}') + 1));
+  const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null;
+  return { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
+}
+async function _tdFechas(file, t, w) {   // { fecha_doc, vence }
+  const hoy = _ofIso(new Date()), fn = _tdFechaNombre(file.name);
+  const r = { fecha_doc: null, vence: null };
+  if (t === 'APTO') { if (fn) { r.fecha_doc = fn; r.vence = _tdMas(fn, 1); } return r; }
+  if (t === 'TACO') { if (fn && fn > hoy) r.vence = fn; else if (w && w.tarjeta_caduca) r.vence = String(w.tarjeta_caduca).slice(0, 10); return r; }
+  if (['DNI', 'CARNET', 'CAP'].includes(t)) {
+    if (fn && fn > hoy) { r.vence = fn; return r; }
+    try { Object.assign(r, await _tdLeerIA(file, t)); } catch (e) { console.warn('[v1237] IA fechas:', e); }
+    return r;
+  }
+  if (fn && fn <= hoy) r.fecha_doc = fn; else if (fn) r.vence = fn;
+  return r;
+}
+async function _tdGuardar(w, t, file, f) {
+  const url = await uploadFile(file, 'trabajadores-docs');
+  const fila = { trabajador_id: w.id, tipo: t, file_url: url, file_name: file.name || null, fecha_doc: f.fecha_doc || null, vence: f.vence || null, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('trabajadores_docs').upsert(fila, { onConflict: 'trabajador_id,tipo' }); if (error) throw error;
+}
+async function tdSubir(tid, t, input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  const w = (vacTrabajadores || []).find(x => x.id === tid); if (!w) return;
+  try {
+    const c = _tdClasificar(file.name);
+    if (c && c !== t && !/^EXTRA/.test(t) && !confirm('⚠️ El archivo parece "' + _tdNomCol(c) + '" y lo estás subiendo en "' + _tdNomCol(t) + '".\n\nAceptar = subirlo igualmente · Cancelar = no subir')) { input.value = ''; return; }
+    toast('Leyendo fechas…', 'ok'); const f = await _tdFechas(file, t, w);
+    toast('Subiendo…', 'ok'); await _tdGuardar(w, t, file, f);
+    toast('✓ ' + _tdNomCol(t) + ' de ' + w.nombre + (f.vence ? ' · caduca ' + _ofFechaEs(f.vence) : ''), 'ok');
+    await tdCargar();
+  } catch (e) { console.error('[v1237] subir doc trabajador:', e); toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); }
+  input.value = '';
+}
+async function tdFechasEditar(tid, t) {
+  const x = _td.docs.get(tid + '|' + t); if (!x) return;
+  const pedir = (txt, iso) => { const r = prompt(txt, iso ? _ofFechaEs(String(iso).slice(0, 10)) : ''); if (r === null) return undefined; if (!r.trim()) return null;
+    const g = r.trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/); const iso2 = g && _vdIsoDe(g[1], g[2], g[3]); if (!iso2) { toast('Fecha no válida (DD/MM/AAAA)', 'err'); return undefined; } return iso2; };
+  const fd = pedir('FECHA DEL DOCUMENTO (expedición / firma), DD/MM/AAAA. Vacío = sin fecha:', x.fecha_doc); if (fd === undefined) return;
+  const fv = pedir('CADUCIDAD, DD/MM/AAAA. Vacío = no caduca:', x.vence); if (fv === undefined) return;
+  try { const { error } = await sb.from('trabajadores_docs').update({ fecha_doc: fd, vence: fv, updated_at: new Date().toISOString() }).eq('id', x.id); if (error) throw error; toast('✓ Fechas guardadas', 'ok'); await tdCargar(); }
+  catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+async function tdZip(tid) {
+  const w = (vacTrabajadores || []).find(x => x.id === tid); if (!w) return;
+  const zip = new JSZip(); let n = 0;
+  for (const [t] of _TD_TIPOS) { const x = _td.docs.get(tid + '|' + t); if (!x || !x.file_url) continue;
+    try { zip.file(_vdSinTildes(w.nombre + ' - ' + _tdNomCol(t)).replace(/[\\/:*?"<>|.]/g, ' ').replace(/\s+/g, ' ').trim() + '.' + _vdExt(x.file_url, x.file_name), await _vdBytes(_td.firm.get(x.file_url) || x.file_url)); n++; } catch (e) {} }
+  if (!n) { toast('No se pudo bajar ningún documento', 'err'); return; }
+  _vdDescargar(await zip.generateAsync({ type: 'uint8array' }), _vdSinTildes('DOCUMENTACION ' + w.nombre) + '.zip', 'application/zip');
+}
+
+// ---------- 📂 CARGAR CARPETA (OneDrive): reparte los archivos por trabajador y hueco ----------
+let _tdImp = null;
+function _tdNorm(s) { return _vdSinTildes(String(s)).toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function _tdBuscarTrab(carpeta) {
+  const tk = _tdNorm(carpeta).split(' ').filter(x => x.length >= 3);
+  if (!tk.length) return null;
+  const perm = _empDatosPermitidas();
+  const cand = (vacTrabajadores || []).filter(w => !w.archivado && perm.includes(w.empresa)).filter(w => { const n = _tdNorm(w.nombre); return tk.every(x => n.split(' ').some(p => p.startsWith(x) || x.startsWith(p) && p.length >= 4)); });
+  return cand.length === 1 ? cand[0] : null;
+}
+function tdCarpeta(input) {
+  const F = [...(input.files || [])].filter(f => /\.(pdf|jpe?g|png|webp)$/i.test(f.name)); input.value = '';
+  if (!F.length) { toast('En esa carpeta no hay PDF ni fotos', 'err'); return; }
+  const grupos = new Map();   // carpeta del trabajador → archivos
+  F.forEach(f => { const p = (f.webkitRelativePath || f.name).split('/'); if (p.some(x => /^EX EMPLEADOS/i.test(x))) return;
+    const carpeta = p.length >= 3 ? p[p.length - 2] : (p.length === 2 ? p[0] : ''); if (!carpeta) return;
+    if (!grupos.has(carpeta)) grupos.set(carpeta, []); grupos.get(carpeta).push(f); });
+  const filas = [], sinTrab = [], sinTipo = [];
+  for (const [carpeta, fs] of grupos) {
+    const w = _tdBuscarTrab(carpeta);
+    if (!w) { sinTrab.push(carpeta + ' (' + fs.length + ')'); continue; }
+    const porTipo = new Map();
+    fs.forEach(f => { const t = _tdClasificar(f.name); if (!t) { sinTipo.push(w.nombre + ': ' + f.name); return; }
+      const fe = _tdFechaNombre(f.name) || ''; const prev = porTipo.get(t);
+      // si hay varios del mismo hueco, gana el más nuevo (fecha del nombre; si no, el último modificado)
+      const k = (fe && fe <= _ofIso(new Date(Date.now() + 3650 * 864e5)) ? fe : '') + '|' + String(f.lastModified).padStart(15, '0');
+      if (!prev || k > prev.k) porTipo.set(t, { f, k, otros: prev ? prev.otros + 1 : 0 }); else prev.otros++; });
+    for (const [t, o] of porTipo) { const ya = _td.docs.get(w.id + '|' + t); filas.push({ w, t, f: o.f, otros: o.otros, ya: !!(ya && ya.file_url), sel: !(ya && ya.file_url) }); }
+  }
+  filas.sort((a, b) => String(a.w.nombre).localeCompare(String(b.w.nombre)) || _TD_TIPOS.findIndex(z => z[0] === a.t) - _TD_TIPOS.findIndex(z => z[0] === b.t));
+  _tdImp = { filas, sinTrab, sinTipo, corriendo: false, hecho: 0, fallos: [] };
+  document.getElementById('tdImpOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'tdImpOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 8px';
+  ov.innerHTML = '<div id="tdImpBox" style="background:#fff;border-radius:12px;padding:16px 18px;width:min(980px,96vw)"></div>';
+  document.body.appendChild(ov); _tdImpRender();
+}
+function tdImpSel(i, on) { if (_tdImp && !_tdImp.corriendo) { _tdImp.filas[i].sel = on; _tdImpRender(); } }
+function tdImpCerrar() { if (_tdImp && _tdImp.corriendo) return; document.getElementById('tdImpOv')?.remove(); _tdImp = null; }
+function _tdImpRender() {
+  const box = document.getElementById('tdImpBox'); if (!box || !_tdImp) return;
+  const I = _tdImp, n = I.filas.filter(x => x.sel).length, dis = I.corriendo ? ' disabled' : '';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:18px;font-weight:800">📂 Cargar documentación de la carpeta</div><button class="btn bs" onclick="tdImpCerrar()" style="font-weight:800"' + dis + '>Cerrar</button></div>' +
+    '<div style="font-size:13px;color:#111;margin:6px 0 10px">He repartido <b>' + I.filas.length + '</b> documentos. Si había varios del mismo tipo, cojo el más nuevo. Los huecos que <b>ya tienen documento</b> salen sin marcar (no se pisan); márcalos si quieres cambiarlos.</div>';
+  if (I.corriendo || I.hecho) h += '<div style="font-size:14px;font-weight:800;margin-bottom:8px;color:' + (I.corriendo ? '#1b3254' : '#15803d') + '">' + (I.corriendo ? 'Subiendo ' + I.hecho + ' de ' + n + '… (no cierres la página)' : '✓ Hecho: ' + I.hecho + ' subidos' + (I.fallos.length ? ' · ' + I.fallos.length + ' con error' : '')) + '</div>';
+  h += '<div style="max-height:52vh;overflow:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:#1b3254;color:#fff"><th style="padding:6px"></th><th style="padding:6px;text-align:left">Trabajador</th><th style="padding:6px;text-align:left">Hueco</th><th style="padding:6px;text-align:left">Archivo</th></tr></thead><tbody>';
+  I.filas.forEach((x, i) => { h += '<tr style="border-top:1px solid var(--bd);' + (x.estado === 'ok' ? 'background:#ecfdf5' : x.estado === 'err' ? 'background:#fef2f2' : '') + '"><td style="padding:4px 6px"><input type="checkbox"' + (x.sel ? ' checked' : '') + dis + ' onchange="tdImpSel(' + i + ',this.checked)"></td><td style="padding:4px 6px;font-weight:700">' + esc(x.w.nombre) + '</td><td style="padding:4px 6px">' + esc(_tdNomCol(x.t)) + (x.ya ? ' <span style="color:#b45309;font-size:11px">(ya tiene)</span>' : '') + '</td><td style="padding:4px 6px;color:#334155">' + esc(x.f.name) + (x.otros ? ' <span style="color:#64748b;font-size:11px">(+' + x.otros + ' más antiguos)</span>' : '') + (x.estado === 'ok' ? ' ✓' : x.estado === 'err' ? ' ⚠️ ' + esc(x.err || '') : '') + '</td></tr>'; });
+  h += '</tbody></table></div>';
+  if (I.sinTrab.length) h += '<div style="font-size:12.5px;margin-top:8px;color:#b45309"><b>Carpetas sin trabajador en la app</b> (no se cargan): ' + esc(I.sinTrab.join(', ')) + '</div>';
+  if (I.sinTipo.length) h += '<details style="font-size:12.5px;margin-top:6px"><summary style="cursor:pointer;color:#475569"><b>' + I.sinTipo.length + ' archivos que no sé en qué hueco van</b> (no se cargan; se pueden subir a mano en "Otro 1/2")</summary><div style="color:#475569;margin-top:4px">' + esc(I.sinTipo.join(' · ')) + '</div></details>';
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="tdImpSubir()" style="padding:10px 22px;font-weight:800;background:' + (I.corriendo || !n ? '#9aa5b5' : '#15803d') + ';color:#fff"' + (I.corriendo || !n ? ' disabled' : '') + '>Subir ' + n + ' documentos</button></div>';
+  box.innerHTML = h;
+}
+async function tdImpSubir() {
+  const I = _tdImp; if (!I || I.corriendo) return;
+  I.corriendo = true; I.hecho = 0; I.fallos = []; _tdImpRender();
+  for (const x of I.filas.filter(z => z.sel && z.estado !== 'ok')) {
+    try { const f = await _tdFechas(x.f, x.t, x.w); await _tdGuardar(x.w, x.t, x.f, f); x.estado = 'ok'; I.hecho++; }
+    catch (e) { x.estado = 'err'; x.err = e.message || String(e); I.fallos.push(x); console.warn('[v1237] carpeta:', x.f.name, e); }
+    _tdImpRender();
+  }
+  I.corriendo = false; _tdImpRender(); await tdCargar();
 }
