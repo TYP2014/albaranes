@@ -4,6 +4,15 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1247 — 19/11/2026 · Empleados > Doc. empresa
+- Nueva vista "Doc. empresa" en Empleados (TYP2014, Híspalis, Import; Transmargaz NO): ITA, TC1/RLC, recibo del TC1, TC2/RNT, certificado al corriente Seg. Social y Hacienda.
+- Al subir, la app lee el PDF (sin IA): empresa por NIF/razón social, tipo y periodo. Guarda histórico por periodo; en pantalla, el último de cada tipo y los anteriores.
+- "📂 Cargar carpeta DOC_MENSUAL": reparte todos los PDF; ignora Transmargaz y los TC "VACAS".
+- Enviar por WhatsApp o correo (con "Enviar desde"). Si se marcan TC1 y su recibo, se mandan UNIDOS en un solo PDF.
+- Certificado de Hacienda: caduca a los 12 meses. Tabla nueva empresa_docs; Storage documentos/empresa-docs.
+
+---
+
 ## v1246 — 19/11/2026 · Documentación de conductores: enviar por WhatsApp o correo
 - Empleados > Documentación: casilla en cada documento, "📤 Enviar marcados" arriba y "📤 Enviar" por trabajador. Misma ventana que los camiones: eliges qué documentos (o todos) y se mandan por WhatsApp o por correo con el pie legal.
 - Ventana de envío (camiones y conductores): nuevo desplegable "Enviar desde" con todos los correos de envío de TYP2014, Híspalis e Import (los de facturas_config). El pie legal y la firma son los de la empresa elegida.

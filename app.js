@@ -28516,6 +28516,7 @@ function empSetEmpresa(e) {
   try { localStorage.setItem('primas_last_emp', e); } catch (err) {}
   if (window._empVista === 'datos') renderEmpDatos();
   else if (window._empVista === 'docs') tdRender();   // v1237
+  else if (window._empVista === 'edoc') edRender();   // v1247
   else if (window._empVista === 'primas') primasInit();
   empPintarEmpresas();
 }
@@ -28536,7 +28537,8 @@ function switchEmpleadosVista(v) {
   const bd = document.getElementById('empVistaDatos');       // v1051
   const dcb = document.getElementById('empVistaDocsBox');    // v1237
   const bdc = document.getElementById('empVistaDocs');       // v1237
-  [[vb,bv],[rb,br],[pb,bpr],[db,bd],[dcb,bdc]].forEach(([caja,boton]) => {
+  const edb = document.getElementById('empVistaEdocBox'), bed = document.getElementById('empVistaEdoc');   // v1247
+  [[vb,bv],[rb,br],[pb,bpr],[db,bd],[dcb,bdc],[edb,bed]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -28548,6 +28550,10 @@ function switchEmpleadosVista(v) {
     if (pb) pb.style.display = '';
     if (bpr) { bpr.classList.remove('bs'); bpr.classList.add('bp'); }
     primasInit();
+  } else if (v === 'edoc') {    // v1247: documentación de EMPRESA
+    if (edb) edb.style.display = '';
+    if (bed) { bed.classList.remove('bs'); bed.classList.add('bp'); }
+    edCargar();
   } else if (v === 'docs') {    // v1237: documentación de los trabajadores
     if (dcb) dcb.style.display = '';
     if (bdc) { bdc.classList.remove('bs'); bdc.classList.add('bp'); }
@@ -48656,7 +48662,7 @@ async function _vdeArchivos() {   // descarga los marcados y los devuelve como F
   const D = _vde.docs.filter(d => d.sel); if (!D.length) throw new Error('No has marcado ningún documento');
   const out = [], fallos = [], tipos = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
   for (let i = 0; i < D.length; i++) { const d = D[i]; _vde.estado = 'Preparando ' + (i + 1) + '/' + D.length + '…'; _vdeRender();
-    try { out.push(new File([await _vdBytes(d.url)], _vdeNombre(d), { type: tipos[d.ext] || 'application/octet-stream' })); } catch (e) { fallos.push(d.mat + ' · ' + d.etq); } }
+    try { out.push(new File([d.urls ? await _edUnir(d.urls) : await _vdBytes(d.url)], _vdeNombre(d), { type: tipos[d.ext] || 'application/octet-stream' })); } catch (e) { fallos.push(d.mat + ' · ' + d.etq); } }
   if (fallos.length && !confirm('No se pudieron bajar ' + fallos.length + ' documento(s):\n\n' + fallos.join('\n') + '\n\nAceptar = enviar el resto · Cancelar = no enviar')) throw new Error('Cancelado');
   if (!out.length) throw new Error('No se pudo bajar ningún documento');
   return out;
@@ -48969,4 +48975,126 @@ async function tdImpSubir() {
     _tdImpRender();
   }
   I.corriendo = false; _tdImpRender(); await tdCargar();
+}
+
+// ============================================================================
+// v1247 (JC 19/11/2026): EMPLEADOS > DOC. EMPRESA — papeles mensuales de cada empresa que piden las
+// plataformas: ITA, TC1 (RLC), recibo del TC1, TC2 (RNT), certificado al corriente con la Seguridad
+// Social y con Hacienda. Separado de los papeles del trabajador. Solo TYP2014, Híspalis e Import
+// (Transmargaz NO; los TC "VACAS" se ignoran: ni se envían ni los piden).
+//  · Al subir, la app lee el PDF (texto, sin IA): empresa por NIF/razón social, tipo y periodo.
+//  · Se guarda el histórico por periodo; en pantalla sale el último de cada tipo.
+//  · Enviar por WhatsApp o correo (misma ventana que camiones/conductores). Si van TC1 y su recibo,
+//    se ofrecen UNIDOS en un solo PDF (así lo piden).
+// Tabla empresa_docs (empresa, tipo, periodo, fecha_doc, vence…). Storage: documentos/empresa-docs.
+// ============================================================================
+const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], ['RECIBO', 'Recibo del TC1'], ['TC2', 'TC2 / RNT'],
+  ['CERT_SS', 'Certificado corriente Seg. Social'], ['CERT_AEAT', 'Certificado corriente Hacienda']];
+const _ED_EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
+let _ed = { filas: [], firm: new Map(), sel: new Set(), imp: null };
+function _edNom(t) { return (_ED_TIPOS.find(x => x[0] === t) || [t, t])[1]; }
+function _edPer(p) { const m = String(p || '').match(/^(\d{4})-(\d{2})$/); return m ? m[2] + '/' + m[1] : (p || ''); }
+async function _edTexto(file) {
+  try { const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: new Uint8Array(await file.arrayBuffer()) })).promise; let t = '';
+    for (let p = 1; p <= Math.min(pdf.numPages, 2); p++) { const tc = await (await pdf.getPage(p)).getTextContent(); t += ' ' + tc.items.map(i => i.str).join(' '); }
+    return t.replace(/\s+/g, ' '); } catch (e) { return ''; }
+}
+async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, vence, aviso }
+  const n = String(file.name || '').toUpperCase(), t = await _edTexto(file), T = t.toUpperCase(), r = {};
+  if (/TRANSMARGAZ/.test(n + ' ' + T)) r.aviso = 'Transmargaz: no se sube';
+  else if (/VACAS/.test(n)) r.aviso = 'TC de vacaciones: se ignora';
+  r.empresa = /B0?2657435|PORTES 2014 IMPORT/.test(T) ? 'PORTES' : /B0?90286337|HISPALIS/.test(T) ? 'HISPALIS' : /B0?90172735|TRANSPORTES Y PORTES 2014/.test(T) ? 'TYP2014'
+    : /PORTES 2014|IMPORT/.test(n) ? 'PORTES' : /HISPALIS/.test(n) ? 'HISPALIS' : /TRANS(PORTES)? Y PORTES|TYP/.test(n) ? 'TYP2014' : null;
+  r.tipo = /TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
+    : /COD\. ?LIQUIDACION|ADEUDO|TGSS\.? COTIZACI/.test(T) ? 'RECIBO' : /AL CORRIENTE/.test(T) && /SEGURIDAD SOCIAL/.test(T) ? 'CERT_SS'
+    : /AL CORRIENTE|AGENCIA TRIBUTARIA|OBLIGACIONES TRIBUTARIAS/.test(T) ? 'CERT_AEAT'
+    : /RECIBO/.test(n) ? 'RECIBO' : /\bTC1\b/.test(n) ? 'TC1' : /\bTC2\b/.test(n) ? 'TC2' : /\bITA\b/.test(n) ? 'ITA' : /CERT.*SS/.test(n) ? 'CERT_SS' : /HACIENDA|AEAT/.test(n) ? 'CERT_AEAT' : null;
+  const p = T.match(/PER[IÍ]ODO(?: DE LIQUIDACI[OÓ]N)?:? ?(\d{2}) ?\/ ?(\d{4})/) || n.match(/\b(\d{2})[ _\-](20\d{2})\b/);
+  const f = T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(/FECHA:? ?(\d{1,2})\/(\d{1,2})\/(20\d{2})/) || T.match(/OBTENIDA A (\d{1,2})\/(\d{1,2})\/(20\d{2})/);
+  r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
+  r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
+  r.vence = r.tipo === 'CERT_AEAT' && r.fecha_doc ? _tdMas(r.fecha_doc, 1) : null;   // el de Hacienda vale 12 meses
+  return r;
+}
+async function edCargar() {
+  const out = document.getElementById('empEdocOut'); if (!out) return;
+  out.innerHTML = '<div style="padding:14px;color:#111">Cargando…</div>';
+  try { const { data, error } = await sb.from('empresa_docs').select('*').order('periodo', { ascending: false }); if (error) throw error;
+    _ed.filas = data || []; const u = _ed.filas.map(x => x.file_url).filter(Boolean); _ed.firm = u.length ? await firmarDocs(u) : new Map(); }
+  catch (e) { out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; return; }
+  edRender();
+}
+function _edUrl(x) { return _ed.firm.get(x.file_url) || x.file_url; }
+function edRender() {
+  const out = document.getElementById('empEdocOut'); if (!out) return;
+  const emp = vacEmpresaActiva;
+  if (!_ED_EMPS.includes(emp)) { out.innerHTML = '<div style="padding:14px;color:#111">La documentación de empresa es solo para TYP2014, Híspalis y Portes 2014 Import.</div>'; return; }
+  const F = _ed.filas.filter(x => x.empresa === emp), th = 'padding:7px;text-align:center;background:#1b3254;color:#fff;font-weight:800';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><div style="font-size:17px;font-weight:800">Documentación de empresa — ' + esc(emp) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="edEnviarAbrir()" style="font-weight:800;background:#1b3254;color:#fff">📤 Enviar marcados' + (_ed.sel.size ? ' (' + _ed.sel.size + ')' : '') + '</button>' +
+    '<label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta DOC_MENSUAL<input type="file" webkitdirectory multiple style="display:none" onchange="edImportar(this.files);this.value=\'\'"></label></div></div>' +
+    '<div style="font-size:12px;color:#475569;margin-bottom:8px">Sale el último de cada tipo. Marca la casilla para enviarlo. Al subir, la app lee empresa, tipo y periodo del propio PDF.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + ';text-align:left">Documento</th><th style="' + th + '">Último</th><th style="' + th + '">Fecha / caduca</th><th style="' + th + '">Anteriores</th><th style="' + th + '">Subir</th></tr>';
+  _ED_TIPOS.forEach(([t, nom], i) => {
+    const L = F.filter(x => x.tipo === t), u = L[0], bg = i % 2 ? '#f8fafc' : '#fff';
+    h += '<tr style="background:' + bg + ';border-bottom:1px solid var(--bd)"><td style="padding:7px;font-weight:800">' + esc(nom) + '</td><td style="padding:7px;text-align:center">' +
+      (u ? '<input type="checkbox"' + (_ed.sel.has(u.id) ? ' checked' : '') + ' onchange="edSel(\'' + u.id + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;accent-color:#15803d"> <a href="' + _edUrl(u) + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ ' + esc(_edPer(u.periodo)) + '</a>' : '<span style="color:#b91c1c;font-weight:700">falta</span>') +
+      '</td><td style="padding:7px;text-align:center">' + (u ? (u.fecha_doc ? _ofFechaEs(String(u.fecha_doc).slice(0, 10)) : '—') + (u.vence ? ' · caduca ' + _ofFechaEs(String(u.vence).slice(0, 10)) : '') : '') +
+      '</td><td style="padding:7px;text-align:center">' + L.slice(1, 7).map(x => '<a href="' + _edUrl(x) + '" target="_blank" rel="noopener" style="margin:0 3px">' + esc(_edPer(x.periodo)) + '</a>').join('') +
+      '</td><td style="padding:7px;text-align:center"><label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">⬆ Subir<input type="file" accept=".pdf,image/*" style="display:none" onchange="edSubir(\'' + t + '\',this)"></label></td></tr>';
+  });
+  out.innerHTML = h + '</table>';
+}
+function edSel(id, on) { if (on) _ed.sel.add(id); else _ed.sel.delete(id); edRender(); }
+async function _edGuardar(file, r) {
+  const url = await uploadFile(file, 'empresa-docs');
+  const { error } = await sb.from('empresa_docs').upsert({ empresa: r.empresa, tipo: r.tipo, periodo: r.periodo, fecha_doc: r.fecha_doc || null, vence: r.vence || null, file_url: url, file_name: file.name || null }, { onConflict: 'empresa,tipo,periodo' });
+  if (error) throw error;
+}
+async function edSubir(t, input) {
+  const file = input.files && input.files[0]; input.value = ''; if (!file) return;
+  try {
+    const r = await _edLeer(file), emp = vacEmpresaActiva;
+    if (r.aviso) { toast('⚠️ ' + r.aviso, 'err'); return; }
+    if ((r.empresa && r.empresa !== emp) || (r.tipo && r.tipo !== t)) {
+      if (!confirm('⚠️ El PDF parece ' + _edNom(r.tipo || t) + ' de ' + (r.empresa || emp) + ' y lo subes como ' + _edNom(t) + ' de ' + emp + '.\n\nAceptar = subirlo como dice el PDF · Cancelar = no subir')) return;
+    }
+    r.empresa = r.empresa || emp; r.tipo = r.tipo || t;
+    toast('Subiendo…', 'ok'); await _edGuardar(file, r); toast('✓ ' + _edNom(r.tipo) + ' ' + _edPer(r.periodo) + ' de ' + r.empresa, 'ok'); await edCargar();
+  } catch (e) { toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); }
+}
+async function edImportar(files) {   // carpeta DOC_MENSUAL: lee cada PDF y enseña la lista antes de subir
+  const L = [...(files || [])].filter(f => /\.pdf$/i.test(f.name) && !/(^|\/)METACONTRATAS\//i.test(f.webkitRelativePath || ''));
+  if (!L.length) { toast('No hay PDF en esa carpeta', 'err'); return; }
+  toast('Leyendo ' + L.length + ' PDF…', 'ok');
+  const R = []; for (const f of L) { const r = await _edLeer(f); r.file = f; r.ok = !r.aviso && r.empresa && r.tipo; R.push(r); }
+  _ed.imp = R; document.getElementById('edImpOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'edImpOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
+  let h = '<div style="background:#fff;border-radius:12px;padding:18px 20px;width:min(780px,94vw)"><div style="font-size:18px;font-weight:800">Cargar documentación de empresa</div><table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">';
+  R.forEach(r => { h += '<tr style="border-bottom:1px solid var(--bd);color:' + (r.ok ? '#111' : '#94a3b8') + '"><td style="padding:4px">' + esc(r.file.name) + '</td><td style="padding:4px;font-weight:800">' + (r.ok ? esc(r.empresa) + ' · ' + esc(_edNom(r.tipo)) + ' · ' + esc(_edPer(r.periodo)) : esc(r.aviso || 'no reconocido: no se sube')) + '</td></tr>'; });
+  h += '</table><div id="edImpEst" style="margin-top:8px;font-weight:700"></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn bs" onclick="document.getElementById(\'edImpOv\').remove()">Cancelar</button><button class="btn" id="edImpBtn" onclick="edImpSubir()" style="font-weight:800;background:#15803d;color:#fff">Subir ' + R.filter(r => r.ok).length + '</button></div></div>';
+  ov.innerHTML = h; document.body.appendChild(ov);
+}
+async function edImpSubir() {
+  const R = (_ed.imp || []).filter(r => r.ok), est = document.getElementById('edImpEst'), b = document.getElementById('edImpBtn'); if (b) b.disabled = true;
+  let ok = 0, ko = 0;
+  for (const r of R) { try { await _edGuardar(r.file, r); ok++; } catch (e) { ko++; console.error('[v1247]', r.file.name, e); } if (est) est.textContent = 'Subidos ' + ok + '/' + R.length + (ko ? ' · fallos ' + ko : ''); }
+  toast('✓ ' + ok + ' documento(s) de empresa subidos' + (ko ? ' · ' + ko + ' fallos' : ''), ko ? 'err' : 'ok');
+  document.getElementById('edImpOv')?.remove(); _ed.imp = null; await edCargar();
+}
+function edEnviarAbrir() {
+  const emp = vacEmpresaActiva, X = _ed.filas.filter(x => _ed.sel.has(x.id) && x.empresa === emp);
+  if (!X.length) { toast('Marca primero los documentos (casilla de cada uno)', 'err'); return; }
+  const e2 = { TYP2014: 'TYP', HISPALIS: 'HISPALIS', PORTES: 'PORTES' }[emp] || 'TYP', nomEmp = (_LIQ_CLIENTES[e2] || _LIQ_CLIENTES.TYP)[0][1];
+  const docs = X.map(x => ({ v: x, mat: nomEmp, tipo: x.tipo, etq: _edNom(x.tipo) + ' ' + _edPer(x.periodo), url: _edUrl(x), ext: _vdExt(x.file_url, x.file_name), sel: true }));
+  const t1 = docs.find(d => d.tipo === 'TC1'), rc = docs.find(d => d.tipo === 'RECIBO' && t1 && d.v.periodo === t1.v.periodo);
+  if (t1 && rc && t1.ext === 'pdf' && rc.ext === 'pdf') { t1.sel = false; rc.sel = false; docs.unshift({ v: t1.v, mat: nomEmp, tipo: 'TC1R', etq: 'TC1 + recibo (unidos) ' + _edPer(t1.v.periodo), url: t1.url, urls: [t1.url, rc.url], ext: 'pdf', sel: true }); }
+  _vdeAbrir({ L: [{ id: X[0].id }], docs, emp: e2, docTipo: 'docs_empresa', asunto: 'Documentación empresa - ' + nomEmp,
+    texto: 'Buenos días:\n\nAdjuntamos la documentación de la empresa ' + nomEmp + '.\n\nQuedamos a su disposición para cualquier aclaración.\n\nUn saludo,\nDepartamento de Administración\n' + nomEmp });
+}
+async function _edUnir(urls) {   // une varios PDF en uno (TC1 + recibo)
+  const { PDFDocument } = PDFLib, out = await PDFDocument.create();
+  for (const u of urls) { const d = await PDFDocument.load(await _vdBytes(u), { ignoreEncryption: true }); (await out.copyPages(d, d.getPageIndices())).forEach(p => out.addPage(p)); }
+  return await out.save();
 }
