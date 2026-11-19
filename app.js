@@ -48875,7 +48875,8 @@ function tdCarpeta(input) {
     fs.forEach(f => { const t = _tdClasificar(f.name); if (!t) { sinTipo.push(w.nombre + ': ' + f.name); return; }
       const fe = _tdFechaNombre(f.name) || ''; const prev = porTipo.get(t);
       // si hay varios del mismo hueco, gana el más nuevo (fecha del nombre; si no, el último modificado)
-      const k = (fe && fe <= _ofIso(new Date(Date.now() + 3650 * 864e5)) ? fe : '') + '|' + String(f.lastModified).padStart(15, '0');
+      // v1239: fecha REAL para comparar: la del nombre; si no lleva, la de cuando se guardó el archivo (antes un archivo sin fecha ganaba siempre)
+      const k = (fe || _ofIso(new Date(f.lastModified || 0))) + '|' + String(f.lastModified || 0).padStart(15, '0');
       if (!prev || k > prev.k) porTipo.set(t, { f, k, otros: prev ? prev.otros + 1 : 0 }); else prev.otros++; });
     for (const [t, o] of porTipo) { const ya = _td.docs.get(w.id + '|' + t); filas.push({ w, t, f: o.f, otros: o.otros, ya: !!(ya && ya.file_url), sel: !(ya && ya.file_url) }); }
   }

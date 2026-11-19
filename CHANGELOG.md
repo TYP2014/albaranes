@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1239 — 19/11/2026 · Cargar carpeta: elegir bien el documento más nuevo
+- Si un trabajador tenía varios archivos del mismo tipo, uno SIN fecha en el nombre ganaba siempre a uno CON fecha aunque fuese más antiguo (p. ej. Said: "CERT. FORM. E INF." de 2023 en vez del "…_02012025"). Ahora se compara por fecha real: la del nombre o, si no lleva, la de cuando se guardó el archivo.
+
+---
+
 ## v1238 — 19/11/2026 · Documentación de trabajadores: altura y cisternas, en su sitio
 - Las autorizaciones / diplomas de TRABAJOS EN ALTURA iban al hueco "Autorización conducción" (12 conductores de TYP2014). Ahora van a "Otro 1", que pasa a llamarse "Trabajos en altura"; las NORMAS DE SEGURIDAD de cisternas van a "Otro 2" ("Normas seguridad cisternas"). Nombres editables en la cabecera.
 
