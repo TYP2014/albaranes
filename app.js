@@ -26689,6 +26689,7 @@ async function loadTallerData() {
     try { loadTallerCitas(); } catch (e) { console.warn('[v358]', e); }
     try { loadRecmed(); } catch (e) { console.warn('[v440]', e); }   // v440: aviso de reconocimientos desde el arranque
     try { tacoVencVer(); } catch (e) { console.warn('[v457]', e); }   // v457: vencimientos de tacógrafo, para que el aviso salga desde el arranque
+    try { docVencCargar(); } catch (e) { console.warn('[v1236]', e); }   // v1236: seguro y tarjeta de transporte de los vehículos
   } catch (e) {
     console.error('[loadTallerData] Error:', e);
     const body = document.getElementById('tallerTablaBody');
@@ -48218,6 +48219,7 @@ async function vdCargar() {
         if (iso) { const { error } = await sb.from('vehiculos_docs').update({ vence: iso }).eq('id', x.id).is('vence', null); if (!error) x.vence = iso; } } catch (e) { console.warn('[v1230] vence auto:', e); } }
   } catch (e) { console.error('[v1223] documentación:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar la documentación: ' + esc(e.message || e) + '</div>'; return; }
   vdRender();
+  try { docVencCargar(); } catch (e) {}   // v1236: el aviso de arriba, al día
 }
 function _vdUrlDe(v, tipo) {   // URL lista para abrir (firmada) o null
   const m = String(v.matricula).toUpperCase();
@@ -48328,6 +48330,53 @@ async function vdVenceEditar(mat, tipo) {
   try { const { error } = await sb.from('vehiculos_docs').update({ vence: iso, updated_at: new Date().toISOString() }).eq('matricula', mat).eq('tipo', tipo); if (error) throw error;
     toast('✓ ' + mat + (iso ? ' · vence el ' + _ofFechaEs(iso) : ' · sin fecha'), 'ok'); await vdCargar(); }
   catch (e) { console.error('[v1229] vencimiento:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+// ============================================================================
+// v1236 (JC 19/11/2026): AVISO ARRIBA de los papeles de los VEHÍCULOS (Taller > Documentación).
+//  · SEGURO: el día que vence y todos los siguientes, hasta que se suba el nuevo.
+//  · TARJETA DE TRANSPORTE: desde 15 días antes; más fuerte a 3 días; en rojo el mismo día y después.
+// Solo lo ven la oficina y el admin. Los vehículos dados de baja no avisan.
+// (Las tarjetas del TACÓGRAFO tienen su propio aviso y no se tocan.)
+// ============================================================================
+let _docVenc = [];
+const DOCVENC_HIDE = 'docvenc_oculto_';
+async function docVencCargar() {
+  const b = document.getElementById('docVencBanner'); if (!b) return;
+  if (!_ofPuede()) { b.style.display = 'none'; return; }
+  try {
+    const lim = _ofIso(new Date(Date.now() + 15 * 864e5));
+    const { data, error } = await sb.from('vehiculos_docs').select('matricula, tipo, vence').in('tipo', ['SEGURO', 'TT']).not('vence', 'is', null).lte('vence', lim);
+    if (error) throw error;
+    const act = new Set((tallerVehiculos || []).filter(v => v.activo !== false).map(v => String(v.matricula).toUpperCase()));
+    _docVenc = (data || []).filter(x => act.has(String(x.matricula).toUpperCase()));
+  } catch (e) { console.warn('[v1236] avisos documentación:', e); _docVenc = []; }
+  renderDocVencBanner();
+}
+function docVencOcultar(clave) { try { localStorage.setItem(DOCVENC_HIDE + clave, _ofIso(new Date())); } catch (e) {} renderDocVencBanner(); }
+function irADocumentacion() { try { switchTab('taller'); } catch (e) {} setTimeout(() => { try { switchTallerVista('docs'); } catch (e) {} }, 300); }
+function renderDocVencBanner() {
+  const b = document.getElementById('docVencBanner'); if (!b) return;
+  const hoy = _ofIso(new Date()), dias = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(hoy + 'T00:00:00')) / 864e5);
+  const G = { vencido: [], hoy: [], d3: [], d15: [] };
+  _docVenc.forEach(x => { const d = dias(String(x.vence).slice(0, 10));
+    if (x.tipo === 'SEGURO') { if (d < 0) G.vencido.push({ ...x, d }); else if (d === 0) G.hoy.push({ ...x, d }); return; }
+    if (d < 0) G.vencido.push({ ...x, d }); else if (d === 0) G.hoy.push({ ...x, d }); else if (d <= 3) G.d3.push({ ...x, d }); else if (d <= 15) G.d15.push({ ...x, d }); });
+  const N = [['vencido', 'YA VENCIDO', '#7f1d1d'], ['hoy', 'VENCE HOY', '#d32f2f'], ['d3', 'VENCE EN 3 DÍAS O MENOS', '#e65100'], ['d15', 'VENCE EN 15 DÍAS O MENOS', '#b58900']];
+  const nom = { SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE' };
+  let h = '';
+  N.forEach(([k, tit, col], i) => {
+    const L = G[k]; if (!L.length) return;
+    let oc = null; try { oc = localStorage.getItem(DOCVENC_HIDE + k); } catch (e) {}
+    if (oc === hoy) return;
+    const bloque = t => { const l = L.filter(x => x.tipo === t).sort((a, c) => a.d - c.d); if (!l.length) return '';
+      return '<span style="font-weight:900;color:#111">' + nom[t] + ':</span> ' + l.slice(0, 6).map(x => '<strong style="font-weight:900;color:#111">' + esc(x.matricula) + '</strong> (' + _ofFechaEs(String(x.vence).slice(0, 10)) + ')').join(' · ') + (l.length > 6 ? ' · +' + (l.length - 6) + ' más' : ''); };
+    const det = [bloque('SEGURO'), bloque('TT')].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
+    h += '<div style="order:' + i + ';background:#fff;border:3px solid ' + col + ';border-left:12px solid ' + col + ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">' +
+      '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">📄</span> <span style="color:' + col + ';font-weight:900">' + tit + ':</span> ' + det + '</div>' +
+      '<div style="display:flex;gap:6px"><button class="btn bp" style="font-size:12.5px;padding:8px 13px;white-space:nowrap" onclick="irADocumentacion()">VER DOCUMENTACIÓN</button>' +
+      '<button class="btn bs" style="font-size:12.5px;padding:8px 13px" onclick="docVencOcultar(\'' + k + '\')" title="Ocultar hasta mañana">✕</button></div></div>';
+  });
+  b.style.display = h ? 'block' : 'none'; b.innerHTML = h;
 }
 function _vdNomCol(tipo) { const x = _vd.docs.get('__CABECERA__|' + tipo); const t = _VD_TIPOS.find(z => z[0] === tipo); return x && x.etiqueta ? x.etiqueta : (t ? t[1] : tipo); }
 async function vdNombrarCol(tipo) {   // v1226: la oficina le pone nombre a "Otro 1" / "Otro 2" (p. ej. "Autorización Prosa"); vale para todas las empresas

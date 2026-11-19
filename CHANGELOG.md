@@ -4,6 +4,15 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1236 — 19/11/2026 · Aviso arriba: seguro y tarjeta de transporte de los vehículos
+- Barra nueva arriba ("📄 …") con los papeles de los VEHÍCULOS de Taller > Documentación. Solo la ven la oficina y el admin; los vehículos de baja no avisan.
+  - SEGURO: avisa el día que vence ("VENCE HOY") y los días siguientes ("YA VENCIDO") hasta que se suba el nuevo.
+  - TARJETA DE TRANSPORTE: desde 15 días antes, más fuerte a 3 días, en rojo el mismo día y después.
+- Botón "VER DOCUMENTACIÓN" y ✕ para ocultarlo hasta mañana. Se pone al día al subir documentos.
+- Las tarjetas del TACÓGRAFO siguen con su aviso de siempre (no se ha tocado).
+
+---
+
 ## v1235 — 19/11/2026 · Tacógrafo: la caducidad de la tarjeta se pone al día sola
 - Al subir una descarga de tarjeta de conductor, si su ficha ya tiene ESE MISMO número de tarjeta pero con una caducidad más antigua, se actualiza sola con la de la tarjeta. Antes solo se actualizaba cuando cambiaba el número (renovación), y si alguien había escrito a mano el número nuevo sin la fecha, la ficha se quedaba "caducada".
 - Datos corregidos a mano (SQL): José Antonio Sánchez Martínez → caduca 28/10/2031 (tarjeta …000004 renovada); Said Aharran → nº de tarjeta E10244572G000000 (en la ficha faltaba un dígito) y caducidad 12/01/2029, según sus 24 descargas.
