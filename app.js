@@ -48816,6 +48816,10 @@ async function _tdFechas(file, t, w) {   // { fecha_doc, vence }
     return r;
   }
   if (fn && fn <= hoy) r.fecha_doc = fn; else if (fn) r.vence = fn;
+  // v1243: plazos desde la fecha del documento. EPIs 1 AÑO (lo piden así casi todos los clientes, JC);
+  // curso on-line 3 años y recibí PRL 2 años (Metacontratas). El apto médico NO se toca (1 año desde el reconocimiento).
+  const PLAZO = { EPIS: 1, CURSO_ON: 3, RECIBI: 2 }[t];
+  if (PLAZO && r.fecha_doc && !r.vence) r.vence = _tdMas(r.fecha_doc, PLAZO);
   return r;
 }
 async function _tdGuardar(w, t, file, f) {

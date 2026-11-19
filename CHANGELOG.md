@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1243 — 19/11/2026 · Documentación de trabajadores: caducidad de EPIs, curso on-line y recibí PRL
+- Desde la fecha del documento: EPIs 1 año (lo piden así casi todos los clientes), curso on-line 3 años y recibí PRL 2 años. El apto médico sigue igual (1 año desde el reconocimiento).
+- Aplicado a los 35 ya cargados que tenían fecha del documento (SQL). Los que no llevan fecha en el nombre siguen sin caducidad (editable).
+
+---
+
 ## v1242 — 19/11/2026 · Carnet de conducir: caducidad de la C+E
 - La IA cogía la caducidad del apartado 4b (la del carnet B, 5 años más tarde) en vez de la de la categoría C+E. Ahora el carnet se lee por categorías (con Sonnet) y se guarda la de C+E, o la de C si no hay C+E.
 - Corregidos a mano los 30 carnets ya cargados (José Augusto Martínez y Ricardo Miguélez quedan con la C+E vencida en septiembre de 2026). Subido el apto médico de Ricardo (07/07/2026 → caduca 07/07/2027).
