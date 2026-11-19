@@ -26693,6 +26693,7 @@ function switchTallerEmpresa(emp) {
   if (tallerVistaActiva === 'recambios') loadRecambiosData();
   // v357: la vista de Citas se repinta con la empresa nueva
   if (tallerVistaActiva === 'citas') renderTallerCitas();
+  if (tallerVistaActiva === 'docs') vdRender();   // v1223
 }
 
 // Calcula el estado de mantenimiento de un vehículo: devuelve
@@ -28061,8 +28062,9 @@ function switchTallerVista(v) {
   const bm = document.getElementById('tallerVistaMant');
   const br = document.getElementById('tallerVistaRecambios');
   const bc = document.getElementById('tallerVistaCitas');      // v357
+  const db = document.getElementById('tallerVistaDocsBox'), bd = document.getElementById('tallerVistaDocs');   // v1223
   // v357: apagar las tres y encender solo la elegida
-  [[mb,bm],[rb,br],[cb,bc]].forEach(([caja,boton]) => {
+  [[mb,bm],[rb,br],[cb,bc],[db,bd]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -28074,6 +28076,10 @@ function switchTallerVista(v) {
     if (cb) cb.style.display = '';
     if (bc) { bc.classList.remove('bs'); bc.classList.add('bp'); }
     loadTallerCitas();
+  } else if (v === 'docs') {   // v1223
+    if (db) db.style.display = '';
+    if (bd) { bd.classList.remove('bs'); bd.classList.add('bp'); }
+    vdCargar();
   } else {
     if (mb) mb.style.display = '';
     if (bm) { bm.classList.remove('bs'); bm.classList.add('bp'); }
@@ -48112,4 +48118,187 @@ async function pinEnviar(mat, tipo) {
   try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(txt); toast('Mensaje copiado: pégalo en el WhatsApp del conductor', 'ok'); }
   catch (e) { prompt('Copia este mensaje y pégalo en el WhatsApp del conductor:', txt); }
+}
+
+
+// ============================================================
+// v1223 (19/11/2026): TALLER > DOCUMENTACIÓN DE LOS VEHÍCULOS
+// Subpestaña aparte (no toca la ficha/modal de Taller). Por vehículo:
+//  · Tractoras: Ficha técnica · Permiso de circulación · ITV · Seguro · Tarjeta de transporte · Declaración Holcim · 2 huecos libres
+//  · Semirremolques: igual, sin tarjeta de transporte.
+// La ficha técnica es la MISMA de Taller (taller_vehiculos.ficha_tecnica_url) y la ITV es la del módulo ITV (último documento).
+// El resto va en la tabla vehiculos_docs (una fila por matrícula y tipo).
+// Declaración de equipamiento Holcim: se genera desde la plantilla firmada de cada empresa (subida una vez),
+// poniendo la matrícula del vehículo y la fecha que se elija. ZIP por vehículo o de los marcados.
+// ============================================================
+const _VD_TIPOS = [
+  ['FT', 'Ficha técnica', 'ambos'], ['PC', 'Permiso circ.', 'ambos'], ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
+  ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'], ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
+const _VD_PLANT = { TYP: 'Transportes y Portes 2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };
+const _VD_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+let _vd = { docs: new Map(), itv: new Map(), firm: new Map(), sel: new Set(), cargando: false };
+function _vdEmpDecl(v) {   // qué plantilla Holcim le toca: Import se distingue por el mapa de Gasoil
+  const m = String(v.matricula || '').toUpperCase();
+  if (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[m] === 'PORTES') return 'PORTES';
+  return v.empresa === 'HISPALIS' ? 'HISPALIS' : v.empresa === 'TYP2014' ? 'TYP' : v.empresa;
+}
+async function vdCargar() {
+  const out = document.getElementById('tallerDocsOut'); if (!out) return;
+  out.innerHTML = '<div style="padding:14px;color:#111">Cargando documentación…</div>';
+  try {
+    if (!tallerVehiculos || !tallerVehiculos.length) await loadTallerData();
+    const mats = tallerVehiculos.map(v => String(v.matricula).toUpperCase());
+    const [d, i] = await Promise.all([
+      sb.from('vehiculos_docs').select('*'),
+      sb.from('itv').select('matricula,fecha_itv,fecha_caducidad,file_url,tipo_documento').in('matricula', mats).order('fecha_itv', { ascending: false })]);
+    if (d.error) throw d.error; if (i.error) throw i.error;
+    _vd.docs = new Map(); (d.data || []).forEach(x => _vd.docs.set(String(x.matricula).toUpperCase() + '|' + x.tipo, x));
+    _vd.itv = new Map(); (i.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !_vd.itv.has(k)) _vd.itv.set(k, x); });
+    const urls = [...(d.data || []).map(x => x.file_url), ...[..._vd.itv.values()].map(x => x.file_url)].filter(u => u && !_docEsVacio(u));
+    _vd.firm = urls.length ? await firmarDocs(urls) : new Map();
+  } catch (e) { console.error('[v1223] documentación:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar la documentación: ' + esc(e.message || e) + '</div>'; return; }
+  vdRender();
+}
+function _vdUrlDe(v, tipo) {   // URL lista para abrir (firmada) o null
+  const m = String(v.matricula).toUpperCase();
+  if (tipo === 'FT') return v.ficha_tecnica_url || null;   // ya viene firmada de loadTallerData
+  if (tipo === 'ITV') { const x = _vd.itv.get(m); return x ? (_vd.firm.get(x.file_url) || x.file_url) : null; }
+  const x = _vd.docs.get(m + '|' + tipo); return x && x.file_url ? (_vd.firm.get(x.file_url) || x.file_url) : null;
+}
+function vdRender() {
+  const out = document.getElementById('tallerDocsOut'); if (!out) return;
+  const vs = (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva);
+  const tr = vs.filter(v => v.tipo_vehiculo !== 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
+  const se = vs.filter(v => v.tipo_vehiculo === 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
+  const plant = Object.keys(_VD_PLANT).map(e => { const x = _vd.docs.get('__PLANTILLA__|HOLCIM_' + e); return '<span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><b>' + _VD_PLANT[e] + ':</b> ' + (x ? '<span style="color:#15803d;font-weight:800">✓ subida</span>' : '<span style="color:#b91c1c;font-weight:800">falta</span>') +
+    ' <label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">' + (x ? 'Cambiar' : 'Subir') + '<input type="file" accept="application/pdf" style="display:none" onchange="vdSubirPlantilla(\'' + e + '\',this)"></label></span>'; }).join('');
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+    '<div class="st" style="margin:0"><div class="dot"></div>DOCUMENTACIÓN · ' + esc(tallerEmpresaActiva) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" onclick="vdSelTodos()" style="font-weight:800">Marcar todos</button>' +
+    '<button class="btn bp" onclick="vdZipSel()" style="font-weight:800">⬇ Descargar marcados (ZIP)</button>' +
+    '<button class="btn" onclick="vdDeclSel()" style="font-weight:800;border:2px solid #1b3254;color:#1b3254;background:#fff">Declaración Holcim de los marcados</button></div></div>' +
+    '<div style="font-size:13px;color:#111;margin-bottom:10px">Plantilla firmada de la declaración Holcim (se sube una vez por empresa; la app le cambia la matrícula y la fecha): ' + plant + '</div>';
+  const tabla = (titulo, L, tipoVeh) => {
+    const cols = _VD_TIPOS.filter(t => t[2] === 'ambos' || t[2] === tipoVeh);
+    let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:center">' +
+      '<th style="padding:8px;width:30px"></th><th style="padding:8px;text-align:left">Matrícula</th>' + cols.map(c => '<th style="padding:8px">' + c[1] + '</th>').join('') + '<th style="padding:8px">Todo</th></tr></thead><tbody>';
+    L.forEach(v => {
+      const m = String(v.matricula).toUpperCase();
+      t += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;text-align:center"><input type="checkbox" ' + (_vd.sel.has(m) ? 'checked ' : '') + 'onchange="vdSel(\'' + m + '\',this.checked)" style="width:16px;height:16px"></td>' +
+        '<td style="padding:6px 8px;font-weight:800;font-family:var(--mn);white-space:nowrap">' + esc(m) + '</td>';
+      cols.forEach(c => {
+        const tipo = c[0], url = _vdUrlDe(v, tipo), x = _vd.docs.get(m + '|' + tipo);
+        const etq = (tipo === 'EXTRA1' || tipo === 'EXTRA2') && x && x.etiqueta ? '<div style="font-size:10px;color:#111;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _ofEA(x.etiqueta) + '">' + esc(x.etiqueta) + '</div>' : '';
+        let cel;
+        if (tipo === 'ITV') cel = url ? '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a>' : '<span style="color:#94a3b8" title="Se sube en el módulo ITV">— (ITV)</span>';
+        else {
+          cel = (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' : '') +
+            '<label style="cursor:pointer;font-size:11px;color:' + (url ? '#475569' : '#1b3254') + ';font-weight:' + (url ? '600' : '800') + ';text-decoration:underline">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="vdSubir(\'' + v.id + '\',\'' + tipo + '\',this)"></label>';
+          if (tipo === 'DECL_HOLCIM') cel += '<div><a href="javascript:void(0)" onclick="vdDeclUno(\'' + v.id + '\')" style="font-size:11px;font-weight:800;color:#1b3254">Generar</a></div>';
+        }
+        t += '<td style="padding:6px;text-align:center;white-space:nowrap">' + etq + cel + '</td>';
+      });
+      t += '<td style="padding:6px;text-align:center"><button class="btn bs" onclick="vdZipUno(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px">⬇ ZIP</button></td></tr>';
+    });
+    return t + '</tbody></table></div>';
+  };
+  h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques', se, 'semirremolque');
+  out.innerHTML = h;
+}
+function vdSel(m, on) { if (on) _vd.sel.add(m); else _vd.sel.delete(m); }
+function vdSelTodos() { const vs = (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva).map(v => String(v.matricula).toUpperCase()); const todos = vs.every(m => _vd.sel.has(m)); vs.forEach(m => todos ? _vd.sel.delete(m) : _vd.sel.add(m)); vdRender(); }
+async function _vdGuardarDoc(mat, tipo, file, etiqueta) {
+  const url = await uploadFile(file, 'vehiculos-docs');
+  const fila = { matricula: mat, tipo, file_url: url, file_name: file.name || null, updated_at: new Date().toISOString() };
+  if (etiqueta !== undefined) fila.etiqueta = etiqueta;
+  const { error } = await sb.from('vehiculos_docs').upsert(fila, { onConflict: 'matricula,tipo' }); if (error) throw error;
+}
+async function vdSubir(vehId, tipo, input) {
+  const file = input && input.files && input.files[0]; if (!file) return;
+  const v = tallerVehiculos.find(x => x.id === vehId); if (!v) return;
+  const mat = String(v.matricula).toUpperCase();
+  try {
+    if (tipo === 'FT') { toast('Subiendo ficha técnica…', 'ok'); const url = await uploadFile(file, 'fichas-tecnicas'); const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId); if (error) throw error; await loadTallerData(); }
+    else {
+      let etq;
+      if (tipo === 'EXTRA1' || tipo === 'EXTRA2') { const ant = (_vd.docs.get(mat + '|' + tipo) || {}).etiqueta || ''; etq = prompt('¿Qué documento es? (p. ej. "Certificado ATP", "Revisión extintores")', ant); if (etq === null) { input.value = ''; return; } etq = etq.trim() || 'Otro'; }
+      toast('Subiendo…', 'ok'); await _vdGuardarDoc(mat, tipo, file, etq);
+    }
+    toast('✓ Subido · ' + mat, 'ok'); await vdCargar();
+  } catch (e) { console.error('[v1223] subir doc:', e); toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); }
+}
+async function vdSubirPlantilla(emp, input) {
+  const file = input && input.files && input.files[0]; if (!file) return;
+  try { toast('Subiendo plantilla…', 'ok'); await _vdGuardarDoc('__PLANTILLA__', 'HOLCIM_' + emp, file); toast('✓ Plantilla de ' + _VD_PLANT[emp] + ' subida', 'ok'); await vdCargar(); }
+  catch (e) { console.error('[v1223] plantilla:', e); toast('⚠️ No se pudo subir la plantilla: ' + (e.message || e), 'err'); }
+}
+async function _vdBytes(url) { const r = await fetch(url); if (!r.ok) throw new Error('No se pudo descargar (' + r.status + ')'); return new Uint8Array(await r.arrayBuffer()); }
+function _vdExt(url, nombre) { const m = String(nombre || url || '').split('?')[0].match(/\.([a-z0-9]{2,5})$/i); return m ? m[1].toLowerCase() : 'pdf'; }
+function _vdFechaTxt(iso) { const [a, m, d] = iso.split('-').map(Number); return d + ' de ' + _VD_MESES[m - 1] + ' de ' + a; }
+async function _vdDeclPdf(v, iso) {   // devuelve los bytes del PDF de la declaración con la matrícula y la fecha
+  const emp = _vdEmpDecl(v), pl = _vd.docs.get('__PLANTILLA__|HOLCIM_' + emp);
+  if (!pl) throw new Error('Falta subir la plantilla de ' + (_VD_PLANT[emp] || emp));
+  const src = await _vdBytes(_vd.firm.get(pl.file_url) || pl.file_url);
+  const doc = await PDFLib.PDFDocument.load(src);
+  const p = doc.getPages(), H = p[0].getHeight(), blanco = PDFLib.rgb(1, 1, 1), negro = PDFLib.rgb(0, 0, 0);
+  const fB = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold), fBI = await doc.embedFont(PDFLib.StandardFonts.HelveticaBoldOblique);
+  // Matrícula (página 1): tapa la de la plantilla y escribe la del vehículo
+  p[0].drawRectangle({ x: 281, y: H - 233, width: 120, height: 16, color: blanco });
+  p[0].drawText(String(v.matricula).toUpperCase(), { x: 283.7, y: H - 229.3, size: 12, font: fB, color: negro });
+  // Fecha (página 2): "En BARCELONA , a 19 de NOVIEMBRE de 2026"
+  if (p[1]) { p[1].drawRectangle({ x: 290, y: H - 339.4, width: 215, height: 11.4, color: blanco });
+    p[1].drawText('En BARCELONA , a ' + _vdFechaTxt(iso), { x: 294.3, y: H - 337.2, size: 8.8, font: fBI, color: negro }); }
+  return await doc.save();
+}
+function _vdPedirFecha() { const hoy = _ofIso(new Date()); const r = prompt('Fecha de la declaración (AAAA-MM-DD):', hoy); if (r === null) return null; const f = r.trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { toast('Fecha no válida. Formato AAAA-MM-DD', 'err'); return null; } return f; }
+function _vdDescargar(bytes, nombre, tipo) { const b = new Blob([bytes], { type: tipo || 'application/octet-stream' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
+async function vdDeclUno(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId); if (!v) return;
+  const iso = _vdPedirFecha(); if (!iso) return;
+  try {
+    toast('Generando declaración…', 'ok');
+    const bytes = await _vdDeclPdf(v, iso), mat = String(v.matricula).toUpperCase(), nombre = 'DECLARACION HOLCIM - ' + mat + ' - ' + iso + '.pdf';
+    await _vdGuardarDoc(mat, 'DECL_HOLCIM', new File([bytes], nombre, { type: 'application/pdf' }));
+    _vdDescargar(bytes, nombre, 'application/pdf'); toast('✓ Declaración de ' + mat + ' generada y guardada', 'ok'); await vdCargar();
+  } catch (e) { console.error('[v1223] declaración:', e); toast('⚠️ ' + (e.message || e), 'err'); }
+}
+function _vdMarcados() { return (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva && _vd.sel.has(String(v.matricula).toUpperCase())); }
+async function vdDeclSel() {
+  const L = _vdMarcados(); if (!L.length) { toast('Marca primero los vehículos (casilla de la izquierda)', 'err'); return; }
+  const iso = _vdPedirFecha(); if (!iso) return;
+  const zip = new JSZip(); let ok = 0; const fallos = [];
+  toast('Generando ' + L.length + ' declaraciones…', 'ok');
+  for (const v of L) { const mat = String(v.matricula).toUpperCase();
+    try { const bytes = await _vdDeclPdf(v, iso), nombre = 'DECLARACION HOLCIM - ' + mat + ' - ' + iso + '.pdf';
+      zip.file(nombre, bytes); await _vdGuardarDoc(mat, 'DECL_HOLCIM', new File([bytes], nombre, { type: 'application/pdf' })); ok++; }
+    catch (e) { fallos.push(mat + ': ' + (e.message || e)); } }
+  if (ok) _vdDescargar(await zip.generateAsync({ type: 'uint8array' }), 'DECLARACIONES HOLCIM - ' + iso + '.zip', 'application/zip');
+  if (fallos.length) alert('No se generaron ' + fallos.length + ':\n\n' + fallos.join('\n')); else toast('✓ ' + ok + ' declaraciones', 'ok');
+  await vdCargar();
+}
+async function _vdZipDe(zip, v, carpeta) {
+  const mat = String(v.matricula).toUpperCase(); let n = 0; const fallos = [];
+  for (const [tipo, nom] of _VD_TIPOS) {
+    const url = _vdUrlDe(v, tipo); if (!url) continue;
+    const x = _vd.docs.get(mat + '|' + tipo), etq = x && x.etiqueta ? x.etiqueta : nom;
+    try { const b = await _vdBytes(url); zip.file((carpeta ? mat + '/' : '') + mat + ' - ' + etq.replace(/[\\/:*?"<>|.]/g, ' ').trim() + '.' + _vdExt(url, x && x.file_name), b); n++; }
+    catch (e) { fallos.push(mat + ' · ' + nom); }
+  }
+  return { n, fallos };
+}
+async function vdZipUno(vehId) {
+  const v = tallerVehiculos.find(x => x.id === vehId); if (!v) return;
+  const zip = new JSZip(); toast('Preparando ZIP…', 'ok');
+  const r = await _vdZipDe(zip, v, false);
+  if (!r.n) { toast('Este vehículo no tiene documentos subidos', 'err'); return; }
+  _vdDescargar(await zip.generateAsync({ type: 'uint8array' }), 'DOCUMENTACION ' + String(v.matricula).toUpperCase() + '.zip', 'application/zip');
+  if (r.fallos.length) alert('No se pudieron bajar:\n\n' + r.fallos.join('\n'));
+}
+async function vdZipSel() {
+  const L = _vdMarcados(); if (!L.length) { toast('Marca primero los vehículos (casilla de la izquierda)', 'err'); return; }
+  const zip = new JSZip(); let n = 0; const fallos = []; toast('Preparando ZIP de ' + L.length + ' vehículos…', 'ok');
+  for (const v of L) { const r = await _vdZipDe(zip, v, true); n += r.n; fallos.push(...r.fallos); }
+  if (!n) { toast('Los marcados no tienen documentos subidos', 'err'); return; }
+  _vdDescargar(await zip.generateAsync({ type: 'uint8array' }), 'DOCUMENTACION VEHICULOS ' + tallerEmpresaActiva + ' - ' + _ofIso(new Date()) + '.zip', 'application/zip');
+  if (fallos.length) alert('No se pudieron bajar ' + fallos.length + ':\n\n' + fallos.join('\n'));
 }
