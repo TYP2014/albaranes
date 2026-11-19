@@ -4,6 +4,13 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1246 — 19/11/2026 · Documentación de conductores: enviar por WhatsApp o correo
+- Empleados > Documentación: casilla en cada documento, "📤 Enviar marcados" arriba y "📤 Enviar" por trabajador. Misma ventana que los camiones: eliges qué documentos (o todos) y se mandan por WhatsApp o por correo con el pie legal.
+- Ventana de envío (camiones y conductores): nuevo desplegable "Enviar desde" con todos los correos de envío de TYP2014, Híspalis e Import (los de facturas_config). El pie legal y la firma son los de la empresa elegida.
+- El hueco "Alta / ITA" pasa a "Alta Seg. Social": el ITA irá en la documentación de EMPRESA (próxima versión).
+
+---
+
 ## v1245 — 19/11/2026 · Aviso de documentos: sin duplicados
 - Si el aviso se cargaba dos veces a la vez, los conductores salían repetidos. Ahora solo vale la última carga.
 

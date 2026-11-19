@@ -48601,15 +48601,27 @@ function vdEnviarAbrir(vehId) {
   const L = [...new Map(docs.map(d => [d.v.id, d.v])).values()];
   const emp = _vdeEmpCorreo(L), mats = L.map(v => String(v.matricula).toUpperCase()), nomEmp = (_LIQ_CLIENTES[emp] || _LIQ_CLIENTES.TYP)[0][1];
   const varios = mats.length > 1;
-  _vde = { L, docs, emp, para: '', cc: '', asunto: 'Documentación ' + (varios ? 'vehículos ' : 'vehículo ') + mats.join(', ') + ' - ' + nomEmp,
+  _vdeAbrir({ L, docs, emp, docTipo: 'docs_vehiculo', asunto: 'Documentación ' + (varios ? 'vehículos ' : 'vehículo ') + mats.join(', ') + ' - ' + nomEmp,
     texto: 'Buenos días:\n\nAdjuntamos la documentación ' + (varios ? 'de los vehículos ' : 'del vehículo ') + mats.join(', ') + '.\n\nQuedamos a su disposición para cualquier aclaración.\n\nUn saludo,\nDepartamento de Administración\n' + nomEmp,
-    enviando: false, estado: '', hecho: [] };
+  });
+}
+// v1246: la ventana de envío vale para camiones y para conductores; "Enviar desde" = cualquier correo de envío de las empresas
+async function _vdeAbrir(o) {
+  if (!Object.keys(_faCfg || {}).length) { try { await _faCargarCfg(); } catch (e) {} }
+  const rems = _faRemitentes(o.emp);
+  _vde = Object.assign({ para: '', cc: '', enviando: false, estado: '', hecho: [], desde: o.emp + '|' + (rems[0] || '') }, o);
   document.getElementById('vdeOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'vdeOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
   ov.innerHTML = '<div id="vdeBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:min(720px,94vw);box-shadow:0 10px 30px rgba(0,0,0,.3)"></div>';
   document.body.appendChild(ov); _vdeRender();
 }
+function _vdeDesdeOpc() {
+  const N = { TYP: 'TYP2014', HISPALIS: 'HÍSPALIS', PORTES: 'IMPORT' }; let h = '';
+  ['TYP', 'HISPALIS', 'PORTES'].forEach(e => { const R = _faRemitentes(e); (R.length ? R : ['']).forEach(r => { const v = e + '|' + r; h += '<option value="' + _ofEA(v) + '"' + (v === _vde.desde ? ' selected' : '') + '>' + N[e] + (r ? ' · ' + esc(r) : ' · correo de la empresa') + '</option>'; }); });
+  return h;
+}
+function vdeDesde(v) { if (!_vde) return; _vde.desde = v; _vde.emp = v.split('|')[0]; const nom = (_LIQ_CLIENTES[_vde.emp] || _LIQ_CLIENTES.TYP)[0][1]; _vde.texto = String(_vde.texto || '').replace(/(Departamento de Administración\n)[^\n]*$/, '$1' + nom); _vdeRender(); }
 function vdeCerrar() { if (_vde && _vde.enviando) return; document.getElementById('vdeOv')?.remove(); _vde = null; }
 function vdeSel(i, on) { if (_vde) { _vde.docs[i].sel = on; _vdeRender(); } }
 function vdeTodos(on) { if (_vde) { _vde.docs.forEach(d => d.sel = on); _vdeRender(); } }
@@ -48629,11 +48641,12 @@ function _vdeRender() {
   h += '<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="vdeWhatsApp()" style="padding:10px 18px;font-weight:800;background:#25D366;color:#fff"' + dis + '>' + (_vde.wa && _vde.wa.clave === _vde.docs.map(d => d.sel ? 1 : 0).join('') ? '📱 Compartir ahora (' + _vde.wa.F.length + ')' : '📱 Enviar por WhatsApp') + '</button>' +
     '<span style="font-size:12px;color:#475569">Se abre el menú de compartir: eliges WhatsApp y el contacto.</span></div>';
   h += '<div style="margin-top:14px;border-top:2px solid var(--bd);padding-top:10px"><div style="font-weight:800;font-size:15px">✉️ Por correo</div>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Enviar desde<br><select onchange="vdeDesde(this.value)" style="' + inp + ';font-weight:700">' + _vdeDesdeOpc() + '</select></label></div>' +
     '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Para (varios separados por coma)<br><input value="' + _ofEA(_vde.para) + '" oninput="_vde.para=this.value" style="' + inp + ';font-weight:700"></label></div>' +
     '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_vde.cc) + '" oninput="_vde.cc=this.value" style="' + inp + '"></label></div>' +
     '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_vde.asunto) + '" oninput="_vde.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
     '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Texto<br><textarea rows="8" oninput="_vde.texto=this.value" style="' + inp + ';font-size:15px;line-height:1.4">' + esc(_vde.texto) + '</textarea></label>' +
-    '<div style="font-size:12px;color:#475569">Sale desde el correo de ' + esc((_LIQ_CLIENTES[_vde.emp] || _LIQ_CLIENTES.TYP)[0][1]) + ' y se le añade el pie legal.</div></div>';
+    '<div style="font-size:12px;color:#475569">Se le añade el pie legal de ' + esc((_LIQ_CLIENTES[_vde.emp] || _LIQ_CLIENTES.TYP)[0][1]) + '.</div></div>';
   if (_vde.estado) h += '<div style="margin-top:8px;font-size:13px;color:#444">' + esc(_vde.estado) + '</div>';
   if (_vde.hecho.length) h += '<div style="margin-top:8px;font-size:13px">' + _vde.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
   h += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="vdeCorreo()" style="padding:10px 22px;font-weight:800;background:' + (_vde.enviando ? '#9aa5b5' : '#1b3254') + ';color:#fff"' + dis + '>' + (_vde.enviando ? 'Enviando…' : 'Enviar por correo') + '</button></div></div>';
@@ -48681,7 +48694,8 @@ async function vdeCorreo() {
     const F = await _vdeArchivos(), adj = [];
     for (const f of F) adj.push({ nombre: f.name, tipo: f.type, base64: _feB64(new Uint8Array(await f.arrayBuffer())) });
     _vde.estado = 'Enviando…'; _vdeRender();
-    const r = await _feLlamar({ empresa: _vde.emp, destino: 'cliente', para, cc: _vde.cc || '', asunto: _vde.asunto.trim(), texto: (_vde.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_vde.emp), adjuntos: adj, doc_tipo: 'docs_vehiculo', doc_id: _vde.L[0].id });
+    const dsd = String(_vde.desde || '').split('|')[1] || '';
+    const r = await _feLlamar({ empresa: _vde.emp, desde: dsd || undefined, destino: 'cliente', para, cc: _vde.cc || '', asunto: _vde.asunto.trim(), texto: (_vde.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_vde.emp), adjuntos: adj, doc_tipo: _vde.docTipo || 'docs_vehiculo', doc_id: _vde.L[0].id });
     _vde.hecho.push(r.ok ? { ok: true, txt: '✓ Enviado a ' + (r.para || para) + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió: ' + (r.error || 'error') + (/MB/.test(r.error || '') ? ' → Envía menos documentos de golpe o usa WhatsApp.' : '') });
     toast(r.ok ? 'Documentación enviada' : '⚠️ No se envió: mira la ventana', r.ok ? 'ok' : 'err');
   } catch (e) { if (_vde) _vde.hecho.push({ ok: false, txt: e.message === 'Cancelado' ? 'No se ha enviado nada' : 'Error: ' + (e.message || e) }); }
@@ -48702,7 +48716,7 @@ async function vdeCorreo() {
 // ============================================================================
 const _TD_TIPOS = [
   ['DNI', 'DNI / NIE', true], ['CARNET', 'Carnet conducir', true], ['CAP', 'CAP', true], ['TACO', 'Tarjeta tacógrafo', true],
-  ['APTO', 'Apto médico', true], ['ALTA', 'Alta / ITA', false], ['FORM_INF', 'Formación e información PRL', false],
+  ['APTO', 'Apto médico', true], ['ALTA', 'Alta Seg. Social', false], ['FORM_INF', 'Formación e información PRL', false],
   ['CURSO_PRL', 'Curso PRL 2h (art. 19)', false], ['RECIBI', 'Recibí PRL', false], ['CURSO_ON', 'Curso on-line', false],
   ['EPIS', 'Entrega EPIs', false], ['AUTORIZ', 'Autorización conducción', false], ['GPS', 'Información GPS', false],
   ['CONFID', 'Protección de datos', false], ['EXTRA1', 'Otro 1', false], ['EXTRA2', 'Otro 2', false] ];
@@ -48712,7 +48726,7 @@ const _TD_REGLAS = [
   ['EXTRA1', _tdRe('altura')],   // v1238: autorización / formación / diploma de TRABAJOS EN ALTURA (no es la autorización de conducción)
   ['EXTRA2', _tdRe('normas?( de)? seg|protocolo cisterna')],   // v1238: normas de seguridad de carga y descarga de cisternas
   ['APTO', _tdRe('certificado de aptitud|<B>aptitud<E>|reconocimiento m[eé]dico|<B>apto<E>')],
-  ['ALTA', _tdRe('<B>alta<E>|<B>ita<E>|<B>idc<E>')],
+  ['ALTA', _tdRe('<B>alta<E>|<B>idc<E>')],   // v1246: el ITA va en la documentación de EMPRESA
   ['DNI', _tdRe('<B>(dni|nie)<E>')],
   ['TACO', _tdRe('tac[oó]grafo|tarjeta t\\.|tarjeta( de)? conductor')],
   ['RECIBI', _tdRe('recib')],
@@ -48734,7 +48748,7 @@ function _tdFechaNombre(nombre) {   // fecha escrita en el nombre: 25_09_2026, 1
   return null;
 }
 
-let _td = { docs: new Map(), firm: new Map(), cab: new Map(), cargando: false };
+let _td = { docs: new Map(), firm: new Map(), cab: new Map(), cargando: false, dsel: new Set() };   // v1246: dsel = documentos marcados ('trabId|TIPO')
 function _tdNomCol(t) { const c = _td.cab.get(t); const x = _TD_TIPOS.find(z => z[0] === t); return c && c.etiqueta ? c.etiqueta : (x ? x[1] : t); }
 function _tdLista() { return (vacTrabajadores || []).filter(t => t.empresa === vacEmpresaActiva && !t.archivado).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))); }
 async function tdCargar() {
@@ -48769,7 +48783,7 @@ function tdRender() {
   const cab = t => (t === 'EXTRA1' || t === 'EXTRA2') ? '<span onclick="tdNombrarCol(\'' + t + '\')" style="cursor:pointer;border-bottom:2px dashed #93c5fd" title="Pulsa para ponerle nombre">' + esc(_tdNomCol(t)) + ' ✏️</span>' : esc(_tdNomCol(t)).toUpperCase();
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
     '<div style="font-size:15px;font-weight:800;color:#111">Documentación de trabajadores · ' + esc(vacEmpresaActiva) + ' (' + L.length + ')</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta de OneDrive<input type="file" webkitdirectory directory multiple style="display:none" onchange="tdCarpeta(this)"></label>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="tdEnviarAbrir()" style="font-weight:800;background:#1b3254;color:#fff">📤 Enviar marcados' + (_td.dsel.size ? ' (' + _td.dsel.size + ' doc.)' : '') + '</button><label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta de OneDrive<input type="file" webkitdirectory directory multiple style="display:none" onchange="tdCarpeta(this)"></label>' +
     '<button class="btn bs" onclick="tdCargar()" style="font-weight:800">Refrescar</button></div></div>' +
     '<div style="font-size:12.5px;color:#111;margin-bottom:8px">Pulsa <b>Subir</b> en cada hueco, o <b>📂 Cargar carpeta</b> y elige la carpeta de los conductores (por ejemplo CONDUCTORES_HISPALIS): la app reparte cada archivo en su sitio y te lo enseña antes de subir. Las fechas en <u>subrayado</u> se cambian pulsando en ellas.</div>';
   h += '<div style="border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="' + th + ';text-align:left">TRABAJADOR</th>' +
@@ -48780,15 +48794,34 @@ function tdRender() {
     _TD_TIPOS.forEach(([t]) => {
       const x = _td.docs.get(w.id + '|' + t), url = x && x.file_url ? (_td.firm.get(x.file_url) || x.file_url) : null;
       const inp = '<label style="cursor:pointer;color:#1b3254;text-decoration:underline;font-size:11px">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept=".pdf,image/*" style="display:none" onchange="tdSubir(\'' + w.id + '\',\'' + t + '\',this)"></label>';
-      let cel = url ? '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' + inp + _tdFechaHtml(x, t, w.id) : inp;
+      const ck = url ? '<input type="checkbox" title="Marcar para enviar"' + (_td.dsel.has(w.id + '|' + t) ? ' checked' : '') + ' onchange="tdDSel(\'' + w.id + '|' + t + '\',this.checked)" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;accent-color:#15803d">' : '';
+      let cel = url ? ck + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' + inp + _tdFechaHtml(x, t, w.id) : inp;
       if (url) n++;
       h += '<td style="padding:5px 4px;text-align:center;vertical-align:middle">' + cel + '</td>';
     });
-    h += '<td style="padding:5px;text-align:center"><button class="btn bs" onclick="tdZip(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px"' + (n ? '' : ' disabled') + '>⬇ ZIP</button></td></tr>';
+    h += '<td style="padding:5px;text-align:center;white-space:nowrap"><button class="btn bs" onclick="tdZip(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px"' + (n ? '' : ' disabled') + '>⬇ ZIP</button> <button class="btn" onclick="tdEnviarAbrir(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px;background:#15803d;color:#fff"' + (n ? '' : ' disabled') + '>📤 Enviar</button></td></tr>';
   });
   if (!L.length) h += '<tr><td colspan="' + (_TD_TIPOS.length + 2) + '" style="padding:14px;color:#475569">No hay trabajadores activos en esta empresa.</td></tr>';
   h += '</tbody></table></div>';
   out.innerHTML = h;
+}
+function tdDSel(k, on) { if (on) _td.dsel.add(k); else _td.dsel.delete(k); tdRender(); }
+function _tdDocsDe(w) {   // documentos subidos de un trabajador, con la forma que usa la ventana de envío
+  const L = [];
+  _TD_TIPOS.forEach(([t]) => { const x = _td.docs.get(w.id + '|' + t); if (!x || !x.file_url) return;
+    L.push({ v: w, mat: w.nombre, tipo: t, etq: _tdNomCol(t), url: _td.firm.get(x.file_url) || x.file_url, ext: _vdExt(x.file_url, x.file_name), sel: true }); });
+  return L;
+}
+function tdEnviarAbrir(tid) {   // v1246: enviar por WhatsApp o correo los documentos de un trabajador (o los marcados)
+  let docs;
+  if (tid) { const w = (vacTrabajadores || []).find(x => x.id === tid); docs = w ? _tdDocsDe(w) : []; }
+  else { docs = []; _tdLista().forEach(w => _tdDocsDe(w).forEach(d => { if (_td.dsel.has(w.id + '|' + d.tipo)) docs.push(d); })); }
+  if (!docs.length) { toast(tid ? 'Este trabajador no tiene documentos subidos' : 'Marca primero los documentos (casilla de cada uno)', 'err'); return; }
+  const L = [...new Map(docs.map(d => [d.v.id, d.v])).values()];
+  const emp = ({ TYP2014: 'TYP', HISPALIS: 'HISPALIS', PORTES: 'PORTES' })[L[0].empresa] || 'TYP';
+  const nomEmp = (_LIQ_CLIENTES[emp] || _LIQ_CLIENTES.TYP)[0][1], noms = L.map(w => w.nombre), varios = noms.length > 1;
+  _vdeAbrir({ L, docs, emp, docTipo: 'docs_trabajador', asunto: 'Documentación ' + (varios ? 'de los trabajadores ' : 'del trabajador ') + noms.join(', ') + ' - ' + nomEmp,
+    texto: 'Buenos días:\n\nAdjuntamos la documentación ' + (varios ? 'de los trabajadores ' : 'del trabajador ') + noms.join(', ') + '.\n\nQuedamos a su disposición para cualquier aclaración.\n\nUn saludo,\nDepartamento de Administración\n' + nomEmp });
 }
 async function tdNombrarCol(t) {
   const ant = (_td.cab.get(t) || {}).etiqueta || '';
