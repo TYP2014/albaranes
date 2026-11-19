@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1238 — 19/11/2026 · Documentación de trabajadores: altura y cisternas, en su sitio
+- Las autorizaciones / diplomas de TRABAJOS EN ALTURA iban al hueco "Autorización conducción" (12 conductores de TYP2014). Ahora van a "Otro 1", que pasa a llamarse "Trabajos en altura"; las NORMAS DE SEGURIDAD de cisternas van a "Otro 2" ("Normas seguridad cisternas"). Nombres editables en la cabecera.
+
+---
+
 ## v1237 — 19/11/2026 · Empleados > Documentación de los trabajadores
 - Nueva pestaña "Documentación" en Empleados: una fila por trabajador con 16 huecos (DNI/NIE, carnet, CAP, tarjeta de tacógrafo, apto médico, alta/ITA, formación e información PRL, curso PRL 2h art.19, recibí PRL, curso on-line, EPIs, autorización de conducción, información GPS, protección de datos y Otro 1/Otro 2 con nombre editable). Cabecera fija al bajar.
 - Cada documento guarda FECHA DEL DOCUMENTO y CADUCIDAD (las plataformas piden las dos), editables pulsando en ellas. Al subir: fecha del nombre del archivo; DNI/carnet/CAP sin fecha en el nombre → la lee la IA (Haiku 4.5); apto médico → caduca al año de la fecha del certificado; tarjeta de tacógrafo → la de la ficha.

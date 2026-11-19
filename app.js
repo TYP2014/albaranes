@@ -48697,6 +48697,8 @@ const _TD_TIPOS = [
 const _TD_B = '(?:^|[^a-z0-9])', _TD_E = '(?=[^a-z0-9]|$)';
 const _tdRe = (p) => new RegExp(p.replace(/<B>/g, _TD_B).replace(/<E>/g, _TD_E), 'i');
 const _TD_REGLAS = [
+  ['EXTRA1', _tdRe('altura')],   // v1238: autorización / formación / diploma de TRABAJOS EN ALTURA (no es la autorización de conducción)
+  ['EXTRA2', _tdRe('normas?( de)? seg|protocolo cisterna')],   // v1238: normas de seguridad de carga y descarga de cisternas
   ['APTO', _tdRe('certificado de aptitud|<B>aptitud<E>|reconocimiento m[eé]dico|<B>apto<E>')],
   ['ALTA', _tdRe('<B>alta<E>|<B>ita<E>|<B>idc<E>')],
   ['DNI', _tdRe('<B>(dni|nie)<E>')],
