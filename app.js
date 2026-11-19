@@ -48136,7 +48136,15 @@ const _VD_TIPOS = [
   ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'], ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
 const _VD_PLANT = { TYP: 'Transportes y Portes 2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };
 const _VD_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-let _vd = { docs: new Map(), itv: new Map(), firm: new Map(), sel: new Set(), cargando: false };
+let _vd = { docs: new Map(), itv: new Map(), firm: new Map(), sel: new Set(), cargando: false, sub: 'TYP', pos: new Map() };
+// v1224: los 3 camiones de PORTES 2014 IMPORT están en Taller dentro de TYP2014; en DOCUMENTACIÓN tienen su propio apartado
+function _vdLista() {
+  let vs = (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva);
+  if (tallerEmpresaActiva === 'TYP2014') vs = vs.filter(v => (_vdEmpDecl(v) === 'PORTES') === (_vd.sub === 'PORTES'));
+  return vs;
+}
+function vdSub(k) { _vd.sub = k; _vd.sel.clear(); vdRender(); }
+function _vdEmpActual() { return tallerEmpresaActiva === 'TYP2014' ? _vd.sub : tallerEmpresaActiva === 'HISPALIS' ? 'HISPALIS' : null; }
 function _vdEmpDecl(v) {   // qué plantilla Holcim le toca: Import se distingue por el mapa de Gasoil
   const m = String(v.matricula || '').toUpperCase();
   if (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[m] === 'PORTES') return 'PORTES';
@@ -48167,17 +48175,23 @@ function _vdUrlDe(v, tipo) {   // URL lista para abrir (firmada) o null
 }
 function vdRender() {
   const out = document.getElementById('tallerDocsOut'); if (!out) return;
-  const vs = (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva);
+  const vs = _vdLista(), empA = _vdEmpActual();
   const tr = vs.filter(v => v.tipo_vehiculo !== 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
   const se = vs.filter(v => v.tipo_vehiculo === 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
-  const plant = Object.keys(_VD_PLANT).map(e => { const x = _vd.docs.get('__PLANTILLA__|HOLCIM_' + e); return '<span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><b>' + _VD_PLANT[e] + ':</b> ' + (x ? '<span style="color:#15803d;font-weight:800">✓ subida</span>' : '<span style="color:#b91c1c;font-weight:800">falta</span>') +
+  const plant = Object.keys(_VD_PLANT).filter(e => !empA || e === empA).map(e => { const x = _vd.docs.get('__PLANTILLA__|HOLCIM_' + e); return '<span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><b>' + _VD_PLANT[e] + ':</b> ' + (x ? '<span style="color:#15803d;font-weight:800">✓ subida</span>' : '<span style="color:#b91c1c;font-weight:800">falta</span>') +
     ' <label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">' + (x ? 'Cambiar' : 'Subir') + '<input type="file" accept="application/pdf" style="display:none" onchange="vdSubirPlantilla(\'' + e + '\',this)"></label></span>'; }).join('');
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
-    '<div class="st" style="margin:0"><div class="dot"></div>DOCUMENTACIÓN · ' + esc(tallerEmpresaActiva) + '</div>' +
+    '<div class="st" style="margin:0"><div class="dot"></div>DOCUMENTACIÓN · ' + esc(tallerEmpresaActiva === 'TYP2014' && _vd.sub === 'PORTES' ? 'PORTES 2014 IMPORT' : tallerEmpresaActiva) + '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" onclick="vdSelTodos()" style="font-weight:800">Marcar todos</button>' +
     '<button class="btn bp" onclick="vdZipSel()" style="font-weight:800">⬇ Descargar marcados (ZIP)</button>' +
+    '<button class="btn" onclick="vdEnviarAbrir()" style="font-weight:800;background:#15803d;color:#fff">📤 Enviar marcados</button>' +
     '<button class="btn" onclick="vdDeclSel()" style="font-weight:800;border:2px solid #1b3254;color:#1b3254;background:#fff">Declaración Holcim de los marcados</button></div></div>' +
     '<div style="font-size:13px;color:#111;margin-bottom:10px">Plantilla firmada de la declaración Holcim (se sube una vez por empresa; la app le cambia la matrícula y la fecha): ' + plant + '</div>';
+  if (tallerEmpresaActiva === 'TYP2014') {   // v1224: apartado propio para PORTES 2014 IMPORT
+    const nI = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014' && _vdEmpDecl(v) === 'PORTES').length, nT = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014').length - nI;
+    const b = (k, t) => '<button class="btn" onclick="vdSub(\'' + k + '\')" style="font-weight:800;padding:7px 16px;' + (_vd.sub === k ? 'background:#1b3254;color:#fff' : 'background:#fff;color:#1b3254;border:2px solid #1b3254') + '">' + t + '</button>';
+    h = '<div style="display:flex;gap:8px;margin-bottom:12px">' + b('TYP', 'TYP2014 (' + nT + ')') + b('PORTES', 'PORTES 2014 IMPORT (' + nI + ')') + '</div>' + h;
+  }
   const tabla = (titulo, L, tipoVeh) => {
     const cols = _VD_TIPOS.filter(t => t[2] === 'ambos' || t[2] === tipoVeh);
     let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:center">' +
@@ -48198,7 +48212,7 @@ function vdRender() {
         }
         t += '<td style="padding:6px;text-align:center;white-space:nowrap">' + etq + cel + '</td>';
       });
-      t += '<td style="padding:6px;text-align:center"><button class="btn bs" onclick="vdZipUno(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px">⬇ ZIP</button></td></tr>';
+      t += '<td style="padding:6px;text-align:center;white-space:nowrap"><button class="btn bs" onclick="vdZipUno(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px">⬇ ZIP</button> <button class="btn" onclick="vdEnviarAbrir(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px;background:#15803d;color:#fff">📤 Enviar</button></td></tr>';
     });
     return t + '</tbody></table></div>';
   };
@@ -48206,7 +48220,7 @@ function vdRender() {
   out.innerHTML = h;
 }
 function vdSel(m, on) { if (on) _vd.sel.add(m); else _vd.sel.delete(m); }
-function vdSelTodos() { const vs = (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva).map(v => String(v.matricula).toUpperCase()); const todos = vs.every(m => _vd.sel.has(m)); vs.forEach(m => todos ? _vd.sel.delete(m) : _vd.sel.add(m)); vdRender(); }
+function vdSelTodos() { const vs = _vdLista().map(v => String(v.matricula).toUpperCase()); const todos = vs.every(m => _vd.sel.has(m)); vs.forEach(m => todos ? _vd.sel.delete(m) : _vd.sel.add(m)); vdRender(); }
 async function _vdGuardarDoc(mat, tipo, file, etiqueta) {
   const url = await uploadFile(file, 'vehiculos-docs');
   const fila = { matricula: mat, tipo, file_url: url, file_name: file.name || null, updated_at: new Date().toISOString() };
@@ -48235,20 +48249,47 @@ async function vdSubirPlantilla(emp, input) {
 async function _vdBytes(url) { const r = await fetch(url); if (!r.ok) throw new Error('No se pudo descargar (' + r.status + ')'); return new Uint8Array(await r.arrayBuffer()); }
 function _vdExt(url, nombre) { const m = String(nombre || url || '').split('?')[0].match(/\.([a-z0-9]{2,5})$/i); return m ? m[1].toLowerCase() : 'pdf'; }
 function _vdFechaTxt(iso) { const [a, m, d] = iso.split('-').map(Number); return d + ' de ' + _VD_MESES[m - 1] + ' de ' + a; }
+// v1224: la matrícula y la fecha se buscan EN LA PROPIA PLANTILLA (cada empresa tiene la suya y no están en el mismo sitio)
+const _VD_RE_MAT = /^\s*R?\d{4}\s?[A-Z]{3}\s*$/;
+async function _vdDeclPos(bytes) {   // busca dónde están la matrícula (pág. 1) y la fecha (pág. 2) en la plantilla
+  const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: bytes.slice() })).promise, pos = {};
+  const it1 = (await (await pdf.getPage(1)).getTextContent()).items;
+  const m = it1.find(x => _VD_RE_MAT.test(x.str));
+  if (m) pos.mat = { x: m.transform[4], y: m.transform[5], w: m.width, s: Math.abs(m.transform[3]) || 12 };
+  if (pdf.numPages >= 2) {
+    const it2 = (await (await pdf.getPage(2)).getTextContent()).items;
+    const a = it2.find(x => /,\s*a\s*$/.test(x.str));
+    if (a) {
+      const y = a.transform[5], x0 = a.transform[4] + a.width + 2;
+      const linea = it2.filter(x => x !== a && x.str.trim() && Math.abs(x.transform[5] - y) < 3 && x.transform[4] >= x0 - 1);
+      const fin = linea.reduce((f, x) => Math.max(f, x.transform[4] + x.width), x0 + 60);
+      const tam = linea.reduce((s, x) => Math.max(s, Math.abs(x.transform[3])), 0) || Math.abs(a.transform[3]) || 9;
+      pos.fecha = { x: x0, y, w: fin - x0, s: tam };
+    }
+  }
+  return pos;
+}
+async function _vdDeclAplicar(src, pos, mat, fechaTxt) {
+  const doc = await PDFLib.PDFDocument.load(src), p = doc.getPages(), blanco = PDFLib.rgb(1, 1, 1), negro = PDFLib.rgb(0, 0, 0);
+  const fB = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  if (!pos.mat) throw new Error('En la plantilla no encuentro la matrícula (pág. 1)');
+  if (!pos.fecha || !p[1]) throw new Error('En la plantilla no encuentro la fecha (pág. 2, detrás de "BARCELONA, a")');
+  { const s = Math.min(pos.mat.s, 12), w = fB.widthOfTextAtSize(mat, s);
+    p[0].drawRectangle({ x: pos.mat.x - 1.5, y: pos.mat.y - s * 0.3, width: Math.max(pos.mat.w, w) + 4, height: pos.mat.s * 1.15, color: blanco });
+    p[0].drawText(mat, { x: pos.mat.x, y: pos.mat.y, size: s, font: fB, color: negro }); }
+  { let s = Math.min(pos.fecha.s, 12); const maxW = Math.max(pos.fecha.w, 512 - pos.fecha.x); while (s > 6 && fB.widthOfTextAtSize(fechaTxt, s) > maxW) s -= 0.5;
+    const w = fB.widthOfTextAtSize(fechaTxt, s);
+    p[1].drawRectangle({ x: pos.fecha.x - 1, y: pos.fecha.y - pos.fecha.s * 0.3, width: Math.max(pos.fecha.w, w) + 4, height: pos.fecha.s * 1.2, color: blanco });
+    p[1].drawText(fechaTxt, { x: pos.fecha.x + 1, y: pos.fecha.y, size: s, font: fB, color: negro }); }
+  return await doc.save();
+}
 async function _vdDeclPdf(v, iso) {   // devuelve los bytes del PDF de la declaración con la matrícula y la fecha
   const emp = _vdEmpDecl(v), pl = _vd.docs.get('__PLANTILLA__|HOLCIM_' + emp);
   if (!pl) throw new Error('Falta subir la plantilla de ' + (_VD_PLANT[emp] || emp));
   const src = await _vdBytes(_vd.firm.get(pl.file_url) || pl.file_url);
-  const doc = await PDFLib.PDFDocument.load(src);
-  const p = doc.getPages(), H = p[0].getHeight(), blanco = PDFLib.rgb(1, 1, 1), negro = PDFLib.rgb(0, 0, 0);
-  const fB = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold), fBI = await doc.embedFont(PDFLib.StandardFonts.HelveticaBoldOblique);
-  // Matrícula (página 1): tapa la de la plantilla y escribe la del vehículo
-  p[0].drawRectangle({ x: 281, y: H - 233, width: 120, height: 16, color: blanco });
-  p[0].drawText(String(v.matricula).toUpperCase(), { x: 283.7, y: H - 229.3, size: 12, font: fB, color: negro });
-  // Fecha (página 2): "En BARCELONA , a 19 de NOVIEMBRE de 2026"
-  if (p[1]) { p[1].drawRectangle({ x: 290, y: H - 339.4, width: 215, height: 11.4, color: blanco });
-    p[1].drawText('En BARCELONA , a ' + _vdFechaTxt(iso), { x: 294.3, y: H - 337.2, size: 8.8, font: fBI, color: negro }); }
-  return await doc.save();
+  let pos = _vd.pos.get(pl.file_url); if (!pos) { pos = await _vdDeclPos(src); _vd.pos.set(pl.file_url, pos); }
+  const [a, m, d] = iso.split('-').map(Number);
+  return await _vdDeclAplicar(src, pos, String(v.matricula).toUpperCase(), d + ' DE ' + _VD_MESES[m - 1] + ' DE ' + a);
 }
 function _vdPedirFecha() { const hoy = _ofIso(new Date()); const r = prompt('Fecha de la declaración (AAAA-MM-DD):', hoy); if (r === null) return null; const f = r.trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { toast('Fecha no válida. Formato AAAA-MM-DD', 'err'); return null; } return f; }
 function _vdDescargar(bytes, nombre, tipo) { const b = new Blob([bytes], { type: tipo || 'application/octet-stream' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
@@ -48262,7 +48303,7 @@ async function vdDeclUno(vehId) {
     _vdDescargar(bytes, nombre, 'application/pdf'); toast('✓ Declaración de ' + mat + ' generada y guardada', 'ok'); await vdCargar();
   } catch (e) { console.error('[v1223] declaración:', e); toast('⚠️ ' + (e.message || e), 'err'); }
 }
-function _vdMarcados() { return (tallerVehiculos || []).filter(v => v.empresa === tallerEmpresaActiva && _vd.sel.has(String(v.matricula).toUpperCase())); }
+function _vdMarcados() { return _vdLista().filter(v => _vd.sel.has(String(v.matricula).toUpperCase())); }
 async function vdDeclSel() {
   const L = _vdMarcados(); if (!L.length) { toast('Marca primero los vehículos (casilla de la izquierda)', 'err'); return; }
   const iso = _vdPedirFecha(); if (!iso) return;
@@ -48301,4 +48342,112 @@ async function vdZipSel() {
   if (!n) { toast('Los marcados no tienen documentos subidos', 'err'); return; }
   _vdDescargar(await zip.generateAsync({ type: 'uint8array' }), 'DOCUMENTACION VEHICULOS ' + tallerEmpresaActiva + ' - ' + _ofIso(new Date()) + '.zip', 'application/zip');
   if (fallos.length) alert('No se pudieron bajar ' + fallos.length + ':\n\n' + fallos.join('\n'));
+}
+
+// ============================================================================
+// v1224 (JC 19/11/2026): ENVIAR LA DOCUMENTACIÓN DE LOS VEHÍCULOS por WhatsApp o por correo.
+// Botón "📤 Enviar" en cada vehículo y "📤 Enviar marcados". Se abre una ventanita con todos los documentos
+// subidos de esos vehículos y casillas para elegir cuáles (o todos).
+//  · WhatsApp: se comparten los ARCHIVOS (móvil y Chrome de Windows abren el menú de compartir → WhatsApp).
+//    Si el navegador no sabe compartir archivos, se descargan y se abre WhatsApp Web para arrastrarlos.
+//  · Correo: sale por el portero del correo (enviar-correo), igual que las facturas, con el pie legal.
+// ============================================================================
+let _vde = null;
+function _vdeEmpCorreo(L) { const e = L.length ? _vdEmpDecl(L[0]) : 'TYP'; return (e === 'TYP' || e === 'HISPALIS' || e === 'PORTES') ? e : 'TYP'; }
+function _vdeNombre(d) { return (d.mat + ' - ' + d.etq).replace(/[\\/:*?"<>|.]/g, ' ').replace(/\s+/g, ' ').trim() + '.' + d.ext; }
+function vdEnviarAbrir(vehId) {
+  const L = vehId ? (tallerVehiculos || []).filter(v => v.id === vehId) : _vdMarcados();
+  if (!L.length) { toast('Marca primero los vehículos (casilla de la izquierda)', 'err'); return; }
+  const docs = [];
+  L.forEach(v => { const mat = String(v.matricula).toUpperCase();
+    _VD_TIPOS.forEach(([tipo, nom]) => { const url = _vdUrlDe(v, tipo); if (!url) return;
+      const x = _vd.docs.get(mat + '|' + tipo); docs.push({ mat, tipo, etq: x && x.etiqueta ? x.etiqueta : nom, url, ext: _vdExt(url, x && x.file_name), sel: true }); }); });
+  if (!docs.length) { toast(L.length > 1 ? 'Los marcados no tienen documentos subidos' : 'Este vehículo no tiene documentos subidos', 'err'); return; }
+  const emp = _vdeEmpCorreo(L), mats = L.map(v => String(v.matricula).toUpperCase()), nomEmp = (_LIQ_CLIENTES[emp] || _LIQ_CLIENTES.TYP)[0][1];
+  const varios = mats.length > 1;
+  _vde = { L, docs, emp, para: '', cc: '', asunto: 'Documentación ' + (varios ? 'vehículos ' : 'vehículo ') + mats.join(', ') + ' - ' + nomEmp,
+    texto: 'Buenos días:\n\nAdjuntamos la documentación ' + (varios ? 'de los vehículos ' : 'del vehículo ') + mats.join(', ') + '.\n\nQuedamos a su disposición para cualquier aclaración.\n\nUn saludo,\nDepartamento de Administración\n' + nomEmp,
+    enviando: false, estado: '', hecho: [] };
+  document.getElementById('vdeOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'vdeOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
+  ov.innerHTML = '<div id="vdeBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:min(720px,94vw);box-shadow:0 10px 30px rgba(0,0,0,.3)"></div>';
+  document.body.appendChild(ov); _vdeRender();
+}
+function vdeCerrar() { if (_vde && _vde.enviando) return; document.getElementById('vdeOv')?.remove(); _vde = null; }
+function vdeSel(i, on) { if (_vde) { _vde.docs[i].sel = on; _vdeRender(); } }
+function vdeTodos(on) { if (_vde) { _vde.docs.forEach(d => d.sel = on); _vdeRender(); } }
+function _vdeRender() {
+  const box = document.getElementById('vdeBox'); if (!box || !_vde) return;
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:100%;font-family:inherit;box-sizing:border-box';
+  const n = _vde.docs.filter(d => d.sel).length, dis = _vde.enviando ? ' disabled' : '';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:18px;font-weight:800">Enviar documentación</div><button class="btn bs" onclick="vdeCerrar()" style="padding:8px 14px;font-weight:800"' + dis + '>Cerrar</button></div>' +
+    '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b style="font-size:14px">Qué documentos (' + n + ' de ' + _vde.docs.length + ')</b>' +
+    '<span><a href="javascript:void(0)" onclick="vdeTodos(true)" style="font-weight:800;font-size:13px">Todos</a> · <a href="javascript:void(0)" onclick="vdeTodos(false)" style="font-weight:800;font-size:13px">Ninguno</a></span></div>';
+  let ult = '';
+  _vde.docs.forEach((d, i) => {
+    if (d.mat !== ult && _vde.L.length > 1) { h += '<div style="font-weight:800;font-family:var(--mn);margin-top:6px">' + esc(d.mat) + '</div>'; ult = d.mat; }
+    h += '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:3px 0;cursor:pointer"><input type="checkbox"' + (d.sel ? ' checked' : '') + dis + ' onchange="vdeSel(' + i + ',this.checked)" style="width:17px;height:17px"> ' + esc(d.etq) + ' <a href="' + d.url + '" target="_blank" rel="noopener" style="font-size:12px;color:#15803d">ver</a></label>';
+  });
+  h += '</div>';
+  h += '<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="vdeWhatsApp()" style="padding:10px 18px;font-weight:800;background:#25D366;color:#fff"' + dis + '>' + (_vde.wa && _vde.wa.clave === _vde.docs.map(d => d.sel ? 1 : 0).join('') ? '📱 Compartir ahora (' + _vde.wa.F.length + ')' : '📱 Enviar por WhatsApp') + '</button>' +
+    '<span style="font-size:12px;color:#475569">Se abre el menú de compartir: eliges WhatsApp y el contacto.</span></div>';
+  h += '<div style="margin-top:14px;border-top:2px solid var(--bd);padding-top:10px"><div style="font-weight:800;font-size:15px">✉️ Por correo</div>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Para (varios separados por coma)<br><input value="' + _ofEA(_vde.para) + '" oninput="_vde.para=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_vde.cc) + '" oninput="_vde.cc=this.value" style="' + inp + '"></label></div>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_vde.asunto) + '" oninput="_vde.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:6px"><label style="font-size:12px;color:#111">Texto<br><textarea rows="8" oninput="_vde.texto=this.value" style="' + inp + ';font-size:15px;line-height:1.4">' + esc(_vde.texto) + '</textarea></label>' +
+    '<div style="font-size:12px;color:#475569">Sale desde el correo de ' + esc((_LIQ_CLIENTES[_vde.emp] || _LIQ_CLIENTES.TYP)[0][1]) + ' y se le añade el pie legal.</div></div>';
+  if (_vde.estado) h += '<div style="margin-top:8px;font-size:13px;color:#444">' + esc(_vde.estado) + '</div>';
+  if (_vde.hecho.length) h += '<div style="margin-top:8px;font-size:13px">' + _vde.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
+  h += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="vdeCorreo()" style="padding:10px 22px;font-weight:800;background:' + (_vde.enviando ? '#9aa5b5' : '#1b3254') + ';color:#fff"' + dis + '>' + (_vde.enviando ? 'Enviando…' : 'Enviar por correo') + '</button></div></div>';
+  box.innerHTML = h;
+}
+async function _vdeArchivos() {   // descarga los marcados y los devuelve como File
+  const D = _vde.docs.filter(d => d.sel); if (!D.length) throw new Error('No has marcado ningún documento');
+  const out = [], fallos = [], tipos = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
+  for (let i = 0; i < D.length; i++) { const d = D[i]; _vde.estado = 'Preparando ' + (i + 1) + '/' + D.length + '…'; _vdeRender();
+    try { out.push(new File([await _vdBytes(d.url)], _vdeNombre(d), { type: tipos[d.ext] || 'application/octet-stream' })); } catch (e) { fallos.push(d.mat + ' · ' + d.etq); } }
+  if (fallos.length && !confirm('No se pudieron bajar ' + fallos.length + ' documento(s):\n\n' + fallos.join('\n') + '\n\nAceptar = enviar el resto · Cancelar = no enviar')) throw new Error('Cancelado');
+  if (!out.length) throw new Error('No se pudo bajar ningún documento');
+  return out;
+}
+async function vdeWhatsApp() {
+  if (!_vde || _vde.enviando) return;
+  _vde.enviando = true; _vde.hecho = []; _vdeRender();
+  try {
+    const clave = _vde.docs.map(d => d.sel ? 1 : 0).join(''), txt = 'Documentación ' + [...new Set(_vde.docs.filter(d => d.sel).map(d => d.mat))].join(', ');
+    const puede = !!(navigator.canShare && navigator.share);
+    if (puede && _vde.wa && _vde.wa.clave === clave) {   // 2º clic: ya están preparados → compartir (el navegador exige que sea justo tras un clic)
+      const F = _vde.wa.F;
+      try { await navigator.share({ files: F, title: txt, text: txt }); _vde.hecho.push({ ok: true, txt: '✓ Compartido (' + F.length + ' documento' + (F.length > 1 ? 's' : '') + ')' }); _vde.wa = null; }
+      catch (e) { if (e && e.name === 'AbortError') return; throw e; }
+      return;
+    }
+    const F = await _vdeArchivos();
+    if (puede && navigator.canShare({ files: F })) { _vde.wa = { clave, F }; _vde.hecho.push({ ok: true, txt: 'Documentos preparados: pulsa el botón verde "Compartir ahora".' }); return; }
+    {   // el navegador no sabe compartir archivos: se descargan y se abre WhatsApp Web
+      if (F.length > 3) { const z = new JSZip(); F.forEach(f => z.file(f.name, f)); _vdDescargar(await z.generateAsync({ type: 'uint8array' }), txt.replace(/[\\/:*?"<>|]/g, ' ') + '.zip', 'application/zip'); }
+      else for (const f of F) { _vdDescargar(await f.arrayBuffer(), f.name, f.type); await new Promise(r => setTimeout(r, 400)); }
+      window.open('https://web.whatsapp.com/', '_blank', 'noopener');
+      _vde.hecho.push({ ok: true, txt: 'Este navegador no deja compartir archivos: te los he descargado y abierto WhatsApp Web. Arrástralos al chat.' });
+    }
+  } catch (e) { if (_vde) { _vde.hecho.push({ ok: false, txt: e.message === 'Cancelado' ? 'No se ha enviado nada' : 'No se pudo compartir: ' + (e.message || e) }); } }
+  finally { if (_vde) { _vde.enviando = false; _vde.estado = ''; _vdeRender(); } }
+}
+async function vdeCorreo() {
+  if (!_vde || _vde.enviando) return;
+  const para = String(_vde.para || '').trim();
+  if (!para) { toast('Falta el email del destinatario', 'err'); return; }
+  if (!String(_vde.asunto || '').trim()) { toast('Falta el asunto', 'err'); return; }
+  _vde.enviando = true; _vde.hecho = []; _vdeRender();
+  try {
+    const F = await _vdeArchivos(), adj = [];
+    for (const f of F) adj.push({ nombre: f.name, tipo: f.type, base64: _feB64(new Uint8Array(await f.arrayBuffer())) });
+    _vde.estado = 'Enviando…'; _vdeRender();
+    const r = await _feLlamar({ empresa: _vde.emp, destino: 'cliente', para, cc: _vde.cc || '', asunto: _vde.asunto.trim(), texto: (_vde.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_vde.emp), adjuntos: adj, doc_tipo: 'docs_vehiculo', doc_id: _vde.L[0].id });
+    _vde.hecho.push(r.ok ? { ok: true, txt: '✓ Enviado a ' + (r.para || para) + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió: ' + (r.error || 'error') + (/MB/.test(r.error || '') ? ' → Envía menos documentos de golpe o usa WhatsApp.' : '') });
+    toast(r.ok ? 'Documentación enviada' : '⚠️ No se envió: mira la ventana', r.ok ? 'ok' : 'err');
+  } catch (e) { if (_vde) _vde.hecho.push({ ok: false, txt: e.message === 'Cancelado' ? 'No se ha enviado nada' : 'Error: ' + (e.message || e) }); }
+  finally { if (_vde) { _vde.enviando = false; _vde.estado = ''; _vdeRender(); } }
 }
