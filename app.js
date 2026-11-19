@@ -48404,7 +48404,7 @@ async function _vdZipDe(zip, v, carpeta) {
   for (const [tipo, nom] of _VD_TIPOS) {
     const url = _vdUrlDe(v, tipo); if (!url) continue;
     const x = _vd.docs.get(mat + '|' + tipo), etq = x && x.etiqueta ? x.etiqueta : _vdNomCol(tipo);
-    try { const b = await _vdBytes(url); zip.file((carpeta ? mat + '/' : '') + mat + ' - ' + etq.replace(/[\\/:*?"<>|.]/g, ' ').trim() + '.' + _vdExt(url, x && x.file_name), b); n++; }
+    try { const b = await _vdBytes(url); zip.file((carpeta ? mat + '/' : '') + mat + ' - ' + _vdSinTildes(etq).replace(/[\\/:*?"<>|.]/g, ' ').trim() + '.' + _vdExt(url, x && x.file_name), b); n++; }
     catch (e) { fallos.push(mat + ' · ' + nom); }
   }
   return { n, fallos };
@@ -48436,7 +48436,8 @@ async function vdZipSel() {   // v1225: baja los DOCUMENTOS marcados (uno a uno 
 // ============================================================================
 let _vde = null;
 function _vdeEmpCorreo(L) { const e = L.length ? _vdEmpDecl(L[0]) : 'TYP'; return (e === 'TYP' || e === 'HISPALIS' || e === 'PORTES') ? e : 'TYP'; }
-function _vdeNombre(d) { return (d.mat + ' - ' + d.etq).replace(/[\\/:*?"<>|.]/g, ' ').replace(/\s+/g, ' ').trim() + '.' + d.ext; }
+function _vdSinTildes(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ñ/g, 'n').replace(/Ñ/g, 'N'); }   // v1231: WhatsApp rompía "técnica" → "tÃ©cnica"
+function _vdeNombre(d) { return _vdSinTildes(d.mat + ' - ' + d.etq).replace(/[\\/:*?"<>|.]/g, ' ').replace(/\s+/g, ' ').trim() + '.' + d.ext; }
 function vdEnviarAbrir(vehId) {
   let docs;   // v1225: con el botón de la fila, los de ese camión; con "Enviar marcados", SOLO los documentos marcados
   if (vehId) { const v = (tallerVehiculos || []).find(x => x.id === vehId); docs = v ? _vdDocsDe(v) : [];

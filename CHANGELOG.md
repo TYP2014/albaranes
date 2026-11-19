@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1231 — 19/11/2026 · Documentación: nombres de archivo sin tildes
+- Al enviar por WhatsApp, "Ficha técnica" llegaba como "Ficha tÃ©cnica". Los archivos que se envían o se descargan (WhatsApp, correo, ZIP) van ahora sin tildes ni eñes: "4210NGF - Ficha tecnica.pdf". En la app los nombres se siguen viendo con tilde.
+
+---
+
 ## v1230 — 19/11/2026 · Documentación: fechas de vencimiento que faltan, solas
 - Si un seguro o tarjeta de transporte se subió sin fecha (por ejemplo, con la app antigua abierta), al abrir Documentación se rellena sola con la fecha del nombre del archivo.
 - Además (hecho a mano, sin código): rellenadas las fechas de los 66 seguros y tarjetas que ya estaban subidos. El 9499LHT se leyó del PDF (vencimiento 01/01/2027).
