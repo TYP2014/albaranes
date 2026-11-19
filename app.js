@@ -48792,12 +48792,13 @@ async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nomb
   if (!esPdf && !/jpe?g|png|webp/i.test(file.name)) return {};
   const b64 = _feB64(new Uint8Array(await file.arrayBuffer()));
   const que = { DNI: 'DNI o NIE español: la caducidad es "VALIDEZ" / "fecha de caducidad".', CARNET: 'Permiso de conducir español: la caducidad es la de la categoría C+E (o C si no hay C+E), columna 11 de la parte de atrás; si no se ve, la del apartado 4b.', CAP: 'Tarjeta CAP / certificado de aptitud profesional (código 95): la caducidad es la fecha del código 95 o "válido hasta".' }[t] || '';
-  const prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de expedición). Si algo no se lee claro, "" — NUNCA lo inventes.';
+  const prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO UN JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de EXPEDICIÓN; NUNCA la fecha de nacimiento). Si algo no se lee claro, "" — NUNCA lo inventes.';
   const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 200,
     messages: [{ role: 'user', content: [esPdf ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } } : { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } }, { type: 'text', text: prompt }] }] }) });
   if (!res.ok) throw new Error('IA ' + res.status);
   const d = await res.json(); const tx = (d.content || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
-  const o = JSON.parse(tx.slice(tx.indexOf('{'), tx.lastIndexOf('}') + 1));
+  const m1 = tx.match(/\{[^{}]*\}/); if (!m1) return {};   // v1240: a veces contesta con DOS bloques {..}{..}: se coge el primero
+  const o = JSON.parse(m1[0]);
   const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null;
   return { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
 }
@@ -48876,7 +48877,9 @@ function tdCarpeta(input) {
       const fe = _tdFechaNombre(f.name) || ''; const prev = porTipo.get(t);
       // si hay varios del mismo hueco, gana el más nuevo (fecha del nombre; si no, el último modificado)
       // v1239: fecha REAL para comparar: la del nombre; si no lleva, la de cuando se guardó el archivo (antes un archivo sin fecha ganaba siempre)
-      const k = (fe || _ofIso(new Date(f.lastModified || 0))) + '|' + String(f.lastModified || 0).padStart(15, '0');
+      // v1240: en el CAP manda la TARJETA sobre el diploma / certificado del curso (Nilson: cogía el diploma)
+      const dipl = t === 'CAP' && /curso|diploma|certific/i.test(f.name) ? '0' : '1';
+      const k = dipl + '|' + (fe || _ofIso(new Date(f.lastModified || 0))) + '|' + String(f.lastModified || 0).padStart(15, '0');
       if (!prev || k > prev.k) porTipo.set(t, { f, k, otros: prev ? prev.otros + 1 : 0 }); else prev.otros++; });
     for (const [t, o] of porTipo) { const ya = _td.docs.get(w.id + '|' + t); filas.push({ w, t, f: o.f, otros: o.otros, ya: !!(ya && ya.file_url), sel: !(ya && ya.file_url) }); }
   }

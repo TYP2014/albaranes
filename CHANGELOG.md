@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1240 — 19/11/2026 · Documentación de trabajadores: CAP y lectura de fechas
+- Cargar carpeta: en el CAP manda la TARJETA sobre el diploma/certificado del curso (a Nilson le cogía el diploma del curso y salía caducado).
+- La IA a veces contestaba con dos bloques y la fecha se perdía (CAP de Ivan Hyrych): ahora se coge el primero. Se le pide que no ponga la fecha de nacimiento como fecha del documento (pasó con el DNI de César; corregido a mano).
+
+---
+
 ## v1239 — 19/11/2026 · Cargar carpeta: elegir bien el documento más nuevo
 - Si un trabajador tenía varios archivos del mismo tipo, uno SIN fecha en el nombre ganaba siempre a uno CON fecha aunque fuese más antiguo (p. ej. Said: "CERT. FORM. E INF." de 2023 en vez del "…_02012025"). Ahora se compara por fecha real: la del nombre o, si no lleva, la de cuando se guardó el archivo.
 
