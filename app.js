@@ -48164,6 +48164,10 @@ async function vdCargar() {
     _vd.itv = new Map(); (i.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !_vd.itv.has(k)) _vd.itv.set(k, x); });
     const urls = [...(d.data || []).map(x => x.file_url), ...[..._vd.itv.values()].map(x => x.file_url)].filter(u => u && !_docEsVacio(u));
     _vd.firm = urls.length ? await firmarDocs(urls) : new Map();
+    // v1230: seguro / tarjeta subidos SIN fecha (con una versión anterior de la app) → se completa sola con la fecha del nombre del archivo
+    for (const x of (d.data || [])) { if (!_VD_VENCE.includes(x.tipo) || x.vence || !x.file_name) continue;
+      try { const iso = await _vdVenceDe({ name: x.file_name, type: '' }, x.tipo, String(x.matricula).toUpperCase());
+        if (iso) { const { error } = await sb.from('vehiculos_docs').update({ vence: iso }).eq('id', x.id).is('vence', null); if (!error) x.vence = iso; } } catch (e) { console.warn('[v1230] vence auto:', e); } }
   } catch (e) { console.error('[v1223] documentación:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar la documentación: ' + esc(e.message || e) + '</div>'; return; }
   vdRender();
 }

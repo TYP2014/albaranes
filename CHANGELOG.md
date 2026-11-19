@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1230 — 19/11/2026 · Documentación: fechas de vencimiento que faltan, solas
+- Si un seguro o tarjeta de transporte se subió sin fecha (por ejemplo, con la app antigua abierta), al abrir Documentación se rellena sola con la fecha del nombre del archivo.
+- Además (hecho a mano, sin código): rellenadas las fechas de los 66 seguros y tarjetas que ya estaban subidos. El 9499LHT se leyó del PDF (vencimiento 01/01/2027).
+
+---
+
 ## v1229 — 19/11/2026 · Documentación: vencimiento del seguro y de la tarjeta de transporte
 - Al subir el SEGURO o la TARJETA DE TRANSPORTE, la app saca la fecha de vencimiento: primero del NOMBRE del archivo (p. ej. `0742KMB_SEGURO_01052027.pdf` → 01/05/2027) y, si no la lleva, la lee del PDF (seguro: "11/11/26 A 01/05/27"; tarjeta: la fecha de Validez).
 - Debajo del documento sale "vence DD/MM/AAAA" (ámbar si quedan 30 días o menos, rojo "VENCIDO"). Pulsando en la fecha se cambia a mano; si no la encontró, sale "poner vencimiento".
