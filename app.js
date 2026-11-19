@@ -48792,14 +48792,17 @@ async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nomb
   if (!esPdf && !/jpe?g|png|webp/i.test(file.name)) return {};
   const b64 = _feB64(new Uint8Array(await file.arrayBuffer()));
   const que = { DNI: 'DNI o NIE español: la caducidad es "VALIDEZ" / "fecha de caducidad".', CARNET: 'Permiso de conducir español: la caducidad es la de la categoría C+E (o C si no hay C+E), columna 11 de la parte de atrás; si no se ve, la del apartado 4b.', CAP: 'Tarjeta CAP / certificado de aptitud profesional (código 95): la caducidad es la fecha del código 95 o "válido hasta".' }[t] || '';
-  const prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO UN JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de EXPEDICIÓN; NUNCA la fecha de nacimiento). Si algo no se lee claro, "" — NUNCA lo inventes.';
-  const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 200,
+  let prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO UN JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de EXPEDICIÓN; NUNCA la fecha de nacimiento). Si algo no se lee claro, "" — NUNCA lo inventes.';
+  // v1242: el CARNET se lee por CATEGORÍAS y con Sonnet: Haiku cogía la 4b (la del B, 5 años más tarde que la C+E) en casi todos
+  if (t === 'CARNET') prompt = 'Permiso de conducir. Reverso: columna 9 categoría, columna 10 expedición, columna 11 CADUCIDAD de cada categoría. Anverso: 4a expedición, 4b caducidad administrativa. Si es extranjero, usa sus campos equivalentes. RESPONDE ÚNICAMENTE con este JSON, sin texto antes ni después: {"C+E":"YYYY-MM-DD","C":"YYYY-MM-DD","4a":"YYYY-MM-DD","4b":"YYYY-MM-DD"}. "" si no se lee; NUNCA copies una fecha de una categoría a otra.';
+  const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: t === 'CARNET' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5', max_tokens: t === 'CARNET' ? 1500 : 200,
     messages: [{ role: 'user', content: [esPdf ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } } : { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } }, { type: 'text', text: prompt }] }] }) });
   if (!res.ok) throw new Error('IA ' + res.status);
   const d = await res.json(); const tx = (d.content || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
-  const m1 = tx.match(/\{[^{}]*\}/); if (!m1) return {};   // v1240: a veces contesta con DOS bloques {..}{..}: se coge el primero
-  const o = JSON.parse(m1[0]);
+  const mm = tx.match(/\{[^{}]*\}/g); if (!mm) return {};   // v1240: a veces contesta con DOS bloques {..}{..}
+  const o = JSON.parse(t === 'CARNET' ? mm[mm.length - 1] : mm[0]);
   const ok = s => { const g = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return g ? _vdIsoDe(g[3], g[2], g[1]) : null; };   // v1241: fecha IMPOSIBLE (30/02…) = sin fecha, no error
+  if (t === 'CARNET') return { vence: ok(o['C+E']) || ok(o.C), fecha_doc: null };   // v1242: la de C+E (o C)
   return { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
 }
 async function _tdFechas(file, t, w) {   // { fecha_doc, vence }

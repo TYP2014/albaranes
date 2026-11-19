@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1242 — 19/11/2026 · Carnet de conducir: caducidad de la C+E
+- La IA cogía la caducidad del apartado 4b (la del carnet B, 5 años más tarde) en vez de la de la categoría C+E. Ahora el carnet se lee por categorías (con Sonnet) y se guarda la de C+E, o la de C si no hay C+E.
+- Corregidos a mano los 30 carnets ya cargados (José Augusto Martínez y Ricardo Miguélez quedan con la C+E vencida en septiembre de 2026). Subido el apto médico de Ricardo (07/07/2026 → caduca 07/07/2027).
+
+---
+
 ## v1241 — 19/11/2026 · Documentación de trabajadores: fechas imposibles
 - Si la IA lee una fecha que no existe (p. ej. 30 de febrero), ahora se deja sin fecha en vez de fallar la subida (pasó con el CAP de Lahcen al cargar CONDUCTORES_HISPALIS).
 
