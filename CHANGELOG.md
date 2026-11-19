@@ -4,6 +4,13 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1233 — 19/11/2026 · Trabajadores: datos de Seguridad Social para cursos y documentación
+- En la ficha del trabajador, recuadro nuevo "🪪 SEGURIDAD SOCIAL": nº de afiliación, grupo de cotización, grupo profesional y fecha de antigüedad (los de la cabecera de la nómina), editables. Debajo salen la razón social, el CIF y el CCC (código de cuenta de cotización) de su empresa.
+- Botón "📋 Copiar datos para cursos": copia todo (trabajador + empresa) para pegarlo donde lo pidan (CAP, FUNDAE, CAE…).
+- SQL (ya aplicado): columnas trabajadores.naf / grupo_cotizacion / grupo_profesional / antiguedad; tabla empresas_datos (empresa, razon_social, cif, ccc, domicilio) con los mismos permisos que trabajadores. Rellenados los 10 trabajadores de Híspalis y el CCC de Híspalis con las nóminas de octubre 2026. Faltan TYP2014 y Portes 2014 Import.
+
+---
+
 ## v1232 — 19/11/2026 · Documentación: aviso si un documento va donde no toca
 - Al subir un documento en Documentación, la app comprueba (por el nombre del archivo y, si es PDF con texto, por dentro): que la MATRÍCULA sea la de ese vehículo y que el TIPO cuadre con la columna (ficha técnica, permiso, seguro, tarjeta de transporte, declaración Holcim). Si no cuadra, avisa y pregunta "¿subirlo igualmente?". No bloquea.
 

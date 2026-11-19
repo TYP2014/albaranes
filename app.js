@@ -26169,7 +26169,7 @@ function openTrabajadorModal(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fg"><label class="fl">DNI/NIE</label><input class="fi" id="trabF_dni" value="${v('dni')}" placeholder="12345678X"></div>
       <div class="fg"><label class="fl">Empresa</label>
-        <select class="fi" id="trabF_empresa" onchange="var b=document.getElementById('trabF_chmBox'); if (b) b.style.display=(this.value==='TYP2014'||this.value==='PORTES')?'block':'none'">
+        <select class="fi" id="trabF_empresa" onchange="var b=document.getElementById('trabF_chmBox'); if (b) b.style.display=(this.value==='TYP2014'||this.value==='PORTES')?'block':'none'; _trabPintarEmpDatos()">
           <option value="">—</option>
           <option value="TYP2014"${(t?.empresa==='TYP2014') || (!t && vacEmpresaActiva==='TYP2014')?' selected':''}>TYP2014</option>
           <option value="HISPALIS"${(t?.empresa==='HISPALIS') || (!t && vacEmpresaActiva==='HISPALIS')?' selected':''}>HISPALIS</option>
@@ -26222,6 +26222,20 @@ function openTrabajadorModal(id) {
         <div class="fg"><label class="fl">Nº tarjeta</label><input class="fi" id="trabF_chmTarj" value="${v('chm_tarjeta')}" style="font-family:var(--mn)"></div>
       </div>
     </div>
+    <!-- v1233: DATOS DE SEGURIDAD SOCIAL (los piden para cursos CAP, FUNDAE, CAE…). Salen de la cabecera de la nómina. -->
+    <div style="border:2px solid #1b3254;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="font-family:var(--mn);font-size:11px;font-weight:800">🪪 SEGURIDAD SOCIAL <span style="font-weight:400;color:var(--mu)">(de la nómina · para cursos y documentación)</span></div>
+        <button type="button" class="btn" onclick="trabCopiarDatos()" style="font-size:11px;padding:4px 10px;font-weight:800;background:#1b3254;color:#fff">📋 Copiar datos para cursos</button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr) minmax(0,1fr) minmax(140px,1fr);gap:10px">
+        <div class="fg"><label class="fl">Nº afiliación Seg. Social</label><input class="fi" id="trabF_naf" value="${v('naf')}" placeholder="081234567890" style="font-family:var(--mn)" maxlength="14"></div>
+        <div class="fg"><label class="fl">Grupo cotización</label><input class="fi" id="trabF_gcot" value="${v('grupo_cotizacion')}" placeholder="08" style="font-family:var(--mn)" maxlength="3"></div>
+        <div class="fg"><label class="fl">Grupo profesional</label><input class="fi" id="trabF_gprof" value="${v('grupo_profesional')}" placeholder="Conductor"></div>
+        <div class="fg"><label class="fl">Fecha antigüedad</label><input class="fi" type="date" id="trabF_antig" value="${t?.antiguedad || ''}"></div>
+      </div>
+      <div id="trabF_empDatos" style="font-size:12px;color:#111;margin-top:6px"></div>
+    </div>
     <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
       <input class="fi" id="trabF_notas" value="${v('notas')}" placeholder="opcional">
     </div>
@@ -26232,9 +26246,29 @@ function openTrabajadorModal(id) {
       (pérdida, rotura, caducidad); los 14 primeros son suyos para siempre, así que aunque la renueve seguirá
       cruzando. La <b>fecha de baja</b> no borra a nadie: sus ficheros hay que conservarlos igual.
     </div>`;
+  _trabPintarEmpDatos();   // v1233
   document.getElementById('btnDelTrab').style.display = (t && !t.archivado) ? '' : 'none';
   document.getElementById('btnReactTrab').style.display = (t && t.archivado) ? '' : 'none';
   document.getElementById('ovTrab').classList.add('open');
+}
+
+// v1233: datos de la EMPRESA (CIF, CCC) para la ficha y para "Copiar datos para cursos"
+let _empDatos = null;
+async function _empDatosCargar() { if (_empDatos) return _empDatos; try { const { data, error } = await sb.from('empresas_datos').select('*'); if (error) throw error; _empDatos = {}; (data || []).forEach(x => _empDatos[x.empresa] = x); } catch (e) { console.warn('[v1233] empresas_datos:', e); _empDatos = {}; } return _empDatos; }
+async function _trabPintarEmpDatos() {
+  const box = document.getElementById('trabF_empDatos'); if (!box) return;
+  const emp = document.getElementById('trabF_empresa')?.value || '', D = (await _empDatosCargar())[emp];
+  box.innerHTML = D ? 'Empresa: <b>' + esc(D.razon_social || emp) + '</b> · CIF <b>' + esc(D.cif || '—') + '</b> · CCC (cuenta de cotización) <b style="font-family:var(--mn)">' + esc(D.ccc || '—') + '</b>' : (emp ? '<span style="color:var(--mu)">Falta el CCC de esta empresa (sale de sus nóminas).</span>' : '');
+}
+async function trabCopiarDatos() {
+  const g = id => (document.getElementById(id)?.value || '').trim(), emp = g('trabF_empresa'), D = (await _empDatosCargar())[emp] || {};
+  const fe = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
+  const L = [['Nombre', g('trabF_nombre')], ['DNI/NIE', g('trabF_dni')], ['Nº afiliación Seguridad Social', g('trabF_naf')], ['Grupo de cotización', g('trabF_gcot')],
+    ['Grupo profesional / categoría', g('trabF_gprof')], ['Fecha de antigüedad', fe(g('trabF_antig'))], ['Teléfono', g('trabF_telefono')], ['Email', g('trabF_email')],
+    ['Empresa', D.razon_social || emp], ['CIF empresa', D.cif || ''], ['CCC (cuenta de cotización)', D.ccc || ''], ['Domicilio empresa', D.domicilio || '']].filter(x => x[1]);
+  const txt = L.map(x => x[0] + ': ' + x[1]).join('\n');
+  try { await navigator.clipboard.writeText(txt); toast('📋 Datos copiados: pégalos donde te los pidan', 'ok'); }
+  catch (e) { prompt('Copia estos datos (Ctrl+C):', txt.replace(/\n/g, ' · ')); }
 }
 
 function closeTrabModal() {
@@ -26261,6 +26295,10 @@ async function saveTrabModal() {
     email: (document.getElementById('trabF_email')?.value || '').trim().toLowerCase() || null,   // v619
     direccion: (document.getElementById('trabF_direccion')?.value || '').trim() || null,   // v619
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
+    naf: (document.getElementById('trabF_naf')?.value || '').replace(/\D/g, '') || null,   // v1233
+    grupo_cotizacion: (document.getElementById('trabF_gcot')?.value || '').trim() || null,
+    grupo_profesional: (document.getElementById('trabF_gprof')?.value || '').trim() || null,
+    antiguedad: document.getElementById('trabF_antig')?.value || null,
     updated_at: new Date().toISOString()
   };
   // v1054: tarjeta CHEQUE MOTIVA. Solo se manda si se escribe algo o si ya tenía (para poder borrarla):
