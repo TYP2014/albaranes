@@ -48305,11 +48305,50 @@ async function _vdGuardarDoc(mat, tipo, file, etiqueta, vence) {
   if (vence !== undefined) fila.vence = vence;
   const { error } = await sb.from('vehiculos_docs').upsert(fila, { onConflict: 'matricula,tipo' }); if (error) throw error;
 }
+// v1232: AVISO si un documento se sube donde no toca (otra matrícula u otro tipo). No bloquea: pregunta.
+const _VD_CLAVES = {
+  FT: { nom: /ficha|tecnica|técnica|tarjeta.?itv/i, txt: /ficha t[eé]cnica|tarjeta itv|tarjeta de inspecci[oó]n/gi },
+  PC: { nom: /permiso|circulaci/i, txt: /permiso de circulaci/gi },
+  SEGURO: { nom: /seguro|p[oó]liza|recibo/i, txt: /seguro|p[oó]liza|asegurad/gi },
+  TT: { nom: /autorizaci|t\.?\s*transporte|tarjeta.?de.?transporte|\btt\b/i, txt: /autorizaci[oó]n(?:es)? de transporte|tarjeta de transporte/gi },
+  DECL_HOLCIM: { nom: /declaraci|holcim/i, txt: /declaraci[oó]n de equipamiento/gi } };
+const _VD_NOMTIPO = { FT: 'FICHA TÉCNICA', PC: 'PERMISO DE CIRCULACIÓN', SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE', DECL_HOLCIM: 'DECLARACIÓN HOLCIM' };
+function _vdMatNorm(m) { return String(m).toUpperCase().replace(/[\s-]/g, '').replace(/^R(?=\d)/, ''); }
+function _vdMatsEn(t) { return [...new Set([...String(t).toUpperCase().matchAll(/(?:^|[^A-Z0-9])(R?\d{4}[\s-]?[A-Z]{3})(?![A-Z])/g)].map(g => _vdMatNorm(g[1])))]; }
+async function _vdComprobar(file, tipo, mat) {
+  const avisos = [], nom = String(file.name || ''), yo = _vdMatNorm(mat);
+  // 1) matrícula en el nombre del archivo
+  const mN = _vdMatsEn(nom);
+  if (mN.length && !mN.includes(yo)) avisos.push('El nombre del archivo es de la matrícula ' + mN.join(', ') + ', no de ' + mat + '.');
+  // 2) tipo por el nombre del archivo
+  const tiposNom = Object.keys(_VD_CLAVES).filter(k => _VD_CLAVES[k].nom.test(nom));
+  let tipoVisto = null;
+  if (tiposNom.length && !tiposNom.includes(tipo)) tipoVisto = tiposNom[0];
+  // 3) si es PDF con texto: matrícula y tipo por dentro
+  let txt = '';
+  if (/pdf/i.test(file.type || '') || /\.pdf$/i.test(nom)) {
+    try { const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: new Uint8Array(await file.arrayBuffer()) })).promise;
+      for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) txt += (await (await pdf.getPage(p)).getTextContent()).items.map(x => x.str).join(' ') + '\n'; } catch (e) { txt = ''; }
+  }
+  if (txt.replace(/\s/g, '').length > 80) {
+    const mT = _vdMatsEn(txt);
+    if (!mN.length && mT.length && !mT.includes(yo)) avisos.push('Dentro del documento sale la matrícula ' + mT.slice(0, 4).join(', ') + (mT.length > 4 ? '…' : '') + ', pero no ' + mat + '.');
+    if (!tiposNom.length && _VD_CLAVES[tipo]) {
+      const pts = {}; Object.keys(_VD_CLAVES).forEach(k => pts[k] = (txt.match(_VD_CLAVES[k].txt) || []).length);
+      const mejor = Object.keys(pts).sort((a, b) => pts[b] - pts[a])[0];
+      if (pts[mejor] > 0 && pts[tipo] === 0 && mejor !== tipo) tipoVisto = mejor;
+    }
+  }
+  if (tipoVisto && _VD_CLAVES[tipo]) avisos.push('Parece ' + (/^(SEGURO|PERMISO)/.test(_VD_NOMTIPO[tipoVisto]) ? 'un ' : 'una ') + _VD_NOMTIPO[tipoVisto] + ' y lo estás subiendo en ' + _VD_NOMTIPO[tipo] + '.');
+  return avisos;
+}
 async function vdSubir(vehId, tipo, input) {
   const file = input && input.files && input.files[0]; if (!file) return;
   const v = tallerVehiculos.find(x => x.id === vehId); if (!v) return;
   const mat = String(v.matricula).toUpperCase();
   try {
+    { const av = await _vdComprobar(file, tipo, mat);   // v1232: ¿es el documento y el camión que toca?
+      if (av.length && !confirm('⚠️ ¿Seguro que este documento va aquí? (' + mat + ' · ' + ((_VD_TIPOS.find(t => t[0] === tipo) || [, tipo])[1]) + ')\n\n· ' + av.join('\n· ') + '\n\nAceptar = subirlo igualmente · Cancelar = no subir')) { input.value = ''; toast('No se ha subido nada', 'ok'); return; } }
     if (tipo === 'FT') { toast('Subiendo ficha técnica…', 'ok'); const url = await uploadFile(file, 'fichas-tecnicas'); const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId); if (error) throw error; await loadTallerData(); }
     else {
       let etq;

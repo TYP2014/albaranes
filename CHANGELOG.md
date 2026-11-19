@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1232 — 19/11/2026 · Documentación: aviso si un documento va donde no toca
+- Al subir un documento en Documentación, la app comprueba (por el nombre del archivo y, si es PDF con texto, por dentro): que la MATRÍCULA sea la de ese vehículo y que el TIPO cuadre con la columna (ficha técnica, permiso, seguro, tarjeta de transporte, declaración Holcim). Si no cuadra, avisa y pregunta "¿subirlo igualmente?". No bloquea.
+
+---
+
 ## v1231 — 19/11/2026 · Documentación: nombres de archivo sin tildes
 - Al enviar por WhatsApp, "Ficha técnica" llegaba como "Ficha tÃ©cnica". Los archivos que se envían o se descargan (WhatsApp, correo, ZIP) van ahora sin tildes ni eñes: "4210NGF - Ficha tecnica.pdf". En la app los nombres se siguen viendo con tilde.
 
