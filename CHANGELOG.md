@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1248 — 19/11/2026 · Caducidad de los certificados de empresa
+- Certificado al corriente con la Seguridad Social: caduca a los 3 meses. Con Hacienda: a los 6 meses (antes 12).
+
+---
+
 ## v1247 — 19/11/2026 · Empleados > Doc. empresa
 - Nueva vista "Doc. empresa" en Empleados (TYP2014, Híspalis, Import; Transmargaz NO): ITA, TC1/RLC, recibo del TC1, TC2/RNT, certificado al corriente Seg. Social y Hacienda.
 - Al subir, la app lee el PDF (sin IA): empresa por NIF/razón social, tipo y periodo. Guarda histórico por periodo; en pantalla, el último de cada tipo y los anteriores.

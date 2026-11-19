@@ -49013,7 +49013,8 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
   const f = T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(/FECHA:? ?(\d{1,2})\/(\d{1,2})\/(20\d{2})/) || T.match(/OBTENIDA A (\d{1,2})\/(\d{1,2})\/(20\d{2})/);
   r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
   r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
-  r.vence = r.tipo === 'CERT_AEAT' && r.fecha_doc ? _tdMas(r.fecha_doc, 1) : null;   // el de Hacienda vale 12 meses
+  const MESES = { CERT_SS: 3, CERT_AEAT: 6 }[r.tipo];   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
+  if (MESES && r.fecha_doc) { const [y, m, d] = r.fecha_doc.split('-').map(Number), t2 = new Date(Date.UTC(y, m - 1 + MESES, d)); r.vence = t2.toISOString().slice(0, 10); } else r.vence = null;
   return r;
 }
 async function edCargar() {
