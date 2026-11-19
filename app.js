@@ -48356,20 +48356,28 @@ async function docVencCargar() {
     if (error) throw error;
     const act = new Set((tallerVehiculos || []).filter(v => v.activo !== false).map(v => String(v.matricula).toUpperCase()));
     _docVenc = (data || []).filter(x => act.has(String(x.matricula).toUpperCase()));
+    // v1244: también los papeles de los CONDUCTORES (Empleados > Documentación), con el mismo calendario que la tarjeta de transporte.
+    // La tarjeta de tacógrafo no: ya tiene su propio aviso.
+    try {
+      const { data: td, error: e2 } = await sb.from('trabajadores_docs').select('tipo, vence, trabajador_id, trabajadores(nombre, archivado)').not('vence', 'is', null).lte('vence', lim).neq('tipo', 'TACO');
+      if (e2) throw e2;
+      (td || []).filter(x => x.trabajadores && !x.trabajadores.archivado).forEach(x => _docVenc.push({ tipo: 'TRAB', vence: x.vence, matricula: x.trabajadores.nombre + ' — ' + (typeof _tdNomCol === 'function' ? _tdNomCol(x.tipo) : x.tipo) }));
+    } catch (e) { console.warn('[v1244] avisos documentos trabajadores:', e); }
   } catch (e) { console.warn('[v1236] avisos documentación:', e); _docVenc = []; }
   renderDocVencBanner();
 }
 function docVencOcultar(clave) { try { localStorage.setItem(DOCVENC_HIDE + clave, _ofIso(new Date())); } catch (e) {} renderDocVencBanner(); }
 function irADocumentacion() { try { switchTab('taller'); } catch (e) {} setTimeout(() => { try { switchTallerVista('docs'); } catch (e) {} }, 300); }
+function irADocTrabajadores() { try { switchTab('vac'); } catch (e) {} setTimeout(() => { try { switchEmpleadosVista('docs'); } catch (e) {} }, 300); }   // v1244
 function renderDocVencBanner() {
   const b = document.getElementById('docVencBanner'); if (!b) return;
   const hoy = _ofIso(new Date()), dias = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(hoy + 'T00:00:00')) / 864e5);
   const G = { vencido: [], hoy: [], d3: [], d15: [] };
   _docVenc.forEach(x => { const d = dias(String(x.vence).slice(0, 10));
     if (x.tipo === 'SEGURO') { if (d < 0) G.vencido.push({ ...x, d }); else if (d === 0) G.hoy.push({ ...x, d }); return; }
-    if (d < 0) G.vencido.push({ ...x, d }); else if (d === 0) G.hoy.push({ ...x, d }); else if (d <= 3) G.d3.push({ ...x, d }); else if (d <= 15) G.d15.push({ ...x, d }); });
+    if (d < 0) G.vencido.push({ ...x, d }); else if (d === 0) G.hoy.push({ ...x, d }); else if (d <= 3) G.d3.push({ ...x, d }); else if (d <= 15) G.d15.push({ ...x, d }); });   // TT y TRAB (v1244)
   const N = [['vencido', 'YA VENCIDO', '#7f1d1d'], ['hoy', 'VENCE HOY', '#d32f2f'], ['d3', 'VENCE EN 3 DÍAS O MENOS', '#e65100'], ['d15', 'VENCE EN 15 DÍAS O MENOS', '#b58900']];
-  const nom = { SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE' };
+  const nom = { SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE', TRAB: 'CONDUCTORES' };
   let h = '';
   N.forEach(([k, tit, col], i) => {
     const L = G[k]; if (!L.length) return;
@@ -48377,10 +48385,10 @@ function renderDocVencBanner() {
     if (oc === hoy) return;
     const bloque = t => { const l = L.filter(x => x.tipo === t).sort((a, c) => a.d - c.d); if (!l.length) return '';
       return '<span style="font-weight:900;color:#111">' + nom[t] + ':</span> ' + l.slice(0, 6).map(x => '<strong style="font-weight:900;color:#111">' + esc(x.matricula) + '</strong> (' + _ofFechaEs(String(x.vence).slice(0, 10)) + ')').join(' · ') + (l.length > 6 ? ' · +' + (l.length - 6) + ' más' : ''); };
-    const det = [bloque('SEGURO'), bloque('TT')].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
+    const det = [bloque('SEGURO'), bloque('TT'), bloque('TRAB')].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
     h += '<div style="order:' + i + ';background:#fff;border:3px solid ' + col + ';border-left:12px solid ' + col + ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">📄</span> <span style="color:' + col + ';font-weight:900">' + tit + ':</span> ' + det + '</div>' +
-      '<div style="display:flex;gap:6px"><button class="btn bp" style="font-size:12.5px;padding:8px 13px;white-space:nowrap" onclick="irADocumentacion()">VER DOCUMENTACIÓN</button>' +
+      '<div style="display:flex;gap:6px">' + (L.some(x => x.tipo !== 'TRAB') ? '<button class="btn bp" style="font-size:12.5px;padding:8px 13px;white-space:nowrap" onclick="irADocumentacion()">VER CAMIONES</button>' : '') + (L.some(x => x.tipo === 'TRAB') ? '<button class="btn bp" style="font-size:12.5px;padding:8px 13px;white-space:nowrap" onclick="irADocTrabajadores()">VER CONDUCTORES</button>' : '') +
       '<button class="btn bs" style="font-size:12.5px;padding:8px 13px" onclick="docVencOcultar(\'' + k + '\')" title="Ocultar hasta mañana">✕</button></div></div>';
   });
   b.style.display = h ? 'block' : 'none'; b.innerHTML = h;
@@ -48740,6 +48748,7 @@ async function tdCargar() {
     _td.firm = urls.length ? await firmarDocs(urls) : new Map();
   } catch (e) { console.error('[v1237] documentación trabajadores:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; return; }
   tdRender();
+  try { docVencCargar(); } catch (e) {}   // v1244
 }
 function _tdFechaHtml(x, t, tid) {
   const vencible = (_TD_TIPOS.find(z => z[0] === t) || [])[2];

@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1244 — 19/11/2026 · Aviso arriba: documentos de los conductores
+- La barra "📄" de seguros y tarjetas de transporte avisa también de los papeles de los CONDUCTORES (Empleados > Documentación), con el mismo calendario que la tarjeta de transporte: desde 15 días antes, más fuerte a 3 días, en rojo el mismo día y después. La tarjeta de tacógrafo no entra (tiene su aviso). Solo oficina y admin.
+- Botones "VER CAMIONES" / "VER CONDUCTORES" según lo que haya en la barra.
+
+---
+
 ## v1243 — 19/11/2026 · Documentación de trabajadores: caducidad de EPIs, curso on-line y recibí PRL
 - Desde la fecha del documento: EPIs 1 año (lo piden así casi todos los clientes), curso on-line 3 años y recibí PRL 2 años. El apto médico sigue igual (1 año desde el reconocimiento).
 - Aplicado a los 35 ya cargados que tenían fecha del documento (SQL). Los que no llevan fecha en el nombre siguen sin caducidad (editable).
