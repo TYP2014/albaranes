@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1234 — 19/11/2026 · Documentación: cabeceras centradas
+- Los nombres de las columnas (Ficha técnica, Permiso, ITV, Seguro…) salían a la izquierda por la regla general de la app y no cuadraban con lo de abajo. Ahora van centrados sobre su columna (Matrícula sigue a la izquierda).
+
+---
+
 ## v1233 — 19/11/2026 · Trabajadores: datos de Seguridad Social para cursos y documentación
 - En la ficha del trabajador, recuadro nuevo "🪪 SEGURIDAD SOCIAL": nº de afiliación, grupo de cotización, grupo profesional y fecha de antigüedad (los de la cabecera de la nómina), editables. Debajo salen la razón social, el CIF y el CCC (código de cuenta de cotización) de su empresa.
 - Botón "📋 Copiar datos para cursos": copia todo (trabajador + empresa) para pegarlo donde lo pidan (CAP, FUNDAE, CAE…).
