@@ -37386,7 +37386,7 @@ function _tacoMismoNombre(a, b) {
 async function _tacoCargarTrabajadores() {
   if (_tacoTrabajadores) return _tacoTrabajadores;
   try {
-    const { data, error } = await sb.from('trabajadores').select('id, nombre, dni, empresa, archivado, tarjeta_num, fecha_baja, telefono, carnet_caduca, cap_caduca, recmed_caduca');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp) · v847 anade telefono y las tres caducidades manuales
+    const { data, error } = await sb.from('trabajadores').select('id, nombre, dni, empresa, archivado, tarjeta_num, tarjeta_caduca, fecha_baja, telefono, carnet_caduca, cap_caduca, recmed_caduca');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp) · v847 anade telefono y las tres caducidades manuales
     if (error) throw error;
     _tacoTrabajadores = data || [];
   } catch (e) {
@@ -37477,6 +37477,16 @@ async function _tacoRellenarTarjeta(r) {
         if (eR) throw eR;
         vieja.tarjeta_num = NUEVA;
         console.log('[v1064] tarjeta renovada en la ficha de', vieja.nombre, numVieja, '->', NUEVA);
+      } else if (NUEVA === numVieja) {
+        // v1235: MISMA tarjeta, pero en la ficha la caducidad es más antigua (p. ej. alguien puso a mano el
+        // número nuevo y no la fecha: José Antonio Sánchez seguía "caducado" con su tarjeta ya renovada).
+        const cadN = _tacoISO(r.caduca);
+        if (cadN && (!vieja.tarjeta_caduca || String(vieja.tarjeta_caduca).slice(0, 10) < cadN)) {
+          const { error: eC } = await sb.from('trabajadores').update({ tarjeta_caduca: cadN }).eq('id', vieja.id).eq('tarjeta_num', vieja.tarjeta_num);
+          if (eC) throw eC;
+          vieja.tarjeta_caduca = cadN;
+          console.log('[v1235] caducidad de la tarjeta puesta al día en la ficha de', vieja.nombre, '->', cadN);
+        }
       }
       return;                                                  // ya lo tiene alguien
     }

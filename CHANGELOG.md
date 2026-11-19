@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1235 — 19/11/2026 · Tacógrafo: la caducidad de la tarjeta se pone al día sola
+- Al subir una descarga de tarjeta de conductor, si su ficha ya tiene ESE MISMO número de tarjeta pero con una caducidad más antigua, se actualiza sola con la de la tarjeta. Antes solo se actualizaba cuando cambiaba el número (renovación), y si alguien había escrito a mano el número nuevo sin la fecha, la ficha se quedaba "caducada".
+- Datos corregidos a mano (SQL): José Antonio Sánchez Martínez → caduca 28/10/2031 (tarjeta …000004 renovada); Said Aharran → nº de tarjeta E10244572G000000 (en la ficha faltaba un dígito) y caducidad 12/01/2029, según sus 24 descargas.
+
+---
+
 ## v1234 — 19/11/2026 · Documentación: cabeceras centradas
 - Los nombres de las columnas (Ficha técnica, Permiso, ITV, Seguro…) salían a la izquierda por la regla general de la app y no cuadraban con lo de abajo. Ahora van centrados sobre su columna (Matrícula sigue a la izquierda).
 
