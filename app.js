@@ -48196,10 +48196,10 @@ function vdRender() {
   const tabla = (titulo, L, tipoVeh) => {
     const cols = _VD_TIPOS.filter(t => t[2] === 'ambos' || t[2] === tipoVeh);
     // v1226: cabecera gruesa y FIJA al bajar (la tabla hace scroll dentro de su caja); "Otro 1/2" con nombre editable
-    const th = 'position:sticky;top:0;z-index:2;background:#1b3254;color:#fff;padding:10px 8px;font-size:13px;font-weight:900;letter-spacing:.3px;box-shadow:inset 0 -3px 0 #0f1f36;white-space:nowrap';
+    const th = 'position:sticky;top:' + ((document.getElementById('hdr') || {}).offsetHeight || 48) + 'px;z-index:5;background:#1b3254;color:#fff;padding:10px 8px;font-size:13px;font-weight:900;letter-spacing:.3px;box-shadow:inset 0 -3px 0 #0f1f36;white-space:nowrap';
     const cab = c => { if (c[0] !== 'EXTRA1' && c[0] !== 'EXTRA2') return c[1];
       const n = _vdNomCol(c[0]); return '<span title="Pulsa para ponerle nombre a esta columna" onclick="vdNombrarCol(\'' + c[0] + '\')" style="cursor:pointer;border-bottom:2px dashed #93c5fd">' + esc(n) + ' ✏️</span>'; };
-    let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px;overflow:auto;max-height:72vh"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:center">' +
+    let t = '<div style="font-weight:800;font-size:15px;margin:14px 0 6px">' + titulo + ' (' + L.length + ')</div><div style="border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:center">' +
       '<th style="' + th + ';width:30px"></th><th style="' + th + ';text-align:left">MATRÍCULA</th>' + cols.map(c => '<th style="' + th + '">' + cab(c) + '</th>').join('') + '<th style="' + th + '">TODO</th></tr></thead><tbody>';
     L.forEach(v => {
       const m = String(v.matricula).toUpperCase();

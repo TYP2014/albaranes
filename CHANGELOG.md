@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1227 — 19/11/2026 · Documentación: cabecera fija de verdad
+- En la v1226 la cabecera solo se quedaba fija dentro de la caja de la tabla, y al bajar por la página se perdía. Ahora se queda pegada justo debajo de la barra de pestañas mientras bajas por toda la lista (tractoras y semirremolques).
+
+---
+
 ## v1226 — 19/11/2026 · Documentación: cabecera gruesa y fija, "Otro 1/2" con nombre
 - La cabecera de las tablas (Matrícula, Ficha técnica, Permiso…) es más gruesa (fondo azul oscuro, letra blanca en negrita) y se queda FIJA al bajar por la lista: la tabla hace scroll dentro de su caja.
 - "Otro 1" y "Otro 2": pulsando en su cabecera (✏️) la oficina le pone nombre (p. ej. "Autorización Prosa"), para todas las empresas. Los documentos de esa columna toman ese nombre y ya no se pregunta al subir. Vacío = vuelve a "Otro 1/2". Las demás columnas son fijas. Se guarda en vehiculos_docs (matricula `__CABECERA__`), sin SQL nuevo.
