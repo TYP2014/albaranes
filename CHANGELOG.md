@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1245 — 19/11/2026 · Aviso de documentos: sin duplicados
+- Si el aviso se cargaba dos veces a la vez, los conductores salían repetidos. Ahora solo vale la última carga.
+
+---
+
 ## v1244 — 19/11/2026 · Aviso arriba: documentos de los conductores
 - La barra "📄" de seguros y tarjetas de transporte avisa también de los papeles de los CONDUCTORES (Empleados > Documentación), con el mismo calendario que la tarjeta de transporte: desde 15 días antes, más fuerte a 3 días, en rojo el mismo día y después. La tarjeta de tacógrafo no entra (tiene su aviso). Solo oficina y admin.
 - Botones "VER CAMIONES" / "VER CONDUCTORES" según lo que haya en la barra.

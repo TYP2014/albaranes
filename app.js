@@ -48350,20 +48350,24 @@ const DOCVENC_HIDE = 'docvenc_oculto_';
 async function docVencCargar() {
   const b = document.getElementById('docVencBanner'); if (!b) return;
   if (!_ofPuede()) { b.style.display = 'none'; return; }
+  const turno = (window._docVencTurno = (window._docVencTurno || 0) + 1);   // v1245: si se lanzan dos cargas a la vez, solo vale la última
+  let lista = [];
   try {
     const lim = _ofIso(new Date(Date.now() + 15 * 864e5));
     const { data, error } = await sb.from('vehiculos_docs').select('matricula, tipo, vence').in('tipo', ['SEGURO', 'TT']).not('vence', 'is', null).lte('vence', lim);
     if (error) throw error;
     const act = new Set((tallerVehiculos || []).filter(v => v.activo !== false).map(v => String(v.matricula).toUpperCase()));
-    _docVenc = (data || []).filter(x => act.has(String(x.matricula).toUpperCase()));
+    lista = (data || []).filter(x => act.has(String(x.matricula).toUpperCase()));
     // v1244: también los papeles de los CONDUCTORES (Empleados > Documentación), con el mismo calendario que la tarjeta de transporte.
     // La tarjeta de tacógrafo no: ya tiene su propio aviso.
     try {
       const { data: td, error: e2 } = await sb.from('trabajadores_docs').select('tipo, vence, trabajador_id, trabajadores(nombre, archivado)').not('vence', 'is', null).lte('vence', lim).neq('tipo', 'TACO');
       if (e2) throw e2;
-      (td || []).filter(x => x.trabajadores && !x.trabajadores.archivado).forEach(x => _docVenc.push({ tipo: 'TRAB', vence: x.vence, matricula: x.trabajadores.nombre + ' — ' + (typeof _tdNomCol === 'function' ? _tdNomCol(x.tipo) : x.tipo) }));
+      (td || []).filter(x => x.trabajadores && !x.trabajadores.archivado).forEach(x => lista.push({ tipo: 'TRAB', vence: x.vence, matricula: x.trabajadores.nombre + ' — ' + (typeof _tdNomCol === 'function' ? _tdNomCol(x.tipo) : x.tipo) }));
     } catch (e) { console.warn('[v1244] avisos documentos trabajadores:', e); }
-  } catch (e) { console.warn('[v1236] avisos documentación:', e); _docVenc = []; }
+  } catch (e) { console.warn('[v1236] avisos documentación:', e); }
+  if (turno !== window._docVencTurno) return;   // v1245: llegó otra carga más nueva
+  _docVenc = lista;
   renderDocVencBanner();
 }
 function docVencOcultar(clave) { try { localStorage.setItem(DOCVENC_HIDE + clave, _ofIso(new Date())); } catch (e) {} renderDocVencBanner(); }
