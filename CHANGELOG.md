@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1228 — 19/11/2026 · Documentación: la cabecera fija ya no se esconde
+- En la v1227 la cabecera sí se quedaba fija, pero detrás de la barra de pestañas (ALBARANES, SUBIR, TALLER…). Ahora se pega justo debajo de esa barra.
+
+---
+
 ## v1227 — 19/11/2026 · Documentación: cabecera fija de verdad
 - En la v1226 la cabecera solo se quedaba fija dentro de la caja de la tabla, y al bajar por la página se perdía. Ahora se queda pegada justo debajo de la barra de pestañas mientras bajas por toda la lista (tractoras y semirremolques).
 
