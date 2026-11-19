@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1225 — 19/11/2026 · Documentación: marcar documento a documento + arreglo de permisos
+- En cada documento subido hay una **casilla verde**: se marcan solo los papeles que se quieren (p. ej. PC y FT del 1270LST). "📤 Enviar marcados (N doc.)" y "⬇ Descargar marcados" mandan/bajan SOLO esos. La casilla de la izquierda marca todos los del camión.
+- SQL (ya aplicado): la política storage_select del bucket documentos no incluía la carpeta `vehiculos-docs`, así que solo el admin podía bajar plantillas y documentos (a Marta le daba error 400 al generar la declaración). Añadida con el mismo permiso que Taller (puede_ver_taller()).
+
+---
+
 ## v1224 — 19/11/2026 · Documentación: apartado Import, declaración por plantilla y envío por WhatsApp/correo
 - Taller > DOCUMENTACIÓN, en TYP2014: dos botones **TYP2014 / PORTES 2014 IMPORT**. Los 3 camiones de Import (1479JDM, 0755KMB, 3423NVF) salen en su propio apartado con su plantilla.
 - Declaración Holcim: la app busca en CADA plantilla dónde está la matrícula y la fecha (las de TYP, Híspalis e Import no están en el mismo sitio) y las cambia ahí. Fecha en formato "19 DE NOVIEMBRE DE 2026".
