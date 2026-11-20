@@ -26323,6 +26323,7 @@ async function saveTrabModal() {
       const { error } = await sb.from('trabajadores').insert(payload);
       if (error) throw error;
       toast('✓ Trabajador creado');
+      try { _cplAvisoAlta('trab', payload.dni, payload.nombre, payload.empresa); } catch (e) { console.warn('[v1275] aviso alta:', e); }
     }
     closeTrabModal();
     await loadVacData();
@@ -26331,6 +26332,31 @@ async function saveTrabModal() {
     console.error('[saveTrabModal] Error:', e);
     toast('Error: ' + (e.message || JSON.stringify(e)), 'err');
   }
+}
+
+// v1275 (JC 20/11/2026): al dar de ALTA un trabajador o un camión, recordar darlo de alta en las plataformas CAE.
+// En e-coordina y Achilles, "✓ Ya dado de alta" lo apunta en cae_altas (así sus documentos salen en Plataformas).
+function _cplAvisoAlta(amb, ref, nombre, empresa) {
+  if (!ref || empresa === 'TRANSMARGAZ') return;
+  const plats = [{ k: 'MC', txt: 'Metacontratas (Holcim)' }];
+  if (['TYP2014', 'HISPALIS'].includes(empresa)) plats.push({ k: 'EC', txt: 'e-coordina (PROMSA)', alta: true }, { k: 'AC', txt: 'Achilles (CEMEX)', alta: true });
+  const R = String(ref).toUpperCase().replace(/[\s-]/g, '');
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:460px;width:100%;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.3)">' +
+    '<div style="font-size:18px;font-weight:900;color:#15803d">✓ ' + esc(nombre || R) + ' dado de alta en la app</div>' +
+    '<div style="margin:12px 0 8px;font-weight:700">Si va a trabajar para esos clientes, dalo de alta también en:</div>' +
+    plats.map(p => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid var(--bd);border-radius:8px;margin-bottom:6px"><span><b>' + esc(p.txt) + '</b><br><a href="' + _CPL[p.k].url + '" target="_blank" rel="noopener" style="font-size:12px">Abrir</a></span>' +
+      (p.alta ? '<button class="btn" data-k="' + p.k + '" style="font-size:12px;background:#15803d;color:#fff;font-weight:800">✓ Ya dado de alta</button>' : '') + '</div>').join('') +
+    '<div style="font-size:12px;color:#475569;margin-top:6px">Darlo de alta en cada plataforma lo hace la oficina. Mientras no se marque aquí, sus documentos no saldrán como pendientes para e-coordina ni Achilles.</div>' +
+    '<div style="text-align:right;margin-top:10px"><button class="btn bs" data-fin="1">Cerrar</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('[data-fin]').onclick = () => ov.remove();
+  ov.querySelectorAll('button[data-k]').forEach(b => b.onclick = async () => {
+    try { const { error } = await sb.from('cae_altas').upsert({ plataforma: b.dataset.k, ambito: amb, ref: R, empresa, nombre: amb === 'trab' ? (nombre || null) : null }, { onConflict: 'plataforma,ambito,ref' }); if (error) throw error;
+      b.outerHTML = '<span style="color:#15803d;font-weight:800">✓ Apuntado</span>'; }
+    catch (e) { toast('⚠️ ' + (e.message || e), 'err'); }
+  });
 }
 
 // v1274 (JC 20/11/2026): la baja se confirma en una ventana con el NOMBRE en grande (se dio de baja a otro por error)
@@ -27807,6 +27833,7 @@ async function tallerCrearVehiculo() {
     });
     if (error) throw error;
     toast('Vehículo creado: ' + mat, 'ok');
+    try { _cplAvisoAlta('veh', mat, mat, emp); } catch (e) { console.warn('[v1275] aviso alta:', e); }
     closeTallerNuevo();
     await loadTallerData();
   } catch (e) {

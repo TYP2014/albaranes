@@ -1,3 +1,6 @@
+## v1275 — 20/11/2026
+- Al dar de **ALTA** un trabajador (Empleados) o un camión (Taller), sale un aviso con las plataformas donde darlo de alta también: Metacontratas, y para TYP2014/Híspalis e-coordina y Achilles, con enlace y botón **✓ Ya dado de alta** (lo apunta en la app para que sus documentos salgan en Plataformas).
+
 ## v1274 — 20/11/2026
 - Empleados › Dar de baja: ahora sale una ventana con el **nombre del trabajador en grande**, empresa y DNI, el motivo en un desplegable y el botón "Sí, dar de baja a …". Así no se da de baja a otro por error.
 - Avisa de en qué **plataformas** hay que darlo de baja también (Metacontratas; e-coordina y Achilles si está dado de alta allí), con enlace a cada una y botón **✓ Ya lo he quitado**.
