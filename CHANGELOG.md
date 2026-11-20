@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1258 — 20/11/2026
+- Tacógrafo: al leer un fichero, cabecera clara con el conductor (o la matrícula si es camión) en grande y las fechas descargadas (del … al …) bien visibles. Los detalles técnicos quedan debajo en pequeño.
+
 ## v1257 — 20/11/2026 · Empleados > Plataformas: lista "pendiente de subir" a Metacontratas
 - Nueva vista "Plataformas": cada documento NUEVO de la app (empresa, camiones y trabajadores) que hay que subir a Metacontratas (Holcim), con la empresa y la CASILLA exacta donde va, enlace para verlo y botones "✓ Ya subido" / "No aplica".
 - Un documento vuelve a salir cuando se sube a la app un archivo nuevo para esa casilla.

@@ -37312,15 +37312,22 @@ function tacoPintar(r) {
     ? `<span class="ks">✅ Leido entero: ${r.bytes.toLocaleString('es-ES')} de ${r.bytes.toLocaleString('es-ES')} bytes</span>`
     : `<span style="color:var(--erd);font-weight:700">⛔ SOLO SE HAN LEIDO ${r.leidos.toLocaleString('es-ES')} DE ${r.bytes.toLocaleString('es-ES')} BYTES — NO fiarse de estos datos</span>`;
 
-  let cab = `<div style="font-family:var(--mn);font-size:12px;line-height:1.9">
-      <b>${r.fichero}</b><br>${aviso}<br>
-      Tipo: <b>${r.tipo === 'vehiculo' ? 'CAMION' : 'TARJETA DE CONDUCTOR'}</b> ·
-      Generacion: <b>${r.gen}</b><br>`;
-  if (r.matricula) cab += `Matricula: <b>${r.matricula}</b> · Bastidor: ${r.vin || '—'}<br>`;
-  if (r.conductor) cab += `Conductor: <b>${r.conductor}</b> · Tarjeta: ${r.tarjeta_num || '—'} · Caduca: ${_tacoDMY(r.caduca)}<br>`;
+  // v1258: cabecera clara — quién (conductor o matrícula) y fechas descargadas en grande
+  const _esCam = r.tipo === 'vehiculo';
+  const _quien = _esCam ? (r.matricula || '—') : (r.conductor || '—');
+  let cab = `<div style="border:2px solid var(--ac,#e8730c);border-radius:10px;padding:14px 18px;margin:6px 0 10px;background:var(--s2,#fff)">
+      <div style="font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px">${_esCam ? '🚛 Camión' : '🪪 Tarjeta de conductor'} · ${r.gen || ''}</div>
+      <div style="font-size:24px;font-weight:800;margin:2px 0 8px">${_quien}</div>
+      <div style="font-size:15px">📅 Descargado del <b style="font-size:18px">${_tacoDMY(r.desde)}</b> al <b style="font-size:18px">${_tacoDMY(r.hasta)}</b>
+        <span style="color:var(--mu)"> · ${r.dias.length} días con datos</span></div>
+    </div>
+    <div style="font-family:var(--mn);font-size:12px;line-height:1.8;color:var(--mu)">
+      ${aviso}<br>Fichero: ${r.fichero}<br>`;
+  if (r.matricula) cab += `Bastidor: ${r.vin || '—'}<br>`;
+  if (r.conductor) cab += `Tarjeta: ${r.tarjeta_num || '—'} · Caduca: ${_tacoDMY(r.caduca)}<br>`;
   if (r.taco) cab += `Tacografo: ${r.taco}<br>`;
   if (r.memDesde) cab += `Memoria del aparato: ${_tacoDMY(r.memDesde)} → ${_tacoDMY(r.memHasta)}<br>`;
-  cab += `Dias con datos: <b>${r.dias.length}</b> (${_tacoDMY(r.desde)} → ${_tacoDMY(r.hasta)})</div>`;
+  cab += `</div>`;
 
   let filas = '';
   r.dias.slice(-30).reverse().forEach(d => {
