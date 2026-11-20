@@ -1,3 +1,6 @@
+## v1268 — 20/11/2026
+- Documentación > Trabajadores: al subir (o corregir la fecha de) el **Apto médico**, su caducidad pasa sola a la ficha del trabajador (“Caduca el reconocimiento médico”) y se refresca el aviso de reconocimientos. Solo si la fecha nueva es posterior a la que había.
+
 # CHANGELOG — App Albaranes (Grupo TYP2014)
 
 Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es la del `app.js?v=N` del `index.html`.

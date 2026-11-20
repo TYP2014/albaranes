@@ -48900,6 +48900,21 @@ async function _tdGuardar(w, t, file, f) {
   const url = await uploadFile(file, 'trabajadores-docs');
   const fila = { trabajador_id: w.id, tipo: t, file_url: url, file_name: file.name || null, fecha_doc: f.fecha_doc || null, vence: f.vence || null, updated_at: new Date().toISOString() };
   const { error } = await sb.from('trabajadores_docs').upsert(fila, { onConflict: 'trabajador_id,tipo' }); if (error) throw error;
+  if (t === 'APTO') await _tdSyncApto(w, f.vence);   // v1268
+}
+// v1268 (JC 20/11/2026): al subir (o corregir) el APTO MÉDICO, la caducidad pasa sola a la ficha del
+// trabajador (recmed_caduca), que es la que usan el aviso de reconocimientos y la ventana del trabajador.
+// Solo si la nueva fecha es POSTERIOR a la que había (un apto viejo no pisa uno nuevo).
+async function _tdSyncApto(w, vence) {
+  if (!w || !vence) return;
+  const v = String(vence).slice(0, 10), ant = w.recmed_caduca ? String(w.recmed_caduca).slice(0, 10) : '';
+  if (ant && ant >= v) return;
+  try {
+    const { error } = await sb.from('trabajadores').update({ recmed_caduca: v }).eq('id', w.id); if (error) throw error;
+    w.recmed_caduca = v;
+    try { const c = (_tacoTrabajadores || []).find(z => z.id === w.id); if (c) c.recmed_caduca = v; } catch (e) {}   // la caché del aviso
+    try { renderRecmedCaducidades(); } catch (e) {}
+  } catch (e) { console.warn('[v1268] caducidad reconocimiento en la ficha:', e); toast('⚠️ Subido, pero no se pudo cambiar la caducidad en la ficha: ' + (e.message || e), 'err'); }
 }
 async function tdSubir(tid, t, input) {
   const file = input.files && input.files[0]; if (!file) return;
@@ -48920,7 +48935,9 @@ async function tdFechasEditar(tid, t) {
     const g = r.trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/); const iso2 = g && _vdIsoDe(g[1], g[2], g[3]); if (!iso2) { toast('Fecha no válida (DD/MM/AAAA)', 'err'); return undefined; } return iso2; };
   const fd = pedir('FECHA DEL DOCUMENTO (expedición / firma), DD/MM/AAAA. Vacío = sin fecha:', x.fecha_doc); if (fd === undefined) return;
   const fv = pedir('CADUCIDAD, DD/MM/AAAA. Vacío = no caduca:', x.vence); if (fv === undefined) return;
-  try { const { error } = await sb.from('trabajadores_docs').update({ fecha_doc: fd, vence: fv, updated_at: new Date().toISOString() }).eq('id', x.id); if (error) throw error; toast('✓ Fechas guardadas', 'ok'); await tdCargar(); }
+  try { const { error } = await sb.from('trabajadores_docs').update({ fecha_doc: fd, vence: fv, updated_at: new Date().toISOString() }).eq('id', x.id); if (error) throw error;
+    if (t === 'APTO') await _tdSyncApto((vacTrabajadores || []).find(z => z.id === tid), fv);   // v1268
+    toast('✓ Fechas guardadas', 'ok'); await tdCargar(); }
   catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }
 async function tdZip(tid) {
