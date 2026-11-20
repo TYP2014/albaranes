@@ -20237,6 +20237,7 @@ async function deleteIncidencia() {
 }
 
 function switchTab(tab) {
+  if (tab !== 'docu' && window._tallerEmpPrev) { tallerEmpresaActiva = window._tallerEmpPrev; window._tallerEmpPrev = null; window._vdEnDocu = false; }   // v1262: Documentación no cambia la empresa de Taller
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
@@ -28097,6 +28098,7 @@ let recambiosDocs = [];          // filas de recambios_albaranes
 let tallerVistaActiva = 'mant';  // 'mant' | 'recambios'
 
 function switchTallerVista(v) {
+  if (v === 'docs') { switchTab('docu'); docuVista('veh'); return; }   // v1262: la documentación de vehículos vive en la pestaña Documentación
   tallerVistaActiva = v;
   const mb = document.getElementById('tallerVistaMantBox');
   const rb = document.getElementById('tallerVistaRecambiosBox');
@@ -48271,7 +48273,7 @@ function vdRender() {
     '<button class="btn" onclick="vdDeclSel()" style="font-weight:800;border:2px solid #1b3254;color:#1b3254;background:#fff">Declaración Holcim de los marcados</button></div></div>' +
     '<div style="font-size:13px;color:#15803d;font-weight:700;margin-bottom:6px">Para enviar o descargar solo algunos papeles, marca la casilla verde de cada documento. La casilla de la izquierda marca todos los del camión.</div>' +
     '<div style="font-size:13px;color:#111;margin-bottom:10px">Plantilla firmada de la declaración Holcim (se sube una vez por empresa; la app le cambia la matrícula y la fecha): ' + plant + '</div>';
-  if (tallerEmpresaActiva === 'TYP2014') {   // v1224: apartado propio para PORTES 2014 IMPORT
+  if (tallerEmpresaActiva === 'TYP2014' && !window._vdEnDocu) {   // v1224: apartado propio para PORTES 2014 IMPORT (v1262: en Documentación lo elige la barra de empresas)
     const nI = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014' && _vdEmpDecl(v) === 'PORTES').length, nT = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014').length - nI;
     const b = (k, t) => '<button class="btn" onclick="vdSub(\'' + k + '\')" style="font-weight:800;padding:7px 16px;' + (_vd.sub === k ? 'background:#1b3254;color:#fff' : 'background:#fff;color:#1b3254;border:2px solid #1b3254') + '">' + t + '</button>';
     h = '<div style="display:flex;gap:8px;margin-bottom:12px">' + b('TYP', 'TYP2014 (' + nT + ')') + b('PORTES', 'PORTES 2014 IMPORT (' + nI + ')') + '</div>' + h;
@@ -48393,7 +48395,7 @@ async function docVencCargar() {
   renderDocVencBanner();
 }
 function docVencOcultar(clave) { try { localStorage.setItem(DOCVENC_HIDE + clave, _ofIso(new Date())); } catch (e) {} renderDocVencBanner(); }
-function irADocumentacion() { try { switchTab('taller'); } catch (e) {} setTimeout(() => { try { switchTallerVista('docs'); } catch (e) {} }, 300); }
+function irADocumentacion() { try { switchTab('docu'); docuVista('veh'); } catch (e) {} }   // v1262
 function irADocTrabajadores() { try { switchTab('vac'); } catch (e) {} setTimeout(() => { try { switchEmpleadosVista('docs'); } catch (e) {} }, 300); }   // v1244
 function renderDocVencBanner() {
   const b = document.getElementById('docVencBanner'); if (!b) return;
@@ -49158,21 +49160,27 @@ function edEnviarAbrir() {
 // v1260 (JC 20/11/2026): pestaña DOCUMENTACIÓN — para Marta y Mª del Mar, separada de Empleados.
 // Empresa y Plataformas ya viven aquí; Vehículos y Conductores se traen en las siguientes versiones.
 let _docuEmp = 'TYP2014';
-function docuEmpresa(e) { _docuEmp = e; _ed.sel = new Set(); docuPintarEmp(); if ((window._docuVista || 'emp') === 'emp') edRender(); }
+function docuEmpresa(e) { _docuEmp = e; _ed.sel = new Set(); docuPintarEmp(); const v = window._docuVista || 'emp'; if (v === 'emp') edRender(); else if (v === 'veh') { _docuVehEmp(); vdRender(); } }
+function _docuVehEmp() {   // v1262: la vista de vehículos usa la empresa de Taller; aquí se pone la de Documentación y al salir se devuelve
+  if (!window._tallerEmpPrev) window._tallerEmpPrev = tallerEmpresaActiva;
+  window._vdEnDocu = true;
+  tallerEmpresaActiva = _docuEmp === 'HISPALIS' ? 'HISPALIS' : 'TYP2014';
+  const sub = _docuEmp === 'PORTES' ? 'PORTES' : 'TYP'; if (_vd.sub !== sub) { _vd.sub = sub; _vd.sel.clear(); _vd.dsel.clear(); }
+}
 function docuPintarEmp() { ['TYP2014', 'HISPALIS', 'PORTES'].forEach(e => { const b = document.getElementById('docuEmp' + e); if (b) { b.classList.toggle('bp', e === _docuEmp); b.classList.toggle('bs', e !== _docuEmp); } }); }
 function docuVista(v) {
   window._docuVista = v;
-  const cajas = { emp: 'empVistaEdocBox', plat: 'empVistaPlatBox', veh: 'docuProxBox', cond: 'docuProxBox' };
-  ['empVistaEdocBox', 'empVistaPlatBox', 'docuProxBox'].forEach(id => { const c = document.getElementById(id); if (c) c.style.display = 'none'; });
+  const cajas = { emp: 'empVistaEdocBox', plat: 'empVistaPlatBox', veh: 'tallerVistaDocsBox', cond: 'docuProxBox' };
+  ['empVistaEdocBox', 'empVistaPlatBox', 'tallerVistaDocsBox', 'docuProxBox'].forEach(id => { const c = document.getElementById(id); if (c) c.style.display = 'none'; });
   ['emp', 'veh', 'cond', 'plat'].forEach(k => { const b = document.getElementById('docuVista' + k.charAt(0).toUpperCase() + k.slice(1)); if (b) { b.classList.toggle('bp', k === v); b.classList.toggle('bs', k !== v); } });
   const c = document.getElementById(cajas[v]); if (c) c.style.display = '';
   const bar = document.getElementById('docuEmpBar'); if (bar) bar.style.display = v === 'plat' ? 'none' : '';   // Plataformas enseña las 3 empresas
   docuPintarEmp();
   if (v === 'emp') edCargar();
   else if (v === 'plat') cplCargar();
-  else { const o = document.getElementById('docuProxOut'); if (o) o.innerHTML = v === 'veh'
-    ? '🚛 <b>Documentación de vehículos</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Taller</b> → ficha de cada camión. <button class="btn bs" onclick="switchTab(\'taller\')" style="margin-left:8px">Ir a Taller</button>'
-    : '👷 <b>Documentación de conductores</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Empleados → Documentación</b>. <button class="btn bs" onclick="switchTab(\'vac\');switchEmpleadosVista(\'docs\')" style="margin-left:8px">Ir a Empleados</button>'; }
+  else if (v === 'veh') { _docuVehEmp(); vdCargar(); }   // v1262
+  else { const o = document.getElementById('docuProxOut'); if (o) o.innerHTML =
+      '👷 <b>Documentación de conductores</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Empleados → Documentación</b>. <button class="btn bs" onclick="switchTab(\'vac\');switchEmpleadosVista(\'docs\')" style="margin-left:8px">Ir a Empleados</button>'; }
 }
 async function _edUnir(urls) {   // une varios PDF en uno (TC1 + recibo)
   const { PDFDocument } = PDFLib, out = await PDFDocument.create();

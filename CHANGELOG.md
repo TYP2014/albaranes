@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1262 — 20/11/2026 · Documentación › 🚛 Vehículos (parte 2)
+- La documentación de los vehículos (ficha técnica, permiso, ITV, seguro, tarjeta, declaración Holcim…) se muda de Taller a la pestaña Documentación › Vehículos, con la barra de empresas (TYP2014 / Híspalis / Portes 2014 Import).
+- En Taller desaparece el botón DOCUMENTACIÓN; los avisos "ver" de documentos caducados llevan a la pestaña nueva.
+- Elegir empresa en Documentación no cambia la empresa elegida en Taller.
+
 ## v1261 — 20/11/2026
 - Documentación › Empresa y Plataformas: quitada la fila "Recibí herramienta IA (Predict AU)" (es cosa de Holcim).
 

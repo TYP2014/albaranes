@@ -1663,6 +1663,8 @@ if (typeof pdfjsLib !== 'undefined') {
       </div>
       <div id="empVistaEdocBox" style="display:none"><div class="card" style="padding:14px"><div id="empEdocOut"></div></div></div>
       <div id="empVistaPlatBox" style="display:none"><div class="card" style="padding:14px"><div id="empPlatOut"></div></div></div>
+      <!-- v1262: documentación de VEHÍCULOS (antes en Taller) -->
+      <div id="tallerVistaDocsBox" style="display:none"><div class="card" style="padding:16px;overflow:visible"><div id="tallerDocsOut"></div></div></div>
       <div id="docuProxBox" style="display:none"><div class="card" style="padding:18px;font-size:15px" id="docuProxOut"></div></div>
     </div>
 
@@ -1680,12 +1682,9 @@ if (typeof pdfjsLib !== 'undefined') {
         <button class="btn bp" id="tallerVistaMant" onclick="switchTallerVista('mant')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">MANTENIMIENTOS</button>
         <button class="btn bs" id="tallerVistaRecambios" onclick="switchTallerVista('recambios')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">RECAMBIOS</button>
         <button class="btn bs" id="tallerVistaCitas" onclick="switchTallerVista('citas')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">CITAS SERVICIO OFICIAL</button>
-        <button class="btn bs" id="tallerVistaDocs" onclick="switchTallerVista('docs')" style="font-size:12px;padding:11px 16px;letter-spacing:.6px;white-space:nowrap">DOCUMENTACIÓN</button>
       </div>
       </div><!-- fin tallerCabecera -->
 
-      <!-- ===== v1223 VISTA DOCUMENTACIÓN DE LOS VEHÍCULOS ===== -->
-      <div id="tallerVistaDocsBox" style="display:none"><div class="card" style="padding:16px;overflow:visible"><div id="tallerDocsOut"></div></div></div>
       <!-- ===== VISTA MANTENIMIENTOS (la de siempre) ===== -->
       <div id="tallerVistaMantBox">
       <!-- Avisos de mantenimiento (igual estilo que la barra ITV) -->
@@ -2242,6 +2241,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1261"></script>
+<script src="app.js?v=1262"></script>
 </body>
 </html>
