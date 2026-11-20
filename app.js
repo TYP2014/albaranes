@@ -48989,7 +48989,18 @@ async function tdImpSubir() {
 // Tabla empresa_docs (empresa, tipo, periodo, fecha_doc, vence…). Storage: documentos/empresa-docs.
 // ============================================================================
 const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], ['RECIBO', 'Recibo del TC1'], ['TC2', 'TC2 / RNT'],
-  ['CERT_SS', 'Certificado corriente Seg. Social'], ['CERT_AEAT', 'Certificado corriente Hacienda']];
+  ['CERT_SS', 'Certificado corriente Seg. Social'], ['CERT_AEAT', 'Certificado corriente Hacienda'],
+  // v1255 (JC 20/11/2026): los 10 que pide Metacontratas (Holcim) a la EMPRESA y no estaban en la app
+  ['SERV_PREV', 'Certificado Servicio de Prevención'], ['MUTUA', 'Certificado asociación Mutua AT'], ['EVAL_RIESGOS', 'Evaluación de riesgos'],
+  ['PLAN_PREV', 'Planificación preventiva'], ['INFO_PRL', 'Información PRL empresa transportista (H&S-PTT.19.01)'], ['PROTOCOLO', 'Protocolo salud y seguridad (H)'],
+  ['HOMOL_CONTRATO', 'Homologación contrato logística'], ['HOMOL_SEGURIDAD', 'Homologación seguridad logística'],
+  ['RECIBI_IA', 'Recibí herramienta IA (Predict AU)'], ['SEGURO_RC', 'Seguro responsabilidad civil']];
+// v1255: cómo se reconocen por el NOMBRE del archivo (y, si no, por el texto). Caducidad por defecto en meses (editable con ✏️); sin número = no caduca
+const _ED_EXTRA = [['SEGURO_RC', /RESPONSABILIDAD CIVIL|SEGURO ?R\.? ?C\b|\bRC\b/, 12], ['SERV_PREV', /SERVICIO DE PREVENCI|SERV(ICIO)?\.? ?PREV|\bSPA\b/, 12],
+  ['MUTUA', /MUTUA/, 0], ['EVAL_RIESGOS', /EVALUACI[OÓ]N (DE )?RIESGOS|EVAL(UACION)?\.? ?RIESGOS/, 36], ['PLAN_PREV', /PLANIFICACI[OÓ]N PREVENTIVA|PLAN(IFICACION)?\.? ?PREV/, 12],
+  ['INFO_PRL', /INFORMACI[OÓ]N (DE )?PRL|PTT\.?19\.?01|INFO\.? ?PRL/, 24], ['PROTOCOLO', /PROTOCOLO/, 24], ['HOMOL_CONTRATO', /HOMOLOGACI[OÓ]N (DE )?CONTRATO|HOMOL.*CONTRATO/, 0],
+  ['HOMOL_SEGURIDAD', /HOMOLOGACI[OÓ]N (DE )?SEGURIDAD|HOMOL.*SEGURIDAD/, 0], ['RECIBI_IA', /PREDICT|HERRAMIENTA (DE )?IA|RECIBI.*\bIA\b/, 0]];
+function _edExtra(txt) { const x = _ED_EXTRA.find(z => z[1].test(txt)); return x ? x[0] : null; }
 const _ED_EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
 // v1254 (JC 20/11/2026): Import solo trabaja para Holcim (Metacontratas): ahí no piden el recibo del TC1.
 // El TC1 + recibo lo piden e-coordina (PROMSA), Achilles (CEMEX) y Llantada/Promotora Mediterránea → solo TYP2014 e Híspalis.
@@ -49011,10 +49022,10 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
   else if (/VACAS/.test(n)) r.aviso = 'TC de vacaciones: se ignora';
   r.empresa = /B0?2657435|PORTES 2014 IMPORT/.test(T) ? 'PORTES' : /B0?90286337|HISPALIS/.test(T) ? 'HISPALIS' : /B0?90172735|TRANSPORTES Y PORTES 2014/.test(T) ? 'TYP2014'
     : /PORTES 2014|IMPORT/.test(n) ? 'PORTES' : /HISPALIS/.test(n) ? 'HISPALIS' : /TRANS(PORTES)? Y PORTES|TYP/.test(n) ? 'TYP2014' : null;
-  r.tipo = cc ? 'CC:' + cc[1].replace(/[.,]+$/, '').trim() : /TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
+  r.tipo = cc ? 'CC:' + cc[1].replace(/[.,]+$/, '').trim() : _edExtra(n) || (/TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
     : /COD\. ?LIQUIDACION|ADEUDO|TGSS\.? COTIZACI/.test(T) ? 'RECIBO' : /AL CORRIENTE/.test(T) && /SEGURIDAD SOCIAL/.test(T) ? 'CERT_SS'
-    : /AL CORRIENTE|AGENCIA TRIBUTARIA|OBLIGACIONES TRIBUTARIAS/.test(T) ? 'CERT_AEAT'
-    : /RECIBO/.test(n) ? 'RECIBO' : /\bTC1\b/.test(n) ? 'TC1' : /\bTC2\b/.test(n) ? 'TC2' : /\bITA\b/.test(n) ? 'ITA' : /CERT.*SS/.test(n) ? 'CERT_SS' : /HACIENDA|AEAT/.test(n) ? 'CERT_AEAT' : null;
+    : /AL CORRIENTE/.test(T) && /AGENCIA TRIBUTARIA|OBLIGACIONES TRIBUTARIAS/.test(T) ? 'CERT_AEAT'
+    : /RECIBO/.test(n) ? 'RECIBO' : /\bTC1\b/.test(n) ? 'TC1' : /\bTC2\b/.test(n) ? 'TC2' : /\bITA\b/.test(n) ? 'ITA' : /CERT.*SS/.test(n) ? 'CERT_SS' : /HACIENDA|AEAT/.test(n) ? 'CERT_AEAT' : _edExtra(T));   // v1255
   const p = T.match(/PER[IÍ]ODO(?: DE LIQUIDACI[OÓ]N)?:? ?(\d{2}) ?\/ ?(\d{4})/) || n.match(/\b(\d{2})[ _\-](20\d{2})\b/);
   const MES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
   const fl = T.match(/CON FECHA (\d{1,2}) DE ([A-Z]+) DE (20\d{2})/);
@@ -49024,7 +49035,7 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
     || T.match(new RegExp('VENCIMIENTO:? ?' + D)) || (/COD\. ?LIQUIDACION|ADEUDO/.test(T) && T.replace(/PERIODO:? ?\d{2}\/\d{4}(?: ?- ?\d{2}\/\d{4})?/g, '').match(new RegExp(D)));   // v1253: el comentario de la v1252 se comía la fecha del recibo
   r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
   r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
-  const MESES = /^CC:/.test(r.tipo || '') ? 6 : { CERT_SS: 3, CERT_AEAT: 6 }[r.tipo];   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
+  const MESES = /^CC:/.test(r.tipo || '') ? 6 : ({ CERT_SS: 3, CERT_AEAT: 6 }[r.tipo] || ((_ED_EXTRA.find(z => z[0] === r.tipo) || [])[2] || 0));   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
   if (MESES && r.fecha_doc) { const [y, m, d] = r.fecha_doc.split('-').map(Number), t2 = new Date(Date.UTC(y, m - 1 + MESES, d)); r.vence = t2.toISOString().slice(0, 10); } else r.vence = null;
   return r;
 }
@@ -49052,11 +49063,20 @@ function edRender() {
     const L = F.filter(x => x.tipo === t), u = L[0], bg = i % 2 ? '#f8fafc' : '#fff';
     h += '<tr style="background:' + bg + ';border-bottom:1px solid var(--bd)"><td style="padding:7px;font-weight:800">' + esc(nom) + '</td><td style="padding:7px;text-align:center">' +
       (u ? '<input type="checkbox"' + (_ed.sel.has(u.id) ? ' checked' : '') + ' onchange="edSel(\'' + u.id + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;accent-color:#15803d"> <a href="' + _edUrl(u) + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ ' + esc(_edPer(u.periodo)) + '</a>' : ((_ED_NO_PIDEN[emp] || []).includes(t) ? '<span style="color:#94a3b8">no se pide</span>' : '<span style="color:#b91c1c;font-weight:700">falta</span>')) +
-      '</td><td style="padding:7px;text-align:center">' + (u ? (u.fecha_doc ? _ofFechaEs(String(u.fecha_doc).slice(0, 10)) : '—') + (u.vence ? ' · caduca ' + _ofFechaEs(String(u.vence).slice(0, 10)) : '') : '') +
+      '</td><td style="padding:7px;text-align:center">' + (u ? (u.fecha_doc ? _ofFechaEs(String(u.fecha_doc).slice(0, 10)) : '—') + (u.vence ? ' · caduca ' + _ofFechaEs(String(u.vence).slice(0, 10)) : '') + ' <a href="javascript:void(0)" title="Corregir fechas" onclick="edFechasEditar(\'' + u.id + '\')" style="text-decoration:none">✏️</a>' : '') +
       '</td><td style="padding:7px;text-align:center">' + L.slice(1, 7).map(x => '<a href="' + _edUrl(x) + '" target="_blank" rel="noopener" style="margin:0 3px">' + esc(_edPer(x.periodo)) + '</a>').join('') +
       '</td><td style="padding:7px;text-align:center"><label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">⬆ Subir<input type="file" accept=".pdf,image/*" style="display:none" onchange="edSubir(\'' + t + '\',this)"></label></td></tr>';
   });
   out.innerHTML = h + '</table>';
+}
+async function edFechasEditar(id) {   // v1255: corregir fecha del documento y caducidad a mano
+  const x = _ed.filas.find(z => z.id === id); if (!x) return;
+  const pedir = (txt, iso) => { const r = prompt(txt, iso ? _ofFechaEs(String(iso).slice(0, 10)) : ''); if (r === null) return undefined; if (!r.trim()) return null;
+    const g = r.trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/); const iso2 = g && _vdIsoDe(g[1], g[2], g[3]); if (!iso2) { toast('Fecha no válida (DD/MM/AAAA)', 'err'); return undefined; } return iso2; };
+  const fd = pedir('FECHA DEL DOCUMENTO, DD/MM/AAAA. Vacío = sin fecha:', x.fecha_doc); if (fd === undefined) return;
+  const fv = pedir('CADUCIDAD, DD/MM/AAAA. Vacío = no caduca:', x.vence); if (fv === undefined) return;
+  try { const { error } = await sb.from('empresa_docs').update({ fecha_doc: fd, vence: fv }).eq('id', id); if (error) throw error; toast('✓ Fechas guardadas', 'ok'); await edCargar(); }
+  catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }
 function edSel(id, on) { if (on) _ed.sel.add(id); else _ed.sel.delete(id); edRender(); }
 async function _edGuardar(file, r) {

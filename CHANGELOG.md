@@ -4,6 +4,15 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1255 — 20/11/2026 · Doc. empresa: los 10 documentos que pide Metacontratas
+- Nuevas filas en Doc. empresa: Servicio de Prevención, Mutua AT, Evaluación de riesgos, Planificación preventiva, Información PRL (H&S-PTT.19.01), Protocolo salud y seguridad, Homologación contrato, Homologación seguridad, Recibí herramienta IA y Seguro de responsabilidad civil.
+- Se reconocen por el NOMBRE del archivo (p. ej. "SEGURO RC HISPALIS.pdf", "PLANIFICACION PREVENTIVA TYP.pdf") o se suben con el ⬆ de su fila.
+- Caducidad por defecto (meses): Serv. Prevención 12, Evaluación 36, Planificación 12, Info PRL 24, Protocolo 24, Seguro RC 12; Mutua, homologaciones y recibí IA no caducan.
+- ✏️ junto a la fecha: corregir a mano fecha del documento y caducidad (vale para todos).
+- Hacienda: ahora exige "al corriente" + Agencia Tributaria (antes bastaba "al corriente" y un seguro podía colarse como Hacienda).
+
+---
+
 ## v1254 — 20/11/2026 · Doc. empresa: Import no necesita el recibo del TC1
 - En PORTES 2014 IMPORT el recibo del TC1 sale como "no se pide" (gris) en vez de "falta": Import solo trabaja para Holcim (Metacontratas) y ahí no lo piden. El TC1 + recibo lo piden e-coordina (PROMSA), Achilles (CEMEX) y Llantada, donde solo trabajan TYP2014 e Híspalis.
 
