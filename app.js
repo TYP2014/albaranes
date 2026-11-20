@@ -26249,11 +26249,32 @@ function openTrabajadorModal(id) {
       de la tarjeta y es el que piden las gestorías. Los <b>2 últimos dígitos cambian al renovarla</b>
       (pérdida, rotura, caducidad); los 14 primeros son suyos para siempre, así que aunque la renueve seguirá
       cruzando. La <b>fecha de baja</b> no borra a nadie: sus ficheros hay que conservarlos igual.
-    </div>`;
+    </div>` + (t ? '<div id="trabF_hist" style="margin-top:10px"></div>' : '');
   _trabPintarEmpDatos();   // v1233
+  if (t) _trabHistorial(t.id);   // v1276
   document.getElementById('btnDelTrab').style.display = (t && !t.archivado) ? '' : 'none';
   document.getElementById('btnReactTrab').style.display = (t && t.archivado) ? '' : 'none';
   document.getElementById('ovTrab').classList.add('open');
+}
+
+// v1276 (JC 20/11/2026): historial de la ficha — quién y cuándo da de alta, de baja, reactiva o cambia datos (tabla trabajadores_log, la rellena un trigger)
+const _TLOG_NOM = { nombre: 'Nombre', dni: 'DNI', empresa: 'Empresa', rol: 'Puesto', fecha_alta: 'Fecha alta', fecha_baja: 'Fecha baja', motivo_baja: 'Motivo baja', archivado: 'De baja',
+  carnet_caduca: 'Caduca carnet', cap_caduca: 'Caduca CAP', recmed_caduca: 'Caduca reconocimiento', tarjeta_num: 'Tarjeta tacógrafo', tarjeta_caduca: 'Caduca tarjeta', naf: 'Nº Seg. Social',
+  grupo_cotizacion: 'Grupo cotización', grupo_profesional: 'Grupo profesional', antiguedad: 'Antigüedad', telefono: 'Teléfono', email: 'Email', primas_config: 'Primas / préstamo' };
+async function _trabHistorial(id) {
+  const box = document.getElementById('trabF_hist'); if (!box) return;
+  try {
+    const { data, error } = await sb.from('trabajadores_log').select('cuando,usuario_nombre,accion,cambios').eq('trabajador_id', id).order('cuando', { ascending: false }).limit(15);
+    if (error) throw error;
+    if (!data || !data.length) { box.innerHTML = '<div style="font-size:12px;color:var(--mu)">🕑 Historial: sin cambios apuntados todavía (se apuntan desde el 20/11/2026).</div>'; return; }
+    const val = v => v === null || v === undefined || v === '' ? '—' : v === true ? 'sí' : v === false ? 'no' : typeof v === 'object' ? '(cambiado)' : String(v);
+    const ACC = { alta: '🟢 Alta', baja: '🔴 Baja', reactivado: '🟢 Reactivado', cambio: '✏️ Cambio' };
+    box.innerHTML = '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🕑 Historial de la ficha</div>' + data.map(x => {
+      const d = new Date(x.cuando), f = d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const det = x.accion === 'alta' ? '' : Object.entries(x.cambios || {}).map(([k, ab]) => esc(_TLOG_NOM[k] || k) + ': ' + esc(val(ab[0])) + ' → <b>' + esc(val(ab[1])) + '</b>').join(' · ');
+      return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--bd)"><b>' + (ACC[x.accion] || x.accion) + '</b> · ' + f + ' · <b>' + esc(x.usuario_nombre || '¿?') + '</b>' + (det ? '<br><span style="color:#334155">' + det + '</span>' : '') + '</div>';
+    }).join('');
+  } catch (e) { console.warn('[v1276] historial:', e); box.innerHTML = ''; }
 }
 
 // v1233: datos de la EMPRESA (CIF, CCC) para la ficha y para "Copiar datos para cursos"

@@ -1,3 +1,6 @@
+## v1276 — 20/11/2026
+- Empleados › Ficha del trabajador: **🕑 Historial** al final de la ficha. Se apunta solo quién y cuándo da de alta, de baja, reactiva o cambia datos (nombre, empresa, caducidades, tarjeta, préstamo…), con el valor de antes y el de después. Tabla nueva `trabajadores_log` (la rellena la base de datos sola). Empieza a contar desde hoy.
+
 ## v1275 — 20/11/2026
 - Al dar de **ALTA** un trabajador (Empleados) o un camión (Taller), sale un aviso con las plataformas donde darlo de alta también: Metacontratas, y para TYP2014/Híspalis e-coordina y Achilles, con enlace y botón **✓ Ya dado de alta** (lo apunta en la app para que sus documentos salgan en Plataformas).
 
