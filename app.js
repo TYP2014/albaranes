@@ -29945,8 +29945,28 @@ function _pcTrabajadores() {
 function _pcCfg(t) { const c = t && t.primas_config; return (c && typeof c === 'object') ? c : {}; }
 function _pcPrestamo(t) { const p = _pcCfg(t).prestamo; return (p && typeof p === 'object') ? p : {}; }   // v665
 // v668: UNA sola formula de la deuda. v669: la mueve SOLO 'DESC. DEUDA' (el ADELANTO es adelanto de nomina y NO toca el prestamo)
+// v1269 (JC 20/11/2026): MOVIMIENTOS del préstamo — varios préstamos (se suman) y pagos que hace el trabajador
+// por su cuenta (restan SIN tocar la nómina). pr.movs = [{f:'AAAA-MM-DD', tipo:'prestamo'|'pago'|'condonado', imp, nota}].
+// Cuenta todo lo de fecha hasta el mes abierto; lo de meses siguientes aún no existe para este mes.
+function _pcMovs(t) { const m = _pcPrestamo(t).movs; return Array.isArray(m) ? m.filter(x => x && x.f && _primasNum(x.imp) > 0) : []; }
 function _pcDeuda(t, adelantoMes, antesApp) {
-  const pr = _pcPrestamo(t), inicial = _primasNum(pr.inicial);
+  const pr = _pcPrestamo(t), movs = _pcMovs(t);
+  if (movs.length) {
+    const hasta = movs.filter(x => String(x.f).slice(0, 7) <= primasMes);
+    const suma = (tipo, cmp) => _pcR2(hasta.filter(x => x.tipo === tipo && cmp(String(x.f).slice(0, 7))).reduce((a, x) => a + _primasNum(x.imp), 0));
+    const prestamos = hasta.filter(x => x.tipo === 'prestamo').sort((a, b) => String(a.f).localeCompare(String(b.f)));
+    const inicial = suma('prestamo', () => true);
+    if (!(inicial > 0)) return null;
+    const cuenta = !pr.desde || primasMes >= pr.desde;
+    const antes = _pcR2(_primasNum(pr.previo) + _primasNum(antesApp)), esteMes = cuenta ? _primasNum(adelantoMes) : 0;
+    const pagosAntes = suma('pago', m => m < primasMes), pagosEste = suma('pago', m => m === primasMes);
+    const condAntes = suma('condonado', m => m < primasMes), condEste = suma('condonado', m => m === primasMes);
+    return { inicial, antes, esteMes, condEste, condAntes, condNota: 'Condonado por la empresa', pagosAntes, pagosEste,
+      prestamos, pagosMes: hasta.filter(x => x.tipo === 'pago' && String(x.f).slice(0, 7) === primasMes),
+      queda: _pcR2(inicial - antes - pagosAntes - condAntes - esteMes - pagosEste - condEste),
+      fecha: prestamos.map(x => _ofFechaEs(x.f)).join(' + ') };
+  }
+  const inicial = _primasNum(pr.inicial);
   if (!(inicial > 0)) return null;
   const cuenta = !pr.desde || primasMes >= pr.desde;            // meses anteriores a "desde" no mueven la deuda
   const antes = _pcR2(_primasNum(pr.previo) + _primasNum(antesApp)), esteMes = cuenta ? _primasNum(adelantoMes) : 0;
@@ -30184,7 +30204,7 @@ function _pcPintaFila(t) {
   const _d = _pcDeuda(t, c.v.descuento_deuda, primasCuadDeudaAntes[id]);   // v668/v669
   set('deuda', !_d ? '' : (_d.queda > 0 ? _primasEur(_d.queda) : 'Saldada ✓'), !_d ? '' : (_d.queda > 0 ? '#e65100' : 'var(--ok,#2e7d32)'));
   const _elD = document.getElementById('pcc_deuda_' + id);
-  if (_elD) _elD.title = _d ? ('Préstamo ' + _primasEur(_d.inicial) + (_d.fecha ? ' (' + _d.fecha + ')' : '') + ' − descontado antes ' + _primasEur(_d.antes) + ' − DESC. DEUDA de este mes ' + _primasEur(_d.esteMes) + ((_d.condEste + _d.condAntes) ? ' − condonado ' + _primasEur(_d.condEste + _d.condAntes) : '') + ' = queda ' + _primasEur(Math.max(_d.queda, 0)) + ' para ' + _pcMesSiguienteTxt()) : '';
+  if (_elD) _elD.title = _d ? ('Préstamo ' + _primasEur(_d.inicial) + (_d.fecha ? ' (' + _d.fecha + ')' : '') + ' − descontado antes ' + _primasEur(_d.antes) + ' − DESC. DEUDA de este mes ' + _primasEur(_d.esteMes) + ((_d.pagosAntes || _d.pagosEste) ? ' − pagos suyos ' + _primasEur((_d.pagosAntes || 0) + (_d.pagosEste || 0)) : '') + ((_d.condEste + _d.condAntes) ? ' − condonado ' + _primasEur(_d.condEste + _d.condAntes) : '') + ' = queda ' + _primasEur(Math.max(_d.queda, 0)) + ' para ' + _pcMesSiguienteTxt()) : '';
   const ef = document.getElementById('pc_efectivo_manual_' + id), ta = document.getElementById('pc_tarjeta_manual_' + id);
   if (ef) ef.placeholder = (c.activo && c.v.efectivo_manual == null) ? String(c.efectivo) : '';
   if (ta) ta.placeholder = (c.activo && c.v.tarjeta_manual == null) ? String(c.tarjeta) : '';
@@ -30314,12 +30334,36 @@ function primasCfgAbrir(id) {
     '<label style="' + _lb + '">Mes de la condonación<input class="fi" type="month" id="primasCfg_pr_condonado_mes" value="' + _primasAttr(_pcPrestamo(t).condonado_mes || primasMes) + '" style="' + _in + '"></label>' +
     '<label style="' + _lb + '">Motivo<input class="fi" id="primasCfg_pr_condonado_nota" placeholder="Gratificación" value="' + _primasAttr(_pcPrestamo(t).condonado_nota || '') + '" style="width:230px;' + _in + '"></label>' +
     '</div></div>' +
+    // v1269: movimientos (varios préstamos y pagos suyos)
+    '<div style="margin-top:18px;border-top:1px solid var(--bd);padding-top:14px"><div style="font-weight:800;margin-bottom:4px">Movimientos del préstamo</div>' +
+    '<div style="color:var(--mu);font-size:12px;margin-bottom:10px;line-height:1.4"><b>Préstamo</b> = dinero que se le deja (se suman todos). <b>Pago suyo</b> = lo que devuelve él por su cuenta (efectivo, transferencia): baja la deuda y NO toca la nómina. Los descuentos de nómina siguen en la casilla DESC. DEUDA del cuadrante. Si hay movimientos, mandan ellos sobre "Préstamo inicial".</div>' +
+    '<div id="primasCfgMovs"></div><button class="btn bs" type="button" style="font-size:13px;margin-top:6px" onclick="primasMovAdd()">+ Añadir movimiento</button></div>' +
     '<label style="display:flex;gap:10px;align-items:center;margin:18px 0 22px"><input type="checkbox" id="primasCfg_aplicar" checked style="width:18px;height:18px"> Aplicar también a ' + primasMes.split('-').reverse().join('/') + ' (el mes abierto)</label>' +
     '<div style="display:flex;gap:14px;justify-content:flex-end"><button class="btn bs" style="font-size:13px;padding:10px 20px" onclick="document.getElementById(\'primasCfgOv\').remove()">Cancelar</button>' +
     '<button class="btn bp" style="font-size:13px;padding:10px 24px" onclick="primasCfgGuardar(\'' + id + '\')">💾 Guardar</button></div></div>';
   ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
+  // v1269: si aún no tiene movimientos pero sí un préstamo de los de antes, se ofrece ya como primer movimiento
+  let movs = _pcMovs(t).map(x => Object.assign({}, x));
+  if (!movs.length && _primasNum(_pcPrestamo(t).inicial) > 0) {
+    const g = String(_pcPrestamo(t).fecha || '').match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+    movs = [{ f: g ? g[3] + '-' + g[2].padStart(2, '0') + '-' + g[1].padStart(2, '0') : '', tipo: 'prestamo', imp: _primasNum(_pcPrestamo(t).inicial), nota: '' }];
+  }
+  window._primasMovs = movs; primasMovRender();
 }
+function primasMovRender() {
+  const box = document.getElementById('primasCfgMovs'); if (!box) return;
+  const L = window._primasMovs || [], _in = 'font-size:14px;padding:6px 8px;box-sizing:border-box';
+  if (!L.length) { box.innerHTML = '<div style="color:var(--mu);font-size:12.5px">Sin movimientos.</div>'; return; }
+  box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="text-align:left;color:var(--mu)"><th>Fecha</th><th>Tipo</th><th style="text-align:right">Importe €</th><th>Nota</th><th></th></tr>' +
+    L.map((x, i) => '<tr><td><input class="fi" type="date" value="' + _primasAttr(x.f || '') + '" onchange="window._primasMovs[' + i + '].f=this.value" style="' + _in + '"></td>' +
+      '<td><select class="fi" onchange="window._primasMovs[' + i + '].tipo=this.value" style="' + _in + '">' +
+      [['prestamo', 'Préstamo (+)'], ['pago', 'Pago suyo (−)'], ['condonado', 'Condonado (−)']].map(([v, n]) => '<option value="' + v + '"' + (x.tipo === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></td>' +
+      '<td><input class="fi" type="number" step="any" value="' + (x.imp || '') + '" onchange="window._primasMovs[' + i + '].imp=this.value" style="width:110px;text-align:right;' + _in + '"></td>' +
+      '<td><input class="fi" value="' + _primasAttr(x.nota || '') + '" onchange="window._primasMovs[' + i + '].nota=this.value" style="width:100%;' + _in + '"></td>' +
+      '<td><button class="btn bs" type="button" title="Quitar" style="font-size:12px;padding:4px 8px" onclick="window._primasMovs.splice(' + i + ',1);primasMovRender()">✕</button></td></tr>').join('') + '</table>';
+}
+function primasMovAdd() { (window._primasMovs = window._primasMovs || []).push({ f: _ofIso(new Date()), tipo: 'pago', imp: '', nota: '' }); primasMovRender(); }
 
 async function primasCfgGuardar(id) {
   const t = (vacTrabajadores || []).find(x => String(x.id) === String(id));
@@ -30334,6 +30378,15 @@ async function primasCfgGuardar(id) {
   const _pv = (k) => { const el = document.getElementById('primasCfg_pr_' + k); return el ? String(el.value || '').trim() : ''; };
   if (_primasNum(_pv('inicial')) > 0) cfg.prestamo = { inicial: _primasNum(_pv('inicial')), fecha: _pv('fecha'), previo: _primasNum(_pv('previo')), desde: _pv('desde') || primasMes };
   if (cfg.prestamo && _primasNum(_pv('condonado')) > 0) Object.assign(cfg.prestamo, { condonado: _primasNum(_pv('condonado')), condonado_mes: _pv('condonado_mes') || primasMes, condonado_nota: _pv('condonado_nota') });   // v768
+  // v1269: movimientos. Con movimientos, "inicial" = suma de los préstamos (así el resto de la app sabe que tiene deuda)
+  const movs = (window._primasMovs || []).map(x => ({ f: String(x.f || ''), tipo: x.tipo || 'pago', imp: _primasNum(x.imp), nota: String(x.nota || '').trim() })).filter(x => x.imp > 0);
+  if (movs.some(x => !/^\d{4}-\d{2}-\d{2}$/.test(x.f))) { toast('Pon la fecha de cada movimiento', 'err'); return; }
+  if (movs.length) {
+    const tot = _pcR2(movs.filter(x => x.tipo === 'prestamo').reduce((a, x) => a + x.imp, 0));
+    if (!(tot > 0)) { toast('Hace falta al menos un movimiento de tipo Préstamo', 'err'); return; }
+    movs.sort((a, b) => a.f.localeCompare(b.f));
+    cfg.prestamo = Object.assign(cfg.prestamo || { previo: _primasNum(_pv('previo')), desde: _pv('desde') || primasMes }, { inicial: tot, fecha: movs.filter(x => x.tipo === 'prestamo').map(x => _ofFechaEs(x.f)).join(' + '), movs });
+  }
   const aplicar = !!(document.getElementById('primasCfg_aplicar') || {}).checked;
   try {
     const { error } = await sb.from('trabajadores').update({ primas_config: cfg }).eq('id', id);
@@ -30772,11 +30825,14 @@ function _pcCertDeuda(t, c, deudaAntes) {
   const td = 'style="padding:6px 8px;border:1px solid #999"', tdr = 'style="padding:6px 8px;border:1px solid #999;text-align:right;white-space:nowrap"';
   const th = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:left"', thr = 'style="padding:6px 8px;border:1px solid #999;background:#e9eef5;text-align:right"';
   return '<h3>DEUDA PENDIENTE</h3><table class="t"><tr><th ' + th + '>Concepto</th><th ' + thr + ' colspan="2">Fecha / Detalle</th><th ' + thr + '>Importe</th></tr>' +
-    '<tr><td ' + td + '>Préstamo inicial</td><td ' + tdr + ' colspan="2">' + esc(pr.fecha || '—') + '</td><td ' + tdr + '>' + e2(pr.inicial) + '</td></tr>' +
+    (d.prestamos ? d.prestamos.map(x => '<tr><td ' + td + '>Préstamo' + (x.nota ? ' (' + esc(x.nota) + ')' : '') + '</td><td ' + tdr + ' colspan="2">' + esc(_ofFechaEs(x.f)) + '</td><td ' + tdr + '>' + e2(_primasNum(x.imp)) + '</td></tr>').join('')
+      : '<tr><td ' + td + '>Préstamo inicial</td><td ' + tdr + ' colspan="2">' + esc(pr.fecha || '—') + '</td><td ' + tdr + '>' + e2(pr.inicial) + '</td></tr>') +   // v1269
     '<tr><td ' + td + '>Descontado en meses anteriores</td><td ' + tdr + ' colspan="2">—</td><td ' + tdr + '>' + e2(-antes) + '</td></tr>' +
+    (d.pagosAntes ? '<tr><td ' + td + '>Pagado por el trabajador</td><td ' + tdr + ' colspan="2">meses anteriores</td><td ' + tdr + '>' + e2(-d.pagosAntes) + '</td></tr>' : '') +   // v1269
     (d.condAntes ? '<tr><td ' + td + '>Condonado (' + esc(d.condNota) + ')</td><td ' + tdr + ' colspan="2">meses anteriores</td><td ' + tdr + '>' + e2(-d.condAntes) + '</td></tr>' : '') +   // v768
     '<tr><td ' + td + '>Descontado este mes</td><td ' + tdr + ' colspan="2">' + esc(mesAct) + '</td><td ' + tdr + '>' + e2(-esteMes) + '</td></tr>' +
     (d.condEste ? '<tr><td ' + td + '>Condonado por la empresa (' + esc(d.condNota) + ')</td><td ' + tdr + ' colspan="2">' + esc(mesAct) + '</td><td ' + tdr + '>' + e2(-d.condEste) + '</td></tr>' : '') +   // v768
+    (d.pagosMes ? d.pagosMes.map(x => '<tr><td ' + td + '>Pagado por el trabajador' + (x.nota ? ' (' + esc(x.nota) + ')' : '') + '</td><td ' + tdr + ' colspan="2">' + esc(_ofFechaEs(x.f)) + '</td><td ' + tdr + '>' + e2(-_primasNum(x.imp)) + '</td></tr>').join('') : '') +   // v1269
     '<tr><td ' + td + '><strong>DEUDA PENDIENTE</strong></td><td ' + tdr + ' colspan="2">' + (queda > 0 ? 'Queda pendiente para ' + esc(mesSig) : 'Deuda saldada') + '</td><td ' + tdr + '><strong>' + e2(Math.max(queda, 0)) + '</strong></td></tr></table>';
 }
 

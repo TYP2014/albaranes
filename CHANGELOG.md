@@ -1,3 +1,6 @@
+## v1269 — 20/11/2026
+- Primas › Ficha del trabajador: **Movimientos del préstamo**. Se pueden apuntar varios préstamos (se suman), pagos que hace el trabajador por su cuenta (bajan la deuda sin tocar la nómina) y condonaciones, cada uno con su fecha. El DESC. DEUDA del cuadrante sigue igual. El certificado saca el detalle (cada préstamo, pagos suyos, descuentos) y lo que queda. Las fichas antiguas siguen funcionando igual; al abrirlas, su préstamo aparece ya como primer movimiento.
+
 ## v1268 — 20/11/2026
 - Documentación > Trabajadores: al subir (o corregir la fecha de) el **Apto médico**, su caducidad pasa sola a la ficha del trabajador (“Caduca el reconocimiento médico”) y se refresca el aviso de reconocimientos. Solo si la fecha nueva es posterior a la que había.
 
