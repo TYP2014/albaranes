@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1253 — 20/11/2026 · Doc. empresa: fecha del recibo del TC1
+- Arreglado: en la v1252 dejó de leerse la fecha del recibo del TC1 (un comentario mal puesto anulaba esa parte). Vuelve a leerse (fecha valor / vencimiento).
+
+---
+
 ## v1252 — 20/11/2026 · Doc. empresa: fecha del TC2
 - En el TC2 la fecha va justo antes de la referencia CRNT…; ahora también se lee.
 
