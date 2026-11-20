@@ -49282,7 +49282,14 @@ const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacont
     LINEA_VIDA: 'CERTIFICADO DE INSTALACIÓN Y REVISIÓN DE LINEA DE VIDA.CISTERNAS' },
   trab: { APTO: 'APTO MÉDICO EMPLEADO', AUTORIZ: 'AUTORIZACIÓN DEL TRANSPORTISTA PARA LA CONDUCCIÓN', CAP: 'CAP EMPLEADO', CARNET: 'CARNET CONDUCIR EMPLEADO',
     CURSO_PRL: 'CERTIFICACION DE FORMACION PRL DEL PUESTO', FORM_INF: 'CERTIFICADO INFORMACIÓN PRL DEL PUESTO', CURSO_ON: 'CONDUCTOR BAÑERAS Y/O PLATAFORMAS - FORMACIÓN ON-LINE',
-    EPIS: 'ENTREGA DE EPIS RECIBIDO Y FIRMADO', RECIBI: 'RECIBÍ DE INFORMACIÓN DE PRL DE TRABAJADORES DE CONTRATISTAS' } } };
+    EPIS: 'ENTREGA DE EPIS RECIBIDO Y FIRMADO', RECIBI: 'RECIBÍ DE INFORMACIÓN DE PRL DE TRABAJADORES DE CONTRATISTAS' } },
+  // v1270 (JC 20/11/2026): e-coordina, centro PROMSA TRANSPORTE ÁRIDOS (Molins). Solo TYP2014 e Híspalis y SOLO los camiones y
+  // conductores dados de alta allí (tabla cae_altas). Nada de CMI. Una subida rellena todas las casillas iguales del camión/conductor.
+  EC: { nom: 'e-coordina (PROMSA)', url: 'https://prov5.e-coordina.com/cemolins', emps: ['TYP2014', 'HISPALIS'], altas: true,
+  emp: { CERT_SS: 'Certificado corriente pagos Tesorería Seguridad Social', CC_PROMSA: 'Hacienda A NOMBRE DE PROMSA', TC1: 'RLC (TC1) + recibo bancario (subir UNIDOS)', RECIBO: 'RLC (TC1) + recibo bancario (subir UNIDOS)',
+    SEGURO_RC: 'Último recibo de la póliza de Responsabilidad Civil', SEGURO_ACC: 'Seguro de accidentes (certificado / recibo)', SERV_PREV: 'Modalidad organizativa de prevención (SPA) / último recibo', EVAL_RIESGOS: 'Evaluación de riesgos del puesto de trabajo' },
+  veh: { SEGURO: 'Recibo del Seguro del vehículo (caducidad +15 días)', ITV: 'ITV favorable', PC: 'Permiso de circulación', FT: 'Ficha técnica', TT: 'Tarjeta de transporte' },
+  trab: { DNI: 'DNI / NIE', CARNET: 'Carnet de conducir', CAP: 'CAP', APTO: 'APTO MÉDICO', EPIS: 'EPI - Registro de entrega (año en curso)', CURSO_PRL: 'FORMACIÓN art. 19', FORM_INF: 'INFORMACIÓN art. 18' } } };
 const _CPL_EMPN = { TYP2014: 'TRANSPORTES Y PORTES 2014', TYP: 'TRANSPORTES Y PORTES 2014', HISPALIS: 'TRANSPORTES HISPALIS 2016', PORTES: 'PORTES 2014 IMPORT SL' };
 let _cpl = { plat: 'MC', items: [], firm: new Map(), cargando: false };
 async function cplCargar() {
@@ -49290,26 +49297,29 @@ async function cplCargar() {
   if (_cpl.cargando) return; _cpl.cargando = true;
   out.innerHTML = '<div style="padding:14px;color:#111">Cargando…</div>';
   try {
-    const P = _CPL[_cpl.plat], EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
-    const [ed, vd, itv, veh, tr, td, su] = await Promise.all([
+    const P = _CPL[_cpl.plat], EMPS = P.emps || ['TYP2014', 'HISPALIS', 'PORTES'];
+    const [ed, vd, itv, veh, tr, td, su, al] = await Promise.all([
       sb.from('empresa_docs').select('id,empresa,tipo,periodo,fecha_doc,vence,file_url,file_name').in('empresa', EMPS).order('periodo', { ascending: false }),
       sb.from('vehiculos_docs').select('matricula,tipo,file_url,file_name,vence,updated_at'),
       sb.from('itv').select('matricula,fecha_itv,fecha_caducidad,file_url').order('fecha_itv', { ascending: false }),
       sb.from('taller_vehiculos').select('id,empresa,matricula,activo,ficha_tecnica_url').in('empresa', ['TYP2014', 'HISPALIS']),
-      sb.from('trabajadores').select('id,nombre,empresa,archivado').in('empresa', EMPS),
+      sb.from('trabajadores').select('id,nombre,empresa,archivado,dni').in('empresa', EMPS),
       sb.from('trabajadores_docs').select('trabajador_id,tipo,file_url,file_name,fecha_doc,vence'),
-      sb.from('cae_subidas').select('*').eq('plataforma', _cpl.plat)]);
-    for (const r of [ed, vd, itv, veh, tr, td, su]) if (r.error) throw r.error;
+      sb.from('cae_subidas').select('*').eq('plataforma', _cpl.plat),
+      P.altas ? sb.from('cae_altas').select('ambito,ref').eq('plataforma', _cpl.plat) : Promise.resolve({ data: [] })]);   // v1270
+    for (const r of [ed, vd, itv, veh, tr, td, su, al]) if (r.error) throw r.error;
+    const _alta = new Set((al.data || []).map(x => x.ambito + '|' + String(x.ref).toUpperCase().replace(/[\s-]/g, '')));
+    const _deAlta = (amb, ref) => !P.altas || _alta.has(amb + '|' + String(ref || '').toUpperCase().replace(/[\s-]/g, ''));
     const hecho = new Map((su.data || []).map(x => [x.clave, x])), it = [];
     const add = (o) => { if (!o.url) return; const h = hecho.get(o.clave); o.estado = !h ? 'pend' : (h.file_url === o.url ? h.estado : 'pend'); o.h = h; it.push(o); };
     // EMPRESA: el último de cada tipo
     const vistos = new Set();
-    (ed.data || []).forEach(x => { const t = /^CC:/.test(x.tipo) ? 'CC' : x.tipo; if (!P.emp[t]) return; const k = x.empresa + '|' + x.tipo; if (vistos.has(k)) return; vistos.add(k);
+    (ed.data || []).forEach(x => { const t = /^CC:/.test(x.tipo) ? (/PROMSA|PROMOTORA/i.test(x.tipo) ? 'CC_PROMSA' : 'CC') : x.tipo; if (!P.emp[t] || !EMPS.includes(x.empresa)) return; const k = x.empresa + '|' + x.tipo; if (vistos.has(k)) return; vistos.add(k);
       add({ clave: 'EMP|' + k, amb: 'Empresa', emp: x.empresa, quien: _CPL_EMPN[x.empresa], doc: _edNom(x.tipo), slot: P.emp[t], url: x.file_url, fecha: x.fecha_doc, vence: x.vence }); });
     // VEHÍCULOS activos (Import se distingue por el mapa de Gasoil, igual que la declaración)
     const vdoc = new Map((vd.data || []).map(x => [String(x.matricula).toUpperCase() + '|' + x.tipo, x]));
     const itvU = new Map(); (itv.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !itvU.has(k)) itvU.set(k, x); });
-    (veh.data || []).filter(v => v.activo !== false).forEach(v => { const m = String(v.matricula).toUpperCase(), e = _vdEmpDecl(v), emp = e === 'TYP' ? 'TYP2014' : e;
+    (veh.data || []).filter(v => v.activo !== false && _deAlta('veh', v.matricula)).forEach(v => { const m = String(v.matricula).toUpperCase(), e = _vdEmpDecl(v), emp = e === 'TYP' ? 'TYP2014' : e;
       Object.keys(P.veh).forEach(t => { let url = null, fecha = null, vence = null;
         if (t === 'FT') url = v.ficha_tecnica_url; else if (t === 'ITV') { const x = itvU.get(m); if (x) { url = x.file_url; fecha = x.fecha_itv; vence = x.fecha_caducidad; } }
         else { const x = vdoc.get(m + '|' + t); if (x) { url = x.file_url; vence = x.vence; fecha = String(x.updated_at || '').slice(0, 10);
@@ -49319,7 +49329,7 @@ async function cplCargar() {
         add({ clave: 'VEH|' + m + '|' + t, amb: 'Vehículo', emp, quien: m, doc: (_VD_TIPOS.find(z => z[0] === t) || [t, t])[1], slot: P.veh[t], url, fecha, vence }); }); });
     // TRABAJADORES no archivados
     const tdoc = new Map((td.data || []).map(x => [x.trabajador_id + '|' + x.tipo, x]));
-    (tr.data || []).filter(w => !w.archivado).forEach(w => Object.keys(P.trab).forEach(t => { const x = tdoc.get(w.id + '|' + t); if (!x) return;
+    (tr.data || []).filter(w => !w.archivado && _deAlta('trab', w.dni)).forEach(w => Object.keys(P.trab).forEach(t => { const x = tdoc.get(w.id + '|' + t); if (!x) return;
       add({ clave: 'TRAB|' + w.id + '|' + t, amb: 'Trabajador', emp: w.empresa, quien: w.nombre, doc: (_TD_TIPOS.find(z => z[0] === t) || [t, t])[1], slot: P.trab[t], url: x.file_url, fecha: x.fecha_doc, vence: x.vence }); }));
     _cpl.items = it;
     const pend = it.filter(x => x.estado === 'pend'), urls = pend.map(x => x.url).filter(Boolean);
@@ -49328,12 +49338,14 @@ async function cplCargar() {
   } catch (e) { console.error('[v1257] plataformas:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; _cpl.cargando = false; return; }
   _cpl.cargando = false; cplRender(); cplBadge();
 }
+function cplPlat(p) { if (!_CPL[p] || _cpl.cargando) return; _cpl.plat = p; cplCargar(); }   // v1270
 function cplBadge() { const n = _cpl.items.filter(x => x.estado === 'pend').length, b = document.getElementById('docuVistaPlat'), t = document.getElementById('tabDocuCount');   // v1260
   if (b) b.textContent = '📤 Plataformas' + (n ? ' (' + n + ')' : ''); if (t) { t.textContent = n; t.style.display = n ? '' : 'none'; } }
 function cplRender() {
   const out = document.getElementById('empPlatOut'); if (!out) return;
   const P = _CPL[_cpl.plat], pend = _cpl.items.filter(x => x.estado === 'pend'), th = 'padding:7px;text-align:left;background:#1b3254;color:#fff;font-weight:800';
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-size:17px;font-weight:800">Pendiente de subir a ' + esc(P.nom) + ': ' + pend.length + '</div>' +
+  let h = '<div style="display:flex;gap:8px;margin-bottom:10px">' + Object.keys(_CPL).map(k => '<button class="btn ' + (k === _cpl.plat ? 'bp' : 'bs') + '" style="font-weight:800" onclick="cplPlat(\'' + k + '\')">' + esc(_CPL[k].nom) + '</button>').join('') + '</div>' +   // v1270
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-size:17px;font-weight:800">Pendiente de subir a ' + esc(P.nom) + ': ' + pend.length + '</div>' +
     '<div style="display:flex;gap:8px"><a class="btn" href="' + P.url + '" target="_blank" rel="noopener" style="font-weight:800;background:#1b3254;color:#fff;text-decoration:none">Abrir ' + esc(P.nom.split(' ')[0]) + '</a><button class="btn bs" onclick="cplCargar()">↻ Actualizar</button></div></div>' +
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">Sale aquí cada documento NUEVO de la app (empresa, camiones y trabajadores). Súbelo en la plataforma, en la casilla que pone, y pulsa <b>✓ Ya subido</b>. "No aplica" lo quita de la lista hasta que haya otro documento nuevo.</div>';
   if (_cpl.base && typeof currentRole !== 'undefined' && currentRole === 'admin') h += '<div style="padding:10px;border:2px solid #f59e0b;border-radius:8px;margin-bottom:10px;background:#fffbeb">Primera vez: la plataforma está al día, así que todo lo que hay hoy en la app se da por subido. <button class="btn" onclick="cplBase()" style="font-weight:800;background:#b45309;color:#fff">Marcar lo actual como punto de partida</button></div>';

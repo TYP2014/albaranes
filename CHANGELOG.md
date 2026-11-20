@@ -1,3 +1,6 @@
+## v1270 — 20/11/2026
+- Documentación › Plataformas: añadida **e-coordina (PROMSA)** junto a Metacontratas (botones arriba para cambiar). Solo TYP2014 e Híspalis y solo los camiones y conductores dados de alta en e-coordina (tabla nueva `cae_altas`). Casillas: seguro, ITV, permiso, ficha técnica y tarjeta de transporte; DNI, carnet, CAP, apto, EPI, formación (art. 19) e información (art. 18); certificados SS, Hacienda a nombre de PROMSA, TC1 + recibo, RC, accidentes, SPA y evaluación de riesgos. Nada de CMI.
+
 ## v1269 — 20/11/2026
 - Primas › Ficha del trabajador: **Movimientos del préstamo**. Se pueden apuntar varios préstamos (se suman), pagos que hace el trabajador por su cuenta (bajan la deuda sin tocar la nómina) y condonaciones, cada uno con su fecha. El DESC. DEUDA del cuadrante sigue igual. El certificado saca el detalle (cada préstamo, pagos suyos, descuentos) y lo que queda. Las fichas antiguas siguen funcionando igual; al abrirlas, su préstamo aparece ya como primer movimiento.
 
