@@ -49441,10 +49441,15 @@ async function _cplPorDoc() {
 function _cplPorDocRender() {
   const out = document.getElementById('empPlatOut'); if (!out) return;
   const PL = Object.keys(_CPL), solo = _cpl.docSolo !== false, th = 'padding:7px;text-align:left;background:#1b3254;color:#fff;font-weight:800';
-  const L = (_cpl.doc || []).filter(o => !solo || PL.some(p => o.st[p] === 'pend')), nP = (_cpl.doc || []).filter(o => PL.some(p => o.st[p] === 'pend')).length;
+  // v1277: papeles que caducan en 15 días o menos (o ya caducados) → en rojo y siempre visibles, para pedir el nuevo a tiempo
+  const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+  const dias = o => { if (!o.vence) return null; const d = new Date(String(o.vence).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? null : Math.round((d - hoy0) / 864e5); };
+  const urg = o => { const d = dias(o); return d !== null && d <= 15; };
+  const L = (_cpl.doc || []).filter(o => !solo || PL.some(p => o.st[p] === 'pend') || urg(o)), nP = (_cpl.doc || []).filter(o => PL.some(p => o.st[p] === 'pend')).length, nU = (_cpl.doc || []).filter(urg).length;
   let h = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">' + _cplBotones() + '</div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-size:17px;font-weight:800;color:' + (nP ? '#b45309' : '#15803d') + '">' +
-    (nP ? '⚠ ' + nP + ' documento' + (nP > 1 ? 's' : '') + ' sin subir en alguna plataforma' : '✓ Todo subido en todas las plataformas') + '</div>' +
+    (nP ? '⚠ ' + nP + ' documento' + (nP > 1 ? 's' : '') + ' sin subir en alguna plataforma' : '✓ Todo subido en todas las plataformas') +
+    (nU ? '<div style="color:#b91c1c;font-size:15px;margin-top:2px">🔴 ' + nU + ' caduca' + (nU > 1 ? 'n' : '') + ' en 15 días o menos (o ya caducado): pedir el nuevo</div>' : '') + '</div>' +   // v1277
     '<div style="display:flex;gap:8px;align-items:center"><label style="font-size:13px;font-weight:700"><input type="checkbox" ' + (solo ? 'checked' : '') + ' onchange="_cpl.docSolo=this.checked;_cplPorDocRender()"> Solo los que faltan</label><button class="btn bs" onclick="cplCargar()">↻ Actualizar</button></div></div>' +
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">✓ subido · ⏳ pendiente (lo sube la tarea de cada hora) · — no lo pide esa plataforma o el camión/conductor no está dado de alta allí</div>';
   if (!L.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
@@ -49454,8 +49459,9 @@ function _cplPorDocRender() {
     h += '<div style="font-size:16px;font-weight:800;margin:16px 0 6px">' + tit + ' (' + G.length + ')</div><table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Documento</th>' +
       PL.map(p => '<th style="' + th + '">' + esc(_CPL[p].nom.split(' ')[0]) + '</th>').join('') + '</tr>';
     G.sort((a, b) => (a.emp + a.quien + a.doc).localeCompare(b.emp + b.quien + b.doc)).forEach((x, i) => {
-      h += '<tr style="background:' + (i % 2 ? '#f8fafc' : '#fff') + ';border-bottom:1px solid var(--bd)"><td style="padding:6px"><b>' + esc(x.quien || '') + '</b><br><span style="color:#64748b">' + esc(_CPL_EMPN[x.emp] || x.emp || '') + '</span></td>' +
-        '<td style="padding:6px">' + esc(x.doc) + (x.vence ? '<br><span style="color:#64748b">caduca ' + _ofFechaEs(String(x.vence).slice(0, 10)) + '</span>' : '') + '</td>' + PL.map(p => '<td style="padding:6px;white-space:nowrap">' + ic(x.st[p]) + '</td>').join('') + '</tr>';
+      const dd = dias(x), u = dd !== null && dd <= 15;   // v1277
+      h += '<tr style="background:' + (u ? '#fef2f2' : (i % 2 ? '#f8fafc' : '#fff')) + ';border-bottom:1px solid var(--bd)"><td style="padding:6px"><b>' + esc(x.quien || '') + '</b><br><span style="color:#64748b">' + esc(_CPL_EMPN[x.emp] || x.emp || '') + '</span></td>' +
+        '<td style="padding:6px">' + esc(x.doc) + (x.vence ? '<br><span style="' + (u ? 'color:#b91c1c;font-weight:800' : 'color:#64748b') + '">' + (u ? (dd < 0 ? '🔴 CADUCADO el ' : '🔴 caduca ') : 'caduca ') + _ofFechaEs(String(x.vence).slice(0, 10)) + (u && dd >= 0 ? ' (en ' + dd + ' día' + (dd === 1 ? '' : 's') + ')' : '') + '</span>' : '') + '</td>' + PL.map(p => '<td style="padding:6px;white-space:nowrap">' + ic(x.st[p]) + '</td>').join('') + '</tr>';
     });
     h += '</table>';
   });

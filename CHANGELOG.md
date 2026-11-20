@@ -1,3 +1,6 @@
+## v1277 — 20/11/2026
+- Plataformas › 📋 Por documento: los papeles de la app que **caducan en 15 días o menos** (o ya caducados) salen en **rojo** y siempre se ven, aunque estén subidos, con el aviso "🔴 N caducan en 15 días o menos: pedir el nuevo".
+
 ## v1276 — 20/11/2026
 - Empleados › Ficha del trabajador: **🕑 Historial** al final de la ficha. Se apunta solo quién y cuándo da de alta, de baja, reactiva o cambia datos (nombre, empresa, caducidades, tarjeta, préstamo…), con el valor de antes y el de después. Tabla nueva `trabajadores_log` (la rellena la base de datos sola). Empieza a contar desde hoy.
 
