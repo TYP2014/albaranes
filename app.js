@@ -49005,7 +49005,7 @@ const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], 
   // v1255 (JC 20/11/2026): los 10 que pide Metacontratas (Holcim) a la EMPRESA y no estaban en la app
   ['SERV_PREV', 'Certificado Servicio de Prevención'], ['MUTUA', 'Certificado asociación Mutua AT'], ['EVAL_RIESGOS', 'Evaluación de riesgos'],
   ['PLAN_PREV', 'Planificación preventiva'], ['INFO_PRL', 'Información PRL empresa transportista (H&S-PTT.19.01)'], ['PROTOCOLO', 'Protocolo salud y seguridad (H)'],
-  ['HOMOL_CONTRATO', 'Homologación contrato logística'], ['HOMOL_SEGURIDAD', 'Homologación seguridad logística'],
+  // v1259 (JC): homologaciones fuera, no son cosa nuestra
   ['RECIBI_IA', 'Recibí herramienta IA (Predict AU)'], ['SEGURO_RC', 'Seguro responsabilidad civil'],
   // v1256: otros que piden e-coordina / Achilles / clientes (no Metacontratas)
   ['PLAN_PRL', 'Plan de prevención'], ['SEGURO_ACC', 'Seguro accidentes convenio'], ['SEGURO_MERC', 'Seguro de mercancías'], ['IAE', 'IAE (alta + justificante)']];
@@ -49013,8 +49013,8 @@ const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], 
 const _ED_EXTRA = [['SEGURO_ACC', /ACCIDENTES?.*CONVENIO|ACCID\.? Y CONVENIO|CONVENIO.*ACCIDENTE/, 12], ['SEGURO_MERC', /MERCANC[IÍ]AS/, 12], ['IAE', /(^|[^A-Z])IAE([^A-Z]|$)|IMPUESTO SOBRE ACTIVIDADES ECON/, 0],
   ['PLAN_PRL', /PLAN DE PREVENCI[OÓ]N/, 0], ['SEGURO_RC', /RESPONSABILIDAD CIVIL|(^|[^A-Z])RC([^A-Z]|$)/, 12], ['SERV_PREV', /SERVICIO DE PREVENCI|SERV(ICIO)?\.? ?PREV|\bSPA\b/, 12],
   ['MUTUA', /MUTUA/, 0], ['EVAL_RIESGOS', /EVALUACI[OÓ]N (DE )?RIESGOS|EVAL(UACION)?\.? ?RIESGOS/, 36], ['PLAN_PREV', /PLANIFICACI[OÓ]N PREVENTIVA|PLAN(IFICACION)?\.? ?PREV|(^|[^A-Z])PAP([^A-Z]|$)/, 12],
-  ['INFO_PRL', /INFORMACI[OÓ]N (DE )?PRL|PTT\.?19\.?01|INFO\.? ?PRL/, 24], ['PROTOCOLO', /PROTOCOLO/, 24], ['HOMOL_CONTRATO', /HOMOLOGACI[OÓ]N (DE )?CONTRATO|HOMOL.*CONTRATO/, 0],
-  ['HOMOL_SEGURIDAD', /HOMOLOGACI[OÓ]N (DE )?SEGURIDAD|HOMOL.*SEGURIDAD/, 0], ['RECIBI_IA', /PREDICT|HERRAMIENTA (DE )?IA|RECIBI.*\bIA\b/, 0]];
+  ['INFO_PRL', /INFORMACI[OÓ]N (DE )?PRL|PTT\.?19\.?01|INFO\.? ?PRL/, 24], ['PROTOCOLO', /PROTOCOLO/, 24],
+  ['RECIBI_IA', /PREDICT|HERRAMIENTA (DE )?IA|RECIBI.*\bIA\b/, 0]];
 function _edExtra(txt) { const x = _ED_EXTRA.find(z => z[1].test(txt)); return x ? x[0] : null; }
 const _ED_EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
 // v1254 (JC 20/11/2026): Import solo trabaja para Holcim (Metacontratas): ahí no piden el recibo del TC1.
@@ -49169,7 +49169,7 @@ const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacont
   emp: { CERT_SS: 'CERTIFICADO CORRIENTE PAGO SEGURIDAD SOCIAL - COMUN', CERT_AEAT: 'CORRIENTE PAGO HACIENDA', CC: 'CORRIENTE PAGO HACIENDA (específico)',
     SERV_PREV: 'CERTIFICACION DEL SERVICIO PREVENCION', MUTUA: 'CERTIFICADO ASOCIACIÓN A MUTUA DE ACCIDENTES LABORALES', EVAL_RIESGOS: 'EVALUACIÓN RIESGOS - LOGISTICA',
     PLAN_PREV: 'PLANIFICACION PREVENTIVA_LOGISTICA', INFO_PRL: 'INFORMACION DE PRL A EMPRESA TRANSPORTISTA H&S-PTT.19.01', PROTOCOLO: 'PROTOCOLO DE SALUD Y SEGURIDAD DE EMPRESAS TRANSPORTISTAS H',
-    HOMOL_CONTRATO: 'HOMOLOGACIÓN CONTRATO LOGÍSTICA', HOMOL_SEGURIDAD: 'HOMOLOGACION SEGURIDAD LOGISTICA', RECIBI_IA: 'RECIBÍ COMUNICADO IMPLEMENTACIÓN HERRAMIENTA IA', SEGURO_RC: 'SEGURO RESPONSABILIDAD CIVIL',
+    RECIBI_IA: 'RECIBÍ COMUNICADO IMPLEMENTACIÓN HERRAMIENTA IA', SEGURO_RC: 'SEGURO RESPONSABILIDAD CIVIL',
     ITA: 'SEGURIDAD SOCIAL EMPLEADO / ITA → en CADA trabajador' },
   veh: { SEGURO: 'SEGURO VEHICULO', ITV: 'ITV VEHICULO', PC: 'PERMISO CIRCULACION VEHICULO', TT: 'TARJETA TRANSPORTE VEHICULO', FT: 'FICHA TECNICA VEHICULO', DECL_HOLCIM: 'DECLARACION DE EQUIPAMIENTO DE SEGURIDAD H&S-PTT.19.08' },
   trab: { APTO: 'APTO MÉDICO EMPLEADO', AUTORIZ: 'AUTORIZACIÓN DEL TRANSPORTISTA PARA LA CONDUCCIÓN', CAP: 'CAP EMPLEADO', CARNET: 'CARNET CONDUCIR EMPLEADO',

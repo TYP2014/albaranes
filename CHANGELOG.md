@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1259 — 20/11/2026
+- Doc. empresa y Plataformas: quitadas las filas "Homologación contrato logística" y "Homologación seguridad logística" (no son cosa nuestra).
+
 ## v1258 — 20/11/2026
 - Tacógrafo: al leer un fichero, cabecera clara con el conductor (o la matrícula si es camión) en grande y las fechas descargadas (del … al …) bien visibles. Los detalles técnicos quedan debajo en pequeño.
 
