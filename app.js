@@ -48994,10 +48994,13 @@ const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], 
   ['SERV_PREV', 'Certificado Servicio de Prevención'], ['MUTUA', 'Certificado asociación Mutua AT'], ['EVAL_RIESGOS', 'Evaluación de riesgos'],
   ['PLAN_PREV', 'Planificación preventiva'], ['INFO_PRL', 'Información PRL empresa transportista (H&S-PTT.19.01)'], ['PROTOCOLO', 'Protocolo salud y seguridad (H)'],
   ['HOMOL_CONTRATO', 'Homologación contrato logística'], ['HOMOL_SEGURIDAD', 'Homologación seguridad logística'],
-  ['RECIBI_IA', 'Recibí herramienta IA (Predict AU)'], ['SEGURO_RC', 'Seguro responsabilidad civil']];
+  ['RECIBI_IA', 'Recibí herramienta IA (Predict AU)'], ['SEGURO_RC', 'Seguro responsabilidad civil'],
+  // v1256: otros que piden e-coordina / Achilles / clientes (no Metacontratas)
+  ['PLAN_PRL', 'Plan de prevención'], ['SEGURO_ACC', 'Seguro accidentes convenio'], ['SEGURO_MERC', 'Seguro de mercancías'], ['IAE', 'IAE (alta + justificante)']];
 // v1255: cómo se reconocen por el NOMBRE del archivo (y, si no, por el texto). Caducidad por defecto en meses (editable con ✏️); sin número = no caduca
-const _ED_EXTRA = [['SEGURO_RC', /RESPONSABILIDAD CIVIL|SEGURO ?R\.? ?C\b|\bRC\b/, 12], ['SERV_PREV', /SERVICIO DE PREVENCI|SERV(ICIO)?\.? ?PREV|\bSPA\b/, 12],
-  ['MUTUA', /MUTUA/, 0], ['EVAL_RIESGOS', /EVALUACI[OÓ]N (DE )?RIESGOS|EVAL(UACION)?\.? ?RIESGOS/, 36], ['PLAN_PREV', /PLANIFICACI[OÓ]N PREVENTIVA|PLAN(IFICACION)?\.? ?PREV/, 12],
+const _ED_EXTRA = [['SEGURO_ACC', /ACCIDENTES?.*CONVENIO|ACCID\.? Y CONVENIO|CONVENIO.*ACCIDENTE/, 12], ['SEGURO_MERC', /MERCANC[IÍ]AS/, 12], ['IAE', /(^|[^A-Z])IAE([^A-Z]|$)|IMPUESTO SOBRE ACTIVIDADES ECON/, 0],
+  ['PLAN_PRL', /PLAN DE PREVENCI[OÓ]N/, 0], ['SEGURO_RC', /RESPONSABILIDAD CIVIL|(^|[^A-Z])RC([^A-Z]|$)/, 12], ['SERV_PREV', /SERVICIO DE PREVENCI|SERV(ICIO)?\.? ?PREV|\bSPA\b/, 12],
+  ['MUTUA', /MUTUA/, 0], ['EVAL_RIESGOS', /EVALUACI[OÓ]N (DE )?RIESGOS|EVAL(UACION)?\.? ?RIESGOS/, 36], ['PLAN_PREV', /PLANIFICACI[OÓ]N PREVENTIVA|PLAN(IFICACION)?\.? ?PREV|(^|[^A-Z])PAP([^A-Z]|$)/, 12],
   ['INFO_PRL', /INFORMACI[OÓ]N (DE )?PRL|PTT\.?19\.?01|INFO\.? ?PRL/, 24], ['PROTOCOLO', /PROTOCOLO/, 24], ['HOMOL_CONTRATO', /HOMOLOGACI[OÓ]N (DE )?CONTRATO|HOMOL.*CONTRATO/, 0],
   ['HOMOL_SEGURIDAD', /HOMOLOGACI[OÓ]N (DE )?SEGURIDAD|HOMOL.*SEGURIDAD/, 0], ['RECIBI_IA', /PREDICT|HERRAMIENTA (DE )?IA|RECIBI.*\bIA\b/, 0]];
 function _edExtra(txt) { const x = _ED_EXTRA.find(z => z[1].test(txt)); return x ? x[0] : null; }
@@ -49020,8 +49023,10 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
   const T = cc ? T0.slice(0, T0.indexOf('PERSONA O ENTIDAD CON LA QUE')) + ' ' + T0.slice(T0.indexOf('LA AGENCIA')) : T0;
   if (/TRANSMARGAZ/.test(n + ' ' + T)) r.aviso = 'Transmargaz: no se sube';
   else if (/VACAS/.test(n)) r.aviso = 'TC de vacaciones: se ignora';
-  r.empresa = /B0?2657435|PORTES 2014 IMPORT/.test(T) ? 'PORTES' : /B0?90286337|HISPALIS/.test(T) ? 'HISPALIS' : /B0?90172735|TRANSPORTES Y PORTES 2014/.test(T) ? 'TYP2014'
-    : /PORTES 2014|IMPORT/.test(n) ? 'PORTES' : /HISPALIS/.test(n) ? 'HISPALIS' : /TRANS(PORTES)? Y PORTES|TYP/.test(n) ? 'TYP2014' : null;
+  // v1256: primero el NIF; luego la razón social (ojo: "IMPORTE" no es Import); por último el nombre del archivo
+  r.empresa = /B0?2657435/.test(T) ? 'PORTES' : /B0?90286337/.test(T) ? 'HISPALIS' : /B0?90172735/.test(T) ? 'TYP2014'
+    : /PORTES 2014 IMPORT\b/.test(T) ? 'PORTES' : /HISPALIS/.test(T) ? 'HISPALIS' : /TRANSPORTES Y PORTES 2014/.test(T) ? 'TYP2014'
+    : /HISPALIS/.test(n) ? 'HISPALIS' : /(^|[^A-Z])IMPORT([^A-Z]|$)/.test(n) ? 'PORTES' : /TRANS(PORTES)? Y PORTES|TT Y PORTES|TYP/.test(n) ? 'TYP2014' : null;
   r.tipo = cc ? 'CC:' + cc[1].replace(/[.,]+$/, '').trim() : _edExtra(n) || (/TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
     : /COD\. ?LIQUIDACION|ADEUDO|TGSS\.? COTIZACI/.test(T) ? 'RECIBO' : /AL CORRIENTE/.test(T) && /SEGURIDAD SOCIAL/.test(T) ? 'CERT_SS'
     : /AL CORRIENTE/.test(T) && /AGENCIA TRIBUTARIA|OBLIGACIONES TRIBUTARIAS/.test(T) ? 'CERT_AEAT'
@@ -49030,13 +49035,18 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
   const MES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
   const fl = T.match(/CON FECHA (\d{1,2}) DE ([A-Z]+) DE (20\d{2})/);
   const D = '(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](20\\d{2})';   // v1251: fechas con / o con - (TC1 "Fecha: 07-10-2026", TC2 tras la referencia CRNT…, recibo)
-  const f = (fl && MES[fl[2]] && [0, fl[1], MES[fl[2]], fl[3]]) || T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(new RegExp('FECHA:? ?' + D)) || T.match(new RegExp('OBTENIDA A ' + D))
+  const f = (fl && MES[fl[2]] && [0, fl[1], MES[fl[2]], fl[3]]) || T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(new RegExp('FECHA DE EMISI[OÓ]N:? ?' + D)) || T.match(new RegExp('FECHA:? ?' + D)) || T.match(new RegExp('OBTENIDA A ' + D))
     || T.match(new RegExp('CR(?:LC|NT)\\w* ' + D)) || T.match(new RegExp(D + ' CR(?:LC|NT)\\w*'))   /* v1252: en el TC2 la fecha va ANTES de la referencia */
     || T.match(new RegExp('VENCIMIENTO:? ?' + D)) || (/COD\. ?LIQUIDACION|ADEUDO/.test(T) && T.replace(/PERIODO:? ?\d{2}\/\d{4}(?: ?- ?\d{2}\/\d{4})?/g, '').match(new RegExp(D)));   // v1253: el comentario de la v1252 se comía la fecha del recibo
   r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
-  r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
+  // v1256: caducidad escrita en el NOMBRE ("VTO 07022027", "_22052027") o "hasta DD/MM/AAAA" en el texto (SPA)
+  const vn = n.match(/VTO[ ._:-]*(\d{2})[ ._-]?(\d{2})[ ._-]?(20\d{2})/) || n.match(/[_ -](\d{2})(\d{2})(20\d{2})(?=\D*$)/), vt = T.match(new RegExp('HASTA (?:EL )?' + D));
+  r._venceNombre = vn ? _vdIsoDe(vn[1], vn[2], vn[3]) : (vt && !/^CERT_|^CC:|^TC|^ITA|^RECIBO$/.test(r.tipo || '') ? _vdIsoDe(vt[1], vt[2], vt[3]) : null);
+  r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : r._venceNombre ? r._venceNombre.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
   const MESES = /^CC:/.test(r.tipo || '') ? 6 : ({ CERT_SS: 3, CERT_AEAT: 6 }[r.tipo] || ((_ED_EXTRA.find(z => z[0] === r.tipo) || [])[2] || 0));   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
-  if (MESES && r.fecha_doc) { const [y, m, d] = r.fecha_doc.split('-').map(Number), t2 = new Date(Date.UTC(y, m - 1 + MESES, d)); r.vence = t2.toISOString().slice(0, 10); } else r.vence = null;
+  if (r._venceNombre) r.vence = r._venceNombre;   // v1256: si el papel/nombre dice la caducidad, manda esa
+  else if (MESES && r.fecha_doc) { const [y, m, d] = r.fecha_doc.split('-').map(Number), t2 = new Date(Date.UTC(y, m - 1 + MESES, d)); r.vence = t2.toISOString().slice(0, 10); } else r.vence = null;
+  delete r._venceNombre;
   return r;
 }
 async function edCargar() {

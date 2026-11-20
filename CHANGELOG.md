@@ -4,6 +4,15 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1256 — 20/11/2026 · Doc. empresa: seguros, IAE, plan de prevención y caducidad desde el nombre
+- Nuevas filas: Plan de prevención, Seguro accidentes convenio, Seguro de mercancías, IAE (alta + justificante).
+- PAP = Planificación preventiva. "SPA" = Servicio de Prevención.
+- La caducidad se lee del NOMBRE del archivo ("VTO 07022027", "_22052027") o del texto ("hasta 14/01/2027"); si existe, manda sobre la calculada.
+- Empresa: primero por NIF; "IMPORTE" ya no se confunde con Import.
+- Fecha "de emisión" (IAE) también se lee.
+
+---
+
 ## v1255 — 20/11/2026 · Doc. empresa: los 10 documentos que pide Metacontratas
 - Nuevas filas en Doc. empresa: Servicio de Prevención, Mutua AT, Evaluación de riesgos, Planificación preventiva, Información PRL (H&S-PTT.19.01), Protocolo salud y seguridad, Homologación contrato, Homologación seguridad, Recibí herramienta IA y Seguro de responsabilidad civil.
 - Se reconocen por el NOMBRE del archivo (p. ej. "SEGURO RC HISPALIS.pdf", "PLANIFICACION PREVENTIVA TYP.pdf") o se suben con el ⬆ de su fila.
