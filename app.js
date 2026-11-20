@@ -49069,11 +49069,15 @@ async function edImportar(files) {   // carpeta DOC_MENSUAL: lee cada PDF y ense
   if (!L.length) { toast('No hay PDF en esa carpeta', 'err'); return; }
   toast('Leyendo ' + L.length + ' PDF…', 'ok');
   const R = []; for (const f of L) { const r = await _edLeer(f); r.file = f; r.ok = !r.aviso && r.empresa && r.tipo; R.push(r); }
+  // v1249: si hay dos del mismo empresa/tipo/periodo, se sube solo el de fecha más reciente
+  const mejor = new Map(); R.filter(r => r.ok).forEach(r => { const k = r.empresa + '|' + r.tipo + '|' + r.periodo, a = mejor.get(k);
+    const fr = r.fecha_doc || '', fa = a ? (a.fecha_doc || '') : ''; if (!a || fr > fa || (fr === fa && (r.file.lastModified || 0) > (a.file.lastModified || 0))) mejor.set(k, r); });
+  R.forEach(r => { if (r.ok && mejor.get(r.empresa + '|' + r.tipo + '|' + r.periodo) !== r) { r.ok = false; r.aviso = 'repetido: se sube el más reciente'; } });
   _ed.imp = R; document.getElementById('edImpOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'edImpOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 8px';
-  let h = '<div style="background:#fff;border-radius:12px;padding:18px 20px;width:min(780px,94vw)"><div style="font-size:18px;font-weight:800">Cargar documentación de empresa</div><table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">';
-  R.forEach(r => { h += '<tr style="border-bottom:1px solid var(--bd);color:' + (r.ok ? '#111' : '#94a3b8') + '"><td style="padding:4px">' + esc(r.file.name) + '</td><td style="padding:4px;font-weight:800">' + (r.ok ? esc(r.empresa) + ' · ' + esc(_edNom(r.tipo)) + ' · ' + esc(_edPer(r.periodo)) : esc(r.aviso || 'no reconocido: no se sube')) + '</td></tr>'; });
+  let h = '<div style="background:#fff;border-radius:12px;padding:18px 20px;width:min(780px,94vw)"><div style="font-size:18px;font-weight:800">Cargar documentación de empresa</div><table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;table-layout:fixed">';
+  R.forEach(r => { h += '<tr style="border-bottom:1px solid var(--bd);color:' + (r.ok ? '#111' : '#94a3b8') + '"><td style="padding:4px;width:45%;word-break:break-all">' + esc(r.file.name) + '</td><td style="padding:4px;font-weight:800;word-break:break-word">' + (r.ok ? esc(r.empresa) + ' · ' + esc(_edNom(r.tipo)) + ' · ' + esc(_edPer(r.periodo)) : esc(r.aviso || 'no reconocido: no se sube')) + '</td></tr>'; });
   h += '</table><div id="edImpEst" style="margin-top:8px;font-weight:700"></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn bs" onclick="document.getElementById(\'edImpOv\').remove()">Cancelar</button><button class="btn" id="edImpBtn" onclick="edImpSubir()" style="font-weight:800;background:#15803d;color:#fff">Subir ' + R.filter(r => r.ok).length + '</button></div></div>';
   ov.innerHTML = h; document.body.appendChild(ov);
 }

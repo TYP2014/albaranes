@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1249 — 20/11/2026 · Doc. empresa: repetidos y ventana de carga
+- Al cargar la carpeta, si hay dos documentos de la misma empresa, tipo y mes (p. ej. dos certificados de la S.S. de Híspalis), se sube solo el de fecha más reciente; el otro sale en gris "repetido".
+- La ventana de carga ya no se descuadra con nombres de archivo largos.
+
+---
+
 ## v1248 — 19/11/2026 · Caducidad de los certificados de empresa
 - Certificado al corriente con la Seguridad Social: caduca a los 3 meses. Con Hacienda: a los 6 meses (antes 12).
 
