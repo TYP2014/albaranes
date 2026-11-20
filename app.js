@@ -49204,7 +49204,9 @@ const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacont
     PLAN_PREV: 'PLANIFICACION PREVENTIVA_LOGISTICA', INFO_PRL: 'INFORMACION DE PRL A EMPRESA TRANSPORTISTA H&S-PTT.19.01', PROTOCOLO: 'PROTOCOLO DE SALUD Y SEGURIDAD DE EMPRESAS TRANSPORTISTAS H',
     SEGURO_RC: 'SEGURO RESPONSABILIDAD CIVIL',
     ITA: 'SEGURIDAD SOCIAL EMPLEADO / ITA → en CADA trabajador' },
-  veh: { SEGURO: 'SEGURO VEHICULO', ITV: 'ITV VEHICULO', PC: 'PERMISO CIRCULACION VEHICULO', TT: 'TARJETA TRANSPORTE VEHICULO', FT: 'FICHA TECNICA VEHICULO', DECL_HOLCIM: 'DECLARACION DE EQUIPAMIENTO DE SEGURIDAD H&S-PTT.19.08' },
+  veh: { SEGURO: 'SEGURO VEHICULO', ITV: 'ITV VEHICULO', PC: 'PERMISO CIRCULACION VEHICULO', TT: 'TARJETA TRANSPORTE VEHICULO', FT: 'FICHA TECNICA VEHICULO', DECL_HOLCIM: 'DECLARACION DE EQUIPAMIENTO DE SEGURIDAD H&S-PTT.19.08',
+    PRES_A: 'PRUEBA PRESIÓN CISTERNAS PULVERULENTOS_ TIPO A', PRES_B: 'PRUEBA PRESIÓN CISTERNAS PULVERULENTOS_ TIPO B', PRES_C: 'PRUEBA PRESIÓN CISTERNAS PULVERULENTOS_ TIPO C',   // v1267: cisternas
+    LINEA_VIDA: 'CERTIFICADO DE INSTALACIÓN Y REVISIÓN DE LINEA DE VIDA.CISTERNAS' },
   trab: { APTO: 'APTO MÉDICO EMPLEADO', AUTORIZ: 'AUTORIZACIÓN DEL TRANSPORTISTA PARA LA CONDUCCIÓN', CAP: 'CAP EMPLEADO', CARNET: 'CARNET CONDUCIR EMPLEADO',
     CURSO_PRL: 'CERTIFICACION DE FORMACION PRL DEL PUESTO', FORM_INF: 'CERTIFICADO INFORMACIÓN PRL DEL PUESTO', CURSO_ON: 'CONDUCTOR BAÑERAS Y/O PLATAFORMAS - FORMACIÓN ON-LINE',
     EPIS: 'ENTREGA DE EPIS RECIBIDO Y FIRMADO', RECIBI: 'RECIBÍ DE INFORMACIÓN DE PRL DE TRABAJADORES DE CONTRATISTAS' } } };
@@ -49237,7 +49239,10 @@ async function cplCargar() {
     (veh.data || []).filter(v => v.activo !== false).forEach(v => { const m = String(v.matricula).toUpperCase(), e = _vdEmpDecl(v), emp = e === 'TYP' ? 'TYP2014' : e;
       Object.keys(P.veh).forEach(t => { let url = null, fecha = null, vence = null;
         if (t === 'FT') url = v.ficha_tecnica_url; else if (t === 'ITV') { const x = itvU.get(m); if (x) { url = x.file_url; fecha = x.fecha_itv; vence = x.fecha_caducidad; } }
-        else { const x = vdoc.get(m + '|' + t); if (x) { url = x.file_url; vence = x.vence; fecha = String(x.updated_at || '').slice(0, 10); } }
+        else { const x = vdoc.get(m + '|' + t); if (x) { url = x.file_url; vence = x.vence; fecha = String(x.updated_at || '').slice(0, 10);
+          // v1267: pruebas de presión y línea de vida → fecha del documento = caducidad menos su periodo (A 1 año, B 6, C 12, línea de vida 1)
+          const ANIOS = { PRES_A: 1, PRES_B: 6, PRES_C: 12, LINEA_VIDA: 1 }[t];
+          if (ANIOS) { if (!vence) return; const [a, mm, d] = String(vence).slice(0, 10).split('-').map(Number); fecha = _vdIsoDe(d, mm, a - ANIOS) || null; } } }
         add({ clave: 'VEH|' + m + '|' + t, amb: 'Vehículo', emp, quien: m, doc: (_VD_TIPOS.find(z => z[0] === t) || [t, t])[1], slot: P.veh[t], url, fecha, vence }); }); });
     // TRABAJADORES no archivados
     const tdoc = new Map((td.data || []).map(x => [x.trabajador_id + '|' + x.tipo, x]));

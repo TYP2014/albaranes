@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1267 — 20/11/2026
+- Plataformas (Metacontratas): las pruebas de presión A/B/C y la línea de vida de las cisternas también salen como pendientes cuando se sube una nueva, con su casilla exacta. Fecha del documento = caducidad menos su periodo (A 1 año, B 6, C 12, línea de vida 1). Sin caducidad no salen.
+
 ## v1266 — 20/11/2026
 - Documentación › Vehículos: las 13 cisternas de TYP2014 salen en su propia tabla con 4 casillas más: Prueba presión A, B y C y certificado de Línea de vida, con fecha de caducidad (se lee del nombre del archivo o del PDF; se corrige pulsando en la fecha).
 
