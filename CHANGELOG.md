@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1265 — 20/11/2026
+- Documentación: los enlaces "cambiar" y "Subir" de cada casilla, también más grandes y en azul.
+
 ## v1264 — 20/11/2026
 - Documentación (Empresa, Vehículos, Conductores y Plataformas): letra más grande, más gruesa y más oscura; filas alternas y casillas más grandes para leerlo mejor.
 
