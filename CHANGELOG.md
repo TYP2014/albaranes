@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1264 — 20/11/2026
+- Documentación (Empresa, Vehículos, Conductores y Plataformas): letra más grande, más gruesa y más oscura; filas alternas y casillas más grandes para leerlo mejor.
+
 ## v1263 — 20/11/2026 · Documentación › 👷 Conductores (parte 3, última)
 - La documentación de los trabajadores (DNI, carnet, CAP, reconocimiento, cursos…) se muda de Empleados a la pestaña Documentación › Conductores, con la barra de empresas.
 - En Empleados desaparece el botón "Documentación". Empleados queda para datos, vacaciones, reconocimientos y primas.

@@ -1647,6 +1647,20 @@ if (typeof pdfjsLib !== 'undefined') {
         #docuEmpBar .btn{font-size:15px;padding:10px 22px;min-width:200px;font-weight:800}
         #docuVistaTabs{padding-top:12px;border-top:1px solid var(--bd,#d0d7de)}
         #docuVistaTabs .btn{font-size:14px;padding:9px 12px;width:220px;font-weight:700}
+        /* v1264 (JC): letra más clara y más gruesa en Empresa / Vehículos / Conductores / Plataformas */
+        #tabContentDocu table, #tabContentDocu table *{font-family:'Segoe UI',Arial,Helvetica,sans-serif !important}
+        #tabContentDocu table{font-size:15px !important}
+        #tabContentDocu th{font-size:14px !important;font-weight:800 !important;padding:11px 8px !important;letter-spacing:.2px}
+        #tabContentDocu td{font-size:15px !important;color:#0b1220 !important;font-weight:600;padding:10px 8px !important;vertical-align:middle}
+        #tabContentDocu td a{font-size:15px !important;font-weight:800 !important;text-decoration:none !important}
+        #tabContentDocu td a:hover{text-decoration:underline !important}
+        #tabContentDocu td div,#tabContentDocu td span{font-size:14px !important;font-weight:700 !important;line-height:1.35}
+        #tabContentDocu td:first-child,#tabContentDocu td:nth-child(2){font-weight:800 !important}
+        #tabContentDocu tbody tr:nth-child(even),#tabContentDocu table tr:nth-child(even){background:#f1f5f9}
+        #tabContentDocu tr:hover td{background:#e0f2fe}
+        #tabContentDocu input[type=checkbox]{width:18px !important;height:18px !important}
+        #tabContentDocu td .btn,#tabContentDocu td label.btn,#tabContentDocu td button{font-size:13px !important;font-weight:800 !important;padding:6px 10px !important}
+        #tabContentDocu .card > div > div[style*="font-size:12px"],#tabContentDocu .card > div > div[style*="font-size:13px"]{font-size:14px !important;color:#0b1220 !important;font-weight:600}
       </style>
       <div id="docuEmpBar">
         <button class="btn bs" id="docuEmpTYP2014" onclick="docuEmpresa('TYP2014')">TYP2014</button>
@@ -2241,6 +2255,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1263"></script>
+<script src="app.js?v=1264"></script>
 </body>
 </html>
