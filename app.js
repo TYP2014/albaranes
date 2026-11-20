@@ -48991,6 +48991,9 @@ async function tdImpSubir() {
 const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], ['RECIBO', 'Recibo del TC1'], ['TC2', 'TC2 / RNT'],
   ['CERT_SS', 'Certificado corriente Seg. Social'], ['CERT_AEAT', 'Certificado corriente Hacienda']];
 const _ED_EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
+// v1254 (JC 20/11/2026): Import solo trabaja para Holcim (Metacontratas): ahí no piden el recibo del TC1.
+// El TC1 + recibo lo piden e-coordina (PROMSA), Achilles (CEMEX) y Llantada/Promotora Mediterránea → solo TYP2014 e Híspalis.
+const _ED_NO_PIDEN = { PORTES: ['RECIBO'] };
 let _ed = { filas: [], firm: new Map(), sel: new Set(), imp: null };
 function _edNom(t) { if (/^CC:/.test(t)) return 'Cert. Hacienda contratista — ' + t.slice(3); return (_ED_TIPOS.find(x => x[0] === t) || [t, t])[1]; }   // v1250: CC: = certificado nominativo para un cliente (art. 43.1.f LGT)
 function _edPer(p) { const m = String(p || '').match(/^(\d{4})-(\d{2})$/); return m ? m[2] + '/' + m[1] : (p || ''); }
@@ -49048,7 +49051,7 @@ function edRender() {
   _ED_TIPOS.concat(CC.map(t => [t, _edNom(t)])).forEach(([t, nom], i) => {
     const L = F.filter(x => x.tipo === t), u = L[0], bg = i % 2 ? '#f8fafc' : '#fff';
     h += '<tr style="background:' + bg + ';border-bottom:1px solid var(--bd)"><td style="padding:7px;font-weight:800">' + esc(nom) + '</td><td style="padding:7px;text-align:center">' +
-      (u ? '<input type="checkbox"' + (_ed.sel.has(u.id) ? ' checked' : '') + ' onchange="edSel(\'' + u.id + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;accent-color:#15803d"> <a href="' + _edUrl(u) + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ ' + esc(_edPer(u.periodo)) + '</a>' : '<span style="color:#b91c1c;font-weight:700">falta</span>') +
+      (u ? '<input type="checkbox"' + (_ed.sel.has(u.id) ? ' checked' : '') + ' onchange="edSel(\'' + u.id + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;accent-color:#15803d"> <a href="' + _edUrl(u) + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ ' + esc(_edPer(u.periodo)) + '</a>' : ((_ED_NO_PIDEN[emp] || []).includes(t) ? '<span style="color:#94a3b8">no se pide</span>' : '<span style="color:#b91c1c;font-weight:700">falta</span>')) +
       '</td><td style="padding:7px;text-align:center">' + (u ? (u.fecha_doc ? _ofFechaEs(String(u.fecha_doc).slice(0, 10)) : '—') + (u.vence ? ' · caduca ' + _ofFechaEs(String(u.vence).slice(0, 10)) : '') : '') +
       '</td><td style="padding:7px;text-align:center">' + L.slice(1, 7).map(x => '<a href="' + _edUrl(x) + '" target="_blank" rel="noopener" style="margin:0 3px">' + esc(_edPer(x.periodo)) + '</a>').join('') +
       '</td><td style="padding:7px;text-align:center"><label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">⬆ Subir<input type="file" accept=".pdf,image/*" style="display:none" onchange="edSubir(\'' + t + '\',this)"></label></td></tr>';

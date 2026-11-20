@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1254 — 20/11/2026 · Doc. empresa: Import no necesita el recibo del TC1
+- En PORTES 2014 IMPORT el recibo del TC1 sale como "no se pide" (gris) en vez de "falta": Import solo trabaja para Holcim (Metacontratas) y ahí no lo piden. El TC1 + recibo lo piden e-coordina (PROMSA), Achilles (CEMEX) y Llantada, donde solo trabajan TYP2014 e Híspalis.
+
+---
+
 ## v1253 — 20/11/2026 · Doc. empresa: fecha del recibo del TC1
 - Arreglado: en la v1252 dejó de leerse la fecha del recibo del TC1 (un comentario mal puesto anulaba esa parte). Vuelve a leerse (fecha valor / vencimiento).
 
