@@ -49298,7 +49298,7 @@ const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacont
     PLAN_PRL: 'Plan de Prevención', SERV_PREV: 'Modalidad de organización preventiva (SPA)', MUTUA: 'Mutua de accidentes de trabajo' },
   veh: { ITV: 'Vencimiento ITV', TT: 'Fecha Vencimiento de Tarjeta de Transporte', PC: 'Permiso de Circulación', FT: 'Ficha Técnica', SEGURO: 'Recibo Bancario / Certificado pago seguro Vehículo' },
   trab: { ALTA: 'Seguros Sociales (nueva incorporación)', EPIS: 'Entrega de EPIS', APTO: 'Aptitud Médica', CURSO_PRL: 'Formación PRL específica puesto de trabajo',
-    FORM_INF: 'FORMATO CEMEX FS-EL-05-02 Información preventiva', RECIBI: 'Recibí información de riesgos del puesto', CARNET: 'Carnet de conducir', AUTORIZ: 'Autorización empresa uso de vehículos' } } };
+    FORM_INF: 'Recibí información de riesgos del puesto y medidas preventivas (art. 18)', CARNET: 'Carnet de conducir', AUTORIZ: 'Autorización empresa uso de vehículos' } } };   // el FS-EL-05-02 es formato de CEMEX: no está en la app
 const _CPL_EMPN = { TYP2014: 'TRANSPORTES Y PORTES 2014', TYP: 'TRANSPORTES Y PORTES 2014', HISPALIS: 'TRANSPORTES HISPALIS 2016', PORTES: 'PORTES 2014 IMPORT SL' };
 let _cpl = { plat: 'MC', items: [], firm: new Map(), cargando: false };
 // v1271: el cálculo de lo pendiente de UNA plataforma va aparte (_cplCalc) para poder usarlo también en la vista "Por documento"

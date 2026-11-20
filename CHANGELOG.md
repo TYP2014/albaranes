@@ -1,3 +1,6 @@
+## v1272 — 20/11/2026
+- Achilles: la "información del puesto" (art. 18) de la app va a la casilla **Recibí información de riesgos del puesto**; el formato CEMEX FS-EL-05-02 no se toca desde la app (no lo tenemos).
+
 ## v1271 — 20/11/2026
 - Documentación › Plataformas: añadida **Achilles (CEMEX)**. Solo TYP2014 e Híspalis (login separado) y solo los camiones y conductores dados de alta en Achilles (`cae_altas`). Casillas: ITV, tarjeta de transporte, permiso, ficha técnica y recibo del seguro; apto, EPIs, formación PRL, información CEMEX FS-EL-05-02, recibí de riesgos, carnet, autorización de uso y seguros sociales (nuevos); certificados SS, Hacienda nominativa a nombre de CEMEX, IAE + recibo, RC, RNT, TC1 + recibo, plan de prevención, SPA y mutua.
 - Nuevo botón **📋 Por documento**: cada documento con su estado en Metacontratas, e-coordina y Achilles (✓ subido / ⏳ pendiente / — no aplica), con aviso de cuántos faltan en alguna plataforma.
