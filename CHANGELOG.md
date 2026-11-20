@@ -1,3 +1,6 @@
+## v1273 — 20/11/2026
+- Achilles (CEMEX): añadida **TYP2014** (13 tractoras, 2 semirremolques y 6 conductores dados de alta allí).
+
 ## v1272 — 20/11/2026
 - Achilles: la "información del puesto" (art. 18) de la app va a la casilla **Recibí información de riesgos del puesto**; el formato CEMEX FS-EL-05-02 no se toca desde la app (no lo tenemos).
 

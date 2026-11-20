@@ -49292,7 +49292,7 @@ const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacont
   trab: { DNI: 'DNI / NIE', CARNET: 'Carnet de conducir', CAP: 'CAP', APTO: 'APTO MÉDICO', EPIS: 'EPI - Registro de entrega (año en curso)', CURSO_PRL: 'FORMACIÓN art. 19', FORM_INF: 'INFORMACIÓN art. 18' } },
   // v1271 (JC 20/11/2026): Achilles / Controlar (CEMEX). TYP2014 e Híspalis con login SEPARADO; solo lo dado de alta allí (cae_altas).
   // No piden DNI ni CAP. Hacienda: la nominativa a nombre de CEMEX. Una subida puede asociarse a varios camiones ("Documento asociado a varios recursos").
-  AC: { nom: 'Achilles (CEMEX)', url: 'https://controlar.achilles.com/RC/Controlar/Detail/Supplier', emps: ['HISPALIS'] /* TYP2014 se añade al mapear su sesión */, altas: true,
+  AC: { nom: 'Achilles (CEMEX)', url: 'https://controlar.achilles.com/RC/Controlar/Detail/Supplier', emps: ['TYP2014', 'HISPALIS'], altas: true,
   emp: { CERT_SS: 'Situación con la Seguridad Social', CC_CEMEX: 'Situación con la AEAT — Nominativo Anual (a nombre de CEMEX)', IAE: 'Certificado IAE + Justificante de Pago (un solo PDF)',
     SEGURO_RC: 'Seguro Resp. Civil (Recibo Bancario)', TC2: 'RNT (Antiguo TC2)', TC1: 'TC1 + Justificante de pago (subir UNIDOS)', RECIBO: 'TC1 + Justificante de pago (subir UNIDOS)',
     PLAN_PRL: 'Plan de Prevención', SERV_PREV: 'Modalidad de organización preventiva (SPA)', MUTUA: 'Mutua de accidentes de trabajo' },
