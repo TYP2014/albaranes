@@ -4,6 +4,13 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1260 — 20/11/2026 · Pestaña nueva 📁 Documentación (parte 1)
+- Pestaña propia "Documentación" (la ven Admin, Marta y Mª del Mar), separada de Empleados.
+- Dentro: 🏢 Empresa · 🚛 Vehículos · 👷 Conductores · 📤 Plataformas. Empresa y Plataformas se mudan aquí desde Empleados; Vehículos y Conductores de momento enlazan a donde están (se traen en las siguientes versiones).
+- Plataformas: los pendientes salen en tablas separadas (Empresa / Vehículos / Conductores), sin mezclar. El número de pendientes sale en la pestaña.
+- La empresa elegida en Documentación no cambia la de Empleados.
+- Compatibilidad: switchEmpleadosVista('edoc'|'plat') abre la pestaña nueva (lo usa la tarea automática de Metacontratas).
+
 ## v1259 — 20/11/2026
 - Doc. empresa y Plataformas: quitadas las filas "Homologación contrato logística" y "Homologación seguridad logística" (no son cosa nuestra).
 

@@ -198,6 +198,7 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="tab active" id="tabAlb" onclick="switchTab('alb')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b9bd5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg> Albaranes <span class="tab-badge" id="tabAlbCount">0</span></div>
       <div class="tab" id="tabSubir" onclick="switchTab('subir')"><svg class="icTabUp" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px;overflow:visible;stroke:#1f9d5c"><g transform="translate(1.5 1.4)" style="stroke:#0e6238"><g class="icTabUp-fle"><path d="M12 15V3.5"/><path d="M7.2 8.3L12 3.5l4.8 4.8"/></g><path class="icTabUp-base" d="M5 20h14"/></g><g class="icTabUp-fle"><path d="M12 15V3.5"/><path d="M7.2 8.3L12 3.5l4.8 4.8"/></g><path class="icTabUp-base" d="M5 20h14"/></svg> Subir</div>
       <div class="tab" id="tabVac" onclick="switchTab('vac')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;stroke:#7e57c2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Empleados <span class="tab-badge" id="tabVacCount">0</span></div>
+      <div class="tab" id="tabDocu" onclick="switchTab('docu')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0e7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Documentación <span class="tab-badge" id="tabDocuCount" style="display:none">0</span></div>
       <div class="tab" id="tabTaller" onclick="switchTab('taller')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff7043" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.9 4.9L3 17l4 4 6.6-6.6a3.5 3.5 0 0 0 4.9-4.9l-2.3 2.3-2.5-2.5z"/></svg> Taller <span class="tab-badge" id="tabTallerCount">0</span></div>
       <div class="tab" id="tabNeum" onclick="switchTab('neum')" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78909c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg> Neumáticos <span class="tab-badge" id="tabNeumCount">0</span></div>
       <div class="tab" id="tabGas" onclick="switchTab('gas')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffa726" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M6 9h6"/><path d="M14 8l3 3v7a2 2 0 0 0 4 0V9l-3-3"/></svg> Gasoil <span class="tab-badge" id="tabGasCount">0</span></div>
@@ -1458,8 +1459,6 @@ if (typeof pdfjsLib !== 'undefined') {
         <button class="btn bs" id="empVistaRecmed" onclick="switchEmpleadosVista('recmed')">Reconocimientos médicos</button>
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')">Primas</button>
         <button class="btn bs" id="empVistaDocs" onclick="switchEmpleadosVista('docs')">Documentación</button>
-        <button class="btn bs" id="empVistaEdoc" onclick="switchEmpleadosVista('edoc')">Doc. empresa</button>
-        <button class="btn bs" id="empVistaPlat" onclick="switchEmpleadosVista('plat')">Plataformas</button>
       </div>
       <div id="empVistaVacBox">
 
@@ -1525,8 +1524,6 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- ===== v1051: VISTA DATOS DE EMPLEADOS (ficha: DNI, alta/baja, tarjeta tacografo, caducidades). Usa el MISMO modal de siempre ===== -->
       <!-- v1237: DOCUMENTACIÓN de los trabajadores (DNI, carnet, CAP, apto médico…) -->
       <div id="empVistaDocsBox" style="display:none"><div class="card" style="padding:14px;overflow:visible"><div id="empDocsOut"></div></div></div>
-      <div id="empVistaEdocBox" style="display:none"><div class="card" style="padding:14px"><div id="empEdocOut"></div></div></div>
-      <div id="empVistaPlatBox" style="display:none"><div class="card" style="padding:14px"><div id="empPlatOut"></div></div></div>
       <div id="empVistaDatosBox" style="display:none">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center" id="empDatosSubtabs"></div>
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
@@ -1645,6 +1642,30 @@ if (typeof pdfjsLib !== 'undefined') {
     <!-- Tabla de vehículos con semáforo 🟢🟡🔴 según km/tiempo desde   -->
     <!-- el último mantenimiento. Click en fila → modal con historial. -->
     <!-- ============================================================ -->
+    <!-- v1260: pestaña DOCUMENTACIÓN (Admin + Marta + Mª del Mar): empresa / vehículos / conductores / plataformas, sin mezclar -->
+    <div id="tabContentDocu" class="wrap" style="display:none">
+      <style>
+        #docuEmpBar,#docuVistaTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+        #docuEmpBar .btn{font-size:15px;padding:10px 22px;min-width:200px;font-weight:800}
+        #docuVistaTabs{padding-top:12px;border-top:1px solid var(--bd,#d0d7de)}
+        #docuVistaTabs .btn{font-size:14px;padding:9px 12px;width:220px;font-weight:700}
+      </style>
+      <div id="docuEmpBar">
+        <button class="btn bs" id="docuEmpTYP2014" onclick="docuEmpresa('TYP2014')">TYP2014</button>
+        <button class="btn bs" id="docuEmpHISPALIS" onclick="docuEmpresa('HISPALIS')">HÍSPALIS</button>
+        <button class="btn bs" id="docuEmpPORTES" onclick="docuEmpresa('PORTES')">PORTES 2014 IMPORT</button>
+      </div>
+      <div id="docuVistaTabs">
+        <button class="btn bs" id="docuVistaEmp" onclick="docuVista('emp')">🏢 Empresa</button>
+        <button class="btn bs" id="docuVistaVeh" onclick="docuVista('veh')">🚛 Vehículos</button>
+        <button class="btn bs" id="docuVistaCond" onclick="docuVista('cond')">👷 Conductores</button>
+        <button class="btn bs" id="docuVistaPlat" onclick="docuVista('plat')">📤 Plataformas</button>
+      </div>
+      <div id="empVistaEdocBox" style="display:none"><div class="card" style="padding:14px"><div id="empEdocOut"></div></div></div>
+      <div id="empVistaPlatBox" style="display:none"><div class="card" style="padding:14px"><div id="empPlatOut"></div></div></div>
+      <div id="docuProxBox" style="display:none"><div class="card" style="padding:18px;font-size:15px" id="docuProxOut"></div></div>
+    </div>
+
     <div id="tabContentTaller" class="wrap" style="display:none">
 
       <!-- Subpestañas por empresa (izquierda) y vistas (mitad derecha) en la misma fila -->
@@ -2221,6 +2242,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1259"></script>
+<script src="app.js?v=1260"></script>
 </body>
 </html>

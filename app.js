@@ -739,6 +739,8 @@ async function loadUserMap() {
         const _tabFE = document.getElementById('tabFactemit');
         if (_tabFE) _tabFE.style.display = _puedeVerFactEmit() ? 'flex' : 'none';
       } catch (e) { console.warn('[v212] visibilidad Facturas Emitidas:', e); }
+      // v1260: pestaña DOCUMENTACIÓN — la ven los mismos que Facturas Emitidas (Admin + Marta + Mª del Mar)
+      try { const _tD = document.getElementById('tabDocu'); if (_tD) _tD.style.display = _puedeVerFactEmit() ? 'flex' : 'none'; if (_puedeVerFactEmit()) setTimeout(() => { try { cplCargar(); } catch (e) {} }, 4000); } catch (e) { console.warn('[v1260] visibilidad Documentación:', e); }
     }
   } catch (e) { console.warn('Error en loadUserMap:', e); }
 }
@@ -20238,7 +20240,7 @@ function switchTab(tab) {
   // Si entra a alb o gas, lo guardamos como última pestaña principal
   if (tab === 'alb' || tab === 'gas') _lastMainTab = tab;
   // v101: 'itv' añadido a la lista de pestañas. v105: 'produccion' añadido. v107j: 'neum' añadido. v107M: 'vac' añadido.
-  ['alb','preli','gas','itv','deca','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit','taco'].forEach(t => {
+  ['alb','preli','gas','itv','deca','incidencias','neum','vac','taller','produccion','panel','costes','fichaje','subir','admin','facturacion','factemit','taco','docu'].forEach(t => {
     const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     const content = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.classList.toggle('active', t === tab);
@@ -20287,6 +20289,7 @@ function switchTab(tab) {
 
   // v212: cargar Facturas Emitidas al entrar en su pestaña
   if (tab === 'factemit') { loadFactEmit(); }
+  if (tab === 'docu') { docuVista(window._docuVista || 'emp'); }   // v1260
   // v107b: refresco automático al entrar en Albaranes. La lógica original con "5 segundos"
   // fallaba porque loadData se llama internamente durante el procesado, lo que hacía que
   // el timestamp se renovara sin que el usuario hubiera visto realmente la tabla. Ahora:
@@ -28522,6 +28525,7 @@ function empSetEmpresa(e) {
 }
 
 function switchEmpleadosVista(v) {
+  if (v === 'edoc' || v === 'plat') { switchTab('docu'); docuVista(v === 'edoc' ? 'emp' : 'plat'); return; }   // v1260: se mudaron a la pestaña Documentación (la tarea de Metacontratas sigue llamando así)
   window._empVista = v;   // v1097
   try {                   // v1097: las 4 vistas, con la empresa elegida arriba
     if (v === 'datos') empDatosEmpresa = vacEmpresaActiva;
@@ -49072,7 +49076,7 @@ async function edCargar() {
 function _edUrl(x) { return _ed.firm.get(x.file_url) || x.file_url; }
 function edRender() {
   const out = document.getElementById('empEdocOut'); if (!out) return;
-  const emp = vacEmpresaActiva;
+  const emp = _docuEmp;
   if (!_ED_EMPS.includes(emp)) { out.innerHTML = '<div style="padding:14px;color:#111">La documentación de empresa es solo para TYP2014, Híspalis y Portes 2014 Import.</div>'; return; }
   const F = _ed.filas.filter(x => x.empresa === emp), th = 'padding:7px;text-align:center;background:#1b3254;color:#fff;font-weight:800';
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><div style="font-size:17px;font-weight:800">Documentación de empresa — ' + esc(emp) + '</div>' +
@@ -49109,7 +49113,7 @@ async function _edGuardar(file, r) {
 async function edSubir(t, input) {
   const file = input.files && input.files[0]; input.value = ''; if (!file) return;
   try {
-    const r = await _edLeer(file), emp = vacEmpresaActiva;
+    const r = await _edLeer(file), emp = _docuEmp;
     if (r.aviso) { toast('⚠️ ' + r.aviso, 'err'); return; }
     if ((r.empresa && r.empresa !== emp) || (r.tipo && r.tipo !== t)) {
       if (!confirm('⚠️ El PDF parece ' + _edNom(r.tipo || t) + ' de ' + (r.empresa || emp) + ' y lo subes como ' + _edNom(t) + ' de ' + emp + '.\n\nAceptar = subirlo como dice el PDF · Cancelar = no subir')) return;
@@ -49143,7 +49147,7 @@ async function edImpSubir() {
   document.getElementById('edImpOv')?.remove(); _ed.imp = null; await edCargar();
 }
 function edEnviarAbrir() {
-  const emp = vacEmpresaActiva, X = _ed.filas.filter(x => _ed.sel.has(x.id) && x.empresa === emp);
+  const emp = _docuEmp, X = _ed.filas.filter(x => _ed.sel.has(x.id) && x.empresa === emp);
   if (!X.length) { toast('Marca primero los documentos (casilla de cada uno)', 'err'); return; }
   const e2 = { TYP2014: 'TYP', HISPALIS: 'HISPALIS', PORTES: 'PORTES' }[emp] || 'TYP', nomEmp = (_LIQ_CLIENTES[e2] || _LIQ_CLIENTES.TYP)[0][1];
   const docs = X.map(x => ({ v: x, mat: nomEmp, tipo: x.tipo, etq: _edNom(x.tipo) + ' ' + _edPer(x.periodo), url: _edUrl(x), ext: _vdExt(x.file_url, x.file_name), sel: true }));
@@ -49151,6 +49155,25 @@ function edEnviarAbrir() {
   if (t1 && rc && t1.ext === 'pdf' && rc.ext === 'pdf') { t1.sel = false; rc.sel = false; docs.unshift({ v: t1.v, mat: nomEmp, tipo: 'TC1R', etq: 'TC1 + recibo (unidos) ' + _edPer(t1.v.periodo), url: t1.url, urls: [t1.url, rc.url], ext: 'pdf', sel: true }); }
   _vdeAbrir({ L: [{ id: X[0].id }], docs, emp: e2, docTipo: 'docs_empresa', asunto: 'Documentación empresa - ' + nomEmp,
     texto: 'Buenos días:\n\nAdjuntamos la documentación de la empresa ' + nomEmp + '.\n\nQuedamos a su disposición para cualquier aclaración.\n\nUn saludo,\nDepartamento de Administración\n' + nomEmp });
+}
+// v1260 (JC 20/11/2026): pestaña DOCUMENTACIÓN — para Marta y Mª del Mar, separada de Empleados.
+// Empresa y Plataformas ya viven aquí; Vehículos y Conductores se traen en las siguientes versiones.
+let _docuEmp = 'TYP2014';
+function docuEmpresa(e) { _docuEmp = e; _ed.sel = new Set(); docuPintarEmp(); if ((window._docuVista || 'emp') === 'emp') edRender(); }
+function docuPintarEmp() { ['TYP2014', 'HISPALIS', 'PORTES'].forEach(e => { const b = document.getElementById('docuEmp' + e); if (b) { b.classList.toggle('bp', e === _docuEmp); b.classList.toggle('bs', e !== _docuEmp); } }); }
+function docuVista(v) {
+  window._docuVista = v;
+  const cajas = { emp: 'empVistaEdocBox', plat: 'empVistaPlatBox', veh: 'docuProxBox', cond: 'docuProxBox' };
+  ['empVistaEdocBox', 'empVistaPlatBox', 'docuProxBox'].forEach(id => { const c = document.getElementById(id); if (c) c.style.display = 'none'; });
+  ['emp', 'veh', 'cond', 'plat'].forEach(k => { const b = document.getElementById('docuVista' + k.charAt(0).toUpperCase() + k.slice(1)); if (b) { b.classList.toggle('bp', k === v); b.classList.toggle('bs', k !== v); } });
+  const c = document.getElementById(cajas[v]); if (c) c.style.display = '';
+  const bar = document.getElementById('docuEmpBar'); if (bar) bar.style.display = v === 'plat' ? 'none' : '';   // Plataformas enseña las 3 empresas
+  docuPintarEmp();
+  if (v === 'emp') edCargar();
+  else if (v === 'plat') cplCargar();
+  else { const o = document.getElementById('docuProxOut'); if (o) o.innerHTML = v === 'veh'
+    ? '🚛 <b>Documentación de vehículos</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Taller</b> → ficha de cada camión. <button class="btn bs" onclick="switchTab(\'taller\')" style="margin-left:8px">Ir a Taller</button>'
+    : '👷 <b>Documentación de conductores</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Empleados → Documentación</b>. <button class="btn bs" onclick="switchTab(\'vac\');switchEmpleadosVista(\'docs\')" style="margin-left:8px">Ir a Empleados</button>'; }
 }
 async function _edUnir(urls) {   // une varios PDF en uno (TC1 + recibo)
   const { PDFDocument } = PDFLib, out = await PDFDocument.create();
@@ -49217,7 +49240,8 @@ async function cplCargar() {
   } catch (e) { console.error('[v1257] plataformas:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; _cpl.cargando = false; return; }
   _cpl.cargando = false; cplRender(); cplBadge();
 }
-function cplBadge() { const b = document.getElementById('empVistaPlat'); if (!b) return; const n = _cpl.items.filter(x => x.estado === 'pend').length; b.textContent = 'Plataformas' + (n ? ' (' + n + ')' : ''); }
+function cplBadge() { const n = _cpl.items.filter(x => x.estado === 'pend').length, b = document.getElementById('docuVistaPlat'), t = document.getElementById('tabDocuCount');   // v1260
+  if (b) b.textContent = '📤 Plataformas' + (n ? ' (' + n + ')' : ''); if (t) { t.textContent = n; t.style.display = n ? '' : 'none'; } }
 function cplRender() {
   const out = document.getElementById('empPlatOut'); if (!out) return;
   const P = _CPL[_cpl.plat], pend = _cpl.items.filter(x => x.estado === 'pend'), th = 'padding:7px;text-align:left;background:#1b3254;color:#fff;font-weight:800';
@@ -49226,15 +49250,21 @@ function cplRender() {
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">Sale aquí cada documento NUEVO de la app (empresa, camiones y trabajadores). Súbelo en la plataforma, en la casilla que pone, y pulsa <b>✓ Ya subido</b>. "No aplica" lo quita de la lista hasta que haya otro documento nuevo.</div>';
   if (_cpl.base && typeof currentRole !== 'undefined' && currentRole === 'admin') h += '<div style="padding:10px;border:2px solid #f59e0b;border-radius:8px;margin-bottom:10px;background:#fffbeb">Primera vez: la plataforma está al día, así que todo lo que hay hoy en la app se da por subido. <button class="btn" onclick="cplBase()" style="font-weight:800;background:#b45309;color:#fff">Marcar lo actual como punto de partida</button></div>';
   if (!pend.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
+  // v1260 (JC): sin mezclar — una tabla para Empresa, otra para Vehículos y otra para Conductores
+  [['Empresa', '🏢 Empresa'], ['Vehículo', '🚛 Vehículos'], ['Trabajador', '👷 Conductores / trabajadores']].forEach(([amb, tit]) => {
+    const G = pend.filter(x => x.amb === amb); if (!G.length) return;
+    h += '<div style="font-size:16px;font-weight:800;margin:16px 0 6px">' + tit + ' (' + G.length + ')</div>';
   h += '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Empresa en la plataforma</th><th style="' + th + '">Documento (app)</th><th style="' + th + '">Casilla en ' + esc(P.nom.split(' ')[0]) + '</th><th style="' + th + '">Fecha / caduca</th><th style="' + th + '"></th></tr>';
-  pend.sort((a, b) => (a.amb + a.emp + a.quien).localeCompare(b.amb + b.emp + b.quien)).forEach((x, i) => {
+    G.sort((a, b) => (a.emp + a.quien).localeCompare(b.emp + b.quien)).forEach((x, i) => {
     const u = _cpl.firm.get(x.url) || x.url, k = _ofEA(x.clave);
     h += '<tr style="background:' + (i % 2 ? '#f8fafc' : '#fff') + ';border-bottom:1px solid var(--bd)"><td style="padding:6px"><b>' + esc(x.amb) + '</b><br>' + esc(x.quien || '') + '</td><td style="padding:6px">' + esc(_CPL_EMPN[x.emp] || x.emp || '') + '</td>' +
       '<td style="padding:6px">' + esc(x.doc) + ' · <a href="' + u + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">ver</a></td><td style="padding:6px;font-weight:700">' + esc(x.slot) + '</td>' +
       '<td style="padding:6px;white-space:nowrap">' + (x.fecha ? _ofFechaEs(String(x.fecha).slice(0, 10)) : '—') + (x.vence ? '<br>caduca ' + _ofFechaEs(String(x.vence).slice(0, 10)) : '') + '</td>' +
       '<td style="padding:6px;white-space:nowrap"><button class="btn" onclick="cplMarcar(\'' + k + '\',\'subido\')" style="font-size:12px;padding:4px 8px;background:#15803d;color:#fff;font-weight:800">✓ Ya subido</button> <button class="btn bs" onclick="cplMarcar(\'' + k + '\',\'no_aplica\')" style="font-size:12px;padding:4px 8px">No aplica</button></td></tr>';
   });
-  out.innerHTML = h + '</table>';
+    h += '</table>';
+  });
+  out.innerHTML = h;
 }
 async function cplMarcar(clave, estado) {
   const x = _cpl.items.find(z => z.clave === clave); if (!x) return;
