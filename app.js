@@ -28538,7 +28538,8 @@ function switchEmpleadosVista(v) {
   const dcb = document.getElementById('empVistaDocsBox');    // v1237
   const bdc = document.getElementById('empVistaDocs');       // v1237
   const edb = document.getElementById('empVistaEdocBox'), bed = document.getElementById('empVistaEdoc');   // v1247
-  [[vb,bv],[rb,br],[pb,bpr],[db,bd],[dcb,bdc],[edb,bed]].forEach(([caja,boton]) => {
+  const plb = document.getElementById('empVistaPlatBox'), bpl = document.getElementById('empVistaPlat');   // v1257
+  [[vb,bv],[rb,br],[pb,bpr],[db,bd],[dcb,bdc],[edb,bed],[plb,bpl]].forEach(([caja,boton]) => {
     if (caja) caja.style.display = 'none';
     if (boton) { boton.classList.remove('bp'); boton.classList.add('bs'); }
   });
@@ -28550,6 +28551,10 @@ function switchEmpleadosVista(v) {
     if (pb) pb.style.display = '';
     if (bpr) { bpr.classList.remove('bs'); bpr.classList.add('bp'); }
     primasInit();
+  } else if (v === 'plat') {    // v1257: pendiente de subir a plataformas
+    if (plb) plb.style.display = '';
+    if (bpl) { bpl.classList.remove('bs'); bpl.classList.add('bp'); }
+    cplCargar();
   } else if (v === 'edoc') {    // v1247: documentación de EMPRESA
     if (edb) edb.style.display = '';
     if (bed) { bed.classList.remove('bs'); bed.classList.add('bp'); }
@@ -49144,4 +49149,96 @@ async function _edUnir(urls) {   // une varios PDF en uno (TC1 + recibo)
   const { PDFDocument } = PDFLib, out = await PDFDocument.create();
   for (const u of urls) { const d = await PDFDocument.load(await _vdBytes(u), { ignoreEncryption: true }); (await out.copyPages(d, d.getPageIndices())).forEach(p => out.addPage(p)); }
   return await out.save();
+}
+
+// ============================================================================
+// v1257 (JC 20/11/2026): EMPLEADOS > PLATAFORMAS — lista "PENDIENTE DE SUBIR" a las plataformas CAE.
+// Para que Marta / María del Mar vean qué documento NUEVO de la app hay que subir a Metacontratas (Holcim),
+// a qué casilla va, y lo marquen "✓ Ya subido" sin depender de JC. Un documento sale como pendiente cuando
+// el archivo de la app es distinto del último marcado como subido (tabla cae_subidas).
+// Empieza por Metacontratas; e-coordina / Achilles se añaden igual (otra entrada en _CPL).
+// ============================================================================
+const _CPL = { MC: { nom: 'Metacontratas (Holcim)', url: 'https://cloud.metacontratas.com',
+  emp: { CERT_SS: 'CERTIFICADO CORRIENTE PAGO SEGURIDAD SOCIAL - COMUN', CERT_AEAT: 'CORRIENTE PAGO HACIENDA', CC: 'CORRIENTE PAGO HACIENDA (específico)',
+    SERV_PREV: 'CERTIFICACION DEL SERVICIO PREVENCION', MUTUA: 'CERTIFICADO ASOCIACIÓN A MUTUA DE ACCIDENTES LABORALES', EVAL_RIESGOS: 'EVALUACIÓN RIESGOS - LOGISTICA',
+    PLAN_PREV: 'PLANIFICACION PREVENTIVA_LOGISTICA', INFO_PRL: 'INFORMACION DE PRL A EMPRESA TRANSPORTISTA H&S-PTT.19.01', PROTOCOLO: 'PROTOCOLO DE SALUD Y SEGURIDAD DE EMPRESAS TRANSPORTISTAS H',
+    HOMOL_CONTRATO: 'HOMOLOGACIÓN CONTRATO LOGÍSTICA', HOMOL_SEGURIDAD: 'HOMOLOGACION SEGURIDAD LOGISTICA', RECIBI_IA: 'RECIBÍ COMUNICADO IMPLEMENTACIÓN HERRAMIENTA IA', SEGURO_RC: 'SEGURO RESPONSABILIDAD CIVIL',
+    ITA: 'SEGURIDAD SOCIAL EMPLEADO / ITA → en CADA trabajador' },
+  veh: { SEGURO: 'SEGURO VEHICULO', ITV: 'ITV VEHICULO', PC: 'PERMISO CIRCULACION VEHICULO', TT: 'TARJETA TRANSPORTE VEHICULO', FT: 'FICHA TECNICA VEHICULO', DECL_HOLCIM: 'DECLARACION DE EQUIPAMIENTO DE SEGURIDAD H&S-PTT.19.08' },
+  trab: { APTO: 'APTO MÉDICO EMPLEADO', AUTORIZ: 'AUTORIZACIÓN DEL TRANSPORTISTA PARA LA CONDUCCIÓN', CAP: 'CAP EMPLEADO', CARNET: 'CARNET CONDUCIR EMPLEADO',
+    CURSO_PRL: 'CERTIFICACION DE FORMACION PRL DEL PUESTO', FORM_INF: 'CERTIFICADO INFORMACIÓN PRL DEL PUESTO', CURSO_ON: 'CONDUCTOR BAÑERAS Y/O PLATAFORMAS - FORMACIÓN ON-LINE',
+    EPIS: 'ENTREGA DE EPIS RECIBIDO Y FIRMADO', RECIBI: 'RECIBÍ DE INFORMACIÓN DE PRL DE TRABAJADORES DE CONTRATISTAS' } } };
+const _CPL_EMPN = { TYP2014: 'TRANSPORTES Y PORTES 2014', TYP: 'TRANSPORTES Y PORTES 2014', HISPALIS: 'TRANSPORTES HISPALIS 2016', PORTES: 'PORTES 2014 IMPORT SL' };
+let _cpl = { plat: 'MC', items: [], firm: new Map(), cargando: false };
+async function cplCargar() {
+  const out = document.getElementById('empPlatOut'); if (!out) return;
+  if (_cpl.cargando) return; _cpl.cargando = true;
+  out.innerHTML = '<div style="padding:14px;color:#111">Cargando…</div>';
+  try {
+    const P = _CPL[_cpl.plat], EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
+    const [ed, vd, itv, veh, tr, td, su] = await Promise.all([
+      sb.from('empresa_docs').select('id,empresa,tipo,periodo,fecha_doc,vence,file_url,file_name').in('empresa', EMPS).order('periodo', { ascending: false }),
+      sb.from('vehiculos_docs').select('matricula,tipo,file_url,file_name,vence,updated_at'),
+      sb.from('itv').select('matricula,fecha_itv,fecha_caducidad,file_url').order('fecha_itv', { ascending: false }),
+      sb.from('taller_vehiculos').select('id,empresa,matricula,activo,ficha_tecnica_url').in('empresa', ['TYP2014', 'HISPALIS']),
+      sb.from('trabajadores').select('id,nombre,empresa,archivado').in('empresa', EMPS),
+      sb.from('trabajadores_docs').select('trabajador_id,tipo,file_url,file_name,fecha_doc,vence'),
+      sb.from('cae_subidas').select('*').eq('plataforma', _cpl.plat)]);
+    for (const r of [ed, vd, itv, veh, tr, td, su]) if (r.error) throw r.error;
+    const hecho = new Map((su.data || []).map(x => [x.clave, x])), it = [];
+    const add = (o) => { if (!o.url) return; const h = hecho.get(o.clave); o.estado = !h ? 'pend' : (h.file_url === o.url ? h.estado : 'pend'); o.h = h; it.push(o); };
+    // EMPRESA: el último de cada tipo
+    const vistos = new Set();
+    (ed.data || []).forEach(x => { const t = /^CC:/.test(x.tipo) ? 'CC' : x.tipo; if (!P.emp[t]) return; const k = x.empresa + '|' + x.tipo; if (vistos.has(k)) return; vistos.add(k);
+      add({ clave: 'EMP|' + k, amb: 'Empresa', emp: x.empresa, quien: _CPL_EMPN[x.empresa], doc: _edNom(x.tipo), slot: P.emp[t], url: x.file_url, fecha: x.fecha_doc, vence: x.vence }); });
+    // VEHÍCULOS activos (Import se distingue por el mapa de Gasoil, igual que la declaración)
+    const vdoc = new Map((vd.data || []).map(x => [String(x.matricula).toUpperCase() + '|' + x.tipo, x]));
+    const itvU = new Map(); (itv.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !itvU.has(k)) itvU.set(k, x); });
+    (veh.data || []).filter(v => v.activo !== false).forEach(v => { const m = String(v.matricula).toUpperCase(), e = _vdEmpDecl(v), emp = e === 'TYP' ? 'TYP2014' : e;
+      Object.keys(P.veh).forEach(t => { let url = null, fecha = null, vence = null;
+        if (t === 'FT') url = v.ficha_tecnica_url; else if (t === 'ITV') { const x = itvU.get(m); if (x) { url = x.file_url; fecha = x.fecha_itv; vence = x.fecha_caducidad; } }
+        else { const x = vdoc.get(m + '|' + t); if (x) { url = x.file_url; vence = x.vence; fecha = String(x.updated_at || '').slice(0, 10); } }
+        add({ clave: 'VEH|' + m + '|' + t, amb: 'Vehículo', emp, quien: m, doc: (_VD_TIPOS.find(z => z[0] === t) || [t, t])[1], slot: P.veh[t], url, fecha, vence }); }); });
+    // TRABAJADORES no archivados
+    const tdoc = new Map((td.data || []).map(x => [x.trabajador_id + '|' + x.tipo, x]));
+    (tr.data || []).filter(w => !w.archivado).forEach(w => Object.keys(P.trab).forEach(t => { const x = tdoc.get(w.id + '|' + t); if (!x) return;
+      add({ clave: 'TRAB|' + w.id + '|' + t, amb: 'Trabajador', emp: w.empresa, quien: w.nombre, doc: (_TD_TIPOS.find(z => z[0] === t) || [t, t])[1], slot: P.trab[t], url: x.file_url, fecha: x.fecha_doc, vence: x.vence }); }));
+    _cpl.items = it;
+    const pend = it.filter(x => x.estado === 'pend'), urls = pend.map(x => x.url).filter(Boolean);
+    _cpl.firm = urls.length ? await firmarDocs(urls) : new Map();
+    _cpl.base = !(su.data || []).length;
+  } catch (e) { console.error('[v1257] plataformas:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; _cpl.cargando = false; return; }
+  _cpl.cargando = false; cplRender(); cplBadge();
+}
+function cplBadge() { const b = document.getElementById('empVistaPlat'); if (!b) return; const n = _cpl.items.filter(x => x.estado === 'pend').length; b.textContent = 'Plataformas' + (n ? ' (' + n + ')' : ''); }
+function cplRender() {
+  const out = document.getElementById('empPlatOut'); if (!out) return;
+  const P = _CPL[_cpl.plat], pend = _cpl.items.filter(x => x.estado === 'pend'), th = 'padding:7px;text-align:left;background:#1b3254;color:#fff;font-weight:800';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-size:17px;font-weight:800">Pendiente de subir a ' + esc(P.nom) + ': ' + pend.length + '</div>' +
+    '<div style="display:flex;gap:8px"><a class="btn" href="' + P.url + '" target="_blank" rel="noopener" style="font-weight:800;background:#1b3254;color:#fff;text-decoration:none">Abrir ' + esc(P.nom.split(' ')[0]) + '</a><button class="btn bs" onclick="cplCargar()">↻ Actualizar</button></div></div>' +
+    '<div style="font-size:12px;color:#475569;margin-bottom:8px">Sale aquí cada documento NUEVO de la app (empresa, camiones y trabajadores). Súbelo en la plataforma, en la casilla que pone, y pulsa <b>✓ Ya subido</b>. "No aplica" lo quita de la lista hasta que haya otro documento nuevo.</div>';
+  if (_cpl.base && typeof currentRole !== 'undefined' && currentRole === 'admin') h += '<div style="padding:10px;border:2px solid #f59e0b;border-radius:8px;margin-bottom:10px;background:#fffbeb">Primera vez: la plataforma está al día, así que todo lo que hay hoy en la app se da por subido. <button class="btn" onclick="cplBase()" style="font-weight:800;background:#b45309;color:#fff">Marcar lo actual como punto de partida</button></div>';
+  if (!pend.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
+  h += '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Empresa en la plataforma</th><th style="' + th + '">Documento (app)</th><th style="' + th + '">Casilla en ' + esc(P.nom.split(' ')[0]) + '</th><th style="' + th + '">Fecha / caduca</th><th style="' + th + '"></th></tr>';
+  pend.sort((a, b) => (a.amb + a.emp + a.quien).localeCompare(b.amb + b.emp + b.quien)).forEach((x, i) => {
+    const u = _cpl.firm.get(x.url) || x.url, k = _ofEA(x.clave);
+    h += '<tr style="background:' + (i % 2 ? '#f8fafc' : '#fff') + ';border-bottom:1px solid var(--bd)"><td style="padding:6px"><b>' + esc(x.amb) + '</b><br>' + esc(x.quien || '') + '</td><td style="padding:6px">' + esc(_CPL_EMPN[x.emp] || x.emp || '') + '</td>' +
+      '<td style="padding:6px">' + esc(x.doc) + ' · <a href="' + u + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">ver</a></td><td style="padding:6px;font-weight:700">' + esc(x.slot) + '</td>' +
+      '<td style="padding:6px;white-space:nowrap">' + (x.fecha ? _ofFechaEs(String(x.fecha).slice(0, 10)) : '—') + (x.vence ? '<br>caduca ' + _ofFechaEs(String(x.vence).slice(0, 10)) : '') + '</td>' +
+      '<td style="padding:6px;white-space:nowrap"><button class="btn" onclick="cplMarcar(\'' + k + '\',\'subido\')" style="font-size:12px;padding:4px 8px;background:#15803d;color:#fff;font-weight:800">✓ Ya subido</button> <button class="btn bs" onclick="cplMarcar(\'' + k + '\',\'no_aplica\')" style="font-size:12px;padding:4px 8px">No aplica</button></td></tr>';
+  });
+  out.innerHTML = h + '</table>';
+}
+async function cplMarcar(clave, estado) {
+  const x = _cpl.items.find(z => z.clave === clave); if (!x) return;
+  try { const { error } = await sb.from('cae_subidas').upsert({ plataforma: _cpl.plat, clave, file_url: x.url, estado, el: new Date().toISOString() }, { onConflict: 'plataforma,clave' }); if (error) throw error;
+    x.estado = estado; cplRender(); cplBadge(); toast(estado === 'subido' ? '✓ Marcado como subido' : 'Quitado de la lista', 'ok'); }
+  catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
+async function cplBase() {   // primera vez: lo que hay hoy se da por subido (la plataforma está al día)
+  const L = _cpl.items.filter(x => x.estado === 'pend'); if (!L.length) return;
+  if (!confirm('Se marcan ' + L.length + ' documentos como YA SUBIDOS (punto de partida).\nA partir de ahora solo saldrán los nuevos.\n\n¿Seguir?')) return;
+  try { for (let i = 0; i < L.length; i += 200) { const { error } = await sb.from('cae_subidas').upsert(L.slice(i, i + 200).map(x => ({ plataforma: _cpl.plat, clave: x.clave, file_url: x.url, estado: 'subido' })), { onConflict: 'plataforma,clave' }); if (error) throw error; }
+    toast('✓ Punto de partida guardado', 'ok'); await cplCargar(); }
+  catch (e) { toast('⚠️ ' + (e.message || e), 'err'); }
 }

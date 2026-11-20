@@ -4,6 +4,15 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1257 — 20/11/2026 · Empleados > Plataformas: lista "pendiente de subir" a Metacontratas
+- Nueva vista "Plataformas": cada documento NUEVO de la app (empresa, camiones y trabajadores) que hay que subir a Metacontratas (Holcim), con la empresa y la CASILLA exacta donde va, enlace para verlo y botones "✓ Ya subido" / "No aplica".
+- Un documento vuelve a salir cuando se sube a la app un archivo nuevo para esa casilla.
+- Para Marta y María del Mar: no hace falta que JC esté en medio.
+- Primera vez: botón (solo admin) para dar por subido todo lo que hay hoy (Metacontratas está al día).
+- Tabla nueva cae_subidas. Preparado para añadir e-coordina / Achilles.
+
+---
+
 ## v1256 — 20/11/2026 · Doc. empresa: seguros, IAE, plan de prevención y caducidad desde el nombre
 - Nuevas filas: Plan de prevención, Seguro accidentes convenio, Seguro de mercancías, IAE (alta + justificante).
 - PAP = Planificación preventiva. "SPA" = Servicio de Prevención.

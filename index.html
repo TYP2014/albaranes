@@ -1459,6 +1459,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <button class="btn bs" id="empVistaPrimas" onclick="switchEmpleadosVista('primas')">Primas</button>
         <button class="btn bs" id="empVistaDocs" onclick="switchEmpleadosVista('docs')">Documentación</button>
         <button class="btn bs" id="empVistaEdoc" onclick="switchEmpleadosVista('edoc')">Doc. empresa</button>
+        <button class="btn bs" id="empVistaPlat" onclick="switchEmpleadosVista('plat')">Plataformas</button>
       </div>
       <div id="empVistaVacBox">
 
@@ -1525,6 +1526,7 @@ if (typeof pdfjsLib !== 'undefined') {
       <!-- v1237: DOCUMENTACIÓN de los trabajadores (DNI, carnet, CAP, apto médico…) -->
       <div id="empVistaDocsBox" style="display:none"><div class="card" style="padding:14px;overflow:visible"><div id="empDocsOut"></div></div></div>
       <div id="empVistaEdocBox" style="display:none"><div class="card" style="padding:14px"><div id="empEdocOut"></div></div></div>
+      <div id="empVistaPlatBox" style="display:none"><div class="card" style="padding:14px"><div id="empPlatOut"></div></div></div>
       <div id="empVistaDatosBox" style="display:none">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center" id="empDatosSubtabs"></div>
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
@@ -2219,6 +2221,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1256"></script>
+<script src="app.js?v=1257"></script>
 </body>
 </html>
