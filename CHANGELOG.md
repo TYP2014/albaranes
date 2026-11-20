@@ -4,6 +4,10 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1263 — 20/11/2026 · Documentación › 👷 Conductores (parte 3, última)
+- La documentación de los trabajadores (DNI, carnet, CAP, reconocimiento, cursos…) se muda de Empleados a la pestaña Documentación › Conductores, con la barra de empresas.
+- En Empleados desaparece el botón "Documentación". Empleados queda para datos, vacaciones, reconocimientos y primas.
+
 ## v1262 — 20/11/2026 · Documentación › 🚛 Vehículos (parte 2)
 - La documentación de los vehículos (ficha técnica, permiso, ITV, seguro, tarjeta, declaración Holcim…) se muda de Taller a la pestaña Documentación › Vehículos, con la barra de empresas (TYP2014 / Híspalis / Portes 2014 Import).
 - En Taller desaparece el botón DOCUMENTACIÓN; los avisos "ver" de documentos caducados llevan a la pestaña nueva.

@@ -28527,7 +28527,7 @@ function empSetEmpresa(e) {
 }
 
 function switchEmpleadosVista(v) {
-  if (v === 'edoc' || v === 'plat') { switchTab('docu'); docuVista(v === 'edoc' ? 'emp' : 'plat'); return; }   // v1260: se mudaron a la pestaña Documentación (la tarea de Metacontratas sigue llamando así)
+  if (v === 'edoc' || v === 'plat' || v === 'docs') { switchTab('docu'); docuVista(v === 'edoc' ? 'emp' : v === 'docs' ? 'cond' : 'plat'); return; }   // v1263: también la de trabajadores   // v1260: se mudaron a la pestaña Documentación (la tarea de Metacontratas sigue llamando así)
   window._empVista = v;   // v1097
   try {                   // v1097: las 4 vistas, con la empresa elegida arriba
     if (v === 'datos') empDatosEmpresa = vacEmpresaActiva;
@@ -48774,7 +48774,7 @@ function _tdFechaNombre(nombre) {   // fecha escrita en el nombre: 25_09_2026, 1
 
 let _td = { docs: new Map(), firm: new Map(), cab: new Map(), cargando: false, dsel: new Set() };   // v1246: dsel = documentos marcados ('trabId|TIPO')
 function _tdNomCol(t) { const c = _td.cab.get(t); const x = _TD_TIPOS.find(z => z[0] === t); return c && c.etiqueta ? c.etiqueta : (x ? x[1] : t); }
-function _tdLista() { return (vacTrabajadores || []).filter(t => t.empresa === vacEmpresaActiva && !t.archivado).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))); }
+function _tdLista() { return (vacTrabajadores || []).filter(t => t.empresa === _docuEmp && !t.archivado).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))); }
 async function tdCargar() {
   const out = document.getElementById('empDocsOut'); if (!out) return;
   if (!(vacTrabajadores || []).length) { try { await loadVacData(); } catch (e) {} }
@@ -48806,7 +48806,7 @@ function tdRender() {
   const th = 'position:sticky;top:' + topFijo + 'px;z-index:5;background:#1b3254;color:#fff;padding:9px 6px;font-size:11.5px;font-weight:900;box-shadow:inset 0 -3px 0 #0f1f36;text-align:center;line-height:1.2';
   const cab = t => (t === 'EXTRA1' || t === 'EXTRA2') ? '<span onclick="tdNombrarCol(\'' + t + '\')" style="cursor:pointer;border-bottom:2px dashed #93c5fd" title="Pulsa para ponerle nombre">' + esc(_tdNomCol(t)) + ' ✏️</span>' : esc(_tdNomCol(t)).toUpperCase();
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
-    '<div style="font-size:15px;font-weight:800;color:#111">Documentación de trabajadores · ' + esc(vacEmpresaActiva) + ' (' + L.length + ')</div>' +
+    '<div style="font-size:15px;font-weight:800;color:#111">Documentación de trabajadores · ' + esc(_docuEmp) + ' (' + L.length + ')</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="tdEnviarAbrir()" style="font-weight:800;background:#1b3254;color:#fff">📤 Enviar marcados' + (_td.dsel.size ? ' (' + _td.dsel.size + ' doc.)' : '') + '</button><label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta de OneDrive<input type="file" webkitdirectory directory multiple style="display:none" onchange="tdCarpeta(this)"></label>' +
     '<button class="btn bs" onclick="tdCargar()" style="font-weight:800">Refrescar</button></div></div>' +
     '<div style="font-size:12.5px;color:#111;margin-bottom:8px">Pulsa <b>Subir</b> en cada hueco, o <b>📂 Cargar carpeta</b> y elige la carpeta de los conductores (por ejemplo CONDUCTORES_HISPALIS): la app reparte cada archivo en su sitio y te lo enseña antes de subir. Las fechas en <u>subrayado</u> se cambian pulsando en ellas.</div>';
@@ -49160,7 +49160,7 @@ function edEnviarAbrir() {
 // v1260 (JC 20/11/2026): pestaña DOCUMENTACIÓN — para Marta y Mª del Mar, separada de Empleados.
 // Empresa y Plataformas ya viven aquí; Vehículos y Conductores se traen en las siguientes versiones.
 let _docuEmp = 'TYP2014';
-function docuEmpresa(e) { _docuEmp = e; _ed.sel = new Set(); docuPintarEmp(); const v = window._docuVista || 'emp'; if (v === 'emp') edRender(); else if (v === 'veh') { _docuVehEmp(); vdRender(); } }
+function docuEmpresa(e) { _docuEmp = e; _ed.sel = new Set(); docuPintarEmp(); const v = window._docuVista || 'emp'; if (v === 'emp') edRender(); else if (v === 'veh') { _docuVehEmp(); vdRender(); } else if (v === 'cond') { _td.dsel.clear(); tdRender(); } }
 function _docuVehEmp() {   // v1262: la vista de vehículos usa la empresa de Taller; aquí se pone la de Documentación y al salir se devuelve
   if (!window._tallerEmpPrev) window._tallerEmpPrev = tallerEmpresaActiva;
   window._vdEnDocu = true;
@@ -49170,8 +49170,8 @@ function _docuVehEmp() {   // v1262: la vista de vehículos usa la empresa de Ta
 function docuPintarEmp() { ['TYP2014', 'HISPALIS', 'PORTES'].forEach(e => { const b = document.getElementById('docuEmp' + e); if (b) { b.classList.toggle('bp', e === _docuEmp); b.classList.toggle('bs', e !== _docuEmp); } }); }
 function docuVista(v) {
   window._docuVista = v;
-  const cajas = { emp: 'empVistaEdocBox', plat: 'empVistaPlatBox', veh: 'tallerVistaDocsBox', cond: 'docuProxBox' };
-  ['empVistaEdocBox', 'empVistaPlatBox', 'tallerVistaDocsBox', 'docuProxBox'].forEach(id => { const c = document.getElementById(id); if (c) c.style.display = 'none'; });
+  const cajas = { emp: 'empVistaEdocBox', plat: 'empVistaPlatBox', veh: 'tallerVistaDocsBox', cond: 'empVistaDocsBox' };
+  ['empVistaEdocBox', 'empVistaPlatBox', 'tallerVistaDocsBox', 'empVistaDocsBox', 'docuProxBox'].forEach(id => { const c = document.getElementById(id); if (c) c.style.display = 'none'; });
   ['emp', 'veh', 'cond', 'plat'].forEach(k => { const b = document.getElementById('docuVista' + k.charAt(0).toUpperCase() + k.slice(1)); if (b) { b.classList.toggle('bp', k === v); b.classList.toggle('bs', k !== v); } });
   const c = document.getElementById(cajas[v]); if (c) c.style.display = '';
   const bar = document.getElementById('docuEmpBar'); if (bar) bar.style.display = v === 'plat' ? 'none' : '';   // Plataformas enseña las 3 empresas
@@ -49179,8 +49179,7 @@ function docuVista(v) {
   if (v === 'emp') edCargar();
   else if (v === 'plat') cplCargar();
   else if (v === 'veh') { _docuVehEmp(); vdCargar(); }   // v1262
-  else { const o = document.getElementById('docuProxOut'); if (o) o.innerHTML =
-      '👷 <b>Documentación de conductores</b>: se trae a esta pestaña en la próxima versión. De momento está en <b>Empleados → Documentación</b>. <button class="btn bs" onclick="switchTab(\'vac\');switchEmpleadosVista(\'docs\')" style="margin-left:8px">Ir a Empleados</button>'; }
+  else if (v === 'cond') tdCargar();   // v1263
 }
 async function _edUnir(urls) {   // une varios PDF en uno (TC1 + recibo)
   const { PDFDocument } = PDFLib, out = await PDFDocument.create();
