@@ -1,3 +1,7 @@
+## v1271 — 20/11/2026
+- Documentación › Plataformas: añadida **Achilles (CEMEX)**. Solo TYP2014 e Híspalis (login separado) y solo los camiones y conductores dados de alta en Achilles (`cae_altas`). Casillas: ITV, tarjeta de transporte, permiso, ficha técnica y recibo del seguro; apto, EPIs, formación PRL, información CEMEX FS-EL-05-02, recibí de riesgos, carnet, autorización de uso y seguros sociales (nuevos); certificados SS, Hacienda nominativa a nombre de CEMEX, IAE + recibo, RC, RNT, TC1 + recibo, plan de prevención, SPA y mutua.
+- Nuevo botón **📋 Por documento**: cada documento con su estado en Metacontratas, e-coordina y Achilles (✓ subido / ⏳ pendiente / — no aplica), con aviso de cuántos faltan en alguna plataforma.
+
 ## v1270 — 20/11/2026
 - Documentación › Plataformas: añadida **e-coordina (PROMSA)** junto a Metacontratas (botones arriba para cambiar). Solo TYP2014 e Híspalis y solo los camiones y conductores dados de alta en e-coordina (tabla nueva `cae_altas`). Casillas: seguro, ITV, permiso, ficha técnica y tarjeta de transporte; DNI, carnet, CAP, apto, EPI, formación (art. 19) e información (art. 18); certificados SS, Hacienda a nombre de PROMSA, TC1 + recibo, RC, accidentes, SPA y evaluación de riesgos. Nada de CMI.
 
