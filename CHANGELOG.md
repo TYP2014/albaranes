@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1261 — 20/11/2026
+- Documentación › Empresa y Plataformas: quitada la fila "Recibí herramienta IA (Predict AU)" (es cosa de Holcim).
+
 ## v1260 — 20/11/2026 · Pestaña nueva 📁 Documentación (parte 1)
 - Pestaña propia "Documentación" (la ven Admin, Marta y Mª del Mar), separada de Empleados.
 - Dentro: 🏢 Empresa · 🚛 Vehículos · 👷 Conductores · 📤 Plataformas. Empresa y Plataformas se mudan aquí desde Empleados; Vehículos y Conductores de momento enlazan a donde están (se traen en las siguientes versiones).
