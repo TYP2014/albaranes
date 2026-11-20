@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1251 — 20/11/2026 · Doc. empresa: fechas de TC1, TC2 y recibo
+- Se lee la fecha también cuando va con guiones (TC1 "Fecha: 07-10-2026", TC2 junto a la referencia CRNT…, recibo con su fecha valor / vencimiento). Antes salía "—".
+- Rellenadas las fechas de los ya subidos.
+
+---
+
 ## v1250 — 20/11/2026 · Doc. empresa: certificados de Hacienda de contratistas
 - El certificado de Hacienda "de contratistas" (nominativo para un cliente, art. 43.1.f LGT, p. ej. para Holcim/Metacontratas) se reconoce solo y va en su propia fila: "Cert. Hacienda contratista — HOLCIM ESPAÑA SAU". Uno por cliente, sin pisarse entre ellos ni con el general.
 - La empresa se lee del SOLICITANTE (no del cliente). Fecha leída de "con fecha DD de mes de AAAA". Caduca a los 6 meses, como el general.
