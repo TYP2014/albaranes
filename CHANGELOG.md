@@ -1,3 +1,7 @@
+## v1274 — 20/11/2026
+- Empleados › Dar de baja: ahora sale una ventana con el **nombre del trabajador en grande**, empresa y DNI, el motivo en un desplegable y el botón "Sí, dar de baja a …". Así no se da de baja a otro por error.
+- Avisa de en qué **plataformas** hay que darlo de baja también (Metacontratas; e-coordina y Achilles si está dado de alta allí), con enlace a cada una y botón **✓ Ya lo he quitado**.
+
 ## v1273 — 20/11/2026
 - Achilles (CEMEX): añadida **TYP2014** (13 tractoras, 2 semirremolques y 6 conductores dados de alta allí).
 

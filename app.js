@@ -26333,26 +26333,52 @@ async function saveTrabModal() {
   }
 }
 
+// v1274 (JC 20/11/2026): la baja se confirma en una ventana con el NOMBRE en grande (se dio de baja a otro por error)
+// y, al terminar, avisa de en qué plataformas CAE hay que darlo de baja también.
 async function archivarTrabajador() {
   if (!editTrabId) return;
-  const t = vacTrabajadores.find(x => x.id === editTrabId);
-  const motivo = prompt(`¿Motivo de baja para ${t?.nombre}?\n(voluntaria / despido / jubilacion / otro)`, 'voluntaria');
-  if (motivo === null) return;
-  try {
-    const { error } = await sb.from('trabajadores').update({
-      archivado: true,
-      fecha_baja: new Date().toISOString().slice(0, 10),
-      motivo_baja: motivo || null,
-      updated_at: new Date().toISOString()
-    }).eq('id', editTrabId);
-    if (error) throw error;
-    closeTrabModal();
-    await loadVacData();
-    toast('✓ Trabajador archivado (su historial se conserva)');
-  } catch (e) {
-    console.error('[archivarTrabajador] Error:', e);
-    toast('Error: ' + (e.message || e), 'err');
-  }
+  const t = vacTrabajadores.find(x => x.id === editTrabId); if (!t) return;
+  const dni = String(t.dni || '').toUpperCase().replace(/[\s-]/g, '');
+  let alt = [];
+  try { if (dni) { const { data } = await sb.from('cae_altas').select('plataforma').eq('ambito', 'trab').eq('ref', dni); alt = (data || []).map(x => x.plataforma); } } catch (e) { console.warn('[v1274] cae_altas:', e); }
+  const plats = [];
+  if (t.empresa !== 'TRANSMARGAZ') plats.push({ k: 'MC', txt: 'Metacontratas (Holcim) — si está dado de alta allí' });
+  if (alt.includes('EC')) plats.push({ k: 'EC', txt: 'e-coordina (PROMSA)', alta: true });
+  if (alt.includes('AC')) plats.push({ k: 'AC', txt: 'Achilles (CEMEX)', alta: true });
+  const ov = document.createElement('div'); ov.id = 'bajaTrabOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const lista = plats.map(p => '<li style="margin:3px 0"><b>' + esc(p.txt) + '</b></li>').join('');
+  ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:460px;width:100%;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.3)">' +
+    '<div style="font-size:14px;color:#b91c1c;font-weight:800">DAR DE BAJA A:</div>' +
+    '<div style="font-size:24px;font-weight:900;margin:6px 0 2px">' + esc(t.nombre || '') + '</div>' +
+    '<div style="font-size:14px;color:#475569">' + esc(t.empresa || '') + (t.dni ? ' · DNI ' + esc(t.dni) : '') + '</div>' +
+    '<div style="margin:14px 0 6px;font-weight:700">Motivo</div><select id="bajaTrabMot" style="width:100%;padding:8px;font-size:15px"><option>voluntaria</option><option>despido</option><option>fin de contrato</option><option>jubilacion</option><option>otro</option></select>' +
+    (plats.length ? '<div style="margin-top:12px;padding:10px;border-radius:8px;background:#fffbeb;border:1px solid #f59e0b;font-size:13px">Después habrá que darlo de baja también en:<ul style="margin:6px 0 0 18px;padding:0">' + lista + '</ul></div>' : '') +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn bs" id="bajaTrabNo">Cancelar</button><button class="btn" id="bajaTrabSi" style="background:#b91c1c;color:#fff;font-weight:800">Sí, dar de baja a ' + esc(String(t.nombre || '').split(' ')[0]) + '</button></div></div>';
+  document.body.appendChild(ov);
+  const cerrar = () => ov.remove();
+  document.getElementById('bajaTrabNo').onclick = cerrar;
+  document.getElementById('bajaTrabSi').onclick = async () => {
+    const motivo = document.getElementById('bajaTrabMot').value;
+    try {
+      const { error } = await sb.from('trabajadores').update({ archivado: true, fecha_baja: new Date().toISOString().slice(0, 10), motivo_baja: motivo || null, updated_at: new Date().toISOString() }).eq('id', t.id);
+      if (error) throw error;
+      closeTrabModal();
+      await loadVacData();
+      toast('✓ ' + (t.nombre || 'Trabajador') + ' dado de baja (su historial se conserva)');
+    } catch (e) { console.error('[archivarTrabajador] Error:', e); toast('Error: ' + (e.message || e), 'err'); return; }
+    if (!plats.length) { cerrar(); return; }
+    ov.firstChild.innerHTML = '<div style="font-size:18px;font-weight:900;color:#15803d">✓ ' + esc(t.nombre || '') + ' dado de baja en la app</div>' +
+      '<div style="margin:12px 0 8px;font-weight:700">Ahora dalo de baja también en:</div>' +
+      plats.map(p => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid var(--bd);border-radius:8px;margin-bottom:6px"><span><b>' + esc(p.txt) + '</b><br><a href="' + _CPL[p.k].url + '" target="_blank" rel="noopener" style="font-size:12px">Abrir</a></span>' +
+        (p.alta ? '<button class="btn" data-k="' + p.k + '" style="font-size:12px;background:#15803d;color:#fff;font-weight:800">✓ Ya lo he quitado</button>' : '') + '</div>').join('') +
+      '<div style="text-align:right;margin-top:10px"><button class="btn bs" id="bajaTrabFin">Cerrar</button></div>';
+    document.getElementById('bajaTrabFin').onclick = cerrar;
+    ov.querySelectorAll('button[data-k]').forEach(b => b.onclick = async () => {
+      try { const { error } = await sb.from('cae_altas').delete().eq('plataforma', b.dataset.k).eq('ambito', 'trab').eq('ref', dni); if (error) throw error; b.outerHTML = '<span style="color:#15803d;font-weight:800">✓ Quitado</span>'; }
+      catch (e) { toast('⚠️ ' + (e.message || e), 'err'); }
+    });
+  };
 }
 
 async function reactivarTrabajador() {
