@@ -49017,7 +49017,7 @@ async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, ven
   const fl = T.match(/CON FECHA (\d{1,2}) DE ([A-Z]+) DE (20\d{2})/);
   const D = '(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](20\\d{2})';   // v1251: fechas con / o con - (TC1 "Fecha: 07-10-2026", TC2 tras la referencia CRNT…, recibo)
   const f = (fl && MES[fl[2]] && [0, fl[1], MES[fl[2]], fl[3]]) || T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(new RegExp('FECHA:? ?' + D)) || T.match(new RegExp('OBTENIDA A ' + D))
-    || T.match(new RegExp('CR(?:LC|NT)\\w* ' + D)) || T.match(new RegExp('VENCIMIENTO:? ?' + D)) || (/COD\. ?LIQUIDACION|ADEUDO/.test(T) && T.replace(/PERIODO:? ?\d{2}\/\d{4}/g, '').match(new RegExp(D)));
+    || T.match(new RegExp('CR(?:LC|NT)\\w* ' + D)) || T.match(new RegExp(D + ' CR(?:LC|NT)\\w*'))   // v1252: en el TC2 la fecha va ANTES de la referencia || T.match(new RegExp('VENCIMIENTO:? ?' + D)) || (/COD\. ?LIQUIDACION|ADEUDO/.test(T) && T.replace(/PERIODO:? ?\d{2}\/\d{4}/g, '').match(new RegExp(D)));
   r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
   r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
   const MESES = /^CC:/.test(r.tipo || '') ? 6 : { CERT_SS: 3, CERT_AEAT: 6 }[r.tipo];   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más

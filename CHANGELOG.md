@@ -4,6 +4,11 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1252 — 20/11/2026 · Doc. empresa: fecha del TC2
+- En el TC2 la fecha va justo antes de la referencia CRNT…; ahora también se lee.
+
+---
+
 ## v1251 — 20/11/2026 · Doc. empresa: fechas de TC1, TC2 y recibo
 - Se lee la fecha también cuando va con guiones (TC1 "Fecha: 07-10-2026", TC2 junto a la referencia CRNT…, recibo con su fecha valor / vencimiento). Antes salía "—".
 - Rellenadas las fechas de los ya subidos.
