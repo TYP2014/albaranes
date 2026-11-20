@@ -4,6 +4,9 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1266 — 20/11/2026
+- Documentación › Vehículos: las 13 cisternas de TYP2014 salen en su propia tabla con 4 casillas más: Prueba presión A, B y C y certificado de Línea de vida, con fecha de caducidad (se lee del nombre del archivo o del PDF; se corrige pulsando en la fecha).
+
 ## v1265 — 20/11/2026
 - Documentación: los enlaces "cambiar" y "Subir" de cada casilla, también más grandes y en azul.
 

@@ -48213,7 +48213,9 @@ async function pinEnviar(mat, tipo) {
 // ============================================================
 const _VD_TIPOS = [
   ['FT', 'Ficha técnica', 'ambos'], ['PC', 'Permiso circ.', 'ambos'], ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
-  ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'], ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
+  ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'],
+  ['PRES_A', 'Prueba presión A', 'cisterna'], ['PRES_B', 'Prueba presión B', 'cisterna'], ['PRES_C', 'Prueba presión C', 'cisterna'], ['LINEA_VIDA', 'Línea de vida', 'cisterna'],   // v1266: solo cisternas
+  ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
 const _VD_PLANT = { TYP: 'Transportes y Portes 2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };
 const _VD_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 let _vd = { docs: new Map(), itv: new Map(), firm: new Map(), sel: new Set(), cargando: false, sub: 'TYP', pos: new Map(), dsel: new Set() };   // v1225: dsel = documentos marcados uno a uno ('MAT|TIPO')
@@ -48310,7 +48312,9 @@ function vdRender() {
     });
     return t + '</tbody></table></div>';
   };
-  h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques', se, 'semirremolque');
+  const esCis = v => String(v.carroceria || '').toLowerCase() === 'cisterna';   // v1266: las cisternas aparte, con sus pruebas de presión y línea de vida
+  const seCis = se.filter(esCis), seRes = se.filter(v => !esCis(v));
+  h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques', seRes, 'semirremolque') + (seCis.length ? tabla('Cisternas', seCis, 'cisterna') : '');
   out.innerHTML = h;
 }
 function _vdDocsDe(v) {   // documentos subidos de un vehículo
@@ -48322,7 +48326,7 @@ function _vdDocsDe(v) {   // documentos subidos de un vehículo
 function _vdDocsMarcados() { const L = []; _vdLista().forEach(v => _vdDocsDe(v).forEach(d => { if (_vd.dsel.has(d.mat + '|' + d.tipo)) L.push(d); })); return L; }
 // v1229: VENCIMIENTO del seguro y de la tarjeta de transporte. Al subir: 1º la fecha del NOMBRE del archivo (…_01052027.pdf),
 // y si no la lleva, se lee del PDF (seguro: "11/11/26 A 01/05/27"; tarjeta: columna Validez de la fila de la matrícula). Siempre editable.
-const _VD_VENCE = ['SEGURO', 'TT'];
+const _VD_VENCE = ['SEGURO', 'TT', 'PRES_A', 'PRES_B', 'PRES_C', 'LINEA_VIDA'];   // v1266: las pruebas de presión y la línea de vida también caducan (fecha del nombre o la más lejana del PDF; editable)
 function _vdIsoDe(d, m, a) { a = Number(a); if (a < 100) a += 2000; d = Number(d); m = Number(m);
   const f = new Date(Date.UTC(a, m - 1, d)); if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d || a < 2020 || a > 2045) return null;
   return a + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
