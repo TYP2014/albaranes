@@ -4,6 +4,12 @@ Notas de versión. Las nuevas van ARRIBA. La versión cargada en producción es 
 
 ---
 
+## v1250 — 20/11/2026 · Doc. empresa: certificados de Hacienda de contratistas
+- El certificado de Hacienda "de contratistas" (nominativo para un cliente, art. 43.1.f LGT, p. ej. para Holcim/Metacontratas) se reconoce solo y va en su propia fila: "Cert. Hacienda contratista — HOLCIM ESPAÑA SAU". Uno por cliente, sin pisarse entre ellos ni con el general.
+- La empresa se lee del SOLICITANTE (no del cliente). Fecha leída de "con fecha DD de mes de AAAA". Caduca a los 6 meses, como el general.
+
+---
+
 ## v1249 — 20/11/2026 · Doc. empresa: repetidos y ventana de carga
 - Al cargar la carpeta, si hay dos documentos de la misma empresa, tipo y mes (p. ej. dos certificados de la S.S. de Híspalis), se sube solo el de fecha más reciente; el otro sale en gris "repetido".
 - La ventana de carga ya no se descuadra con nombres de archivo largos.

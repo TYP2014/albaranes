@@ -48992,7 +48992,7 @@ const _ED_TIPOS = [['ITA', 'ITA (trabajadores en alta)'], ['TC1', 'TC1 / RLC'], 
   ['CERT_SS', 'Certificado corriente Seg. Social'], ['CERT_AEAT', 'Certificado corriente Hacienda']];
 const _ED_EMPS = ['TYP2014', 'HISPALIS', 'PORTES'];
 let _ed = { filas: [], firm: new Map(), sel: new Set(), imp: null };
-function _edNom(t) { return (_ED_TIPOS.find(x => x[0] === t) || [t, t])[1]; }
+function _edNom(t) { if (/^CC:/.test(t)) return 'Cert. Hacienda contratista — ' + t.slice(3); return (_ED_TIPOS.find(x => x[0] === t) || [t, t])[1]; }   // v1250: CC: = certificado nominativo para un cliente (art. 43.1.f LGT)
 function _edPer(p) { const m = String(p || '').match(/^(\d{4})-(\d{2})$/); return m ? m[2] + '/' + m[1] : (p || ''); }
 async function _edTexto(file) {
   try { const pdf = await pdfjsLib.getDocument(_pdfOpts({ data: new Uint8Array(await file.arrayBuffer()) })).promise; let t = '';
@@ -49000,20 +49000,25 @@ async function _edTexto(file) {
     return t.replace(/\s+/g, ' '); } catch (e) { return ''; }
 }
 async function _edLeer(file) {   // → { empresa, tipo, periodo, fecha_doc, vence, aviso }
-  const n = String(file.name || '').toUpperCase(), t = await _edTexto(file), T = t.toUpperCase(), r = {};
+  const n = String(file.name || '').toUpperCase(), t = await _edTexto(file), T0 = t.toUpperCase(), r = {};
+  // v1250: certificado de contratistas (nominativo): la empresa se busca SOLO en el solicitante, no en el cliente
+  const cc = T0.match(/CON LA QUE CONTRATA O SUBCONTRATA\s+(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])?\s*(.+?)\s+LA AGENCIA/);
+  const T = cc ? T0.slice(0, T0.indexOf('PERSONA O ENTIDAD CON LA QUE')) + ' ' + T0.slice(T0.indexOf('LA AGENCIA')) : T0;
   if (/TRANSMARGAZ/.test(n + ' ' + T)) r.aviso = 'Transmargaz: no se sube';
   else if (/VACAS/.test(n)) r.aviso = 'TC de vacaciones: se ignora';
   r.empresa = /B0?2657435|PORTES 2014 IMPORT/.test(T) ? 'PORTES' : /B0?90286337|HISPALIS/.test(T) ? 'HISPALIS' : /B0?90172735|TRANSPORTES Y PORTES 2014/.test(T) ? 'TYP2014'
     : /PORTES 2014|IMPORT/.test(n) ? 'PORTES' : /HISPALIS/.test(n) ? 'HISPALIS' : /TRANS(PORTES)? Y PORTES|TYP/.test(n) ? 'TYP2014' : null;
-  r.tipo = /TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
+  r.tipo = cc ? 'CC:' + cc[1].replace(/[.,]+$/, '').trim() : /TRABAJADORES EN ALTA/.test(T) ? 'ITA' : /RELACI[OÓ]N NOMINAL DE TRABAJADORES/.test(T) ? 'TC2' : /RECIBO DE LIQUIDACI[OÓ]N DE COTIZACIONES/.test(T) ? 'TC1'
     : /COD\. ?LIQUIDACION|ADEUDO|TGSS\.? COTIZACI/.test(T) ? 'RECIBO' : /AL CORRIENTE/.test(T) && /SEGURIDAD SOCIAL/.test(T) ? 'CERT_SS'
     : /AL CORRIENTE|AGENCIA TRIBUTARIA|OBLIGACIONES TRIBUTARIAS/.test(T) ? 'CERT_AEAT'
     : /RECIBO/.test(n) ? 'RECIBO' : /\bTC1\b/.test(n) ? 'TC1' : /\bTC2\b/.test(n) ? 'TC2' : /\bITA\b/.test(n) ? 'ITA' : /CERT.*SS/.test(n) ? 'CERT_SS' : /HACIENDA|AEAT/.test(n) ? 'CERT_AEAT' : null;
   const p = T.match(/PER[IÍ]ODO(?: DE LIQUIDACI[OÓ]N)?:? ?(\d{2}) ?\/ ?(\d{4})/) || n.match(/\b(\d{2})[ _\-](20\d{2})\b/);
-  const f = T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(/FECHA:? ?(\d{1,2})\/(\d{1,2})\/(20\d{2})/) || T.match(/OBTENIDA A (\d{1,2})\/(\d{1,2})\/(20\d{2})/);
+  const MES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
+  const fl = T.match(/CON FECHA (\d{1,2}) DE ([A-Z]+) DE (20\d{2})/);
+  const f = (fl && MES[fl[2]] && [0, fl[1], MES[fl[2]], fl[3]]) || T.match(/A FECHA:? ?(\d{1,2}) (\d{1,2}) (20\d{2})/) || T.match(/FECHA:? ?(\d{1,2})\/(\d{1,2})\/(20\d{2})/) || T.match(/OBTENIDA A (\d{1,2})\/(\d{1,2})\/(20\d{2})/);
   r.fecha_doc = f ? _vdIsoDe(f[1], f[2], f[3]) : null;
   r.periodo = p ? p[2] + '-' + p[1] : r.fecha_doc ? r.fecha_doc.slice(0, 7) : new Date(file.lastModified || Date.now()).toISOString().slice(0, 7);
-  const MESES = { CERT_SS: 3, CERT_AEAT: 6 }[r.tipo];   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
+  const MESES = /^CC:/.test(r.tipo || '') ? 6 : { CERT_SS: 3, CERT_AEAT: 6 }[r.tipo];   // v1248 (JC): Seg. Social 3 meses, Hacienda 6 meses, no más
   if (MESES && r.fecha_doc) { const [y, m, d] = r.fecha_doc.split('-').map(Number), t2 = new Date(Date.UTC(y, m - 1 + MESES, d)); r.vence = t2.toISOString().slice(0, 10); } else r.vence = null;
   return r;
 }
@@ -49036,7 +49041,8 @@ function edRender() {
     '<label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta DOC_MENSUAL<input type="file" webkitdirectory multiple style="display:none" onchange="edImportar(this.files);this.value=\'\'"></label></div></div>' +
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">Sale el último de cada tipo. Marca la casilla para enviarlo. Al subir, la app lee empresa, tipo y periodo del propio PDF.</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + ';text-align:left">Documento</th><th style="' + th + '">Último</th><th style="' + th + '">Fecha / caduca</th><th style="' + th + '">Anteriores</th><th style="' + th + '">Subir</th></tr>';
-  _ED_TIPOS.forEach(([t, nom], i) => {
+  const CC = [...new Set(F.map(x => x.tipo).filter(t => /^CC:/.test(t)))].sort();   // v1250: una fila por cliente
+  _ED_TIPOS.concat(CC.map(t => [t, _edNom(t)])).forEach(([t, nom], i) => {
     const L = F.filter(x => x.tipo === t), u = L[0], bg = i % 2 ? '#f8fafc' : '#fff';
     h += '<tr style="background:' + bg + ';border-bottom:1px solid var(--bd)"><td style="padding:7px;font-weight:800">' + esc(nom) + '</td><td style="padding:7px;text-align:center">' +
       (u ? '<input type="checkbox"' + (_ed.sel.has(u.id) ? ' checked' : '') + ' onchange="edSel(\'' + u.id + '\',this.checked)" style="width:15px;height:15px;vertical-align:middle;accent-color:#15803d"> <a href="' + _edUrl(u) + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ ' + esc(_edPer(u.periodo)) + '</a>' : '<span style="color:#b91c1c;font-weight:700">falta</span>') +
