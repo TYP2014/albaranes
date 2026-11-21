@@ -1,3 +1,6 @@
+## v1286 — 21/11/2026
+- Tacógrafo: el aviso de arriba "camiones con días SIN REGISTRO" ya no sale por huecos de antes de Movertis (antes del 15/05/2026); esos meses los guarda ASG por contrato. El informe "Carencia de registros" sigue mostrándolo todo por si hace falta.
+
 ## v1285 — 21/11/2026
 - Empleados › Vacaciones: al lado del nombre de la empresa sale ahora el **nº de trabajadores** en activo (como las tractoras y remolques en Taller), también en Portes 2014 Import. El título pasa de "Trabajadores y saldos" a "Trabajadores y vacaciones" (los saldos eran los días de vacaciones).
 - Taller: al subir el **permiso de circulación** también se leen marca, modelo y bastidor, y si el titular es Portes 2014 Import se marca "Portes 2014 Import" debajo de la matrícula.

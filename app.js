@@ -39773,12 +39773,16 @@ async function tacoRepCarenciaUI() {
     </div></div>`;
 }
 
+const TACO_CAR_CORTE = '2026-05-15';   // v1286: inicio de las descargas de Movertis
 async function tacoCarenciaAviso() {
   const b = document.getElementById('tacoCarenciaBanner');
   if (!b) return;
   try {
     if (!window._tieneTaco) { b.style.display = 'none'; b.innerHTML = ''; return; }
     const res = await _tacoCarenciaCalcular();
+    // v1286 (JC 21/11/2026): el aviso NO sale por huecos de antes de Movertis (mayo 2026): esos datos los tiene ASG por contrato.
+    // El informe "Carencia de registros" de Tacógrafo sigue enseñándolo todo.
+    if (!res.error) res.lista = (res.lista || []).filter(x => String(x.fin || '') >= TACO_CAR_CORTE);
     if (res.error || !res.lista.length) { b.style.display = 'none'; b.innerHTML = ''; return; }
     const firma = res.lista.map(x => x.mat + ':' + x.falta).join('|');
     let visto = '';
