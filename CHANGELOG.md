@@ -1,3 +1,7 @@
+## v1292 — 21/11/2026
+- Trabajadores: en el historial de la ficha las fechas salen como dd/mm/aaaa (antes 2026-11-20).
+- Subir (albaranes y gasoil), Gasoil (factura y Excel de km) y Tacógrafo: zonas de arrastrar con el mismo fondo azul claro y borde marcado que ITV y Neumáticos.
+
 ## v1291 — 21/11/2026
 - Taller › Avisos: el botón "Programar un aviso nuevo" pasa a ser una barra amarilla fuerte, a todo lo ancho y con letra grande: "PROGRAMAR NUEVO AVISO — Fecha y/o km del PRÓXIMO mantenimiento".
 

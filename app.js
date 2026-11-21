@@ -26311,10 +26311,10 @@ async function _trabHistorial(id) {
     const { data, error } = await sb.from('trabajadores_log').select('cuando,usuario_nombre,accion,cambios').eq('trabajador_id', id).order('cuando', { ascending: false }).limit(15);
     if (error) throw error;
     if (!data || !data.length) { box.innerHTML = '<div style="font-size:12px;color:var(--mu)">🕑 Historial: sin cambios apuntados todavía (se apuntan desde el 20/11/2026).</div>'; return; }
-    const val = v => v === null || v === undefined || v === '' ? '—' : v === true ? 'sí' : v === false ? 'no' : typeof v === 'object' ? '(cambiado)' : String(v);
+    const val = v => v === null || v === undefined || v === '' ? '—' : v === true ? 'sí' : v === false ? 'no' : typeof v === 'object' ? '(cambiado)' : String(v).replace(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/, '$3/$2/$1');
     const ACC = { alta: '🟢 Alta', baja: '🔴 Baja', reactivado: '🟢 Reactivado', cambio: '✏️ Cambio' };
     box.innerHTML = '<div style="font-weight:800;font-size:13px;margin-bottom:4px">🕑 Historial de la ficha</div>' + data.map(x => {
-      const d = new Date(x.cuando), f = d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const d = new Date(x.cuando), f = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       const det = x.accion === 'alta' ? '' : Object.entries(x.cambios || {}).map(([k, ab]) => esc(_TLOG_NOM[k] || k) + ': ' + esc(val(ab[0])) + ' → <b>' + esc(val(ab[1])) + '</b>').join(' · ');
       return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--bd)"><b>' + (ACC[x.accion] || x.accion) + '</b> · ' + f + ' · <b>' + esc(x.usuario_nombre || '¿?') + '</b>' + (det ? '<br><span style="color:#334155">' + det + '</span>' : '') + '</div>';
     }).join('');
