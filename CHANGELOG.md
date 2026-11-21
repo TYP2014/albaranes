@@ -1,3 +1,6 @@
+## v1278 — 21/11/2026
+- ITV: quitadas las fotos de las cajas de arrastrar (Registro de ITV y Próximas citas). Queda la caja limpia con su texto; arrastrar o pinchar funciona igual.
+
 ## v1277 — 20/11/2026
 - Plataformas › 📋 Por documento: los papeles de la app que **caducan en 15 días o menos** (o ya caducados) salen en **rojo** y siempre se ven, aunque estén subidos, con el aviso "🔴 N caducan en 15 días o menos: pedir el nuevo".
 
