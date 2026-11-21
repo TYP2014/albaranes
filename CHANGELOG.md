@@ -1,3 +1,6 @@
+## v1290 — 21/11/2026
+- Albaranes: al terminar de subir una tanda, si alguno ha quedado **sin transportista**, sale una ventana para quien los sube: puede corregir la matrícula si la IA la leyó mal y elegir el transportista, o marcar "Dejar para revisar" (queda en amarillo con la nota "Sin transportista al subir"). No se cierra sin decidir cada uno.
+
 ## v1289 — 21/11/2026
 - Taller: al guardar un mantenimiento, si el camión no tiene programado el siguiente (ni por fecha ni por km posteriores), sale un aviso grande "Falta programar el PRÓXIMO mantenimiento" con dos botones: **Programar ahora** (abre la ficha en la casilla de avisos) o **No hace falta** (si solo era una reparación).
 

@@ -4363,6 +4363,42 @@ async function guardarComoManual() {
   toast(`📝 Guardado como manual (${guardados}). Edítalo en Albaranes para completarlo.`);
 }
 
+// v1290: ventana al terminar de subir: albaranes sin transportista. Se elige el transportista (y, si la IA leyó mal la matrícula,
+// se corrige) o se deja "para revisar" (marca amarilla con nota). No se puede cerrar sin decidir cada uno.
+function _albAvisoSinTransp(L) {
+  if (!L || !L.length || document.getElementById('albSinTOv')) return;
+  const opts = '<option value="">— Elegir transportista —</option>' + TRANSPORTISTAS_OFICIALES.map(t => '<option>' + esc(t) + '</option>').join('');
+  const ov = document.createElement('div'); ov.id = 'albSinTOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const filas = L.map((r, i) => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px"><b>' + esc(r.albaran || '—') + '</b><br><span style="font-size:12px;color:#334155">' + esc(String(r.fecha || '').slice(0, 10)) + ' · ' + esc(r.proveedor || '') + '</span></td>' +
+    '<td style="padding:8px"><input class="fi" data-mat="' + i + '" value="' + _ofEA(r.tractora || '') + '" style="width:110px;font-weight:800;font-family:var(--mn)"></td>' +
+    '<td style="padding:8px"><select class="fi" data-tr="' + i + '" style="width:230px">' + opts + '</select></td>' +
+    '<td style="padding:8px;white-space:nowrap"><label style="font-size:13px;font-weight:700"><input type="checkbox" data-rev="' + i + '"> Dejar para revisar</label></td></tr>').join('');
+  ov.innerHTML = '<div style="background:#fff;border:4px solid #b45309;border-radius:12px;max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.35)">' +
+    '<div style="font-size:21px;font-weight:900;color:#b45309">⚠️ ' + L.length + ' albarán' + (L.length > 1 ? 'es' : '') + ' SIN TRANSPORTISTA</div>' +
+    '<div style="font-size:15px;color:#111;margin:8px 0 12px;line-height:1.5">La IA no ha sabido de quién es el camión. Sin transportista el albarán <b>no se factura ni se liquida bien</b>.<br>' +
+    'Revisa lo que ha leído: si la <b>matrícula</b> está mal leída, corrígela; y elige el <b>transportista</b>. Si de verdad no lo sabes, marca <b>"Dejar para revisar"</b> y lo verá la oficina.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="background:#1b3254;color:#fff"><th style="padding:8px;text-align:left">Albarán</th><th style="padding:8px;text-align:left">Matrícula leída</th><th style="padding:8px;text-align:left">Transportista</th><th style="padding:8px"></th></tr>' + filas + '</table>' +
+    '<div id="albSinTMsg" style="color:#b91c1c;font-weight:800;margin-top:10px"></div>' +
+    '<div style="text-align:right;margin-top:14px"><button class="btn" id="albSinTOk" style="background:#1b3254;color:#fff;font-weight:900;font-size:15px;padding:8px 18px">Guardar y cerrar</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelectorAll('[data-tr]').forEach(sel => sel.onchange = () => { const c = ov.querySelector('[data-rev="' + sel.dataset.tr + '"]'); if (sel.value && c) c.checked = false; });
+  document.getElementById('albSinTOk').onclick = async () => {
+    const falta = L.map((r, i) => i).filter(i => !ov.querySelector('[data-tr="' + i + '"]').value && !ov.querySelector('[data-rev="' + i + '"]').checked);
+    if (falta.length) { document.getElementById('albSinTMsg').textContent = 'Falta decidir ' + falta.length + ': elige transportista o marca "Dejar para revisar".'; return; }
+    let ok = 0;
+    for (let i = 0; i < L.length; i++) {
+      const r = L[i], tr = ov.querySelector('[data-tr="' + i + '"]').value, mat = String(ov.querySelector('[data-mat="' + i + '"]').value || '').toUpperCase().replace(/[\s-]/g, '');
+      const upd = tr ? { transportista: tr, manual_edit: true } : { marca_revisar: true, marca_revisar_nota: 'Sin transportista al subir' };
+      if (mat && mat !== String(r.tractora || '').toUpperCase()) { upd.tractora = mat; upd.manual_edit = true; }
+      try { const { error } = await sb.from('albaranes').update(upd).eq('id', r.db_id); if (error) throw error; Object.assign(r, upd); if (upd.manual_edit) r._manual = true; ok++; }
+      catch (e) { console.error('[v1290] guardar transportista:', e); }
+    }
+    ov.remove(); toast('✓ ' + ok + ' albarán(es) actualizados', 'ok');
+    try { analyzeRecords(); applyFilters(); updateStats(); renderAlerts(); } catch (e) {}
+  };
+}
+
 async function processQueue(type) {
   // Auto-desbloqueo si el flag lleva activo demasiado tiempo (caso de cuelgue)
   checkProcessingStuck(type);
@@ -4478,7 +4514,11 @@ async function processQueue(type) {
         && _v751Antes && !_v751Antes.has(String(r.db_id || r._id))
         && (_esDeEsteLote(r) || _esDeEsteLote(_buscarRec(r._posDupOf))));
       if (nuevos.length) _v751AvisoSubida(nuevos);
-    } catch (e) { console.warn('[v751] aviso al subir:', e); }
+    } catch (e) { console.warn('[v751] aviso al subir:', e); }    // v1290 (JC 21/11/2026): albaranes de ESTE lote sin transportista → ventana para que quien sube lo indique o lo deje para revisar
+    try {
+      const sinT = records.filter(r => r.db_id && (!r.created_at || Date.parse(r.created_at) >= _v751T0 - 60000) && !String(r.transportista || '').replace(/[—-]/g, '').trim());
+      if (sinT.length) setTimeout(() => _albAvisoSinTransp(sinT), 900);
+    } catch (e) { console.warn('[v1290] aviso sin transportista:', e); }
   }
 
   if (type === 'alb') pendingAlb = pendingAlb.filter(x => x.status !== 'done');
