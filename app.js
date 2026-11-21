@@ -26973,7 +26973,7 @@ function renderTallerTabla() {
     }
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
-      <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:9px;color:var(--mu)">${esc(v.notas)}</div>` : ''}</td>
+      <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:12px;color:#1f2937;margin-top:2px">${esc(v.notas)}</div>` : ''}</td>
       <td style="font-size:11px"><div style="display:flex;align-items:center;gap:10px"><span style="width:140px;flex:0 0 140px;height:64px;display:flex;justify-content:center;align-items:center">${(_fp && _fp[1] === 'Camión grúa') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="max-width:140px;height:64px;width:auto;object-fit:contain;border-radius:6px;display:block"') : (_fp || v.carroceria === 'cisterna') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:cover;border-radius:6px;display:block"') : tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:contain;display:block"')}</span><span class="tipoNombre" style="min-width:90px;font-weight:700">${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</span></div></td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
       ${kmFechaCell}

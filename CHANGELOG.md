@@ -1,3 +1,7 @@
+## v1283 — 21/11/2026
+- Taller › Vehículos: el texto bajo la matrícula (marca, modelo y bastidor) más grande y oscuro para leer bien el bastidor.
+- Datos (sin código): rellenado ese texto en 91 vehículos de TYP2014 e Híspalis leyendo sus fichas técnicas: tractoras con marca + modelo + bastidor; semirremolques con marca + bastidor. Se conservan las notas que ya había (por Holcim, alquilada, Portes 2014 Import, camión grúa).
+
 ## v1282 — 21/11/2026
 - F. Emitidas: las cajas "Subir factura emitida" (azul) y "Subir liquidación Confirming BBVA" (verde) con fondo de color suave, borde más grueso y el texto en negro, como las de ITV y Neumáticos.
 
