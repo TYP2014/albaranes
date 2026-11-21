@@ -1,3 +1,6 @@
+## v1291 — 21/11/2026
+- Taller › Avisos: el botón "Programar un aviso nuevo" pasa a ser una barra amarilla fuerte, a todo lo ancho y con letra grande: "PROGRAMAR NUEVO AVISO — Fecha y/o km del PRÓXIMO mantenimiento".
+
 ## v1290 — 21/11/2026
 - Albaranes: al terminar de subir una tanda, si alguno ha quedado **sin transportista**, sale una ventana para quien los sube: puede corregir la matrícula si la IA la leyó mal y elegir el transportista, o marcar "Dejar para revisar" (queda en amarillo con la nota "Sin transportista al subir"). No se cierra sin decidir cada uno.
 
