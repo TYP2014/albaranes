@@ -27709,6 +27709,36 @@ function tallerVerHistorico(vehId) {
   box.style.display = 'block';
 }
 
+// v1284 (JC 21/11/2026): al subir la FICHA TÉCNICA, la IA lee marca, modelo y bastidor y los pone debajo de la matrícula (notas).
+// Tractoras: "MARCA MODELO · bastidor X"; semirremolques: "MARCA · bastidor X". Se conservan las anotaciones propias
+// (por Holcim, alquilada, TIP, grúa, cisterna) y se añade "Portes 2014 Import" si la matrícula es de Import (mapa de Gasoil).
+// Si la ficha es de OTRA matrícula, avisa y no toca nada. No bloquea la subida: si falla, la ficha queda subida igual.
+async function _ftDatosLeer(vehId, file) {
+  try {
+    const v = (tallerVehiculos || []).find(x => x.id === vehId) || (await sb.from('taller_vehiculos').select('*').eq('id', vehId).single()).data; if (!v) return;
+    const mat = String(v.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+    const buf = new Uint8Array(await file.arrayBuffer()); let bin = ''; for (let k = 0; k < buf.length; k += 32768) bin += String.fromCharCode.apply(null, buf.subarray(k, k + 32768));
+    const esPdf = buf[0] === 0x25 || /pdf$/i.test(file.type || file.name || '');
+    const blk = esPdf ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: btoa(bin) } } : { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: btoa(bin) } };
+    const prompt = 'Es la ficha técnica (tarjeta ITV) de un vehículo español. Devuelve SOLO un JSON: {"matricula":"","marca":"","modelo":"","bastidor":""}. marca = campo D.1 (ej. DAF, IVECO, MAN, VOLVO, SCHMITZ CARGOBULL, LECITRAILER, LECIÑENA). modelo = denominación comercial (campo D.3; si no hay, el tipo D.2 corto). bastidor = número de identificación / VIN (campo E), 17 caracteres, sin espacios. Si un dato no se lee, "". Sin texto extra.';
+    const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 3000, messages: [{ role: 'user', content: [blk, { type: 'text', text: prompt }] }] }) });
+    if (!res.ok) throw new Error('IA ' + res.status);
+    const d = await res.json(); const t = (d.content || []).map(x => x.text || '').join('');
+    const x = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+    const leida = String(x.matricula || '').toUpperCase().replace(/[\s-]/g, '');
+    if (leida && leida !== mat) { toast('⚠️ La ficha técnica subida pone la matrícula ' + leida + ', no ' + mat + '. Revisa que sea la buena (no he cambiado el texto).', 'err'); return; }
+    const bast = String(x.bastidor || '').toUpperCase().replace(/\s/g, ''), marca = String(x.marca || '').toUpperCase().trim();
+    if (!marca && bast.length !== 17) { toast('No he podido leer marca ni bastidor de la ficha de ' + mat, 'err'); return; }
+    const extra = String(v.notas || '').split(' · ').filter(p => /holcim|alquilad|tip|gr[uú]a|cisterna|import/i.test(p) && !/bastidor/i.test(p));
+    if (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[mat] === 'PORTES' && !extra.some(p => /import/i.test(p))) extra.unshift('Portes 2014 Import');
+    const base = v.tipo_vehiculo === 'tractora' ? (marca + ' ' + String(x.modelo || '').trim()).trim() : marca;
+    const nueva = [base].concat(extra).concat(bast.length === 17 ? ['bastidor ' + bast] : []).filter(Boolean).join(' · ');
+    const { error } = await sb.from('taller_vehiculos').update({ notas: nueva }).eq('id', vehId); if (error) throw error;
+    v.notas = nueva; toast('✓ ' + mat + ': ' + nueva, 'ok');
+    try { await loadTallerData(); } catch (e) {}
+  } catch (e) { console.warn('[v1284] datos de la ficha técnica:', e); }
+}
+
 // v107L3: sube la ficha técnica del vehículo (un archivo) a Storage y guarda su enlace.
 async function tallerSubirFicha(vehId, input) {
   const file = input && input.files && input.files[0];
@@ -27721,6 +27751,7 @@ async function tallerSubirFicha(vehId, input) {
     toast('Ficha técnica subida', 'ok');
     await loadTallerData();
     tallerAbrirModal(vehId);
+    _ftDatosLeer(vehId, file);   // v1284
   } catch (e) { toast('Error subiendo ficha: ' + (e.message || e), 'err'); }
 }
 
@@ -48623,7 +48654,7 @@ async function vdSubir(vehId, tipo, input) {
   try {
     { const av = await _vdComprobar(file, tipo, mat);   // v1232: ¿es el documento y el camión que toca?
       if (av.length && !confirm('⚠️ ¿Seguro que este documento va aquí? (' + mat + ' · ' + ((_VD_TIPOS.find(t => t[0] === tipo) || [, tipo])[1]) + ')\n\n· ' + av.join('\n· ') + '\n\nAceptar = subirlo igualmente · Cancelar = no subir')) { input.value = ''; toast('No se ha subido nada', 'ok'); return; } }
-    if (tipo === 'FT') { toast('Subiendo ficha técnica…', 'ok'); const url = await uploadFile(file, 'fichas-tecnicas'); const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId); if (error) throw error; await loadTallerData(); }
+    if (tipo === 'FT') { toast('Subiendo ficha técnica…', 'ok'); const url = await uploadFile(file, 'fichas-tecnicas'); const { error } = await sb.from('taller_vehiculos').update({ ficha_tecnica_url: url, updated_at: new Date().toISOString() }).eq('id', vehId); if (error) throw error; await loadTallerData(); _ftDatosLeer(vehId, file); }
     else {
       let etq;
       if ((tipo === 'EXTRA1' || tipo === 'EXTRA2') && (_vd.docs.get('__CABECERA__|' + tipo) || {}).etiqueta) etq = null;   // v1226: la columna ya tiene nombre → el documento se llama así

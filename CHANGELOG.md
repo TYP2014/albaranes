@@ -1,3 +1,7 @@
+## v1284 — 21/11/2026
+- Taller: al subir la **ficha técnica** de un vehículo (desde su ficha o desde Documentación › Vehículos), la IA lee marca, modelo y bastidor y los pone sola debajo de la matrícula. Tractoras: marca + modelo + bastidor; semirremolques: marca + bastidor. Conserva las anotaciones propias (por Holcim, alquilada, grúa…) y añade "Portes 2014 Import" si la tractora es de Import. Si la ficha pone otra matrícula, avisa y no cambia nada.
+- Datos: 1479JDM y 0755KMB marcadas como "Portes 2014 Import" (como la 3423NVF).
+
 ## v1283 — 21/11/2026
 - Taller › Vehículos: el texto bajo la matrícula (marca, modelo y bastidor) más grande y oscuro para leer bien el bastidor.
 - Datos (sin código): rellenado ese texto en 91 vehículos de TYP2014 e Híspalis leyendo sus fichas técnicas: tractoras con marca + modelo + bastidor; semirremolques con marca + bastidor. Se conservan las notas que ya había (por Holcim, alquilada, Portes 2014 Import, camión grúa).
