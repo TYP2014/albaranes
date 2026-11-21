@@ -27731,7 +27731,7 @@ async function _ftDatosLeer(vehId, file) {
     const x = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
     const leida = String(x.matricula || '').toUpperCase().replace(/[\s-]/g, '');
     if (leida && leida !== mat) { toast('⚠️ La ficha técnica subida pone la matrícula ' + leida + ', no ' + mat + '. Revisa que sea la buena (no he cambiado el texto).', 'err'); return; }
-    const bast = String(x.bastidor || '').toUpperCase().replace(/\s/g, ''), marca = String(x.marca || '').toUpperCase().trim();
+    const bast = String(x.bastidor || '').toUpperCase().replace(/\s/g, ''), marca = String(x.marca || '').toUpperCase().trim().replace(/^K(Ä|AE)SSBOHRER/, 'KASSBOHRER');   // v1288: una sola forma
     if (!marca && bast.length !== 17) { toast('No he podido leer marca ni bastidor de la ficha de ' + mat, 'err'); return; }
     const extra = String(v.notas || '').split(' · ').filter(p => /holcim|alquilad|tip|gr[uú]a|cisterna|import/i.test(p) && !/bastidor/i.test(p));
     const esImport = (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[mat] === 'PORTES') || /PORTES\s*2014\s*IMPORT/i.test(String(x.titular || ''));   // v1285: también por el titular del permiso

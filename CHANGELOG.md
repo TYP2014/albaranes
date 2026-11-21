@@ -1,3 +1,6 @@
+## v1288 — 21/11/2026
+- Taller: al leer la ficha técnica o el permiso, KÄSSBOHRER / KAESSBOHRER se guarda siempre como KASSBOHRER (una sola marca en el filtro).
+
 ## v1287 — 21/11/2026
 - Documentación › Vehículos: filtro por **matrícula** (escribiendo) y desplegable por **marca** (DAF, IVECO, MAN, SCHMITZ CARGOBULL…), en todas las empresas. La marca sale del texto leído de la ficha técnica.
 
