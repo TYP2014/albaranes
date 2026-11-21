@@ -1,3 +1,7 @@
+## v1285 — 21/11/2026
+- Empleados › Vacaciones: al lado del nombre de la empresa sale ahora el **nº de trabajadores** en activo (como las tractoras y remolques en Taller), también en Portes 2014 Import. El título pasa de "Trabajadores y saldos" a "Trabajadores y vacaciones" (los saldos eran los días de vacaciones).
+- Taller: al subir el **permiso de circulación** también se leen marca, modelo y bastidor, y si el titular es Portes 2014 Import se marca "Portes 2014 Import" debajo de la matrícula.
+
 ## v1284 — 21/11/2026
 - Taller: al subir la **ficha técnica** de un vehículo (desde su ficha o desde Documentación › Vehículos), la IA lee marca, modelo y bastidor y los pone sola debajo de la matrícula. Tractoras: marca + modelo + bastidor; semirremolques: marca + bastidor. Conserva las anotaciones propias (por Holcim, alquilada, grúa…) y añade "Portes 2014 Import" si la tractora es de Import. Si la ficha pone otra matrícula, avisa y no cambia nada.
 - Datos: 1479JDM y 0755KMB marcadas como "Portes 2014 Import" (como la 3423NVF).

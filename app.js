@@ -25703,6 +25703,10 @@ function renderVac() {
     if (!empMatch) return false;
     return vacMostrarArchivados ? t.archivado : !t.archivado;
   });
+  // v1285 (JC): nº de trabajadores de la empresa al lado del título, como los vehículos en Taller
+  if (titEmp) { const nAct = vacTrabajadores.filter(t => !t.archivado && (t.empresa === vacEmpresaActiva || (!t.empresa && vacEmpresaActiva === 'TYP2014'))).length;
+    titEmp.innerHTML = esc(({ TYP2014: 'TYP2014', HISPALIS: 'HÍSPALIS', PORTES: 'PORTES 2014 IMPORT' })[vacEmpresaActiva] || vacEmpresaActiva) +
+      ' <span style="margin-left:10px;font-size:14px;font-weight:800;color:#0b2545;background:#dbe5f1;border-radius:6px;padding:4px 10px">' + nAct + ' TRABAJADOR' + (nAct === 1 ? '' : 'ES') + '</span>'; }
   const box = document.getElementById('vacTablaBox');
   if (!trabs.length) {
     const msg = vacMostrarArchivados
@@ -27720,7 +27724,7 @@ async function _ftDatosLeer(vehId, file) {
     const buf = new Uint8Array(await file.arrayBuffer()); let bin = ''; for (let k = 0; k < buf.length; k += 32768) bin += String.fromCharCode.apply(null, buf.subarray(k, k + 32768));
     const esPdf = buf[0] === 0x25 || /pdf$/i.test(file.type || file.name || '');
     const blk = esPdf ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: btoa(bin) } } : { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: btoa(bin) } };
-    const prompt = 'Es la ficha técnica (tarjeta ITV) de un vehículo español. Devuelve SOLO un JSON: {"matricula":"","marca":"","modelo":"","bastidor":""}. marca = campo D.1 (ej. DAF, IVECO, MAN, VOLVO, SCHMITZ CARGOBULL, LECITRAILER, LECIÑENA). modelo = denominación comercial (campo D.3; si no hay, el tipo D.2 corto). bastidor = número de identificación / VIN (campo E), 17 caracteres, sin espacios. Si un dato no se lee, "". Sin texto extra.';
+    const prompt = 'Es la ficha técnica (tarjeta ITV) o el permiso de circulación de un vehículo español. Devuelve SOLO un JSON: {"matricula":"","marca":"","modelo":"","bastidor":"","titular":""}. titular = nombre del titular (campo C.1.1) si aparece. marca = campo D.1 (ej. DAF, IVECO, MAN, VOLVO, SCHMITZ CARGOBULL, LECITRAILER, LECIÑENA). modelo = denominación comercial (campo D.3; si no hay, el tipo D.2 corto). bastidor = número de identificación / VIN (campo E), 17 caracteres, sin espacios. Si un dato no se lee, "". Sin texto extra.';
     const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 3000, messages: [{ role: 'user', content: [blk, { type: 'text', text: prompt }] }] }) });
     if (!res.ok) throw new Error('IA ' + res.status);
     const d = await res.json(); const t = (d.content || []).map(x => x.text || '').join('');
@@ -27730,7 +27734,8 @@ async function _ftDatosLeer(vehId, file) {
     const bast = String(x.bastidor || '').toUpperCase().replace(/\s/g, ''), marca = String(x.marca || '').toUpperCase().trim();
     if (!marca && bast.length !== 17) { toast('No he podido leer marca ni bastidor de la ficha de ' + mat, 'err'); return; }
     const extra = String(v.notas || '').split(' · ').filter(p => /holcim|alquilad|tip|gr[uú]a|cisterna|import/i.test(p) && !/bastidor/i.test(p));
-    if (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[mat] === 'PORTES' && !extra.some(p => /import/i.test(p))) extra.unshift('Portes 2014 Import');
+    const esImport = (typeof _MAT_EMP_GAS !== 'undefined' && _MAT_EMP_GAS[mat] === 'PORTES') || /PORTES\s*2014\s*IMPORT/i.test(String(x.titular || ''));   // v1285: también por el titular del permiso
+    if (esImport && !extra.some(p => /import/i.test(p))) extra.unshift('Portes 2014 Import');
     const base = v.tipo_vehiculo === 'tractora' ? (marca + ' ' + String(x.modelo || '').trim()).trim() : marca;
     const nueva = [base].concat(extra).concat(bast.length === 17 ? ['bastidor ' + bast] : []).filter(Boolean).join(' · ');
     const { error } = await sb.from('taller_vehiculos').update({ notas: nueva }).eq('id', vehId); if (error) throw error;
@@ -48662,7 +48667,7 @@ async function vdSubir(vehId, tipo, input) {
       let vence;
       if (_VD_VENCE.includes(tipo)) { toast('Leyendo el vencimiento…', 'ok'); vence = await _vdVenceDe(file, tipo, mat); }   // v1229
       toast('Subiendo…', 'ok'); await _vdGuardarDoc(mat, tipo, file, etq, vence);
-      if (_VD_VENCE.includes(tipo)) toast(vence ? '✓ ' + mat + ' · vence el ' + _ofFechaEs(vence) + ' (si está mal, pulsa en la fecha)' : '⚠️ ' + mat + ': no he encontrado el vencimiento. Pulsa en "poner vencimiento".', vence ? 'ok' : 'err');
+      if (_VD_VENCE.includes(tipo)) toast(vence ? '✓ ' + mat + ' · vence el ' + _ofFechaEs(vence) + ' (si está mal, pulsa en la fecha)' : '⚠️ ' + mat + ': no he encontrado el vencimiento. Pulsa en "poner vencimiento".', vence ? 'ok' : 'err');      if (tipo === 'PC') _ftDatosLeer(vehId, file);   // v1285: el permiso también trae marca, modelo, bastidor y titular
     }
     toast('✓ Subido · ' + mat, 'ok'); await vdCargar();
   } catch (e) { console.error('[v1223] subir doc:', e); toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); }
