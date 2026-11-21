@@ -1,3 +1,6 @@
+## v1287 — 21/11/2026
+- Documentación › Vehículos: filtro por **matrícula** (escribiendo) y desplegable por **marca** (DAF, IVECO, MAN, SCHMITZ CARGOBULL…), en todas las empresas. La marca sale del texto leído de la ficha técnica.
+
 ## v1286 — 21/11/2026
 - Tacógrafo: el aviso de arriba "camiones con días SIN REGISTRO" ya no sale por huecos de antes de Movertis (antes del 15/05/2026); esos meses los guarda ASG por contrato. El informe "Carencia de registros" sigue mostrándolo todo por si hace falta.
 

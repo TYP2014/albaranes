@@ -48433,8 +48433,13 @@ function _vdUrlDe(v, tipo) {   // URL lista para abrir (firmada) o null
 function vdRender() {
   const out = document.getElementById('tallerDocsOut'); if (!out) return;
   const vs = _vdLista(), empA = _vdEmpActual(), nDocs = _vdDocsMarcados().length;
-  const tr = vs.filter(v => v.tipo_vehiculo !== 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
-  const se = vs.filter(v => v.tipo_vehiculo === 'semirremolque').sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
+  // v1287 (JC): filtros por matrícula y por marca (la marca sale del texto de debajo de la matrícula, leído de la ficha técnica)
+  const marcas = [...new Set(vs.map(_vdMarca).filter(Boolean))].sort();
+  if (_vd.fMarca && !marcas.includes(_vd.fMarca)) _vd.fMarca = '';
+  const fM = String(_vd.fMat || '').toUpperCase().replace(/[\s-]/g, '');
+  const pasa = v => (!fM || String(v.matricula).toUpperCase().includes(fM)) && (!_vd.fMarca || _vdMarca(v) === _vd.fMarca);
+  const tr = vs.filter(v => v.tipo_vehiculo !== 'semirremolque' && pasa(v)).sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
+  const se = vs.filter(v => v.tipo_vehiculo === 'semirremolque' && pasa(v)).sort((a, b) => String(a.matricula).localeCompare(String(b.matricula)));
   const plant = Object.keys(_VD_PLANT).filter(e => !empA || e === empA).map(e => { const x = _vd.docs.get('__PLANTILLA__|HOLCIM_' + e); return '<span style="display:inline-flex;gap:6px;align-items:center;margin-right:14px"><b>' + _VD_PLANT[e] + ':</b> ' + (x ? '<span style="color:#15803d;font-weight:800">✓ subida</span>' : '<span style="color:#b91c1c;font-weight:800">falta</span>') +
     ' <label class="btn bs" style="font-size:11px;padding:3px 8px;cursor:pointer">' + (x ? 'Cambiar' : 'Subir') + '<input type="file" accept="application/pdf" style="display:none" onchange="vdSubirPlantilla(\'' + e + '\',this)"></label></span>'; }).join('');
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
@@ -48444,7 +48449,10 @@ function vdRender() {
     '<button class="btn" onclick="vdEnviarAbrir()" style="font-weight:800;background:#15803d;color:#fff">📤 Enviar marcados' + (nDocs ? ' (' + nDocs + ' doc.)' : '') + '</button>' +
     '<button class="btn" onclick="vdDeclSel()" style="font-weight:800;border:2px solid #1b3254;color:#1b3254;background:#fff">Declaración Holcim de los marcados</button></div></div>' +
     '<div style="font-size:13px;color:#15803d;font-weight:700;margin-bottom:6px">Para enviar o descargar solo algunos papeles, marca la casilla verde de cada documento. La casilla de la izquierda marca todos los del camión.</div>' +
-    '<div style="font-size:13px;color:#111;margin-bottom:10px">Plantilla firmada de la declaración Holcim (se sube una vez por empresa; la app le cambia la matrícula y la fecha): ' + plant + '</div>';
+    '<div style="font-size:13px;color:#111;margin-bottom:10px">Plantilla firmada de la declaración Holcim (se sube una vez por empresa; la app le cambia la matrícula y la fecha): ' + plant + '</div>' +
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><input id="vdFMat" class="fi" placeholder="Filtrar por matrícula…" value="' + _ofEA(_vd.fMat || '') + '" oninput="vdFiltro(\'mat\',this.value)" style="width:200px;font-weight:700">' +
+    '<select class="fi" onchange="vdFiltro(\'marca\',this.value)" style="width:230px;font-weight:700"><option value="">Todas las marcas</option>' + marcas.map(m => '<option' + (m === _vd.fMarca ? ' selected' : '') + ' value="' + _ofEA(m) + '">' + esc(m) + '</option>').join('') + '</select>' +
+    ((_vd.fMat || _vd.fMarca) ? '<button class="btn bs" onclick="vdFiltro(\'limpiar\')">Limpiar</button>' : '') + '</div>';
   if (tallerEmpresaActiva === 'TYP2014' && !window._vdEnDocu) {   // v1224: apartado propio para PORTES 2014 IMPORT (v1262: en Documentación lo elige la barra de empresas)
     const nI = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014' && _vdEmpDecl(v) === 'PORTES').length, nT = (tallerVehiculos || []).filter(v => v.empresa === 'TYP2014').length - nI;
     const b = (k, t) => '<button class="btn" onclick="vdSub(\'' + k + '\')" style="font-weight:800;padding:7px 16px;' + (_vd.sub === k ? 'background:#1b3254;color:#fff' : 'background:#fff;color:#1b3254;border:2px solid #1b3254') + '">' + t + '</button>';
@@ -48486,6 +48494,15 @@ function vdRender() {
   const seCis = se.filter(esCis), seRes = se.filter(v => !esCis(v));
   h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques', seRes, 'semirremolque') + (seCis.length ? tabla('Cisternas', seCis, 'cisterna') : '');
   out.innerHTML = h;
+}
+function _vdMarca(v) {   // v1287: marca = primer trozo del texto de debajo de la matrícula (en tractoras, la primera palabra)
+  const p = String(v.notas || '').split(' · ')[0].trim().toUpperCase(); if (!p || /holcim|alquilad|import|bastidor/i.test(p)) return '';
+  return v.tipo_vehiculo === 'semirremolque' ? p : p.split(/\s+/)[0];
+}
+function vdFiltro(k, val) {
+  if (k === 'mat') _vd.fMat = val; else if (k === 'marca') _vd.fMarca = val; else { _vd.fMat = ''; _vd.fMarca = ''; }
+  vdRender();
+  if (k === 'mat') { const i = document.getElementById('vdFMat'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
 function _vdDocsDe(v) {   // documentos subidos de un vehículo
   const mat = String(v.matricula).toUpperCase(), L = [];
