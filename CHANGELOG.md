@@ -1,3 +1,6 @@
+## v1279 — 21/11/2026
+- ITV: las cajas para subir ITV y citas tienen ahora fondo azul claro, borde más grueso y oscuro y el texto en negrita, para que se vea claramente dónde se arrastran los archivos.
+
 ## v1278 — 21/11/2026
 - ITV: quitadas las fotos de las cajas de arrastrar (Registro de ITV y Próximas citas). Queda la caja limpia con su texto; arrastrar o pinchar funciona igual.
 
