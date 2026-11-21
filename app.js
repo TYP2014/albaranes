@@ -27210,6 +27210,32 @@ function tallerBloqueAddTarea() {
   cont.appendChild(div);
 }
 
+// v1289 (JC 21/11/2026): al guardar un mantenimiento, si el camión NO tiene programado el siguiente (ni por fecha ni por km
+// posterior a este mantenimiento), aviso grande para que no se olvide. Si solo era una reparación, se cierra con "No hace falta".
+function _tallerAvisoProgramar(vehId, fechaMant, kmMant) {
+  try {
+    const v = _tallerVehPorId(vehId); if (!v) return;
+    const f0 = String(fechaMant || new Date().toISOString().slice(0, 10)).slice(0, 10), k0 = Number(kmMant) || Number(v.km_actual) || 0;
+    const vencs = (tallerVencimientos || []).filter(x => x.vehiculo_id === vehId);
+    const futuro = vencs.some(x => (x.fecha_limite && String(x.fecha_limite).slice(0, 10) > f0) || (x.km_limite != null && Number(x.km_limite) > k0));
+    if (futuro) return;
+    const viejos = vencs.map(x => (x.descripcion || 'Mantenimiento') + (x.fecha_limite ? ' (' + String(x.fecha_limite).slice(0, 10).split('-').reverse().join('/') + ')' : '') + (x.km_limite != null ? ' (' + Number(x.km_limite).toLocaleString('es-ES') + ' km)' : ''));
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML = '<div style="background:#fff;border:4px solid #b45309;border-radius:12px;max-width:520px;width:100%;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.35)">' +
+      '<div style="font-size:22px;font-weight:900;color:#b45309">⚠️ Falta programar el PRÓXIMO mantenimiento</div>' +
+      '<div style="font-size:18px;font-weight:800;margin:8px 0 10px">' + esc(v.matricula) + '</div>' +
+      '<div style="font-size:15px;color:#111;line-height:1.5">Este camión <b>no tiene ningún aviso programado</b> después de este mantenimiento, <b>ni por fecha ni por kilómetros</b>.' +
+      (viejos.length ? '<br>El que tenía ya ha pasado: ' + esc(viejos.join(' · ')) + '.' : '') +
+      '<br><br>Si se ha cambiado <b>aceite, filtros</b> o se ha hecho la <b>revisión</b>, prográmalo ahora para que la app avise a tiempo.<br>Si solo era una reparación (una pieza, una rueda…), no hace falta.</div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap"><button class="btn bs" data-no="1" style="font-weight:800">No hace falta</button>' +
+      '<button class="btn" data-si="1" style="background:#b45309;color:#fff;font-weight:900;font-size:15px;padding:8px 16px">Programar ahora</button></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('[data-no]').onclick = () => ov.remove();
+    ov.querySelector('[data-si]').onclick = () => { ov.remove(); try { tallerAbrirModal(vehId); setTimeout(() => { const d = document.getElementById('tallerVencDesc'); if (d) { d.scrollIntoView({ block: 'center' }); d.focus(); } }, 400); } catch (e) {} };
+  } catch (e) { console.warn('[v1289] aviso programar:', e); }
+}
+
 // v107K74: guarda TODO el día de una vez. Una fecha + unos km + quién + N tareas →
 // inserta una línea por tarea (todas con la misma fecha/km/realizado_por). Si los km
 // del bloque son MAYORES que el km_actual del vehículo, también actualiza el km_actual
@@ -27247,6 +27273,7 @@ async function tallerGuardarBloque(vehId) {
     toast(`✓ Guardado el día ${fecha.split('-').reverse().join('/')}: ${filas.length} tarea(s)`, 'ok');
     await loadTallerData();
     tallerAbrirModal(vehId);
+    _tallerAvisoProgramar(vehId, fecha, km);   // v1289
   } catch (e) {
     console.error('[tallerGuardarBloque]', e);
     toast('Error guardando el bloque: ' + (e.message || e), 'err');
@@ -27291,6 +27318,7 @@ async function tallerGuardarMantenimientos(vehId) {
     toast(`Guardado: ${aInsertar.length} nuevos, ${aActualizar.length} actualizados`, 'ok');
     closeTallerMant();
     await loadTallerData();
+    if (aInsertar.length) { const u = aInsertar.slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))[0]; _tallerAvisoProgramar(vehId, u.fecha, u.km); }   // v1289
   } catch (e) {
     console.error('[tallerGuardarMantenimientos]', e);
     toast('Error guardando: ' + (e.message || e), 'err');

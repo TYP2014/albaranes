@@ -1,3 +1,6 @@
+## v1289 — 21/11/2026
+- Taller: al guardar un mantenimiento, si el camión no tiene programado el siguiente (ni por fecha ni por km posteriores), sale un aviso grande "Falta programar el PRÓXIMO mantenimiento" con dos botones: **Programar ahora** (abre la ficha en la casilla de avisos) o **No hace falta** (si solo era una reparación).
+
 ## v1288 — 21/11/2026
 - Taller: al leer la ficha técnica o el permiso, KÄSSBOHRER / KAESSBOHRER se guarda siempre como KASSBOHRER (una sola marca en el filtro).
 
