@@ -1,3 +1,6 @@
+## v1282 — 21/11/2026
+- F. Emitidas: las cajas "Subir factura emitida" (azul) y "Subir liquidación Confirming BBVA" (verde) con fondo de color suave, borde más grueso y el texto en negro, como las de ITV y Neumáticos.
+
 ## v1281 — 21/11/2026
 - Neumáticos: las 3 cajas de subir (albaranes, facturas de compra y cuadre) con fondo azul claro, borde marcado y texto en negrita, igual que las de ITV.
 
