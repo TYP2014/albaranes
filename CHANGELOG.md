@@ -1,3 +1,6 @@
+## v1280 — 21/11/2026
+- Documentación: quitados los dibujitos de los botones Empresa, Vehículos, Conductores y Plataformas (y de los títulos de "Por documento"). Solo texto.
+
 ## v1279 — 21/11/2026
 - ITV: las cajas para subir ITV y citas tienen ahora fondo azul claro, borde más grueso y oscuro y el texto en negrita, para que se vea claramente dónde se arrastran los archivos.
 

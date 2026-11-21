@@ -49454,7 +49454,7 @@ function _cplPorDocRender() {
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">✓ subido · ⏳ pendiente (lo sube la tarea de cada hora) · — no lo pide esa plataforma o el camión/conductor no está dado de alta allí</div>';
   if (!L.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
   const ic = (e) => e === 'subido' ? '<span style="color:#15803d;font-weight:800">✓ subido</span>' : e === 'pend' ? '<span style="color:#b45309;font-weight:800">⏳ pendiente</span>' : e === 'no_aplica' ? '<span style="color:#64748b">no aplica</span>' : '<span style="color:#94a3b8">—</span>';
-  [['Empresa', '🏢 Empresa'], ['Vehículo', '🚛 Vehículos'], ['Trabajador', '👷 Conductores / trabajadores']].forEach(([amb, tit]) => {
+  [['Empresa', 'Empresa'], ['Vehículo', 'Vehículos'], ['Trabajador', 'Conductores / trabajadores']].forEach(([amb, tit]) => {
     const G = L.filter(x => x.amb === amb); if (!G.length) return;
     h += '<div style="font-size:16px;font-weight:800;margin:16px 0 6px">' + tit + ' (' + G.length + ')</div><table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Documento</th>' +
       PL.map(p => '<th style="' + th + '">' + esc(_CPL[p].nom.split(' ')[0]) + '</th>').join('') + '</tr>';
@@ -49469,7 +49469,7 @@ function _cplPorDocRender() {
 }
 function cplPlat(p) { if ((!_CPL[p] && p !== 'DOC') || _cpl.cargando) return; _cpl.plat = p; cplCargar(); }   // v1270
 function cplBadge() { const n = _cpl.items.filter(x => x.estado === 'pend').length, b = document.getElementById('docuVistaPlat'), t = document.getElementById('tabDocuCount');   // v1260
-  if (b) b.textContent = '📤 Plataformas' + (n ? ' (' + n + ')' : ''); if (t) { t.textContent = n; t.style.display = n ? '' : 'none'; } }
+  if (b) b.textContent = 'PLATAFORMAS' + (n ? ' (' + n + ')' : ''); if (t) { t.textContent = n; t.style.display = n ? '' : 'none'; } }
 function cplRender() {
   const out = document.getElementById('empPlatOut'); if (!out) return;
   const P = _CPL[_cpl.plat], pend = _cpl.items.filter(x => x.estado === 'pend'), th = 'padding:7px;text-align:left;background:#1b3254;color:#fff;font-weight:800';
@@ -49480,7 +49480,7 @@ function cplRender() {
   if (_cpl.base && typeof currentRole !== 'undefined' && currentRole === 'admin') h += '<div style="padding:10px;border:2px solid #f59e0b;border-radius:8px;margin-bottom:10px;background:#fffbeb">Primera vez: la plataforma está al día, así que todo lo que hay hoy en la app se da por subido. <button class="btn" onclick="cplBase()" style="font-weight:800;background:#b45309;color:#fff">Marcar lo actual como punto de partida</button></div>';
   if (!pend.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
   // v1260 (JC): sin mezclar — una tabla para Empresa, otra para Vehículos y otra para Conductores
-  [['Empresa', '🏢 Empresa'], ['Vehículo', '🚛 Vehículos'], ['Trabajador', '👷 Conductores / trabajadores']].forEach(([amb, tit]) => {
+  [['Empresa', 'Empresa'], ['Vehículo', 'Vehículos'], ['Trabajador', 'Conductores / trabajadores']].forEach(([amb, tit]) => {
     const G = pend.filter(x => x.amb === amb); if (!G.length) return;
     h += '<div style="font-size:16px;font-weight:800;margin:16px 0 6px">' + tit + ' (' + G.length + ')</div>';
   h += '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Empresa en la plataforma</th><th style="' + th + '">Documento (app)</th><th style="' + th + '">Casilla en ' + esc(P.nom.split(' ')[0]) + '</th><th style="' + th + '">Fecha / caduca</th><th style="' + th + '"></th></tr>';
