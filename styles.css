@@ -1312,3 +1312,8 @@ body:has(#ofOv,#faOv,#feOv,#ofCliOv,#ofCatOv) .toast.err{border-color:#c62828;ba
 #dzItv .dz-t,#dzCita .dz-t{color:#0f2a4d;font-size:14px;font-weight:700}
 #dzItv .dz-t .hl,#dzCita .dz-t .hl{text-decoration:underline}
 #dzItv .dz-s,#dzCita .dz-s{color:#1f3a5f;opacity:1;font-size:12px}
+/* v1281 (JC 21/11/2026): las 3 cajas de Neumáticos igual que las de ITV: fondo azul claro y borde marcado */
+#dzNeumAlb,#dzNeumFactura,#dzNeumCuadre{background:#e8f0fb !important;border:3px dashed #1f3a5f !important}
+#dzNeumAlb:hover,#dzNeumFactura:hover,#dzNeumCuadre:hover,#dzNeumAlb.dzover,#dzNeumFactura.dzover,#dzNeumCuadre.dzover{background:#d4e3f7 !important;border-color:#0f2a4d !important}
+#dzNeumAlb .dz-t,#dzNeumFactura .dz-t,#dzNeumCuadre .dz-t{color:#0f2a4d;font-weight:700}
+#dzNeumAlb .dz-s,#dzNeumFactura .dz-s,#dzNeumCuadre .dz-s{color:#1f3a5f;opacity:1}

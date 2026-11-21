@@ -1,3 +1,6 @@
+## v1281 — 21/11/2026
+- Neumáticos: las 3 cajas de subir (albaranes, facturas de compra y cuadre) con fondo azul claro, borde marcado y texto en negrita, igual que las de ITV.
+
 ## v1280 — 21/11/2026
 - Documentación: quitados los dibujitos de los botones Empresa, Vehículos, Conductores y Plataformas (y de los títulos de "Por documento"). Solo texto.
 
