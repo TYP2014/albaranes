@@ -46107,7 +46107,7 @@ async function _ofAlbOcupados(ids, o) {
       (data || []).forEach(a => { if (a.estado_facturacion === 'facturado' && !libres.has(String(a.id))) m.set(String(a.id), 'ya está FACTURADO'); });
     }
     const { data: fs, error: e2 } = await sb.from('facturas_app').select('id,numero,estado,oferta_id,albaranes'); if (e2) throw e2;
-    (fs || []).forEach(f => { if (f.id === o.saltaFactura || f.id === o.saltaFactura2 || f.estado === 'rectificada' || (o.saltaOferta && f.oferta_id === o.saltaOferta)) return;
+    (fs || []).forEach(f => { if (f.id === o.saltaFactura || f.id === o.saltaFactura2 || f.estado === 'rectificada' || f.estado === 'anulada' || (o.saltaOferta && f.oferta_id === o.saltaOferta)) return;
       (f.albaranes || []).forEach(a => { a = String(a); if (dentro.has(a) && !m.has(a)) m.set(a, 'está en la factura ' + (f.numero || 'sin nº') + (f.estado === 'emitida' ? '' : ' (borrador)')); }); });
     const { data: os, error: e3 } = await sb.from('ofertas').select('id,numero,cliente,estado,albaranes'); if (e3) throw e3;
     (os || []).forEach(x => { if (x.id === o.saltaOferta || x.estado === 'rechazada') return;
@@ -47411,11 +47411,12 @@ async function faListar() {
   let h = '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
     ['Estado', 'Nº factura', 'Empresa', 'Fecha', 'Cliente', 'Oferta', 'Total', 'Vencimiento', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 6 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(f => { const em = f.estado === 'emitida';
-    h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (f.estado === 'rectificada' ? '#ffedd5;color:#b45309' : em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (f.estado === 'rectificada' ? 'RECTIFICADA' : em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
+    h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (f.estado === 'rectificada' || f.estado === 'anulada' ? '#ffedd5;color:#b45309' : em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (f.estado === 'anulada' ? 'ANULADA' : f.estado === 'rectificada' ? 'RECTIFICADA' : em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + esc(f.numero || '(sin nº)') + '</td><td style="padding:7px 8px">' + esc(_OF_EMPRESAS[f.empresa] || f.empresa) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.fecha)) + '</td>' +
       '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;font-weight:700;color:#7c3aed;white-space:nowrap">' + (f.oferta_id ? esc(f.ofertaNum || '(sin nº)') : '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button> ' +
-      '<button class="btn bs" onclick="event.stopPropagation();faDuplicarDe(\'' + f.id + '\')" style="font-size:11px;padding:3px 9px;border-color:#7c3aed;color:#7c3aed;font-weight:700" title="Factura nueva con el mismo cliente, conceptos y precios. Número siguiente y fecha en blanco.">Duplicar</button></td></tr>'; });
+      '<button class="btn bs" onclick="event.stopPropagation();faDuplicarDe(\'' + f.id + '\')" style="font-size:11px;padding:3px 9px;border-color:#7c3aed;color:#7c3aed;font-weight:700" title="Factura nueva con el mismo cliente, conceptos y precios. Número siguiente y fecha en blanco.">Duplicar</button>' +
+      (em ? ' <button class="btn bs" onclick="event.stopPropagation();faRectificarDe(\'' + f.id + '\')" style="font-size:11px;padding:3px 9px;border-color:#b45309;color:#b45309;font-weight:700" title="Crear factura rectificativa de esta factura">Rectificativa</button>' : '') + '</td></tr>'; });
   out.innerHTML = h + '</tbody></table></div>';
 }
 // ---------- Nueva / abrir ----------
@@ -47438,7 +47439,7 @@ async function faAbrir(id) {
     const D = data.datos || {};
     _fa = { id: data.id, empresa: data.empresa, serie: data.serie || '', n: data.n, fecha: data.fecha || '', cliente: data.cliente || '', clienteDatos: D.clienteDatos || '', email: data.email || '', estado: data.estado || 'borrador',
       lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', ofertaNum: D.ofertaNum || '', mensaje: D.mensaje || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
-      oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0, rectifica: D.rectifica || null, rectificadaPor: D.rectificadaPor || null };
+      oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0, rectifica: D.rectifica || null, rectificadaPor: D.rectificadaPor || null, anulacion: D.anulacion || null };
     _faVentana();
   } catch (e) { console.error('[v1149] abrir factura:', e); toast('No se pudo abrir la factura: ' + (e.message || e), 'err'); }
 }
@@ -47523,7 +47524,7 @@ function faLin(i, campo, v) {
 function _faRender() {
   const box = document.getElementById('faBox'); if (!box || !_fa) return;
   const ovEl = document.getElementById('faOv'), sc = ovEl ? ovEl.scrollTop : 0;
-  const T = _faTot(), em = _fa.estado !== 'borrador', ESTX = _fa.estado === 'rectificada' ? 'RECTIFICADA' : em ? (_fa.rectifica ? 'RECTIFICATIVA EMITIDA' : 'EMITIDA') : (_fa.rectifica ? 'RECTIFICATIVA (BORRADOR)' : 'BORRADOR');   // v1294
+  const T = _faTot(), em = _fa.estado !== 'borrador', ESTX = _fa.estado === 'anulada' ? 'ANULADA' : _fa.estado === 'rectificada' ? 'RECTIFICADA' : em ? (_fa.rectifica ? 'RECTIFICATIVA EMITIDA' : 'EMITIDA') : (_fa.rectifica ? 'RECTIFICATIVA (BORRADOR)' : 'BORRADOR');   // v1294
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit', lab = 'font-size:12px;color:#111';
   const series = _faSeries(_fa.empresa, _fa.fecha), cliEn = _ofCliBuscar(_fa.cliente);
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">Factura ' + (_faNumero() ? esc(_faNumero()) : '<span style="color:var(--mu)">(sin nº)</span>') +
@@ -47539,7 +47540,7 @@ function _faRender() {
       '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
       '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>'
       : '<span style="font-size:12px;color:#475569">PDF, paquete y envío salen al guardar el borrador</span>') +
-    (em ? (_fa.estado === 'emitida' ? '<button class="btn" onclick="faRectificar()" style="font-size:14px;padding:10px 18px;background:#b45309;color:#fff;font-weight:800" title="Hace una factura RECTIFICATIVA que sustituye a esta, con todo editable">RECTIFICAR</button>' : '')
+    (em ? (_fa.estado === 'emitida' ? '<button class="btn" onclick="faRectificar()" style="font-size:14px;padding:10px 18px;background:#b45309;color:#fff;font-weight:800" title="Hace una factura RECTIFICATIVA (sustituye a esta o por diferencias)">RECTIFICAR</button><button class="btn" onclick="faAnular()" style="font-size:14px;padding:10px 16px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800" title="Solo para una factura hecha por error">ANULAR</button>' : '')
       : '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:#fff;color:#1b3254;font-weight:800">Guardar borrador</button>') +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
   h += _cliEmpFranja(_fa.cliente, _fa.empresa, 'factura');   // v1180
@@ -47602,6 +47603,7 @@ function _faRender() {
 // v1201: DUPLICAR (como en Quipu): factura nueva en borrador con el mismo cliente, conceptos, precios, forma de pago, cuenta, notas y mensaje.
 // Número = el siguiente de la serie; fecha en blanco (obligatoria). NO copia los albaranes ni la oferta (un albarán no se factura dos veces).
 // v1202: Duplicar directamente desde la lista, sin abrir antes la factura
+async function faRectificarDe(id) { await faAbrir(id); if (_fa && _fa.id === id) await faRectificar(); }   // v1296: desde la lista, como Quipu
 async function faDuplicarDe(id) { await faAbrir(id); if (_fa && _fa.id === id) await faDuplicar(); }
 async function faDuplicar() {
   if (!_fa) return;
@@ -47651,18 +47653,19 @@ async function faGuardar(silencioso, estado) {
 // y la rectificativa ocupa su lugar (albaranes incluidos). El borrador sigue siendo libre como siempre.
 // ============================================================================
 function _faRectTxt(f) { f = f || _fa; const r = f && f.rectifica; if (!r) return '';
-  return 'FACTURA RECTIFICATIVA por sustitución de la factura ' + r.numero + ' de fecha ' + _ofFechaEs(r.fecha) + ' (art. 15 del Reglamento de facturación, RD 1619/2012). Motivo: ' + (r.motivo || '') + '.'; }
+  return 'FACTURA RECTIFICATIVA ' + (r.tipo === 'diferencias' ? 'por diferencias' : 'por sustitución') + ' de la factura ' + r.numero + ' de fecha ' + _ofFechaEs(r.fecha) + ' (art. 15 del Reglamento de facturación, RD 1619/2012). Motivo: ' + (r.motivo || '') + '.'; }
 function _faBloqueo(box) {
   if (!_fa) return;
   if (_fa.rectifica) { const d = document.createElement('div'); d.style.cssText = 'margin-top:8px;padding:9px 12px;border:2px solid #b45309;border-radius:8px;font-size:14px;background:#fffbeb'; d.innerHTML = '<b>Rectificativa</b> de la factura <b>' + esc(_fa.rectifica.numero) + '</b> (' + esc(_ofFechaEs(_fa.rectifica.fecha)) + ') · Motivo: ' + esc(_fa.rectifica.motivo || ''); box.children[1] ? box.insertBefore(d, box.children[2] || null) : box.appendChild(d); }
   if (_fa.estado === 'borrador') return;
   const av = document.createElement('div');
   av.style.cssText = 'margin-top:8px;padding:10px 14px;border:3px solid #b45309;border-radius:8px;font-size:15px;background:#fff7ed;color:#111';
-  av.innerHTML = _fa.estado === 'rectificada'
+  av.innerHTML = _fa.estado === 'anulada' ? '<b>ANULADA</b> por error' + (_fa.anulacion ? ' · ' + esc(_fa.anulacion.motivo || '') : '') + '. No cuenta. El número ' + esc(_faNumero()) + ' no se vuelve a usar.'
+    : _fa.estado === 'rectificada'
     ? '<b>RECTIFICADA:</b> esta factura la sustituye la rectificativa <b>' + esc((_fa.rectificadaPor || {}).numero || '') + '</b>. Ya no cuenta ni se puede modificar.'
     : '<b>Factura emitida: ya no se puede modificar</b> (lo exige Veri*Factu). Para corregir el concepto, el mes, las toneladas, el precio o lo que sea, pulsa <b>RECTIFICAR</b>: sale una copia con todo editable que sustituye a esta.';
   box.insertBefore(av, box.children[1] || null);
-  const libres = /^(faCerrar|faPdf|faPaquete|faEnviarAbrir|faEnviar|faVerOferta|faDuplicar|_facHistorial|faRectificar|faSetRem)\(/;
+  const libres = /^(faCerrar|faPdf|faPaquete|faEnviarAbrir|faEnviar|faVerOferta|faDuplicar|_facHistorial|faRectificar|faAnular|faSetRem)\(/;
   box.querySelectorAll('button').forEach(b => { if (!libres.test(b.getAttribute('onclick') || '')) b.disabled = true; });
   box.querySelectorAll('input,select,textarea').forEach(el => { const oc = (el.getAttribute('onchange') || '') + (el.getAttribute('oninput') || ''); if (/_fa\.(email|mensaje)=|faSetRem/.test(oc)) return; el.disabled = true; });
 }
@@ -47670,22 +47673,73 @@ async function faRectificar() {
   if (!_fa || _fa.estado !== 'emitida') return;
   try { const { data } = await sb.from('facturas_app').select('id,numero,estado').eq('empresa', _fa.empresa).eq('estado', 'borrador').contains('datos', { rectifica: { id: _fa.id } }).limit(1);
     if (data && data.length) { toast('Ya hay una rectificativa en borrador de esta factura (' + (data[0].numero || '') + '): te la abro', 'ok'); document.getElementById('faOv')?.remove(); _fa = null; await faAbrir(data[0].id); return; } } catch (e) { console.warn('[v1294] buscar rectificativa:', e); }
-  const motivo = (prompt('RECTIFICAR la factura ' + _faNumero() + '\n\nEscribe el MOTIVO (sale en la factura), por ejemplo:\n  · Error en el mes del servicio\n  · Error en las toneladas\n  · Error en el precio') || '').trim();
-  if (!motivo) return;
-  const o = _fa, serie = 'R' + new Date().getFullYear();
-  const base = { empresa: o.empresa, serie, cliente: o.cliente, clienteDatos: o.clienteDatos || '', email: o.email || '', lineas: JSON.parse(JSON.stringify(o.lineas || [])), pago: o.pago, cuenta: o.cuenta, notas: o.notas || '', mensaje: o.mensaje || '', remitente: o.remitente || '', titulo: o.titulo || '',
-    pedido: o.pedido || '', ofertaNum: o.ofertaNum || '', oferta_id: o.oferta_id || null, filas: JSON.parse(JSON.stringify(o.filas || [])), venc: o.venc, vencManual: !!o.vencManual,
-    rectifica: { id: o.id, numero: _faNumero(o), fecha: o.fecha, total: _faTot().total, motivo, tipo: 'sustitucion' } };
+  const el = await _faPreguntaRect(_faNumero()); if (!el) return;
+  const o = _fa, serie = 'R' + new Date().getFullYear(), num = _faNumero(o), dif = el.tipo === 'diferencias';
+  // v1296: "por diferencias" (como Quipu): solo la diferencia, en negativo si es un abono; la original sigue valiendo.
+  //        "por sustitución": copia entera que sustituye a la original (con sus albaranes).
+  const lineas = JSON.parse(JSON.stringify(o.lineas || [])).map(l => dif ? Object.assign(l, { concepto: 'Rectificativa de la factura ' + num + ' - ' + (l.concepto || ''), precio: l.precio != null ? -Math.abs(Number(l.precio)) : l.precio, importe: l.importe != null ? -Math.abs(Number(l.importe)) : l.importe }) : l);
+  const base = { empresa: o.empresa, serie, cliente: o.cliente, clienteDatos: o.clienteDatos || '', email: o.email || '', lineas, pago: o.pago, cuenta: o.cuenta, notas: o.notas || '', mensaje: o.mensaje || '', remitente: o.remitente || '', titulo: o.titulo || '',
+    pedido: o.pedido || '', ofertaNum: o.ofertaNum || '', oferta_id: dif ? null : (o.oferta_id || null), filas: dif ? [] : JSON.parse(JSON.stringify(o.filas || [])), venc: o.venc, vencManual: !!o.vencManual,
+    rectifica: { id: o.id, numero: num, fecha: o.fecha, total: _faTot().total, motivo: el.motivo, tipo: el.tipo } };
   document.getElementById('faOv')?.remove(); _fa = null;
   await faNueva(base);
   if (_fa) { _fa.serie = serie; _fa.n = await _faSiguiente(_fa.empresa, serie); _faRender();
-    toast('Rectificativa ' + _faNumero() + ' en borrador: cambia lo que haga falta, pon la FECHA y EMITE.', 'ok'); }
+    toast('Rectificativa ' + _faNumero() + ' en borrador: ' + (dif ? 'pon el importe de la diferencia (en negativo si es abono), ' : 'cambia lo que haga falta, ') + 'la FECHA y EMITE.', 'ok'); }
+}
+// Ventana: motivo + tipo de rectificativa
+function _faPreguntaRect(num, anular) {
+  return new Promise(res => {
+    const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML = '<div style="background:#fff;border:4px solid #b45309;border-radius:12px;max-width:620px;width:100%;padding:20px;font-size:15px">' +
+      '<div style="font-size:20px;font-weight:900;color:#b45309">' + (anular ? 'ANULAR la factura ' : 'RECTIFICAR la factura ') + esc(num) + '</div>' +
+      (anular ? '<div style="margin:10px 0;line-height:1.5">Solo para una factura hecha <b>por error</b> (cliente equivocado, duplicada…). Queda ANULADA: no cuenta, sale de F. Emitidas y sus albaranes quedan libres. <b>El número no se reutiliza.</b><br>Si ya se envió al cliente o a Quipu, avísales y quítala allí a mano.</div>'
+        : '<div style="margin:12px 0 6px;font-weight:800">¿Qué tipo de rectificativa?</div>' +
+          '<label style="display:block;padding:8px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:6px;cursor:pointer"><input type="radio" name="faRT" value="sustitucion" checked> <b>Sustituir la factura</b> — copia entera con todo editable (mes, toneladas, precio…) y los mismos albaranes. La original deja de contar.</label>' +
+          '<label style="display:block;padding:8px;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer"><input type="radio" name="faRT" value="diferencias"> <b>Por diferencias</b> (como Quipu) — solo la diferencia, p. ej. un abono de precio en negativo. La original sigue valiendo.</label>') +
+      '<div style="margin:12px 0 4px;font-weight:800">Motivo (sale en la factura' + (anular ? ' y en el registro' : '') + ')</div><textarea id="faRTm" rows="3" style="width:100%;padding:8px;border:1px solid #94a3b8;border-radius:6px;font-size:15px;font-family:inherit" placeholder="' + (anular ? 'Ej.: factura hecha al cliente equivocado' : 'Ej.: error en el mes del servicio / diferencia de precio') + '"></textarea>' +
+      '<div id="faRTmsg" style="color:#b91c1c;font-weight:800;margin-top:6px"></div>' +
+      '<div style="text-align:right;margin-top:12px;display:flex;gap:10px;justify-content:flex-end"><button class="btn bs" id="faRTno">Cancelar</button><button class="btn" id="faRTok" style="background:#b45309;color:#fff;font-weight:900">' + (anular ? 'ANULAR' : 'Continuar') + '</button></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#faRTno').onclick = () => { ov.remove(); res(null); };
+    ov.querySelector('#faRTok').onclick = () => { const m = ov.querySelector('#faRTm').value.trim(); if (!m) { ov.querySelector('#faRTmsg').textContent = 'Escribe el motivo.'; return; }
+      const t = (ov.querySelector('input[name=faRT]:checked') || {}).value || 'sustitucion'; ov.remove(); res({ motivo: m, tipo: t }); };
+    setTimeout(() => ov.querySelector('#faRTm').focus(), 50);
+  });
+}
+// v1296: ANULAR una factura emitida por error (registro de anulación encadenado, lo apunta la base de datos)
+async function faAnular() {
+  if (!_fa || _fa.estado !== 'emitida' || !_fa.id) return;
+  const num = _faNumero(), ids = (_fa.filas || []).map(x => String(x.id)), empFE = _FA_EMP_FE[_fa.empresa] || _fa.empresa;
+  let fe = [], oferta = null;
+  try { const r1 = await sb.from('facturas_emitidas').select('id,estado,observaciones').eq('empresa', empFE).eq('numero', num); if (r1.error) throw r1.error; fe = r1.data || [];
+    if (_fa.oferta_id) { const r3 = await sb.from('ofertas').select('id,numero,cliente,estado,datos').eq('id', _fa.oferta_id).maybeSingle(); oferta = r3.data || null; } }
+  catch (e) { console.error('[v1296] antes de anular:', e); toast('⚠️ No se pudo comprobar la factura. Inténtalo otra vez.', 'err'); return; }
+  if (fe.some(x => x.estado && x.estado !== 'pendiente')) { alert('La factura ' + num + ' figura como COBRADA en F. Emitidas: una factura cobrada no se anula, se hace una RECTIFICATIVA.'); return; }
+  const el = await _faPreguntaRect(num, true); if (!el) return;
+  let err = 0;
+  try { const { data: cur, error } = await sb.from('facturas_app').select('datos').eq('id', _fa.id).single(); if (error) throw error;
+    const datos = Object.assign({}, cur.datos || {}, { anulacion: { motivo: el.motivo, cuando: new Date().toISOString(), quien: _ofQuien() } });
+    const { error: e1 } = await sb.from('facturas_app').update({ estado: 'anulada', datos }).eq('id', _fa.id); if (e1) throw e1; }
+  catch (e) { console.error('[v1296] anular:', e); toast('⚠️ No se pudo anular: ' + (e.message || e), 'err'); return; }
+  const etiqueta = oferta ? ((oferta.cliente || '') + (oferta.numero ? ' (' + oferta.numero + ')' : '') + ' · ' + (_OF_EMP_CORTO[_fa.empresa] || _fa.empresa)) : null;
+  for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, ofertado: !!oferta, ofertado_cliente: etiqueta, factura_ref: null, factura_tipo: null }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1296] albaranes:', e); err++; } }
+  ids.forEach(id => { const r = records.find(x => String(x.db_id) === id); if (r) { r.estado_facturacion = 'pendiente'; r.factura_fecha = null; r.ofertado = !!oferta; r.ofertado_cliente = etiqueta; r.factura_ref = null; r.factura_tipo = null; } });
+  if (oferta) { try { const d = Object.assign({}, oferta.datos || {}, { factura: '' }); d.historial = (Array.isArray(d.historial) ? d.historial : []).concat([{ t: new Date().toISOString(), q: _ofQuien(), c: ['Factura ' + num + ' ANULADA: la oferta vuelve a Aprobada'] }]);
+    const { error } = await sb.from('ofertas').update({ estado: 'aprobada', datos: d }).eq('id', oferta.id); if (error) throw error; } catch (e) { console.error('[v1296] oferta:', e); err++; } }
+  const mias = fe.filter(x => /^Hecha en la app/i.test(x.observaciones || ''));
+  if (mias.length) { try { const { error } = await sb.from('facturas_emitidas').delete().in('id', mias.map(x => x.id)); if (error) throw error; } catch (e) { console.error('[v1296] F. Emitidas:', e); err++; } }
+  try { renderTable(); } catch (e) {}
+  toast(err ? '⚠️ Factura anulada, pero algo no se pudo deshacer (albaranes, oferta o F. Emitidas): revísalo' : 'Factura ' + num + ' ANULADA', err ? 'err' : 'ok');
+  _fa.estado = 'anulada'; _faRender(); faListar();
 }
 // Al emitir una rectificativa: la original queda RECTIFICADA, sale de F. Emitidas y suelta los albaranes que ya no lleva
 async function _faTrasRectificar() {
   const r = _fa && _fa.rectifica; if (!r) return 0; let err = 0;
   try {
     const { data: o, error } = await sb.from('facturas_app').select('id,empresa,numero,datos,albaranes').eq('id', r.id).single(); if (error) throw error;
+    if (r.tipo === 'diferencias') {   // v1296: la original sigue valiendo; solo se apunta qué rectificativas tiene
+      const d = Object.assign({}, o.datos || {}); d.rectificativas = (Array.isArray(d.rectificativas) ? d.rectificativas : []).concat([{ id: _fa.id, numero: _faNumero(), fecha: _fa.fecha }]);
+      const { error: e0 } = await sb.from('facturas_app').update({ datos: d }).eq('id', o.id); if (e0) throw e0; return 0; }
     const d = Object.assign({}, o.datos || {}, { rectificadaPor: { id: _fa.id, numero: _faNumero(), fecha: _fa.fecha } });
     const { error: e1 } = await sb.from('facturas_app').update({ estado: 'rectificada', datos: d }).eq('id', o.id); if (e1) throw e1;
     const empFE = _FA_EMP_FE[o.empresa] || o.empresa;

@@ -1,3 +1,8 @@
+## v1296 — 22/11/2026
+- Facturas: al RECTIFICAR se elige el tipo: **Sustituir la factura** (copia entera editable, la original deja de contar) o **Por diferencias** (como Quipu: solo la diferencia, p. ej. abono de precio en negativo; la original sigue valiendo). Motivo obligatorio.
+- Botón **Rectificativa** también en la lista de facturas (como el "Crear factura rectificativa" de Quipu).
+- Botón **ANULAR** para una factura emitida por error: queda ANULADA, sale de F. Emitidas, suelta los albaranes y la oferta vuelve a Aprobada; el número no se reutiliza. La base de datos apunta el **registro de anulación** encadenado. Una factura cobrada no se anula (se rectifica).
+
 ## v1295 — 22/11/2026
 - Veri*Factu fase 1 (registro): al EMITIR una factura de la app, la base de datos guarda su **registro de facturación** con **huella SHA-256 encadenada** por empresa (tabla `facturas_registro`, imposible de modificar o borrar). La factura emitida queda **bloqueada también en la base de datos** (no se puede cambiar ni borrar, solo rectificar).
 - El PDF de la factura emitida lleva el **QR tributario** (modo "No Veri*Factu", porque de momento no se envía a Hacienda) y la huella del registro. El borrador no lleva QR.
