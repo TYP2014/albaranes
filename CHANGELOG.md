@@ -1,3 +1,8 @@
+## v1299 — 22/11/2026 (limpieza del chivato)
+- Documentación › Declaración Holcim: si la pantalla llevaba rato abierta, el enlace de la plantilla caducaba y fallaba con "No se pudo descargar (400)" (Marta, 19/11). Ahora se vuelve a pedir el enlace y sigue.
+- Lectura de albaranes por IA: el error "HTTP 546" (el servidor se queda sin recursos con PDF escaneados grandes) se reintenta solo, como los demás fallos temporales.
+- Tacógrafo › Vehículos: un vehículo sin fecha válida de última descarga rompía el selector ("Invalid time value"); ahora usa la de hoy.
+
 ## v1298 — 22/11/2026
 - Facturas: botón **Rectificativa parcial / autofactura**. Para abonar o corregir SOLO UNA PARTE de cualquier factura, sobre todo **autofacturas** de Holcim o CEMEX (que no hacemos nosotros): se elige la factura de F. Emitidas (o se escribe nº, fecha y cliente a mano), se pone el motivo y sale un borrador de rectificativa (serie R+año) que hace mención a esa factura; se escriben los servicios y el importe en negativo. La factura original no se toca.
 

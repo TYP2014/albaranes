@@ -6684,7 +6684,7 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
         return res;
       }
       // 529 = Overloaded, 429 = Rate limit, 500/503 = errores temporales del servidor
-      const esTemporal = res.status === 529 || res.status === 429 || res.status === 500 || res.status === 503;
+      const esTemporal = res.status === 529 || res.status === 429 || res.status === 500 || res.status === 503 || res.status === 546;   // v1299: 546 = el portero se quedó sin recursos (PDF grande): reintentar
       if (esTemporal && intento < esperasBase.length) {
         // v327: si la API dice CUÁNTO esperar, esa cifra manda sobre nuestra
         // tabla de esperas. En los 429 (y a veces en los 529) manda la cabecera
@@ -6723,7 +6723,7 @@ async function fetchAnthropicConReintento(body, key, signal, etiqueta) {
       if (e.name === 'AbortError') throw e;
       ultimoError = e;
       // Si el error tiene status y NO es temporal, lanzar ya (no reintentar)
-      if (e.status && e.status !== 529 && e.status !== 429 && e.status !== 500 && e.status !== 503) throw e;
+      if (e.status && e.status !== 529 && e.status !== 429 && e.status !== 500 && e.status !== 503 && e.status !== 546) throw e;
       // Error de red u otro → reintentar si quedan intentos
       if (intento < esperasBase.length) {
         const espera = jitter(esperasBase[intento]);
@@ -41287,7 +41287,7 @@ async function tacoVehPintarSelector() {
     }
     // el desplegable de la ficha
     const op = vehs.map(x => `<option value="${x.clave}">${x.nombre} · ${_TACO_EMP_NOM[x.empresa] || x.empresa}</option>`).join('');
-    const hasta = vehs[0].ultima;
+    const hasta = /^\d{4}-\d{2}-\d{2}/.test(String(vehs[0].ultima || '')) ? String(vehs[0].ultima).slice(0, 10) : _ofIso(new Date());   // v1299: sin fecha válida rompía la pantalla
     box.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end">
         <div class="fg" style="min-width:220px;flex:1 1 220px">
@@ -48997,7 +48997,9 @@ async function vdSubirPlantilla(emp, input) {
   try { toast('Subiendo plantilla…', 'ok'); await _vdGuardarDoc('__PLANTILLA__', 'HOLCIM_' + emp, file); toast('✓ Plantilla de ' + _VD_PLANT[emp] + ' subida', 'ok'); await vdCargar(); }
   catch (e) { console.error('[v1223] plantilla:', e); toast('⚠️ No se pudo subir la plantilla: ' + (e.message || e), 'err'); }
 }
-async function _vdBytes(url) { const r = await fetch(url); if (!r.ok) throw new Error('No se pudo descargar (' + r.status + ')'); return new Uint8Array(await r.arrayBuffer()); }
+async function _vdBytes(url, orig) { let r = await fetch(url);
+  if (!r.ok && orig) { try { const u2 = (await firmarDocs([orig])).get(orig); if (u2) { r = await fetch(u2); if (r.ok && _vd.firm) _vd.firm.set(orig, u2); } } catch (e) { console.warn('[v1299] volver a firmar:', e); } }   // v1299: el enlace firmado caduca si la pantalla lleva rato abierta (error 400)
+  if (!r.ok) throw new Error('No se pudo descargar (' + r.status + ')'); return new Uint8Array(await r.arrayBuffer()); }
 function _vdExt(url, nombre) { const m = String(nombre || url || '').split('?')[0].match(/\.([a-z0-9]{2,5})$/i); return m ? m[1].toLowerCase() : 'pdf'; }
 function _vdFechaTxt(iso) { const [a, m, d] = iso.split('-').map(Number); return d + ' de ' + _VD_MESES[m - 1] + ' de ' + a; }
 // v1224: la matrícula y la fecha se buscan EN LA PROPIA PLANTILLA (cada empresa tiene la suya y no están en el mismo sitio)
@@ -49037,7 +49039,7 @@ async function _vdDeclAplicar(src, pos, mat, fechaTxt) {
 async function _vdDeclPdf(v, iso) {   // devuelve los bytes del PDF de la declaración con la matrícula y la fecha
   const emp = _vdEmpDecl(v), pl = _vd.docs.get('__PLANTILLA__|HOLCIM_' + emp);
   if (!pl) throw new Error('Falta subir la plantilla de ' + (_VD_PLANT[emp] || emp));
-  const src = await _vdBytes(_vd.firm.get(pl.file_url) || pl.file_url);
+  const src = await _vdBytes(_vd.firm.get(pl.file_url) || pl.file_url, pl.file_url);
   let pos = _vd.pos.get(pl.file_url); if (!pos) { pos = await _vdDeclPos(src); _vd.pos.set(pl.file_url, pos); }
   const [a, m, d] = iso.split('-').map(Number);
   return await _vdDeclAplicar(src, pos, String(v.matricula).toUpperCase(), d + ' DE ' + _VD_MESES[m - 1] + ' DE ' + a);
