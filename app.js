@@ -46101,12 +46101,13 @@ async function ofListar() {
 async function _ofAlbOcupados(ids, o) {
   o = o || {}; ids = [...new Set((ids || []).map(String))]; const m = new Map(), dentro = new Set(ids);
   try {
+    const libres = new Set((o.libres || []).map(String));   // v1294: los de la factura que se rectifica
     if (!o.sinFacturados) for (let i = 0; i < ids.length; i += 200) {
       const { data, error } = await sb.from('albaranes').select('id,estado_facturacion').in('id', ids.slice(i, i + 200)); if (error) throw error;
-      (data || []).forEach(a => { if (a.estado_facturacion === 'facturado') m.set(String(a.id), 'ya está FACTURADO'); });
+      (data || []).forEach(a => { if (a.estado_facturacion === 'facturado' && !libres.has(String(a.id))) m.set(String(a.id), 'ya está FACTURADO'); });
     }
     const { data: fs, error: e2 } = await sb.from('facturas_app').select('id,numero,estado,oferta_id,albaranes'); if (e2) throw e2;
-    (fs || []).forEach(f => { if (f.id === o.saltaFactura || (o.saltaOferta && f.oferta_id === o.saltaOferta)) return;
+    (fs || []).forEach(f => { if (f.id === o.saltaFactura || f.id === o.saltaFactura2 || f.estado === 'rectificada' || (o.saltaOferta && f.oferta_id === o.saltaOferta)) return;
       (f.albaranes || []).forEach(a => { a = String(a); if (dentro.has(a) && !m.has(a)) m.set(a, 'está en la factura ' + (f.numero || 'sin nº') + (f.estado === 'emitida' ? '' : ' (borrador)')); }); });
     const { data: os, error: e3 } = await sb.from('ofertas').select('id,numero,cliente,estado,albaranes'); if (e3) throw e3;
     (os || []).forEach(x => { if (x.id === o.saltaOferta || x.estado === 'rechazada') return;
@@ -46705,7 +46706,7 @@ function _ofTemas() { const r = (a, b, c) => PDFLib.rgb(a, b, c); return {
 function _ofFechaLarga(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return ''; return Number(m[3]) + ' de ' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][Number(m[2]) - 1] + ' de ' + m[1]; }
 async function _ofPdfBytes() {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const DOC = _of._doc || null, TIT = DOC ? DOC.tipo : 'OFERTA';   // v1149: el mismo PDF sirve para FACTURA
+  const DOC = _of._doc || null, TIT = DOC ? DOC.tipo : 'OFERTA', _tz = n => TIT.length > 8 ? Math.round(n * 0.62) : n;   // v1294: RECTIFICATIVA es más largo   // v1149: el mismo PDF sirve para FACTURA
   const L = DOC ? [] : _ofConceptos(), T = _ofTotales(L);
   const doc = await PDFDocument.create();
   const fN = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -46746,7 +46747,7 @@ async function _ofPdfBytes() {
     if (TEMA.mail) txt(TEMA.mail, M, yI - 22, 8.5, fN, GRIS);
     const wB = 178, xB = W - M - wB;
     rect(xB, H - 100, wB, 74, TEMA.c); rect(xB, H - 104, wB, 4, TEMA.a);
-    txtC(TIT, xB + wB / 2, H - 58, 22, fB, BLANCO);
+    txtC(TIT, xB + wB / 2, H - 58, _tz(22), fB, BLANCO);
     txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', xB + wB / 2, H - 80, 11.5, fB, TEMA.a);
     page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.6, color: TEMA.c });
     page.drawLine({ start: { x: M, y: H - 120 }, end: { x: W - M, y: H - 120 }, thickness: 0.8, color: TEMA.a });
@@ -46758,7 +46759,7 @@ async function _ofPdfBytes() {
     txt('CIF ' + empCif + (TEMA.tel ? '  ·  Tel. ' + TEMA.tel : ''), M, yI, 8.5, fN, GRIS);
     txt(empDir + (TEMA.mail ? '  ·  ' + TEMA.mail : ''), M, yI - 11, 8.5, fN, GRIS);
     rect(W - M - 170, H - 92, 170, 56, TEMA.c);
-    txtC(TIT, W - M - 85, H - 62, 20, fB, BLANCO);
+    txtC(TIT, W - M - 85, H - 62, _tz(20), fB, BLANCO);
     txtC(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M - 85, H - 81, 11, fB, rgb(0.9, 0.9, 0.9));
     page.drawLine({ start: { x: M, y: H - 116 }, end: { x: W - M, y: H - 116 }, thickness: 1.2, color: TEMA.c });
   } else {                                   // v1137 Híspalis: estilo "TLS" — banda alta, filo dorado, cuadro gris de datos y pie de color
@@ -46767,7 +46768,7 @@ async function _ofPdfBytes() {
     nomL.forEach((l, i) => txt(l, M, H - 48 - i * 22, 19, fB, BLANCO));
     const yI = H - 50 - nomL.length * 22;
     [empDir, 'CIF ' + empCif].concat(TEMA.tel ? ['Tel. ' + TEMA.tel] : []).forEach((l, i) => txt(l, M, yI - i * 12, 9, fN, rgb(0.9, 0.92, 0.95)));
-    txtR(TIT, W - M, H - 56, 28, fB, BLANCO);
+    txtR(TIT, W - M, H - 56, _tz(28), fB, BLANCO);
     txtR(_of.numero ? 'Nº ' + _of.numero : 'Nº (pendiente)', W - M, H - 75, 10.5, fN, TEMA.a);
     txtR(_ofFechaLarga(_of.fecha), W - M, H - 90, 9.5, fN, BLANCO);
   }
@@ -46857,6 +46858,7 @@ async function _ofPdfBytes() {
   y -= 46;
   // ===== Notas y condiciones =====
   const notas = [];
+  if (DOC && DOC.rect) notas.push(DOC.rect);   // v1294: factura rectificativa (obligatorio indicar a cuál rectifica)
   if (_of.observaciones) notas.push(_of.observaciones);
   if (DOC) {
     if (DOC.pago) notas.push('Forma de pago: ' + DOC.pago);
@@ -47402,7 +47404,7 @@ async function faListar() {
   let h = '<div style="overflow-x:auto;border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--s2);text-align:left">' +
     ['Estado', 'Nº factura', 'Empresa', 'Fecha', 'Cliente', 'Oferta', 'Total', 'Vencimiento', ''].map((x, i) => '<th style="padding:7px 8px' + (i === 6 ? ';text-align:right' : '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>';
   L.forEach(f => { const em = f.estado === 'emitida';
-    h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
+    h += '<tr style="border-top:1px solid var(--bd);cursor:pointer" onclick="faAbrir(\'' + f.id + '\')"><td style="padding:7px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800;background:' + (f.estado === 'rectificada' ? '#ffedd5;color:#b45309' : em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (f.estado === 'rectificada' ? 'RECTIFICADA' : em ? 'EMITIDA' : 'BORRADOR') + '</span></td>' +
       '<td style="padding:7px 8px;font-weight:700">' + esc(f.numero || '(sin nº)') + '</td><td style="padding:7px 8px">' + esc(_OF_EMPRESAS[f.empresa] || f.empresa) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.fecha)) + '</td>' +
       '<td style="padding:7px 8px">' + esc(f.cliente || '') + '</td><td style="padding:7px 8px;font-weight:700;color:#7c3aed;white-space:nowrap">' + (f.oferta_id ? esc(f.ofertaNum || '(sin nº)') : '') + '</td><td style="padding:7px 8px;text-align:right;font-weight:700;white-space:nowrap">' + _ofEur(f.total) + '</td><td style="padding:7px 8px;white-space:nowrap">' + esc(_ofFechaEs(f.vencimiento)) + '</td>' +
       '<td style="padding:7px 8px;white-space:nowrap"><button class="btn bs" style="font-size:11px;padding:3px 9px">Abrir</button> ' +
@@ -47429,7 +47431,7 @@ async function faAbrir(id) {
     const D = data.datos || {};
     _fa = { id: data.id, empresa: data.empresa, serie: data.serie || '', n: data.n, fecha: data.fecha || '', cliente: data.cliente || '', clienteDatos: D.clienteDatos || '', email: data.email || '', estado: data.estado || 'borrador',
       lineas: Array.isArray(D.lineas) ? D.lineas : [], pago: data.forma_pago || 'Transferencia', cuenta: data.cuenta || '', venc: data.vencimiento || '', vencManual: !!D.vencManual, pedido: D.pedido || '', ofertaNum: D.ofertaNum || '', mensaje: D.mensaje || '', remitente: D.remitente || '', notas: data.notas || '', titulo: D.titulo || '',
-      oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0 };
+      oferta_id: data.oferta_id || null, filas: Array.isArray(D.filas) ? D.filas : [], guardadaTotal: Number(data.total) || 0, rectifica: D.rectifica || null, rectificadaPor: D.rectificadaPor || null };
     _faVentana();
   } catch (e) { console.error('[v1149] abrir factura:', e); toast('No se pudo abrir la factura: ' + (e.message || e), 'err'); }
 }
@@ -47514,15 +47516,15 @@ function faLin(i, campo, v) {
 function _faRender() {
   const box = document.getElementById('faBox'); if (!box || !_fa) return;
   const ovEl = document.getElementById('faOv'), sc = ovEl ? ovEl.scrollTop : 0;
-  const T = _faTot(), em = _fa.estado === 'emitida';
+  const T = _faTot(), em = _fa.estado !== 'borrador', ESTX = _fa.estado === 'rectificada' ? 'RECTIFICADA' : em ? (_fa.rectifica ? 'RECTIFICATIVA EMITIDA' : 'EMITIDA') : (_fa.rectifica ? 'RECTIFICATIVA (BORRADOR)' : 'BORRADOR');   // v1294
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit', lab = 'font-size:12px;color:#111';
   const series = _faSeries(_fa.empresa, _fa.fecha), cliEn = _ofCliBuscar(_fa.cliente);
   let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-size:19px;font-weight:800">Factura ' + (_faNumero() ? esc(_faNumero()) : '<span style="color:var(--mu)">(sin nº)</span>') +
-    ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;vertical-align:middle;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span></div>' +
+    ' <span style="font-size:12px;padding:3px 10px;border-radius:12px;vertical-align:middle;font-weight:800;background:' + (em ? '#dcfce7;color:#15803d' : '#f1f5f9;color:#475569') + '">' + ESTX + '</span></div>' +
     '<button class="btn bs" onclick="faCerrar()" style="padding:9px 16px;font-weight:800">Cerrar</button></div>';
   // v1159: Guardar / Emitir también ARRIBA
   h += '<div style="margin-top:10px;padding:12px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:15px">Estado:</b>' +
-    '<span style="font-size:14px;padding:8px 16px;border-radius:8px;font-weight:800;background:' + (em ? '#15803d;color:#fff' : '#475569;color:#fff') + '">' + (em ? 'EMITIDA' : 'BORRADOR') + '</span>' +
+    '<span style="font-size:14px;padding:8px 16px;border-radius:8px;font-weight:800;background:' + (em ? '#15803d;color:#fff' : '#475569;color:#fff') + '">' + ESTX + '</span>' +
     '<span style="font-size:13px;color:#111">' + (em ? 'Está apuntada en F. Emitidas.' : 'Todavía no marca albaranes ni sale en F. Emitidas.') + '</span><span style="margin-left:auto"></span>' +
     // v1189: todos los botones ARRIBA; PDF / Paquete / Enviar solo cuando la factura ya está guardada
     (_fa.id ? '<button class="btn" onclick="faDuplicar()" style="' + _OF_BTN + ';border:2px solid #7c3aed;color:#7c3aed;background:#fff" title="Abre una factura NUEVA con el mismo cliente, conceptos, precios y forma de pago. Número siguiente y fecha en blanco. No copia los albaranes.">Duplicar</button>' +
@@ -47530,7 +47532,8 @@ function _faRender() {
       '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
       '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>'
       : '<span style="font-size:12px;color:#475569">PDF, paquete y envío salen al guardar el borrador</span>') +
-    '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:' + (em ? '#1b3254;color:#fff' : '#fff;color:#1b3254') + ';font-weight:800">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? (_fa.estado === 'emitida' ? '<button class="btn" onclick="faRectificar()" style="font-size:14px;padding:10px 18px;background:#b45309;color:#fff;font-weight:800" title="Hace una factura RECTIFICATIVA que sustituye a esta, con todo editable">RECTIFICAR</button>' : '')
+      : '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:#fff;color:#1b3254;font-weight:800">Guardar borrador</button>') +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
   h += _cliEmpFranja(_fa.cliente, _fa.empresa, 'factura');   // v1180
   if (_fa.oferta_id) h += '<div style="margin-top:8px;padding:8px 12px;border:2px solid #9333ea;border-radius:8px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">Viene de la <b>oferta ' + esc(_fa.ofertaNum || '(sin nº)') + '</b>' + (_fa.pedido ? ' · pedido <b>' + esc(_fa.pedido) + '</b>' : '') + ' <button class="btn bs" style="font-weight:800" onclick="faVerOferta()">Abrir la oferta</button></div>';
@@ -47582,11 +47585,12 @@ function _faRender() {
     '<label style="flex:1;min-width:300px;' + lab + '">Mensaje para el cliente (texto del correo) · <span style="font-weight:700">Asunto: ' + esc(_faAsunto()) + '</span><br><textarea rows="9" onchange="_fa.mensaje=this.value" style="width:100%;' + inp + ';line-height:1.45">' + esc(_fa.mensaje || '') + '</textarea></label></div>';
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #b91c1c;background:#fff;color:#b91c1c">Borrar</button>' : '') +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id && !em ? '<button class="btn" onclick="faBorrar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #b91c1c;background:#fff;color:#b91c1c">Borrar</button>' : '') +
     (_fa.id ? '<button class="btn" onclick="_facHistorial(\'facturas_app\',\'' + _fa.id + '\')" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Historial</button>' : '') +
-    '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
+    (em ? '' : '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Guardar borrador</button>') +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:11px;padding:5px 10px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
+  _faBloqueo(box);   // v1294
 }
 // v1201: DUPLICAR (como en Quipu): factura nueva en borrador con el mismo cliente, conceptos, precios, forma de pago, cuenta, notas y mensaje.
 // Número = el siguiente de la serie; fecha en blanco (obligatoria). NO copia los albaranes ni la oferta (un albarán no se factura dos veces).
@@ -47606,6 +47610,7 @@ async function faDuplicar() {
 function _faLinLlena(l) { return !!((l.concepto || '').trim() || Number(l.importe) || Number(l.precio)); }   // v1190: una línea en blanco no cuenta
 async function faGuardar(silencioso, estado) {
   if (!_fa) return false;
+  if (_fa.estado !== 'borrador' && !estado) { alert('Esta factura ya está EMITIDA y no se puede modificar (Veri*Factu).\n\nPara corregir cualquier cosa (concepto, mes, toneladas, precio…) pulsa RECTIFICAR.'); return false; }   // v1294
   _fa.lineas = _fa.lineas.filter(_faLinLlena);
   if (!_fa.cliente) { toast('Elige el cliente', 'err'); return false; }
   if (!_fa.serie || !_fa.n) { toast('Falta la serie o el número', 'err'); return false; }
@@ -47618,7 +47623,7 @@ async function faGuardar(silencioso, estado) {
     if ((repQ || []).length && !confirm('⚠️ El nº ' + numero + ' ya está en Facturas emitidas (hecha en Quipu). ¿Guardar igual con ese número?')) return false;
     const reg = { empresa: _fa.empresa, serie: _fa.serie, n: _fa.n, numero, fecha: _fa.fecha || null, cliente: _fa.cliente, email: _fa.email || null, estado: estado || _fa.estado, forma_pago: _fa.pago || null, cuenta: _fa.cuenta || null, vencimiento: _fa.venc || null,
       base: T.base, iva: T.iva, total: T.total, notas: _fa.notas || null, oferta_id: _fa.oferta_id || null, albaranes: _fa.filas.map(x => x.id),
-      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', ofertaNum: _fa.ofertaNum || '', mensaje: _fa.mensaje || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual }, updated_at: new Date().toISOString() };
+      datos: { lineas: _fa.lineas, filas: _fa.filas, clienteDatos: _fa.clienteDatos || '', pedido: _fa.pedido || '', ofertaNum: _fa.ofertaNum || '', mensaje: _fa.mensaje || '', remitente: _fa.remitente || '', titulo: _fa.titulo || '', vencManual: !!_fa.vencManual, rectifica: _fa.rectifica || null, rectificadaPor: _fa.rectificadaPor || null }, updated_at: new Date().toISOString() };
     if (estado === 'emitida') reg.emitida_el = new Date().toISOString();
     if (_fa.id) { const { error } = await sb.from('facturas_app').update(reg).eq('id', _fa.id); if (error) throw error; }
     else { const { data, error } = await sb.from('facturas_app').insert(reg).select('id').single(); if (error) throw error; _fa.id = data.id; }
@@ -47632,6 +47637,62 @@ async function faGuardar(silencioso, estado) {
     return true;
   } catch (e) { console.error('[v1149] guardar factura:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); return false; }
 }
+// ============================================================================
+// v1294 (JC 22/11/2026): Veri*Factu. Una factura EMITIDA ya no se toca: todo queda bloqueado y, para corregir
+// lo que sea (concepto, mes, TN, precio…), se pulsa RECTIFICAR → borrador de factura RECTIFICATIVA por
+// sustitución (serie R+año) con TODO editable. Al emitirla, la original pasa a RECTIFICADA, sale de F. Emitidas
+// y la rectificativa ocupa su lugar (albaranes incluidos). El borrador sigue siendo libre como siempre.
+// ============================================================================
+function _faRectTxt(f) { f = f || _fa; const r = f && f.rectifica; if (!r) return '';
+  return 'FACTURA RECTIFICATIVA por sustitución de la factura ' + r.numero + ' de fecha ' + _ofFechaEs(r.fecha) + ' (art. 15 del Reglamento de facturación, RD 1619/2012). Motivo: ' + (r.motivo || '') + '.'; }
+function _faBloqueo(box) {
+  if (!_fa) return;
+  if (_fa.rectifica) { const d = document.createElement('div'); d.style.cssText = 'margin-top:8px;padding:9px 12px;border:2px solid #b45309;border-radius:8px;font-size:14px;background:#fffbeb'; d.innerHTML = '<b>Rectificativa</b> de la factura <b>' + esc(_fa.rectifica.numero) + '</b> (' + esc(_ofFechaEs(_fa.rectifica.fecha)) + ') · Motivo: ' + esc(_fa.rectifica.motivo || ''); box.children[1] ? box.insertBefore(d, box.children[2] || null) : box.appendChild(d); }
+  if (_fa.estado === 'borrador') return;
+  const av = document.createElement('div');
+  av.style.cssText = 'margin-top:8px;padding:10px 14px;border:3px solid #b45309;border-radius:8px;font-size:15px;background:#fff7ed;color:#111';
+  av.innerHTML = _fa.estado === 'rectificada'
+    ? '<b>RECTIFICADA:</b> esta factura la sustituye la rectificativa <b>' + esc((_fa.rectificadaPor || {}).numero || '') + '</b>. Ya no cuenta ni se puede modificar.'
+    : '<b>Factura emitida: ya no se puede modificar</b> (lo exige Veri*Factu). Para corregir el concepto, el mes, las toneladas, el precio o lo que sea, pulsa <b>RECTIFICAR</b>: sale una copia con todo editable que sustituye a esta.';
+  box.insertBefore(av, box.children[1] || null);
+  const libres = /^(faCerrar|faPdf|faPaquete|faEnviarAbrir|faEnviar|faVerOferta|faDuplicar|_facHistorial|faRectificar|faSetRem)\(/;
+  box.querySelectorAll('button').forEach(b => { if (!libres.test(b.getAttribute('onclick') || '')) b.disabled = true; });
+  box.querySelectorAll('input,select,textarea').forEach(el => { const oc = (el.getAttribute('onchange') || '') + (el.getAttribute('oninput') || ''); if (/_fa\.(email|mensaje)=|faSetRem/.test(oc)) return; el.disabled = true; });
+}
+async function faRectificar() {
+  if (!_fa || _fa.estado !== 'emitida') return;
+  try { const { data } = await sb.from('facturas_app').select('id,numero,estado').eq('empresa', _fa.empresa).eq('estado', 'borrador').contains('datos', { rectifica: { id: _fa.id } }).limit(1);
+    if (data && data.length) { toast('Ya hay una rectificativa en borrador de esta factura (' + (data[0].numero || '') + '): te la abro', 'ok'); document.getElementById('faOv')?.remove(); _fa = null; await faAbrir(data[0].id); return; } } catch (e) { console.warn('[v1294] buscar rectificativa:', e); }
+  const motivo = (prompt('RECTIFICAR la factura ' + _faNumero() + '\n\nEscribe el MOTIVO (sale en la factura), por ejemplo:\n  · Error en el mes del servicio\n  · Error en las toneladas\n  · Error en el precio') || '').trim();
+  if (!motivo) return;
+  const o = _fa, serie = 'R' + new Date().getFullYear();
+  const base = { empresa: o.empresa, serie, cliente: o.cliente, clienteDatos: o.clienteDatos || '', email: o.email || '', lineas: JSON.parse(JSON.stringify(o.lineas || [])), pago: o.pago, cuenta: o.cuenta, notas: o.notas || '', mensaje: o.mensaje || '', remitente: o.remitente || '', titulo: o.titulo || '',
+    pedido: o.pedido || '', ofertaNum: o.ofertaNum || '', oferta_id: o.oferta_id || null, filas: JSON.parse(JSON.stringify(o.filas || [])), venc: o.venc, vencManual: !!o.vencManual,
+    rectifica: { id: o.id, numero: _faNumero(o), fecha: o.fecha, total: _faTot().total, motivo, tipo: 'sustitucion' } };
+  document.getElementById('faOv')?.remove(); _fa = null;
+  await faNueva(base);
+  if (_fa) { _fa.serie = serie; _fa.n = await _faSiguiente(_fa.empresa, serie); _faRender();
+    toast('Rectificativa ' + _faNumero() + ' en borrador: cambia lo que haga falta, pon la FECHA y EMITE.', 'ok'); }
+}
+// Al emitir una rectificativa: la original queda RECTIFICADA, sale de F. Emitidas y suelta los albaranes que ya no lleva
+async function _faTrasRectificar() {
+  const r = _fa && _fa.rectifica; if (!r) return 0; let err = 0;
+  try {
+    const { data: o, error } = await sb.from('facturas_app').select('id,empresa,numero,datos,albaranes').eq('id', r.id).single(); if (error) throw error;
+    const d = Object.assign({}, o.datos || {}, { rectificadaPor: { id: _fa.id, numero: _faNumero(), fecha: _fa.fecha } });
+    const { error: e1 } = await sb.from('facturas_app').update({ estado: 'rectificada', datos: d }).eq('id', o.id); if (e1) throw e1;
+    const empFE = _FA_EMP_FE[o.empresa] || o.empresa;
+    const { data: fe } = await sb.from('facturas_emitidas').select('id,estado,observaciones').eq('empresa', empFE).eq('numero', o.numero);
+    const mias = (fe || []).filter(x => /^Hecha en la app/i.test(x.observaciones || ''));
+    if (mias.some(x => x.estado && x.estado !== 'pendiente')) { alert('⚠️ La factura original ' + o.numero + ' figuraba COBRADA en F. Emitidas: la dejo allí. Revisa el cobro de la rectificativa ' + _faNumero() + '.'); }
+    else if (mias.length) { const { error: e2 } = await sb.from('facturas_emitidas').delete().in('id', mias.map(x => x.id)); if (e2) throw e2; }
+    const nuevos = new Set(_fa.filas.map(x => String(x.id))), sueltos = (o.albaranes || []).map(String).filter(id => !nuevos.has(id));
+    for (let i = 0; i < sueltos.length; i += 100) { const { error: e3 } = await sb.from('albaranes').update({ estado_facturacion: 'pendiente', factura_fecha: null, factura_ref: null, factura_tipo: null }).in('id', sueltos.slice(i, i + 100)); if (e3) throw e3; }
+    sueltos.forEach(id => { const x = records.find(y => String(y.db_id) === id); if (x) { x.estado_facturacion = 'pendiente'; x.factura_fecha = null; x.factura_ref = null; x.factura_tipo = null; } });
+  } catch (e) { console.error('[v1294] tras rectificar:', e); err++; }
+  return err;
+}
+
 async function faEmitir() {
   if (!_fa) return;
   const T = _faTot(), sinP = _fa.lineas.filter(l => _faLinLlena(l) && !Number(l.importe)).length;
@@ -47647,12 +47708,15 @@ async function faEmitir() {
   if (!T.total) { if (!confirm('⚠️ Esta factura está a 0 €: ' + (sinP === 1 ? 'el concepto no tiene' : 'los ' + sinP + ' conceptos no tienen') + ' precio.\n\nLo normal es Cancelar y poner el precio.\n\nAceptar = emitirla igual a 0 € · Cancelar = volver y poner el precio')) return; }
   if (!_cliEmpOk(_fa.cliente, _fa.empresa) && !confirm('⚠️ A ' + _fa.cliente + ' le factura ' + _cliEmpTxt(_fa.cliente) + ', y vas a EMITIR esta factura con ' + _OF_EMPRESAS[_fa.empresa] + '.\n\nAceptar = emitir igual · Cancelar = volver y cambiar la empresa')) return;   // v1180
   if (_fa.filas.length) {   // v1166: candado anti-duplicados antes de emitir
-    const ocu = await _ofAlbOcupados(_fa.filas.map(x => x.id), { saltaOferta: _fa.oferta_id || undefined, saltaFactura: _fa.id || undefined }); if (!ocu) return;
+    let libresR = [];   // v1294: una rectificativa puede llevar los albaranes de la factura que sustituye
+    if (_fa.rectifica) { try { const { data: o } = await sb.from('facturas_app').select('albaranes').eq('id', _fa.rectifica.id).single(); libresR = (o && o.albaranes) || []; } catch (e) { console.warn('[v1294] albaranes de la original:', e); } }
+    const ocu = await _ofAlbOcupados(_fa.filas.map(x => x.id), { saltaOferta: _fa.oferta_id || undefined, saltaFactura: _fa.id || undefined, saltaFactura2: _fa.rectifica ? _fa.rectifica.id : undefined, libres: libresR }); if (!ocu) return;
     if (ocu.size) { alert('NO se puede emitir: ' + ocu.size + ' albarán(es) de esta factura ya están cogidos.\n\n' + _ofOcuTxt(_fa.filas.filter(x => ocu.has(String(x.id))).map(x => ({ albaran: x.albaran, m: ocu.get(String(x.id)) }))) + '\n\nBorra este borrador y vuelve a crear la factura sin ellos.'); return; }
   }
   if (!confirm('EMITIR la factura ' + _faNumero() + '\n\n  Cliente: ' + _fa.cliente + '\n  Fecha: ' + _ofFechaEs(_fa.fecha) + ' · Vencimiento: ' + _ofFechaEs(_fa.venc) + '\n  TOTAL: ' + _ofEur(T.total) + (sinP ? '\n\n⚠️ ' + sinP + ' concepto(s) a 0 €' : '') +
     '\n\nQuedará apuntada en la pestaña F. EMITIDAS como Pendiente de cobro.' + (_fa.filas.length ? '\nSe marcarán ' + _fa.filas.length + ' albaranes como FACTURADOS' + (_fa.oferta_id ? ' y la oferta como FACTURADA.' : '.') : '') + '\n\n¿Continuar?')) return;
   if (!(await faGuardar(true, 'emitida'))) return;
+  if (_fa.rectifica) { const er = await _faTrasRectificar(); if (er) toast('⚠️ Rectificativa emitida, pero no se pudo marcar del todo la factura original ' + _fa.rectifica.numero + ': avísame', 'err'); }   // v1294
   const ids = _fa.filas.map(x => x.id), fecha = new Date().toISOString(), refFa = _faNumero() + ' · ' + (_OF_EMP_CORTO[_fa.empresa] || _fa.empresa); let err = 0;   // v1182: cada albarán guarda con qué factura y qué empresa se facturó
   for (let i = 0; i < ids.length; i += 100) { try { const { error } = await sb.from('albaranes').update({ estado_facturacion: 'facturado', factura_fecha: fecha, ofertado: false, ofertado_cliente: null, factura_ref: refFa, factura_tipo: 'emitida' }).in('id', ids.slice(i, i + 100)); if (error) throw error; } catch (e) { console.error('[v1149] marcar albaranes:', e); err++; } }
   ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id)); if (r) { r.estado_facturacion = 'facturado'; r.factura_fecha = fecha; r.ofertado = false; r.ofertado_cliente = null; r.factura_ref = refFa; r.factura_tipo = 'emitida'; } });
@@ -47715,7 +47779,7 @@ async function _faPdfBytes() {
   try {
     _of = { numero: _faNumero(), fecha: _fa.fecha, validez: '', empresa: _fa.empresa, cliente: _fa.cliente, clienteDatos: _fa.clienteDatos, titulo: '', pedido_sap: _fa.pedido, observaciones: _fa.notas, estado: 'estudio',
       filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)), conceptos: {}, lineas: _fa.lineas, agruparMaterial: false,
-      _doc: { tipo: 'FACTURA', venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta, oferta: _fa.oferta_id ? (_fa.ofertaNum || '') : '' } };
+      _doc: { tipo: _fa.rectifica ? 'RECTIFICATIVA' : 'FACTURA', rect: _faRectTxt(), venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta, oferta: _fa.oferta_id ? (_fa.ofertaNum || '') : '' } };
     return await _ofPdfBytes();
   } finally { _of = antes; }
 }
@@ -47856,7 +47920,7 @@ async function _feLlamar(body) {
   if (error) { let m = error.message || String(error); try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) {} return { ok: false, error: m }; }
   return data || { ok: false, error: 'Sin respuesta' };
 }
-function _faBase() { return (('FACTURA ' + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80).replace(/[.\s]+$/, '') + ' - ' + (_OF_EMP_ARCHIVO[_fa.empresa] || _fa.empresa)); }   // v1170: sin punto final
+function _faBase() { return (((_fa.rectifica ? 'FACTURA RECTIFICATIVA ' : 'FACTURA ') + (_faNumero() || 'SIN NUM') + ' - ' + _fa.cliente).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80).replace(/[.\s]+$/, '') + ' - ' + (_OF_EMP_ARCHIVO[_fa.empresa] || _fa.empresa)); }   // v1170: sin punto final
 // Excel sencillo con el detalle de los albaranes de la factura (para que el cliente compruebe)
 function _faExcelWb() {
   const F = _fa.filas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || String(a.albaran).localeCompare(String(b.albaran), 'es', { numeric: true }));

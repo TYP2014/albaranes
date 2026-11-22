@@ -1,3 +1,8 @@
+## v1294 — 22/11/2026
+- Facturas de la app (Veri*Factu): una factura **EMITIDA ya no se puede modificar ni borrar**; sale bloqueada con un aviso. Para corregir cualquier cosa (concepto, mes, toneladas, precio…) botón **RECTIFICAR**: pide el motivo y abre una **factura rectificativa por sustitución** (serie R+año, p. ej. R2026-1) con todo editable y los mismos albaranes.
+- Al emitir la rectificativa: la original queda **RECTIFICADA** (no cuenta), sale de F. Emitidas y entra la rectificativa; los albaranes que se quiten quedan libres. El PDF sale como **RECTIFICATIVA** e indica a qué factura sustituye y el motivo.
+- El borrador sigue siendo libre como siempre.
+
 ## v1293 — 22/11/2026
 - Ofertas, Facturas (de la app) y Facturas Emitidas: botón **Historial** (interno, no sale en el PDF). Muestra quién la creó, editó, cambió de estado o borró, con fecha, hora y qué cambió (antes → después). Lo apunta solo la base de datos (tabla `facturacion_log`, trigger `facturacion_log_trg`) desde el 22/11/2026.
 
