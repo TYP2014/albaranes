@@ -46808,6 +46808,13 @@ async function _ofPdfBytes() {
   datos.forEach((d, i) => { txt(d[0], xD + 12, y - 20 - i * 18, 9, fN, GRIS); txtR(d[1], xD + wD - 12, y - 20 - i * 18, 10, fB); });
   y -= hCaja + 22;
   }
+  if (DOC && DOC.qr) {   // v1295: QR tributario (Orden HAC/1177/2024): al inicio, 30-40 mm, con el texto "QR tributario:"
+    try { const qr = qrcode(0, 'M'); qr.addData(DOC.qr); qr.make(); const n = qr.getModuleCount(), lado = 96, cel = lado / n, qx = M, qy = y - 12 - lado;
+      txt('QR tributario:', qx, y - 8, 8, fB, NEGRO);
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) page.drawRectangle({ x: qx + c * cel, y: qy + (n - 1 - r) * cel, width: cel + 0.05, height: cel + 0.05, color: rgb(0, 0, 0) });
+      if (DOC.huella) { txt('Registro de facturación · huella (SHA-256):', qx + lado + 14, qy + lado - 14, 7, fB, GRIS); txt(DOC.huella.slice(0, 32), qx + lado + 14, qy + lado - 25, 7, fN, GRIS); txt(DOC.huella.slice(32), qx + lado + 14, qy + lado - 34, 7, fN, GRIS); }
+      y = qy - 16; } catch (e) { console.warn('[v1295] QR tributario:', e); }
+  }
   if (_of.titulo) { partir(_of.titulo, fB, 12, ANCHO).slice(0, 2).forEach(l => { txt(l, M, y, 12, fB, NAVY); y -= 15; }); y -= 3; }   // v1141
   if (!DOC) { txt('Le presentamos nuestra oferta para los servicios de transporte que se detallan a continuación.', M, y, 9.5, fN, GRIS);
   y -= 18; }
@@ -47774,12 +47781,18 @@ async function faBorrar() {
   document.getElementById('faOv')?.remove(); _fa = null; _ofIrALista('faCard');
 }
 // ---------- PDF (mismo formato por empresa que las ofertas) ----------
+const _FA_NIF = { TYP: 'B90172735', HISPALIS: 'B90286337', PORTES: 'B02657435' };
+// v1295: URL del QR tributario. De momento NO se remite a Hacienda → ruta "No Veri*Factu"
+function _faQrUrl(f) { f = f || _fa; const m = String(f.fecha || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return '';
+  return 'https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQRNoVerifactu?nif=' + _FA_NIF[f.empresa] + '&numserie=' + encodeURIComponent(_faNumero(f)) + '&fecha=' + m[3] + '-' + m[2] + '-' + m[1] + '&importe=' + (Number(f.guardadaTotal != null ? f.guardadaTotal : _faTot().total) || 0).toFixed(2); }
+async function _faHuella(f) { f = f || _fa; if (!f || !f.id || f.estado === 'borrador') return; try { const { data } = await sb.from('facturas_registro').select('huella').eq('factura_id', f.id).eq('tipo_registro', 'alta').order('id', { ascending: false }).limit(1); f.huella = (data && data[0] && data[0].huella) || ''; } catch (e) { console.warn('[v1295] huella:', e); } }
 async function _faPdfBytes() {
+  await _faHuella();
   const antes = _of;
   try {
     _of = { numero: _faNumero(), fecha: _fa.fecha, validez: '', empresa: _fa.empresa, cliente: _fa.cliente, clienteDatos: _fa.clienteDatos, titulo: '', pedido_sap: _fa.pedido, observaciones: _fa.notas, estado: 'estudio',
       filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)), conceptos: {}, lineas: _fa.lineas, agruparMaterial: false,
-      _doc: { tipo: _fa.rectifica ? 'RECTIFICATIVA' : 'FACTURA', rect: _faRectTxt(), venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta, oferta: _fa.oferta_id ? (_fa.ofertaNum || '') : '' } };
+      _doc: { tipo: _fa.rectifica ? 'RECTIFICATIVA' : 'FACTURA', rect: _faRectTxt(), qr: _fa.estado === 'borrador' ? '' : _faQrUrl(), huella: _fa.estado === 'borrador' ? '' : (_fa.huella || ''), venc: _fa.venc, pago: _fa.pago, cuenta: _fa.cuenta, oferta: _fa.oferta_id ? (_fa.ofertaNum || '') : '' } };
     return await _ofPdfBytes();
   } finally { _of = antes; }
 }

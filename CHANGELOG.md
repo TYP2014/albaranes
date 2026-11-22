@@ -1,3 +1,7 @@
+## v1295 — 22/11/2026
+- Veri*Factu fase 1 (registro): al EMITIR una factura de la app, la base de datos guarda su **registro de facturación** con **huella SHA-256 encadenada** por empresa (tabla `facturas_registro`, imposible de modificar o borrar). La factura emitida queda **bloqueada también en la base de datos** (no se puede cambiar ni borrar, solo rectificar).
+- El PDF de la factura emitida lleva el **QR tributario** (modo "No Veri*Factu", porque de momento no se envía a Hacienda) y la huella del registro. El borrador no lleva QR.
+
 ## v1294 — 22/11/2026
 - Facturas de la app (Veri*Factu): una factura **EMITIDA ya no se puede modificar ni borrar**; sale bloqueada con un aviso. Para corregir cualquier cosa (concepto, mes, toneladas, precio…) botón **RECTIFICAR**: pide el motivo y abre una **factura rectificativa por sustitución** (serie R+año, p. ej. R2026-1) con todo editable y los mismos albaranes.
 - Al emitir la rectificativa: la original queda **RECTIFICADA** (no cuenta), sale de F. Emitidas y entra la rectificativa; los albaranes que se quiten quedan libres. El PDF sale como **RECTIFICATIVA** e indica a qué factura sustituye y el motivo.
