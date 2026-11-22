@@ -49389,6 +49389,7 @@ async function _tdGuardar(w, t, file, f) {
   const fila = { trabajador_id: w.id, tipo: t, file_url: url, file_name: file.name || null, fecha_doc: f.fecha_doc || null, vence: f.vence || null, updated_at: new Date().toISOString() };
   const { error } = await sb.from('trabajadores_docs').upsert(fila, { onConflict: 'trabajador_id,tipo' }); if (error) throw error;
   if (t === 'APTO') await _tdSyncApto(w, f.vence);   // v1268
+  else await _tdSyncFicha(w, t, f.vence);   // v1304: CAP, carnet y tarjeta también pasan a la ficha
 }
 // v1268 (JC 20/11/2026): al subir (o corregir) el APTO MÉDICO, la caducidad pasa sola a la ficha del
 // trabajador (recmed_caduca), que es la que usan el aviso de reconocimientos y la ventana del trabajador.
@@ -49403,6 +49404,20 @@ async function _tdSyncApto(w, vence) {
     try { const c = (_tacoTrabajadores || []).find(z => z.id === w.id); if (c) c.recmed_caduca = v; } catch (e) {}   // la caché del aviso
     try { renderRecmedCaducidades(); } catch (e) {}
   } catch (e) { console.warn('[v1268] caducidad reconocimiento en la ficha:', e); toast('⚠️ Subido, pero no se pudo cambiar la caducidad en la ficha: ' + (e.message || e), 'err'); }
+}
+// v1304 (JC 22/11/2026): igual que el apto, al subir (o corregir) el CAP, el CARNET o la TARJETA del tacógrafo,
+// su caducidad pasa a la ficha del trabajador (la que ven la ventana del trabajador, la lista y los avisos).
+// Solo si es POSTERIOR a la que había: un documento viejo nunca pisa uno nuevo.
+async function _tdSyncFicha(w, t, vence) {
+  const campo = { CAP: 'cap_caduca', CARNET: 'carnet_caduca', TACO: 'tarjeta_caduca' }[t];
+  if (!w || !campo || !vence) return;
+  const v = String(vence).slice(0, 10), ant = w[campo] ? String(w[campo]).slice(0, 10) : '';
+  if (ant && ant >= v) return;
+  try {
+    const { error } = await sb.from('trabajadores').update({ [campo]: v }).eq('id', w.id); if (error) throw error;
+    w[campo] = v;
+    try { const c = (_tacoTrabajadores || []).find(z => z.id === w.id); if (c) c[campo] = v; } catch (e) {}
+  } catch (e) { console.warn('[v1304] caducidad en la ficha:', e); toast('⚠️ Subido, pero no se pudo cambiar la caducidad en la ficha: ' + (e.message || e), 'err'); }
 }
 async function tdSubir(tid, t, input) {
   const file = input.files && input.files[0]; if (!file) return;
@@ -49425,6 +49440,7 @@ async function tdFechasEditar(tid, t) {
   const fv = pedir('CADUCIDAD, DD/MM/AAAA. Vacío = no caduca:', x.vence); if (fv === undefined) return;
   try { const { error } = await sb.from('trabajadores_docs').update({ fecha_doc: fd, vence: fv, updated_at: new Date().toISOString() }).eq('id', x.id); if (error) throw error;
     if (t === 'APTO') await _tdSyncApto((vacTrabajadores || []).find(z => z.id === tid), fv);   // v1268
+    else await _tdSyncFicha((vacTrabajadores || []).find(z => z.id === tid), t, fv);   // v1304
     toast('✓ Fechas guardadas', 'ok'); await tdCargar(); }
   catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }

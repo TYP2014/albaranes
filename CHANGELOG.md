@@ -1,3 +1,7 @@
+## v1304 — 22/11/2026
+- Documentación › Conductores: al subir (o corregir las fechas de) el CAP, el CARNET o la TARJETA del tacógrafo, la caducidad pasa sola a la ficha del trabajador (como ya hacía el apto médico). Solo si es posterior a la que había.
+- Puestas al día a mano las fichas de Nilson Ortiz (CAP 11/10/2031), Jorge Ausín (CAP 11/12/2031) y Óscar Escolano (CAP y carnet, que estaban vacíos).
+
 ## v1303 — 22/11/2026
 - Taller: quitado "Importar km (Excel)". Los km del tacógrafo se suben SOLO en Gasoil (Subir km), que los guarda para el consumo y además pone al día los km de los vehículos de Taller. Las descargas automáticas del tacógrafo siguen actualizando los dos solas.
 
