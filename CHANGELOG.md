@@ -1,3 +1,6 @@
+## v1293 — 22/11/2026
+- Ofertas, Facturas (de la app) y Facturas Emitidas: botón **Historial** (interno, no sale en el PDF). Muestra quién la creó, editó, cambió de estado o borró, con fecha, hora y qué cambió (antes → después). Lo apunta solo la base de datos (tabla `facturacion_log`, trigger `facturacion_log_trg`) desde el 22/11/2026.
+
 ## v1292 — 21/11/2026
 - Trabajadores: en el historial de la ficha las fechas salen como dd/mm/aaaa (antes 2026-11-20).
 - Subir (albaranes y gasoil), Gasoil (factura y Excel de km) y Tacógrafo: zonas de arrastrar con el mismo fondo azul claro y borde marcado que ITV y Neumáticos.

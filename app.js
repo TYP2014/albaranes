@@ -19578,6 +19578,7 @@ function renderFactEmit() {
           ? '<button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitDesmarcar(\'' + f.id + '\')">A PENDIENTE</button>'
           : '<button class="btn bp" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitMarcarCobrada(\'' + f.id + '\')">COBRADA</button>')
        + ' <button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="factEmitEditar(\'' + f.id + '\')">EDITAR</button>'
+       + ' <button class="btn bs" style="font-size:12px;padding:9px 14px;letter-spacing:.5px" onclick="_facHistorial(\'facturas_emitidas\',\'' + f.id + '\')">HISTORIAL</button>'
        + ' <button class="btn br" style="padding:9px 12px;background:var(--er);border-color:var(--er);display:inline-flex;align-items:center;justify-content:center" title="Eliminar esta factura" onclick="factEmitBorrar(\'' + f.id + '\')"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M5.5 7l.9 12.1a2 2 0 0 0 2 1.9h7.2a2 2 0 0 0 2-1.9L18.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>'
        + '</td></tr>';
   });
@@ -46222,6 +46223,31 @@ function _ofEmailDe(cliente) {
 }
 
 // ---------- Abrir una oferta guardada ----------
+// v1293 (JC 22/11/2026): historial de quién crea, edita o borra ofertas y facturas (tabla facturacion_log, la rellena un trigger)
+const _FLOG_NOM = { numero: 'Número', fecha: 'Fecha', fecha_operacion: 'Fecha operación', cliente: 'Cliente', email: 'Email', estado: 'Estado', forma_pago: 'Forma de pago', cuenta: 'Cuenta', vencimiento: 'Vencimiento', base: 'Base', iva: 'IVA', total: 'Total', notas: 'Notas', observaciones: 'Observaciones', albaranes: 'Albaranes', datos: 'Conceptos/líneas', pedido_sap: 'Pedido SAP', enviada_el: 'Enviada', aprobada_el: 'Aprobada', emitida_el: 'Emitida', fecha_cobro: 'Fecha de cobro', forma_cobro: 'Forma de cobro', file_url: 'PDF', serie: 'Serie', n: 'Nº', empresa: 'Empresa', oferta_id: 'Oferta' };
+async function _facHistorial(tabla, id) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.3)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font-size:17px;color:#1b3254">Historial: quién la ha hecho y cambiado</b><button class="btn bs" onclick="this.closest(\'div[style*=fixed]\').remove()">Cerrar</button></div><div id="facHistBox" style="font-size:13px">Cargando…</div></div>';
+  document.body.appendChild(ov);
+  const box = ov.querySelector('#facHistBox');
+  try {
+    const { data, error } = await sb.from('facturacion_log').select('cuando,usuario_nombre,accion,cambios').eq('tabla', tabla).eq('registro_id', String(id)).order('cuando', { ascending: false }).limit(100);
+    if (error) throw error;
+    if (!data || !data.length) { box.innerHTML = 'Sin cambios apuntados todavía (el historial se guarda desde el 22/11/2026).'; return; }
+    const val = v => v === null || v === undefined || v === '' ? '—' : String(v).replace(/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/, '$3/$2/$1');
+    const ACC = { creada: 'Creada', editada: 'Editada', estado: 'Cambio de estado', borrada: 'Borrada' };
+    box.innerHTML = data.map(x => {
+      const d = new Date(x.cuando), f = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const det = (x.accion === 'creada' || x.accion === 'borrada')
+        ? Object.entries(x.cambios || {}).map(([k, v]) => esc(_FLOG_NOM[k] || k) + ': <b>' + esc(val(v)) + '</b>').join(' · ')
+        : Object.entries(x.cambios || {}).map(([k, ab]) => esc(_FLOG_NOM[k] || k) + ': ' + esc(val(ab[0])) + ' → <b>' + esc(val(ab[1])) + '</b>').join(' · ');
+      return '<div style="padding:7px 0;border-bottom:1px solid #e2e8f0"><b>' + (ACC[x.accion] || esc(x.accion)) + '</b> · ' + f + ' · <b>' + esc(x.usuario_nombre || '¿?') + '</b>' + (det ? '<br><span style="color:#334155">' + det + '</span>' : '') + '</div>';
+    }).join('');
+  } catch (e) { console.warn('[v1293] historial facturación:', e); box.innerHTML = 'No se ha podido cargar el historial.'; }
+}
+
 async function ofAbrir(id) {
   try {
     const { data, error } = await sb.from('ofertas').select('*').eq('id', id).single();
@@ -46465,6 +46491,7 @@ function _ofRender() {
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' +
     (_of.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· ⚠️ has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch">' + (_of.id ? '<button class="btn" onclick="ofBorrar()" style="' + _OF_BTN + ';border-color:#b91c1c;color:#b91c1c">Borrar oferta</button>' : '') +
+    (_of.id ? '<button class="btn" onclick="_facHistorial(\'ofertas\',\'' + _of.id + '\')" style="' + _OF_BTN + '">Historial</button>' : '') +
     '<button class="btn" onclick="ofAlbaranesPdf()" style="' + _OF_BTN + '" title="ZIP con los albaranes: uno por albarán y todos juntos">Albaranes PDF</button>' +
     '<button class="btn" onclick="ofExcel()" style="' + _OF_BTN + '">Excel</button>' +
     '<button class="btn" onclick="ofPdf()" style="' + _OF_BTN + '">Oferta PDF</button>' +
@@ -47556,6 +47583,7 @@ function _faRender() {
   const cambiado = _fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - T.total) > 0.005;
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id ? '<button class="btn" onclick="faBorrar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #b91c1c;background:#fff;color:#b91c1c">Borrar</button>' : '') +
+    (_fa.id ? '<button class="btn" onclick="_facHistorial(\'facturas_app\',\'' + _fa.id + '\')" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Historial</button>' : '') +
     '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">' + (em ? 'Guardar cambios' : 'Guardar borrador') + '</button>' +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:11px;padding:5px 10px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
