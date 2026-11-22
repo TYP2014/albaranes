@@ -1709,8 +1709,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="card-hd">
           <div class="st"><div class="dot" style="--c:var(--wn)"></div>VEHÍCULOS · <span id="tallerEmpresaTitulo">TYP2014</span></div>
           <div class="tbl-acts" style="gap:30px;margin-right:36px">
-            <div id="tallerKmBtn" onclick="document.getElementById('tallerExcelInput').click()" ondragenter="event.preventDefault();" ondragover="event.preventDefault(); this.style.background='var(--s2)'; this.style.borderColor='var(--ac)';" ondragleave="this.style.background='#fff'; this.style.borderColor='var(--bd)';" ondrop="event.preventDefault(); this.style.background='#fff'; this.style.borderColor='var(--bd)'; tallerKmDrop(event);" title="Arrastra aquí el Excel de km (.xls/.xlsx), o pincha para buscarlo en el ordenador" style="cursor:pointer;border:2px dashed #111;border-radius:10px;padding:10px 26px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1.25;background:#fff"><span style="font-size:14px;font-weight:700;color:#111">Importar km (Excel)</span><span style="font-size:12px;color:#333">arrastra el Excel aquí o pincha</span></div>
-            <input type="file" id="tallerExcelInput" accept=".xls,.xlsx" style="display:none" onchange="tallerImportarKmExcel(this.files[0])">
+            <!-- v1303 (JC 22/11/2026): "Importar km (Excel)" quitado de Taller: se sube solo en Gasoil, que además pone al día los km de Taller -->
             <button class="btn" onclick="tallerAddVehiculoModal()" style="font-size:12px;padding:14px 24px;letter-spacing:.8px;background:#111;color:#fff;border:2px solid #111;font-weight:700">AÑADIR VEHÍCULO</button>
           </div>
         </div>
@@ -2256,6 +2255,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1302"></script>
+<script src="app.js?v=1303"></script>
 </body>
 </html>

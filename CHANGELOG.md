@@ -1,3 +1,6 @@
+## v1303 — 22/11/2026
+- Taller: quitado "Importar km (Excel)". Los km del tacógrafo se suben SOLO en Gasoil (Subir km), que los guarda para el consumo y además pone al día los km de los vehículos de Taller. Las descargas automáticas del tacógrafo siguen actualizando los dos solas.
+
 ## v1302 — 22/11/2026
 - Subir › Subir albaranes: el muñeco se mueve con más naturalidad: anda con pasitos, se agacha antes de cada salto, salta en curva (sube frenando y baja acelerando, sin tirones), se estira en el aire y se "aplasta" al caer en cada plataforma, y al final entra en la nube con un brillo.
 
