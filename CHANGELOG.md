@@ -1,3 +1,6 @@
+## v1302 — 22/11/2026
+- Subir › Subir albaranes: el muñeco se mueve con más naturalidad: anda con pasitos, se agacha antes de cada salto, salta en curva (sube frenando y baja acelerando, sin tirones), se estira en el aire y se "aplasta" al caer en cada plataforma, y al final entra en la nube con un brillo.
+
 ## v1301 — 22/11/2026
 - Gasoil: "Subir factura" y "Subir km (tacógrafo)" más pequeñas (a la altura de los botones de empresa), así la cabecera ocupa menos.
 
