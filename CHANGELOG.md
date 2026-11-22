@@ -1,3 +1,6 @@
+## v1301 — 22/11/2026
+- Gasoil: "Subir factura" y "Subir km (tacógrafo)" más pequeñas (a la altura de los botones de empresa), así la cabecera ocupa menos.
+
 ## v1300 — 22/11/2026
 - Taller › Recambios: "Subir albarán" (azul) y "Subir factura" (verde) con el mismo estilo de zona de arrastrar que Gasoil y F. Emitidas, mismo tamaño.
 - Gasoil: las dos zonas (Subir factura / Subir km) bajan un poco, separadas de los avisos de arriba.
