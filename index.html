@@ -603,6 +603,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn bp" onclick="faNueva()" style="font-weight:800">Nueva factura</button>
             <button class="btn bs" onclick="ofCliAbrir()">Clientes</button>
             <button class="btn bs" onclick="ofCatAbrir()">Conceptos habituales</button>
+            <button class="btn" onclick="faRectificarOtra()" style="border:2px solid #b45309;color:#b45309;background:#fff;font-weight:800" title="Rectificar SOLO UNA PARTE de cualquier factura, también autofacturas de Holcim o CEMEX: abono de unos servicios">Rectificativa parcial / autofactura</button>
             <button class="btn bs" onclick="faRegistroVer()" title="Registro de facturación (Veri*Factu): altas y anulaciones con su huella encadenada, y comprobación de que nadie lo ha tocado">Registro Veri*Factu</button>
           </div>
           <div id="faCardOut" style="margin-top:12px"></div>
@@ -2255,6 +2256,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1297"></script>
+<script src="app.js?v=1298"></script>
 </body>
 </html>

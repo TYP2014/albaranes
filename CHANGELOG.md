@@ -1,3 +1,6 @@
+## v1298 — 22/11/2026
+- Facturas: botón **Rectificativa parcial / autofactura**. Para abonar o corregir SOLO UNA PARTE de cualquier factura, sobre todo **autofacturas** de Holcim o CEMEX (que no hacemos nosotros): se elige la factura de F. Emitidas (o se escribe nº, fecha y cliente a mano), se pone el motivo y sale un borrador de rectificativa (serie R+año) que hace mención a esa factura; se escriben los servicios y el importe en negativo. La factura original no se toca.
+
 ## v1297 — 22/11/2026
 - Facturas: botón **Registro Veri*Factu** junto a "Conceptos habituales": lista por empresa todas las altas y anulaciones con su huella y **comprueba la cadena** (recalcula cada huella y mira que cada registro lleve la del anterior). Si alguien tocara algo, sale en rojo.
 

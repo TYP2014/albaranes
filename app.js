@@ -47699,6 +47699,48 @@ async function faRegistroVer() {
   } catch (e) { console.error('[v1297] registro:', e); box.innerHTML = 'No se pudo cargar el registro: ' + esc(e.message || e); }
 }
 
+// v1298 (JC 22/11/2026): rectificativa PARCIAL de cualquier factura, sobre todo AUTOFACTURAS (Holcim, CEMEX…)
+// que no hacemos nosotros: se elige la factura de F. Emitidas (o se escribe nº y fecha a mano), se hace mención a
+// ella y solo se abona la parte que toque (p. ej. 10 servicios cobrados de más = -600 €). La original no se toca.
+async function faRectificarOtra() {
+  if (!_ofPuede()) return;
+  await _faCargarCfg(); await _ofCliCargar();
+  const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const sel = 'padding:8px;border:1px solid #94a3b8;border-radius:6px;font-size:15px;font-family:inherit';
+  ov.innerHTML = '<div style="background:#fff;border:4px solid #b45309;border-radius:12px;max-width:760px;width:100%;padding:20px;font-size:15px;max-height:92vh;overflow:auto">' +
+    '<div style="font-size:20px;font-weight:900;color:#b45309">Rectificativa parcial (también de autofacturas)</div>' +
+    '<div style="margin:8px 0 12px;line-height:1.5">Para abonar o corregir <b>solo una parte</b> de una factura (p. ej. servicios cobrados de más). La factura original <b>no se toca</b>; la rectificativa hace mención a ella.</div>' +
+    '<label>Empresa que hace la rectificativa<br><select id="frxEmp" style="' + sel + '">' + Object.keys(_OF_EMPRESAS).map(k => '<option value="' + k + '">' + _OF_EMPRESAS[k] + '</option>').join('') + '</select></label>' +
+    '<div style="margin-top:12px"><b>Factura que se rectifica</b> · busca por nº o cliente (F. Emitidas, autofacturas incluidas)<br><input id="frxBus" placeholder="Ej.: 2026-10 o HOLCIM" style="' + sel + ';width:100%;margin-top:4px"></div>' +
+    '<div id="frxLista" style="max-height:220px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px;margin-top:6px;font-size:13px"></div>' +
+    '<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"><label>Nº de la factura<br><input id="frxNum" style="' + sel + ';width:170px"></label><label>Fecha<br><input id="frxFecha" type="date" style="' + sel + '"></label><label style="flex:1;min-width:200px">Cliente<br><input id="frxCli" style="' + sel + ';width:100%"></label></div>' +
+    '<div style="margin:12px 0 4px;font-weight:800">Motivo (sale en la factura)</div><textarea id="frxMot" rows="2" style="' + sel + ';width:100%" placeholder="Ej.: abono de 10 servicios cobrados de más en la autofactura"></textarea>' +
+    '<div id="frxMsg" style="color:#b91c1c;font-weight:800;margin-top:6px"></div>' +
+    '<div style="text-align:right;margin-top:12px;display:flex;gap:10px;justify-content:flex-end"><button class="btn bs" id="frxNo">Cancelar</button><button class="btn" id="frxOk" style="background:#b45309;color:#fff;font-weight:900">Crear rectificativa</button></div></div>';
+  document.body.appendChild(ov);
+  const $ = id => ov.querySelector('#' + id);
+  let FE = [];
+  const cargar = async () => { const emp = $('frxEmp').value; $('frxLista').innerHTML = '<div style="padding:8px">Cargando…</div>';
+    try { const { data, error } = await sb.from('facturas_emitidas').select('id,numero,fecha,cliente,total').eq('empresa', _FA_EMP_FE[emp] || emp).order('fecha', { ascending: false }).limit(1000); if (error) throw error; FE = data || []; } catch (e) { FE = []; console.warn('[v1298] F. Emitidas:', e); }
+    pinta(); };
+  const pinta = () => { const q = _ofNrm($('frxBus').value || ''); const L = FE.filter(f => !q || _ofNrm((f.numero || '') + ' ' + (f.cliente || '')).includes(q)).slice(0, 60);
+    $('frxLista').innerHTML = L.length ? L.map((f, i) => '<div data-i="' + FE.indexOf(f) + '" style="padding:6px 8px;border-top:1px solid #f1f5f9;cursor:pointer"><b>' + esc(f.numero || '') + '</b> · ' + esc(_ofFechaEs(f.fecha)) + ' · ' + esc(f.cliente || '') + ' · ' + _ofEur(f.total) + '</div>').join('') : '<div style="padding:8px;color:#475569">No hay ninguna con eso. Puedes escribir el nº y la fecha a mano abajo.</div>';
+    $('frxLista').querySelectorAll('[data-i]').forEach(d => d.onclick = () => { const f = FE[+d.dataset.i]; $('frxNum').value = f.numero || ''; $('frxFecha').value = String(f.fecha || '').slice(0, 10); $('frxCli').value = f.cliente || ''; $('frxLista').querySelectorAll('[data-i]').forEach(x => x.style.background = ''); d.style.background = '#fef3c7'; }); };
+  $('frxEmp').onchange = cargar; $('frxBus').oninput = pinta; await cargar();
+  $('frxNo').onclick = () => ov.remove();
+  $('frxOk').onclick = async () => {
+    const emp = $('frxEmp').value, num = $('frxNum').value.trim(), fecha = $('frxFecha').value, cli = $('frxCli').value.trim(), mot = $('frxMot').value.trim();
+    if (!num || !fecha || !cli || !mot) { $('frxMsg').textContent = 'Faltan datos: nº, fecha y cliente de la factura, y el motivo.'; return; }
+    const c = _ofCliBuscar(cli); ov.remove();
+    const serie = 'R' + new Date().getFullYear();
+    await faNueva({ empresa: emp, serie, cliente: c ? c.nombre : cli.toUpperCase(), clienteDatos: c ? _ofCliDatos(c) : '', email: c ? (c.email_facturas || c.email || '') : '',
+      lineas: [{ concepto: 'Rectificativa de la factura ' + num + ' - ', cantidad: 1, unidad: 'ud', precio: null, importe: null, iva: 21 }],
+      rectifica: { id: null, numero: num, fecha, motivo: mot, tipo: 'diferencias', externa: true } });
+    if (_fa) { _fa.serie = serie; _fa.n = await _faSiguiente(_fa.empresa, serie); _faRender();
+      toast('Rectificativa ' + _faNumero() + ' de la ' + num + ' en borrador: escribe los servicios y el importe EN NEGATIVO (abono), pon la FECHA y EMITE.', 'ok'); }
+  };
+}
+
 async function faRectificar() {
   if (!_fa || _fa.estado !== 'emitida') return;
   try { const { data } = await sb.from('facturas_app').select('id,numero,estado').eq('empresa', _fa.empresa).eq('estado', 'borrador').contains('datos', { rectifica: { id: _fa.id } }).limit(1);
@@ -47764,7 +47806,7 @@ async function faAnular() {
 }
 // Al emitir una rectificativa: la original queda RECTIFICADA, sale de F. Emitidas y suelta los albaranes que ya no lleva
 async function _faTrasRectificar() {
-  const r = _fa && _fa.rectifica; if (!r) return 0; let err = 0;
+  const r = _fa && _fa.rectifica; if (!r || !r.id) return 0; let err = 0;   // v1298: rectificativa de una factura de fuera (autofactura): no hay original en la app
   try {
     const { data: o, error } = await sb.from('facturas_app').select('id,empresa,numero,datos,albaranes').eq('id', r.id).single(); if (error) throw error;
     if (r.tipo === 'diferencias') {   // v1296: la original sigue valiendo; solo se apunta qué rectificativas tiene
