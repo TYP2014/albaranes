@@ -1322,3 +1322,8 @@ body:has(#ofOv,#faOv,#feOv,#ofCliOv,#ofCatOv) .toast.err{border-color:#c62828;ba
 #dzAlb:hover,#dzGas:hover,#gasFacBtn:hover,#gasKmBtn:hover,#tacoDrop:hover,#dzAlb.dzover,#dzGas.dzover,#tacoDrop.dzover{background:#d4e3f7 !important;border-color:#0f2a4d !important}
 #dzAlb .dz-t,#dzGas .dz-t,#tacoDrop .dz-t{color:#0f2a4d;font-weight:700}
 #dzAlb .dz-s,#dzGas .dz-s,#tacoDrop .dz-s{color:#1f3a5f;opacity:1}
+/* v1300 (JC 22/11/2026): Recambios › Subir albarán / Subir factura como zonas de arrastrar (igual que Gasoil y F. Emitidas), mismo tamaño */
+#recambiosBtnSubirAlb{background:#e8f0fb !important;border:3px dashed #1f3a5f !important;color:#1f3a5f !important;box-shadow:none !important}
+#recambiosBtnSubirFac{background:#e3f1e8 !important;border:3px dashed #1b5e3f !important;color:#1b5e3f !important;box-shadow:none !important}
+#recambiosBtnSubirAlb:hover{background:#d4e3f7 !important}
+#recambiosBtnSubirFac:hover{background:#cfe8d8 !important}

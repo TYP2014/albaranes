@@ -1,3 +1,7 @@
+## v1300 — 22/11/2026
+- Taller › Recambios: "Subir albarán" (azul) y "Subir factura" (verde) con el mismo estilo de zona de arrastrar que Gasoil y F. Emitidas, mismo tamaño.
+- Gasoil: las dos zonas (Subir factura / Subir km) bajan un poco, separadas de los avisos de arriba.
+
 ## v1299 — 22/11/2026 (limpieza del chivato)
 - Documentación › Declaración Holcim: si la pantalla llevaba rato abierta, el enlace de la plantilla caducaba y fallaba con "No se pudo descargar (400)" (Marta, 19/11). Ahora se vuelve a pedir el enlace y sigue.
 - Lectura de albaranes por IA: el error "HTTP 546" (el servidor se queda sin recursos con PDF escaneados grandes) se reintenta solo, como los demás fallos temporales.
