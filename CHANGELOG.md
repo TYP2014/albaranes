@@ -1,3 +1,6 @@
+## v1297 — 22/11/2026
+- Facturas: botón **Registro Veri*Factu** junto a "Conceptos habituales": lista por empresa todas las altas y anulaciones con su huella y **comprueba la cadena** (recalcula cada huella y mira que cada registro lleve la del anterior). Si alguien tocara algo, sale en rojo.
+
 ## v1296 — 22/11/2026
 - Facturas: al RECTIFICAR se elige el tipo: **Sustituir la factura** (copia entera editable, la original deja de contar) o **Por diferencias** (como Quipu: solo la diferencia, p. ej. abono de precio en negativo; la original sigue valiendo). Motivo obligatorio.
 - Botón **Rectificativa** también en la lista de facturas (como el "Crear factura rectificativa" de Quipu).

@@ -47669,6 +47669,36 @@ function _faBloqueo(box) {
   box.querySelectorAll('button').forEach(b => { if (!libres.test(b.getAttribute('onclick') || '')) b.disabled = true; });
   box.querySelectorAll('input,select,textarea').forEach(el => { const oc = (el.getAttribute('onchange') || '') + (el.getAttribute('oninput') || ''); if (/_fa\.(email|mensaje)=|faSetRem/.test(oc)) return; el.disabled = true; });
 }
+// v1297: ver el REGISTRO DE FACTURACIÓN (altas y anulaciones) y COMPROBAR la cadena de huellas:
+// se recalcula cada huella (SHA-256 de su cadena) y se mira que cada registro lleve la huella del anterior.
+async function _faSha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+async function faRegistroVer() {
+  const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:1100px;width:100%;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:18px;color:#1b3254">Registro de facturación (Veri*Factu)</b><button class="btn bs" onclick="this.closest(\'div[style*=fixed]\').remove()">Cerrar</button></div><div id="faRegBox" style="margin-top:10px;font-size:13px">Cargando y comprobando…</div></div>';
+  document.body.appendChild(ov);
+  const box = ov.querySelector('#faRegBox');
+  try {
+    const { data, error } = await sb.from('facturas_registro').select('*').order('id', { ascending: true }).limit(5000); if (error) throw error;
+    if (!data || !data.length) { box.innerHTML = 'Todavía no hay ningún registro: se crea uno al EMITIR (o ANULAR) cada factura de la app.'; return; }
+    const NOM = { B90172735: 'Transportes y Portes 2014', B90286337: 'T. Híspalis 2016', B02657435: 'Portes 2014 Import' };
+    const porNif = {}; data.forEach(r => (porNif[r.nif] = porNif[r.nif] || []).push(r));
+    let h = '';
+    for (const nif of Object.keys(porNif)) {
+      const L = porNif[nif]; let mal = 0, prev = '';
+      const filas = [];
+      for (const r of L) {
+        const h1 = await _faSha256(r.cadena), okH = h1 === r.huella, okC = (r.huella_anterior || '') === prev && r.cadena.includes('&Huella=' + prev + '&');
+        if (!okH || !okC) mal++; prev = r.huella;
+        filas.push('<tr style="border-top:1px solid #e2e8f0' + (okH && okC ? '' : ';background:#fee2e2') + '"><td style="padding:5px 7px">' + r.id + '</td><td style="padding:5px 7px">' + esc(r.tipo_registro === 'anulacion' ? 'ANULACIÓN' : 'Alta ' + r.tipo_factura) + '</td><td style="padding:5px 7px;font-weight:700">' + esc(r.num_serie) + '</td><td style="padding:5px 7px">' + esc(_ofFechaEs(r.fecha_expedicion)) + '</td><td style="padding:5px 7px;text-align:right">' + (r.tipo_registro === 'anulacion' ? '' : _ofEur(r.importe_total)) + '</td><td style="padding:5px 7px;font-family:var(--mn);font-size:11px">' + esc(r.huella.slice(0, 16)) + '…</td><td style="padding:5px 7px">' + esc(String(r.fecha_hora_gen).replace('T', ' ').slice(0, 19)) + '</td><td style="padding:5px 7px;font-weight:800;color:' + (okH && okC ? '#15803d">Correcto' : '#b91c1c">' + (!okH ? 'HUELLA ALTERADA' : 'CADENA ROTA')) + '</td></tr>');
+      }
+      h += '<div style="margin:14px 0 6px;font-size:15px"><b>' + esc(NOM[nif] || nif) + '</b> (' + nif + ') · ' + L.length + ' registros · ' + (mal ? '<b style="color:#b91c1c">⚠️ ' + mal + ' con problemas</b>' : '<b style="color:#15803d">cadena íntegra</b>') + '</div>' +
+        '<div style="overflow-x:auto;border:1px solid #cbd5e1;border-radius:8px"><table style="width:100%;border-collapse:collapse"><tr style="background:#f1f5f9;text-align:left"><th style="padding:6px 7px">Nº reg.</th><th style="padding:6px 7px">Tipo</th><th style="padding:6px 7px">Factura</th><th style="padding:6px 7px">Fecha</th><th style="padding:6px 7px;text-align:right">Importe</th><th style="padding:6px 7px">Huella</th><th style="padding:6px 7px">Generado</th><th style="padding:6px 7px">Comprobación</th></tr>' + filas.join('') + '</table></div>';
+    }
+    box.innerHTML = h;
+  } catch (e) { console.error('[v1297] registro:', e); box.innerHTML = 'No se pudo cargar el registro: ' + esc(e.message || e); }
+}
+
 async function faRectificar() {
   if (!_fa || _fa.estado !== 'emitida') return;
   try { const { data } = await sb.from('facturas_app').select('id,numero,estado').eq('empresa', _fa.empresa).eq('estado', 'borrador').contains('datos', { rectifica: { id: _fa.id } }).limit(1);
