@@ -1,3 +1,6 @@
+## v1308 — 23/11/2026
+- Empleados: los botones de empresa (TYP2014 / HISPALIS / PORTES 2014 IMPORT) llevan el **nº de trabajadores activos** entre paréntesis, y el título "Datos de empleados · TYP2014 (N)" también, como en Documentación.
+
 ## v1307 — 23/11/2026
 - Ficha del trabajador: si en las notas pone que la empresa real es **PORTES 2014 CAPITAL HOLDINGS** (caso de María del Mar), ya no sale la línea "Empresa: TRANSPORTES Y PORTES 2014 · CIF · CCC" debajo de Seguridad Social. "Copiar datos para cursos" copia los datos de la Holdings (CIF B75555037, CCC 41148276333). Tabla `empresas_datos`: nueva fila HOLDINGS.
 

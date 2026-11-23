@@ -25828,8 +25828,9 @@ function renderEmpDatos() {
   const nom = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
   const sub = document.getElementById('empDatosSubtabs');
   if (sub) sub.innerHTML = perm.map(e => '<button class="btn ' + (e === empDatosEmpresa ? 'bp' : 'bs') + '" onclick="empDatosSwitch(\'' + e + '\')" style="font-size:13px;padding:8px 18px;min-width:150px">' + (nom[e] || e) + '</button>').join('');
-  const tit = document.getElementById('empDatosTitulo'); if (tit) tit.textContent = '· ' + (nom[empDatosEmpresa] || empDatosEmpresa) + (empDatosArch ? ' · archivados' : '');
   const trabs = (vacTrabajadores || []).filter(t => (t.empresa === empDatosEmpresa || (!t.empresa && empDatosEmpresa === 'TYP2014')) && (empDatosArch ? t.archivado : !t.archivado));
+  const tit = document.getElementById('empDatosTitulo'); if (tit) tit.textContent = '· ' + (nom[empDatosEmpresa] || empDatosEmpresa) + (empDatosArch ? ' · archivados' : '') + ' (' + trabs.length + ')';   // v1308: nº de trabajadores
+  empPintarEmpresas();   // v1308: refresca el nº en los botones de empresa
   if (!trabs.length) {
     box.innerHTML = '<div style="color:var(--tx);font-family:var(--mn);font-size:13px;padding:20px;text-align:center">' + (empDatosArch ? 'No hay trabajadores archivados.' : 'No hay trabajadores activos. Pulsa <strong>Añadir trabajador</strong>.') + '</div>';
     return;
@@ -28693,7 +28694,8 @@ function empPintarEmpresas() {
   const nom = { TYP2014: 'TYP2014', HISPALIS: 'HISPALIS', TRANSMARGAZ: 'TRANSMARGAZ', PORTES: 'PORTES 2014 IMPORT' };
   const orden = ['TYP2014', 'HISPALIS', 'TRANSMARGAZ', 'PORTES'];
   const perm = _empDatosPermitidas().slice().sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
-  bar.innerHTML = perm.map(e => '<button class="btn ' + (e === vacEmpresaActiva ? 'bp' : 'bs') + '" onclick="empSetEmpresa(\'' + e + '\')">' + (nom[e] || e) + '</button>').join('');
+  const n = e => (vacTrabajadores || []).filter(t => (t.empresa === e || (!t.empresa && e === 'TYP2014')) && !t.archivado).length;   // v1308: activos por empresa
+  bar.innerHTML = perm.map(e => '<button class="btn ' + (e === vacEmpresaActiva ? 'bp' : 'bs') + '" onclick="empSetEmpresa(\'' + e + '\')">' + (nom[e] || e) + ((vacTrabajadores || []).length ? ' (' + n(e) + ')' : '') + '</button>').join('');
 }
 function empSetEmpresa(e) {
   if (!_empDatosPermitidas().includes(e)) return;
