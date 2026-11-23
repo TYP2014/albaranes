@@ -47380,7 +47380,9 @@ function _faSeries(emp, fechaIso) {
   return out;
 }
 function _faSerieDeFecha(emp, iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})/); if (!m) return ''; return emp === 'PORTES' ? m[1] : emp === 'HISPALIS' ? m[1] + m[2] : m[1] + '-' + m[2]; }
+let _FA_ESTRICTO = false;   // v1305: Veri*Factu estricto (emitidas bloqueadas). Se lee de app_ajustes; hoy NO (se pueden corregir)
 async function _faCargarCfg() {
+  try { const { data } = await sb.from('app_ajustes').select('valor').eq('clave', 'verifactu_estricto').maybeSingle(); _FA_ESTRICTO = !!(data && data.valor === true); } catch (e) { console.warn('[v1305] ajuste Veri*Factu:', e); }
   try { const { data, error } = await sb.from('facturas_config').select('*'); if (error) throw error; _faCfg = {}; (data || []).forEach(c => { _faCfg[c.empresa] = c; }); }
   catch (e) { console.error('[v1149] config facturas:', e); if (/does not exist|relation|permission/i.test(e.message || '')) toast('Falta el SQL de la v1149 (tablas de facturas)', 'err'); }
   if (!_faPlazos) { try { const { data } = await sb.from('clientes_plazo').select('cliente_key,dias'); _faPlazos = data || []; } catch (e) { _faPlazos = []; } }
@@ -47540,6 +47542,7 @@ function _faRender() {
       '<button class="btn" id="faBtnPaquete" onclick="faPaquete()" style="' + _OF_BTN + '" title="ZIP con la factura en PDF, los albaranes en un solo PDF y el texto del correo">Paquete de envío</button>' +
       '<button class="btn" onclick="faEnviarAbrir()" style="' + _OF_BTN + ';border:2px solid #15803d;color:#15803d;background:#fff" title="Envía la factura al cliente desde el correo de la empresa y la copia a Quipu">Enviar por correo</button>'
       : '<span style="font-size:12px;color:#475569">PDF, paquete y envío salen al guardar el borrador</span>') +
+    (em && _fa.estado === 'emitida' && !_FA_ESTRICTO ? '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:#1b3254;color:#fff;font-weight:800" title="Corregir esta misma factura (hasta que Veri*Factu sea obligatorio). Queda apuntado en el Historial.">Guardar cambios</button>' : '') +
     (em ? (_fa.estado === 'emitida' ? '<button class="btn" onclick="faRectificar()" style="font-size:14px;padding:10px 18px;background:#b45309;color:#fff;font-weight:800" title="Hace una factura RECTIFICATIVA (sustituye a esta o por diferencias)">RECTIFICAR</button><button class="btn" onclick="faAnular()" style="font-size:14px;padding:10px 16px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800" title="Solo para una factura hecha por error">ANULAR</button>' : '')
       : '<button class="btn" onclick="faGuardar()" style="font-size:14px;padding:10px 18px;border:2px solid #1b3254;background:#fff;color:#1b3254;font-weight:800">Guardar borrador</button>') +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:14px;padding:10px 20px;background:#1b3254;color:#fff;font-weight:800">Emitir factura</button>') + '</div>';
@@ -47595,7 +47598,7 @@ function _faRender() {
   h += '<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:13px">' + (_fa.guardadaTotal == null ? '<span style="color:#c62828;font-weight:700">Sin guardar</span>' : '<span style="color:#15803d;font-weight:700">Guardada</span>' + (cambiado ? ' <span style="color:#c62828;font-weight:700">· has cambiado algo: vuelve a guardar</span>' : '')) + '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' + (_fa.id && !em ? '<button class="btn" onclick="faBorrar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #b91c1c;background:#fff;color:#b91c1c">Borrar</button>' : '') +
     (_fa.id ? '<button class="btn" onclick="_facHistorial(\'facturas_app\',\'' + _fa.id + '\')" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Historial</button>' : '') +
-    (em ? '' : '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Guardar borrador</button>') +
+    (em ? (_fa.estado === 'emitida' && !_FA_ESTRICTO ? '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Guardar cambios</button>' : '') : '<button class="btn" onclick="faGuardar()" style="font-size:11px;padding:5px 10px;font-weight:700;border:1px solid #1b3254;background:#fff;color:#1b3254">Guardar borrador</button>') +
     (em ? '' : '<button class="btn" onclick="faEmitir()" style="font-size:11px;padding:5px 10px;font-weight:700;background:#1b3254;color:#fff">Emitir factura</button>') + '</div></div>';
   box.innerHTML = h; if (ovEl) ovEl.scrollTop = sc;
   _faBloqueo(box);   // v1294
@@ -47619,7 +47622,8 @@ async function faDuplicar() {
 function _faLinLlena(l) { return !!((l.concepto || '').trim() || Number(l.importe) || Number(l.precio)); }   // v1190: una línea en blanco no cuenta
 async function faGuardar(silencioso, estado) {
   if (!_fa) return false;
-  if (_fa.estado !== 'borrador' && !estado) { alert('Esta factura ya está EMITIDA y no se puede modificar (Veri*Factu).\n\nPara corregir cualquier cosa (concepto, mes, toneladas, precio…) pulsa RECTIFICAR.'); return false; }   // v1294
+  if (_fa.estado === 'emitida' && !estado && !_FA_ESTRICTO && !(await _faConfirmarCorreccion())) return false;   // v1305
+  if (_fa.estado !== 'borrador' && !estado && (_FA_ESTRICTO || _fa.estado !== 'emitida')) { alert('Esta factura ya está EMITIDA y no se puede modificar (Veri*Factu).\n\nPara corregir cualquier cosa (concepto, mes, toneladas, precio…) pulsa RECTIFICAR.'); return false; }   // v1294
   _fa.lineas = _fa.lineas.filter(_faLinLlena);
   if (!_fa.cliente) { toast('Elige el cliente', 'err'); return false; }
   if (!_fa.serie || !_fa.n) { toast('Falta la serie o el número', 'err'); return false; }
@@ -47658,6 +47662,10 @@ function _faBloqueo(box) {
   if (!_fa) return;
   if (_fa.rectifica) { const d = document.createElement('div'); d.style.cssText = 'margin-top:8px;padding:9px 12px;border:2px solid #b45309;border-radius:8px;font-size:14px;background:#fffbeb'; d.innerHTML = '<b>Rectificativa</b> de la factura <b>' + esc(_fa.rectifica.numero) + '</b> (' + esc(_ofFechaEs(_fa.rectifica.fecha)) + ') · Motivo: ' + esc(_fa.rectifica.motivo || ''); box.children[1] ? box.insertBefore(d, box.children[2] || null) : box.appendChild(d); }
   if (_fa.estado === 'borrador') return;
+  if (_fa.estado === 'emitida' && !_FA_ESTRICTO) {   // v1305: modo flexible hasta que Veri*Factu sea obligatorio
+    const i = document.createElement('div'); i.style.cssText = 'margin-top:8px;padding:9px 12px;border:2px solid #1b3254;border-radius:8px;font-size:14px;background:#eef3fa;color:#111';
+    i.innerHTML = '<b>Factura emitida.</b> Mientras Veri*Factu no sea obligatorio <b>se puede corregir aquí mismo</b> (mes, toneladas, precio…) y pulsar <b>Guardar cambios</b>: queda apuntado quién y qué en el <b>Historial</b>. Si prefieres, también puedes RECTIFICAR o ANULAR.';
+    box.insertBefore(i, box.children[1] || null); return; }
   const av = document.createElement('div');
   av.style.cssText = 'margin-top:8px;padding:10px 14px;border:3px solid #b45309;border-radius:8px;font-size:15px;background:#fff7ed;color:#111';
   av.innerHTML = _fa.estado === 'anulada' ? '<b>ANULADA</b> por error' + (_fa.anulacion ? ' · ' + esc(_fa.anulacion.motivo || '') : '') + '. No cuenta. El número ' + esc(_faNumero()) + ' no se vuelve a usar.'
@@ -47741,6 +47749,10 @@ async function faRectificarOtra() {
   };
 }
 
+// v1305: aviso antes de corregir una factura ya emitida (modo flexible)
+function _faConfirmarCorreccion() {
+  return Promise.resolve(confirm('Vas a CORREGIR la factura ' + _faNumero() + ', que ya está emitida.\n\n· Quedará apuntado en el Historial quién la cambia y qué.\n· Se actualiza en F. Emitidas.\n· Si ya se la enviaste al cliente o a Quipu, vuelve a enviársela.\n\n¿Guardar los cambios?'));
+}
 async function faRectificar() {
   if (!_fa || _fa.estado !== 'emitida') return;
   try { const { data } = await sb.from('facturas_app').select('id,numero,estado').eq('empresa', _fa.empresa).eq('estado', 'borrador').contains('datos', { rectifica: { id: _fa.id } }).limit(1);

@@ -1,3 +1,7 @@
+## v1305 — 23/11/2026
+- Facturas (modo flexible hasta que Veri*Factu sea obligatorio): una factura EMITIDA se puede **corregir aquí mismo** (mes, toneladas, precio…) con **Guardar cambios**, sin hacer rectificativa. Pide confirmación, se actualiza en F. Emitidas y queda en el **Historial** quién y qué cambió; en el registro de facturación queda como "subsanación" encadenada. Rectificar y Anular siguen disponibles.
+- El interruptor está en la tabla `app_ajustes` (verifactu_estricto = false). El día que Veri*Factu sea obligatorio se pone a true y las emitidas vuelven a quedar bloqueadas (solo rectificar/anular).
+
 ## v1304 — 22/11/2026
 - Documentación › Conductores: al subir (o corregir las fechas de) el CAP, el CARNET o la TARJETA del tacógrafo, la caducidad pasa sola a la ficha del trabajador (como ya hacía el apto médico). Solo si es posterior a la que había.
 - Puestas al día a mano las fichas de Nilson Ortiz (CAP 11/10/2031), Jorge Ausín (CAP 11/12/2031) y Óscar Escolano (CAP y carnet, que estaban vacíos).
