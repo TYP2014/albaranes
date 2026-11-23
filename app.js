@@ -28511,6 +28511,15 @@ function _tcitaPintarCampos(c) {
     '</div>';
 }
 
+// v1316: marca sacada de la ficha del vehículo (notas: "RENAULT T 460 · bastidor ...")
+function _tcitaMarcaDeFicha(mat) {
+  try {
+    const v = (tallerVehiculos || []).find(x => String(x.matricula || '').toUpperCase().replace(/\s+/g, '') === mat);
+    const w = String((v && v.notas) || '').trim().split(/[\s·]+/)[0].toUpperCase();
+    return (w && _TCITA_MARCAS.includes(w) && w !== 'OTRO') ? w : null;
+  } catch (e) { return null; }
+}
+
 function closeTCitaModal() {
   document.getElementById('tcitaOv').classList.remove('open');
   editTCitaId = null;
@@ -28526,7 +28535,7 @@ async function saveTCitaModal() {
     matricula,
     fecha_cita,
     hora_cita:     (document.getElementById('tcitaF_hora').value || '').trim() || null,
-    marca:         (document.getElementById('tcitaF_marca').value || '').trim().toUpperCase() || null,
+    marca:         (document.getElementById('tcitaF_marca').value || '').trim().toUpperCase() || _tcitaMarcaDeFicha(matricula),   // v1316: si se deja vacía, se toma de la ficha del vehículo
     taller:        (document.getElementById('tcitaF_taller').value || '').trim() || null,
     direccion:     (document.getElementById('tcitaF_direccion').value || '').trim() || null,
     motivo:        (document.getElementById('tcitaF_motivo').value || '').trim() || null,

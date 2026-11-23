@@ -1,3 +1,6 @@
+## v1316 — 23/11/2026
+- Taller > Citas servicio oficial: si al guardar una cita la **Marca** se deja vacía, se rellena sola con la marca de la ficha del vehículo (RENAULT, IVECO, FORD…).
+
 ## v1315 — 23/11/2026
 - Documentación > Vehículos, columna FT 44 TN: el aviso **"NO APTO 44 TN"** ocupa menos: el motivo va en una sola línea (recortado con "…"); entero al pasar el ratón por encima. Así la fila no sale tan alta.
 - Los apartados de semis se llaman ahora **"Semirremolques (bañeras) basculantes"** y **"Semirremolques cisterna"** (antes "Semirremolques" y "Cisternas").
