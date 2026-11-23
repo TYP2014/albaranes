@@ -4849,7 +4849,7 @@ async function _processOne(it, type, key, timeoutMs) {
           // v83: autocorrección de transportista por matrícula. Si la matrícula está en la
           // tabla TRANSPORTISTAS, sobrescribe lo que leyó la IA por el oficial. Esto garantiza
           // que el transportista sea siempre uno de los 13 válidos y no haya variantes raras.
-          const transportistaOf = getTransportista(data.tractora);
+          const transportistaOf = getTransportista(data.tractora, data.fecha);   // v1311
           if (transportistaOf && transportistaOf !== data.transportista) {
             console.log(`Transportista autocorregido por matrícula ${data.tractora}: "${data.transportista || '(vacío)'}" → "${transportistaOf}"`);
             data.transportista = transportistaOf;
@@ -5965,7 +5965,7 @@ async function _processOne(it, type, key, timeoutMs) {
             }
           }
         }
-        const t = getTransportista(data.tractora); if (t) data.transportista = t;
+        const t = getTransportista(data.tractora, data.fecha); if (t) data.transportista = t;   // v1311
         // v311 (17/07/2026, Juan Carlos): NÚMERO AUTOMÁTICO para tickets SIN nº de albarán.
         // Caso real: los tickets térmicos de báscula (ej. Holcim Cantera Garraf) NO llevan
         // nº de albarán impreso — literalmente no existe en el papel. Hasta ahora cada
@@ -17012,7 +17012,7 @@ async function reanalizarTodo() {
     if (r._manual) {
       saltados++;
       if (r.tractora && r.db_id) {
-        const tOficial = getTransportista(r.tractora);
+        const tOficial = getTransportista(r.tractora, r.fecha || '1900-01-01');   // v1311: sin fecha = histórico, no se toca
         if (tOficial && tOficial !== r.transportista) {
           console.log(`[manual+canon] Transportista: "${r.transportista || '(vacío)'}" → "${tOficial}" (mat ${r.tractora}, alb ${r.albaran})`);
           const valorAnterior = r.transportista;
@@ -17216,7 +17216,7 @@ async function reanalizarTodo() {
       // v83: aunque la matrícula no haya cambiado, comprobar si el transportista coincide con
       // el oficial del diccionario. Si no, corregirlo. Aplica a histórico de albaranes con
       // transportista mal leído por OCR.
-      const tOficial = getTransportista(r.tractora);
+      const tOficial = getTransportista(r.tractora, r.fecha || '1900-01-01');   // v1311: sin fecha = histórico, no se toca
       if (tOficial && tOficial !== r.transportista) {
         console.log(`Transportista hist: "${r.transportista || '(vacío)'}" → "${tOficial}" (mat ${r.tractora}, alb ${r.albaran})`);
         r.transportista = tOficial;
@@ -22333,9 +22333,18 @@ function matriculaPrincipal(mat) {
   return clean;
 }
 
-function getTransportista(mat) {
+// v1311 (JC 23/11/2026): tractoras NUESTRAS alquiladas a un subcontratado. Desde la fecha "desde", sus albaranes
+// van a nombre de quien la lleva (y él los ve en su usuario). Los albaranes ANTERIORES a esa fecha no cambian.
+// Gasoil y Taller siguen siendo de la empresa dueña (eso va por otros mapas). "Hasta nuevo aviso": para devolverla, quitar la línea.
+const MATRICULAS_ALQUILADAS = {
+  '4537HYY': { transp: 'MIGUEL A. GARCIA', desde: '2026-11-23' },
+};
+function _fechaIsoAlb(f) { const s = String(f || '').trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/); return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : ''; }
+function getTransportista(mat, fecha) {
   if (!mat) return null;
   const clean = matriculaPrincipal(mat);
+  const _alq = MATRICULAS_ALQUILADAS[clean];   // v1311: sin fecha = albarán nuevo → ya alquilada
+  if (_alq) { const f = _fechaIsoAlb(fecha); if (!fecha || !f || f >= _alq.desde) return fixTransportista(_alq.transp); }
   // v106: aplicamos fixTransportista al resultado para canonizar valores que pudieron
   // aprenderse con variantes raras (TYP2014 vs "TRANSPORTES Y PORTES 2014, S.L.", etc.)
   // antes de tener todo este blindaje.

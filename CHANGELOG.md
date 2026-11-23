@@ -1,3 +1,6 @@
+## v1311 — 23/11/2026
+- Tractora **4537HYY** (nuestra, de TYP2014) alquilada a **MIGUEL A. GARCIA** desde el **23/11/2026**, hasta nuevo aviso: los albaranes de esa matrícula con fecha desde hoy se guardan a su nombre (y los ve en su usuario). Los anteriores siguen siendo de TYP2014 y "Reanalizar" no los cambia. Gasoil, Taller y Tacógrafo siguen como TYP2014. Para devolverla: quitar la línea de `MATRICULAS_ALQUILADAS` en app.js.
+
 ## v1310 — 23/11/2026
 - Aviso de documentos (cartel de arriba): la fecha va con "venció" / "vence" delante, para que no se confunda con la fecha de firma (p. ej. EPIs de Cristian Hierro: "venció 12/08/2026").
 - Recibí PRL de Holcim: al subir uno nuevo, el vencimiento queda a **2 años menos un día**, igual que lo pone Metacontratas (firmado 19/01/2026 → vence 18/01/2028).
