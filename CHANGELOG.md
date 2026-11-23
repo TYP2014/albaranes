@@ -1,3 +1,6 @@
+## v1312 — 23/11/2026
+- Documentación > Vehículos (TYP2014, Híspalis y Portes; tractoras y semis): nueva columna **"FT 44 t"**, al lado de la Ficha técnica, para la ficha técnica con la reforma a **44 toneladas** (diligencia de la ITV, F.3.1: 44000) que piden en algunas cargas. Se sube, se ve y se envía (WhatsApp/correo) igual que el resto de documentos. Primera subida: 1968JFV (ITV 12/05/2026).
+
 ## v1311 — 23/11/2026
 - Tractora **4537HYY** (nuestra, de TYP2014) alquilada a **MIGUEL A. GARCIA** desde el **23/11/2026**, hasta nuevo aviso: los albaranes de esa matrícula con fecha desde hoy se guardan a su nombre (y los ve en su usuario). Los anteriores siguen siendo de TYP2014 y "Reanalizar" no los cambia. Gasoil, Taller y Tacógrafo siguen como TYP2014. Para devolverla: quitar la línea de `MATRICULAS_ALQUILADAS` en app.js.
 

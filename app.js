@@ -48707,7 +48707,7 @@ async function pinEnviar(mat, tipo) {
 // poniendo la matrícula del vehículo y la fecha que se elija. ZIP por vehículo o de los marcados.
 // ============================================================
 const _VD_TIPOS = [
-  ['FT', 'Ficha técnica', 'ambos'], ['PC', 'Permiso circ.', 'ambos'], ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
+  ['FT', 'Ficha técnica', 'ambos'], ['FT44', 'FT 44 t', 'ambos'], ['PC', 'Permiso circ.', 'ambos'],   // v1312: ficha técnica con la reforma a 44 toneladas (la piden en algunas cargas) ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
   ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'],
   ['PRES_A', 'Prueba presión A', 'cisterna'], ['PRES_B', 'Prueba presión B', 'cisterna'], ['PRES_C', 'Prueba presión C', 'cisterna'], ['LINEA_VIDA', 'Línea de vida', 'cisterna'],   // v1266: solo cisternas
   ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
@@ -48964,11 +48964,12 @@ async function _vdGuardarDoc(mat, tipo, file, etiqueta, vence) {
 // v1232: AVISO si un documento se sube donde no toca (otra matrícula u otro tipo). No bloquea: pregunta.
 const _VD_CLAVES = {
   FT: { nom: /ficha|tecnica|técnica|tarjeta.?itv/i, txt: /ficha t[eé]cnica|tarjeta itv|tarjeta de inspecci[oó]n/gi },
+  FT44: { nom: /44\s*(tn|t\b|ton)/i, txt: /44\.?000/gi },   // v1312
   PC: { nom: /permiso|circulaci/i, txt: /permiso de circulaci/gi },
   SEGURO: { nom: /seguro|p[oó]liza|recibo/i, txt: /seguro|p[oó]liza|asegurad/gi },
   TT: { nom: /autorizaci|t\.?\s*transporte|tarjeta.?de.?transporte|\btt\b/i, txt: /autorizaci[oó]n(?:es)? de transporte|tarjeta de transporte/gi },
   DECL_HOLCIM: { nom: /declaraci|holcim/i, txt: /declaraci[oó]n de equipamiento/gi } };
-const _VD_NOMTIPO = { FT: 'FICHA TÉCNICA', PC: 'PERMISO DE CIRCULACIÓN', SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE', DECL_HOLCIM: 'DECLARACIÓN HOLCIM' };
+const _VD_NOMTIPO = { FT: 'FICHA TÉCNICA', FT44: 'FICHA TÉCNICA 44 TONELADAS', PC: 'PERMISO DE CIRCULACIÓN', SEGURO: 'SEGURO', TT: 'TARJETA DE TRANSPORTE', DECL_HOLCIM: 'DECLARACIÓN HOLCIM' };
 function _vdMatNorm(m) { return String(m).toUpperCase().replace(/[\s-]/g, '').replace(/^R(?=\d)/, ''); }
 function _vdMatsEn(t) { return [...new Set([...String(t).toUpperCase().matchAll(/(?:^|[^A-Z0-9])(R?\d{4}[\s-]?[A-Z]{3})(?![A-Z])/g)].map(g => _vdMatNorm(g[1])))]; }
 async function _vdComprobar(file, tipo, mat) {
