@@ -49365,11 +49365,11 @@ async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nomb
   const mt = esPdf ? 'application/pdf' : (/png$/i.test(file.name) ? 'image/png' : /webp$/i.test(file.name) ? 'image/webp' : 'image/jpeg');
   if (!esPdf && !/jpe?g|png|webp/i.test(file.name)) return {};
   const b64 = _feB64(new Uint8Array(await file.arrayBuffer()));
-  const que = { DNI: 'DNI o NIE español: la caducidad es "VALIDEZ" / "fecha de caducidad".', CARNET: 'Permiso de conducir español: la caducidad es la de la categoría C+E (o C si no hay C+E), columna 11 de la parte de atrás; si no se ve, la del apartado 4b.', CAP: 'Tarjeta CAP / certificado de aptitud profesional (código 95): la caducidad es la fecha del código 95 o "válido hasta".' }[t] || '';
+  const que = { DNI: 'DNI o NIE español. En el DNI actual pone dos fechas juntas: "EMISIÓN / ISSUE" (izquierda = fecha_documento) y "VALIDEZ / EXPIRY" (derecha = caducidad), normalmente 5 o 10 años después. NUNCA pongas la de EMISIÓN como caducidad (error real: DNI emitido 18/02/2025 y válido hasta 18/02/2035 se guardó con caducidad 18/02/2025).', CARNET: 'Permiso de conducir español: la caducidad es la de la categoría C+E (o C si no hay C+E), columna 11 de la parte de atrás; si no se ve, la del apartado 4b.', CAP: 'Tarjeta CAP / certificado de aptitud profesional (código 95): la caducidad es la fecha del código 95 o "válido hasta".' }[t] || '';
   let prompt = 'Documento de un conductor. ' + que + ' Devuelve SOLO UN JSON: {"caducidad":"YYYY-MM-DD","fecha_documento":"YYYY-MM-DD"} (fecha_documento = fecha de EXPEDICIÓN; NUNCA la fecha de nacimiento). Si algo no se lee claro, "" — NUNCA lo inventes.';
   // v1242: el CARNET se lee por CATEGORÍAS y con Sonnet: Haiku cogía la 4b (la del B, 5 años más tarde que la C+E) en casi todos
   if (t === 'CARNET') prompt = 'Permiso de conducir. Reverso: columna 9 categoría, columna 10 expedición, columna 11 CADUCIDAD de cada categoría. Anverso: 4a expedición, 4b caducidad administrativa. Si es extranjero, usa sus campos equivalentes. RESPONDE ÚNICAMENTE con este JSON, sin texto antes ni después: {"C+E":"YYYY-MM-DD","C":"YYYY-MM-DD","4a":"YYYY-MM-DD","4b":"YYYY-MM-DD"}. "" si no se lee; NUNCA copies una fecha de una categoría a otra.';
-  const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: t === 'CARNET' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5', max_tokens: t === 'CARNET' ? 1500 : 200,
+  const res = await fetch(IA_PROXY_URL, { method: 'POST', headers: await _iaCabeceras(), body: JSON.stringify({ model: t === 'CARNET' ? 'claude-sonnet-4-6' : (t === 'DNI' ? 'claude-haiku-5-5' : 'claude-haiku-4-5'), max_tokens: t === 'CARNET' ? 1500 : (t === 'DNI' ? 1500 : 200),   // v1306: DNI con Haiku 5.5 (la 4.5 cogía la fecha de emisión)
     messages: [{ role: 'user', content: [esPdf ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } } : { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } }, { type: 'text', text: prompt }] }] }) });
   if (!res.ok) throw new Error('IA ' + res.status);
   const d = await res.json(); const tx = (d.content || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
@@ -49377,7 +49377,9 @@ async function _tdLeerIA(file, t) {   // DNI / carnet / CAP sin fecha en el nomb
   const o = JSON.parse(t === 'CARNET' ? mm[mm.length - 1] : mm[0]);
   const ok = s => { const g = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return g ? _vdIsoDe(g[3], g[2], g[1]) : null; };   // v1241: fecha IMPOSIBLE (30/02…) = sin fecha, no error
   if (t === 'CARNET') return { vence: ok(o['C+E']) || ok(o.C), fecha_doc: null };   // v1242: la de C+E (o C)
-  return { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
+  const r = { vence: ok(o.caducidad), fecha_doc: ok(o.fecha_documento) };
+  if (t === 'DNI' && r.vence && r.fecha_doc && r.vence <= r.fecha_doc) r.vence = null;   // v1306: caducidad = emisión (o antes) → no vale, mejor vacía que mal
+  return r;
 }
 async function _tdFechas(file, t, w) {   // { fecha_doc, vence }
   const hoy = _ofIso(new Date()), fn = _tdFechaNombre(file.name);

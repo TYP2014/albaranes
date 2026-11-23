@@ -1,3 +1,6 @@
+## v1306 — 23/11/2026
+- Documentación de trabajadores: el **DNI** se lee ahora con Haiku 5.5 y con instrucción clara de que la caducidad es "VALIDEZ" (la de la derecha), nunca la de "EMISIÓN". Antes cogía a veces la de emisión (caso César Rigol: guardó 18/02/2025 en vez de 18/02/2035). Si aun así la caducidad sale igual o anterior a la emisión, se deja vacía en vez de guardarla mal.
+
 ## v1305 — 23/11/2026
 - Facturas (modo flexible hasta que Veri*Factu sea obligatorio): una factura EMITIDA se puede **corregir aquí mismo** (mes, toneladas, precio…) con **Guardar cambios**, sin hacer rectificativa. Pide confirmación, se actualiza en F. Emitidas y queda en el **Historial** quién y qué cambió; en el registro de facturación queda como "subsanación" encadenada. Rectificar y Anular siguen disponibles.
 - El interruptor está en la tabla `app_ajustes` (verifactu_estricto = false). El día que Veri*Factu sea obligatorio se pone a true y las emitidas vuelven a quedar bloqueadas (solo rectificar/anular).
