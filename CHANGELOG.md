@@ -1,3 +1,6 @@
+## v1307 — 23/11/2026
+- Ficha del trabajador: si en las notas pone que la empresa real es **PORTES 2014 CAPITAL HOLDINGS** (caso de María del Mar), ya no sale la línea "Empresa: TRANSPORTES Y PORTES 2014 · CIF · CCC" debajo de Seguridad Social. "Copiar datos para cursos" copia los datos de la Holdings (CIF B75555037, CCC 41148276333). Tabla `empresas_datos`: nueva fila HOLDINGS.
+
 ## v1306 — 23/11/2026
 - Documentación de trabajadores: el **DNI** se lee ahora con Haiku 5.5 y con instrucción clara de que la caducidad es "VALIDEZ" (la de la derecha), nunca la de "EMISIÓN". Antes cogía a veces la de emisión (caso César Rigol: guardó 18/02/2025 en vez de 18/02/2035). Si aun así la caducidad sale igual o anterior a la emisión, se deja vacía en vez de guardarla mal.
 

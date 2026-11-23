@@ -26325,13 +26325,16 @@ async function _trabHistorial(id) {
 // v1233: datos de la EMPRESA (CIF, CCC) para la ficha y para "Copiar datos para cursos"
 let _empDatos = null;
 async function _empDatosCargar() { if (_empDatos) return _empDatos; try { const { data, error } = await sb.from('empresas_datos').select('*'); if (error) throw error; _empDatos = {}; (data || []).forEach(x => _empDatos[x.empresa] = x); } catch (e) { console.warn('[v1233] empresas_datos:', e); _empDatos = {}; } return _empDatos; }
+// v1307: trabajadora de PORTES 2014 CAPITAL HOLDINGS (nómina de la Holdings, ficha en TYP2014): se reconoce por la nota
+function _trabEsHoldings() { return /CAPITAL HOLDINGS/i.test(document.getElementById('trabF_notas')?.value || ''); }
 async function _trabPintarEmpDatos() {
   const box = document.getElementById('trabF_empDatos'); if (!box) return;
   const emp = document.getElementById('trabF_empresa')?.value || '', D = (await _empDatosCargar())[emp];
+  if (_trabEsHoldings()) { box.innerHTML = ''; return; }   // v1307: la empresa real va en la nota (Capital Holdings)
   box.innerHTML = D ? 'Empresa: <b>' + esc(D.razon_social || emp) + '</b> · CIF <b>' + esc(D.cif || '—') + '</b> · CCC (cuenta de cotización) <b style="font-family:var(--mn)">' + esc(D.ccc || '—') + '</b>' : (emp ? '<span style="color:var(--mu)">Falta el CCC de esta empresa (sale de sus nóminas).</span>' : '');
 }
 async function trabCopiarDatos() {
-  const g = id => (document.getElementById(id)?.value || '').trim(), emp = g('trabF_empresa'), D = (await _empDatosCargar())[emp] || {};
+  const g = id => (document.getElementById(id)?.value || '').trim(), emp = g('trabF_empresa'), D = (await _empDatosCargar())[_trabEsHoldings() ? 'HOLDINGS' : emp] || {};   // v1307
   const fe = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
   const L = [['Nombre', g('trabF_nombre')], ['DNI/NIE', g('trabF_dni')], ['Nº afiliación Seguridad Social', g('trabF_naf')], ['Grupo de cotización', g('trabF_gcot')],
     ['Grupo profesional / categoría', g('trabF_gprof')], ['Fecha de antigüedad', fe(g('trabF_antig'))], ['Teléfono', g('trabF_telefono')], ['Email', g('trabF_email')],
