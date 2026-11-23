@@ -1,3 +1,7 @@
+## v1310 — 23/11/2026
+- Aviso de documentos (cartel de arriba): la fecha va con "venció" / "vence" delante, para que no se confunda con la fecha de firma (p. ej. EPIs de Cristian Hierro: "venció 12/08/2026").
+- Recibí PRL de Holcim: al subir uno nuevo, el vencimiento queda a **2 años menos un día**, igual que lo pone Metacontratas (firmado 19/01/2026 → vence 18/01/2028).
+
 ## v1309 — 23/11/2026
 - Documentación > Plataformas: la **ficha técnica** de los vehículos ya lleva **fecha del documento** (el día en que se subió a la app). Antes iba sin fecha y por eso no se podía subir a Metacontratas (casos R7464BDM y R4665BCD).
 

@@ -48919,7 +48919,7 @@ function renderDocVencBanner() {
     let oc = null; try { oc = localStorage.getItem(DOCVENC_HIDE + k); } catch (e) {}
     if (oc === hoy) return;
     const bloque = t => { const l = L.filter(x => x.tipo === t).sort((a, c) => a.d - c.d); if (!l.length) return '';
-      return '<span style="font-weight:900;color:#111">' + nom[t] + ':</span> ' + l.slice(0, 6).map(x => '<strong style="font-weight:900;color:#111">' + esc(x.matricula) + '</strong> (' + _ofFechaEs(String(x.vence).slice(0, 10)) + ')').join(' · ') + (l.length > 6 ? ' · +' + (l.length - 6) + ' más' : ''); };
+      return '<span style="font-weight:900;color:#111">' + nom[t] + ':</span> ' + l.slice(0, 6).map(x => '<strong style="font-weight:900;color:#111">' + esc(x.matricula) + '</strong> (' + (k === 'vencido' ? 'venció ' : 'vence ') + _ofFechaEs(String(x.vence).slice(0, 10)) + ')')   /* v1310: que no parezca la fecha de firma */.join(' · ') + (l.length > 6 ? ' · +' + (l.length - 6) + ' más' : ''); };
     const det = [bloque('SEGURO'), bloque('TT'), bloque('TRAB')].filter(Boolean).join('<span style="color:#666;font-weight:900">&nbsp; | &nbsp;</span>');
     h += '<div style="order:' + i + ';background:#fff;border:3px solid ' + col + ';border-left:12px solid ' + col + ';border-radius:7px;padding:6px 14px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mn);font-size:15px">' +
       '<div style="flex:1;color:#111;font-weight:700;line-height:1.6"><span style="font-size:19px;vertical-align:-2px">📄</span> <span style="color:' + col + ';font-weight:900">' + tit + ':</span> ' + det + '</div>' +
@@ -49401,6 +49401,7 @@ async function _tdFechas(file, t, w) {   // { fecha_doc, vence }
   // curso on-line 3 años y recibí PRL 2 años (Metacontratas). El apto médico NO se toca (1 año desde el reconocimiento).
   const PLAZO = { EPIS: 1, CURSO_ON: 3, RECIBI: 2 }[t];
   if (PLAZO && r.fecha_doc && !r.vence) r.vence = _tdMas(r.fecha_doc, PLAZO);
+  if (t === 'RECIBI' && r.vence && r.fecha_doc && r.vence === _tdMas(r.fecha_doc, 2)) { const d = new Date(r.vence + 'T12:00:00'); d.setDate(d.getDate() - 1); r.vence = d.toISOString().slice(0, 10); }   // v1310: como Holcim, 2 años menos un día (19/01/2026 → 18/01/2028)
   return r;
 }
 async function _tdGuardar(w, t, file, f) {
