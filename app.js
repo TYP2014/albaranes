@@ -48707,8 +48707,10 @@ async function pinEnviar(mat, tipo) {
 // poniendo la matrícula del vehículo y la fecha que se elija. ZIP por vehículo o de los marcados.
 // ============================================================
 const _VD_TIPOS = [
-  ['FT', 'Ficha técnica', 'ambos'], ['FT44', 'FT 44 t', 'ambos'], ['PC', 'Permiso circ.', 'ambos'],   // v1312: ficha técnica con la reforma a 44 toneladas (la piden en algunas cargas) ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
-  ['TT', 'Tarjeta transp.', 'tractora'], ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'],
+  ['FT', 'Ficha técnica', 'ambos'], ['PC', 'Permiso circ.', 'ambos'], ['ITV', 'ITV', 'ambos'], ['SEGURO', 'Seguro', 'ambos'],
+  ['TT', 'Tarjeta transp.', 'tractora'],
+  ['FT44', 'FT 44 TN', 'ambos'],   // v1313: ficha técnica con la reforma a 44 toneladas (la piden en algunas cargas). Tractoras: tras la tarjeta de transporte; semis: tras el seguro
+  ['DECL_HOLCIM', 'Decl. Holcim', 'ambos'],
   ['PRES_A', 'Prueba presión A', 'cisterna'], ['PRES_B', 'Prueba presión B', 'cisterna'], ['PRES_C', 'Prueba presión C', 'cisterna'], ['LINEA_VIDA', 'Línea de vida', 'cisterna'],   // v1266: solo cisternas
   ['EXTRA1', 'Otro 1', 'ambos'], ['EXTRA2', 'Otro 2', 'ambos']];
 const _VD_PLANT = { TYP: 'Transportes y Portes 2014', HISPALIS: 'T. Híspalis 2016', PORTES: 'Portes 2014 Import' };

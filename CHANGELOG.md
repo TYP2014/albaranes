@@ -1,3 +1,8 @@
+## v1313 — 23/11/2026
+- Arreglo de la v1312: en Documentación > Vehículos habían desaparecido las columnas **ITV** y **Seguro** (se quedaron comentadas por error al añadir la columna nueva). Vuelven.
+- La columna de 44 toneladas se llama **"FT 44 TN"** y va más a la derecha: en tractoras después de la Tarjeta de transporte; en semirremolques después del Seguro (antes de la Declaración Holcim).
+- Subidas a la app las fichas de 44 TN que había en OneDrive (TRACTORAS_TYP2014, TRACTORAS_HISPALIS, SEMIRREMOLQUES_TYP2014, SEMIRREMOLQUE_HISPALIS): 58 vehículos + 1968JFV.
+
 ## v1312 — 23/11/2026
 - Documentación > Vehículos (TYP2014, Híspalis y Portes; tractoras y semis): nueva columna **"FT 44 t"**, al lado de la Ficha técnica, para la ficha técnica con la reforma a **44 toneladas** (diligencia de la ITV, F.3.1: 44000) que piden en algunas cargas. Se sube, se ve y se envía (WhatsApp/correo) igual que el resto de documentos. Primera subida: 1968JFV (ITV 12/05/2026).
 
