@@ -1,3 +1,6 @@
+## v1309 — 23/11/2026
+- Documentación > Plataformas: la **ficha técnica** de los vehículos ya lleva **fecha del documento** (el día en que se subió a la app). Antes iba sin fecha y por eso no se podía subir a Metacontratas (casos R7464BDM y R4665BCD).
+
 ## v1308 — 23/11/2026
 - Empleados: los botones de empresa (TYP2014 / HISPALIS / PORTES 2014 IMPORT) llevan el **nº de trabajadores activos** entre paréntesis, y el título "Datos de empleados · TYP2014 (N)" también, como en Documentación.
 

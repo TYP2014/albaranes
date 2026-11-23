@@ -49794,7 +49794,8 @@ async function _cplCalc(plat) {
     const itvU = new Map(); (itv.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !itvU.has(k)) itvU.set(k, x); });
     (veh.data || []).filter(v => v.activo !== false && _deAlta('veh', v.matricula)).forEach(v => { const m = String(v.matricula).toUpperCase(), e = _vdEmpDecl(v), emp = e === 'TYP' ? 'TYP2014' : e;
       Object.keys(P.veh).forEach(t => { let url = null, fecha = null, vence = null;
-        if (t === 'FT') url = v.ficha_tecnica_url; else if (t === 'ITV') { const x = itvU.get(m); if (x) { url = x.file_url; fecha = x.fecha_itv; vence = x.fecha_caducidad; } }
+        if (t === 'FT') { url = v.ficha_tecnica_url; const ms = String(url || '').match(/\/(1\d{12})_/); if (ms) fecha = new Date(Number(ms[1])).toISOString().slice(0, 10); }   // v1309: fecha del documento = día en que se subió la FT (sin ella las plataformas no la aceptan)
+        else if (t === 'ITV') { const x = itvU.get(m); if (x) { url = x.file_url; fecha = x.fecha_itv; vence = x.fecha_caducidad; } }
         else { const x = vdoc.get(m + '|' + t); if (x) { url = x.file_url; vence = x.vence; fecha = String(x.updated_at || '').slice(0, 10);
           // v1267: pruebas de presión y línea de vida → fecha del documento = caducidad menos su periodo (A 1 año, B 6, C 12, línea de vida 1)
           const ANIOS = { PRES_A: 1, PRES_B: 6, PRES_C: 12, LINEA_VIDA: 1 }[t];
