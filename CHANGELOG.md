@@ -1,3 +1,6 @@
+## v1318 — 23/11/2026
+- Pestaña activa de la barra principal: la raya naranja (se confundía con los avisos) pasa a **violeta oscuro y más gruesa**, con el texto y el icono también en violeta, para ver claro en qué pestaña estás.
+
 ## v1317 — 23/11/2026
 - Barra de pestañas principales (Albaranes, Subir, Empleados…) en **azul noche casi negro** para distinguirla del resto de la pantalla. Texto en blanco y **más grueso** (mismo tamaño). La pestaña activa, en blanco con la raya naranja.
 
