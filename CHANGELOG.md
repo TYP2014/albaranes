@@ -1,3 +1,6 @@
+## v1319 — 23/11/2026
+- Pestaña activa: el texto, el icono y el número vuelven a **azul noche** (como el resto); solo las rayas de arriba y abajo quedan en violeta.
+
 ## v1318 — 23/11/2026
 - Pestaña activa de la barra principal: la raya naranja (se confundía con los avisos) pasa a **violeta oscuro y más gruesa**, con el texto y el icono también en violeta, para ver claro en qué pestaña estás.
 
