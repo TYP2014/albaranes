@@ -1,3 +1,7 @@
+## v1314 — 23/11/2026
+- Documentación > Vehículos, columna FT 44 TN: los vehículos que NO pueden ir a 44 toneladas salen en rojo **"NO APTO 44 TN"** con el motivo (fila en `vehiculos_docs` tipo FT44 sin archivo y con el motivo en `etiqueta`). Primeros: R3249BBV y R9491BCC (frenos de tambor), por indicación de JC.
+- Puestas también como ficha 44 t las fichas originales de 11 tractoras (F.3.1 = 44000 de fábrica) y 4 semis (F.2.1 = 9000 por eje).
+
 ## v1313 — 23/11/2026
 - Arreglo de la v1312: en Documentación > Vehículos habían desaparecido las columnas **ITV** y **Seguro** (se quedaron comentadas por error al añadir la columna nueva). Vuelven.
 - La columna de 44 toneladas se llama **"FT 44 TN"** y va más a la derecha: en tractoras después de la Tarjeta de transporte; en semirremolques después del Seguro (antes de la Declaración Holcim).
