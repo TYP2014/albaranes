@@ -48810,7 +48810,7 @@ function vdRender() {
             '<label style="cursor:pointer;font-size:11px;color:' + (url ? '#475569' : '#1b3254') + ';font-weight:' + (url ? '600' : '800') + ';text-decoration:underline">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="vdSubir(\'' + v.id + '\',\'' + tipo + '\',this)"></label>';
           if (_VD_VENCE.includes(tipo) && x && x.file_url) cel += _vdVenceHtml(x.vence, 'vdVenceEditar(\'' + m + '\',\'' + tipo + '\')');
           if (tipo === 'DECL_HOLCIM') cel += '<div><a href="javascript:void(0)" onclick="vdDeclUno(\'' + v.id + '\')" style="font-size:11px;font-weight:800;color:#1b3254">Generar</a></div>';
-          if (tipo === 'FT44' && !url && x && x.etiqueta) cel = '<div style="color:#b91c1c;font-weight:900;font-size:12px" title="' + _ofEA(x.etiqueta) + '">NO APTO 44 TN</div><div style="font-size:10px;color:#475569;max-width:120px;white-space:normal">' + esc(x.etiqueta) + '</div>';   // v1314: semis que no pueden ir a 44 t (frenos de tambor…)
+          if (tipo === 'FT44' && !url && x && x.etiqueta) cel = '<div title="' + _ofEA(x.etiqueta) + '" style="color:#b91c1c;font-weight:900;font-size:11px;line-height:1.2;cursor:help">NO APTO 44 TN</div><div title="' + _ofEA(x.etiqueta) + '" style="font-size:10px;line-height:1.2;color:#475569;max-width:110px;margin:0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:help">' + esc(x.etiqueta) + '</div>';   // v1315: en una sola línea (el motivo entero sale al pasar el ratón)   // v1314: semis que no pueden ir a 44 t (frenos de tambor…)
         }
         t += '<td style="padding:6px;text-align:center;white-space:nowrap">' + etq + cel + '</td>';
       });
@@ -48820,7 +48820,7 @@ function vdRender() {
   };
   const esCis = v => String(v.carroceria || '').toLowerCase() === 'cisterna';   // v1266: las cisternas aparte, con sus pruebas de presión y línea de vida
   const seCis = se.filter(esCis), seRes = se.filter(v => !esCis(v));
-  h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques', seRes, 'semirremolque') + (seCis.length ? tabla('Cisternas', seCis, 'cisterna') : '');
+  h += tabla('Tractoras y camiones', tr, 'tractora') + tabla('Semirremolques (bañeras) basculantes', seRes, 'semirremolque') + (seCis.length ? tabla('Semirremolques cisterna', seCis, 'cisterna') : '')   /* v1315: nombres que pidió JC */;
   out.innerHTML = h;
 }
 function _vdMarca(v) {   // v1287: marca = primer trozo del texto de debajo de la matrícula (en tractoras, la primera palabra)

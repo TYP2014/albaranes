@@ -1,3 +1,7 @@
+## v1315 — 23/11/2026
+- Documentación > Vehículos, columna FT 44 TN: el aviso **"NO APTO 44 TN"** ocupa menos: el motivo va en una sola línea (recortado con "…"); entero al pasar el ratón por encima. Así la fila no sale tan alta.
+- Los apartados de semis se llaman ahora **"Semirremolques (bañeras) basculantes"** y **"Semirremolques cisterna"** (antes "Semirremolques" y "Cisternas").
+
 ## v1314 — 23/11/2026
 - Documentación > Vehículos, columna FT 44 TN: los vehículos que NO pueden ir a 44 toneladas salen en rojo **"NO APTO 44 TN"** con el motivo (fila en `vehiculos_docs` tipo FT44 sin archivo y con el motivo en `etiqueta`). Primeros: R3249BBV y R9491BCC (frenos de tambor), por indicación de JC.
 - Puestas también como ficha 44 t las fichas originales de 11 tractoras (F.3.1 = 44000 de fábrica) y 4 semis (F.2.1 = 9000 por eje).
