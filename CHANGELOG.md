@@ -1,3 +1,6 @@
+## v1317 — 23/11/2026
+- Barra de pestañas principales (Albaranes, Subir, Empleados…) en **azul noche casi negro** para distinguirla del resto de la pantalla. Texto en blanco y **más grueso** (mismo tamaño). La pestaña activa, en blanco con la raya naranja.
+
 ## v1316 — 23/11/2026
 - Taller > Citas servicio oficial: si al guardar una cita la **Marca** se deja vacía, se rellena sola con la marca de la ficha del vehículo (RENAULT, IVECO, FORD…).
 
