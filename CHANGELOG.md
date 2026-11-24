@@ -1,3 +1,8 @@
+## v1326 — 24/11/2026
+- **Historial de documentos** (Documentación > Trabajadores y > Vehículos). Debajo de cada casilla sale "🕘 historial" (o "🕘 N anteriores"): abre una ventana con el documento ACTUAL y los ANTERIORES. Se puede **ver** cada uno, **quitar** el actual (la casilla queda vacía y él pasa a anteriores), **poner como actual** uno anterior, o **eliminar** uno anterior para siempre.
+- Los anteriores los guarda la base de datos sola (tabla `docs_historico` + disparador) cada vez que un documento se cambia o se quita, desde la app o desde la tarea de las plataformas. Empieza a contar desde hoy: antes la app pisaba el anterior sin guardarlo.
+- Ficha técnica e ITV de los vehículos no entran (se guardan en otro sitio).
+
 ## v1325 — 24/11/2026
 - Documentación > Plataformas: nuevo estado **⛔ falta firma/datos**. La tarea de cada hora ya no sube documentos sin la firma del trabajador y de la empresa, o con datos sin rellenar: los marca así y salen en rojo en "Por documento" para firmarlos y volver a subirlos a la app. Al subir el documento bueno, vuelve a quedar pendiente y la tarea lo sube.
 

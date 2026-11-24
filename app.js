@@ -48754,6 +48754,7 @@ async function vdCargar() {
     _vd.itv = new Map(); (i.data || []).forEach(x => { const k = String(x.matricula).toUpperCase(); if (x.file_url && !_vd.itv.has(k)) _vd.itv.set(k, x); });
     const urls = [...(d.data || []).map(x => x.file_url), ...[..._vd.itv.values()].map(x => x.file_url)].filter(u => u && !_docEsVacio(u));
     _vd.firm = urls.length ? await firmarDocs(urls) : new Map();
+    await dhCargarCuenta('VEH');   // v1326: cuántos anteriores hay por casilla
     // v1230: seguro / tarjeta subidos SIN fecha (con una versión anterior de la app) → se completa sola con la fecha del nombre del archivo
     for (const x of (d.data || [])) { if (!_VD_VENCE.includes(x.tipo) || x.vence || !x.file_name) continue;
       try { const iso = await _vdVenceDe({ name: x.file_name, type: '' }, x.tipo, String(x.matricula).toUpperCase());
@@ -48823,6 +48824,7 @@ function vdRender() {
           if (tipo === 'DECL_HOLCIM') cel += '<div><a href="javascript:void(0)" onclick="vdDeclUno(\'' + v.id + '\')" style="font-size:11px;font-weight:800;color:#1b3254">Generar</a></div>';
           if (tipo === 'FT44' && !url && x && x.etiqueta) cel = '<div title="' + _ofEA(x.etiqueta) + '" style="color:#b91c1c;font-weight:900;font-size:11px;line-height:1.2;cursor:help">NO APTO 44 TN</div><div title="' + _ofEA(x.etiqueta) + '" style="font-size:10px;line-height:1.2;color:#475569;max-width:110px;margin:0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:help">' + esc(x.etiqueta) + '</div>';   // v1315: en una sola línea (el motivo entero sale al pasar el ratón)   // v1314: semis que no pueden ir a 44 t (frenos de tambor…)
         }
+        if (tipo !== 'ITV' && tipo !== 'FT') cel += dhEnlace('VEH', m, tipo, !!(x && x.file_url), m);   // v1326: historial
         t += '<td style="padding:6px;text-align:center;white-space:nowrap">' + etq + cel + '</td>';
       });
       t += '<td style="padding:6px;text-align:center;white-space:nowrap"><button class="btn bs" onclick="vdZipUno(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px">⬇ ZIP</button> <button class="btn" onclick="vdEnviarAbrir(\'' + v.id + '\')" style="font-size:11px;padding:3px 9px;background:#15803d;color:#fff">📤 Enviar</button></td></tr>';
@@ -49321,6 +49323,7 @@ async function tdCargar() {
     _td.cab = new Map((cab || []).map(x => [x.tipo, x]));
     const urls = filas.map(x => x.file_url).filter(Boolean);
     _td.firm = urls.length ? await firmarDocs(urls) : new Map();
+    await dhCargarCuenta('TRAB');   // v1326
   } catch (e) { console.error('[v1237] documentación trabajadores:', e); out.innerHTML = '<div style="padding:14px;color:#b91c1c;font-weight:700">No se pudo cargar: ' + esc(e.message || e) + '</div>'; return; }
   tdRender();
   try { docVencCargar(); } catch (e) {}   // v1244
@@ -49354,6 +49357,7 @@ function tdRender() {
       const inp = '<label style="cursor:pointer;color:#1b3254;text-decoration:underline;font-size:11px">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept=".pdf,image/*" style="display:none" onchange="tdSubir(\'' + w.id + '\',\'' + t + '\',this)"></label>';
       const ck = url ? '<input type="checkbox" title="Marcar para enviar"' + (_td.dsel.has(w.id + '|' + t) ? ' checked' : '') + ' onchange="tdDSel(\'' + w.id + '|' + t + '\',this.checked)" style="width:14px;height:14px;vertical-align:middle;margin-right:2px;accent-color:#15803d">' : '';
       let cel = url ? ck + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver</a> ' + inp + _tdFechaHtml(x, t, w.id) : inp;
+      cel += dhEnlace('TRAB', w.id, t, !!url, w.nombre);   // v1326: historial
       if (url) n++;
       h += '<td style="padding:5px 4px;text-align:center;vertical-align:middle">' + cel + '</td>';
     });
@@ -49463,6 +49467,93 @@ async function _tdSyncFicha(w, t, vence) {
     w[campo] = v;
     try { const c = (_tacoTrabajadores || []).find(z => z.id === w.id); if (c) c[campo] = v; } catch (e) {}
   } catch (e) { console.warn('[v1304] caducidad en la ficha:', e); toast('⚠️ Subido, pero no se pudo cambiar la caducidad en la ficha: ' + (e.message || e), 'err'); }
+}
+// ============================================================
+// v1326 (JC 24/11/2026): HISTORIAL de cada casilla de documentos (trabajadores y vehículos).
+// Cada vez que se cambia o se quita un documento, la base de datos guarda el anterior en
+// docs_historico (lo hace un disparador, así funciona igual desde la app que desde la tarea
+// de cada hora). Aquí se ven, se pueden abrir, volver a poner como actual o eliminar.
+// ============================================================
+let _dh = { cnt: new Map() };
+async function dhCargarCuenta(amb) {
+  try { const { data, error } = await sb.from('docs_historico').select('ref,tipo').eq('ambito', amb); if (error) throw error;
+    [..._dh.cnt.keys()].filter(k => k.startsWith(amb + '|')).forEach(k => _dh.cnt.delete(k));
+    (data || []).forEach(x => { const k = amb + '|' + x.ref + '|' + x.tipo; _dh.cnt.set(k, (_dh.cnt.get(k) || 0) + 1); });
+  } catch (e) { console.warn('[v1326] historial:', e); }
+}
+function dhEnlace(amb, ref, tipo, hayActual, quien) {
+  const n = _dh.cnt.get(amb + '|' + ref + '|' + tipo) || 0;
+  if (!hayActual && !n) return '';
+  return '<div><a href="javascript:void(0)" onclick="dhAbrir(\'' + amb + '\',\'' + ref + '\',\'' + tipo + '\',\'' + String(quien || '').replace(/['"\\]/g, ' ') + '\')" style="font-size:11px;color:#5b21b6;font-weight:700" title="Ver el actual y los anteriores; quitar o recuperar">🕘 ' + (n ? n + ' anterior' + (n > 1 ? 'es' : '') : 'historial') + '</a></div>';
+}
+function _dhNomTipo(amb, tipo) { return amb === 'TRAB' ? _tdNomCol(tipo) : ((_VD_TIPOS.find(z => z[0] === tipo) || [tipo, tipo])[1]); }
+async function dhAbrir(amb, ref, tipo, quien) {
+  let ov = document.getElementById('dhModal'); if (ov) ov.remove();
+  ov = document.createElement('div'); ov.id = 'dhModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,28,46,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;padding:18px;color:#111"><div style="font-weight:800">Cargando…</div></div>';
+  document.body.appendChild(ov);
+  try {
+    const tabla = amb === 'TRAB' ? 'trabajadores_docs' : 'vehiculos_docs';
+    let q = sb.from(tabla).select('*').eq('tipo', tipo);
+    q = amb === 'TRAB' ? q.eq('trabajador_id', ref) : q.eq('matricula', ref);
+    const [{ data: act, error: e1 }, { data: his, error: e2 }] = await Promise.all([q,
+      sb.from('docs_historico').select('*').eq('ambito', amb).eq('ref', ref).eq('tipo', tipo).order('guardado_el', { ascending: false })]);
+    if (e1) throw e1; if (e2) throw e2;
+    const cur = (act || [])[0] && act[0].file_url ? act[0] : null, H = his || [];
+    const urls = [cur && cur.file_url, ...H.map(x => x.file_url)].filter(Boolean);
+    const firm = urls.length ? await firmarDocs(urls) : new Map();
+    const fch = x => [x.fecha_doc ? 'doc. ' + _ofFechaEs(String(x.fecha_doc).slice(0, 10)) : '', x.vence ? 'caduca ' + _ofFechaEs(String(x.vence).slice(0, 10)) : ''].filter(Boolean).join(' · ');
+    const ver = u => '<a href="' + (firm.get(u) || u) + '" target="_blank" rel="noopener" class="btn bs" style="font-size:12px;padding:4px 10px;text-decoration:none">👁 Ver</a>';
+    const mot = { sustituido: 'sustituido', quitado: 'quitado a mano', recuperado: 'recuperado' };
+    let h = '<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;padding:18px;color:#111">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-size:16px;font-weight:800">' + esc(_dhNomTipo(amb, tipo)) + ' · ' + esc(quien) + '</div>' +
+      '<div style="font-size:12px;color:#475569">El actual es el que se ve en la tabla y el que va a las plataformas. Los anteriores quedan guardados aquí.</div></div>' +
+      '<button class="btn bs" onclick="document.getElementById(\'dhModal\').remove()">✕ Cerrar</button></div>' +
+      '<div style="margin-top:14px;font-weight:800;color:#15803d">ACTUAL</div>';
+    h += cur ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border:2px solid #15803d;border-radius:8px;padding:10px;margin-top:6px"><div><b>' + esc(cur.file_name || 'documento') + '</b><div style="font-size:12px;color:#475569">' + esc(fch(cur)) + (cur.updated_at ? (fch(cur) ? ' · ' : '') + 'puesto el ' + _ofFechaEs(String(cur.updated_at).slice(0, 10)) : '') + '</div></div>' +
+        '<div style="display:flex;gap:6px">' + ver(cur.file_url) + '<button class="btn" style="font-size:12px;padding:4px 10px;background:#b91c1c;color:#fff" onclick="dhQuitarActual(\'' + amb + '\',\'' + ref + '\',\'' + tipo + '\',\'' + String(quien).replace(/['"\\]/g, ' ') + '\')" title="Quita este documento de la casilla (queda en anteriores, de donde lo puedes eliminar)">🗑 Quitar</button></div></div>'
+      : '<div style="padding:10px;color:#64748b;border:1px dashed #cbd5e1;border-radius:8px;margin-top:6px">No hay documento actual en esta casilla.</div>';
+    h += '<div style="margin-top:16px;font-weight:800;color:#5b21b6">ANTERIORES (' + H.length + ')</div>';
+    if (!H.length) h += '<div style="padding:10px;color:#64748b">Todavía no hay anteriores. A partir de hoy, cada vez que se cambie o se quite el documento, el anterior se guarda aquí.</div>';
+    H.forEach(x => {
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:6px"><div><b>' + esc(x.file_name || 'documento') + '</b><div style="font-size:12px;color:#475569">' + esc(fch(x)) + (fch(x) ? ' · ' : '') + (mot[x.motivo] || x.motivo || '') + ' el ' + _ofFechaEs(String(x.guardado_el).slice(0, 10)) + '</div></div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' + ver(x.file_url) +
+        '<button class="btn" style="font-size:12px;padding:4px 10px;background:#15803d;color:#fff" onclick="dhRestaurar(\'' + x.id + '\',\'' + String(quien).replace(/['"\\]/g, ' ') + '\')" title="Vuelve a ponerlo como actual (el actual pasa a anteriores)">↩ Poner como actual</button>' +
+        '<button class="btn" style="font-size:12px;padding:4px 10px;background:#fff;color:#b91c1c;border:1px solid #b91c1c" onclick="dhEliminar(\'' + x.id + '\',\'' + String(quien).replace(/['"\\]/g, ' ') + '\')" title="Lo quita del historial para siempre">🗑 Eliminar</button></div></div>';
+    });
+    ov.innerHTML = h + '</div>';
+  } catch (e) { console.error('[v1326] historial:', e); ov.innerHTML = '<div style="background:#fff;border-radius:10px;padding:18px;color:#b91c1c;font-weight:700">No se pudo abrir el historial: ' + esc(e.message || e) + ' <button class="btn bs" onclick="document.getElementById(\'dhModal\').remove()">Cerrar</button></div>'; }
+}
+async function _dhRefrescar(amb) { try { if (amb === 'TRAB') await tdCargar(); else await vdCargar(); } catch (e) {} }
+async function dhQuitarActual(amb, ref, tipo, quien) {
+  if (!confirm('¿Quitar el documento ACTUAL de "' + _dhNomTipo(amb, tipo) + '" de ' + quien + '?\n\nLa casilla quedará vacía. El documento pasa a "Anteriores" (de ahí lo puedes eliminar del todo).')) return;
+  try {
+    let q = sb.from(amb === 'TRAB' ? 'trabajadores_docs' : 'vehiculos_docs').delete().eq('tipo', tipo);
+    q = amb === 'TRAB' ? q.eq('trabajador_id', ref) : q.eq('matricula', ref);
+    const { data, error } = await q.select(); if (error) throw error; if (!data || !data.length) throw new Error('no se borró (permisos)');
+    toast('✓ Quitado. Queda en anteriores', 'ok'); await _dhRefrescar(amb); dhAbrir(amb, ref, tipo, quien);
+  } catch (e) { toast('⚠️ No se pudo quitar: ' + (e.message || e), 'err'); }
+}
+async function dhRestaurar(id, quien) {
+  try {
+    const { data: x, error } = await sb.from('docs_historico').select('*').eq('id', id).single(); if (error) throw error;
+    if (!confirm('¿Poner este documento como ACTUAL?\n\n' + (x.file_name || '') + '\n\nEl que hay ahora pasa a "Anteriores". Saldrá otra vez como pendiente para las plataformas.')) return;
+    const ahora = new Date().toISOString();
+    if (x.ambito === 'TRAB') { const { error: e } = await sb.from('trabajadores_docs').upsert({ trabajador_id: x.ref, tipo: x.tipo, file_url: x.file_url, file_name: x.file_name, fecha_doc: x.fecha_doc, vence: x.vence, etiqueta: x.etiqueta, updated_at: ahora }, { onConflict: 'trabajador_id,tipo' }); if (e) throw e; }
+    else { const { error: e } = await sb.from('vehiculos_docs').upsert({ matricula: x.ref, tipo: x.tipo, file_url: x.file_url, file_name: x.file_name, vence: x.vence, etiqueta: x.etiqueta, updated_at: ahora }, { onConflict: 'matricula,tipo' }); if (e) throw e; }
+    const { error: e2 } = await sb.from('docs_historico').delete().eq('id', id); if (e2) throw e2;
+    toast('✓ Puesto como actual', 'ok'); await _dhRefrescar(x.ambito); dhAbrir(x.ambito, x.ref, x.tipo, quien);
+  } catch (e) { toast('⚠️ No se pudo: ' + (e.message || e), 'err'); }
+}
+async function dhEliminar(id, quien) {
+  try {
+    const { data: x, error } = await sb.from('docs_historico').select('*').eq('id', id).single(); if (error) throw error;
+    if (!confirm('¿ELIMINAR del historial este documento?\n\n' + (x.file_name || '') + '\n\nNo se podrá recuperar desde la app.')) return;
+    const { data, error: e2 } = await sb.from('docs_historico').delete().eq('id', id).select(); if (e2) throw e2; if (!data || !data.length) throw new Error('no se borró (permisos)');
+    toast('✓ Eliminado del historial', 'ok'); await _dhRefrescar(x.ambito); dhAbrir(x.ambito, x.ref, x.tipo, quien);
+  } catch (e) { toast('⚠️ No se pudo eliminar: ' + (e.message || e), 'err'); }
 }
 async function tdSubir(tid, t, input) {
   const file = input.files && input.files[0]; if (!file) return;
