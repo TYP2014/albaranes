@@ -27348,6 +27348,8 @@ function tallerBloqueAddTarea() {
 
 // v1332 (JC 24/11/2026): registro de quién confirma el próximo aviso. El taller lo usan varios con el mismo usuario,
 // por eso se pide el NOMBRE escrito cada vez (no se rellena solo).
+// v1333: nombres del taller fijos en el desplegable (se filtran al escribir; se puede escribir cualquier otro).
+const _TCONF_NOMBRES = ['MIGUEL V.', 'CESAR R.', 'JOSEP V.', 'OSCAR V.', 'OSCAR E.'];
 const _TCONF_TXT = { sigue_igual: 'continuar con el aviso que tenía', sin_programar: 'continuar SIN programar', programar: 'fue a programar el próximo', cerrado: 'cerrado con la ✕ (sin confirmar)' };
 async function _tallerConfGuardar(v, decision, nombre, avisoTxt, fechaMant, kmMant) {
   try {
@@ -27396,8 +27398,8 @@ function _tallerAvisoProgramar(vehId, fechaMant, kmMant) {
         (hay ? '¿Quieres CONTINUAR con este aviso, sin programar uno nuevo?' : '¿Quieres CONTINUAR SIN programar el próximo mantenimiento?') + '</div>' +
       '<div style="font-size:15px;color:#475569;line-height:1.45">Si se ha cambiado <b>aceite, filtros</b> o se ha hecho la <b>revisión</b>, programa el próximo. Si solo era una reparación, puedes continuar.</div>' +
       '<div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:16px;font-weight:900;color:#111">¿Quién eres? <span style="color:#b91c1c">*</span></label>' +
-        '<input type="text" data-nom="1" list="tallerConfNombres" placeholder="Escribe tu nombre" autocomplete="off" style="flex:1;min-width:200px;font-size:17px;padding:9px 12px;border:2px solid #64748b;border-radius:8px">' +
-        '<datalist id="tallerConfNombres">' + [...new Set((tallerConfirmaciones || []).map(c => c.nombre).filter(Boolean))].slice(0, 30).map(n => '<option value="' + esc(n) + '">').join('') + '</datalist></div>' +
+        '<input type="text" data-nom="1" list="tallerConfNombres" placeholder="Elige o escribe tu nombre" autocomplete="off" style="flex:1;min-width:200px;font-size:17px;padding:9px 12px;border:2px solid #64748b;border-radius:8px">' +
+        '<datalist id="tallerConfNombres">' + [...new Set(_TCONF_NOMBRES.concat((tallerConfirmaciones || []).map(c => c.nombre).filter(Boolean)))].slice(0, 30).map(n => '<option value="' + esc(n) + '">').join('') + '</datalist></div>' +
       '<div style="display:flex;gap:14px;margin-top:16px;flex-wrap:wrap;align-items:stretch">' +
         '<button class="btn" data-si="1" style="flex:1 1 300px;background:#facc15;color:#111;border:3px solid #a16207;border-radius:10px;padding:16px 18px;font-size:20px;font-weight:900;box-shadow:0 3px 0 #a16207;cursor:pointer">' + (hay ? '➕ PROGRAMAR OTRO' : '➕ PROGRAMAR AHORA') + '</button>' +
         '<button class="btn bs" data-no="1" style="flex:1 1 240px;border:2px solid #64748b;border-radius:10px;padding:14px 16px;font-size:16px;font-weight:800;color:#334155">' + (hay ? '✓ Sí, continuar con el que tiene' : '✓ Sí, continuar sin programar') + '</button>' +

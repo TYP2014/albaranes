@@ -1,3 +1,6 @@
+## v1333 — 24/11/2026
+- Taller, "¿Quién eres?": desplegable con MIGUEL V., CESAR R., JOSEP V., OSCAR V. y OSCAR E. (se filtra al escribir) y se puede escribir cualquier otro nombre (Marta, María del Mar, Juan Carlos…). Los nombres nuevos que se usen también aparecen después en la lista.
+
 ## v1332 — 24/11/2026
 - Taller: el cartel del próximo mantenimiento pide "¿Quién eres?" (nombre obligatorio, se escribe cada vez porque el taller lo usan varios con el mismo usuario; sugiere los nombres ya usados).
 - Se guarda cada decisión (continuar con el que tiene / continuar sin programar / programar / cerrado con la ✕) con nombre, fecha y hora en la tabla nueva `taller_confirmaciones`.
