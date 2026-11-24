@@ -49865,15 +49865,16 @@ function _cplPorDocRender() {
   const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
   const dias = o => { if (!o.vence) return null; const d = new Date(String(o.vence).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? null : Math.round((d - hoy0) / 864e5); };
   const urg = o => { const d = dias(o); return d !== null && d <= 15; };
-  const L = (_cpl.doc || []).filter(o => !solo || PL.some(p => o.st[p] === 'pend') || urg(o)), nP = (_cpl.doc || []).filter(o => PL.some(p => o.st[p] === 'pend')).length, nU = (_cpl.doc || []).filter(urg).length;
+  const L = (_cpl.doc || []).filter(o => !solo || PL.some(p => o.st[p] === 'pend' || o.st[p] === 'incompleto') || urg(o)),   // v1325: los incompletos también se ven
+        nI = (_cpl.doc || []).filter(o => PL.some(p => o.st[p] === 'incompleto')).length, nP = (_cpl.doc || []).filter(o => PL.some(p => o.st[p] === 'pend')).length, nU = (_cpl.doc || []).filter(urg).length;
   let h = '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">' + _cplBotones() + '</div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-size:17px;font-weight:800;color:' + (nP ? '#b45309' : '#15803d') + '">' +
     (nP ? '⚠ ' + nP + ' documento' + (nP > 1 ? 's' : '') + ' sin subir en alguna plataforma' : '✓ Todo subido en todas las plataformas') +
-    (nU ? '<div style="color:#b91c1c;font-size:15px;margin-top:2px">🔴 ' + nU + ' caduca' + (nU > 1 ? 'n' : '') + ' en 15 días o menos (o ya caducado): pedir el nuevo</div>' : '') + '</div>' +   // v1277
+    (nI ? '<div style="color:#b91c1c;font-size:15px;margin-top:2px">⛔ ' + nI + ' sin subir porque les falta firma o algún dato: hay que firmarlos y volver a subirlos a la app</div>' : '') + (nU ? '<div style="color:#b91c1c;font-size:15px;margin-top:2px">🔴 ' + nU + ' caduca' + (nU > 1 ? 'n' : '') + ' en 15 días o menos (o ya caducado): pedir el nuevo</div>' : '') + '</div>' +   // v1277
     '<div style="display:flex;gap:8px;align-items:center"><label style="font-size:13px;font-weight:700"><input type="checkbox" ' + (solo ? 'checked' : '') + ' onchange="_cpl.docSolo=this.checked;_cplPorDocRender()"> Solo los que faltan</label><button class="btn bs" onclick="cplCargar()">↻ Actualizar</button></div></div>' +
     '<div style="font-size:12px;color:#475569;margin-bottom:8px">✓ subido · ⏳ pendiente (lo sube la tarea de cada hora) · — no lo pide esa plataforma o el camión/conductor no está dado de alta allí</div>';
   if (!L.length) { out.innerHTML = h + '<div style="padding:14px;color:#15803d;font-weight:800">✓ Nada pendiente</div>'; return; }
-  const ic = (e) => e === 'subido' ? '<span style="color:#15803d;font-weight:800">✓ subido</span>' : e === 'pend' ? '<span style="color:#b45309;font-weight:800">⏳ pendiente</span>' : e === 'no_aplica' ? '<span style="color:#64748b">no aplica</span>' : '<span style="color:#94a3b8">—</span>';
+  const ic = (e) => e === 'subido' ? '<span style="color:#15803d;font-weight:800">✓ subido</span>' : e === 'pend' ? '<span style="color:#b45309;font-weight:800">⏳ pendiente</span>' : e === 'no_aplica' ? '<span style="color:#64748b">no aplica</span>' : e === 'incompleto' ? '<span style="color:#b91c1c;font-weight:800" title="La tarea no lo sube: falta firma o algún dato. Sube a la app el documento firmado y completo.">⛔ falta firma/datos</span>' : '<span style="color:#94a3b8">—</span>';   // v1325
   [['Empresa', 'Empresa'], ['Vehículo', 'Vehículos'], ['Trabajador', 'Conductores / trabajadores']].forEach(([amb, tit]) => {
     const G = L.filter(x => x.amb === amb); if (!G.length) return;
     h += '<div style="font-size:16px;font-weight:800;margin:16px 0 6px">' + tit + ' (' + G.length + ')</div><table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="' + th + '">Qué</th><th style="' + th + '">Documento</th>' +
@@ -49918,7 +49919,7 @@ function cplRender() {
 async function cplMarcar(clave, estado) {
   const x = _cpl.items.find(z => z.clave === clave); if (!x) return;
   try { const { error } = await sb.from('cae_subidas').upsert({ plataforma: _cpl.plat, clave, file_url: x.url, estado, el: new Date().toISOString() }, { onConflict: 'plataforma,clave' }); if (error) throw error;
-    x.estado = estado; cplRender(); cplBadge(); toast(estado === 'subido' ? '✓ Marcado como subido' : 'Quitado de la lista', 'ok'); }
+    x.estado = estado; cplRender(); cplBadge(); toast(estado === 'subido' ? '✓ Marcado como subido' : estado === 'incompleto' ? '⛔ Marcado: falta firma o datos' : 'Quitado de la lista', 'ok'); }
   catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
 }
 async function cplBase() {   // primera vez: lo que hay hoy se da por subido (la plataforma está al día)

@@ -1,3 +1,6 @@
+## v1325 — 24/11/2026
+- Documentación > Plataformas: nuevo estado **⛔ falta firma/datos**. La tarea de cada hora ya no sube documentos sin la firma del trabajador y de la empresa, o con datos sin rellenar: los marca así y salen en rojo en "Por documento" para firmarlos y volver a subirlos a la app. Al subir el documento bueno, vuelve a quedar pendiente y la tarea lo sube.
+
 ## v1324 — 24/11/2026
 - Empleados > Documentación de trabajadores: nueva columna **Nº DNI / NIE** al lado del nombre (sale de la ficha del trabajador).
 
