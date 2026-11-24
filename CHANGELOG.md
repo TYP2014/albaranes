@@ -1,3 +1,6 @@
+## v1336 — 24/11/2026
+- Reconocimiento médico caducado: si el trabajador está de BAJA MÉDICA hoy (periodo "Baja médica" en Vacaciones), ya no sale en el aviso de arriba. En la caja "Caducidad del reconocimiento" aparece en gris: "de baja hasta dd/mm · aviso en pausa". Vuelve a avisar solo cuando termina la baja (fecha fin del periodo); si se alarga la baja, basta con cambiar la fecha fin.
+
 ## v1335 — 24/11/2026
 - Taller: añadido CARLOS G. a los desplegables "¿Quién eres?" y "Realizado por".
 

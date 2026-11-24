@@ -31378,6 +31378,15 @@ async function renderRecmedCaducidades() {
     const iso = t.recmed_caduca;
     const dias = _vencDias(iso);
     const c = citaDe(t);
+    if (t._bajaMedHasta) {   // v1336: de baja medica -> en gris, sin molestar
+      filas += '<div style="border-left:3px solid var(--bd);padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:15px;line-height:1.7;color:var(--mu)">'
+        + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
+        + '<span style="font-weight:700;letter-spacing:.2px">' + esc(t.nombre || '\u2014') + '</span>'
+        + '<span style="font-weight:800;white-space:nowrap">de baja hasta ' + String(t._bajaMedHasta).split('-').reverse().join('/') + '</span>'
+        + '</div>'
+        + '<div>aviso en pausa \u00b7 caduc\u00f3 ' + iso.split('-').reverse().join('/') + ' \u00b7 vuelve a avisar cuando acabe la baja</div></div>';
+      return;
+    }
     const h = _recmedHechaReciente(t.nombre, iso);   // v1031
     if (h) {
       filas += '<div style="border-left:3px solid var(--bd);padding:8px 0 8px 10px;margin-bottom:2px;font-family:var(--mn);font-size:15px;line-height:1.7;color:var(--mu)">'
@@ -37818,6 +37827,13 @@ async function _tacoCargarTrabajadores() {
     const { data, error } = await sb.from('trabajadores').select('id, nombre, dni, empresa, archivado, tarjeta_num, tarjeta_caduca, fecha_baja, telefono, carnet_caduca, cap_caduca, recmed_caduca');   // v382 · v485 anade dni (para el aviso que se copia a WhatsApp) · v847 anade telefono y las tres caducidades manuales
     if (error) throw error;
     _tacoTrabajadores = data || [];
+    // v1336 (JC 24/11/2026): quien esta de BAJA MEDICA hoy (periodo en Vacaciones) no da el aviso de
+    // reconocimiento caducado. Vuelve a avisar solo cuando termina la baja (fecha fin del periodo).
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
+      const rb = await sb.from('vacaciones_periodos').select('trabajador_id, fecha_inicio, fecha_fin').eq('tipo', 'baja_medica').lte('fecha_inicio', hoy).gte('fecha_fin', hoy);
+      if (!rb.error) (rb.data || []).forEach(p => { const t = _tacoTrabajadores.find(x => x.id === p.trabajador_id); if (t && (!t._bajaMedHasta || p.fecha_fin > t._bajaMedHasta)) t._bajaMedHasta = p.fecha_fin; });
+    } catch (e2) { console.warn('[v1336] bajas medicas:', e2); }
   } catch (e) {
     console.warn('[v373 tacografo] no se pudo leer trabajadores:', e.message);
     _tacoTrabajadores = [];
@@ -41366,6 +41382,7 @@ function renderVencBanner() {
     const d = _vencDias(r.iso);
     const esMed = r.doc.aviso === 'empresa';
     if (esMed && _recmedHechaReciente(r.trab.nombre, r.iso)) return;   // v1031: ya fue, esperando el acta
+    if (esMed && r.trab._bajaMedHasta) return;   // v1336: de baja medica, aviso en pausa hasta que termine
     const e = esMed ? _vencEscalonMed(d) : _vencEscalon(d);   // v852
     if (!e) return;   // v852: el medico, con su escalera corta, se calla por encima de 30 dias
     todo.push({
