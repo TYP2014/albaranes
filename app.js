@@ -26991,6 +26991,80 @@ function _tallerSemaforo(estado) {
   return '<span title="Al día" style="font-size:14px">🟢</span>';
 }
 
+// ============================================================
+// v1328 (JC 24/11/2026): COBERTURA de cada vehículo — CRM (contrato de reparación y
+// mantenimiento), GARANTÍA (1 año los comprados nuevos, o la que sea) o NINGUNA.
+// Columnas cobertura_tipo / _desde / _hasta / _nota en taller_vehiculos. Se ve como
+// recuadro de color bajo la matrícula en Taller y en Documentación > Vehículos.
+// Pinchando el recuadro se edita.
+// ============================================================
+function cobBadge(v) {
+  if (!v || !v.id) return '';
+  const t = v.cobertura_tipo, h = v.cobertura_hasta ? String(v.cobertura_hasta).slice(0, 10) : '';
+  const hoy = _ofIso(new Date()), dias = h ? Math.round((new Date(h + 'T00:00:00') - new Date(hoy + 'T00:00:00')) / 86400000) : null;
+  const fh = h ? h.split('-').reverse().join('/') : '';
+  const clic = ' onclick="event.stopPropagation();cobEditar(\'' + v.id + '\')" title="' + esc((v.cobertura_nota || '') + ' · Pincha para cambiar') + '"';
+  const caja = (bg, col, txt, extra) => '<div' + clic + ' style="display:inline-block;margin-top:5px;padding:4px 9px;border-radius:7px;background:' + bg + ';color:' + col + ';font:800 11.5px var(--ss,system-ui);letter-spacing:.3px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.15)' + (extra || '') + '">' + txt + '</div>';
+  if (!t) return '<div><span' + clic + ' style="display:inline-block;margin-top:4px;font:600 10.5px var(--ss,system-ui);color:#64748b;border:1px dashed #94a3b8;border-radius:6px;padding:1px 6px;cursor:pointer">+ CRM / garantía</span></div>';
+  if (t === 'NINGUNA') return '<div>' + caja('#e2e8f0', '#334155', 'SIN CRM NI GARANTÍA') + '</div>';
+  const nom = t === 'CRM' ? '🛡 CRM' : '✅ GARANTÍA';
+  if (dias !== null && dias < 0) return '<div>' + caja('#fee2e2', '#991b1b', nom + ' · VENCIÓ ' + fh, ';text-decoration:line-through') + '</div>';
+  if (dias !== null && dias <= 90) return '<div>' + caja('#f59e0b', '#1f2937', nom + ' · vence ' + fh + ' (' + dias + ' d)') + '</div>';
+  return '<div>' + caja(t === 'CRM' ? '#6d28d9' : '#059669', '#fff', nom + (fh ? ' · hasta ' + fh : '')) + '</div>';
+}
+function cobEditar(id) {
+  const v = (tallerVehiculos || []).find(x => x.id === id); if (!v) return;
+  let ov = document.getElementById('cobModal'); if (ov) ov.remove();
+  ov = document.createElement('div'); ov.id = 'cobModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,28,46,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:60px 12px';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const val = x => x ? String(x).slice(0, 10) : '';
+  const op = (k, txt) => '<option value="' + k + '"' + ((v.cobertura_tipo || '') === k ? ' selected' : '') + '>' + txt + '</option>';
+  ov.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:460px;width:100%;padding:18px;color:#111">' +
+    '<div style="font-size:16px;font-weight:800">Cobertura · ' + esc(v.matricula) + '</div><div style="font-size:12px;color:#475569;margin-bottom:12px">' + esc(v.notas || '') + '</div>' +
+    '<label style="font-weight:700;font-size:13px">Tipo</label><select id="cobT" style="width:100%;padding:8px;margin:4px 0 10px;font-size:15px">' + op('', '— sin indicar —') + op('CRM', '🛡 CRM (contrato de reparación y mantenimiento)') + op('GARANTIA', '✅ Garantía') + op('NINGUNA', 'Sin CRM ni garantía') + '</select>' +
+    '<div style="display:flex;gap:10px"><div style="flex:1"><label style="font-weight:700;font-size:13px">Desde</label><input type="date" id="cobD" value="' + val(v.cobertura_desde) + '" style="width:100%;padding:7px;font-size:15px"></div>' +
+    '<div style="flex:1"><label style="font-weight:700;font-size:13px">Hasta</label><input type="date" id="cobH" value="' + val(v.cobertura_hasta) + '" style="width:100%;padding:7px;font-size:15px"></div></div>' +
+    '<div style="margin:8px 0 10px;display:flex;gap:6px;flex-wrap:wrap"><span style="font-size:12px;color:#475569;align-self:center">Hasta = desde +</span>' + [1, 2, 3, 4, 5].map(n => '<button class="btn bs" style="font-size:12px;padding:3px 9px" onclick="cobSumar(' + n + ')">' + n + ' año' + (n > 1 ? 's' : '') + '</button>').join('') + '</div>' +
+    '<label style="font-weight:700;font-size:13px">Nota (taller, nº de contrato, qué cubre…)</label><input id="cobN" value="' + esc(v.cobertura_nota || '') + '" style="width:100%;padding:7px;margin:4px 0 10px;font-size:15px">' +
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:14px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">📄 Contrato (CRM o garantía)</div><div id="cobDoc" style="font-size:13px;color:#475569;margin-bottom:6px">Mirando si hay uno subido…</div>' +
+    '<input type="file" id="cobFile" accept=".pdf,image/*" onchange="cobSubirContrato(\'' + String(v.matricula).toUpperCase() + '\',this)" style="font-size:13px"></div>' +
+    '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn bs" onclick="document.getElementById(\'cobModal\').remove()">Cancelar</button><button class="btn" style="background:#6d28d9;color:#fff" onclick="cobGuardar(\'' + id + '\')">💾 Guardar</button></div></div>';
+  document.body.appendChild(ov);
+  _cobPintarDoc(String(v.matricula).toUpperCase());
+}
+async function _cobPintarDoc(mat) {
+  const box = document.getElementById('cobDoc'); if (!box) return;
+  try {
+    const { data, error } = await sb.from('vehiculos_docs').select('file_url,file_name,updated_at').eq('matricula', mat).eq('tipo', 'CRM_CONTRATO').maybeSingle(); if (error) throw error;
+    if (!data || !data.file_url) { box.innerHTML = 'Todavía no hay contrato subido.'; return; }
+    const u = (await firmarDocs([data.file_url])).get(data.file_url) || data.file_url;
+    box.innerHTML = '<a href="' + u + '" target="_blank" rel="noopener" style="color:#15803d;font-weight:800">✓ Ver contrato</a> · ' + esc(data.file_name || '') + ' <span style="color:#94a3b8">(subido el ' + String(data.updated_at || '').slice(0, 10).split('-').reverse().join('/') + '; si subes otro, el anterior queda en el historial)</span>';
+  } catch (e) { box.textContent = 'No se pudo mirar: ' + (e.message || e); }
+}
+async function cobSubirContrato(mat, input) {
+  const f = input.files && input.files[0]; if (!f) return;
+  const box = document.getElementById('cobDoc'); if (box) box.textContent = 'Subiendo…';
+  try { await _vdGuardarDoc(mat, 'CRM_CONTRATO', f); toast('✓ Contrato subido', 'ok'); input.value = ''; _cobPintarDoc(mat); }
+  catch (e) { toast('⚠️ No se pudo subir: ' + (e.message || e), 'err'); _cobPintarDoc(mat); }
+}
+function cobSumar(n) {
+  const d = document.getElementById('cobD').value; if (!d) { toast('Pon primero la fecha "Desde"', 'warn'); return; }
+  const x = new Date(d + 'T00:00:00'); x.setFullYear(x.getFullYear() + n); x.setDate(x.getDate() - 1);
+  document.getElementById('cobH').value = _ofIso(x);
+}
+async function cobGuardar(id) {
+  const t = document.getElementById('cobT').value || null;
+  const row = { cobertura_tipo: t, cobertura_desde: document.getElementById('cobD').value || null, cobertura_hasta: document.getElementById('cobH').value || null, cobertura_nota: (document.getElementById('cobN').value || '').trim() || null };
+  if (!t) { row.cobertura_desde = null; row.cobertura_hasta = null; }
+  try {
+    const { data, error } = await sb.from('taller_vehiculos').update(row).eq('id', id).select('id'); if (error) throw error; if (!data || !data.length) throw new Error('sin permiso');
+    const v = (tallerVehiculos || []).find(x => x.id === id); if (v) Object.assign(v, row);
+    document.getElementById('cobModal')?.remove(); toast('✓ Cobertura guardada', 'ok');
+    try { renderTallerTabla(); } catch (e) {}
+    try { if (document.getElementById('tallerDocsOut')?.offsetParent) vdRender(); } catch (e) {}
+  } catch (e) { toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); }
+}
 function renderTallerTabla() {
   const body = document.getElementById('tallerTablaBody');
   if (!body) return;
@@ -27033,7 +27107,7 @@ function renderTallerTabla() {
     }
     return `<tr style="cursor:pointer" onclick="tallerAbrirModal('${v.id}')">
       <td style="text-align:center">${_tallerSemaforo(e.estado)}</td>
-      <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:12px;color:#1f2937;margin-top:2px">${esc(v.notas)}</div>` : ''}</td>
+      <td style="font-family:var(--mn);color:var(--ac)">${esc(v.matricula)}${v.notas ? `<div style="font-size:12px;color:#1f2937;margin-top:2px">${esc(v.notas)}</div>` : ''}${cobBadge(v)}</td>
       <td style="font-size:11px"><div style="display:flex;align-items:center;gap:10px"><span style="width:140px;flex:0 0 140px;height:64px;display:flex;justify-content:center;align-items:center">${(_fp && _fp[1] === 'Camión grúa') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="max-width:140px;height:64px;width:auto;object-fit:contain;border-radius:6px;display:block"') : (_fp || v.carroceria === 'cisterna') ? tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:cover;border-radius:6px;display:block"') : tipoIcon.replace(/style="[^"]*"/, 'class="tipoFoto" style="width:140px;height:64px;object-fit:contain;display:block"')}</span><span class="tipoNombre" style="min-width:90px;font-weight:700">${_fp ? _fp[1] : v.tipo_vehiculo === 'semirremolque' ? (v.carroceria === 'cisterna' ? 'Cisterna' : 'Remolque') : 'Tractora'}</span></div></td>
       <td style="font-family:var(--mn);font-size:11px">${v.km_actual ? v.km_actual.toLocaleString('es-ES') + ' km' : '—'}</td>
       ${kmFechaCell}
@@ -48809,7 +48883,7 @@ function vdRender() {
     L.forEach(v => {
       const m = String(v.matricula).toUpperCase();
       t += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;text-align:center"><input type="checkbox" ' + (_vd.sel.has(m) ? 'checked ' : '') + 'onchange="vdSel(\'' + m + '\',this.checked)" style="width:16px;height:16px"></td>' +
-        '<td style="padding:6px 8px;font-weight:800;font-family:var(--mn);white-space:nowrap">' + esc(m) + '</td>';
+        '<td style="padding:6px 8px;font-weight:800;font-family:var(--mn);white-space:nowrap">' + esc(m) + cobBadge(v) + '</td>';   // v1328: CRM / garantía
       cols.forEach(c => {
         const tipo = c[0], url = _vdUrlDe(v, tipo), x = _vd.docs.get(m + '|' + tipo);
         const etq = (tipo === 'EXTRA1' || tipo === 'EXTRA2') && x && x.etiqueta ? '<div style="font-size:10px;color:#111;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _ofEA(x.etiqueta) + '">' + esc(x.etiqueta) + '</div>' : '';

@@ -1,3 +1,8 @@
+## v1328 — 24/11/2026
+- **CRM / Garantía de cada vehículo** (Taller y Documentación > Vehículos): recuadro de color bajo la matrícula. 🛡 CRM en morado, ✅ GARANTÍA en verde, en ámbar si vence en 90 días o menos, en rojo tachado si ya venció, gris si no tiene nada. Si no está indicado sale "+ CRM / garantía" para ponerlo. Pinchando el recuadro se edita: tipo, desde, hasta (botones +1…+5 años) y una nota.
+- En esa misma ventana se puede **subir el contrato** (PDF o foto) y verlo. Se guarda como documento del vehículo (tipo CRM_CONTRATO; si se cambia, el anterior queda en el historial). No va a las plataformas.
+- Nuevas columnas en taller_vehiculos: cobertura_tipo, cobertura_desde, cobertura_hasta, cobertura_nota.
+
 ## v1327 — 24/11/2026
 - Pestaña Albaranes sin el contador (el número ya sale en grande en la página).
 - Recuadros de cifras de arriba (válidos, TN, este mes, vehículos, duplicados, a revisar, papelera) más bajos: menos relleno y número algo más pequeño. El ancho no cambia.
