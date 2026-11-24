@@ -1,3 +1,7 @@
+## v1327 — 24/11/2026
+- Pestaña Albaranes sin el contador (el número ya sale en grande en la página).
+- Recuadros de cifras de arriba (válidos, TN, este mes, vehículos, duplicados, a revisar, papelera) más bajos: menos relleno y número algo más pequeño. El ancho no cambia.
+
 ## v1326 — 24/11/2026
 - **Historial de documentos** (Documentación > Trabajadores y > Vehículos). Debajo de cada casilla sale "🕘 historial" (o "🕘 N anteriores"): abre una ventana con el documento ACTUAL y los ANTERIORES. Se puede **ver** cada uno, **quitar** el actual (la casilla queda vacía y él pasa a anteriores), **poner como actual** uno anterior, o **eliminar** uno anterior para siempre.
 - Los anteriores los guarda la base de datos sola (tabla `docs_historico` + disparador) cada vez que un documento se cambia o se quita, desde la app o desde la tarea de las plataformas. Empieza a contar desde hoy: antes la app pisaba el anterior sin guardarlo.
