@@ -1,3 +1,6 @@
+## v1337 — 24/11/2026
+- Pestaña Tacógrafo: icono nuevo con forma de disco de tacógrafo (corona con marcas de hora, línea de actividad y centro), algo más grande que los demás.
+
 ## v1336 — 24/11/2026
 - Reconocimiento médico caducado: si el trabajador está de BAJA MÉDICA hoy (periodo "Baja médica" en Vacaciones), ya no sale en el aviso de arriba. En la caja "Caducidad del reconocimiento" aparece en gris: "de baja hasta dd/mm · aviso en pausa". Vuelve a avisar solo cuando termina la baja (fecha fin del periodo); si se alarga la baja, basta con cambiar la fecha fin.
 
