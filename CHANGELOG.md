@@ -1,3 +1,6 @@
+## v1322 — 24/11/2026
+- Icono de Documentación en la barra: de verde azulado oscuro (apenas se veía) a **rosa** (#f06292), color que no usa ninguna otra pestaña.
+
 ## v1321 — 24/11/2026
 - ITV y Producción (iconos sin cambiar) recuperan también su color en la barra (azul y morado); en la v1320 salían gris claro.
 
