@@ -1,3 +1,6 @@
+## v1334 — 24/11/2026
+- Taller, "Realizado por" (al apuntar mantenimiento y en el Historial): mismo desplegable con MIGUEL V., CESAR R., JOSEP V., OSCAR V., OSCAR E., Casa oficial, Taller propio y los que ya se hayan usado; se filtra al escribir y se puede escribir otro.
+
 ## v1333 — 24/11/2026
 - Taller, "¿Quién eres?": desplegable con MIGUEL V., CESAR R., JOSEP V., OSCAR V. y OSCAR E. (se filtra al escribir) y se puede escribir cualquier otro nombre (Marta, María del Mar, Juan Carlos…). Los nombres nuevos que se usen también aparecen después en la lista.
 

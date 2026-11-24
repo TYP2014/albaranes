@@ -27163,12 +27163,12 @@ function tallerAbrirModal(vehId) {
       <td><input type="number" class="fi tallerMK" value="${m?.km != null ? m.km : ''}" placeholder="km" style="font-size:11px;padding:4px;width:90px"></td>
       <td><input type="text" class="fi tallerMT" value="${m ? esc(m.tipo || '') : ''}" placeholder="Ej: Cambio aceite + filtro" style="font-size:11px;padding:4px"></td>
       <td><input type="text" class="fi tallerMN" value="${m ? esc(m.notas || '') : ''}" placeholder="notas" style="font-size:11px;padding:4px"></td>
-      <td><input type="text" class="fi tallerMR" value="${m ? esc(m.realizado_por || '') : ''}" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
+      <td><input type="text" class="fi tallerMR" list="tallerRealNombres" autocomplete="off" value="${m ? esc(m.realizado_por || '') : ''}" placeholder="Taller propio / Casa oficial" style="font-size:11px;padding:4px"></td>
       <td style="text-align:center">${m?.id ? `<button class="btn bs" style="font-size:10px;padding:2px 6px;color:var(--er)" onclick="tallerBorrarLinea('${m.id}','${vehId}')">Quitar</button>` : ''}</td>
     </tr>`).join('');
 
   document.getElementById('tallerMantTitulo').innerHTML = `<span style="font-size:22px;color:var(--ac);letter-spacing:1px">${esc(v.matricula)}</span> <span style="font-size:11px;color:var(--mu);letter-spacing:1px">· MANTENIMIENTOS</span>`;
-  document.getElementById('tallerMantBody').innerHTML = `
+  document.getElementById('tallerMantBody').innerHTML = `${_tallerRealDatalist()}
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-family:var(--mn);font-size:12px;color:var(--mu)">
       <span>Matrícula: <b style="color:var(--ac);font-size:14px">${esc(v.matricula)}</b></span>
       <span>Empresa: <b style="color:var(--fg)">${esc(v.empresa)}</b></span>
@@ -27311,7 +27311,7 @@ function _tallerBloqueHtml(v) {
       <div><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">KM</label><br>
         <input type="number" class="fi" id="tallerBloqueKm" value="${km}" placeholder="km" style="width:100px;font-size:11px;padding:4px"></div>
       <div style="flex:1;min-width:160px"><label style="font-size:10px;color:var(--mu);font-family:var(--mn)">Realizado por</label><br>
-        <input type="text" class="fi" id="tallerBloqueReal" placeholder="Taller propio / Casa oficial" style="width:100%;font-size:11px;padding:4px"></div>
+        <input type="text" class="fi" id="tallerBloqueReal" list="tallerRealNombres" autocomplete="off" placeholder="Elige o escribe: MIGUEL V., CESAR R., Casa oficial…" style="width:100%;font-size:11px;padding:4px"></div>
     </div>
     <div style="font-size:10px;color:var(--mu);font-family:var(--mn);margin-bottom:6px">Tareas hechas ese día (rellena solo las que necesites):</div>
     <div id="tallerBloqueTareas">${tarea}${tarea}${tarea}</div>
@@ -27350,6 +27350,13 @@ function tallerBloqueAddTarea() {
 // por eso se pide el NOMBRE escrito cada vez (no se rellena solo).
 // v1333: nombres del taller fijos en el desplegable (se filtran al escribir; se puede escribir cualquier otro).
 const _TCONF_NOMBRES = ['MIGUEL V.', 'CESAR R.', 'JOSEP V.', 'OSCAR V.', 'OSCAR E.'];
+function _tallerRealDatalist() {
+  const usados = (tallerMantenimientos || []).map(m => String(m.realizado_por || '').trim()).filter(Boolean);
+  const cnt = {}; usados.forEach(n => cnt[n] = (cnt[n] || 0) + 1);
+  const extra = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+  const lista = [...new Set(_TCONF_NOMBRES.concat(['Casa oficial', 'Taller propio'], extra))].slice(0, 40);
+  return '<datalist id="tallerRealNombres">' + lista.map(n => '<option value="' + esc(n) + '">').join('') + '</datalist>';
+}
 const _TCONF_TXT = { sigue_igual: 'continuar con el aviso que tenía', sin_programar: 'continuar SIN programar', programar: 'fue a programar el próximo', cerrado: 'cerrado con la ✕ (sin confirmar)' };
 async function _tallerConfGuardar(v, decision, nombre, avisoTxt, fechaMant, kmMant) {
   try {
