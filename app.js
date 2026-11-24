@@ -49343,11 +49343,12 @@ function tdRender() {
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="tdEnviarAbrir()" style="font-weight:800;background:#1b3254;color:#fff">📤 Enviar marcados' + (_td.dsel.size ? ' (' + _td.dsel.size + ' doc.)' : '') + '</button><label class="btn" style="font-weight:800;background:#15803d;color:#fff;cursor:pointer">📂 Cargar carpeta de OneDrive<input type="file" webkitdirectory directory multiple style="display:none" onchange="tdCarpeta(this)"></label>' +
     '<button class="btn bs" onclick="tdCargar()" style="font-weight:800">Refrescar</button></div></div>' +
     '<div style="font-size:12.5px;color:#111;margin-bottom:8px">Pulsa <b>Subir</b> en cada hueco, o <b>📂 Cargar carpeta</b> y elige la carpeta de los conductores (por ejemplo CONDUCTORES_HISPALIS): la app reparte cada archivo en su sitio y te lo enseña antes de subir. Las fechas en <u>subrayado</u> se cambian pulsando en ellas.</div>';
-  h += '<div style="border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="' + th + ';text-align:left">TRABAJADOR</th>' +
+  h += '<div style="border:1px solid var(--bd);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="' + th + ';text-align:left">TRABAJADOR</th><th style="' + th + '">Nº DNI / NIE</th>' +
     _TD_TIPOS.map(([t]) => '<th style="' + th + '">' + cab(t) + '</th>').join('') + '<th style="' + th + '">TODO</th></tr></thead><tbody>';
   L.forEach(w => {
     let n = 0;
-    h += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;font-weight:800;color:#111;white-space:nowrap;font-size:12.5px">' + esc(w.nombre) + '</td>';
+    h += '<tr style="border-top:1px solid var(--bd)"><td style="padding:6px;font-weight:800;color:#111;white-space:nowrap;font-size:12.5px">' + esc(w.nombre) + '</td>'
+    h += '<td style="padding:6px;color:#111;white-space:nowrap;font-size:12.5px;font-weight:700;text-align:center;font-family:var(--mn)">' + esc(String(w.dni || '').toUpperCase().trim() || '—') + '</td>';   // v1324: nº de DNI/NIE al lado del nombre
     _TD_TIPOS.forEach(([t]) => {
       const x = _td.docs.get(w.id + '|' + t), url = x && x.file_url ? (_td.firm.get(x.file_url) || x.file_url) : null;
       const inp = '<label style="cursor:pointer;color:#1b3254;text-decoration:underline;font-size:11px">' + (url ? 'cambiar' : 'Subir') + '<input type="file" accept=".pdf,image/*" style="display:none" onchange="tdSubir(\'' + w.id + '\',\'' + t + '\',this)"></label>';
@@ -49358,7 +49359,7 @@ function tdRender() {
     });
     h += '<td style="padding:5px;text-align:center;white-space:nowrap"><button class="btn bs" onclick="tdZip(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px"' + (n ? '' : ' disabled') + '>⬇ ZIP</button> <button class="btn" onclick="tdEnviarAbrir(\'' + w.id + '\')" style="font-size:11px;padding:3px 8px;background:#15803d;color:#fff"' + (n ? '' : ' disabled') + '>📤 Enviar</button></td></tr>';
   });
-  if (!L.length) h += '<tr><td colspan="' + (_TD_TIPOS.length + 2) + '" style="padding:14px;color:#475569">No hay trabajadores activos en esta empresa.</td></tr>';
+  if (!L.length) h += '<tr><td colspan="' + (_TD_TIPOS.length + 3) + '" style="padding:14px;color:#475569">No hay trabajadores activos en esta empresa.</td></tr>';
   h += '</tbody></table></div>';
   out.innerHTML = h;
 }

@@ -1,3 +1,6 @@
+## v1324 — 24/11/2026
+- Empleados > Documentación de trabajadores: nueva columna **Nº DNI / NIE** al lado del nombre (sale de la ficha del trabajador).
+
 ## v1323 — 24/11/2026
 - Usuarios: **Fran** (Francisco Ocaña) sale ya en **Gestores · Subcontratistas**, no en Oficina y taller. Un gestor con empresa DeCA externa asignada se cuenta como subcontratista aunque su nombre no la diga. (Sus permisos ya eran de subcontratado: solo sus albaranes y sus DeCA.)
 - r.dominguez@typ2014.local pasa a **DE BAJA** (ya no trabaja con nosotros; su acceso ya estaba bloqueado). Sus 181 albaranes se conservan.
