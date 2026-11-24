@@ -1,3 +1,8 @@
+## v1332 — 24/11/2026
+- Taller: el cartel del próximo mantenimiento pide "¿Quién eres?" (nombre obligatorio, se escribe cada vez porque el taller lo usan varios con el mismo usuario; sugiere los nombres ya usados).
+- Se guarda cada decisión (continuar con el que tiene / continuar sin programar / programar / cerrado con la ✕) con nombre, fecha y hora en la tabla nueva `taller_confirmaciones`.
+- En la ficha del vehículo, apartado 2 · AVISOS: línea "Última confirmación: fecha · decisión · nombre". En Histórico: lista de todas las confirmaciones.
+
 ## v1331 — 24/11/2026
 - Taller, cartel del próximo mantenimiento: si el camión no tiene ningún aviso, el botón amarillo dice "➕ PROGRAMAR AHORA" (si ya tiene uno, sigue "➕ PROGRAMAR OTRO"). Nueva ✕ arriba a la derecha: cierra el cartel sin confirmar y te deja en la ficha del vehículo para comprobar algo.
 

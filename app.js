@@ -26763,6 +26763,7 @@ function _tallerVehPorId(id) {
 }
 let tallerMantenimientos = []; // filas de taller_mantenimientos
 let tallerVencimientos = [];   // v107L1: filas de taller_vencimientos (lista de avisos por vehículo)
+let tallerConfirmaciones = [];  // v1332: quién confirmó el próximo aviso tras cada mantenimiento
 let tallerVencHistorico = [];  // v107L3: filas de taller_venc_historico (vencimientos ya cumplidos)
 let tallerEmpresaActiva = 'TYP2014';
 
@@ -26784,6 +26785,7 @@ async function loadTallerData() {
       sb.from('taller_vencimientos').select('*').eq('activo', true),
       sb.from('taller_venc_historico').select('*').order('created_at', { ascending: false })
     ]);
+    try { const rc = await sb.from('taller_confirmaciones').select('*').order('created_at', { ascending: false }).limit(3000); if (!rc.error) tallerConfirmaciones = rc.data || []; } catch (e) { console.warn('[v1332] confirmaciones:', e); }
     if (vehRes.error) throw vehRes.error;
     if (manRes.error) throw manRes.error;
     if (vencRes.error) console.warn('[v107L1] vencimientos:', vencRes.error);
@@ -27207,6 +27209,7 @@ function tallerAbrirModal(vehId) {
     <div style="background:#1f3a5f;color:#fff;font-weight:800;font-size:15px;letter-spacing:.6px;padding:10px 14px;border-radius:7px;margin:20px 0 8px">2 · AVISOS · LO QUE LE TOCA HACER <span style="color:#cfe0f5;font-weight:600;font-size:13px;letter-spacing:0">· revisiones, aceite, filtros…</span></div>
     <div id="tallerVencBox" style="margin-bottom:14px;background:rgba(123,143,240,.06);padding:10px;border-radius:6px;border:1px solid var(--bd)">
       <div id="tallerVencLista">${_tallerVencimientosHtml(vehId)}</div>
+      ${_tallerConfUltHtml(vehId)}
       <div style="margin-top:14px"><button class="btn" id="tallerVencFormBtn" style="display:block;width:100%;background:#facc15;color:#111;border:3px solid #a16207;border-radius:10px;padding:16px 18px;font-size:18px;font-weight:900;letter-spacing:.3px;text-align:center;line-height:1.35;box-shadow:0 3px 0 #a16207;cursor:pointer" onclick="const f=document.getElementById('tallerVencForm');const ab=f.style.display==='none';f.style.display=ab?'block':'none';this.innerHTML=ab?'▲ CERRAR':'➕ PROGRAMAR NUEVO AVISO<br><span style=&quot;font-size:14px;font-weight:700&quot;>Fecha y/o km del PRÓXIMO mantenimiento</span>'">➕ PROGRAMAR NUEVO AVISO<br><span style="font-size:14px;font-weight:700">Fecha y/o km del PRÓXIMO mantenimiento</span></button></div>
       <div id="tallerVencForm" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bd)">
       ${"" /* v1088: formulario de aviso en dos modos (se repite / una sola vez). El que se repite se rellena con la ÚLTIMA vez que se hizo + cada cuánto, y la app calcula la fecha y los km del aviso. */}
@@ -27342,6 +27345,29 @@ function tallerBloqueAddTarea() {
 
 // v1289 (JC 21/11/2026): al guardar un mantenimiento, si el camión NO tiene programado el siguiente (ni por fecha ni por km
 // posterior a este mantenimiento), aviso grande para que no se olvide. Si solo era una reparación, se cierra con "No hace falta".
+
+// v1332 (JC 24/11/2026): registro de quién confirma el próximo aviso. El taller lo usan varios con el mismo usuario,
+// por eso se pide el NOMBRE escrito cada vez (no se rellena solo).
+const _TCONF_TXT = { sigue_igual: 'continuar con el aviso que tenía', sin_programar: 'continuar SIN programar', programar: 'fue a programar el próximo', cerrado: 'cerrado con la ✕ (sin confirmar)' };
+async function _tallerConfGuardar(v, decision, nombre, avisoTxt, fechaMant, kmMant) {
+  try {
+    const reg = { vehiculo_id: v.id, matricula: v.matricula, empresa: v.empresa, decision, nombre: nombre || null, aviso_texto: avisoTxt || null, mant_fecha: fechaMant || null, mant_km: Number(kmMant) || null };
+    const { data, error } = await sb.from('taller_confirmaciones').insert(reg).select().single();
+    if (error) throw error;
+    tallerConfirmaciones.unshift(data);
+    const box = document.getElementById('tallerConfUlt'); if (box) box.outerHTML = _tallerConfUltHtml(v.id);
+  } catch (e) { console.warn('[v1332] guardar confirmación:', e); }
+}
+function _tallerConfLinea(c) {
+  const d = new Date(c.created_at); const f = d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return f + ' · "' + (_TCONF_TXT[c.decision] || c.decision) + '" · ' + (c.nombre || 'sin nombre');
+}
+function _tallerConfUltHtml(vehId) {
+  const c = (tallerConfirmaciones || []).find(x => x.vehiculo_id === vehId);
+  return '<div id="tallerConfUlt" style="margin-top:8px;font-family:var(--mn);font-size:11px;color:#64748b">' +
+    (c ? 'Última confirmación: <b style="color:#334155">' + esc(_tallerConfLinea(c)) + '</b>' : 'Última confirmación: — (todavía ninguna)') + '</div>';
+}
+
 function _tallerAvisoProgramar(vehId, fechaMant, kmMant) {
   // v1329 (JC 24/11/2026): SIEMPRE se pide confirmar tras apuntar un mantenimiento o reparación nueva,
   // tenga o no avisos programados. Si los tiene, se enseñan para confirmar que siguen valiendo.
@@ -27369,15 +27395,22 @@ function _tallerAvisoProgramar(vehId, fechaMant, kmMant) {
       '<div style="font-size:21px;font-weight:900;color:#111;margin:18px 0 6px;line-height:1.35">' +
         (hay ? '¿Quieres CONTINUAR con este aviso, sin programar uno nuevo?' : '¿Quieres CONTINUAR SIN programar el próximo mantenimiento?') + '</div>' +
       '<div style="font-size:15px;color:#475569;line-height:1.45">Si se ha cambiado <b>aceite, filtros</b> o se ha hecho la <b>revisión</b>, programa el próximo. Si solo era una reparación, puedes continuar.</div>' +
-      '<div style="display:flex;gap:14px;margin-top:22px;flex-wrap:wrap;align-items:stretch">' +
+      '<div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:16px;font-weight:900;color:#111">¿Quién eres? <span style="color:#b91c1c">*</span></label>' +
+        '<input type="text" data-nom="1" list="tallerConfNombres" placeholder="Escribe tu nombre" autocomplete="off" style="flex:1;min-width:200px;font-size:17px;padding:9px 12px;border:2px solid #64748b;border-radius:8px">' +
+        '<datalist id="tallerConfNombres">' + [...new Set((tallerConfirmaciones || []).map(c => c.nombre).filter(Boolean))].slice(0, 30).map(n => '<option value="' + esc(n) + '">').join('') + '</datalist></div>' +
+      '<div style="display:flex;gap:14px;margin-top:16px;flex-wrap:wrap;align-items:stretch">' +
         '<button class="btn" data-si="1" style="flex:1 1 300px;background:#facc15;color:#111;border:3px solid #a16207;border-radius:10px;padding:16px 18px;font-size:20px;font-weight:900;box-shadow:0 3px 0 #a16207;cursor:pointer">' + (hay ? '➕ PROGRAMAR OTRO' : '➕ PROGRAMAR AHORA') + '</button>' +
         '<button class="btn bs" data-no="1" style="flex:1 1 240px;border:2px solid #64748b;border-radius:10px;padding:14px 16px;font-size:16px;font-weight:800;color:#334155">' + (hay ? '✓ Sí, continuar con el que tiene' : '✓ Sí, continuar sin programar') + '</button>' +
       '</div></div>';
     document.body.appendChild(ov);
     // v1331: la X cierra sin confirmar nada y te deja (o te devuelve) en la ficha del vehículo, por si se olvidó comprobar algo.
-    ov.querySelector('[data-x]').onclick = () => { ov.remove(); try { if (!document.getElementById('ovTallerMant')?.classList.contains('open')) tallerAbrirModal(vehId); } catch (e) {} };
-    ov.querySelector('[data-no]').onclick = () => { ov.remove(); toast(hay ? '✓ Confirmado: sigue con el aviso que tenía' : '✓ Confirmado: sigue sin programar', 'ok'); };
-    ov.querySelector('[data-si]').onclick = () => { ov.remove(); try { tallerAbrirModal(vehId); setTimeout(() => { const f = document.getElementById('tallerVencForm'); if (f && f.style.display === 'none') document.getElementById('tallerVencFormBtn')?.click(); const d = document.getElementById('tallerVencDesc'); if (d) { d.scrollIntoView({ block: 'center' }); d.focus(); } }, 400); } catch (e) {} };
+    const avisoTxt = hay ? fut.map(txt).join(' | ') : '';
+    const nomInp = ov.querySelector('[data-nom]');
+    const pideNombre = () => { const n = (nomInp.value || '').trim(); if (n.length < 2) { nomInp.style.borderColor = '#b91c1c'; nomInp.style.background = '#fef2f2'; nomInp.placeholder = 'Escribe tu nombre para continuar'; nomInp.focus(); toast('Escribe tu nombre antes de continuar', 'err'); return null; } return n; };
+    setTimeout(() => { try { nomInp.focus(); } catch (e) {} }, 50);
+    ov.querySelector('[data-x]').onclick = () => { _tallerConfGuardar(v, 'cerrado', (nomInp.value || '').trim(), avisoTxt, f0, k0); ov.remove(); try { if (!document.getElementById('ovTallerMant')?.classList.contains('open')) tallerAbrirModal(vehId); } catch (e) {} };
+    ov.querySelector('[data-no]').onclick = () => { const n = pideNombre(); if (!n) return; _tallerConfGuardar(v, hay ? 'sigue_igual' : 'sin_programar', n, avisoTxt, f0, k0); ov.remove(); toast(hay ? '✓ Confirmado: sigue con el aviso que tenía' : '✓ Confirmado: sigue sin programar', 'ok'); };
+    ov.querySelector('[data-si]').onclick = () => { const n = pideNombre(); if (!n) return; _tallerConfGuardar(v, 'programar', n, avisoTxt, f0, k0); ov.remove(); try { tallerAbrirModal(vehId); setTimeout(() => { const f = document.getElementById('tallerVencForm'); if (f && f.style.display === 'none') document.getElementById('tallerVencFormBtn')?.click(); const d = document.getElementById('tallerVencDesc'); if (d) { d.scrollIntoView({ block: 'center' }); d.focus(); } }, 400); } catch (e) {} };
   } catch (e) { console.warn('[v1329] aviso programar:', e); }
 }
 
@@ -27881,6 +27914,12 @@ function tallerVerHistorico(vehId) {
       return `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px"><span style="flex:1;color:var(--tx)">✓ ${esc2(h.descripcion || '')}</span><span style="color:var(--in);white-space:nowrap">${f} · ${km}</span></div>`;
     }).join('');
   }
+
+  // v1332: confirmaciones del próximo aviso (quién y qué decidió tras cada mantenimiento)
+  const confs = (tallerConfirmaciones || []).filter(c => c.vehiculo_id === vehId);
+  html += '<div style="font-family:var(--mn);font-size:11px;color:#b45309;font-weight:700;margin:14px 0 8px">🔔 CONFIRMACIONES DEL PRÓXIMO AVISO</div>';
+  html += confs.length ? confs.map(c => '<div style="padding:4px 0;border-bottom:1px solid rgba(36,48,48,.5);font-family:var(--mn);font-size:12px;color:var(--tx)">' + esc2(_tallerConfLinea(c)) + (c.aviso_texto ? ' <span style="color:var(--mu)">· tenía: ' + esc2(c.aviso_texto) + '</span>' : '') + '</div>').join('')
+    : '<div style="font-size:12px;color:var(--tx);font-family:var(--mn)">Todavía no hay confirmaciones.</div>';
 
   box.innerHTML = html;
   box.style.display = 'block';
