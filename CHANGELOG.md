@@ -1,3 +1,6 @@
+## v1329 — 24/11/2026
+- Taller: después de apuntar CUALQUIER mantenimiento o reparación nueva, la app SIEMPRE pide confirmar el próximo aviso. Si ya tiene uno programado, lo enseña y hay que pulsar "✓ Confirmo: sigue igual" o "Programar otro". Si no tiene ninguno, "✓ Confirmo: sigue sin programar" o "Programar ahora" (abre el formulario del aviso).
+
 ## v1328 — 24/11/2026
 - **CRM / Garantía de cada vehículo** (Taller y Documentación > Vehículos): recuadro de color bajo la matrícula. 🛡 CRM en morado, ✅ GARANTÍA en verde, en ámbar si vence en 90 días o menos, en rojo tachado si ya venció, gris si no tiene nada. Si no está indicado sale "+ CRM / garantía" para ponerlo. Pinchando el recuadro se edita: tipo, desde, hasta (botones +1…+5 años) y una nota.
 - En esa misma ventana se puede **subir el contrato** (PDF o foto) y verlo. Se guarda como documento del vehículo (tipo CRM_CONTRATO; si se cambia, el anterior queda en el historial). No va a las plataformas.
