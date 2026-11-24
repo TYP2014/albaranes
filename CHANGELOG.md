@@ -1,3 +1,6 @@
+## v1321 — 24/11/2026
+- ITV y Producción (iconos sin cambiar) recuperan también su color en la barra (azul y morado); en la v1320 salían gris claro.
+
 ## v1320 — 24/11/2026
 - **Iconos nuevos** en la barra de pestañas (elegidos por JC sobre la lámina de propuestas): Albaranes (tablilla), Subir (nube con la flecha que se mueve), Empleados (tarjeta), Documentación (carpeta con visto), Taller (llave + destornillador completo), Neumáticos (rueda negra y gris), Gasoil (surtidor con gota, amarillo apagado), Facturación (factura con flecha que entra), F. Emitidas (factura con € y flecha que sale), DeCA (documento con QR), Tacógrafo (esfera con ranura, violeta claro), Panel, Fichaje (huella), Usuarios (persona con engranaje), Preliquidaciones (calculadora).
 - Incidencias: mismo triángulo, en **amarillo fuerte**. Costes: misma moneda con €, trazo más grueso y color más claro. ITV y Producción sin cambios.
