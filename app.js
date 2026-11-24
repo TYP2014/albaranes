@@ -21993,7 +21993,9 @@ async function loadUsers() {
   if (_otros.length) _rolGrupos.push({ rol: '*otros', tit: 'OTROS ROLES', nota: 'Rol no reconocido: revisar' });
   const _nomU = u => String(u.name || u.id || '');
   // v950: un gestor es SUBCONTRATISTA si su nombre es uno de los transportistas externos (lista oficial); el resto, oficina.
-  const _esSubU = u => /aridflot|cipri|jose miguel|miguel angel|op trans|satig|joaquin|antonio|francisco|alacio|refrigerados/.test(_nomU(u).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
+  // v1323: también es subcontratista el gestor que tiene asignada una empresa DeCA externa (p. ej. "Fran" → FRANCISCO OCAÑA), aunque su nombre no la diga.
+  const _esSubU = u => /aridflot|cipri|jose miguel|miguel angel|op trans|satig|joaquin|antonio|francisco|alacio|refrigerados/.test(_nomU(u).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
+    || (!!u.deca_transportista && !/TYP\s*2014|HISPALIS|TRANSMARGAZ|PORTES/i.test(String(u.deca_transportista)));
   const _filaUsuario = u => {
     // Protección: el admin actual NO puede borrarse a sí mismo
     const isMe = u.id === currentUser?.id;

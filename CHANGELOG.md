@@ -1,3 +1,7 @@
+## v1323 — 24/11/2026
+- Usuarios: **Fran** (Francisco Ocaña) sale ya en **Gestores · Subcontratistas**, no en Oficina y taller. Un gestor con empresa DeCA externa asignada se cuenta como subcontratista aunque su nombre no la diga. (Sus permisos ya eran de subcontratado: solo sus albaranes y sus DeCA.)
+- r.dominguez@typ2014.local pasa a **DE BAJA** (ya no trabaja con nosotros; su acceso ya estaba bloqueado). Sus 181 albaranes se conservan.
+
 ## v1322 — 24/11/2026
 - Icono de Documentación en la barra: de verde azulado oscuro (apenas se veía) a **rosa** (#f06292), color que no usa ninguna otra pestaña.
 
