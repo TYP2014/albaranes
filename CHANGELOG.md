@@ -1,3 +1,7 @@
+## v1330 — 24/11/2026
+- Taller: el cartel de confirmar el próximo mantenimiento es más grande y más claro. Enseña bien visible el aviso que tiene programado y pregunta "¿Quieres CONTINUAR con este aviso, sin programar uno nuevo?". Botón grande amarillo "➕ PROGRAMAR OTRO" y al lado "✓ Sí, continuar".
+- Pestaña Taller: icono nuevo de llave inglesa.
+
 ## v1329 — 24/11/2026
 - Taller: después de apuntar CUALQUIER mantenimiento o reparación nueva, la app SIEMPRE pide confirmar el próximo aviso. Si ya tiene uno programado, lo enseña y hay que pulsar "✓ Confirmo: sigue igual" o "Programar otro". Si no tiene ninguno, "✓ Confirmo: sigue sin programar" o "Programar ahora" (abre el formulario del aviso).
 
