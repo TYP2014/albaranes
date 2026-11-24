@@ -27363,16 +27363,19 @@ function _tallerAvisoProgramar(vehId, fechaMant, kmMant) {
       : '<div style="background:#fff7ed;border:2px solid #b45309;border-radius:10px;padding:12px 14px;font-size:17px;font-weight:800;color:#7c2d12;line-height:1.4">⚠️ NO tiene ningún aviso programado para el próximo mantenimiento (ni por fecha ni por km).' +
         (viejos.length ? '<div style="font-size:15px;font-weight:600;margin-top:6px">El anterior ya pasó: ' + esc(viejos.map(txt).join(' · ')) + '</div>' : '') + '</div>';
     ov.innerHTML = '<div style="background:#fff;border:5px solid ' + (hay ? '#1f3a5f' : '#b45309') + ';border-radius:14px;max-width:760px;width:100%;padding:28px 30px;box-shadow:0 14px 40px rgba(0,0,0,.4)">' +
-      '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div style="font-size:26px;font-weight:900;color:#0f1c2e">Mantenimiento guardado</div><div style="font-size:24px;font-weight:900;color:#1d4ed8">' + esc(v.matricula) + '</div></div>' +
+      '<div style="position:relative"><button data-x="1" title="Cerrar y volver a la ficha del vehículo" style="position:absolute;top:-14px;right:-14px;background:#fff;border:2px solid #64748b;border-radius:8px;width:38px;height:38px;font-size:20px;font-weight:900;color:#334155;cursor:pointer;line-height:1">✕</button></div>' +
+      '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-right:34px"><div style="font-size:26px;font-weight:900;color:#0f1c2e">Mantenimiento guardado</div><div style="font-size:24px;font-weight:900;color:#1d4ed8">' + esc(v.matricula) + '</div></div>' +
       caja +
       '<div style="font-size:21px;font-weight:900;color:#111;margin:18px 0 6px;line-height:1.35">' +
         (hay ? '¿Quieres CONTINUAR con este aviso, sin programar uno nuevo?' : '¿Quieres CONTINUAR SIN programar el próximo mantenimiento?') + '</div>' +
       '<div style="font-size:15px;color:#475569;line-height:1.45">Si se ha cambiado <b>aceite, filtros</b> o se ha hecho la <b>revisión</b>, programa el próximo. Si solo era una reparación, puedes continuar.</div>' +
       '<div style="display:flex;gap:14px;margin-top:22px;flex-wrap:wrap;align-items:stretch">' +
-        '<button class="btn" data-si="1" style="flex:1 1 300px;background:#facc15;color:#111;border:3px solid #a16207;border-radius:10px;padding:16px 18px;font-size:20px;font-weight:900;box-shadow:0 3px 0 #a16207;cursor:pointer">➕ PROGRAMAR OTRO</button>' +
+        '<button class="btn" data-si="1" style="flex:1 1 300px;background:#facc15;color:#111;border:3px solid #a16207;border-radius:10px;padding:16px 18px;font-size:20px;font-weight:900;box-shadow:0 3px 0 #a16207;cursor:pointer">' + (hay ? '➕ PROGRAMAR OTRO' : '➕ PROGRAMAR AHORA') + '</button>' +
         '<button class="btn bs" data-no="1" style="flex:1 1 240px;border:2px solid #64748b;border-radius:10px;padding:14px 16px;font-size:16px;font-weight:800;color:#334155">' + (hay ? '✓ Sí, continuar con el que tiene' : '✓ Sí, continuar sin programar') + '</button>' +
       '</div></div>';
     document.body.appendChild(ov);
+    // v1331: la X cierra sin confirmar nada y te deja (o te devuelve) en la ficha del vehículo, por si se olvidó comprobar algo.
+    ov.querySelector('[data-x]').onclick = () => { ov.remove(); try { if (!document.getElementById('ovTallerMant')?.classList.contains('open')) tallerAbrirModal(vehId); } catch (e) {} };
     ov.querySelector('[data-no]').onclick = () => { ov.remove(); toast(hay ? '✓ Confirmado: sigue con el aviso que tenía' : '✓ Confirmado: sigue sin programar', 'ok'); };
     ov.querySelector('[data-si]').onclick = () => { ov.remove(); try { tallerAbrirModal(vehId); setTimeout(() => { const f = document.getElementById('tallerVencForm'); if (f && f.style.display === 'none') document.getElementById('tallerVencFormBtn')?.click(); const d = document.getElementById('tallerVencDesc'); if (d) { d.scrollIntoView({ block: 'center' }); d.focus(); } }, 400); } catch (e) {} };
   } catch (e) { console.warn('[v1329] aviso programar:', e); }

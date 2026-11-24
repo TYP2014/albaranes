@@ -1,3 +1,6 @@
+## v1331 — 24/11/2026
+- Taller, cartel del próximo mantenimiento: si el camión no tiene ningún aviso, el botón amarillo dice "➕ PROGRAMAR AHORA" (si ya tiene uno, sigue "➕ PROGRAMAR OTRO"). Nueva ✕ arriba a la derecha: cierra el cartel sin confirmar y te deja en la ficha del vehículo para comprobar algo.
+
 ## v1330 — 24/11/2026
 - Taller: el cartel de confirmar el próximo mantenimiento es más grande y más claro. Enseña bien visible el aviso que tiene programado y pregunta "¿Quieres CONTINUAR con este aviso, sin programar uno nuevo?". Botón grande amarillo "➕ PROGRAMAR OTRO" y al lado "✓ Sí, continuar".
 - Pestaña Taller: icono nuevo de llave inglesa.
