@@ -27349,7 +27349,7 @@ function tallerBloqueAddTarea() {
 // v1332 (JC 24/11/2026): registro de quién confirma el próximo aviso. El taller lo usan varios con el mismo usuario,
 // por eso se pide el NOMBRE escrito cada vez (no se rellena solo).
 // v1333: nombres del taller fijos en el desplegable (se filtran al escribir; se puede escribir cualquier otro).
-const _TCONF_NOMBRES = ['MIGUEL V.', 'CESAR R.', 'JOSEP V.', 'OSCAR V.', 'OSCAR E.'];
+const _TCONF_NOMBRES = ['MIGUEL V.', 'CESAR R.', 'JOSEP V.', 'OSCAR V.', 'OSCAR E.', 'CARLOS G.'];
 function _tallerRealDatalist() {
   const usados = (tallerMantenimientos || []).map(m => String(m.realizado_por || '').trim()).filter(Boolean);
   const cnt = {}; usados.forEach(n => cnt[n] = (cnt[n] || 0) + 1);

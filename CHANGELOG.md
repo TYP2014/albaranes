@@ -1,3 +1,6 @@
+## v1335 — 24/11/2026
+- Taller: añadido CARLOS G. a los desplegables "¿Quién eres?" y "Realizado por".
+
 ## v1334 — 24/11/2026
 - Taller, "Realizado por" (al apuntar mantenimiento y en el Historial): mismo desplegable con MIGUEL V., CESAR R., JOSEP V., OSCAR V., OSCAR E., Casa oficial, Taller propio y los que ya se hayan usado; se filtra al escribir y se puede escribir otro.
 
