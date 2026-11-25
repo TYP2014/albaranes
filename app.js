@@ -49073,7 +49073,10 @@ async function docVencCargar() {
     try {
       const { data: td, error: e2 } = await sb.from('trabajadores_docs').select('tipo, vence, trabajador_id, trabajadores(nombre, archivado)').not('vence', 'is', null).lte('vence', lim).neq('tipo', 'TACO');
       if (e2) throw e2;
-      (td || []).filter(x => x.trabajadores && !x.trabajadores.archivado).forEach(x => lista.push({ tipo: 'TRAB', vence: x.vence, matricula: x.trabajadores.nombre + ' — ' + (typeof _tdNomCol === 'function' ? _tdNomCol(x.tipo) : x.tipo) }));
+      // v1339 (JC 25/11/2026): el APTO MÉDICO de quien está HOY de baja médica (periodo en Vacaciones) no avisa; vuelve a avisar al acabar la baja.
+      let enBaja = new Set();
+      try { const hoyB = _ofIso(new Date()); const rb = await sb.from('vacaciones_periodos').select('trabajador_id').eq('tipo', 'baja_medica').lte('fecha_inicio', hoyB).gte('fecha_fin', hoyB); if (!rb.error) enBaja = new Set((rb.data || []).map(p => p.trabajador_id)); } catch (e3) {}
+      (td || []).filter(x => x.trabajadores && !x.trabajadores.archivado && !(x.tipo === 'APTO' && enBaja.has(x.trabajador_id))).forEach(x => lista.push({ tipo: 'TRAB', vence: x.vence, matricula: x.trabajadores.nombre + ' — ' + (typeof _tdNomCol === 'function' ? _tdNomCol(x.tipo) : x.tipo) }));
     } catch (e) { console.warn('[v1244] avisos documentos trabajadores:', e); }
   } catch (e) { console.warn('[v1236] avisos documentación:', e); }
   if (turno !== window._docVencTurno) return;   // v1245: llegó otra carga más nueva

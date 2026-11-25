@@ -1,3 +1,6 @@
+## v1339 — 25/11/2026
+- Aviso de documentos de conductores (YA VENCIDO…): el APTO MÉDICO de quien está hoy de baja médica (periodo en Vacaciones) ya no sale. Vuelve a avisar al terminar la baja.
+
 ## v1338 — 25/11/2026
 - Pestaña Taller: icono nuevo, martillo y llave inglesa cruzados en naranja (opción A elegida por JC).
 
