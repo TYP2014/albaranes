@@ -26295,6 +26295,7 @@ function openTrabajadorModal(id) {
         <div class="fg"><label class="fl">Grupo profesional</label><input class="fi" id="trabF_gprof" value="${v('grupo_profesional')}" placeholder="Conductor"></div>
         <div class="fg"><label class="fl">Fecha antigüedad</label><input class="fi" type="date" id="trabF_antig" value="${t?.antiguedad || ''}"></div>
       </div>
+      <div class="fg" style="margin-top:8px"><label class="fl">Nº de cuenta (IBAN) — para la nómina</label><input class="fi" id="trabF_iban" value="${v('iban').replace(/(.{4})/g, '$1 ').trim()}" placeholder="ES00 0000 0000 0000 0000 0000" style="font-family:var(--mn);max-width:340px" maxlength="34"></div>
       <div id="trabF_empDatos" style="font-size:12px;color:#111;margin-top:6px"></div>
     </div>
     <div class="fg full" style="margin-bottom:10px"><label class="fl">Notas</label>
@@ -26316,7 +26317,7 @@ function openTrabajadorModal(id) {
 
 // v1276 (JC 20/11/2026): historial de la ficha — quién y cuándo da de alta, de baja, reactiva o cambia datos (tabla trabajadores_log, la rellena un trigger)
 const _TLOG_NOM = { nombre: 'Nombre', dni: 'DNI', empresa: 'Empresa', rol: 'Puesto', fecha_alta: 'Fecha alta', fecha_baja: 'Fecha baja', motivo_baja: 'Motivo baja', archivado: 'De baja',
-  carnet_caduca: 'Caduca carnet', cap_caduca: 'Caduca CAP', recmed_caduca: 'Caduca reconocimiento', tarjeta_num: 'Tarjeta tacógrafo', tarjeta_caduca: 'Caduca tarjeta', naf: 'Nº Seg. Social',
+  carnet_caduca: 'Caduca carnet', cap_caduca: 'Caduca CAP', recmed_caduca: 'Caduca reconocimiento', tarjeta_num: 'Tarjeta tacógrafo', tarjeta_caduca: 'Caduca tarjeta', naf: 'Nº Seg. Social', iban: 'Nº de cuenta',
   grupo_cotizacion: 'Grupo cotización', grupo_profesional: 'Grupo profesional', antiguedad: 'Antigüedad', telefono: 'Teléfono', email: 'Email', primas_config: 'Primas / préstamo' };
 async function _trabHistorial(id) {
   const box = document.getElementById('trabF_hist'); if (!box) return;
@@ -26381,6 +26382,7 @@ async function saveTrabModal() {
     direccion: (document.getElementById('trabF_direccion')?.value || '').trim() || null,   // v619
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
     naf: (document.getElementById('trabF_naf')?.value || '').replace(/\D/g, '') || null,   // v1233
+    iban: (document.getElementById('trabF_iban')?.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || null,   // v1340
     grupo_cotizacion: (document.getElementById('trabF_gcot')?.value || '').trim() || null,
     grupo_profesional: (document.getElementById('trabF_gprof')?.value || '').trim() || null,
     antiguedad: document.getElementById('trabF_antig')?.value || null,

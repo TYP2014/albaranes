@@ -1,3 +1,6 @@
+## v1340 — 25/11/2026
+- Empleados > ficha del trabajador: nuevo campo "Nº de cuenta (IBAN) — para la nómina" (columna nueva `iban` en trabajadores).
+
 ## v1339 — 25/11/2026
 - Aviso de documentos de conductores (YA VENCIDO…): el APTO MÉDICO de quien está hoy de baja médica (periodo en Vacaciones) ya no sale. Vuelve a avisar al terminar la baja.
 
