@@ -1,3 +1,6 @@
+## v1338 — 25/11/2026
+- Pestaña Taller: icono nuevo, martillo y llave inglesa cruzados en naranja (opción A elegida por JC).
+
 ## v1337 — 24/11/2026
 - Pestaña Tacógrafo: icono nuevo con forma de disco de tacógrafo (corona con marcas de hora, línea de actividad y centro), algo más grande que los demás.
 
