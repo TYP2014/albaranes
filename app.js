@@ -25865,7 +25865,7 @@ function renderEmpDatos() {
       td(esc(t.nombre || ''), 'font-weight:800;font-size:15px') +
       td(esc(t.dni || '—'), 'white-space:nowrap') +
       td(esc(t.rol || '—')) +
-      td(esc(t.telefono || '—'), 'white-space:nowrap') +
+      td(esc(_telFmt(t.telefono) || '—'), 'white-space:nowrap') +   // v1344
       td(f(t.fecha_alta) || '<span style="color:#c62828;font-weight:800" title="Sin fecha de alta: el parte de Primas no sabe desde cuándo cuenta">FALTA ⚠</span>', 'white-space:nowrap') +
       td(f(t.fecha_baja) ? '<span style="color:#c62828;font-weight:800">' + f(t.fecha_baja) + '</span>' : '—', 'white-space:nowrap') +
       td(esc(t.tarjeta_num || '—'), 'white-space:nowrap') +
@@ -26379,7 +26379,7 @@ async function saveTrabModal() {
     fecha_baja: document.getElementById('trabF_baja')?.value || null,
     rol: (document.getElementById('trabF_rol').value || '').trim() || null,
     fecha_alta: document.getElementById('trabF_alta').value || null,
-    telefono: (document.getElementById('trabF_telefono')?.value || '').trim() || null,   // v619
+    telefono: _telFmt(document.getElementById('trabF_telefono')?.value) || null,   // v619 · v1344 mismo formato
     email: (document.getElementById('trabF_email')?.value || '').trim().toLowerCase() || null,   // v619
     direccion: (document.getElementById('trabF_direccion')?.value || '').trim() || null,   // v619
     notas: (document.getElementById('trabF_notas').value || '').trim() || null,
@@ -31342,7 +31342,7 @@ function renderRecmed() {
         + (function () {   // v856: a que numero va a ir el WhatsApp
             const t = _recmedTrabDe(c);
             return (t && t.telefono)
-              ? '<br><span style="color:var(--tx);font-weight:400;font-size:12px">\uD83D\uDCF2 ' + esc(t.telefono) + '</span>'
+              ? '<br><span style="color:var(--tx);font-weight:400;font-size:12px">\uD83D\uDCF2 ' + esc(_telFmt(t.telefono)) + '</span>'
               : '<br><span style="color:var(--tx);font-weight:400;font-size:12px">sin tel\u00e9fono en su ficha</span>';
           })()
         + '</td>' +
@@ -40892,6 +40892,19 @@ function _vencDocsDe(trabs) {
 
 // El telefono, listo para wa.me. Si no hay, se abre WhatsApp sin
 // destinatario y el mensaje va igual: solo hay que elegir a quien.
+// v1344: todos los telefonos con el mismo formato "669 493 335" (orden de JC).
+// Quita espacios, puntos y guiones; si es un numero espanol de 9 cifras (con o sin +34 / 0034
+// delante) lo deja en grupos de 3. Si no lo reconoce, lo deja tal cual.
+function _telFmt(tel) {
+  const raw = String(tel || '').trim();
+  if (!raw) return '';
+  let d = raw.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('34')) d = d.slice(2);
+  else if (d.length === 13 && d.startsWith('0034')) d = d.slice(4);
+  if (d.length !== 9) return raw;
+  return d.slice(0, 3) + ' ' + d.slice(3, 6) + ' ' + d.slice(6);
+}
+
 function _vencTelWa(tel) {
   const d = String(tel || '').replace(/\D/g, '');
   if (!d) return '';

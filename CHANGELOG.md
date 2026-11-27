@@ -1,3 +1,8 @@
+## v1344 — 27/11/2026 · Teléfonos de trabajadores con el mismo formato
+- Empleados: todos los teléfonos salen y se guardan como "669 493 335" (grupos de 3). Da igual cómo se escriba (con espacios, puntos, guiones o +34): al guardar la ficha queda en ese formato.
+- La lista de trabajadores y el aviso de reconocimientos ya los enseñan así aunque en la base de datos estén escritos de otra forma. WhatsApp sigue funcionando igual.
+- Para dejar también la base de datos igualada: SQL aparte (SELECT antes del UPDATE).
+
 ## v1343 — 27/11/2026 · Primas: "traer viajes" ya no borra lo escrito
 - Arreglo: al traer viajes de albaranes, si la casilla no estaba en pantalla o vacía, se guardaba en blanco y se perdían "Lo que dice el conductor", Notas y la prima (pasó con José Antonio Sánchez, 39 días; se restauró del 1/10 al 19/11 desde la copia del 22/11).
 - Ahora vale lo ya guardado y, además, un freno vuelve a leer la base de datos antes de guardar: nunca deja en blanco texto ni prima puesta a mano.
