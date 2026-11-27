@@ -4595,18 +4595,18 @@ function _avisoDupAlb1352(nombre, dups) {
     if (!cont) {
       cont = document.createElement('div');
       cont.id = 'dupAlbAvisos';
-      cont.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;display:flex;flex-direction:column;gap:8px;max-width:420px';
+      cont.style.cssText = 'position:fixed;right:4vw;top:32vh;z-index:99998;display:flex;flex-direction:column;gap:10px;width:440px;max-width:90vw';   // v1354: a media altura, a la derecha (fuera del cuadro de subir y sin taparlo el aviso de abajo)
       document.body.appendChild(cont);
     }
     const caja = document.createElement('div');
-    caja.style.cssText = 'background:#fff8e1;border:2px solid #ff8c00;border-radius:10px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:13px;color:#222';
+    caja.style.cssText = 'background:#fff8e1;border:3px solid #ff8c00;border-radius:12px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.30);font-size:15px;color:#222';
     const lista = dups.map(d => '<b>Nº ' + String(d.data.albaran).replace(/</g, '&lt;') + '</b>' + (d.ya && d.ya.fecha ? ' (ya está, fecha ' + String(d.ya.fecha).replace(/</g, '&lt;') + ')' : '')).join('<br>');
     let seg = 20;
-    caja.innerHTML = '<div style="font-weight:800;margin-bottom:4px">⚠️ Este albarán ya está subido</div>' +
+    caja.innerHTML = '<div style="font-weight:800;font-size:18px;margin-bottom:6px;color:#b35400">⚠️ Este albarán ya está subido</div>' +
       '<div style="margin-bottom:6px">' + String(nombre || '').replace(/</g, '&lt;') + '<br>' + lista + '</div>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-      '<button class="btn" data-a="no" style="background:#c62828;color:#fff;border:none;padding:6px 12px;font-weight:700">No subir</button>' +
-      '<button class="btn" data-a="si" style="background:#fff;border:1px solid #888;padding:6px 12px">Subir igual</button>' +
+      '<button class="btn" data-a="no" style="background:#c62828;color:#fff;border:none;padding:9px 16px;font-weight:800;font-size:14px">No subir</button>' +
+      '<button class="btn" data-a="si" style="background:#fff;border:1px solid #888;padding:9px 16px;font-size:14px">Subir igual</button>' +
       '<span data-t style="color:#666">Se sube solo (como duplicado) en ' + seg + ' s</span></div>';
     cont.appendChild(caja);
     let hecho = false;

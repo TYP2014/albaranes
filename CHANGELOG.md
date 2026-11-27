@@ -1,3 +1,6 @@
+## v1354 — 27/11/2026 · Aviso de ya subido más visible
+- El aviso "⚠️ Este albarán ya está subido" sale ahora a media altura en el lado derecho (fuera del cuadro de subir, sin que lo tape el aviso de abajo), más grande y con los botones más gordos.
+
 ## v1353 — 27/11/2026 · Aviso de ya subido: "N-26933" = "26933"
 - El aviso de la v1352 también reconoce el albarán aunque uno lleve letras delante (N-, SN-, AR-…) y el otro no: si tiene 5 cifras o más se comparan solo las cifras (y además tiene que coincidir la fecha o el proveedor).
 
