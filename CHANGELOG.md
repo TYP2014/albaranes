@@ -1,3 +1,6 @@
+## v1347 — 27/11/2026 · Icono de TACÓGRAFO más completo
+- El icono de la pestaña lleva ahora, como el tacógrafo de disco de siempre: esfera negra con números, aguja naranja, el relojito de dentro, el cuentakilómetros (km) y los símbolos del selector de actividad (cama / otros trabajos). Un poco más grande que el de la v1345.
+
 ## v1346 — 27/11/2026 · Lector de albaranes más tolerante
 - Arreglo (chivato 25/11, albarán 26842 de Marta): si la IA contesta el JSON y DETRÁS añade una nota u otro bloque con llaves, antes fallaba ("Unexpected non-whitespace character after JSON") y el albarán no se leía. Ahora se queda con el primer bloque completo y sigue.
 
