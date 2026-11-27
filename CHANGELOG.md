@@ -1,3 +1,6 @@
+## v1350 — 27/11/2026 · Icono de TACÓGRAFO según el dibujo de Juan Carlos
+- Icono redondo como el dibujo que mandó: esfera negra con base recta, escala 20–120, aguja naranja, relojito, cama/reloj de descanso, las dos luces, y abajo los símbolos de cada conductor (descanso, conducción, otros trabajos), "km", los dos botones y el cuentakilómetros 0000000 con el último dígito en blanco.
+
 ## v1349 — 27/11/2026 · Icono de TACÓGRAFO copiado de la foto
 - Dibujo del tacógrafo de disco de la foto de Juan Carlos: esfera negra con escala 20–120 y rayas cada 5, aguja naranja, relojito con sus marcas, luces rojas y triángulo, "25 km/h", cerradura arriba y, abajo, las 3 posiciones de cada conductor (2 y 1), "km", los dos botones del selector y el cuentakilómetros 0000001. Sin marca.
 
