@@ -1,3 +1,6 @@
+## v1351 — 27/11/2026 · Icono de TACÓGRAFO más claro
+- Vuelta al reloj clásico de esfera clara (el que eligió Juan Carlos): borde negro, esfera blanca, rayas y números en negro, aguja roja y cuentakilómetros. Se ve mejor en pequeño que el de esfera negra.
+
 ## v1350 — 27/11/2026 · Icono de TACÓGRAFO según el dibujo de Juan Carlos
 - Icono redondo como el dibujo que mandó: esfera negra con base recta, escala 20–120, aguja naranja, relojito, cama/reloj de descanso, las dos luces, y abajo los símbolos de cada conductor (descanso, conducción, otros trabajos), "km", los dos botones y el cuentakilómetros 0000000 con el último dígito en blanco.
 
