@@ -160,7 +160,7 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="upload-card-title">📄 Albarán</div>
         <div class="upload-card-sub">JPG · PNG · PDF · FOTO CON EL MÓVIL</div>
         <div class="dz" id="dzAlb" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
-          <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'alb')">
+          <input type="file" accept="image/*,.pdf,.zip" multiple onchange="addFiles(this.files,'alb')">
           <div class="dz-ic ic3d" aria-hidden="true"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g3dCarA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD06B"/><stop offset="1" stop-color="#EF8E10"/></linearGradient><linearGradient id="g3dTraA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F3AE3B"/><stop offset="1" stop-color="#D2800C"/></linearGradient><linearGradient id="g3dPapA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E4EDF7"/></linearGradient><linearGradient id="g3dNubA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E8F2FD"/><stop offset="1" stop-color="#9AC4EE"/></linearGradient><linearGradient id="g3dVerA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5BDD98"/><stop offset="1" stop-color="#1B9A5E"/></linearGradient><linearGradient id="g3dAzuA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5AA6EC"/><stop offset="1" stop-color="#1A5FA8"/></linearGradient></defs><ellipse class="ic3d-som" cx="60" cy="107" rx="35" ry="5" fill="#1e2933" opacity=".13"/><path d="M20 52h22l6 7h44a4 4 0 0 1 4 4v31H16V56a4 4 0 0 1 4-4z" fill="url(#g3dTraA)"/><g class="ic3d-doc"><path d="M45 43a3 3 0 0 1 3-3h19l8 8v33a3 3 0 0 1-3 3H48a3 3 0 0 1-3-3z" fill="url(#g3dPapA)"/><path d="M67 40l8 8h-8z" fill="#C3D3E6"/><rect x="51" y="46" width="12" height="3.4" rx="1.7" fill="#2b7bd0"/><rect x="51" y="54" width="18" height="2.6" rx="1.3" fill="#B9C7D8"/><rect x="51" y="60" width="18" height="2.6" rx="1.3" fill="#B9C7D8"/><rect x="51" y="66" width="12" height="2.6" rx="1.3" fill="#B9C7D8"/></g><g class="ic3d-car"><path d="M16 64h88a4 4 0 0 1 3.94 4.78l-5.6 28A7 7 0 0 1 95.48 102H24.52a7 7 0 0 1-6.86-5.22l-5.6-28A4 4 0 0 1 16 64z" fill="url(#g3dCarA)"/><path d="M16 64h88a4 4 0 0 1 3.94 4.78l-.55 2.72H12.61l-.55-2.72A4 4 0 0 1 16 64z" fill="#fff" opacity=".28"/></g><g class="ic3d-nub"><path d="M41.5 39a10.5 10.5 0 0 1-.4-21A14 14 0 0 1 67.6 21a9.5 9.5 0 0 1 12.7 8.9A9.2 9.2 0 0 1 78.5 39z" fill="url(#g3dNubA)" stroke="#7FAEDD" stroke-width="1.7" stroke-linejoin="round"/><path d="M53.6 15.5A14 14 0 0 1 67.6 21a9.6 9.6 0 0 0-4.2-1 13.9 13.9 0 0 0-9.8-4.5z" fill="#fff" opacity=".7"/></g><g transform="translate(15 57)"><g class="ic3d-ok"><circle r="9.5" fill="url(#g3dVerA)"/><path d="M-4.3 .4l3.1 3.2 5.7-6.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></g></g><g transform="translate(105 57)"><g class="ic3d-fle"><circle r="9.5" fill="url(#g3dAzuA)"/><path d="M0-5.2l5.2 5.7H2.2v4.7h-4.4V.5h-3z" fill="#fff"/></g></g></svg></div>
           <div class="dz-t">Arrastra o <span class="hl">haz clic para seleccionar</span></div>
           <div class="dz-s">JPG · PNG · PDF</div>
@@ -1831,7 +1831,7 @@ if (typeof pdfjsLib !== 'undefined') {
           <div class="card-hd"><div class="st"><div class="dot"></div>SUBIR ALBARANES</div></div>
           <div class="card-bd">
             <div class="dz" ondragenter="dragEnter(event)" ondragover="ev(event)" ondragleave="el(event)" ondrop="drop(event,'alb')">
-              <input type="file" accept="image/*,.pdf" multiple onchange="addFiles(this.files,'alb')">
+              <input type="file" accept="image/*,.pdf,.zip" multiple onchange="addFiles(this.files,'alb')">
               <div class="albFoto" aria-hidden="true"><img class="albBg" src="albaran_fondo.jpg" alt=""><div class="albGlow"></div><div class="albChar"><div class="albY"><img src="albaran_personaje.png" alt=""></div></div></div>
               <div class="dz-t">Arrastra fotos o PDFs · o <span class="hl">haz clic para seleccionar</span></div>
               <div class="dz-s">JPG · PNG · PDF (una o varias páginas) · Varios archivos a la vez</div>
@@ -2258,6 +2258,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1354"></script>
+<script src="app.js?v=1355"></script>
 </body>
 </html>

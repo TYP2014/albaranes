@@ -3497,6 +3497,34 @@ async function comprimirImagen(file, maxBytes) {
 }
 
 async function addFiles(files, type) {
+  // v1355 (JC 27/11/2026): un ZIP (p. ej. los EPOD de CEMEX) se abre aquí mismo y se suben
+  // los PDF/fotos que lleva dentro, como si se hubieran arrastrado uno a uno.
+  try {
+    const _arr = Array.from(files || []);
+    if (type === 'alb' && _arr.some(f => /\.zip$/i.test(f.name || '')) && typeof JSZip !== 'undefined') {
+      const _sal = [];
+      const _abrir = async (buf, prof) => {
+        const z = await JSZip.loadAsync(buf);
+        for (const e of Object.values(z.files)) {
+          if (e.dir) continue;
+          const nom = e.name.split('/').pop();
+          if (!nom || nom.startsWith('.') || nom.startsWith('__MACOSX')) continue;
+          if (/\.zip$/i.test(nom) && prof < 3) { await _abrir(await e.async('arraybuffer'), prof + 1); continue; }
+          const m = /\.pdf$/i.test(nom) ? 'application/pdf' : /\.png$/i.test(nom) ? 'image/png' : /\.(jpe?g)$/i.test(nom) ? 'image/jpeg' : null;
+          if (!m) continue;
+          _sal.push(new File([await e.async('blob')], nom, { type: m }));
+        }
+      };
+      for (const f of _arr) {
+        if (/\.zip$/i.test(f.name || '')) { try { await _abrir(await f.arrayBuffer(), 0); } catch (e) { console.error('[v1355 zip]', e); try { toast('No se pudo abrir ' + f.name, 'err'); } catch (e2) {} } }
+        else _sal.push(f);
+      }
+      const nZip = _arr.filter(f => /\.zip$/i.test(f.name || '')).length;
+      try { toast('📦 ' + nZip + ' ZIP abierto' + (nZip === 1 ? '' : 's') + ': ' + _sal.length + ' archivo' + (_sal.length === 1 ? '' : 's') + ' para subir'); } catch (e) {}
+      if (!_sal.length) return;
+      files = _sal;
+    }
+  } catch (e) { console.error('[v1355 zip]', e); }
   // v107EQ5 (27/05/2026): RED DE SEGURIDAD pre-arranque.
   // Si la app aún no ha terminado de cargar (loadUserMap, loadData, etc.),
   // NO procesamos: encolamos. El listener al final del arranque procesará

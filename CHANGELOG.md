@@ -1,3 +1,6 @@
+## v1355 — 27/11/2026 · Subir albaranes en ZIP
+- En SUBIR ya se puede arrastrar (o elegir) un ZIP, por ejemplo los "EPOD" de CEMEX: la app lo abre sola y sube los PDF y fotos que lleva dentro, como si se hubieran arrastrado uno a uno. Sale un aviso con cuántos archivos ha sacado. Si alguno ya estaba subido, sale el aviso de "ya está subido" de la v1352.
+
 ## v1354 — 27/11/2026 · Aviso de ya subido más visible
 - El aviso "⚠️ Este albarán ya está subido" sale ahora a media altura en el lado derecho (fuera del cuadro de subir, sin que lo tape el aviso de abajo), más grande y con los botones más gordos.
 
