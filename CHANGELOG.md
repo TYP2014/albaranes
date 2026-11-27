@@ -1,3 +1,6 @@
+## v1345 — 27/11/2026 · Icono nuevo de TACÓGRAFO
+- La pestaña TACÓGRAFO lleva ahora el icono del tacógrafo analógico de toda la vida (reloj con aguja roja y cuentakilómetros), opción A elegida por Juan Carlos.
+
 ## v1344 — 27/11/2026 · Teléfonos de trabajadores con el mismo formato
 - Empleados: todos los teléfonos salen y se guardan como "669 493 335" (grupos de 3). Da igual cómo se escriba (con espacios, puntos, guiones o +34): al guardar la ficha queda en ese formato.
 - La lista de trabajadores y el aviso de reconocimientos ya los enseñan así aunque en la base de datos estén escritos de otra forma. WhatsApp sigue funcionando igual.
