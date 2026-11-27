@@ -1,3 +1,7 @@
+## v1341 — 27/11/2026
+- Contactos: campo nuevo "Email para ALBARANES (si es otro)" (columna nueva `email_albaranes` en clientes_ficha). Conexis: f.fernande@conexistransports.com.
+- Enviar factura por correo: si el cliente tiene email de albaranes, sale marcada la casilla "Albaranes y Excel en un correo APARTE": la factura va a «Para» y los albaranes en PDF + Excel a ese otro email, en dos correos. Se puede desmarcar o cambiar el email en cada envío.
+
 ## v1340 — 25/11/2026
 - Empleados > ficha del trabajador: nuevo campo "Nº de cuenta (IBAN) — para la nómina" (columna nueva `iban` en trabajadores).
 

@@ -47479,7 +47479,7 @@ async function cliListar() {
 function _cliPintar() {
   const out = document.getElementById('cliCardOut'); if (!out) return;
   const fq = _ofNrm((document.getElementById('cliFiltroTxt') || {}).value || '');
-  const L = _ofCli.filter(c => !fq || _ofNrm([c.nombre, c.nif, c.email, c.email_facturas, c.contacto, c.telefono].join(' ')).includes(fq)).sort((a, b) => (b.habitual ? 1 : 0) - (a.habitual ? 1 : 0));   // habituales arriba
+  const L = _ofCli.filter(c => !fq || _ofNrm([c.nombre, c.nif, c.email, c.email_facturas, c.email_albaranes, c.contacto, c.telefono].join(' ')).includes(fq)).sort((a, b) => (b.habitual ? 1 : 0) - (a.habitual ? 1 : 0));   // habituales arriba
   if (!L.length) { out.innerHTML = '<div style="padding:10px;color:#111">No hay clientes' + (fq ? ' con ese texto' : '') + '. Pulsa <b>Añadir cliente</b>.</div>'; return; }
   const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit;width:100%', lab = 'font-size:12px;color:#111;display:block';
   const campo = (c, k, t, ancho, extra) => '<label style="' + lab + ';flex:' + ancho + ';min-width:' + (extra && extra.min || 150) + 'px">' + t + '<br><input value="' + _ofEA(c[k] == null ? '' : c[k]) + '"' + (extra && extra.ph ? ' placeholder="' + extra.ph + '"' : '') + ' onchange="cliSet(\'' + c.id + '\',\'' + k + '\',this.value)" style="' + inp + (extra && extra.b ? ';font-weight:700' : '') + '"></label>';
@@ -47490,7 +47490,7 @@ function _cliPintar() {
       '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' + campo(c, 'nombre', 'Razón social', 3, { min: 280, b: 1 }) + campo(c, 'nif', 'NIF', 1, { min: 120 }) + campo(c, 'contacto', 'Persona de contacto', 2) + campo(c, 'telefono', 'Teléfono', 1, { min: 120 }) +
         '<button class="btn bs" onclick="cliBorrar(\'' + c.id + '\')" style="padding:8px 12px;border-color:#b91c1c;color:#b91c1c">Borrar</button></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start"><label style="' + lab + ';flex:2;min-width:280px">Dirección fiscal (calle / CP y ciudad)<br><textarea rows="2" onchange="cliSet(\'' + c.id + '\',\'direccion\',this.value)" style="' + inp + '">' + esc(c.direccion || '') + '</textarea></label>' +
-        '<div style="flex:3;min-width:300px;display:flex;gap:10px;flex-wrap:wrap">' + campo(c, 'email_facturas', 'Email para FACTURAS', 1, { min: 240, ph: 'varios separados por coma' }) + campo(c, 'email', 'Email para OFERTAS', 1, { min: 240, ph: 'varios separados por coma' }) + '</div></div>' +
+        '<div style="flex:3;min-width:300px;display:flex;gap:10px;flex-wrap:wrap">' + campo(c, 'email_facturas', 'Email para FACTURAS', 1, { min: 240, ph: 'varios separados por coma' }) + campo(c, 'email_albaranes', 'Email para ALBARANES (si es otro)', 1, { min: 240, ph: 'vacío = van con la factura' }) + campo(c, 'email', 'Email para OFERTAS', 1, { min: 240, ph: 'varios separados por coma' }) + '</div></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-end">' + campo(c, 'dias_venc', 'Días de vencimiento', 1, { min: 130, ph: '60' }) +
         '<label style="' + lab + ';flex:1;min-width:170px">Forma de pago<br><select onchange="cliSet(\'' + c.id + '\',\'forma_pago\',this.value)" style="' + inp + '"><option value="">(la de la empresa)</option>' + _FA_PAGOS.map(x => '<option' + (c.forma_pago === x ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
         '<label style="' + lab + ';flex:2;min-width:240px">Al enviarle la factura se adjunta<br><select onchange="cliSet(\'' + c.id + '\',\'envio\',this.value)" style="' + inp + '">' + Object.keys(_CLI_ENVIO).map(k => '<option value="' + k + '"' + ((c.envio || '') === k ? ' selected' : '') + '>' + _CLI_ENVIO[k] + '</option>').join('') + '</select></label>' +
@@ -47504,8 +47504,8 @@ async function cliSet(id, campo, v) {
   let val = String(v == null ? '' : v).trim() || null;
   if (campo === 'nombre') { if (!val) { toast('La razón social no puede quedar vacía', 'err'); _cliPintar(); return; } val = val.toUpperCase(); const otro = _ofCli.find(x => x.id !== id && _ofNrm(x.nombre) === _ofNrm(val)); if (otro) { toast('Ya hay otro cliente con ese nombre', 'err'); _cliPintar(); return; } }
   if (campo === 'dias_venc' && val != null) { const n = parseInt(val, 10); if (!(n > 0 && n <= 365)) { toast('Días de vencimiento: un número entre 1 y 365', 'err'); _cliPintar(); return; } val = n; }
-  if ((campo === 'email' || campo === 'email_facturas') && val) { const partes = val.split(/[,;\s]+/).filter(Boolean), malos = partes.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x)); if (malos.length) { toast('Email mal escrito: ' + malos.join(', '), 'err'); _cliPintar(); return; } val = partes.join(', '); }
-  try { const { error } = await sb.from('clientes_ficha').update({ [campo]: val }).eq('id', id); if (error) throw error; c[campo] = val; toast('Guardado', 'ok'); if (campo === 'nombre' || campo === 'email' || campo === 'email_facturas' || campo === 'dias_venc') _cliPintar(); }
+  if ((campo === 'email' || campo === 'email_facturas' || campo === 'email_albaranes') && val) { const partes = val.split(/[,;\s]+/).filter(Boolean), malos = partes.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x)); if (malos.length) { toast('Email mal escrito: ' + malos.join(', '), 'err'); _cliPintar(); return; } val = partes.join(', '); }
+  try { const { error } = await sb.from('clientes_ficha').update({ [campo]: val }).eq('id', id); if (error) throw error; c[campo] = val; toast('Guardado', 'ok'); if (campo === 'nombre' || campo === 'email' || campo === 'email_facturas' || campo === 'email_albaranes' || campo === 'dias_venc') _cliPintar(); }
   catch (e) { console.error('[v1171] contacto:', e); toast('⚠️ No se pudo guardar: ' + (e.message || e), 'err'); _cliPintar(); }
 }
 async function cliNuevo() {
@@ -48279,7 +48279,8 @@ async function faEnviarAbrir() {
   if (!_fa.id) { toast('Primero guarda la factura (borrador o emitida).', 'err'); return; }   // v1192: el borrador SÍ se puede mandar al cliente para que lo revise (nunca a Quipu)
   if (_fa.guardadaTotal != null && Math.abs(_fa.guardadaTotal - _faTot().total) > 0.005) { toast('Has cambiado la factura: pulsa Guardar cambios antes de enviarla.', 'err'); return; }
   _fe = { para: _fa.email || '', cc: (_faCfg[_fa.empresa] || {}).copia_envio || '', asunto: _faAsunto(), texto: _feTextoDe(_fa), cliente: true, pdf: true, excel: !!_fa.filas.length, alb: !!_fa.filas.length, quipu: true, robot: null, previos: [], estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
-  { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false; }   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
+  { const fc = _ofCliBuscar(_fa.cliente), e = fc && fc.envio; if (e === 'factura') { _fe.excel = false; _fe.alb = false; } else if (e === 'excel') _fe.alb = false; else if (e === 'albaranes') _fe.excel = false;
+    _fe.paraAlb = (fc && fc.email_albaranes) || ''; _fe.separar = !!_fe.paraAlb; }   // v1341 (JC 27/11/2026): cliente con email aparte para ALBARANES (ej. Conexis)   // v1171: lo que ese cliente quiere recibir (Contactos); se puede cambiar en cada envío
   document.getElementById('feOv')?.remove();
   const ov = document.createElement('div'); ov.id = 'feOv';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
@@ -48317,6 +48318,8 @@ function _feRender() {
   const chk = (k, txt, dis, nota) => '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0' + (dis ? ';color:#999' : '') + '"><input type="checkbox"' + (_fe[k] && !dis ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="_fe.' + k + '=this.checked" style="width:17px;height:17px"> <span>' + txt + (nota ? ' <span style="font-size:12px;color:#666">' + nota + '</span>' : '') + '</span></label>';
   h += '<div style="margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:2px">Qué le adjunto al cliente</div>' +
     chk('pdf', 'Factura en PDF', sinCli) + chk('excel', 'Excel con el detalle de albaranes', sinCli || !hayAlb, hayAlb ? '' : '(esta factura no tiene albaranes)') + chk('alb', 'Albaranes en PDF (' + _fa.filas.length + ')', sinCli || !hayAlb, hayAlb ? '' : '') +
+    (hayAlb && !sinCli ? '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px"><label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:800;cursor:pointer"><input type="checkbox"' + (_fe.separar ? ' checked' : '') + ' onchange="_fe.separar=this.checked;_feRender()" style="width:17px;height:17px"> Albaranes y Excel en un correo APARTE</label>' +
+      (_fe.separar ? '<div style="margin-top:4px"><label style="font-size:12px;color:#111">Para los albaranes (email; varios separados por coma)<br><input value="' + _ofEA(_fe.paraAlb || '') + '" oninput="_fe.paraAlb=this.value" style="' + inp + ';font-weight:700"></label><div style="font-size:12px;color:#475569;margin-top:3px">La factura va a «Para» y los albaranes + Excel a este email, en dos correos.</div></div>' : '<div style="font-size:12px;color:#666">desmarcado: todo va junto en el mismo correo</div>') + '</div>' : '') +
     '<div style="border-top:1px solid var(--bd);margin-top:6px;padding-top:6px">' + chk('quipu', 'Copia a Quipu (ingresos)', !(listo && R.quipu) || _fa.estado !== 'emitida', _fa.estado !== 'emitida' ? 'es un BORRADOR: a Quipu solo va la factura EMITIDA' : 'correo aparte, solo con el PDF de la factura') + '</div></div>';
   if (_fe.hecho.length) h += '<div style="margin-top:10px;font-size:13px">' + _fe.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
   h += '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px"><button class="btn bs" onclick="feCerrar()" style="padding:10px 18px;font-weight:800"' + (_fe.enviando ? ' disabled' : '') + '>' + (_fe.hecho.length ? 'Cerrar' : 'Cancelar') + '</button>' +
@@ -48335,20 +48338,33 @@ async function faEnviar() {
     const base = _faBase(); paso('Preparando la factura…');
     const pdf = await _faPdfBytes(), adj = [];
     if (_fe.pdf) adj.push({ nombre: base + '.pdf', tipo: 'application/pdf', base64: _feB64(pdf) });
-    if (_fe.excel && _fa.filas.length) adj.push({ nombre: 'DETALLE ' + base + '.xlsx', tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: _feB64(XLSX.write(_faExcelWb(), { type: 'array', bookType: 'xlsx' })) });
+    if (_fe.excel && _fa.filas.length) adj.push({ alb: true, nombre: 'DETALLE ' + base + '.xlsx', tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: _feB64(XLSX.write(_faExcelWb(), { type: 'array', bookType: 'xlsx' })) });
     let faltan = 0;
     if (_fe.alb && _fa.filas.length) {
       _of = { filas: _fa.filas.map(x => Object.assign({ fuera: false }, x)) };
       const A = await _ofAlbaranesJuntos((i, t) => paso('Juntando albaranes ' + i + '/' + t)); _of = antes; faltan = A.faltan || 0;
-      if (A.bytes) adj.push({ nombre: 'ALBARANES ' + base + '.pdf', tipo: 'application/pdf', base64: _feB64(A.bytes) });
+      if (A.bytes) adj.push({ alb: true, nombre: 'ALBARANES ' + base + '.pdf', tipo: 'application/pdf', base64: _feB64(A.bytes) });
       if (faltan && !confirm('⚠️ ' + faltan + ' albarán(es) no tienen archivo o no se pudieron cargar, así que NO irán en el PDF de albaranes.\n\nAceptar = enviar igual · Cancelar = no enviar')) { _fe.enviando = false; paso(''); return; }
     }
     if (alCliente) {
-      paso('Enviando al cliente…');
-      const r = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: (_fe.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_fa.empresa, _fa.remitente), adjuntos: adj, doc_tipo: 'factura', doc_id: _fa.id });
-      _fe.hecho.push(r.ok ? { ok: true, txt: 'Enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
-      if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy;   // v1170
-      if (r.ok) {   // v1175: la app RECUERDA lo que escribes al enviar
+      // v1341: si el cliente tiene email aparte para ALBARANES, van en un segundo correo (Excel + albaranes PDF)
+      const paraAlb = String(_fe.paraAlb || '').split(/[,;\s]+/).filter(Boolean).join(', '), adjAlb = adj.filter(x => x.alb), separa = _fe.separar && paraAlb && adjAlb.length;
+      if (_fe.separar && adjAlb.length && !paraAlb) { toast('Falta el email para los albaranes (o desmarca «correo aparte»)', 'err'); _fe.enviando = false; paso(''); return; }
+      const adjFac = (separa ? adj.filter(x => !x.alb) : adj).map(x => ({ nombre: x.nombre, tipo: x.tipo, base64: x.base64 }));
+      const pie = '\n\n' + _fePieLegal(_fa.empresa, _fa.remitente);
+      let r = { ok: true, para, sinNada: !adjFac.length };
+      if (adjFac.length) { paso('Enviando la factura al cliente…');
+        const txtFac = separa ? String(_fe.texto || '').replace(/Adjunt(o|amos) la factura y el detalle de los albaranes de los servicios realizados\./, 'Adjuntamos la factura. El detalle de los albaranes se envía en un correo aparte.') : _fe.texto;
+        r = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para, cc: _fe.cc || '', asunto: _fe.asunto.trim(), texto: (txtFac || '').replace(/\s+$/, '') + pie, adjuntos: adjFac, doc_tipo: 'factura', doc_id: _fa.id });
+        _fe.hecho.push(r.ok ? { ok: true, txt: 'Factura enviada a ' + (r.para || para) + (_fe.cc ? ' (copia a ' + _fe.cc + ')' : '') + ' con ' + adjFac.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió al cliente: ' + (r.error || 'error') });
+        if (r.ok && r.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = r.quedan_hoy; }
+      if (separa) { paso('Enviando los albaranes…');
+        const txtAlb = 'Buenos días:\n\nAdjuntamos el detalle de los albaranes correspondientes a la factura ' + _faNumero() + ' de ' + (_LIQ_CLIENTES[_fa.empresa] || _LIQ_CLIENTES.TYP)[0][1] + '.\n\nUn saludo,\nDepartamento de Administración';
+        const ra = await _feLlamar({ empresa: _fa.empresa, desde: _fa.remitente || '', destino: 'cliente', para: paraAlb, asunto: 'Albaranes · ' + _fe.asunto.trim(), texto: txtAlb + pie, adjuntos: adjAlb.map(x => ({ nombre: x.nombre, tipo: x.tipo, base64: x.base64 })), doc_tipo: 'factura', doc_id: _fa.id });
+        _fe.hecho.push(ra.ok ? { ok: true, txt: 'Albaranes enviados a ' + (ra.para || paraAlb) + ' con ' + adjAlb.length + ' adjunto(s)' } : { ok: false, txt: 'NO se enviaron los albaranes: ' + (ra.error || 'error') });
+        if (ra.ok && ra.quedan_hoy != null && _fe.robot) _fe.robot.quedan_hoy = ra.quedan_hoy;
+        if (ra.ok) { try { const fc = _ofCliBuscar(_fa.cliente); if (fc && !fc.email_albaranes) { const { error } = await sb.from('clientes_ficha').update({ email_albaranes: paraAlb }).eq('id', fc.id); if (error) throw error; fc.email_albaranes = paraAlb; } } catch (e) { console.warn('[v1341] recordar email albaranes:', e); } } }
+      if (r.ok && !r.sinNada) {   // v1175: la app RECUERDA lo que escribes al enviar
         const ccN = String(_fe.cc || '').split(/[,;\s]+/).filter(Boolean).join(', '), paraN = para.split(/[,;\s]+/).filter(Boolean).join(', '), cfg = _faCfg[_fa.empresa];
         // "Con copia a": se guarda por empresa y sale puesto en el siguiente envío (si lo borras, se olvida)
         if (cfg && (cfg.copia_envio || '') !== ccN) { try { const { error } = await sb.from('facturas_config').update({ copia_envio: ccN || null }).eq('empresa', _fa.empresa); if (error) throw error; cfg.copia_envio = ccN || null; } catch (e) { console.warn('[v1175] recordar copia:', e); } }
