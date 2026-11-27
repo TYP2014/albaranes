@@ -4566,7 +4566,8 @@ async function processQueue(type) {
 // v1352 — Aviso de ALBARÁN YA SUBIDO (no bloquea la cola)
 // ============================================================
 async function _albYaSubidos1352(results) {
-  const norm = v => String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, '').replace(/^0+/, '');
+  // v1353: "N-26933" y "26933" son el mismo albarán → si tiene 5 cifras o más se comparan solo las cifras
+  const norm = v => { const t = String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ''); const d = t.replace(/\D/g, ''); return (d.length >= 5 ? d : t).replace(/^0+/, ''); };
   const pv1 = v => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s,.]+/).filter(Boolean)[0] || '';
   const fec = v => { try { return normFecha(v); } catch (e) { return String(v || ''); } };
   const out = [];

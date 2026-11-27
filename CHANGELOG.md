@@ -1,3 +1,6 @@
+## v1353 — 27/11/2026 · Aviso de ya subido: "N-26933" = "26933"
+- El aviso de la v1352 también reconoce el albarán aunque uno lleve letras delante (N-, SN-, AR-…) y el otro no: si tiene 5 cifras o más se comparan solo las cifras (y además tiene que coincidir la fecha o el proveedor).
+
 ## v1352 — 27/11/2026 · Aviso de albarán ya subido (sin parar la subida)
 - Al subir albaranes, si uno ya estaba en la app (mismo nº y misma fecha o proveedor), sale un aviso pequeño abajo a la derecha: "⚠️ Este albarán ya está subido" con dos botones, **No subir** y **Subir igual**.
 - Si en **20 segundos** nadie contesta, se sube igual y queda marcado como DUPLICADO (no cuenta), como hasta ahora.
