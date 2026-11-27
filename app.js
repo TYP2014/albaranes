@@ -4562,6 +4562,61 @@ async function processQueue(type) {
   }
 }
 
+// ============================================================
+// v1352 — Aviso de ALBARÁN YA SUBIDO (no bloquea la cola)
+// ============================================================
+async function _albYaSubidos1352(results) {
+  const norm = v => String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, '').replace(/^0+/, '');
+  const pv1 = v => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[\s,.]+/).filter(Boolean)[0] || '';
+  const fec = v => { try { return normFecha(v); } catch (e) { return String(v || ''); } };
+  const out = [];
+  for (const data of results) {
+    if (!data || !data.albaran) continue;
+    const n = norm(data.albaran);
+    if (!n || n.length < 3) continue;
+    let cand = (records || []).filter(r => r && r.albaran && norm(r.albaran) === n);
+    if (!cand.length) {
+      try {
+        const raw = String(data.albaran).trim();
+        const vals = Array.from(new Set([raw, n]));
+        const { data: bd } = await sb.from('albaranes').select('albaran, fecha, proveedor, tm, created_at').in('albaran', vals).limit(20);
+        cand = bd || [];
+      } catch (e) {}
+    }
+    const igual = cand.find(r => fec(r.fecha) === fec(data.fecha) || (pv1(r.proveedor) && pv1(r.proveedor) === pv1(data.proveedor)));
+    if (igual) out.push({ data, ya: igual });
+  }
+  return out;
+}
+function _avisoDupAlb1352(nombre, dups) {
+  return new Promise(resolve => {
+    let cont = document.getElementById('dupAlbAvisos');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'dupAlbAvisos';
+      cont.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;display:flex;flex-direction:column;gap:8px;max-width:420px';
+      document.body.appendChild(cont);
+    }
+    const caja = document.createElement('div');
+    caja.style.cssText = 'background:#fff8e1;border:2px solid #ff8c00;border-radius:10px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:13px;color:#222';
+    const lista = dups.map(d => '<b>Nº ' + String(d.data.albaran).replace(/</g, '&lt;') + '</b>' + (d.ya && d.ya.fecha ? ' (ya está, fecha ' + String(d.ya.fecha).replace(/</g, '&lt;') + ')' : '')).join('<br>');
+    let seg = 20;
+    caja.innerHTML = '<div style="font-weight:800;margin-bottom:4px">⚠️ Este albarán ya está subido</div>' +
+      '<div style="margin-bottom:6px">' + String(nombre || '').replace(/</g, '&lt;') + '<br>' + lista + '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<button class="btn" data-a="no" style="background:#c62828;color:#fff;border:none;padding:6px 12px;font-weight:700">No subir</button>' +
+      '<button class="btn" data-a="si" style="background:#fff;border:1px solid #888;padding:6px 12px">Subir igual</button>' +
+      '<span data-t style="color:#666">Se sube solo (como duplicado) en ' + seg + ' s</span></div>';
+    cont.appendChild(caja);
+    let hecho = false;
+    const fin = (v) => { if (hecho) return; hecho = true; clearInterval(tm); caja.remove(); resolve(v); };
+    caja.querySelector('[data-a="no"]').onclick = () => fin(false);
+    caja.querySelector('[data-a="si"]').onclick = () => fin(true);
+    const t = caja.querySelector('[data-t]');
+    const tm = setInterval(() => { seg--; if (seg <= 0) return fin(true); t.textContent = 'Se sube solo (como duplicado) en ' + seg + ' s'; }, 1000);
+  });
+}
+
 async function _processOne(it, type, key, timeoutMs) {
   it.status = 'processing';
   renderQueues();
@@ -4790,6 +4845,27 @@ async function _processOne(it, type, key, timeoutMs) {
           }
         }
       } catch (e) { console.warn('[v1099] comprobación de factura ya subida:', e); }
+    }
+
+    // v1352 (JC 27/11/2026): ALBARÁN YA SUBIDO → aviso pequeño que NO para la subida.
+    // Si en 20 s nadie contesta, se sube igual (queda marcado como DUPLICADO y no cuenta).
+    // "No subir" lo descarta. Cada archivo pregunta por su cuenta: los demás siguen subiéndose.
+    if (type === 'alb' && Array.isArray(results) && results.length) {
+      try {
+        const _dupsAlb = await _albYaSubidos1352(results);
+        if (_dupsAlb.length) {
+          const _subir = await _avisoDupAlb1352(it && it.name, _dupsAlb);
+          if (!_subir) {
+            const _ids = new Set(_dupsAlb.map(d => d.data));
+            results = results.filter(d => !_ids.has(d));
+            if (!results.length) {
+              it.status = 'done';
+              try { toast('⏭ ' + (it.name || 'Albarán') + ': ya estaba subido, no se ha guardado', 'warn'); } catch (e) {}
+              return false;
+            }
+          }
+        }
+      } catch (e) { console.warn('[v1352] comprobación de albarán ya subido:', e); }
     }
 
     for (const data of results) {

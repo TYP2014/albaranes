@@ -1,3 +1,8 @@
+## v1352 — 27/11/2026 · Aviso de albarán ya subido (sin parar la subida)
+- Al subir albaranes, si uno ya estaba en la app (mismo nº y misma fecha o proveedor), sale un aviso pequeño abajo a la derecha: "⚠️ Este albarán ya está subido" con dos botones, **No subir** y **Subir igual**.
+- Si en **20 segundos** nadie contesta, se sube igual y queda marcado como DUPLICADO (no cuenta), como hasta ahora.
+- El aviso NO para la cola: los demás albaranes se siguen leyendo y guardando mientras tanto. Si hay varios repetidos, sale un aviso por cada archivo.
+
 ## v1351 — 27/11/2026 · Icono de TACÓGRAFO más claro
 - Vuelta al reloj clásico de esfera clara (el que eligió Juan Carlos): borde negro, esfera blanca, rayas y números en negro, aguja roja y cuentakilómetros. Se ve mejor en pequeño que el de esfera negra.
 
