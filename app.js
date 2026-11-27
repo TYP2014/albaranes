@@ -6763,7 +6763,23 @@ function _jsonRespuestaIA(text) {
     const fin = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
     if (ini >= 0 && fin > ini) {
       const recorte = text.slice(ini, fin + 1);
-      const parsed = JSON.parse(recorte); // si también falla, lanza (igual que antes)
+      let parsed;
+      try { parsed = JSON.parse(recorte); }
+      catch (e1) {
+        // v1346: la IA a veces pone el JSON y DESPUÉS más texto con llaves (nota, segundo bloque…).
+        // Se corta el PRIMER bloque completo contando llaves/corchetes (respetando los textos entre comillas).
+        let prof = 0, enTxt = false, esc = false, finB = -1;
+        for (let k = ini; k < text.length; k++) {
+          const ch = text[k];
+          if (enTxt) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') enTxt = false; continue; }
+          if (ch === '"') enTxt = true;
+          else if (ch === '{' || ch === '[') prof++;
+          else if (ch === '}' || ch === ']') { prof--; if (prof === 0) { finB = k; break; } }
+        }
+        if (finB < 0) throw e0;
+        parsed = JSON.parse(text.slice(ini, finB + 1));   // si también falla, lanza (igual que antes)
+        console.warn('[v1346] La IA puso texto DETRÁS del JSON — se usa solo el primer bloque');
+      }
       console.warn('[v315] La IA contestó con texto delante del JSON — recortado y recuperado (' + text.slice(0, 40).replace(/\s+/g, ' ') + '...)');
       return parsed;
     }
