@@ -1,3 +1,6 @@
+## v1342 — 27/11/2026
+- Albaranes > SELECCIÓN: botón nuevo "📧 Enviar por email". Manda los albaranes marcados (PDF todos juntos + Excel de detalle SIN precios) desde la app, por el mismo sistema que las facturas. Se elige la empresa que envía (sale la del transportista que más se repite) y el buzón. "Para" sale con el email de ALBARANES del cliente en Contactos (o el de facturas). Queda apuntado en correos_enviados (doc_tipo 'albaranes').
+
 ## v1341 — 27/11/2026
 - Contactos: campo nuevo "Email para ALBARANES (si es otro)" (columna nueva `email_albaranes` en clientes_ficha). Conexis: f.fernande@conexistransports.com.
 - Enviar factura por correo: si el cliente tiene email de albaranes, sale marcada la casilla "Albaranes y Excel en un correo APARTE": la factura va a «Para» y los albaranes en PDF + Excel a ese otro email, en dos correos. Se puede desmarcar o cambiar el email en cada envío.

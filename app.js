@@ -2776,6 +2776,8 @@ function _toggleModoSel() {
   if (btnRec) btnRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
   const btnNoRec = document.getElementById('btnNoRecibidaSel');
   if (btnNoRec) btnNoRec.style.display = (window._modoSel && _puedeBor) ? 'flex' : 'none';
+  const btnAe = document.getElementById('btnEmailSel');   // v1342: enviar albaranes por email (oficina)
+  if (btnAe) btnAe.style.display = (window._modoSel && _ofPuede()) ? 'flex' : 'none';
   const btnFa = document.getElementById('btnFacturaSel');   // v1150: crear factura
   if (btnFa) btnFa.style.display = (window._modoSel && _ofPuede()) ? 'flex' : 'none';
   const btnOf = document.getElementById('btnOfertaSel');   // v1133: crear oferta (Admin/Marta/MdM)
@@ -48384,6 +48386,94 @@ async function faEnviar() {
     try { const { data } = await sb.from('correos_enviados').select('created_at,para,destino,ok,adjuntos,error').eq('doc_tipo', 'factura').eq('doc_id', _fa.id).order('created_at', { ascending: false }).limit(20); if (_fe) _fe.previos = data || []; } catch (e) {}
   } catch (e) { console.error('[v1169] enviar factura:', e); if (_fe) _fe.hecho.push({ ok: false, txt: 'Error: ' + (e.message || e) }); toast('⚠️ No se pudo enviar: ' + (e.message || e), 'err'); }
   finally { _of = antes; if (_fe) { _fe.enviando = false; _fe.estado = ''; _feRender(); } }
+}
+
+// ============================================================================
+// v1342 (JC 27/11/2026): ENVIAR ALBARANES POR EMAIL DESDE LA APP.
+// En Albaranes > SELECCIÓN, botón "Enviar por email": manda los albaranes marcados (PDF juntos en uno + Excel
+// sencillo SIN precios) por el mismo "portero del correo" que las facturas. Para: el email de ALBARANES del
+// cliente en Contactos (o el de facturas). Queda apuntado en correos_enviados (doc_tipo 'albaranes').
+// ============================================================================
+let _ae = null;
+async function _albEnviarSeleccion() {
+  if (!_ofPuede()) { toast('No tienes permiso para enviar correos', 'err'); return; }
+  const ids = Array.from(document.querySelectorAll('.chk-sel:checked')).map(c => c.getAttribute('data-id')).filter(Boolean);
+  const recs = []; ids.forEach(id => { const r = records.find(x => String(x.db_id) === String(id) || String(x._id) === String(id)); if (r && r.db_id) recs.push(r); });
+  if (!recs.length) { toast('No has marcado ningún albarán guardado.', 'err'); return; }
+  await _ofCliCargar(); if (!_faCfg || !Object.keys(_faCfg).length) { try { await _faCargarCfg(); } catch (e) {} }
+  const cc = {}; recs.forEach(r => { const c = _ofCliFactura(r.cliente); if (c) cc[c] = (cc[c] || 0) + 1; });
+  const cli = Object.keys(cc).sort((a, b) => cc[b] - cc[a])[0] || '', fc = cli ? _ofCliBuscar(cli) : null;
+  const nHis = recs.filter(r => /HISPALIS/i.test(r.transportista || '')).length, emp = nHis > recs.length / 2 ? 'HISPALIS' : 'TYP';
+  const F = recs.map(_ofFilaDe).sort((a, b) => a.fecha.localeCompare(b.fecha)), f1 = F[0].fecha, f2 = F[F.length - 1].fecha;
+  const rango = f1 === f2 ? _ofFechaEs(f1) : _ofFechaEs(f1) + ' al ' + _ofFechaEs(f2);
+  _ae = { filas: F, cliente: fc ? fc.nombre : cli, empresa: emp, desde: (_faRemitentes(emp)[0] || ''), para: fc ? (fc.email_albaranes || fc.email_facturas || '') : '', cc: '',
+    asunto: 'Albaranes ' + (fc ? fc.nombre + ' ' : '') + rango, texto: 'Buenos días:\n\nAdjuntamos ' + (F.length === 1 ? 'el albarán' : 'los ' + F.length + ' albaranes') + ' de los servicios realizados (' + rango + ') y el Excel con su detalle.\n\nUn saludo,\nDepartamento de Administración',
+    pdf: true, excel: true, robot: null, estado: 'Comprobando el correo de envío…', enviando: false, hecho: [] };
+  document.getElementById('aeOv')?.remove();
+  const ov = document.createElement('div'); ov.id = 'aeOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 8px';
+  ov.innerHTML = '<div id="aeBox" style="background:#fff;border-radius:12px;padding:18px 20px;width:calc(min(760px,94vw) / 1.2);zoom:1.2;box-shadow:0 10px 30px rgba(0,0,0,.3)"></div>';
+  document.body.appendChild(ov); _aeRender(); _aePing();
+}
+async function _aePing() { if (!_ae) return; _ae.robot = null; _ae.estado = 'Comprobando el correo de envío…'; _aeRender();
+  const r = await _feLlamar({ empresa: _ae.empresa, desde: _ae.desde || '', ping: true }); if (!_ae) return; _ae.robot = r; _ae.estado = ''; _aeRender(); }
+function aeCerrar() { if (_ae && _ae.enviando) return; document.getElementById('aeOv')?.remove(); _ae = null; }
+function _aeRender() {
+  const box = document.getElementById('aeBox'); if (!box || !_ae) return;
+  const inp = 'padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:14px;width:100%;font-family:inherit', R = _ae.robot, listo = R && R.ok, rem = _faRemitentes(_ae.empresa);
+  const tm = _ae.filas.reduce((a, x) => a + (Number(x.tm) || 0), 0);
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:18px;font-weight:800">Enviar ' + _ae.filas.length + ' albarán(es) por email</div><button class="btn bs" onclick="aeCerrar()" style="padding:8px 14px;font-weight:800">Cerrar</button></div>' +
+    '<div style="margin-top:4px;font-size:13px;color:#111">' + (_ae.cliente ? 'Cliente: <b>' + esc(_ae.cliente) + '</b> · ' : '') + _ofR3(tm).toLocaleString('es-ES') + ' TN</div>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"><label style="font-size:12px;color:#111;flex:1;min-width:200px">Envía la empresa<br><select onchange="_ae.empresa=this.value;_ae.desde=(_faRemitentes(this.value)[0]||\'\');_aePing()" style="' + inp + '">' +
+    Object.keys(_OF_EMPRESAS).map(e => '<option value="' + e + '"' + (_ae.empresa === e ? ' selected' : '') + '>' + esc(_OF_EMPRESAS[e]) + '</option>').join('') + '</select></label>' +
+    (rem.length > 1 ? '<label style="font-size:12px;color:#111;flex:1;min-width:200px">Desde<br><select onchange="_ae.desde=this.value;_aePing()" style="' + inp + '">' + rem.map(x => '<option' + (_ae.desde === x ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' : '') + '</div>';
+  if (_ae.estado) h += '<div style="margin-top:8px;font-size:13px;color:#444">' + esc(_ae.estado) + '</div>';
+  if (R && !R.ok) h += '<div style="margin-top:8px;background:rgba(198,40,40,.08);border:1px solid #c62828;border-radius:8px;padding:8px 12px;font-size:13px;color:#8b1a1a"><b>No se puede enviar desde esta empresa:</b> ' + esc(R.error || '') + '</div>';
+  if (listo) h += '<div style="margin-top:8px;font-size:13px">Sale desde <b>' + esc(R.remitente || R.cuenta || '') + '</b>' + (R.via ? ' <span style="color:#666">· ' + esc(R.via) + '</span>' : '') + '</div>';
+  h += '<div style="margin-top:10px"><label style="font-size:12px;color:#111">Para (varios separados por coma)<br><input value="' + _ofEA(_ae.para) + '" oninput="_ae.para=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Con copia a (opcional)<br><input value="' + _ofEA(_ae.cc) + '" oninput="_ae.cc=this.value" style="' + inp + '"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Asunto<br><input value="' + _ofEA(_ae.asunto) + '" oninput="_ae.asunto=this.value" style="' + inp + ';font-weight:700"></label></div>' +
+    '<div style="margin-top:8px"><label style="font-size:12px;color:#111">Texto del correo<br><textarea rows="7" oninput="_ae.texto=this.value" style="' + inp + ';font-size:15px;line-height:1.45">' + esc(_ae.texto) + '</textarea></label></div>' +
+    '<div style="margin-top:10px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><div style="font-weight:800;font-size:13px">Qué se adjunta</div>' +
+    '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0"><input type="checkbox"' + (_ae.pdf ? ' checked' : '') + ' onchange="_ae.pdf=this.checked" style="width:17px;height:17px"> Albaranes en PDF (todos en un archivo)</label>' +
+    '<label style="display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0"><input type="checkbox"' + (_ae.excel ? ' checked' : '') + ' onchange="_ae.excel=this.checked" style="width:17px;height:17px"> Excel con el detalle (fecha, nº, matrícula, origen, destino, material, TN · sin precios)</label></div>';
+  if (_ae.hecho.length) h += '<div style="margin-top:10px;font-size:13px">' + _ae.hecho.map(x => '<div style="padding:3px 0;font-weight:700;color:' + (x.ok ? '#15803d' : '#c62828') + '">' + esc(x.txt) + '</div>').join('') + '</div>';
+  h += '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px"><button class="btn bs" onclick="aeCerrar()" style="padding:10px 18px;font-weight:800"' + (_ae.enviando ? ' disabled' : '') + '>' + (_ae.hecho.length ? 'Cerrar' : 'Cancelar') + '</button>' +
+    '<button class="btn" onclick="aeEnviar()" style="padding:10px 22px;font-weight:800;background:' + (listo && !_ae.enviando ? '#1b3254' : '#9aa5b5') + ';color:#fff"' + (listo && !_ae.enviando ? '' : ' disabled') + '>' + (_ae.enviando ? 'Enviando…' : 'Enviar') + '</button></div>';
+  box.innerHTML = h;
+}
+function _aeExcel(F) {
+  const A = [['DETALLE DE ALBARANES'], [(_LIQ_CLIENTES[_ae.empresa] || _LIQ_CLIENTES.TYP)[0][1]], _ae.cliente ? ['Cliente: ' + _ae.cliente] : [], [], ['FECHA', 'Nº ALBARÁN', 'MATRÍCULA', 'ORIGEN', 'DESTINO', 'MATERIAL', 'TONELADAS']];
+  F.forEach(x => A.push([_ofFechaEs(x.fecha), String(x.albaran || ''), x.tractora || '', x.origen || '', x.destino || '', x.producto || '', _ofR3(x.tm)]));
+  A.push(['', '', '', '', '', 'TOTAL', _ofR3(F.reduce((a, x) => a + (Number(x.tm) || 0), 0))]);
+  const ws = XLSX.utils.aoa_to_sheet(A); ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 26 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ALBARANES'); return XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+}
+async function aeEnviar() {
+  if (!_ae || _ae.enviando) return;
+  const para = String(_ae.para || '').trim();
+  if (!para) { toast('Falta el email', 'err'); return; }
+  if (!_ae.pdf && !_ae.excel) { toast('No has marcado nada para adjuntar', 'err'); return; }
+  if (!String(_ae.asunto || '').trim()) { toast('Falta el asunto', 'err'); return; }
+  _ae.enviando = true; _ae.hecho = []; const paso = t => { if (_ae) { _ae.estado = t; _aeRender(); } };
+  const antes = _of;
+  try {
+    const nom = String(_ae.asunto).replace(/[\\/:*?"<>|]/g, '-').slice(0, 90).trim(), adj = [];
+    if (_ae.excel) adj.push({ nombre: nom + '.xlsx', tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: _feB64(_aeExcel(_ae.filas)) });
+    if (_ae.pdf) {
+      _of = { filas: _ae.filas.map(x => Object.assign({}, x, { fuera: false })) };
+      const A = await _ofAlbaranesJuntos((i, t) => paso('Juntando albaranes ' + i + '/' + t)); _of = antes;
+      if (A.faltan && !confirm('⚠️ ' + A.faltan + ' albarán(es) no tienen archivo o no se pudieron cargar y NO irán en el PDF.\n\nAceptar = enviar igual · Cancelar = no enviar')) { _ae.enviando = false; paso(''); return; }
+      if (A.bytes) adj.push({ nombre: nom + '.pdf', tipo: 'application/pdf', base64: _feB64(A.bytes) });
+    }
+    paso('Enviando…');
+    const r = await _feLlamar({ empresa: _ae.empresa, desde: _ae.desde || '', destino: 'cliente', para, cc: _ae.cc || '', asunto: _ae.asunto.trim(), texto: String(_ae.texto || '').replace(/\s+$/, '') + '\n\n' + _fePieLegal(_ae.empresa, _ae.robot && _ae.robot.remitente), adjuntos: adj, doc_tipo: 'albaranes' });
+    _ae.hecho.push(r.ok ? { ok: true, txt: 'Enviado a ' + (r.para || para) + (_ae.cc ? ' (copia a ' + _ae.cc + ')' : '') + ' con ' + adj.length + ' adjunto(s)' } : { ok: false, txt: 'NO se envió: ' + (r.error || 'error') });
+    toast(r.ok ? 'Albaranes enviados' : '⚠️ No se envió: ' + (r.error || 'error'), r.ok ? 'ok' : 'err');
+    if (r.ok) { try { const fc = _ae.cliente ? _ofCliBuscar(_ae.cliente) : null, paraN = para.split(/[,;\s]+/).filter(Boolean).join(', ');
+      if (fc && !fc.email_albaranes && !fc.email_facturas && paraN) { const { error } = await sb.from('clientes_ficha').update({ email_albaranes: paraN }).eq('id', fc.id); if (error) throw error; fc.email_albaranes = paraN; } } catch (e) { console.warn('[v1342] recordar email:', e); } }
+  } catch (e) { console.error('[v1342] enviar albaranes:', e); if (_ae) _ae.hecho.push({ ok: false, txt: 'Error: ' + (e.message || e) }); toast('⚠️ No se pudo enviar: ' + (e.message || e), 'err'); }
+  finally { _of = antes; if (_ae) { _ae.enviando = false; _ae.estado = ''; _aeRender(); } }
 }
 
 // ============================================================

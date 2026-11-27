@@ -268,6 +268,7 @@ if (typeof pdfjsLib !== 'undefined') {
             <button class="btn" id="btnAnexosSel" onclick="_descargarAnexosSeleccionados()" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--ac);color:var(--ac);font-weight:700" title="Descargar en un ZIP los anexos de los albaranes seleccionados (una carpeta por albarán)">📎 Anexos ZIP (<span id="selCountAnexos">0</span>)</button>
             <button class="btn" id="btnRecibidaSel" onclick="_recibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:var(--pu);color:#fff;font-weight:800" title="Marcar que el transportista YA NOS HA FACTURADO estos albaranes">📥 Nos han facturado (<span id="selCountRec">0</span>)</button>
             <button class="btn" id="btnOfertaSel" onclick="_ofCrearDesdeSeleccion()" style="display:none;align-items:center;gap:5px;background:#1b3254;color:#fff;font-weight:800;border-color:#1b3254" title="Meter los albaranes seleccionados en una OFERTA nueva (se agrupan en conceptos con su precio)">Crear oferta (<span id="selCountOf">0</span>)</button>
+            <button class="btn" id="btnEmailSel" onclick="_albEnviarSeleccion()" style="display:none;align-items:center;gap:5px;background:#0f766e;color:#fff;font-weight:800;border-color:#0f766e" title="Enviar por email los albaranes seleccionados (PDF juntos + Excel sin precios)">📧 Enviar por email</button>
             <button class="btn" id="btnFacturaSel" onclick="_faCrearDesdeSeleccion()" style="display:none;align-items:center;gap:5px;background:#fff;color:#1b3254;font-weight:800;border:2px solid #1b3254" title="Hacer una FACTURA nueva con los albaranes seleccionados (un concepto por ruta, con sus TN)">Crear factura (<span id="selCountFa">0</span>)</button>
             <button class="btn" id="btnFacturaIntSel" onclick="_fiAbrir()" style="display:none;align-items:center;gap:5px;background:#4c1d95;color:#fff;font-weight:800" title="Solo Admin: meter los seleccionados en la factura de Híspalis o Transmargaz del mes, en la pestaña que elijas">🧾 A factura Híspalis / Transmargaz (<span id="selCountFI">0</span>)</button>
             <button class="btn" id="btnNoRecibidaSel" onclick="_noRecibidaSeleccionados()" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--pu);color:var(--pu);font-weight:700" title="Quitar la marca: pendiente de que nos facturen">↩ Pendiente facturarnos (<span id="selCountNoRec">0</span>)</button>
@@ -2257,6 +2258,6 @@ if (typeof pdfjsLib !== 'undefined') {
 </div>
 
 <!-- v1002: quitado el rotulo gris de tiempos de arranque (v992/v993). -->
-<script src="app.js?v=1341"></script>
+<script src="app.js?v=1342"></script>
 </body>
 </html>
