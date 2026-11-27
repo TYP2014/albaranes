@@ -1,3 +1,7 @@
+## v1343 — 27/11/2026 · Primas: "traer viajes" ya no borra lo escrito
+- Arreglo: al traer viajes de albaranes, si la casilla no estaba en pantalla o vacía, se guardaba en blanco y se perdían "Lo que dice el conductor", Notas y la prima (pasó con José Antonio Sánchez, 39 días; se restauró del 1/10 al 19/11 desde la copia del 22/11).
+- Ahora vale lo ya guardado y, además, un freno vuelve a leer la base de datos antes de guardar: nunca deja en blanco texto ni prima puesta a mano.
+
 ## v1342 — 27/11/2026
 - Albaranes > SELECCIÓN: botón nuevo "📧 Enviar por email". Manda los albaranes marcados (PDF todos juntos + Excel de detalle SIN precios) desde la app, por el mismo sistema que las facturas. Se elige la empresa que envía (sale la del transportista que más se repite) y el buzón. "Para" sale con el email de ALBARANES del cliente en Contactos (o el de facturas). Queda apuntado en correos_enviados (doc_tipo 'albaranes').
 

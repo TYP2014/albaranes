@@ -29576,6 +29576,32 @@ async function _primasAusenciasAuto() {
   if (filas.length) { await _primasUpsert(filas); console.log('[v802 primas] ausencias escritas', filas.length); }
 }
 
+// v1343: FRENO. "Traer viajes de albaranes" NUNCA puede vaciar lo ya escrito.
+// El 27/11/2026 dejó en blanco "Lo que dice el conductor", Notas y la prima de
+// 39 días de un trabajador. Antes de guardar se vuelve a leer lo que hay en la
+// base de datos y, si la fila nueva trae vacío algo que ya tenía texto, se queda lo de antes.
+async function _primasProteger1343(filas) {
+  if (!filas || !filas.length) return;
+  const porTrab = {};
+  filas.forEach(f => { const t = String(f.trabajador_id); (porTrab[t] = porTrab[t] || []).push(String(f.fecha).slice(0, 10)); });
+  const hay = {};
+  for (const t of Object.keys(porTrab)) {
+    const fs = porTrab[t].sort();
+    const q = await sb.from('primas_partes').select('fecha,parte_conductor,notas,trabajo,clientes,prima,prima_auto').eq('trabajador_id', t).gte('fecha', fs[0]).lte('fecha', fs[fs.length - 1]);
+    if (q.error) throw q.error;   // si no se puede comprobar, NO se guarda
+    (q.data || []).forEach(r => { hay[t + '|' + String(r.fecha).slice(0, 10)] = r; });
+  }
+  let n = 0;
+  filas.forEach(f => {
+    const a = hay[String(f.trabajador_id) + '|' + String(f.fecha).slice(0, 10)]; if (!a) return;
+    ['parte_conductor', 'notas', 'trabajo', 'clientes'].forEach(k => {
+      if (k in f && (f[k] == null || String(f[k]).trim() === '') && a[k] != null && String(a[k]).trim() !== '') { f[k] = a[k]; n++; }
+    });
+    if ('prima' in f && _primasNum(f.prima) === 0 && _primasNum(a.prima) > 0 && !a.prima_auto) { f.prima = a.prima; n++; }
+  });
+  if (n) console.warn('[v1343 primas] freno: se conservaron', n, 'datos ya escritos que iban a quedar en blanco');
+}
+
 async function _primasUpsert(filas) {
   const { data, error } = await sb.from('primas_partes').upsert(filas, { onConflict: 'trabajador_id,fecha' }).select();
   if (error) throw error;
@@ -29892,7 +29918,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
       const lista = vehsDe(iso); if (!lista.length) continue;
       const veh = lista.join(' + ');
       const previa = primasRows[iso] || {};
-      const g = (k) => { if (_todos) { const v0 = previa[k]; return v0 == null ? '' : String(v0).trim(); } const x = document.getElementById('pr_' + k + '_' + iso); return x ? String(x.value || '').trim() : ''; };   // v727: en TODOS se lee lo guardado
+      const g = (k) => { const v0 = previa[k]; const pv = v0 == null ? '' : String(v0).trim(); if (_todos) return pv; const x = document.getElementById('pr_' + k + '_' + iso); const dv = x ? String(x.value || '').trim() : ''; return dv || pv; };   // v727: en TODOS se lee lo guardado · v1343: si la casilla no está en pantalla o está vacía, vale lo GUARDADO (antes se borraba)
       let dia = null;
       lista.forEach(v1 => {                                   // v671: suma de todos los camiones que llevo ese dia
         const d1 = porVehDia[v1 + '|' + iso]; if (!d1) return;
@@ -29959,7 +29985,7 @@ async function primasTraerAlbaranes(soloIso, _opt) {
       if (!_ok) _v726Pisados.forEach(x => { const r0 = aGuardar.find(o => o.fecha === x.iso); if (r0) r0.trabajo = x.antes || null; });
       console.log('[v726 primas] textos distintos en bloque', _v726Pisados.length, _ok ? 'CAMBIADOS' : 'dejados');
     }
-    if (aGuardar.length) { await _primasUpsert(aGuardar); renderPrimas(); }   // v670: repinta para enseñar desglose y primas puestas por la app
+    if (aGuardar.length) { await _primasProteger1343(aGuardar); await _primasUpsert(aGuardar); renderPrimas(); }   // v1343   // v670: repinta para enseñar desglose y primas puestas por la app
     _primasPintaTotales();
     const msg = aGuardar.length ? ('Rellenado' + (aGuardar.length === 1 ? ' 1 día' : 's ' + aGuardar.length + ' días') + ' desde albaranes') : (soloIso ? (_v730Hay ? 'Ese día ya está al día con los albaranes' : 'Ese día no hay albaranes de ' + vehs[0]) : 'Nada nuevo que rellenar');
     _primasEstado('✓ ' + msg);
@@ -30031,6 +30057,7 @@ async function primasTraerTodos() {
       console.log('[v727 primas] textos distintos', pisados.length, ok ? 'CAMBIADOS' : 'dejados');
     }
     let filas = [].concat.apply([], res.map(x => x.o.aGuardar));
+    await _primasProteger1343(filas);   // v1343: nunca vaciar lo ya escrito
     const _v737Malas = filas.filter(f => !f.trabajador_id);   // v737: nunca mandar una fila sin trabajador (error uuid "" del 29/09)
     if (_v737Malas.length) { console.warn('[v737 primas] filas sin trabajador descartadas', _v737Malas.length); filas = filas.filter(f => !!f.trabajador_id); }
     for (let i = 0; i < filas.length; i += 200) {
