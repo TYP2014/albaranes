@@ -1,3 +1,6 @@
+## v1348 — 27/11/2026 · Icono de TACÓGRAFO con el selector
+- Abajo del icono, como en el tacógrafo de disco: los dos botones del selector de actividad (conductor 2 y 1) con sus tres posiciones en pequeño (descanso/cama, disponibilidad y otros trabajos) y el cuentakilómetros en medio.
+
 ## v1347 — 27/11/2026 · Icono de TACÓGRAFO más completo
 - El icono de la pestaña lleva ahora, como el tacógrafo de disco de siempre: esfera negra con números, aguja naranja, el relojito de dentro, el cuentakilómetros (km) y los símbolos del selector de actividad (cama / otros trabajos). Un poco más grande que el de la v1345.
 
