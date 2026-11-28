@@ -3800,12 +3800,19 @@ async function addFiles(files, type) {
       // Anthropic limita a 5 MB en base64 → comprimimos a 4 MB para tener margen.
       // Esto es típico de fotos hechas con el móvil (suelen pesar 3-8 MB en JPG).
       let imgFile = f;
-      if (!isPdf && f.size > 4 * 1024 * 1024) {
+      // v1356 (JC 28/11/2026, fotos de autónomos desde el móvil): antes solo se comprimía si pasaba
+      // de 4 MB, pero 4 MB de foto son ~5,3 MB al enviarla a la IA (más que su límite de 5 MB) y las
+      // fotos de iPhone (HEIC) o raras (webp…) no se convertían → "de 5 fotos subía 1".
+      // Ahora TODA foto que no sea JPG/PNG ligera se pasa a JPG de ≤1,5 MB (2000 px, bien girada).
+      const _tipoOk1356 = /^image\/(jpeg|jpg|png)$/i.test(f.type || '') && !/\.(heic|heif)$/i.test(f.name || '');
+      if (!isPdf && (!_tipoOk1356 || f.size > 1.5 * 1024 * 1024)) {
         try {
-          imgFile = await comprimirImagen(f, 4 * 1024 * 1024);
+          imgFile = await comprimirImagen(f, 1.5 * 1024 * 1024);
           console.log(`[addFiles] Imagen comprimida: ${(f.size/1024/1024).toFixed(1)}MB → ${(imgFile.size/1024/1024).toFixed(1)}MB`);
         } catch (e) {
-          console.warn('[addFiles] No se pudo comprimir, usando original:', e);
+          // v1356: que quede en el chivato con el tipo y el tamaño, para saber qué móvil/formato falla
+          console.error('[v1356 foto] No se pudo convertir "' + f.name + '" (' + (f.type || 'sin tipo') + ', ' + (f.size / 1024 / 1024).toFixed(1) + ' MB): ' + (e && e.message || e));
+          if (!_tipoOk1356) { try { toast('⚠️ La foto "' + f.name + '" tiene un formato que este móvil no deja convertir. Prueba a hacerla otra vez desde la cámara de la app.', 'err'); } catch (e2) {} }
         }
       }
       const b64 = await new Promise((res, rej) => {
@@ -3823,7 +3830,7 @@ async function addFiles(files, type) {
       // b64 quedaba vacío/undefined y se mandaba igual a la API → error 400.
       // Ahora si b64 no es un string válido, NO añadimos a la cola y avisamos.
       if (!b64 || typeof b64 !== 'string' || b64.length < 50) {
-        console.error('[addFiles] base64 inválido para', f.name, '— no se añade a la cola');
+        console.error('[addFiles] base64 inválido para', f.name, '(' + (f.type || 'sin tipo') + ', ' + ((f.size || 0) / 1024 / 1024).toFixed(1) + ' MB) — no se añade a la cola');   // v1356: con tipo y tamaño
         toast(`⚠️ No se pudo leer "${f.name}". Prueba a subirlo como foto (JPG) en vez de PDF, o vuelve a intentarlo.`, 'err');
         continue;
       }

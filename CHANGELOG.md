@@ -1,3 +1,8 @@
+## v1356 — 28/11/2026 · Fotos del móvil que no subían
+- Las fotos se comprimían solo si pasaban de 4 MB, pero una foto de 4 MB ocupa ~5,3 MB al mandarla a la IA (su límite es 5 MB), y las del iPhone (HEIC) o formatos raros no se convertían. Por eso a los autónomos "de 5 fotos subía 1".
+- Ahora toda foto que no sea un JPG/PNG ligero se convierte en el propio móvil a JPG de 1,5 MB como máximo (2000 px, bien girada), que se lee igual de bien.
+- Si una foto aun así no se puede convertir, sale un aviso claro y queda en el chivato con su formato y tamaño, para saber qué móvil falla.
+
 ## v1355 — 27/11/2026 · Subir albaranes en ZIP
 - En SUBIR ya se puede arrastrar (o elegir) un ZIP, por ejemplo los "EPOD" de CEMEX: la app lo abre sola y sube los PDF y fotos que lleva dentro, como si se hubieran arrastrado uno a uno. Sale un aviso con cuántos archivos ha sacado. Si alguno ya estaba subido, sale el aviso de "ya está subido" de la v1352.
 
